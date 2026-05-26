@@ -41,7 +41,12 @@
     import { mobileState } from "$lib/stores/mobile.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
-    import { getPinnedEventIds, findEventById } from "$lib/matrix/client";
+    import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
+    import {
+        getPinnedEventIds,
+        findEventById,
+        isLoudEvent,
+    } from "$lib/matrix/client";
     import { preventDefault } from "svelte/legacy";
 
     interface Props {
@@ -110,6 +115,8 @@
     let showMemberList = $state(false);
     let showRoomSettings = $state(false);
     let showPinnedPanel = $state(false);
+    let showNotificationsPanel = $state(false);
+    const showRightPanel = $derived(showPinnedPanel || showNotificationsPanel);
     const pinnedCount = $derived.by(() => {
         void roomsState.roomsTick;
         return getPinnedEventIds(room).length;
@@ -180,7 +187,7 @@
 
     // Keep global rightOpen in sync so left drawer can avoid conflicting gestures
     $effect(() => {
-        mobileState.rightOpen = isMobile && (showMemberList || showPinnedPanel);
+        mobileState.rightOpen = isMobile && (showMemberList || showRightPanel);
     });
 
     // Animated right drawer (mobile member list)
@@ -261,7 +268,7 @@
             mobileState.leftOpen ||
             mobileState.lightboxOpen ||
             mobileState.settingsOpen ||
-            showPinnedPanel
+            showRightPanel
         )
             return;
         memberDragStartX = e.touches[0].clientX;
@@ -286,7 +293,7 @@
 
     $effect(() => {
         if (!isPinnedDragging) {
-            pinnedTranslate = showPinnedPanel ? 0 : PINNED_WIDTH;
+            pinnedTranslate = showRightPanel ? 0 : PINNED_WIDTH;
         }
     });
 
@@ -325,8 +332,12 @@
         if (!isPinnedDragging) return;
         isPinnedDragging = false;
         const progress = (PINNED_WIDTH - pinnedTranslate) / PINNED_WIDTH;
-        showPinnedPanel = progress > 0.75; // close if dragged more than 25% away
-        pinnedTranslate = showPinnedPanel ? 0 : PINNED_WIDTH;
+        const stayOpen = progress > 0.75; // close if dragged more than 25% away
+        if (!stayOpen) {
+            showPinnedPanel = false;
+            showNotificationsPanel = false;
+        }
+        pinnedTranslate = stayOpen ? 0 : PINNED_WIDTH;
     }
 
     function cleanupPinnedListeners() {
@@ -338,7 +349,7 @@
     function pinnedDragStart(e: TouchEvent) {
         if (
             !isMobile ||
-            !showPinnedPanel ||
+            !showRightPanel ||
             isPinnedDragging ||
             pinnedDragPending ||
             mobileState.leftOpen ||
@@ -680,6 +691,7 @@
                     showPinnedPanel = !showPinnedPanel;
                     if (showPinnedPanel) {
                         showMemberList = false;
+                        showNotificationsPanel = false;
                     }
                 }}
                 class="p-1.5 rounded transition-colors {showPinnedPanel
@@ -695,12 +707,33 @@
                     /></svg
                 >
             </button>
+            <!-- Notifications inbox button -->
+            <button
+                onclick={() => {
+                    showNotificationsPanel = !showNotificationsPanel;
+                    if (showNotificationsPanel) {
+                        showMemberList = false;
+                        showPinnedPanel = false;
+                    }
+                }}
+                class="p-1.5 rounded transition-colors {showNotificationsPanel
+                    ? 'text-discord-accent bg-discord-messageHover'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                title="Notifications inbox"
+            >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
+                    ><path
+                        d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+                    /></svg
+                >
+            </button>
             <!-- Toggle member list -->
             <button
                 onclick={() => {
                     showMemberList = !showMemberList;
                     if (showMemberList) {
                         showPinnedPanel = false;
+                        showNotificationsPanel = false;
                     }
                 }}
                 class="p-1.5 rounded transition-colors {showMemberList
@@ -806,6 +839,7 @@
                     editRequested={editRequestedEventId === event.getId()}
                     onEditDone={() => messageInputEl?.focus()}
                     {receipts}
+                    loudHighlight={isLoudEvent(event)}
                 />
             {/each}
 
@@ -926,7 +960,7 @@
     <!-- Debug panel (Ctrl+Shift+D to toggle) -->
     <DebugPanel {room} />
 
-    <!-- Pinned messages panel (animated overlay on mobile, inline on desktop) -->
+    <!-- Right panel (pinned or notifications inbox) -->
     {#if isMobile}
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
         <div
@@ -936,7 +970,10 @@
                 ? 'auto'
                 : 'none'};"
             onclick={() => {
-                if (!isPinnedDragging) showPinnedPanel = false;
+                if (!isPinnedDragging) {
+                    showPinnedPanel = false;
+                    showNotificationsPanel = false;
+                }
             }}
         ></div>
         <div
@@ -948,12 +985,24 @@
                 ? ''
                 : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
         >
-            <PinnedMessagesPanel
-                {room}
-                onClose={() => (showPinnedPanel = false)}
-                onJumpTo={scrollToMessage}
-            />
+            {#if showNotificationsPanel}
+                <NotificationsPanel
+                    onClose={() => (showNotificationsPanel = false)}
+                    onJumpTo={(_rid, eid) => scrollToMessage(eid)}
+                />
+            {:else}
+                <PinnedMessagesPanel
+                    {room}
+                    onClose={() => (showPinnedPanel = false)}
+                    onJumpTo={scrollToMessage}
+                />
+            {/if}
         </div>
+    {:else if showNotificationsPanel}
+        <NotificationsPanel
+            onClose={() => (showNotificationsPanel = false)}
+            onJumpTo={(_rid, eid) => scrollToMessage(eid)}
+        />
     {:else if showPinnedPanel}
         <PinnedMessagesPanel
             {room}

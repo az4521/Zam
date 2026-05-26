@@ -51,6 +51,7 @@
         editRequested?: boolean;
         onEditDone?: () => void;
         receipts?: ReadReceiptInfo[];
+        loudHighlight?: boolean;
     }
 
     let {
@@ -62,6 +63,7 @@
         editRequested = false,
         onEditDone,
         receipts = [],
+        loudHighlight = false,
     }: Props = $props();
 
     const canPin = $derived.by(() => {
@@ -545,7 +547,9 @@
     bind:this={rootEl}
     class="{mobileState.isTouchscreen
         ? ''
-        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors"
+        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors {loudHighlight
+        ? 'bg-yellow-500/10 border-l-2 border-yellow-500'
+        : ''}"
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}
     onmouseleave={() => {

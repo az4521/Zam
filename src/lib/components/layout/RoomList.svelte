@@ -27,6 +27,7 @@
         setActiveRoom,
         setActiveSpace,
     } from "$lib/stores/rooms.svelte";
+    import { hasLoudInRoom } from "$lib/stores/notifications.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
@@ -248,7 +249,8 @@
         const isActive = roomsState.activeRoomId === room.roomId;
         roomsState.unreadTick; // track read receipt / new message changes
         const { unread, highlight } = getRoomUnreadInfo(room);
-        return { isActive, unread, highlight };
+        const loud = hasLoudInRoom(room.roomId);
+        return { isActive, unread: unread || loud, highlight, loud };
     }
 </script>
 
@@ -362,7 +364,7 @@
                     {roomsState.activeSpaceId ? "Channels" : "Rooms"}
                 </p>
                 {#each visibleRooms as room (room.roomId)}
-                    {@const { isActive, unread, highlight } = roomButton(room)}
+                    {@const { isActive, unread, highlight, loud } = roomButton(room)}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                         class="group/room flex items-center transition-colors"
@@ -392,7 +394,7 @@
                             >
                                 {#if unread && !isActive}
                                     <span
-                                        class="w-2 h-2 rounded-full {highlight
+                                        class="w-2 h-2 rounded-full {loud || highlight
                                             ? 'bg-discord-danger'
                                             : 'bg-white'} flex-shrink-0"
                                     ></span>
@@ -542,7 +544,7 @@
                     Direct Messages
                 </p>
                 {#each roomsState.directRooms as room (room.roomId)}
-                    {@const { isActive, unread, highlight } = roomButton(room)}
+                    {@const { isActive, unread, highlight, loud } = roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
                     <button
                         onclick={() => setActiveRoom(room.roomId)}
@@ -568,7 +570,7 @@
                             />
                             {#if unread && !isActive}
                                 <span
-                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {highlight
+                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud || highlight
                                         ? 'bg-discord-danger'
                                         : 'bg-white'}"
                                 ></span>

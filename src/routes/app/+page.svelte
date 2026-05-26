@@ -18,6 +18,10 @@
     import { mobileState } from "$lib/stores/mobile.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import {
+        markLoudNotification,
+        clearReadNotifications,
+    } from "$lib/stores/notifications.svelte";
+    import {
         getSpaces,
         getOrphanRooms,
         getDirectRooms,
@@ -229,22 +233,45 @@
         const pingAudio = new Audio("/sounds/ping.mp3");
 
         const unsubRooms = onRoomUpdate(() => scheduleRefreshRooms());
-        const unsubTimeline = onTimelineEvent((event) => {
+        const unsubTimeline = onTimelineEvent((event, room) => {
             bumpUnreadTick();
             if (event.getSender() !== getOwnUserId()) {
                 const actions = getClient()?.getPushActionsForEvent(event);
                 if (actions?.notify) {
-                    const soundEnabled =
-                        localStorage.getItem("notifSoundEnabled") !== "false";
                     const hasSound = (actions.tweaks as any)?.sound;
-                    if (soundEnabled && hasSound) {
-                        pingAudio.currentTime = 0;
-                        pingAudio.play().catch(() => {});
+                    if (hasSound) {
+                        const soundEnabled =
+                            localStorage.getItem("notifSoundEnabled") !==
+                            "false";
+                        if (soundEnabled) {
+                            pingAudio.currentTime = 0;
+                            pingAudio.play().catch(() => {});
+                        }
+                        const content = event.getContent() as any;
+                        const body =
+                            typeof content?.body === "string"
+                                ? content.body
+                                : "";
+                        markLoudNotification({
+                            roomId: room.roomId,
+                            eventId: event.getId()!,
+                            ts: event.getTs(),
+                            sender: event.getSender() ?? "",
+                            body,
+                        });
                     }
                 }
             }
         });
-        const unsubReceipts = onAnyReceiptEvent(() => bumpUnreadTick());
+        const unsubReceipts = onAnyReceiptEvent(() => {
+            bumpUnreadTick();
+            const userId = getOwnUserId();
+            const client = getClient();
+            if (!userId || !client) return;
+            for (const room of client.getRooms()) {
+                clearReadNotifications(room, userId);
+            }
+        });
         const unsubFavourites = initFavourites();
         const unsubAccountData = onAccountData((type) => {
             if (

@@ -9,9 +9,14 @@ Messaging
 - Message search
 - Threads/replies as collapsible threads
 - Sending voice messages (m.audio recording)
-- Push notifications (via a push gateway/service worker)
 - Message forwarding
 - Polls (m.poll / MSC3381)
+- Location sharing (m.location)
+- Slash commands (/me, /shrug, /join, /invite, /kick)
+- Spoiler rendering (||spoiler||)
+- Code block syntax highlighting
+- Composer drafts (persist typed text per-room across switches)
+- Web push notifications (service worker + VAPID — Android FCM is wired up but browser push isn't)
 
 Rooms
 
@@ -20,8 +25,8 @@ Rooms
 - Knock to join (requesting access to invite-only rooms)
 - Notification badge on browser tab (favicon)
 - Moderation (kick/ban/deleting messages)
-- Nested spaces
 - matrix.to / matrix: URI link handling
+- Server admin tools (Synapse admin API)
 
 User
 
@@ -32,6 +37,9 @@ User
 - SSO / OAuth login
 - Device / session management
 - Account settings (password change, deactivation)
+- Multi-account / account switcher
+- Identity server / 3PID invites (invite by email)
+- Custom notification keyword rules UI
 
 Encryption
 
@@ -42,7 +50,20 @@ Encryption
 Media
 
 - Audio / video calling (WebRTC)
+- Custom emoji upload UI / pack management
+- Image gallery / attachment browser
 - Better URL previews (Blocked by Tuwunel)
+
+UI / Polish
+
+- Light theme / theme switching
+- Empty-state illustrations
+- First-run / onboarding flow
+- Accessibility audit (focus trapping, ARIA)
+
+Platform
+
+- iOS app packaging (Capacitor iOS target)
 
 feel free to try it out :) i host a copy at https://matrix.crafty.moe/
 

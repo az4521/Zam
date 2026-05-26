@@ -26,48 +26,62 @@
         setActiveSpace,
         setActiveRoom,
     } from "$lib/stores/rooms.svelte";
+    import {
+        hasLoudInRoom,
+        hasLoudInSpace,
+    } from "$lib/stores/notifications.svelte";
 
     function getSpaceNotifs(
         spaceId: string,
         visited = new Set<string>(),
-    ): { unread: boolean; highlight: boolean } {
+    ): { unread: boolean; highlight: boolean; loud: boolean } {
         void roomsState.unreadTick;
-        if (visited.has(spaceId)) return { unread: false, highlight: false };
+        if (visited.has(spaceId))
+            return { unread: false, highlight: false, loud: false };
         visited.add(spaceId);
+        const loud = hasLoudInSpace(spaceId);
         const rooms = getRoomsInSpace(spaceId);
-        let unread = false;
-        let highlight = false;
-        for (const r of rooms) {
-            const info = getRoomUnreadInfo(r);
-            if (info.highlight) return { unread: true, highlight: true };
-            if (info.unread) unread = true;
-        }
-        // Also check sub-spaces
-        for (const childId of getSpaceChildIds(spaceId)) {
-            const child = getRoom(childId);
-            if (!child?.isSpaceRoom()) continue;
-            const info = getSpaceNotifs(childId, visited);
-            if (info.highlight) return { unread: true, highlight: true };
-            if (info.unread) unread = true;
-        }
-        return { unread, highlight };
-    }
-
-    function getHomeNotifs(): { unread: boolean; highlight: boolean } {
-        void roomsState.unreadTick;
-        const rooms = [...getOrphanRooms(), ...getDirectRooms()];
-        let unread = false;
+        let unread = loud;
         let highlight = false;
         for (const r of rooms) {
             const info = getRoomUnreadInfo(r);
             if (info.highlight) {
-                unread = true;
                 highlight = true;
-                break;
-            }
+                unread = true;
+            } else if (info.unread) unread = true;
+        }
+        for (const childId of getSpaceChildIds(spaceId)) {
+            const child = getRoom(childId);
+            if (!child?.isSpaceRoom()) continue;
+            const info = getSpaceNotifs(childId, visited);
+            if (info.highlight) highlight = true;
             if (info.unread) unread = true;
         }
-        return { unread, highlight };
+        return { unread, highlight, loud };
+    }
+
+    function getHomeNotifs(): {
+        unread: boolean;
+        highlight: boolean;
+        loud: boolean;
+    } {
+        void roomsState.unreadTick;
+        const rooms = [...getOrphanRooms(), ...getDirectRooms()];
+        let unread = false;
+        let highlight = false;
+        let loud = false;
+        for (const r of rooms) {
+            if (hasLoudInRoom(r.roomId)) {
+                loud = true;
+                unread = true;
+            }
+            const info = getRoomUnreadInfo(r);
+            if (info.highlight) {
+                highlight = true;
+                unread = true;
+            } else if (info.unread) unread = true;
+        }
+        return { unread, highlight, loud };
     }
 
     interface Props {
@@ -787,7 +801,7 @@
                 ></div>
             {:else if n.unread}
                 <div
-                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.highlight
+                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.loud || n.highlight
                         ? 'h-4 bg-discord-danger'
                         : 'h-2 bg-white'}"
                 ></div>
@@ -855,7 +869,7 @@
                     ></div>
                 {:else if spaceNotifs.unread}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.highlight
+                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.loud || spaceNotifs.highlight
                             ? 'h-4 bg-discord-danger'
                             : 'h-2 bg-white'}"
                     ></div>
@@ -880,9 +894,10 @@
                     return {
                         unread: acc.unread || n.unread,
                         highlight: acc.highlight || n.highlight,
+                        loud: acc.loud || n.loud,
                     };
                 },
-                { unread: false, highlight: false },
+                { unread: false, highlight: false, loud: false },
             )}
             <div
                 class="flex flex-col items-center gap-1 flex-shrink-0"
@@ -958,7 +973,7 @@
                         ></div>
                     {:else if folderNotifs.unread && !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.highlight
+                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.loud || folderNotifs.highlight
                                 ? 'h-4 bg-discord-danger'
                                 : 'h-2 bg-white'}"
                         ></div>
@@ -1032,7 +1047,7 @@
                                     ></div>
                                 {:else if isn.unread}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.highlight
+                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.loud || isn.highlight
                                             ? 'h-3 bg-discord-danger'
                                             : 'h-1.5 bg-white'}"
                                     ></div>

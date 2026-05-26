@@ -588,6 +588,69 @@ export function getOwnUserId(): string | null {
     return matrixClient?.getUserId() ?? null;
 }
 
+/** Returns true if this event matches a push rule that would play a sound. */
+export function isLoudEvent(event: MatrixEvent): boolean {
+    if (!matrixClient) return false;
+    if (event.getSender() === matrixClient.getUserId()) return false;
+    try {
+        const actions = matrixClient.getPushActionsForEvent(event);
+        return !!(actions?.notify && (actions.tweaks as any)?.sound);
+    } catch {
+        return false;
+    }
+}
+
+export interface ServerNotification {
+    actions: unknown[];
+    event: MatrixEvent;
+    profile_tag: string | null;
+    read: boolean;
+    room_id: string;
+    ts: number;
+}
+
+/**
+ * Fetches the user's notification history from the homeserver via
+ * `GET /_matrix/client/v3/notifications`. Returns null if the server
+ * doesn't support it (e.g. 404).
+ */
+export async function fetchServerNotifications(
+    limit = 50,
+    from?: string,
+): Promise<{
+    notifications: ServerNotification[];
+    nextToken?: string;
+} | null> {
+    if (!matrixClient) return null;
+    const params: Record<string, string> = { limit: String(limit) };
+    if (from) params.from = from;
+    try {
+        const res: any = await (matrixClient as any).http.authedRequest(
+            "GET",
+            "/notifications",
+            params,
+        );
+        const mapper = matrixClient.getEventMapper();
+        const notifications: ServerNotification[] = (
+            res?.notifications ?? []
+        ).map((n: any) => ({
+            actions: n.actions ?? [],
+            event: mapper(n.event),
+            profile_tag: n.profile_tag ?? null,
+            read: !!n.read,
+            room_id: n.room_id,
+            ts: n.ts,
+        }));
+        return { notifications, nextToken: res?.next_token };
+    } catch (err: any) {
+        if (err?.httpStatus === 404 || err?.errcode === "M_UNRECOGNIZED") {
+            return null;
+        }
+        console.warn("[notifications] fetch failed:", err);
+        return null;
+    }
+}
+
 export function getOwnAvatarUrl(): string | null {
     const userId = matrixClient?.getUserId();
     if (!userId) return null;
