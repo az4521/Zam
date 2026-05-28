@@ -659,7 +659,7 @@
         <div class="flex gap-2 mb-2 overflow-x-auto pb-1">
             {#each fileQueue as item, i}
                 <div
-                    class="relative flex-shrink-0 flex flex-col items-center gap-1 w-20"
+                    class="relative flex-shrink-0 flex flex-col items-center gap-1 w-20 p-2"
                 >
                     <!-- Thumbnail or file icon -->
                     <div
@@ -691,7 +691,7 @@
                     <!-- Remove button -->
                     <button
                         onclick={() => removeFromQueue(i)}
-                        class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
+                        class="absolute -top-0 -right-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
                         title="Remove"
                     >
                         <svg
