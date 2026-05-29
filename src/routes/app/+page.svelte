@@ -46,6 +46,8 @@
     } from "$lib/matrix/client";
     import type { Room } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
+    import { Capacitor } from "@capacitor/core";
+    import { App } from "@capacitor/app";
 
     // Room shown in the RoomSettings modal (covers both room and space settings).
     let settingsRoom = $state<Room | null>(null);
@@ -232,21 +234,19 @@
         }
     }
 
+    // On native (Capacitor) the hardware back button is handled directly via the
+    // App plugin's backButton event (see onMount), so the web history guard is
+    // only needed in the browser.
     // Keep a history "guard" entry on the stack whenever there's something the
     // back button should intercept (a modal, a sidebar, or the closed drawer).
     function ensureBackGuard() {
-        console.log("ensureBackGuard", interfaceState.isMobile, history.state)
+        if (Capacitor.isNativePlatform()) return;
         if (!interfaceState.isMobile) return;
         if ((history.state as { matrixBackGuard?: boolean })?.matrixBackGuard)
             return;
         setTimeout(() => {
-            history.pushState(
-                { matrixBackGuard: true },
-                "",
-                window.location.href,
-            );
-            console.log(history.state)
-        }, 0)
+            history.pushState({ matrixBackGuard: true }, "", location.href);
+        }, 0);
     }
     $effect(() => {
         if (
@@ -258,6 +258,17 @@
             ensureBackGuard();
         }
     });
+
+    /** Shared back action: dismiss modal → sidebar → open drawer.
+     *  Returns false when nothing was handled (caller decides: navigate / exit). */
+    function handleBack(): boolean {
+        if (dismissTopmost()) return true;
+        if (!interfaceState.leftOpen) {
+            interfaceState.leftOpen = true;
+            return true;
+        }
+        return false;
+    }
 
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     function scheduleRefreshRooms() {
@@ -392,26 +403,37 @@
                 refreshRooms();
         });
 
-        // Mobile back button (single popstate listener; see ensureBackGuard).
-        let lastBackTs = 0;
-        const onPopState = () => {
-            if (!interfaceState.isMobile) return;
-            const now = Date.now();
-            if (now - lastBackTs < 100) return; // dedupe double-fire
-            lastBackTs = now;
-            if (dismissTopmost()) {
-                ensureBackGuard()
-            } else if (!interfaceState.leftOpen) {
-                interfaceState.leftOpen = true;
-                ensureBackGuard()
-            } else {
-                // Nothing to dismiss & drawer open → real back navigation.
-                window.removeEventListener("popstate", onPopState);
-                history.back();
-            }
-        };
-        window.addEventListener("popstate", onPopState);
-        ensureBackGuard();
+        // ── Back button ───────────────────────────────────────────────────
+        // Native (Capacitor): the hardware back button fires the App plugin's
+        // backButton event. Run the shared dismiss logic; exit the app only
+        // when there's nothing left to dismiss.
+        // Web: intercept popstate against a pushed history "guard" entry.
+        let nativeBackHandle: { remove: () => void } | undefined;
+        let onPopState: (() => void) | undefined;
+
+        if (Capacitor.isNativePlatform()) {
+            App.addListener("backButton", () => {
+                if (handleBack()) return;
+                App.exitApp();
+            }).then((h) => (nativeBackHandle = h));
+        } else {
+            let lastBackTs = 0;
+            onPopState = () => {
+                if (!interfaceState.isMobile) return;
+                const now = Date.now();
+                if (now - lastBackTs < 100) return; // dedupe double-fire
+                lastBackTs = now;
+                if (handleBack()) {
+                    ensureBackGuard();
+                } else {
+                    // Nothing to dismiss & drawer open → real back navigation.
+                    window.removeEventListener("popstate", onPopState!);
+                    history.back();
+                }
+            };
+            window.addEventListener("popstate", onPopState);
+            ensureBackGuard();
+        }
 
         return () => {
             unsubRooms();
@@ -420,7 +442,9 @@
             unsubFavourites();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
-            window.removeEventListener("popstate", onPopState);
+            nativeBackHandle?.remove();
+            if (onPopState)
+                window.removeEventListener("popstate", onPopState);
         };
     });
 
