@@ -7,7 +7,7 @@
         type CustomEmoji,
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -40,7 +40,7 @@
     let revealedSections = $state(new Set<string>());
 
     $effect(() => {
-        if (!mobileState.isTouchscreen) searchEl?.focus();
+        if (!interfaceState.isTouchscreen) searchEl?.focus();
     });
 
     // Scroll the tab bar so the active tab button is visible
@@ -248,18 +248,7 @@
             onClose();
             return;
         }
-        if (e.ctrlKey && e.key === "e") {
-            e.preventDefault();
-            onClose();
-        }
-        if (e.ctrlKey && e.key === "s") {
-            e.preventDefault();
-            onSwitchToSticker?.();
-        }
-        if (e.ctrlKey && e.key === "g") {
-            e.preventDefault();
-            onSwitchToGif?.();
-        }
+        // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
     }
 
     function onSearchKeydown(e: KeyboardEvent) {
@@ -329,16 +318,16 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-    class="{mobileState.isTouchscreen
+    class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
         : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={mobileState.isTouchscreen
+    style={interfaceState.isTouchscreen
         ? "max-height: 50dvh;"
         : "max-height: 380px;"}
     onkeydown={onKeydown}
     onwheel={(e) => e.stopPropagation()}
 >
-    {#if mobileState.isTouchscreen && (onSwitchToSticker || onSwitchToGif)}
+    {#if interfaceState.isTouchscreen && (onSwitchToSticker || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             <button
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"

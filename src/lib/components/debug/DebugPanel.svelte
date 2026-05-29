@@ -6,6 +6,7 @@
         getRoomUnreadInfo,
     } from "$lib/matrix/client";
     import { getMessages } from "$lib/stores/messages.svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
     import { tick } from "svelte";
 
     interface Props {
@@ -14,21 +15,16 @@
 
     let { room }: Props = $props();
 
-    let visible = $state(false);
     let refreshTick = $state(0);
 
     function refresh() {
         refreshTick++;
     }
 
-    // Keyboard shortcut: Ctrl+Shift+D
-    function onKeydown(e: KeyboardEvent) {
-        if (e.ctrlKey && e.shiftKey && e.key === "D") {
-            e.preventDefault();
-            visible = !visible;
-            if (visible) refresh();
-        }
-    }
+    // Visibility is toggled by the global Ctrl+Shift+D shortcut (+page.svelte).
+    $effect(() => {
+        if (interfaceState.debugOpen) refresh();
+    });
 
     const syncState = $derived.by(() => {
         refreshTick;
@@ -188,15 +184,13 @@
     }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-{#if visible}
+{#if interfaceState.debugOpen}
     <div class="fixed inset-0 z-[9999] flex items-stretch pointer-events-none">
         <!-- Click-away overlay -->
         <div
             class="absolute inset-0 bg-black/40 pointer-events-auto"
             role="presentation"
-            onclick={() => (visible = false)}
+            onclick={() => (interfaceState.debugOpen = false)}
         ></div>
 
         <!-- Panel -->
@@ -227,7 +221,7 @@
                         {copyDone ? "✓ copied" : "⧉ copy"}
                     </button>
                     <button
-                        onclick={() => (visible = false)}
+                        onclick={() => (interfaceState.debugOpen = false)}
                         class="text-xs px-2 py-0.5 rounded bg-[#4a2a2a] hover:bg-[#5a3a3a] font-mono"
                         >✕</button
                     >

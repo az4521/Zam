@@ -38,7 +38,11 @@
         removeFavouriteGif,
         favouritesState,
     } from "$lib/stores/favourites.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import {
+        interfaceState,
+        openModal,
+        closeModal,
+    } from "$lib/stores/interface.svelte";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -77,17 +81,28 @@
         return getPinnedEventIds(room).includes(eventId);
     });
 
+    // Reaction emoji picker. Local boolean drives this instance's render; the
+    // shared modal slot ("reaction-picker") provides mutual exclusion across
+    // messages plus central Escape/back dismissal.
     let showEmojiPicker = $state(false);
     let emojiPickerEl: HTMLDivElement | undefined = $state();
 
+    function openReactionPicker() {
+        showEmojiPicker = true;
+        openModal("reaction-picker", () => {
+            showEmojiPicker = false;
+            interfaceState.selectedMessageId = null;
+        });
+    }
+
     $effect(() => {
-        if (showEmojiPicker && !mobileState.isTouchscreen) {
+        if (showEmojiPicker && !interfaceState.isTouchscreen) {
             const handler = (e: MouseEvent) => {
                 if (
                     emojiPickerEl &&
                     !emojiPickerEl.contains(e.target as Node)
                 ) {
-                    showEmojiPicker = false;
+                    closeModal();
                 }
             };
             document.addEventListener("mousedown", handler);
@@ -98,7 +113,7 @@
 
     let keyboardOffset = $state(0);
     $effect(() => {
-        if (!mobileState.isTouchscreen) {
+        if (!interfaceState.isTouchscreen) {
             keyboardOffset = 0;
             return;
         }
@@ -166,7 +181,7 @@
     const reactionTick = $derived(messagesState.reactionTick);
     const eventId = $derived(event.getId() ?? "");
     const mobileSelected = $derived(
-        mobileState.isTouchscreen && mobileState.selectedMessageId === eventId,
+        interfaceState.isTouchscreen && interfaceState.selectedMessageId === eventId,
     );
     const isOwnMessage = $derived(event.getSender() === auth.userId);
     const isEdited = $derived.by(() => {
@@ -510,14 +525,11 @@
 {#if showEmojiPicker}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    {#if mobileState.isTouchscreen}<div
+    {#if interfaceState.isTouchscreen}<div
             class="fixed inset-0 z-40"
-            onclick={() => {
-                showEmojiPicker = false;
-                mobileState.selectedMessageId = null;
-            }}
+            onclick={closeModal}
         ></div>{/if}
-    {#if mobileState.isTouchscreen}
+    {#if interfaceState.isTouchscreen}
         <div
             class="fixed left-0 right-0 z-50"
             style="bottom: {keyboardOffset}px;"
@@ -525,18 +537,13 @@
             <EmojiPicker
                 onSelect={async (emoji) => {
                     await sendReaction(room.roomId, eventId, emoji);
-                    showEmojiPicker = false;
-                    mobileState.selectedMessageId = null;
+                    closeModal();
                 }}
                 onSelectCustom={async (emoji) => {
                     await sendReaction(room.roomId, eventId, emoji.mxcUrl);
-                    showEmojiPicker = false;
-                    mobileState.selectedMessageId = null;
+                    closeModal();
                 }}
-                onClose={() => {
-                    showEmojiPicker = false;
-                    mobileState.selectedMessageId = null;
-                }}
+                onClose={closeModal}
             />
         </div>
     {/if}
@@ -545,7 +552,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
     bind:this={rootEl}
-    class="{mobileState.isTouchscreen
+    class="{interfaceState.isTouchscreen
         ? ''
         : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors {loudHighlight
         ? 'bg-yellow-500/10 border-l-2 border-yellow-500'
@@ -556,8 +563,8 @@
         if (!confirmingDelete) return;
     }}
     onclick={() => {
-        if (mobileState.isTouchscreen)
-            mobileState.selectedMessageId = mobileSelected ? null : eventId;
+        if (interfaceState.isTouchscreen)
+            interfaceState.selectedMessageId = mobileSelected ? null : eventId;
     }}
     data-event-id={eventId}
 >
@@ -1127,10 +1134,14 @@
             <button
                 bind:this={reactionBtnEl}
                 onclick={() => {
-                    emojiPickerBelow =
-                        (reactionBtnEl?.getBoundingClientRect().top ?? 400) <
-                        400;
-                    showEmojiPicker = !showEmojiPicker;
+                    if (showEmojiPicker) {
+                        closeModal();
+                    } else {
+                        emojiPickerBelow =
+                            (reactionBtnEl?.getBoundingClientRect().top ??
+                                400) < 400;
+                        openReactionPicker();
+                    }
                 }}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title="Add reaction"
@@ -1142,7 +1153,7 @@
                     />
                 </svg>
             </button>
-            {#if showEmojiPicker && !mobileState.isTouchscreen}
+            {#if showEmojiPicker && !interfaceState.isTouchscreen}
                 <div
                     bind:this={emojiPickerEl}
                     class={emojiPickerBelow
@@ -1152,7 +1163,7 @@
                     <EmojiPicker
                         onSelect={async (emoji) => {
                             await sendReaction(room.roomId, eventId, emoji);
-                            showEmojiPicker = false;
+                            closeModal();
                         }}
                         onSelectCustom={async (emoji) => {
                             await sendReaction(
@@ -1160,9 +1171,9 @@
                                 eventId,
                                 emoji.mxcUrl,
                             );
-                            showEmojiPicker = false;
+                            closeModal();
                         }}
-                        onClose={() => (showEmojiPicker = false)}
+                        onClose={closeModal}
                     />
                 </div>
             {/if}

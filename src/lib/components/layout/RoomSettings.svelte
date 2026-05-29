@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { Room, RoomMember } from "matrix-js-sdk";
-    import { onMount, onDestroy, untrack } from "svelte";
+    import { untrack } from "svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
         getMyPowerLevel,
@@ -31,7 +31,6 @@
 
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
 
     interface Props {
         room: Room;
@@ -329,13 +328,6 @@
         }
     }
 
-    onMount(() => {
-        mobileState.settingsOpen = true;
-    });
-    onDestroy(() => {
-        mobileState.settingsOpen = false;
-    });
-
     const tabs: { id: Tab; label: string }[] = [
         { id: "general", label: "General" },
         { id: "access", label: "Access" },
@@ -347,11 +339,6 @@
     ];
 </script>
 
-<svelte:window
-    onkeydown={(e) => {
-        if (e.key === "Escape") onClose();
-    }}
-/>
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div

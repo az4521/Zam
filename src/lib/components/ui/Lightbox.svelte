@@ -5,24 +5,25 @@
         onClose: () => void;
     }
 
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import {
+        interfaceState,
+        openModal,
+        clearModal,
+    } from "$lib/stores/interface.svelte";
     import { onMount } from "svelte";
 
     let { src, alt = "", onClose }: Props = $props();
 
     onMount(() => {
-        mobileState.lightboxOpen = true;
+        interfaceState.lightboxOpen = true;
+        // Register in the shared modal slot so Escape/back close it centrally.
+        openModal("lightbox", onClose);
         return () => {
-            mobileState.lightboxOpen = false;
+            interfaceState.lightboxOpen = false;
+            clearModal("lightbox");
         };
     });
-
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") onClose();
-    }
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -38,9 +39,9 @@
         {src}
         {alt}
         onclick={(e) => e.stopPropagation()}
-        style="max-width: calc(100dvw - {mobileState.isMobile
+        style="max-width: calc(100dvw - {interfaceState.isMobile
             ? '6em'
-            : '2em'}); max-height: calc(100dvh - {mobileState.isMobile
+            : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
             ? '6em'
             : '2em'}); object-fit: contain; border-radius: 0.5em;"
     />

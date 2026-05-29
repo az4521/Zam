@@ -23,7 +23,11 @@
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import {
+        interfaceState,
+        closeModal,
+        openComposerPicker,
+    } from "$lib/stores/interface.svelte";
 
     interface Props {
         roomId: string;
@@ -57,6 +61,15 @@
     let isSending = $state(false);
     let fileQueue = $state<QueuedFile[]>([]);
     let textareaEl: HTMLTextAreaElement | undefined = $state();
+
+    // Expose a focus hook so the global "type to focus" shortcut (+page) can
+    // focus this composer.
+    $effect(() => {
+        interfaceState.focusComposer = () => textareaEl?.focus();
+        return () => {
+            if (interfaceState.focusComposer) interfaceState.focusComposer = null;
+        };
+    });
     let fileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -239,15 +252,26 @@
     export function addFiles(files: File[]) {
         for (const file of files) enqueueFile(file);
     }
-    let showEmojiPicker = $state(false);
-    let showStickerPicker = $state(false);
-    let showGifPicker = $state(false);
+    // Composer pickers share the single interfaceState.modal "composer-picker"
+    // slot; pickerKind says which one is shown.
+    const composerPickerOpen = $derived(
+        interfaceState.modal === "composer-picker",
+    );
+    const showEmojiPicker = $derived(
+        composerPickerOpen && interfaceState.composerPicker === "emoji",
+    );
+    const showStickerPicker = $derived(
+        composerPickerOpen && interfaceState.composerPicker === "sticker",
+    );
+    const showGifPicker = $derived(
+        composerPickerOpen && interfaceState.composerPicker === "gif",
+    );
     let textareaFocusedBeforePicker = false;
 
     // Track keyboard height on mobile so pickers stay above it
     let keyboardOffset = $state(0);
     $effect(() => {
-        if (!mobileState.isTouchscreen) {
+        if (!interfaceState.isTouchscreen) {
             keyboardOffset = 0;
             return;
         }
@@ -269,22 +293,18 @@
     });
 
     function anyPickerOpen() {
-        return showEmojiPicker || showStickerPicker || showGifPicker;
+        return composerPickerOpen;
     }
 
     function openPicker(which: "emoji" | "sticker" | "gif") {
         if (!anyPickerOpen()) {
             textareaFocusedBeforePicker = document.activeElement === textareaEl;
         }
-        showEmojiPicker = which === "emoji" ? !showEmojiPicker : false;
-        showStickerPicker = which === "sticker" ? !showStickerPicker : false;
-        showGifPicker = which === "gif" ? !showGifPicker : false;
+        openComposerPicker(which);
     }
 
-    function closePicker(which: "emoji" | "sticker" | "gif", refocus: boolean) {
-        if (which === "emoji") showEmojiPicker = false;
-        else if (which === "sticker") showStickerPicker = false;
-        else showGifPicker = false;
+    function closePicker(_which: "emoji" | "sticker" | "gif", refocus: boolean) {
+        closeModal();
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
     }
 
@@ -471,37 +491,30 @@
             }
         }
 
-        if (e.key === "Enter" && !e.shiftKey && !mobileState.isTouchscreen) {
+        // Send on a *physical* Enter. Virtual/soft keyboards (Android) and IME
+        // composition report keyCode 229 / isComposing — treat those as a
+        // newline. Phones always treat Enter as newline (use the send button).
+        const physicalEnter =
+            e.key === "Enter" &&
+            !e.shiftKey &&
+            !e.isComposing &&
+            (e as KeyboardEvent & { keyCode: number }).keyCode !== 229;
+        if (physicalEnter && !interfaceState.isMobile) {
             e.preventDefault();
             send();
         }
-        if (e.key === "Escape") {
-            if (showEmojiPicker) {
-                showEmojiPicker = false;
-                return;
-            }
-            if (showStickerPicker) {
-                showStickerPicker = false;
-                return;
-            }
-            if (showGifPicker) {
-                showGifPicker = false;
-                return;
-            }
-            if (replyToEvent) onCancelReply?.();
+        // Picker dismissal is handled centrally (+page Escape/back). Here we
+        // only cancel an in-progress reply, and only when nothing else is open.
+        if (
+            e.key === "Escape" &&
+            !interfaceState.modal &&
+            !interfaceState.sidebar &&
+            replyToEvent
+        ) {
+            onCancelReply?.();
         }
-        if (e.ctrlKey && e.key === "e") {
-            e.preventDefault();
-            openPicker("emoji");
-        }
-        if (e.ctrlKey && e.key === "s") {
-            e.preventDefault();
-            openPicker("sticker");
-        }
-        if (e.ctrlKey && e.key === "g") {
-            e.preventDefault();
-            openPicker("gif");
-        }
+        // Ctrl+E / Ctrl+S / Ctrl+G (open pickers) are global shortcuts handled
+        // centrally in +page.svelte.
         if (e.key === "ArrowUp" && !text) {
             e.preventDefault();
             onRequestEditLast?.();
@@ -510,19 +523,19 @@
 
     function insertGif(url: string) {
         text = text ? text + " " + url : url;
-        showGifPicker = false;
+        closeModal();
         textareaEl?.focus();
     }
 
     function insertEmoji(emoji: string) {
         text += emoji;
-        showEmojiPicker = false;
+        closeModal();
         textareaEl?.focus();
     }
 
     function insertCustomEmoji(emoji: CustomEmoji) {
         text += `:${emoji.shortcode}:`;
-        showEmojiPicker = false;
+        closeModal();
         textareaEl?.focus();
     }
 
@@ -834,7 +847,7 @@
             <button
                 onclick={() => openPicker("gif")}
                 {disabled}
-                class="{mobileState.isTouchscreen
+                class="{interfaceState.isTouchscreen
                     ? 'hidden'
                     : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Favourite GIFs"
@@ -849,10 +862,10 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
                 <div
                     class="fixed inset-0 z-40"
-                    onclick={() => (showGifPicker = false)}
-                    onkeydown={() => (showGifPicker = false)}
+                    onclick={closeModal}
+                    onkeydown={closeModal}
                 ></div>
-                {#if mobileState.isTouchscreen}
+                {#if interfaceState.isTouchscreen}
                     <div
                         class="fixed left-0 right-0 z-50"
                         style="bottom: {keyboardOffset}px;"
@@ -881,7 +894,7 @@
         <div class="relative flex-shrink-0">
             <button
                 onclick={() => openPicker("sticker")}
-                class="{mobileState.isTouchscreen
+                class="{interfaceState.isTouchscreen
                     ? 'hidden'
                     : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
                 title="Stickers"
@@ -897,10 +910,10 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
                 <div
                     class="fixed inset-0 z-40"
-                    onclick={() => (showStickerPicker = false)}
-                    onkeydown={() => (showStickerPicker = false)}
+                    onclick={closeModal}
+                    onkeydown={closeModal}
                 ></div>
-                {#if mobileState.isTouchscreen}
+                {#if interfaceState.isTouchscreen}
                     <div
                         class="fixed left-0 right-0 z-50"
                         style="bottom: {keyboardOffset}px;"
@@ -946,9 +959,9 @@
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <div
                     class="fixed inset-0 z-40"
-                    onclick={() => (showEmojiPicker = false)}
+                    onclick={closeModal}
                 ></div>
-                {#if mobileState.isTouchscreen}
+                {#if interfaceState.isTouchscreen}
                     <div
                         class="fixed left-0 right-0 z-50"
                         style="bottom: {keyboardOffset}px;"
@@ -1002,7 +1015,7 @@
             >
                 {typingText()}
             </p>
-        {:else if !mobileState.isTouchscreen}
+        {:else if !interfaceState.isTouchscreen}
             <p class="text-xs text-discord-textMuted">
                 <kbd class="font-mono">Enter</kbd> to send &middot;
                 <kbd class="font-mono">Shift+Enter</kbd> for new line

@@ -30,6 +30,7 @@
         hasLoudInRoom,
         hasLoudInSpace,
     } from "$lib/stores/notifications.svelte";
+    import { openModal, closeModal } from "$lib/stores/interface.svelte";
 
     function getSpaceNotifs(
         spaceId: string,
@@ -465,6 +466,7 @@
             y: e.clientY,
             touch: !(e instanceof MouseEvent),
         };
+        openModal("space-menu", () => (contextMenu = null));
     }
 
     function openFolderContextMenu(
@@ -479,6 +481,7 @@
             y: e.clientY,
             touch: !(e instanceof MouseEvent),
         };
+        openModal("space-menu", () => (contextMenu = null));
     }
 
     // --- Actions ---
@@ -487,7 +490,7 @@
         spaceId: string,
         setting: RoomNotificationSetting,
     ) {
-        contextMenu = null;
+        closeModal();
         // Apply to the space room itself and all its rooms recursively
         const allRoomIds = [spaceId];
         const collect = (id: string, visited = new Set<string>()) => {
@@ -506,7 +509,7 @@
     }
 
     async function handleLeaveSpace(spaceId: string) {
-        contextMenu = null;
+        closeModal();
         try {
             await leaveRoom(spaceId);
             if (roomsState.activeSpaceId === spaceId) setActiveSpace(null);
@@ -525,16 +528,16 @@
     let modalError = $state("");
 
     function openCreateRoom(spaceId: string) {
-        contextMenu = null;
         modalInput1 = "";
         modalInput2 = "";
         modalError = "";
         createRoomModal = { spaceId };
+        openModal("create-room", () => (createRoomModal = null));
     }
 
     function openAddRoom(spaceId: string) {
-        contextMenu = null;
         addRoomModal = { spaceId };
+        openModal("add-room", () => (addRoomModal = null));
     }
 
     async function submitCreateRoom() {
@@ -548,7 +551,7 @@
                 createRoomModal.spaceId,
             );
             setActiveRoom(roomId);
-            createRoomModal = null;
+            closeModal();
         } catch (e: any) {
             modalError = e?.data?.error ?? e?.message ?? "Something went wrong";
         } finally {
@@ -559,7 +562,7 @@
     async function submitAddRoom(roomId: string) {
         if (!addRoomModal) return;
         await addRoomToSpace(addRoomModal.spaceId, roomId);
-        addRoomModal = null;
+        closeModal();
     }
 
     function getRoomsNotInSpace(spaceId: string) {
@@ -570,7 +573,7 @@
     }
 
     function handleNewFolder(spaceId: string) {
-        contextMenu = null;
+        closeModal();
         const layout = getLayout();
         for (const fid in layout.folders) {
             layout.folders[fid].spaceIds = layout.folders[fid].spaceIds.filter(
@@ -591,7 +594,7 @@
     }
 
     function handleRemoveFromFolder(spaceId: string, folderId: string) {
-        contextMenu = null;
+        closeModal();
         const layout = getLayout();
         layout.folders[folderId].spaceIds = layout.folders[
             folderId
@@ -602,11 +605,11 @@
     }
 
     function openColorPicker(folderId: string) {
-        contextMenu = null;
         const current =
             roomsState.spaceLayout.folders[folderId]?.color ?? FOLDER_COLORS[0];
         setHsvFromHex(current);
         colorPicker = { folderId };
+        openModal("color-picker", () => (colorPicker = null));
     }
 
     function commitColor() {
@@ -614,12 +617,12 @@
         const layout = getLayout();
         if (!layout.folders[colorPicker.folderId]) return;
         layout.folders[colorPicker.folderId].color = cpHex;
-        colorPicker = null;
         saveLayout(layout);
+        closeModal();
     }
 
     function handleDissolveFolder(folderId: string) {
-        contextMenu = null;
+        closeModal();
         const layout = getLayout();
         const spaceIds = layout.folders[folderId]?.spaceIds ?? [];
         const folderIndex = layout.order.indexOf(folderId);
@@ -1086,7 +1089,7 @@
         <div
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onclick={(e) => {
-                if (e.target === e.currentTarget) colorPicker = null;
+                if (e.target === e.currentTarget) closeModal();
             }}
         >
             <div
@@ -1178,7 +1181,7 @@
                         >Save</button
                     >
                     <button
-                        onclick={() => (colorPicker = null)}
+                        onclick={closeModal}
                         class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
                         >Cancel</button
                     >
@@ -1229,14 +1232,13 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onclick={() => (createRoomModal = null)}
+            onclick={closeModal}
         >
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
                 onclick={(e) => e.stopPropagation()}
                 onkeydown={(e) => {
-                    if (e.key === "Escape") createRoomModal = null;
                     if (e.key === "Enter") submitCreateRoom();
                 }}
             >
@@ -1276,7 +1278,7 @@
                     </p>{/if}
                 <div class="flex justify-end gap-2 mt-1">
                     <button
-                        onclick={() => (createRoomModal = null)}
+                        onclick={closeModal}
                         disabled={modalLoading}
                         class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
                         >Cancel</button
@@ -1303,15 +1305,12 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onclick={() => (addRoomModal = null)}
+            onclick={closeModal}
         >
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
                 onclick={(e) => e.stopPropagation()}
-                onkeydown={(e) => {
-                    if (e.key === "Escape") addRoomModal = null;
-                }}
             >
                 <h2 class="text-lg font-bold text-discord-textPrimary">
                     Add existing room to space
@@ -1343,7 +1342,7 @@
                 {/if}
                 <div class="flex justify-end">
                     <button
-                        onclick={() => (addRoomModal = null)}
+                        onclick={closeModal}
                         class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                         >Cancel</button
                     >
@@ -1387,7 +1386,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
             class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
-            onclick={() => (contextMenu = null)}
+            onclick={closeModal}
         ></div>
         {#snippet menuContent()}
             {#if cm.kind === "space"}

@@ -38,8 +38,11 @@
         bumpReactionTick,
     } from "$lib/stores/messages.svelte";
     import { bumpUnreadTick, roomsState } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
-    import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
+    import {
+        interfaceState,
+        openSidebar,
+        closeSidebar,
+    } from "$lib/stores/interface.svelte";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
     import {
@@ -111,12 +114,19 @@
         await tick();
         editRequestedEventId = null;
     }
-    // untrack avoids the "captures initial value" warning - we intentionally want the initial prop value
-    let showMemberList = $state(false);
-    let showRoomSettings = $state(false);
-    let showPinnedPanel = $state(false);
-    let showNotificationsPanel = $state(false);
+    // Right-side panels live in the shared interfaceState.sidebar slot, so only
+    // one is ever open and the central Escape/back handler can dismiss them.
+    const showMemberList = $derived(interfaceState.sidebar === "members");
+    const showPinnedPanel = $derived(interfaceState.sidebar === "pinned");
+    const showNotificationsPanel = $derived(
+        interfaceState.sidebar === "notifications",
+    );
     const showRightPanel = $derived(showPinnedPanel || showNotificationsPanel);
+
+    function toggleSidebar(id: "members" | "pinned" | "notifications") {
+        if (interfaceState.sidebar === id) closeSidebar();
+        else openSidebar(id, () => {});
+    }
     const pinnedCount = $derived.by(() => {
         void roomsState.roomsTick;
         return getPinnedEventIds(room).length;
@@ -180,15 +190,6 @@
         }
     }
 
-    // Hide member list when switching to mobile (isMobile is set async in onMount)
-    $effect(() => {
-        if (isMobile) showMemberList = false;
-    });
-
-    // Keep global rightOpen in sync so left drawer can avoid conflicting gestures
-    $effect(() => {
-        mobileState.rightOpen = isMobile && (showMemberList || showRightPanel);
-    });
 
     // Animated right drawer (mobile member list)
     const MEMBER_WIDTH = 280;
@@ -250,8 +251,10 @@
         isMemberDragging = false;
         const progress = (MEMBER_WIDTH - memberTranslate) / MEMBER_WIDTH;
         const startedOpen = memberDragBase === 0;
-        showMemberList = startedOpen ? progress >= 0.75 : progress > 0.25;
-        memberTranslate = showMemberList ? 0 : MEMBER_WIDTH;
+        const open = startedOpen ? progress >= 0.75 : progress > 0.25;
+        if (open) openSidebar("members", () => {});
+        else if (interfaceState.sidebar === "members") closeSidebar();
+        memberTranslate = open ? 0 : MEMBER_WIDTH;
     }
 
     function cleanupMemberListeners() {
@@ -265,9 +268,9 @@
             !isMobile ||
             isMemberDragging ||
             memberDragPending ||
-            mobileState.leftOpen ||
-            mobileState.lightboxOpen ||
-            mobileState.settingsOpen ||
+            interfaceState.leftOpen ||
+            interfaceState.lightboxOpen ||
+            interfaceState.modal !== null ||
             showRightPanel
         )
             return;
@@ -333,10 +336,7 @@
         isPinnedDragging = false;
         const progress = (PINNED_WIDTH - pinnedTranslate) / PINNED_WIDTH;
         const stayOpen = progress > 0.75; // close if dragged more than 25% away
-        if (!stayOpen) {
-            showPinnedPanel = false;
-            showNotificationsPanel = false;
-        }
+        if (!stayOpen) closeSidebar();
         pinnedTranslate = stayOpen ? 0 : PINNED_WIDTH;
     }
 
@@ -352,8 +352,8 @@
             !showRightPanel ||
             isPinnedDragging ||
             pinnedDragPending ||
-            mobileState.leftOpen ||
-            mobileState.lightboxOpen ||
+            interfaceState.leftOpen ||
+            interfaceState.lightboxOpen ||
             showMemberList
         )
             return;
@@ -687,13 +687,7 @@
             {#if !topic}<div class="flex-1"></div>{/if}
             <!-- Pinned messages button -->
             <button
-                onclick={() => {
-                    showPinnedPanel = !showPinnedPanel;
-                    if (showPinnedPanel) {
-                        showMemberList = false;
-                        showNotificationsPanel = false;
-                    }
-                }}
+                onclick={() => toggleSidebar("pinned")}
                 class="p-1.5 rounded transition-colors {showPinnedPanel
                     ? 'text-discord-accent bg-discord-messageHover'
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
@@ -709,13 +703,7 @@
             </button>
             <!-- Notifications inbox button -->
             <button
-                onclick={() => {
-                    showNotificationsPanel = !showNotificationsPanel;
-                    if (showNotificationsPanel) {
-                        showMemberList = false;
-                        showPinnedPanel = false;
-                    }
-                }}
+                onclick={() => toggleSidebar("notifications")}
                 class="p-1.5 rounded transition-colors {showNotificationsPanel
                     ? 'text-discord-accent bg-discord-messageHover'
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
@@ -729,13 +717,7 @@
             </button>
             <!-- Toggle member list -->
             <button
-                onclick={() => {
-                    showMemberList = !showMemberList;
-                    if (showMemberList) {
-                        showPinnedPanel = false;
-                        showNotificationsPanel = false;
-                    }
-                }}
+                onclick={() => toggleSidebar("members")}
                 class="p-1.5 rounded transition-colors {showMemberList
                     ? 'text-discord-accent bg-discord-messageHover'
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
@@ -970,10 +952,7 @@
                 ? 'auto'
                 : 'none'};"
             onclick={() => {
-                if (!isPinnedDragging) {
-                    showPinnedPanel = false;
-                    showNotificationsPanel = false;
-                }
+                if (!isPinnedDragging) closeSidebar();
             }}
         ></div>
         <div
@@ -987,26 +966,26 @@
         >
             {#if showNotificationsPanel}
                 <NotificationsPanel
-                    onClose={() => (showNotificationsPanel = false)}
+                    onClose={closeSidebar}
                     onJumpTo={(_rid, eid) => scrollToMessage(eid)}
                 />
             {:else}
                 <PinnedMessagesPanel
                     {room}
-                    onClose={() => (showPinnedPanel = false)}
+                    onClose={closeSidebar}
                     onJumpTo={scrollToMessage}
                 />
             {/if}
         </div>
     {:else if showNotificationsPanel}
         <NotificationsPanel
-            onClose={() => (showNotificationsPanel = false)}
+            onClose={closeSidebar}
             onJumpTo={(_rid, eid) => scrollToMessage(eid)}
         />
     {:else if showPinnedPanel}
         <PinnedMessagesPanel
             {room}
-            onClose={() => (showPinnedPanel = false)}
+            onClose={closeSidebar}
             onJumpTo={scrollToMessage}
         />
     {/if}
@@ -1021,7 +1000,7 @@
                 ? 'auto'
                 : 'none'};"
             onclick={() => {
-                if (!isMemberDragging) showMemberList = false;
+                if (!isMemberDragging) closeSidebar();
             }}
         ></div>
         <div
@@ -1040,6 +1019,3 @@
     {/if}
 </div>
 
-{#if showRoomSettings}
-    <RoomSettings {room} onClose={() => (showRoomSettings = false)} />
-{/if}

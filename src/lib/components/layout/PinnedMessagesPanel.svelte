@@ -12,7 +12,7 @@
         getRoomPowerLevels,
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { format } from "date-fns";
 
@@ -66,7 +66,7 @@
 </script>
 
 <div
-    class="{mobileState.isMobile
+    class="{interfaceState.isMobile
         ? ''
         : 'w-72'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
 >

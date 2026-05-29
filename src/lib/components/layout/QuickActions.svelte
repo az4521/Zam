@@ -7,6 +7,11 @@
         canAddRoomToSpace,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
+    import {
+        interfaceState,
+        openModal,
+        closeModal,
+    } from "$lib/stores/interface.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     type Mode = "create-room" | "create-space" | "create-dm" | "join-room";
@@ -31,11 +36,11 @@
         input1 = "";
         input2 = "";
         error = "";
+        openModal("quick-actions", () => (mode = null));
     }
 
     function close() {
-        if (loading) return;
-        mode = null;
+        closeModal();
     }
 
     async function submit() {
@@ -78,7 +83,6 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") close();
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             submit();
@@ -164,7 +168,7 @@
 
 <!-- Modal -->
 <Portal>
-{#if mode !== null}
+{#if interfaceState.modal === "quick-actions" && mode !== null}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div

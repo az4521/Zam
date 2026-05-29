@@ -7,7 +7,7 @@
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
 
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
 
     interface Props {
         onSelect: (sticker: CustomSticker) => void;
@@ -29,7 +29,7 @@
     const COLS = 4;
 
     $effect(() => {
-        if (!mobileState.isTouchscreen) searchEl?.focus();
+        if (!interfaceState.isTouchscreen) searchEl?.focus();
     });
 
     $effect(() => {
@@ -154,18 +154,7 @@
             onClose();
             return;
         }
-        if (e.ctrlKey && e.key === "e") {
-            e.preventDefault();
-            onSwitchToEmoji?.();
-        }
-        if (e.ctrlKey && e.key === "s") {
-            e.preventDefault();
-            onClose();
-        }
-        if (e.ctrlKey && e.key === "g") {
-            e.preventDefault();
-            onSwitchToGif?.();
-        }
+        // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
     }
 
     function onSearchKeydown(e: KeyboardEvent) {
@@ -226,15 +215,15 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-    class="{mobileState.isTouchscreen
+    class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
         : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={mobileState.isTouchscreen
+    style={interfaceState.isTouchscreen
         ? "max-height: 50dvh;"
         : "max-height: 380px;"}
     onkeydown={onKeydown}
 >
-    {#if mobileState.isTouchscreen}
+    {#if interfaceState.isTouchscreen}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}

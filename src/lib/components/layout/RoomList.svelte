@@ -28,6 +28,11 @@
         setActiveSpace,
     } from "$lib/stores/rooms.svelte";
     import { hasLoudInRoom } from "$lib/stores/notifications.svelte";
+    import {
+        interfaceState,
+        openModal,
+        closeModal,
+    } from "$lib/stores/interface.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
@@ -39,8 +44,6 @@
     }
 
     let { onLogout, onOpenSpaceSettings, onOpenRoomSettings }: Props = $props();
-
-    let headerDropdownOpen = $state(false);
 
     // Rooms currently being joined (show spinner)
     let joiningIds = $state(new Set<string>());
@@ -79,6 +82,7 @@
     function openContextMenu(e: MouseEvent, roomId: string) {
         e.preventDefault();
         contextMenu = { roomId, x: e.clientX, y: e.clientY, touch: false };
+        openModal("room-menu", () => (contextMenu = null));
     }
 
     let ctxTouchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -98,6 +102,7 @@
                 y: ctxTouchStartY,
                 touch: true,
             };
+            openModal("room-menu", () => (contextMenu = null));
         }, 500);
     }
 
@@ -123,17 +128,17 @@
         roomId: string,
         setting: RoomNotificationSetting,
     ) {
-        contextMenu = null;
+        closeModal();
         await setRoomNotificationSetting(roomId, setting);
     }
 
     async function handleAddToSpace(roomId: string, spaceId: string) {
-        contextMenu = null;
+        closeModal();
         await addRoomToSpace(spaceId, roomId);
     }
 
     async function handleLeave(roomId: string) {
-        contextMenu = null;
+        closeModal();
         try {
             await leaveRoom(roomId);
             if (roomsState.activeRoomId === roomId)
@@ -270,7 +275,10 @@
         <!-- Dropdown trigger -->
         <div class="relative flex-shrink-0">
             <button
-                onclick={() => (headerDropdownOpen = !headerDropdownOpen)}
+                onclick={() =>
+                    interfaceState.modal === "room-header-menu"
+                        ? closeModal()
+                        : openModal("room-header-menu", () => {})}
                 class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title="Actions"
             >
@@ -278,27 +286,24 @@
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                 </svg>
             </button>
-            {#if headerDropdownOpen}
+            {#if interfaceState.modal === "room-header-menu"}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                    class="fixed inset-0 z-40"
-                    onclick={() => (headerDropdownOpen = false)}
-                ></div>
+                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
             {/if}
-            <div class="absolute right-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {headerDropdownOpen ? '' : 'hidden'}">
-                <QuickActions
-                    spaceId={roomsState.activeSpaceId ?? undefined}
-                    onaction={() => (headerDropdownOpen = false)}
-                />
+            <div
+                class="absolute right-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
+                'room-header-menu'
+                    ? ''
+                    : 'hidden'}"
+            >
+                <QuickActions spaceId={roomsState.activeSpaceId ?? undefined} />
                 {#if canAccessSpaceSettings}
                     <div class="w-full h-px bg-discord-divider my-1"></div>
                     <button
-                        onclick={() => {
-                            headerDropdownOpen = false;
+                        onclick={() =>
                             activeSpaceRoom &&
-                                onOpenSpaceSettings?.(activeSpaceRoom);
-                        }}
+                            onOpenSpaceSettings?.(activeSpaceRoom)}
                         class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                         style="padding-left: 0.5rem;"
                     >
@@ -646,7 +651,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
             class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
-            onclick={() => (contextMenu = null)}
+            onclick={closeModal}
         ></div>
 
         {#snippet menuItems()}

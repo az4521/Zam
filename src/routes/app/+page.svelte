@@ -15,7 +15,13 @@
         setActiveSpace,
         bumpUnreadTick,
     } from "$lib/stores/rooms.svelte";
-    import { mobileState } from "$lib/stores/mobile.svelte";
+    import {
+        interfaceState,
+        openModal,
+        closeModal,
+        closeSidebar,
+        openComposerPicker,
+    } from "$lib/stores/interface.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import {
         markLoudNotification,
@@ -41,9 +47,16 @@
     import type { Room } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
 
-    let showSettings = $state(false);
-    let spaceSettingsRoom = $state<Room | null>(null);
-    let roomSettingsRoom = $state<Room | null>(null);
+    // Room shown in the RoomSettings modal (covers both room and space settings).
+    let settingsRoom = $state<Room | null>(null);
+
+    function openAppSettings() {
+        openModal("app-settings", () => {});
+    }
+    function openRoomSettings(r: Room) {
+        settingsRoom = r;
+        openModal("room-settings", () => (settingsRoom = null));
+    }
 
     // Animated drawer drag (mobile)
     const DRAWER_WIDTH = 312; // 72px SpaceSidebar + 240px RoomList
@@ -55,12 +68,12 @@
     // Keep translate in sync when state changes programmatically (hamburger, etc.)
     $effect(() => {
         if (!isDragging) {
-            drawerTranslate = mobileState.leftOpen ? 0 : -DRAWER_WIDTH;
+            drawerTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
         }
     });
 
     const backdropOpacity = $derived(
-        mobileState.isMobile
+        interfaceState.isMobile
             ? ((drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH) * 0.5
             : 0,
     );
@@ -82,8 +95,8 @@
                 cleanupDocListeners();
                 return;
             }
-            const openingGesture = dx > 0 && !mobileState.leftOpen;
-            const closingGesture = dx < 0 && mobileState.leftOpen;
+            const openingGesture = dx > 0 && !interfaceState.leftOpen;
+            const closingGesture = dx < 0 && interfaceState.leftOpen;
             if (!openingGesture && !closingGesture) {
                 dragPending = false;
                 cleanupDocListeners();
@@ -110,8 +123,8 @@
         isDragging = false;
         const progress = (drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH;
         const startedOpen = dragBaseTranslate === 0;
-        mobileState.leftOpen = startedOpen ? progress >= 0.85 : progress > 0.15;
-        drawerTranslate = mobileState.leftOpen ? 0 : -DRAWER_WIDTH;
+        interfaceState.leftOpen = startedOpen ? progress >= 0.85 : progress > 0.15;
+        drawerTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
     }
 
     function cleanupDocListeners() {
@@ -122,17 +135,17 @@
 
     function drawerDragStart(e: TouchEvent) {
         if (
-            !mobileState.isMobile ||
+            !interfaceState.isMobile ||
             isDragging ||
             dragPending ||
-            mobileState.rightOpen ||
-            mobileState.lightboxOpen ||
-            mobileState.settingsOpen
+            interfaceState.sidebar !== null ||
+            interfaceState.lightboxOpen ||
+            interfaceState.modal !== null
         )
             return;
         dragStartX = e.touches[0].clientX;
         dragStartY = e.touches[0].clientY;
-        dragBaseTranslate = mobileState.leftOpen ? 0 : -DRAWER_WIDTH;
+        dragBaseTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
         dragPending = true;
         document.addEventListener("touchmove", drawerDragMove, {
             passive: false,
@@ -145,6 +158,104 @@
     $effect(() => {
         if (!auth.isAuthenticated) {
             goto("/");
+        }
+    });
+
+    // ── Central Escape-key + mobile back-button handling ───────────────────────
+    // Priority: dismiss open modal → dismiss open sidebar → (back only) open the
+    // left drawer → real back. All driven by the interfaceState slots; no
+    // component manages its own Escape/back shortcuts.
+    function dismissTopmost(): boolean {
+        if (interfaceState.modal) {
+            closeModal();
+            return true;
+        }
+        if (interfaceState.sidebar) {
+            closeSidebar();
+            return true;
+        }
+        return false;
+    }
+
+    function onWindowKeydown(e: KeyboardEvent) {
+        // Escape → dismiss the topmost popup/sidebar.
+        if (e.key === "Escape") {
+            if (dismissTopmost()) e.preventDefault();
+            return;
+        }
+        // Ctrl+Shift+D → toggle the debug panel.
+        if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+            e.preventDefault();
+            interfaceState.debugOpen = !interfaceState.debugOpen;
+            return;
+        }
+        // Ctrl+E / Ctrl+S / Ctrl+G → open a composer picker (only when a room
+        // with a composer is visible).
+        if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+            const k = e.key.toLowerCase();
+            const kind =
+                k === "e"
+                    ? "emoji"
+                    : k === "s"
+                      ? "sticker"
+                      : k === "g"
+                        ? "gif"
+                        : null;
+            if (kind && activeRoom && !roomsState.showInbox) {
+                e.preventDefault();
+                openComposerPicker(kind);
+            }
+            return;
+        }
+        // Type-to-focus: a plain alphanumeric key focuses the composer, unless a
+        // modal is open (or, on mobile, a sidebar/drawer). We don't
+        // preventDefault, so the keystroke lands in the now-focused input.
+        if (
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.altKey &&
+            /^[a-zA-Z0-9]$/.test(e.key) &&
+            !interfaceState.modal &&
+            !(
+                interfaceState.isMobile &&
+                (interfaceState.sidebar !== null || interfaceState.leftOpen)
+            ) &&
+            interfaceState.focusComposer
+        ) {
+            const ae = document.activeElement as HTMLElement | null;
+            const editable =
+                !!ae &&
+                (ae.tagName === "INPUT" ||
+                    ae.tagName === "TEXTAREA" ||
+                    ae.isContentEditable);
+            if (!editable) interfaceState.focusComposer();
+        }
+    }
+
+    // Keep a history "guard" entry on the stack whenever there's something the
+    // back button should intercept (a modal, a sidebar, or the closed drawer).
+    function ensureBackGuard() {
+        console.log("ensureBackGuard", interfaceState.isMobile, history.state)
+        if (!interfaceState.isMobile) return;
+        if ((history.state as { matrixBackGuard?: boolean })?.matrixBackGuard)
+            return;
+        setTimeout(() => {
+            history.pushState(
+                { matrixBackGuard: true },
+                "",
+                window.location.href,
+            );
+            console.log(history.state)
+        }, 0)
+    }
+    $effect(() => {
+        if (
+            interfaceState.isMobile &&
+            (interfaceState.modal !== null ||
+                interfaceState.sidebar !== null ||
+                !interfaceState.leftOpen)
+        ) {
+            ensureBackGuard();
         }
     });
 
@@ -217,14 +328,14 @@
         const mq = window.matchMedia("(max-width: 767px)");
         const pq = window.matchMedia("(pointer: coarse)");
         const hq = window.matchMedia("(hover: none)");
-        mobileState.isMobile = mq.matches;
-        mobileState.isTouchscreen = hq.matches || pq.matches;
+        interfaceState.isMobile = mq.matches;
+        interfaceState.isTouchscreen = hq.matches || pq.matches;
         const onMqChange = (e: MediaQueryListEvent) => {
-            mobileState.isMobile = e.matches;
-            if (!e.matches) mobileState.leftOpen = false;
+            interfaceState.isMobile = e.matches;
+            if (!e.matches) interfaceState.leftOpen = false;
         };
         const onPqHqChange = () => {
-            mobileState.isTouchscreen = hq.matches || pq.matches;
+            interfaceState.isTouchscreen = hq.matches || pq.matches;
         };
         mq.addEventListener("change", onMqChange);
         pq.addEventListener("change", onPqHqChange);
@@ -280,6 +391,28 @@
             )
                 refreshRooms();
         });
+
+        // Mobile back button (single popstate listener; see ensureBackGuard).
+        let lastBackTs = 0;
+        const onPopState = () => {
+            if (!interfaceState.isMobile) return;
+            const now = Date.now();
+            if (now - lastBackTs < 100) return; // dedupe double-fire
+            lastBackTs = now;
+            if (dismissTopmost()) {
+                ensureBackGuard()
+            } else if (!interfaceState.leftOpen) {
+                interfaceState.leftOpen = true;
+                ensureBackGuard()
+            } else {
+                // Nothing to dismiss & drawer open → real back navigation.
+                window.removeEventListener("popstate", onPopState);
+                history.back();
+            }
+        };
+        window.addEventListener("popstate", onPopState);
+        ensureBackGuard();
+
         return () => {
             unsubRooms();
             unsubTimeline();
@@ -287,6 +420,7 @@
             unsubFavourites();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
+            window.removeEventListener("popstate", onPopState);
         };
     });
 
@@ -333,6 +467,8 @@
     <title>Matrix Client</title>
 </svelte:head>
 
+<svelte:window onkeydown={onWindowKeydown} />
+
 {#if !auth.isAuthenticated}
     <div
         class="flex items-center justify-center bg-discord-backgroundTertiary"
@@ -367,16 +503,16 @@
             </div>
         {/if}
 
-        {#if !mobileState.isMobile}
+        {#if !interfaceState.isMobile}
             <!-- Desktop: permanent sidebars -->
             <SpaceSidebar
                 onHomeClick={() => setActiveSpace(null)}
-                onSettingsClick={() => (showSettings = !showSettings)}
+                onSettingsClick={openAppSettings}
             />
             <RoomList
                 onLogout={handleLogout}
-                onOpenSpaceSettings={(r) => (spaceSettingsRoom = r)}
-                onOpenRoomSettings={(r) => (roomSettingsRoom = r)}
+                onOpenSpaceSettings={openRoomSettings}
+                onOpenRoomSettings={openRoomSettings}
             />
         {:else}
             <!-- Mobile: animated drawer + backdrop -->
@@ -389,7 +525,7 @@
                     : 'none'};"
                 ontouchstart={drawerDragStart}
                 onclick={() => {
-                    if (!isDragging) mobileState.leftOpen = false;
+                    if (!isDragging) interfaceState.leftOpen = false;
                 }}
             ></div>
             <div
@@ -404,17 +540,17 @@
                 <SpaceSidebar
                     onHomeClick={() => {
                         setActiveSpace(null);
-                        mobileState.leftOpen = false;
+                        interfaceState.leftOpen = false;
                     }}
                     onSettingsClick={() => {
-                        showSettings = !showSettings;
-                        mobileState.leftOpen = false;
+                        openAppSettings();
+                        interfaceState.leftOpen = false;
                     }}
                 />
                 <RoomList
                     onLogout={handleLogout}
-                    onOpenSpaceSettings={(r) => (spaceSettingsRoom = r)}
-                    onOpenRoomSettings={(r) => (roomSettingsRoom = r)}
+                    onOpenSpaceSettings={openRoomSettings}
+                    onOpenRoomSettings={openRoomSettings}
                 />
             </div>
         {/if}
@@ -425,8 +561,8 @@
             {:else if activeRoom}
                 <MessageArea
                     room={activeRoom}
-                    isMobile={mobileState.isMobile}
-                    onMenuOpen={() => (mobileState.leftOpen = true)}
+                    isMobile={interfaceState.isMobile}
+                    onMenuOpen={() => (interfaceState.leftOpen = true)}
                 />
             {:else}
                 <div
@@ -451,9 +587,9 @@
                             ? "Choose a room or direct message from the sidebar to start chatting."
                             : "Choose a channel from the list on the left to start chatting."}
                     </p>
-                    {#if mobileState.isMobile}
+                    {#if interfaceState.isMobile}
                         <button
-                            onclick={() => (mobileState.leftOpen = true)}
+                            onclick={() => (interfaceState.leftOpen = true)}
                             class="mt-6 px-5 py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded-lg text-sm font-semibold transition-colors"
                             >Open Room List</button
                         >
@@ -463,31 +599,21 @@
         </main>
 
         <!-- Settings overlay -->
-        {#if showSettings}
-            <AppSettings
-                onClose={() => (showSettings = false)}
-                onLogout={handleLogout}
-            />
+        {#if interfaceState.modal === "app-settings"}
+            <AppSettings onClose={closeModal} onLogout={handleLogout} />
         {/if}
     </div>
 {/if}
 
-{#if spaceSettingsRoom}
+{#if interfaceState.modal === "room-settings" && settingsRoom}
     <RoomSettings
-        room={spaceSettingsRoom}
-        onClose={() => (spaceSettingsRoom = null)}
+        room={settingsRoom}
+        onClose={closeModal}
         onUpdate={() => {
             if (roomsState.activeSpaceId)
                 roomsState.roomsInSpace = getRoomsInSpace(
                     roomsState.activeSpaceId,
                 );
         }}
-    />
-{/if}
-
-{#if roomSettingsRoom}
-    <RoomSettings
-        room={roomSettingsRoom}
-        onClose={() => (roomSettingsRoom = null)}
     />
 {/if}
