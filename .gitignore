@@ -7,6 +7,9 @@ dist-ssr/
 *.local
 build/
 
+# Electron build output
+dist-electron/
+
 # SvelteKit (Include this if you upgrade/switch to SvelteKit)
 .svelte-kit/
 
