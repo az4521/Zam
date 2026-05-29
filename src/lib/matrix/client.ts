@@ -428,7 +428,9 @@ export async function sendTextMessage(
     text: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.sendTextMessage(roomId, text);
+    // Pass null threadId explicitly — the SDK's overload shim treats any string
+    // starting with "$" as a thread ID, which would mangle messages like "$foo".
+    await matrixClient.sendTextMessage(roomId, null, text);
 }
 
 export async function sendFormattedMessage(
