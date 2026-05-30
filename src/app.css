@@ -310,3 +310,9 @@ body {
 .input-dark::placeholder {
     color: var(--discord-text-muted);
 }
+
+/* On the native (Capacitor) app, suppress the WebView's long-press callout on
+   links so our long-press-to-copy handler can take over. */
+.cap-native a {
+    -webkit-touch-callout: none;
+}
