@@ -124,10 +124,26 @@ async function createWindow() {
 
     mainWindow.loadURL(url);
 
-    // Open target=_blank / external links in the system browser, not a new window.
+    const appOrigin = new URL(url).origin;
+
+    // Open target=_blank / window.open links in the system browser, not a new window.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         if (/^https?:/.test(url)) shell.openExternal(url);
         return { action: "deny" };
+    });
+
+    // Any attempt to navigate the window away from the app → open externally.
+    mainWindow.webContents.on("will-navigate", (e, navUrl) => {
+        let origin;
+        try {
+            origin = new URL(navUrl).origin;
+        } catch {
+            return;
+        }
+        if (origin !== appOrigin) {
+            e.preventDefault();
+            shell.openExternal(navUrl);
+        }
     });
 
     // Close button → hide to the system tray instead of quitting (removes the
