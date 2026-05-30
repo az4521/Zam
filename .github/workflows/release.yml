@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Only proceed when package.json "version" increased versus the previous commit.
+  # Only proceed to a release when package.json "version" increased vs the
+  # previous commit. The build jobs below run on every commit regardless.
   check:
     runs-on: ubuntu-latest
     outputs:
@@ -36,8 +37,8 @@ jobs:
             echo "No version increase ('$PREV' -> '$CURR') — skipping release."
           fi
 
-  # Dev builds — run on every commit. Artifacts are attached to a release only
-  # when the version increased (see the gated `release` job below).
+  # Dev builds — run on every commit. Attached to a release only when the
+  # version increased (gated `release` job below).
   android:
     needs: check
     runs-on: ubuntu-latest
@@ -76,6 +77,11 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: Verify APK signature
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort | tail -n1)
+          "$APKSIGNER" verify --print-certs "$APK" || echo "WARNING: APK is not signed — set the ANDROID_KEYSTORE_* secrets."
       - name: Stage APK with version
         run: |
           mkdir -p release-files
@@ -108,7 +114,8 @@ jobs:
         run: npx electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - uses: actions/upload-artifact@v4
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
           if-no-files-found: ignore
