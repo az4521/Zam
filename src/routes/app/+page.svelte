@@ -13,6 +13,7 @@
     import {
         roomsState,
         setActiveSpace,
+        setActiveRoom,
         bumpUnreadTick,
     } from "$lib/stores/rooms.svelte";
     import {
@@ -36,6 +37,8 @@
         getSpaceLayout,
         fetchSpaceHierarchy,
         getRoom,
+        getRoomDisplayName,
+        getMemberName,
         logout,
         onRoomUpdate,
         onAccountData,
@@ -44,7 +47,7 @@
         getClient,
         getOwnUserId,
     } from "$lib/matrix/client";
-    import type { Room } from "matrix-js-sdk";
+    import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
@@ -270,6 +273,42 @@
         return false;
     }
 
+    // Show an OS desktop notification via the Web Notification API. Works in the
+    // browser and in Electron (which maps it to a native notification) with no
+    // push service. Suppressed when the user is already viewing that room in a
+    // focused window.
+    function showDesktopNotification(
+        event: MatrixEvent,
+        room: Room,
+        body: string,
+    ) {
+        if (
+            typeof Notification === "undefined" ||
+            Notification.permission !== "granted"
+        )
+            return;
+        if (
+            document.hasFocus() &&
+            !roomsState.showInbox &&
+            roomsState.activeRoomId === room.roomId
+        )
+            return;
+        const sender = getMemberName(room, event.getSender() ?? "");
+        try {
+            const n = new Notification(getRoomDisplayName(room), {
+                body: body ? `${sender}: ${body}` : `${sender} sent a message`,
+                icon: "/favicon.png",
+                tag: event.getId() ?? undefined,
+            });
+            n.onclick = () => {
+                window.focus();
+                setActiveRoom(room.roomId);
+            };
+        } catch {
+            /* notifications unsupported / blocked — ignore */
+        }
+    }
+
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     function scheduleRefreshRooms() {
         if (refreshTimer) return;
@@ -336,6 +375,14 @@
         const client = getClient();
         if (client) initPush(client).catch(console.error);
 
+        // Ask for desktop-notification permission (granted by default in Electron).
+        if (
+            typeof Notification !== "undefined" &&
+            Notification.permission === "default"
+        ) {
+            Notification.requestPermission().catch(() => {});
+        }
+
         const mq = window.matchMedia("(max-width: 767px)");
         const pq = window.matchMedia("(pointer: coarse)");
         const hq = window.matchMedia("(hover: none)");
@@ -357,33 +404,35 @@
         const unsubRooms = onRoomUpdate(() => scheduleRefreshRooms());
         const unsubTimeline = onTimelineEvent((event, room) => {
             bumpUnreadTick();
-            if (event.getSender() !== getOwnUserId()) {
-                const actions = getClient()?.getPushActionsForEvent(event);
-                if (actions?.notify) {
-                    const hasSound = (actions.tweaks as any)?.sound;
-                    if (hasSound) {
-                        const soundEnabled =
-                            localStorage.getItem("notifSoundEnabled") !==
-                            "false";
-                        if (soundEnabled) {
-                            pingAudio.currentTime = 0;
-                            pingAudio.play().catch(() => {});
-                        }
-                        const content = event.getContent() as any;
-                        const body =
-                            typeof content?.body === "string"
-                                ? content.body
-                                : "";
-                        markLoudNotification({
-                            roomId: room.roomId,
-                            eventId: event.getId()!,
-                            ts: event.getTs(),
-                            sender: event.getSender() ?? "",
-                            body,
-                        });
-                    }
+            if (event.getSender() === getOwnUserId()) return;
+
+            const actions = getClient()?.getPushActionsForEvent(event);
+            if (!actions?.notify) return;
+
+            const loud = !!(actions.tweaks as any)?.sound;
+            const content = event.getContent() as any;
+            const body =
+                typeof content?.body === "string" ? content.body : "";
+
+            // Loud notifications: play the sound and feed the red-dot / inbox.
+            if (loud) {
+                const soundEnabled =
+                    localStorage.getItem("notifSoundEnabled") !== "false";
+                if (soundEnabled) {
+                    pingAudio.currentTime = 0;
+                    pingAudio.play().catch(() => {});
                 }
+                markLoudNotification({
+                    roomId: room.roomId,
+                    eventId: event.getId()!,
+                    ts: event.getTs(),
+                    sender: event.getSender() ?? "",
+                    body,
+                });
             }
+
+            // Any notifying event also pops a desktop notification.
+            showDesktopNotification(event, room, body);
         });
         const unsubReceipts = onAnyReceiptEvent(() => {
             bumpUnreadTick();

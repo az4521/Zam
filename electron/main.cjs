@@ -5,7 +5,7 @@
 // routing, and the media-auth service worker (which needs a secure context —
 // 127.0.0.1 qualifies) all work exactly as in a normal web deployment.
 //
-// Closing the window does NOT quit the app — it minimises to the taskbar and
+// Closing the window does NOT quit the app — it hides to the system tray and
 // keeps running, with a tray icon to restore or quit.
 
 const {
@@ -130,11 +130,12 @@ async function createWindow() {
         return { action: "deny" };
     });
 
-    // Close button → minimise to the taskbar instead of quitting.
+    // Close button → hide to the system tray instead of quitting (removes the
+    // taskbar button; restore via the tray icon).
     mainWindow.on("close", (e) => {
         if (!isQuitting) {
             e.preventDefault();
-            mainWindow.minimize();
+            mainWindow.hide();
         }
     });
 }
@@ -166,6 +167,9 @@ if (!app.requestSingleInstanceLock()) {
     app.on("second-instance", showWindow);
 
     app.whenReady().then(() => {
+        // Required on Windows for native (Web Notification API) notifications
+        // to display and be attributed to the app.
+        app.setAppUserModelId("moe.crafty.matrix");
         createWindow();
         createTray();
     });

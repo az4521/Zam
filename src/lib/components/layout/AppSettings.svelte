@@ -14,6 +14,13 @@
         type PushRuleLevel,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
+    import {
+        APP_VERSION,
+        CAN_INSTALL_UPDATE,
+        checkForUpdate,
+        openReleasePage,
+        type UpdateInfo,
+    } from "$lib/update";
 
     interface Props {
         onClose: () => void;
@@ -22,13 +29,32 @@
 
     let { onClose, onLogout }: Props = $props();
 
-    type Tab = "account" | "notifications";
+    type Tab = "account" | "notifications" | "about";
     let activeTab = $state<Tab>("account");
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
         { id: "notifications", label: "Notifications" },
+        { id: "about", label: "About" },
     ];
+
+    // ── About / updates tab ────────────────────────────────────────────────────
+    let updateChecking = $state(false);
+    let updateInfo = $state<UpdateInfo | null>(null);
+    let updateError = $state("");
+
+    async function checkUpdates() {
+        updateChecking = true;
+        updateError = "";
+        updateInfo = null;
+        try {
+            updateInfo = await checkForUpdate();
+        } catch (e: any) {
+            updateError = e?.message ?? "Failed to check for updates.";
+        } finally {
+            updateChecking = false;
+        }
+    }
 
     // ── Notifications tab ──────────────────────────────────────────────────────
 
@@ -386,6 +412,83 @@
                             <p class="text-sm text-discord-textMuted italic">
                                 No rooms found.
                             </p>
+                        {/if}
+                    </div>
+
+                    <!-- ── About ──────────────────────────────────────────────── -->
+                {:else if activeTab === "about"}
+                    <div class="space-y-6">
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Version
+                            </p>
+                            <div
+                                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Matrix Client
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Current version v{APP_VERSION}
+                                    </p>
+                                </div>
+                                <button
+                                    onclick={checkUpdates}
+                                    disabled={updateChecking}
+                                    class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+                                >
+                                    {#if updateChecking}
+                                        <span
+                                            class="w-3.5 h-3.5 border-2 border-discord-textMuted border-t-transparent rounded-full animate-spin"
+                                        ></span>
+                                        Checking…
+                                    {:else}
+                                        Check for updates
+                                    {/if}
+                                </button>
+                            </div>
+                        </div>
+
+                        {#if updateError}
+                            <p class="text-sm text-discord-textMuted">
+                                {updateError}
+                            </p>
+                        {:else if updateInfo}
+                            {@const info = updateInfo}
+                            {#if info.updateAvailable}
+                                <div
+                                    class="rounded-lg border border-discord-accent bg-discord-accent/10 p-4 flex items-center gap-4"
+                                >
+                                    <div class="flex-1 min-w-0">
+                                        <p
+                                            class="text-sm font-semibold text-discord-textPrimary"
+                                        >
+                                            Update available
+                                        </p>
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
+                                            v{info.current} → v{info.latest}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onclick={() => openReleasePage(info.url)}
+                                        disabled={!CAN_INSTALL_UPDATE}
+                                        title={CAN_INSTALL_UPDATE
+                                            ? ""
+                                            : "Reload the page to get the latest web version"}
+                                        class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-discord-accent"
+                                        >Update</button
+                                    >
+                                </div>
+                            {:else}
+                                <p class="text-sm text-discord-textMuted">
+                                    You’re on the latest version.
+                                </p>
+                            {/if}
                         {/if}
                     </div>
                 {/if}

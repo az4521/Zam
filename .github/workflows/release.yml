@@ -1,0 +1,124 @@
+name: Build & Release
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Only proceed when package.json "version" increased versus the previous commit.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.v.outputs.release }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: v
+        shell: bash
+        run: |
+          CURR=$(jq -r .version package.json)
+          echo "version=$CURR" >> "$GITHUB_OUTPUT"
+          PREV=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
+          if [ -z "$PREV" ] || { [ "$CURR" != "$PREV" ] && [ "$(printf '%s\n%s\n' "$PREV" "$CURR" | sort -V | tail -n1)" = "$CURR" ]; }; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "Version increased: '$PREV' -> '$CURR' — will release."
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "No version increase ('$PREV' -> '$CURR') — skipping release."
+          fi
+
+  # Dev builds — run on every commit. Artifacts are attached to a release only
+  # when the version increased (see the gated `release` job below).
+  android:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Rename APK with version
+        run: |
+          mkdir -p release-files
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "release-files/matrix-client-${{ needs.check.outputs.version }}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: release-files/*.apk
+          if-no-files-found: error
+
+  desktop:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+      - name: Build desktop app
+        run: npx electron-builder --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            dist-electron/*.exe
+            dist-electron/*.dmg
+            dist-electron/*.zip
+            dist-electron/*.AppImage
+            dist-electron/*.deb
+
+  release:
+    needs: [check, android, desktop]
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check.outputs.version }}
+          name: v${{ needs.check.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: artifacts/**/*
