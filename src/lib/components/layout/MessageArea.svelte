@@ -70,6 +70,20 @@
     let editRequestedEventId = $state<string | null>(null);
     let isDragOver = $state(false);
     let intervalId: NodeJS.Timeout | undefined = $state();
+    let scrollStopTimeout: NodeJS.Timeout | undefined = $state();
+
+    // Stop any in-flight "keep scrolling into view" loop (started by
+    // scrollToMessage). Safe to call repeatedly.
+    function stopScrollIntoView() {
+        if (intervalId !== undefined) {
+            clearInterval(intervalId);
+            intervalId = undefined;
+        }
+        if (scrollStopTimeout !== undefined) {
+            clearTimeout(scrollStopTimeout);
+            scrollStopTimeout = undefined;
+        }
+    }
     let dragCounter = 0; // track enter/leave pairs to avoid flicker on child elements
 
     function onDragEnter(e: DragEvent) {
@@ -155,6 +169,9 @@
             if (!el) return;
         }
         const target = el as HTMLElement;
+        // Cancel any previous scroll loop so we never leak an interval that
+        // would keep yanking the scroll position and block the user.
+        stopScrollIntoView();
         intervalId = setInterval(
             () =>
                 target.scrollIntoView({ behavior: "smooth", block: "center" }),
@@ -163,11 +180,15 @@
         target.classList.remove("message-highlight");
         void target.offsetWidth;
         target.classList.add("message-highlight");
-        setTimeout(() => {
+        scrollStopTimeout = setTimeout(() => {
             target.classList.remove("message-highlight");
-            clearInterval(intervalId);
+            stopScrollIntoView();
         }, 2000);
     }
+
+    // Ensure the scroll loop never outlives the component (e.g. room switch).
+    $effect(() => stopScrollIntoView);
+
     let joiningUpgrade = $state(false);
 
     const tombstone = $derived(getTombstone(room));
@@ -745,6 +766,8 @@
         <div
             bind:this={scrollEl}
             onscroll={onScroll}
+            onwheel={stopScrollIntoView}
+            ontouchstart={stopScrollIntoView}
             class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col-reverse{isAtBottom
                 ? ' *:[overflow-anchor:none]'
                 : ''}"
