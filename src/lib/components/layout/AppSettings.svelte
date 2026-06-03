@@ -66,20 +66,59 @@
         debugPushers = null;
         gatewayHealth = null;
         nativeSession = null;
-        // Gateway/Firebase health and native session readback in parallel.
-        const healthP = checkGatewayHealth();
-        const nativeP = readNativeSession();
+
+        // Each probe assigns its own result as soon as it resolves, so a slow
+        // or hung network probe can't prevent the others (notably the local
+        // native-session readback) from rendering.
         const client = getClient();
-        try {
-            debugPushers = client
-                ? await fetchRegisteredPushers(client)
-                : [];
-        } catch (e: any) {
-            debugPushersError =
-                e?.message ?? "Failed to fetch pushers from homeserver.";
-        }
-        gatewayHealth = await healthP;
-        nativeSession = await nativeP;
+        const tasks: Promise<void>[] = [];
+
+        tasks.push(
+            readNativeSession()
+                .then((r) => {
+                    nativeSession = r;
+                })
+                .catch((e) => {
+                    nativeSession = {
+                        native: true,
+                        homeserverUrl: null,
+                        userId: null,
+                        hasToken: false,
+                        error: e?.message ?? String(e),
+                    };
+                }),
+        );
+
+        tasks.push(
+            checkGatewayHealth()
+                .then((r) => {
+                    gatewayHealth = r;
+                })
+                .catch((e) => {
+                    gatewayHealth = {
+                        reachable: false,
+                        status: null,
+                        detail: e?.message ?? String(e),
+                    };
+                }),
+        );
+
+        tasks.push(
+            (client
+                ? fetchRegisteredPushers(client)
+                : Promise.resolve([] as RegisteredPusher[])
+            )
+                .then((r) => {
+                    debugPushers = r;
+                })
+                .catch((e) => {
+                    debugPushersError =
+                        e?.message ??
+                        "Failed to fetch pushers from homeserver.";
+                }),
+        );
+
+        await Promise.allSettled(tasks);
         debugLoading = false;
     }
 
