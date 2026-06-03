@@ -43,6 +43,7 @@
         openSidebar,
         closeSidebar,
     } from "$lib/stores/interface.svelte";
+    import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
     import {
@@ -68,7 +69,7 @@
     let replyToEvent = $state<MatrixEvent | null>(null);
     let editRequestedEventId = $state<string | null>(null);
     let isDragOver = $state(false);
-    let intervalId: number | undefined = $state();
+    let intervalId: NodeJS.Timeout | undefined = $state();
     let dragCounter = 0; // track enter/leave pairs to avoid flicker on child elements
 
     function onDragEnter(e: DragEvent) {
@@ -131,6 +132,9 @@
         void roomsState.roomsTick;
         return getPinnedEventIds(room).length;
     });
+
+    // Any loud (red) notification anywhere → badge the mobile hamburger.
+    const hasAnyLoud = $derived(getLoudNotificationCount() > 0);
 
     let jumpingToEventId = $state<string | null>(null);
 
@@ -660,7 +664,7 @@
             {#if isMobile}
                 <button
                     onclick={onMenuOpen}
-                    class="p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    class="relative p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
                     title="Open room list"
                 >
                     <svg
@@ -672,6 +676,12 @@
                             d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
                         />
                     </svg>
+                    {#if hasAnyLoud}
+                        <span
+                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-danger border border-discord-background"
+                            aria-label="Unread notifications"
+                        ></span>
+                    {/if}
                 </button>
             {/if}
             <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
