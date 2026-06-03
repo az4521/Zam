@@ -10,6 +10,7 @@
         getDefaultPushRuleLevel,
         setDefaultPushRuleLevel,
         DEFAULT_PUSH_RULES,
+        getClient,
         type RoomNotificationSetting,
         type PushRuleLevel,
     } from "$lib/matrix/client";
@@ -21,6 +22,15 @@
         openReleasePage,
         type UpdateInfo,
     } from "$lib/update";
+    import {
+        pushDebug,
+        fetchRegisteredPushers,
+        checkGatewayHealth,
+        PUSH_GATEWAY_NOTIFY_URL,
+        PUSH_APP_ID,
+        type RegisteredPusher,
+        type GatewayHealth,
+    } from "$lib/push";
 
     interface Props {
         onClose: () => void;
@@ -29,14 +39,50 @@
 
     let { onClose, onLogout }: Props = $props();
 
-    type Tab = "account" | "notifications" | "about";
+    type Tab = "account" | "notifications" | "about" | "debug";
     let activeTab = $state<Tab>("account");
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
         { id: "notifications", label: "Notifications" },
         { id: "about", label: "About" },
+        { id: "debug", label: "Debug Info" },
     ];
+
+    // ── Debug Info tab ─────────────────────────────────────────────────────────
+    let debugLoading = $state(false);
+    let debugPushers = $state<RegisteredPusher[] | null>(null);
+    let debugPushersError = $state("");
+    let gatewayHealth = $state<GatewayHealth | null>(null);
+
+    async function runPushDiagnostics() {
+        debugLoading = true;
+        debugPushersError = "";
+        debugPushers = null;
+        gatewayHealth = null;
+        // Gateway/Firebase health and homeserver pushers in parallel.
+        const healthP = checkGatewayHealth();
+        const client = getClient();
+        try {
+            debugPushers = client
+                ? await fetchRegisteredPushers(client)
+                : [];
+        } catch (e: any) {
+            debugPushersError =
+                e?.message ?? "Failed to fetch pushers from homeserver.";
+        }
+        gatewayHealth = await healthP;
+        debugLoading = false;
+    }
+
+    // Whether the homeserver has a pusher pointing at our configured gateway.
+    const matchingPusher = $derived(
+        debugPushers?.find(
+            (p) =>
+                p.app_id === PUSH_APP_ID &&
+                p.url === PUSH_GATEWAY_NOTIFY_URL,
+        ) ?? null,
+    );
 
     // ── About / updates tab ────────────────────────────────────────────────────
     let updateChecking = $state(false);
@@ -489,6 +535,147 @@
                                     You’re on the latest version.
                                 </p>
                             {/if}
+                        {/if}
+                    </div>
+
+                    <!-- ── Debug Info ─────────────────────────────────────────── -->
+                {:else if activeTab === "debug"}
+                    {@const rows = [
+                        ["Platform", pushDebug.native ? "Native (Capacitor)" : "Web/Desktop"],
+                        ["Push enabled in build", pushDebug.pushEnabled ? "Yes" : "No"],
+                        ["Gateway URL", PUSH_GATEWAY_NOTIFY_URL],
+                        ["App ID", PUSH_APP_ID],
+                        ["Notification permission", pushDebug.permission],
+                        ["FCM token", pushDebug.fcmToken
+                            ? pushDebug.fcmToken.slice(0, 12) + "…" + pushDebug.fcmToken.slice(-6)
+                            : "(none)"],
+                        ["Pusher registered this session", pushDebug.pusherRegistered ? "Yes" : "No"],
+                    ] as [string, string][]}
+                    <div class="space-y-6">
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Push Status
+                            </p>
+                            <div class="space-y-1.5">
+                                {#each rows as [label, value]}
+                                    <div
+                                        class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                                    >
+                                        <span
+                                            class="text-discord-textMuted flex-shrink-0 w-44"
+                                            >{label}</span
+                                        >
+                                        <span
+                                            class="text-discord-textPrimary break-all font-mono text-xs"
+                                            >{value}</span
+                                        >
+                                    </div>
+                                {/each}
+                            </div>
+                            {#if pushDebug.lastError}
+                                <p
+                                    class="mt-3 text-xs text-discord-error break-all font-mono"
+                                >
+                                    Last error: {pushDebug.lastError}
+                                </p>
+                            {/if}
+                        </div>
+
+                        <div>
+                            <button
+                                onclick={runPushDiagnostics}
+                                disabled={debugLoading}
+                                class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {#if debugLoading}
+                                    <span
+                                        class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                    ></span>
+                                    Checking…
+                                {:else}
+                                    Run diagnostics
+                                {/if}
+                            </button>
+                        </div>
+
+                        <!-- Homeserver pushers -->
+                        {#if debugPushers !== null || debugPushersError}
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Homeserver Pushers
+                                </p>
+                                {#if debugPushersError}
+                                    <p
+                                        class="text-xs text-discord-error break-all"
+                                    >
+                                        {debugPushersError}
+                                    </p>
+                                {:else if debugPushers && debugPushers.length === 0}
+                                    <p class="text-sm text-discord-textMuted">
+                                        The homeserver has no pushers registered
+                                        for this account — the gateway URL was
+                                        never sent.
+                                    </p>
+                                {:else if debugPushers}
+                                    <p
+                                        class="text-sm mb-2 {matchingPusher
+                                            ? 'text-green-400'
+                                            : 'text-discord-warning'}"
+                                    >
+                                        {matchingPusher
+                                            ? "✓ A pusher matches the configured gateway URL."
+                                            : "⚠ No pusher matches the configured gateway URL."}
+                                    </p>
+                                    <div class="space-y-2">
+                                        {#each debugPushers as p}
+                                            <div
+                                                class="text-xs font-mono bg-discord-backgroundTertiary rounded p-2 space-y-0.5 break-all"
+                                            >
+                                                <div>
+                                                    app_id: {p.app_id}
+                                                </div>
+                                                <div>url: {p.url ?? "(none)"}</div>
+                                                <div>
+                                                    device: {p.device_display_name ??
+                                                        "(none)"}
+                                                </div>
+                                                <div>
+                                                    pushkey: {p.pushkeyPreview}
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                        {/if}
+
+                        <!-- Gateway / Firebase health -->
+                        {#if gatewayHealth}
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Gateway (Sygnal / Firebase)
+                                </p>
+                                <p
+                                    class="text-sm {gatewayHealth.reachable
+                                        ? 'text-green-400'
+                                        : 'text-discord-error'}"
+                                >
+                                    {gatewayHealth.reachable
+                                        ? "✓ Gateway reachable"
+                                        : "✗ Gateway not reachable"}
+                                </p>
+                                <p
+                                    class="text-xs text-discord-textMuted break-all font-mono mt-1"
+                                >
+                                    {gatewayHealth.detail}
+                                </p>
+                            </div>
                         {/if}
                     </div>
                 {/if}

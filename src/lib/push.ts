@@ -37,6 +37,30 @@ const PUSH_ENABLED = !PUSH_GATEWAY_URL.includes("sygnal.example.com");
 
 let pushInitialised = false;
 
+// ── Diagnostics ────────────────────────────────────────────────────────────
+// Live snapshot of what push setup did this session, surfaced in Settings →
+// Debug Info so push can be diagnosed on devices with no dev console.
+
+export interface PushDebugState {
+    native: boolean;
+    gatewayUrl: string;
+    pushEnabled: boolean;
+    permission: string; // "granted" | "denied" | "prompt" | "unknown"
+    fcmToken: string | null;
+    pusherRegistered: boolean;
+    lastError: string | null;
+}
+
+export const pushDebug: PushDebugState = {
+    native: Capacitor.isNativePlatform(),
+    gatewayUrl: PUSH_GATEWAY_URL,
+    pushEnabled: PUSH_ENABLED,
+    permission: "unknown",
+    fcmToken: null,
+    pusherRegistered: false,
+    lastError: null,
+};
+
 export async function initPush(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<void> {
@@ -59,17 +83,22 @@ export async function initPush(
         if (permission.receive === "prompt") {
             permission = await PushNotifications.requestPermissions();
         }
+        pushDebug.permission = permission.receive;
         if (permission.receive !== "granted") {
+            pushDebug.lastError = "Notification permission not granted";
             console.warn("[push] Notification permission denied");
             return;
         }
 
         PushNotifications.addListener("registration", async (token: Token) => {
             console.log("[push] FCM token:", token.value);
+            pushDebug.fcmToken = token.value;
             await registerPusher(matrixClient, token.value);
         });
 
         PushNotifications.addListener("registrationError", (err) => {
+            pushDebug.lastError =
+                "FCM registration error: " + JSON.stringify(err);
             console.error("[push] Registration error:", err);
         });
 
@@ -104,6 +133,8 @@ export async function initPush(
         await PushNotifications.register();
     } catch (err) {
         pushInitialised = false;
+        pushDebug.lastError =
+            "Push init failed (Firebase not configured?): " + String(err);
         console.warn(
             "[push] Push init failed (Firebase not configured?) — continuing without push.",
             err,
@@ -133,8 +164,11 @@ async function registerPusher(
             // Replace any existing pusher for this device
             append: false,
         });
+        pushDebug.pusherRegistered = true;
         console.log("[push] Pusher registered");
     } catch (err) {
+        pushDebug.pusherRegistered = false;
+        pushDebug.lastError = "Failed to register pusher: " + String(err);
         console.error("[push] Failed to register pusher:", err);
     }
 }
@@ -164,3 +198,86 @@ export async function unregisterPush(
     pushInitialised = false;
     await PushNotifications.removeAllListeners();
 }
+
+// ── Diagnostics queries (used by Settings → Debug Info) ─────────────────────
+
+export interface RegisteredPusher {
+    app_id: string;
+    app_display_name?: string;
+    device_display_name?: string;
+    /** The gateway URL the homeserver will POST to (data.url). */
+    url?: string;
+    /** First/last few chars of the pushkey (FCM token) for identification. */
+    pushkeyPreview: string;
+}
+
+/**
+ * Ask the homeserver which pushers it has registered for this account. This is
+ * the source of truth for "did we tell the homeserver about our gateway URL?".
+ */
+export async function fetchRegisteredPushers(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+): Promise<RegisteredPusher[]> {
+    const res = await (matrixClient as any).getPushers();
+    const pushers = (res?.pushers ?? []) as any[];
+    return pushers.map((p) => {
+        const key: string = p.pushkey ?? "";
+        const preview =
+            key.length > 16 ? `${key.slice(0, 8)}…${key.slice(-6)}` : key;
+        return {
+            app_id: p.app_id,
+            app_display_name: p.app_display_name,
+            device_display_name: p.device_display_name,
+            url: p.data?.url,
+            pushkeyPreview: preview,
+        };
+    });
+}
+
+export interface GatewayHealth {
+    reachable: boolean;
+    status: number | null;
+    detail: string;
+}
+
+/**
+ * Probe the Sygnal gateway. Sygnal exposes GET /health (200 when the app/FCM
+ * config loaded). We derive the base URL from the configured notify endpoint.
+ */
+export async function checkGatewayHealth(): Promise<GatewayHealth> {
+    let healthUrl: string;
+    try {
+        const u = new URL(PUSH_GATEWAY_URL);
+        healthUrl = `${u.origin}/health`;
+    } catch {
+        return { reachable: false, status: null, detail: "Invalid gateway URL" };
+    }
+    try {
+        const res = await fetch(healthUrl, { method: "GET" });
+        let body = "";
+        try {
+            body = (await res.text()).slice(0, 200);
+        } catch {
+            /* ignore */
+        }
+        return {
+            reachable: res.ok,
+            status: res.status,
+            detail: res.ok
+                ? body || "OK"
+                : `HTTP ${res.status}${body ? `: ${body}` : ""}`,
+        };
+    } catch (err) {
+        return {
+            reachable: false,
+            status: null,
+            detail:
+                "Unreachable: " +
+                (err instanceof Error ? err.message : String(err)),
+        };
+    }
+}
+
+/** The configured gateway notify endpoint (for display). */
+export const PUSH_GATEWAY_NOTIFY_URL = PUSH_GATEWAY_URL;
+export const PUSH_APP_ID = APP_ID;
