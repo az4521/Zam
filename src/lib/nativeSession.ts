@@ -8,15 +8,11 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import { Preferences } from "@capacitor/preferences";
 
 const KEY_HS = "matrix_hs_url";
 const KEY_TOKEN = "matrix_access_token";
 const KEY_USER = "matrix_user_id";
-
-async function prefs() {
-    const { Preferences } = await import("@capacitor/preferences");
-    return Preferences;
-}
 
 export async function syncNativeSession(session: {
     homeserverUrl: string;
@@ -25,10 +21,12 @@ export async function syncNativeSession(session: {
 }): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     try {
-        const p = await prefs();
-        await p.set({ key: KEY_HS, value: session.homeserverUrl });
-        await p.set({ key: KEY_TOKEN, value: session.accessToken });
-        await p.set({ key: KEY_USER, value: session.userId });
+        await Preferences.set({ key: KEY_HS, value: session.homeserverUrl });
+        await Preferences.set({
+            key: KEY_TOKEN,
+            value: session.accessToken,
+        });
+        await Preferences.set({ key: KEY_USER, value: session.userId });
     } catch (err) {
         console.warn("[nativeSession] failed to sync session", err);
     }
@@ -37,10 +35,9 @@ export async function syncNativeSession(session: {
 export async function clearNativeSession(): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     try {
-        const p = await prefs();
-        await p.remove({ key: KEY_HS });
-        await p.remove({ key: KEY_TOKEN });
-        await p.remove({ key: KEY_USER });
+        await Preferences.remove({ key: KEY_HS });
+        await Preferences.remove({ key: KEY_TOKEN });
+        await Preferences.remove({ key: KEY_USER });
     } catch {
         /* ignore */
     }
@@ -69,10 +66,20 @@ export async function readNativeSession(): Promise<NativeSessionState> {
         };
     }
     try {
-        const p = await prefs();
-        const hs = (await p.get({ key: KEY_HS })).value;
-        const token = (await p.get({ key: KEY_TOKEN })).value;
-        const user = (await p.get({ key: KEY_USER })).value;
+        // Guard against a Preferences call that never resolves so the Debug
+        // Info UI always renders a result instead of hanging on null.
+        const withTimeout = <T>(p: Promise<T>): Promise<T> =>
+            Promise.race([
+                p,
+                new Promise<T>((_, reject) =>
+                    setTimeout(() => reject(new Error("timed out")), 4000),
+                ),
+            ]);
+        const hs = (await withTimeout(Preferences.get({ key: KEY_HS }))).value;
+        const token = (await withTimeout(Preferences.get({ key: KEY_TOKEN })))
+            .value;
+        const user = (await withTimeout(Preferences.get({ key: KEY_USER })))
+            .value;
         return {
             native: true,
             homeserverUrl: hs ?? null,
