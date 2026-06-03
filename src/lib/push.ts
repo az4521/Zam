@@ -82,10 +82,11 @@ export async function initPush(
             (action) => {
                 const roomId = action.notification.data?.room_id;
                 if (roomId) {
-                    // Navigate to the room — import setActiveRoom lazily to avoid circular deps
+                    // Navigate to the room (switching space if needed) — import
+                    // lazily to avoid circular deps.
                     import("$lib/stores/rooms.svelte").then(
-                        ({ setActiveRoom }) => {
-                            setActiveRoom(roomId);
+                        ({ navigateToRoom }) => {
+                            navigateToRoom(roomId);
                         },
                     );
                 }

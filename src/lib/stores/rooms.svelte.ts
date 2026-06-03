@@ -1,4 +1,5 @@
 import type { Room } from "matrix-js-sdk";
+import { findSpaceForRoom } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
 
 const STORAGE_KEY = "matrix_last_room_by_space";
@@ -68,6 +69,21 @@ export function setActiveRoom(roomId: string): void {
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
     saveLastRoom(roomsState.activeSpaceId, roomId);
+}
+
+/**
+ * Navigate to a room, also switching to the space that contains it (or Home if
+ * it's a DM/orphan). Use this when jumping to a room that may not be in the
+ * currently-selected space — e.g. from the notifications inbox.
+ */
+export function navigateToRoom(roomId: string): void {
+    const targetSpace = findSpaceForRoom(roomId);
+    if (targetSpace !== roomsState.activeSpaceId) {
+        roomsState.activeSpaceId = targetSpace;
+        roomsState.spaceHierarchy = [];
+        saveLastSpace(targetSpace);
+    }
+    setActiveRoom(roomId);
 }
 
 export function getActiveRoom(): Room | undefined {

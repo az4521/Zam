@@ -16,7 +16,7 @@
         clearAllForRoom,
         type LoudNotification,
     } from "$lib/stores/notifications.svelte";
-    import { setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { format } from "date-fns";
@@ -92,7 +92,7 @@
     });
 
     function jump(roomId: string, eventId: string) {
-        setActiveRoom(roomId);
+        navigateToRoom(roomId);
         onJumpTo(roomId, eventId);
         onClose();
     }

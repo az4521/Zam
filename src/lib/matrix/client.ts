@@ -253,6 +253,21 @@ export function getSpaceChildIds(spaceId: string): string[] {
         .filter(Boolean);
 }
 
+/**
+ * Find a space (top-level, joined) that contains the given room as a child.
+ * Returns null if the room isn't in any space (i.e. it's a home/DM/orphan room).
+ * Used to select the right space when jumping to a room from elsewhere.
+ */
+export function findSpaceForRoom(roomId: string): string | null {
+    for (const space of getSpaces()) {
+        if (space.getMyMembership() !== "join") continue;
+        if (getSpaceChildIds(space.roomId).includes(roomId)) {
+            return space.roomId;
+        }
+    }
+    return null;
+}
+
 export function getRoomsInSpace(spaceId: string): Room[] {
     const childIds = getSpaceChildIds(spaceId);
     return childIds

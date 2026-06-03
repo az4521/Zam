@@ -13,7 +13,7 @@
     import {
         roomsState,
         setActiveSpace,
-        setActiveRoom,
+        navigateToRoom,
         bumpUnreadTick,
     } from "$lib/stores/rooms.svelte";
     import {
@@ -302,7 +302,7 @@
             });
             n.onclick = () => {
                 window.focus();
-                setActiveRoom(room.roomId);
+                navigateToRoom(room.roomId);
             };
         } catch {
             /* notifications unsupported / blocked — ignore */
