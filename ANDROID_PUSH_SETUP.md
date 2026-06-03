@@ -78,9 +78,15 @@ the workflow (e.g. base64 in a secret, decoded before `npx cap sync`).
   Sygnal sends *data-only* FCM messages, and the Capacitor push plugin only
   shows a notification when the message contains a `notification` block — so
   without this service, backgrounded pushes arrive but are never displayed.
-  The service builds the notification from the data payload (`room_id`,
-  `event_id`, `unread`) and, on tap, deep-links to the room via
-  `window.__matrixOpenRoom` (wired in `+page.svelte` / `MainActivity.java`).
+- **Notification enrichment:** Sygnal's `event_id_only` pushes carry only IDs,
+  so the service calls the homeserver to fetch the message body, sender display
+  name, room name, and room avatar (shown as the large icon). It uses the
+  session (homeserver URL + access token) that the web layer mirrors into
+  native storage via `src/lib/nativeSession.ts` (`@capacitor/preferences` →
+  SharedPreferences `CapacitorStorage`). If the session is missing or a request
+  fails, it falls back to a generic "New message" notification.
+- Tapping a notification deep-links to the room via `window.__matrixOpenRoom`
+  (wired in `+page.svelte` / `MainActivity.java`).
 - `unregisterPush` removes the pusher on logout.
 - Web/desktop notifications don't use FCM/Sygnal at all — they use the in-app
   Notification API while the client is running.

@@ -49,6 +49,10 @@
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
+    import {
+        syncNativeSession,
+        clearNativeSession,
+    } from "$lib/nativeSession";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -375,6 +379,16 @@
         const client = getClient();
         if (client) initPush(client).catch(console.error);
 
+        // Mirror the session natively so the push service can enrich
+        // notifications (off-native this is a no-op).
+        if (auth.homeserverUrl && auth.accessToken && auth.userId) {
+            syncNativeSession({
+                homeserverUrl: auth.homeserverUrl,
+                accessToken: auth.accessToken,
+                userId: auth.userId,
+            }).catch(() => {});
+        }
+
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
         (window as any).__matrixOpenRoom = (roomId: string) => {
@@ -525,6 +539,7 @@
     async function handleLogout() {
         const client = getClient();
         if (client) await unregisterPush(client).catch(() => {});
+        await clearNativeSession().catch(() => {});
         try {
             await logout();
         } finally {

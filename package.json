@@ -1,6 +1,6 @@
 {
     "name": "matrix-client",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "private": true,
     "main": "electron/main.cjs",
     "scripts": {
@@ -76,6 +76,7 @@
         "@capacitor/app": "^8.1.0",
         "@capacitor/cli": "^8.3.0",
         "@capacitor/core": "^8.3.0",
+        "@capacitor/preferences": "^8.0.1",
         "@capacitor/push-notifications": "^8.0.3",
         "@ruffle-rs/ruffle": "^0.2.0-nightly.2026.3.26",
         "@twemoji/api": "^17.0.2",
