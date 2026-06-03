@@ -31,6 +31,10 @@
         type RegisteredPusher,
         type GatewayHealth,
     } from "$lib/push";
+    import {
+        readNativeSession,
+        type NativeSessionState,
+    } from "$lib/nativeSession";
 
     interface Props {
         onClose: () => void;
@@ -54,14 +58,17 @@
     let debugPushers = $state<RegisteredPusher[] | null>(null);
     let debugPushersError = $state("");
     let gatewayHealth = $state<GatewayHealth | null>(null);
+    let nativeSession = $state<NativeSessionState | null>(null);
 
     async function runPushDiagnostics() {
         debugLoading = true;
         debugPushersError = "";
         debugPushers = null;
         gatewayHealth = null;
-        // Gateway/Firebase health and homeserver pushers in parallel.
+        nativeSession = null;
+        // Gateway/Firebase health and native session readback in parallel.
         const healthP = checkGatewayHealth();
+        const nativeP = readNativeSession();
         const client = getClient();
         try {
             debugPushers = client
@@ -72,6 +79,7 @@
                 e?.message ?? "Failed to fetch pushers from homeserver.";
         }
         gatewayHealth = await healthP;
+        nativeSession = await nativeP;
         debugLoading = false;
     }
 
@@ -675,6 +683,59 @@
                                 >
                                     {gatewayHealth.detail}
                                 </p>
+                            </div>
+                        {/if}
+
+                        <!-- Native session (used by the background push service) -->
+                        {#if nativeSession}
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Native Session (push enrichment)
+                                </p>
+                                {#if !nativeSession.native}
+                                    <p class="text-sm text-discord-textMuted">
+                                        Not running natively — enrichment only
+                                        applies to the Android app.
+                                    </p>
+                                {:else if nativeSession.error}
+                                    <p
+                                        class="text-xs text-discord-error break-all"
+                                    >
+                                        {nativeSession.error}
+                                    </p>
+                                {:else}
+                                    {@const ok =
+                                        !!nativeSession.homeserverUrl &&
+                                        nativeSession.hasToken}
+                                    <p
+                                        class="text-sm {ok
+                                            ? 'text-green-400'
+                                            : 'text-discord-warning'}"
+                                    >
+                                        {ok
+                                            ? "✓ Session mirrored to native storage."
+                                            : "⚠ Session not in native storage — notifications can't be enriched."}
+                                    </p>
+                                    <div
+                                        class="text-xs font-mono text-discord-textMuted mt-1 space-y-0.5 break-all"
+                                    >
+                                        <div>
+                                            homeserver: {nativeSession.homeserverUrl ??
+                                                "(none)"}
+                                        </div>
+                                        <div>
+                                            user: {nativeSession.userId ??
+                                                "(none)"}
+                                        </div>
+                                        <div>
+                                            access token: {nativeSession.hasToken
+                                                ? "present"
+                                                : "(none)"}
+                                        </div>
+                                    </div>
+                                {/if}
                             </div>
                         {/if}
                     </div>

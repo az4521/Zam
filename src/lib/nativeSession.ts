@@ -45,3 +45,47 @@ export async function clearNativeSession(): Promise<void> {
         /* ignore */
     }
 }
+
+export interface NativeSessionState {
+    native: boolean;
+    homeserverUrl: string | null;
+    userId: string | null;
+    /** Whether an access token is present (not the token itself). */
+    hasToken: boolean;
+    error?: string;
+}
+
+/**
+ * Read back what's actually stored natively — used by Settings → Debug Info to
+ * confirm the web→native session mirror worked (the data the push service uses).
+ */
+export async function readNativeSession(): Promise<NativeSessionState> {
+    if (!Capacitor.isNativePlatform()) {
+        return {
+            native: false,
+            homeserverUrl: null,
+            userId: null,
+            hasToken: false,
+        };
+    }
+    try {
+        const p = await prefs();
+        const hs = (await p.get({ key: KEY_HS })).value;
+        const token = (await p.get({ key: KEY_TOKEN })).value;
+        const user = (await p.get({ key: KEY_USER })).value;
+        return {
+            native: true,
+            homeserverUrl: hs ?? null,
+            userId: user ?? null,
+            hasToken: !!token,
+        };
+    } catch (err) {
+        return {
+            native: true,
+            homeserverUrl: null,
+            userId: null,
+            hasToken: false,
+            error: err instanceof Error ? err.message : String(err),
+        };
+    }
+}

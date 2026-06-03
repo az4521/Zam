@@ -536,16 +536,16 @@
         }
     });
 
-    async function handleLogout() {
+    function handleLogout() {
         const client = getClient();
-        if (client) await unregisterPush(client).catch(() => {});
-        await clearNativeSession().catch(() => {});
-        try {
-            await logout();
-        } finally {
-            clearSession();
-            goto("/");
-        }
+        // Fire the network teardown in the background — don't let a slow/hung
+        // request (common on mobile) block the UI from logging out locally.
+        if (client) unregisterPush(client).catch(() => {});
+        clearNativeSession().catch(() => {});
+        logout().catch(() => {});
+        // Clear local session and leave immediately.
+        clearSession();
+        goto("/");
     }
 
     // Derive directly from activeRoomId (a stable string) rather than the room arrays,
