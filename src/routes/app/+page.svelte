@@ -375,6 +375,12 @@
         const client = getClient();
         if (client) initPush(client).catch(console.error);
 
+        // Native Android notification taps (MainActivity) call this to deep-link
+        // to a room. Pushers posted by MatrixMessagingService open via here.
+        (window as any).__matrixOpenRoom = (roomId: string) => {
+            if (roomId) navigateToRoom(roomId);
+        };
+
         // Ask for desktop-notification permission (granted by default in Electron).
         if (
             typeof Notification !== "undefined" &&
@@ -494,6 +500,7 @@
             nativeBackHandle?.remove();
             if (onPopState)
                 window.removeEventListener("popstate", onPopState);
+            delete (window as any).__matrixOpenRoom;
         };
     });
 

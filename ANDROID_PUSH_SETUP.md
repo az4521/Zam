@@ -72,8 +72,22 @@ the workflow (e.g. base64 in a secret, decoded before `npx cap sync`).
 
 ## Notes
 
-- Foreground notifications are handled in `src/lib/push.ts`; background ones are
-  shown by the OS.
+- Foreground notifications are handled in `src/lib/push.ts`.
+- **Background/killed notifications** are displayed by a native service,
+  `MatrixMessagingService` (`android/app/src/main/java/moe/crafty/matrix/`).
+  Sygnal sends *data-only* FCM messages, and the Capacitor push plugin only
+  shows a notification when the message contains a `notification` block — so
+  without this service, backgrounded pushes arrive but are never displayed.
+  The service builds the notification from the data payload (`room_id`,
+  `event_id`, `unread`) and, on tap, deep-links to the room via
+  `window.__matrixOpenRoom` (wired in `+page.svelte` / `MainActivity.java`).
 - `unregisterPush` removes the pusher on logout.
 - Web/desktop notifications don't use FCM/Sygnal at all — they use the in-app
   Notification API while the client is running.
+
+### After changing native push code
+
+`MatrixMessagingService.java`, `MainActivity.java`, the manifest, and the app
+`build.gradle` are committed native files. After pulling changes rebuild the
+APK (Android Studio or the release workflow). No `npx cap sync` is needed for
+edits under `android/`.
