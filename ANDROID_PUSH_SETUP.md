@@ -1,64 +1,79 @@
-# Android Build + Push Notifications Setup
+# Android Push Notifications (Sygnal + FCM)
 
-## 1. Create a Firebase Project
+Push uses Firebase Cloud Messaging delivered through **Sygnal**, the standard
+Matrix push gateway (<https://github.com/matrix-org/sygnal>). The app registers
+an HTTP pusher with your homeserver pointing at Sygnal; Sygnal forwards
+notifications to the device via FCM.
 
-1. Go to https://console.firebase.google.com/
-2. Create a new project (or use an existing one)
-3. Add an Android app with package name `moe.crafty.matrix`
-4. Download `google-services.json` and place it at:
-   `android/app/google-services.json`
+```
+App (FCM token) ──registers pusher──▶ Homeserver
+Homeserver ──POST /_matrix/push/v1/notify──▶ Sygnal ──▶ FCM ──▶ Android device
+```
 
-## 2. Deploy the Push Gateway
+## 1. Firebase project
 
-The push gateway bridges your homeserver → FCM.
+1. Create a project at <https://console.firebase.google.com/>.
+2. Add an **Android app** with package name `moe.crafty.matrix`.
+3. Download **`google-services.json`** → place at `android/app/google-services.json`.
+   (The Gradle build only enables FCM when this file is present; without it the
+   app still runs, just without push.)
+4. Project Settings → Service Accounts → **Generate new private key** — you'll
+   give this to Sygnal.
+
+## 2. Deploy Sygnal
+
+Follow the Sygnal docs. A minimal `sygnal.yaml` app entry for this client:
+
+```yaml
+apps:
+  moe.crafty.matrix:
+    type: gcm
+    # FCM v1 with a service account (recommended):
+    api_version: v1
+    project_id: your-firebase-project-id
+    service_account_file: /path/to/service-account.json
+```
+
+Run Sygnal behind HTTPS so the homeserver can reach it, e.g.
+`https://sygnal.example.com/_matrix/push/v1/notify`.
+
+## 3. Point the app at Sygnal
+
+Set the gateway URL at build time (preferred):
 
 ```bash
-cd push-gateway
-npm install
+VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" npm run build
 ```
 
-From the Firebase console:
+In CI it's read from the repository **variable** `PUSH_GATEWAY_URL`
+(Settings → Secrets and variables → Actions → Variables). If unset, the app
+builds with push disabled.
 
-- Project Settings → Service Accounts → Generate new private key
-- Save the downloaded JSON as `push-gateway/service-account.json`
+Alternatively, edit the fallback in `src/lib/push.ts`.
 
-Run the gateway (requires a public HTTPS URL — use a VPS, Railway, Render, etc.):
-
-```bash
-PORT=3000 node server.js
-```
-
-## 3. Configure the App
-
-Edit `src/lib/push.ts` and set `PUSH_GATEWAY_URL` to your gateway's public URL:
-
-```ts
-const PUSH_GATEWAY_URL =
-    "https://your-gateway.example.com/_matrix/push/v1/notify";
-```
-
-## 4. Build and Sync
+## 4. Build & install
 
 ```bash
 npm run build
-npx cap sync android
+npx cap sync android      # copies web assets, wires the FCM plugin + google-services.json
+npx cap open android      # then Run from Android Studio
 ```
 
-## 5. Open in Android Studio
+For CI builds to include push you must also provide `google-services.json` to
+the workflow (e.g. base64 in a secret, decoded before `npx cap sync`).
 
-```bash
-npx cap open android
-```
+## 5. Verify
 
-Then build/run from Android Studio (Run → Run 'app').
+1. Launch the app, log in, **grant the notification permission**.
+2. Confirm an HTTP pusher was registered with the homeserver pointing at your
+   Sygnal URL.
+3. Background the app and send a message from another account → notification
+   appears. Tapping it opens the room.
 
-## How it works
+## Notes
 
-```
-App (FCM token) → registers pusher with homeserver
-Homeserver → POST /_matrix/push/v1/notify → push-gateway
-push-gateway → FCM → Android device
-```
-
-When the app is in the foreground, `src/lib/push.ts` handles the notification.
-When in the background, FCM delivers it directly and Android shows it.
+- Foreground notifications are handled in `src/lib/push.ts`; background ones are
+  shown by the OS.
+- `unregisterPush` removes the pusher on logout.
+- Web/desktop notifications don't use FCM/Sygnal at all — they use the in-app
+  Notification API while the client is running.

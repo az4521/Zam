@@ -1,25 +1,31 @@
 /**
- * Push notification integration for Android via Capacitor + FCM.
+ * Push notification integration for Android via Capacitor + FCM, delivered
+ * through a Sygnal push gateway.
  *
  * On startup (after login), call initPush(). It will:
  *   1. Request notification permission
  *   2. Get the FCM device token
- *   3. Register a Matrix pusher with the homeserver pointing at the gateway
+ *   3. Register a Matrix pusher with the homeserver pointing at Sygnal
  *   4. Listen for foreground push notifications (background ones are shown by the OS)
  */
 
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications, type Token } from "@capacitor/push-notifications";
 
-// URL of your push gateway (see push-gateway/ directory). Set at build time via
-// the VITE_PUSH_GATEWAY_URL env var, or edit the fallback below. The example
-// placeholder counts as "not configured".
+// URL of your Sygnal push gateway's notify endpoint, e.g.
+//   https://sygnal.example.com/_matrix/push/v1/notify
+// Set at build time via the VITE_PUSH_GATEWAY_URL env var, or edit the fallback
+// below. The example placeholder counts as "not configured".
+//
+// Sygnal is the standard Matrix push gateway (https://github.com/matrix-org/sygnal);
+// configure an `apps` entry with type `gcm`/`fcm_v1`, app_id `moe.crafty.matrix`,
+// and your Firebase credentials there.
 const PUSH_GATEWAY_URL =
     (import.meta.env as Record<string, string | undefined>)
         .VITE_PUSH_GATEWAY_URL ||
-    "https://your-gateway.example.com/_matrix/push/v1/notify";
+    "https://sygnal.crafty.moe/_matrix/push/v1/notify";
 
-// Must match the app_id registered in your push gateway config.
+// Must match the app_id configured for this app in Sygnal.
 const APP_ID = "moe.crafty.matrix";
 
 // Push is only attempted when a real gateway is configured. This is also our
@@ -27,7 +33,7 @@ const APP_ID = "moe.crafty.matrix";
 // into FCM (PushNotifications.register) with no Firebase config throws natively
 // ("Default FirebaseApp is not initialized"), so we simply don't touch it. The
 // app then runs normally, just without push.
-const PUSH_ENABLED = !PUSH_GATEWAY_URL.includes("your-gateway.example.com");
+const PUSH_ENABLED = !PUSH_GATEWAY_URL.includes("sygnal.example.com");
 
 let pushInitialised = false;
 

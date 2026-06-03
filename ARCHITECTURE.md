@@ -41,7 +41,6 @@ src/
       debug/DebugPanel.svelte          -- dev inspector (Ctrl+Shift+D)
     utils/                             -- markdown, formatters, twemoji, colors
     data/emojis.ts                     -- unicode emoji catalog
-push-gateway/server.js                 -- Express + firebase-admin Matrix push gateway
 android/                               -- Capacitor Android shell
 capacitor.config.ts                    -- appId moe.crafty.matrix, webDir build
 ```
@@ -162,7 +161,7 @@ A message whose push actions include the `sound` tweak (see `isLoudEvent`) is a 
 ## Push notifications
 
 - **Web**: browser Notification API from foreground sync events.
-- **Android (Capacitor + FCM)**: `src/lib/push.ts` `initPush(client)` (no-op off-native) requests permission, gets the FCM token, and registers a Matrix pusher pointing at the gateway. The homeserver POSTs to `push-gateway/server.js` (`POST /_matrix/push/v1/notify`), which forwards to FCM via `firebase-admin`. Tapping a notification calls `setActiveRoom`. `PUSH_GATEWAY_URL` / `APP_ID` in `push.ts` must match the deployed gateway (see `ANDROID_PUSH_SETUP.md`). `unregisterPush` runs on logout.
+- **Android (Capacitor + FCM via Sygnal)**: `src/lib/push.ts` `initPush(client)` (no-op off-native) requests permission, gets the FCM token, and registers an HTTP Matrix pusher pointing at a [Sygnal](https://github.com/matrix-org/sygnal) gateway. The homeserver POSTs to Sygnal (`POST /_matrix/push/v1/notify`), which forwards to FCM. Tapping a notification calls `navigateToRoom`. `PUSH_GATEWAY_URL` (build-time `VITE_PUSH_GATEWAY_URL`) / `APP_ID` in `push.ts` must match the Sygnal config (see `ANDROID_PUSH_SETUP.md`). `unregisterPush` runs on logout. There is no in-repo gateway — Sygnal is deployed separately.
 
 ## Service worker for media auth
 
