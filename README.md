@@ -1,6 +1,10 @@
 # Svelte Matrix Client
 
-This is my first test of Claude Code, creating a matrix client. ~~every existing matrix client sucks, so being better than them isn't really a high bar. imo initial commit has already achieved this~~ actually now that i look, cinny is pretty good, but i wanna do this anyway (also cinny doesnt do mobile anyway)
+this is my matrix client, it's pretty good and supports desktop, web, and mobile (apk and PWA). no encryption support yet because complicated
+
+Taking suggestions for naming this app, lmk a good one. also open to a new icon/logo
+
+name cant include "chat", "talk" or any simple synonyms of those two, cant contain the names matrix or discord in anyway, not even as a -cord or -trix suffix, and must be unique (no other social media or messaging app with that name)
 
 things left to do:
 
