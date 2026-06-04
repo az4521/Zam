@@ -311,6 +311,18 @@ body {
     color: var(--discord-text-muted);
 }
 
+@media (hover: none) and (pointer: coarse) {
+    @supports (-webkit-touch-callout: none) {
+        :where(
+            input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+            textarea,
+            select
+        ) {
+            font-size: max(16px, 1em);
+        }
+    }
+}
+
 /* On the native (Capacitor) app, suppress the WebView's long-press callout on
    links so our long-press-to-copy handler can take over. */
 .cap-native a {

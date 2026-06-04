@@ -1,6 +1,6 @@
 # Svelte Matrix Client
 
-This is my first test of Claude Code, creating a matrix client. ~~every existing matrix client sucks, so being better than them isn't really a high bar. imo initial commit has already achieved this~~ actually now that i look, cinny is pretty good, but i wanna do this anyway
+This is my first test of Claude Code, creating a matrix client. ~~every existing matrix client sucks, so being better than them isn't really a high bar. imo initial commit has already achieved this~~ actually now that i look, cinny is pretty good, but i wanna do this anyway (also cinny doesnt do mobile anyway)
 
 things left to do:
 
@@ -13,10 +13,8 @@ Messaging
 - Polls (m.poll / MSC3381)
 - Location sharing (m.location)
 - Slash commands (/me, /shrug, /join, /invite, /kick)
-- Spoiler rendering (||spoiler||)
 - Code block syntax highlighting
 - Composer drafts (persist typed text per-room across switches)
-- Web push notifications (service worker + VAPID — Android FCM is wired up but browser push isn't)
 
 Rooms
 
@@ -61,13 +59,11 @@ UI / Polish
 - First-run / onboarding flow
 - Accessibility audit (focus trapping, ARIA)
 
-Platform
+feel free to try it out :) i host a copy at https://matrix.crafty.moe/ and you can find installable versions on the [releases page](https://github.com/az4521/svelte_matrix_client/releases/latest)
 
-- iOS app packaging (Capacitor iOS target)
+also installable as a progressive webapp, which is how i recommend iOS users use this app since i don't want to buy a macbook, iphone, and pay $100/yr to develop ios apps
 
-feel free to try it out :) i host a copy at https://matrix.crafty.moe/
-
-same install process as every other js app
+for devs, same install process as every other js app
 
 ```
 git clone https://github.com/az4521/svelte_matrix_client.git
@@ -76,7 +72,7 @@ npm i
 npm run dev
 ```
 
-if you wanna serve this, run `npm run build` and copy the files in build/ into a web directory. it's all static files so there's no backend to run
+if you wanna serve this, run `npm run build` and copy the files in build/ into a web directory. it's all static files so there's no backend to run unless you're planning to run your own instance of sygnal for push notifications
 
 ---
 
