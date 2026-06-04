@@ -31,38 +31,38 @@
         if (stored) {
             statusMsg = "Restoring session…";
             isLoading = true;
-            reconnect(
-                stored.homeserverUrl,
-                stored.userId,
-                stored.accessToken,
-                stored.deviceId,
-            );
-            auth.userId = stored.userId;
-            auth.homeserverUrl = stored.homeserverUrl;
-            auth.accessToken = stored.accessToken;
-            auth.deviceId = stored.deviceId;
-            initServiceWorker();
-
-            let navigated = false;
-            startSync((state) => {
-                auth.syncState = state;
-                if (
-                    (state === "PREPARED" || state === "SYNCING") &&
-                    !navigated
-                ) {
-                    navigated = true;
+            (async () => {
+                try {
+                    await reconnect(
+                        stored.homeserverUrl,
+                        stored.userId,
+                        stored.accessToken,
+                        stored.deviceId,
+                    );
+                    auth.userId = stored.userId;
+                    auth.homeserverUrl = stored.homeserverUrl;
+                    auth.accessToken = stored.accessToken;
+                    auth.deviceId = stored.deviceId;
                     auth.isAuthenticated = true;
+                    initServiceWorker();
                     goto("/app");
-                } else if (state === "ERROR" || state === "STOPPED") {
+
+                    await startSync((state) => {
+                        auth.syncState = state;
+                        if (state === "ERROR" || state === "STOPPED") {
+                            error = "Failed to reconnect. Please log in again.";
+                        }
+                    });
+                } catch {
                     isLoading = false;
                     statusMsg = "";
                     error = "Failed to reconnect. Please log in again.";
                 }
-            });
+            })();
         }
     });
 
-    function afterAuth(result: {
+    async function afterAuth(result: {
         userId: string;
         accessToken: string;
         deviceId: string;
@@ -77,13 +77,10 @@
 
         initServiceWorker();
         statusMsg = "Syncing…";
-        let navigated = false;
-        startSync((state) => {
+        goto("/app");
+        await startSync((state) => {
             auth.syncState = state;
-            if ((state === "PREPARED" || state === "SYNCING") && !navigated) {
-                navigated = true;
-                goto("/app");
-            } else if (state === "ERROR") {
+            if (state === "ERROR") {
                 isLoading = false;
                 statusMsg = "";
                 error = "Sync error. Check your connection.";
@@ -105,7 +102,7 @@
 
             statusMsg = "Logging in…";
             const result = await login(url, username, password);
-            afterAuth(result);
+            await afterAuth(result);
         } catch (err) {
             error =
                 err instanceof Error
@@ -135,7 +132,7 @@
                 password,
                 registrationToken || undefined,
             );
-            afterAuth(result);
+            await afterAuth(result);
         } catch (err) {
             error = err instanceof Error ? err.message : "Registration failed.";
             isLoading = false;

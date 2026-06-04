@@ -1,7 +1,12 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import type { Room, RoomMember } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { getRoomMembers, mxcToHttp } from "$lib/matrix/client";
+    import {
+        getRoomMembers,
+        loadRoomMembersIfNeeded,
+        mxcToHttp,
+    } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
 
     interface Props {
@@ -9,8 +14,18 @@
     }
 
     let { room }: Props = $props();
+    let memberTick = $state(0);
 
-    const members = $derived(getRoomMembers(room));
+    onMount(() => {
+        loadRoomMembersIfNeeded(room)
+            .then(() => memberTick++)
+            .catch(() => {});
+    });
+
+    const members = $derived.by(() => {
+        void memberTick;
+        return getRoomMembers(room);
+    });
 
     const admins = $derived(
         members

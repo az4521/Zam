@@ -11,13 +11,80 @@ import {
     PushRuleKind,
     PushRuleActionName,
     RuleId,
+    IndexedDBStore,
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 
 let matrixClient: MatrixClient | null = null;
+let matrixStore: IndexedDBStore | null = null;
 
 export function getClient(): MatrixClient | null {
     return matrixClient;
+}
+
+function getIndexedDBFactory(): IDBFactory | null {
+    try {
+        return globalThis.indexedDB ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function getLocalStorage(): Storage | undefined {
+    try {
+        return globalThis.localStorage;
+    } catch {
+        return undefined;
+    }
+}
+
+function getSyncDbName(userId: string, deviceId: string): string {
+    return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:sync`;
+}
+
+async function createAuthenticatedClient(opts: {
+    baseUrl: string;
+    accessToken: string;
+    userId: string;
+    deviceId: string;
+}): Promise<MatrixClient> {
+    matrixClient?.stopClient();
+    matrixStore?.destroy().catch(() => {});
+    matrixStore = null;
+
+    const indexedDB = getIndexedDBFactory();
+    const store = indexedDB
+        ? new IndexedDBStore({
+              indexedDB,
+              localStorage: getLocalStorage(),
+              dbName: getSyncDbName(opts.userId, opts.deviceId),
+          })
+        : null;
+
+    let client = createClient({
+        ...opts,
+        store: store ?? undefined,
+        timelineSupport: true,
+    });
+
+    if (store) {
+        try {
+            await store.startup();
+            matrixStore = store;
+        } catch (err) {
+            console.warn(
+                "[matrix] IndexedDB store startup failed; falling back to memory store",
+                err,
+            );
+            client = createClient({
+                ...opts,
+                timelineSupport: true,
+            });
+        }
+    }
+
+    matrixClient = client;
+    return client;
 }
 
 async function resolveHomeserver(input: string): Promise<string> {
@@ -62,12 +129,11 @@ export async function login(
 
     tempClient.stopClient();
 
-    matrixClient = createClient({
+    await createAuthenticatedClient({
         baseUrl: resolvedURL,
-        accessToken: response.access_token,
+        accessToken: response.access_token!,
         userId: response.user_id,
-        deviceId: response.device_id,
-        timelineSupport: true,
+        deviceId: response.device_id!,
     });
 
     return {
@@ -110,12 +176,11 @@ export async function register(
     const resolvedURL = tempClient.getHomeserverUrl();
     tempClient.stopClient();
 
-    matrixClient = createClient({
+    await createAuthenticatedClient({
         baseUrl: resolvedURL,
-        accessToken: response.access_token,
+        accessToken: response.access_token!,
         userId: response.user_id,
-        deviceId: response.device_id,
-        timelineSupport: true,
+        deviceId: response.device_id!,
     });
 
     return {
@@ -126,30 +191,32 @@ export async function register(
     };
 }
 
-export function reconnect(
+export async function reconnect(
     homeserverUrl: string,
     userId: string,
     accessToken: string,
     deviceId: string,
-): void {
-    matrixClient = createClient({
+): Promise<void> {
+    await createAuthenticatedClient({
         baseUrl: homeserverUrl,
         accessToken,
         userId,
         deviceId,
-        timelineSupport: true,
     });
 }
 
-export function startSync(onStateChange: (state: string) => void): void {
+export async function startSync(
+    onStateChange: (state: string) => void,
+): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
     matrixClient.on(ClientEvent.Sync, (state) => {
         onStateChange(state as string);
     });
 
-    matrixClient.startClient({
-        initialSyncLimit: 100,
+    await matrixClient.startClient({
+        initialSyncLimit: 8,
+        lazyLoadMembers: true,
         pendingEventOrdering: PendingEventOrdering.Detached,
     });
 }
@@ -206,6 +273,8 @@ export async function logout(): Promise<void> {
 export function stopClient(): void {
     matrixClient?.stopClient();
     matrixClient = null;
+    matrixStore?.destroy().catch(() => {});
+    matrixStore = null;
 }
 
 const pendingLeaves = new Set<string>();
@@ -690,6 +759,10 @@ export function getMemberAvatar(room: Room, userId: string): string | null {
 
 export function getRoomMembers(room: Room): RoomMember[] {
     return room.getMembers().filter((m) => m.membership === "join");
+}
+
+export async function loadRoomMembersIfNeeded(room: Room): Promise<void> {
+    await room.loadMembersIfNeeded();
 }
 
 export function getRoomTopic(room: Room): string | null {
