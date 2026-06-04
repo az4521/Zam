@@ -49,6 +49,7 @@
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
+    import { initWebPush, teardownWebPush } from "$lib/webPush";
     import {
         syncNativeSession,
         clearNativeSession,
@@ -378,6 +379,8 @@
         refreshRooms();
         const client = getClient();
         if (client) initPush(client).catch(console.error);
+        // PWA / browser web push (no-op on native or when no VAPID key set).
+        if (client) initWebPush(client).catch(console.error);
 
         // Mirror the session natively so the push service can enrich
         // notifications (off-native this is a no-op).
@@ -394,6 +397,16 @@
         (window as any).__matrixOpenRoom = (roomId: string) => {
             if (roomId) navigateToRoom(roomId);
         };
+
+        // Web push notification taps (service worker) deep-link via postMessage.
+        const onSwMessage = (e: MessageEvent) => {
+            if (e.data?.type === "OPEN_ROOM" && e.data.roomId) {
+                navigateToRoom(e.data.roomId);
+            }
+        };
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.addEventListener("message", onSwMessage);
+        }
 
         // Ask for desktop-notification permission (granted by default in Electron).
         if (
@@ -515,6 +528,12 @@
             if (onPopState)
                 window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.removeEventListener(
+                    "message",
+                    onSwMessage,
+                );
+            }
         };
     });
 
@@ -541,6 +560,7 @@
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
         if (client) unregisterPush(client).catch(() => {});
+        if (client) teardownWebPush(client).catch(() => {});
         clearNativeSession().catch(() => {});
         logout().catch(() => {});
         // Clear local session and leave immediately.

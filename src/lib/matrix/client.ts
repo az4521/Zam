@@ -942,6 +942,30 @@ export function getDefaultPushRuleLevel(ruleId: string): PushRuleLevel {
     return ruleHasSound(rule) ? "loud" : "silent";
 }
 
+/**
+ * Snapshot of the catch-all push rules that govern background notifications,
+ * for diagnostics. "Rooms" (.m.rule.message) notifying = a push for every
+ * message in every non-DM room.
+ */
+export interface PushRuleSummary {
+    ruleId: string;
+    label: string;
+    enabled: boolean;
+    level: PushRuleLevel;
+}
+
+export function getPushRuleSummary(): PushRuleSummary[] {
+    return DEFAULT_PUSH_RULES.map((def) => {
+        const rule = findRule(def.ruleId);
+        return {
+            ruleId: def.ruleId,
+            label: def.label,
+            enabled: !!rule && rule.enabled !== false,
+            level: getDefaultPushRuleLevel(def.ruleId),
+        };
+    });
+}
+
 export async function setDefaultPushRuleLevel(
     ruleId: string,
     kind: PushRuleKind,

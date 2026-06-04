@@ -141,6 +141,134 @@ self.addEventListener("fetch", (event) => {
 	);
 });
 
+// ── Web Push (PWA notifications) ────────────────────────────────────────────
+// Sygnal sends "event_id_only" web push: just event_id / room_id. We fetch the
+// event/room/sender from the homeserver (using the stored auth) to show a
+// useful notification, then fall back to a generic one.
+
+async function mxGet(path) {
+	await authReady;
+	if (!accessToken || !homeserverUrl) return null;
+	const base = homeserverUrl.endsWith("/")
+		? homeserverUrl.slice(0, -1)
+		: homeserverUrl;
+	try {
+		const res = await fetch(base + path, {
+			headers: { Authorization: `Bearer ${accessToken}` },
+		});
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+async function buildNotification(data) {
+	const roomId = data.room_id;
+	const eventId = data.event_id;
+	let title = "New message";
+	let body = "You have a new message";
+	let icon = "/favicon.png";
+
+	if (roomId && eventId) {
+		const rid = encodeURIComponent(roomId);
+
+		const nameRes = await mxGet(
+			`/_matrix/client/v3/rooms/${rid}/state/m.room.name/`,
+		);
+		if (nameRes && nameRes.name) title = nameRes.name;
+
+		const event = await mxGet(
+			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
+		);
+		if (event) {
+			const sender = event.sender || "";
+			const msg = (event.content && event.content.body) || "";
+			let senderName = sender;
+			const member = await mxGet(
+				`/_matrix/client/v3/rooms/${rid}/state/m.room.member/${encodeURIComponent(sender)}`,
+			);
+			if (member && member.displayname) senderName = member.displayname;
+			if (msg) body = senderName ? `${senderName}: ${msg}` : msg;
+			else if (senderName) body = `${senderName} sent a message`;
+		}
+
+		const avatarRes = await mxGet(
+			`/_matrix/client/v3/rooms/${rid}/state/m.room.avatar/`,
+		);
+		const mxc = avatarRes && avatarRes.url;
+		if (mxc && mxc.startsWith("mxc://") && homeserverUrl) {
+			const rest = mxc.slice("mxc://".length);
+			const slash = rest.indexOf("/");
+			if (slash > 0) {
+				const server = rest.slice(0, slash);
+				const mediaId = rest.slice(slash + 1);
+				const base = homeserverUrl.endsWith("/")
+					? homeserverUrl.slice(0, -1)
+					: homeserverUrl;
+				// authenticated thumbnail — the SW fetch handler injects auth too,
+				// but build the URL explicitly so the OS-side fetch carries it.
+				icon =
+					`${base}/_matrix/client/v1/media/thumbnail/${encodeURIComponent(server)}/` +
+					`${encodeURIComponent(mediaId)}?width=128&height=128&method=crop`;
+			}
+		}
+	}
+
+	return { title, body, icon, roomId };
+}
+
+self.addEventListener("push", (event) => {
+	let data = {};
+	try {
+		const json = event.data ? event.data.json() : {};
+		// Sygnal webpush wraps the Matrix push in { notification: { ... } }.
+		data = json.notification || json || {};
+	} catch {
+		data = {};
+	}
+
+	// counts.unread === 0 → a "clear" push; don't show anything.
+	if (data.counts && data.counts.unread === 0) return;
+
+	event.waitUntil(
+		buildNotification(data).then((n) =>
+			self.registration.showNotification(n.title, {
+				body: n.body,
+				icon: n.icon,
+				badge: "/favicon.png",
+				tag: n.roomId || undefined,
+				renotify: true,
+				data: { roomId: n.roomId },
+			}),
+		),
+	);
+});
+
+self.addEventListener("notificationclick", (event) => {
+	event.notification.close();
+	const roomId = event.notification.data && event.notification.data.roomId;
+	event.waitUntil(
+		self.clients
+			.matchAll({ type: "window", includeUncontrolled: true })
+			.then((clients) => {
+				for (const client of clients) {
+					if ("focus" in client) {
+						client.focus();
+						if (roomId)
+							client.postMessage({ type: "OPEN_ROOM", roomId });
+						return;
+					}
+				}
+				return self.clients.openWindow(
+					roomId
+						? `/app#room=${encodeURIComponent(roomId)}`
+						: "/app",
+				);
+			}),
+	);
+});
+
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) =>
 	event.waitUntil(self.clients.claim()),

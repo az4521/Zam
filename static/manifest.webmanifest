@@ -1,0 +1,25 @@
+{
+    "name": "Matrix Client",
+    "short_name": "Matrix",
+    "description": "A Matrix chat client",
+    "id": "moe.crafty.matrix",
+    "start_url": "/app",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#313338",
+    "theme_color": "#313338",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "707x707",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/1024.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

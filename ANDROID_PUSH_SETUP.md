@@ -1,13 +1,19 @@
-# Android Push Notifications (Sygnal + FCM)
+# Push Notifications (Sygnal)
 
-Push uses Firebase Cloud Messaging delivered through **Sygnal**, the standard
-Matrix push gateway (<https://github.com/matrix-org/sygnal>). The app registers
-an HTTP pusher with your homeserver pointing at Sygnal; Sygnal forwards
-notifications to the device via FCM.
+Both platforms register a Matrix pusher with the homeserver pointing at
+**Sygnal** (<https://github.com/matrix-org/sygnal>), which fans out to the right
+transport. There are two independent paths with two different `app_id`s, served
+by the same Sygnal:
+
+- **Android app** (`moe.crafty.matrix`) → Sygnal **`gcm`/`fcm_v1`** app → FCM.
+  Needs a Firebase project + `google-services.json`.
+- **PWA / browser** (`moe.crafty.matrix.webpush`) → Sygnal **`webpush`** app →
+  the browser's own Web Push service. **No Firebase / FCM** — uses a VAPID
+  keypair and the standard Web Push API. See "PWA / Web Push" below.
 
 ```
-App (FCM token) ──registers pusher──▶ Homeserver
-Homeserver ──POST /_matrix/push/v1/notify──▶ Sygnal ──▶ FCM ──▶ Android device
+Android: App (FCM token)  ─registers pusher─▶ Homeserver ─▶ Sygnal(gcm)     ─▶ FCM           ─▶ device
+PWA:     PushManager sub  ─registers pusher─▶ Homeserver ─▶ Sygnal(webpush) ─▶ browser push  ─▶ service worker
 ```
 
 ## 1. Firebase project
@@ -97,3 +103,65 @@ the workflow (e.g. base64 in a secret, decoded before `npx cap sync`).
 `build.gradle` are committed native files. After pulling changes rebuild the
 APK (Android Studio or the release workflow). No `npx cap sync` is needed for
 edits under `android/`.
+
+---
+
+# PWA / Web Push (no FCM)
+
+The installable web app gets notifications via the W3C Web Push API + Sygnal's
+`webpush` pushkin. No Firebase, no `google-services.json` — just a VAPID keypair.
+
+## 1. Generate a VAPID keypair
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Keep the **private** key for Sygnal; the **public** key goes to the app build.
+
+## 2. Add a `webpush` app to Sygnal
+
+```yaml
+apps:
+  moe.crafty.matrix.webpush:
+    type: webpush
+    vapid_private_key: "<private key>"
+    vapid_contact_email: you@example.com
+```
+
+(Add this alongside the `moe.crafty.matrix` gcm app — both can coexist.)
+
+## 3. Build the app with the public key
+
+Set `VITE_VAPID_PUBLIC_KEY` (and `VITE_PUSH_GATEWAY_URL`) at build time:
+
+```bash
+VITE_VAPID_PUBLIC_KEY="<public key>" \
+VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" \
+npm run build
+```
+
+In CI these come from repository **variables** `VAPID_PUBLIC_KEY` and
+`PUSH_GATEWAY_URL`. If `VITE_VAPID_PUBLIC_KEY` is unset, web push is simply
+disabled (the app still works).
+
+## 4. Use it
+
+1. Open the deployed site over **HTTPS**, install it as a PWA (or just use it in
+   the browser), log in, and **grant the notification permission**.
+2. The app subscribes via `PushManager` and registers a `webpush` pusher.
+3. Background the tab / app and send a message from another account → the
+   service worker shows the notification (enriched with sender, message text,
+   room name and avatar — it fetches these from the homeserver using the auth
+   already stored in the SW). Tapping it focuses the app and opens the room.
+
+### How it works (code)
+
+- `src/lib/webPush.ts` — permission, `PushManager` subscription, and pusher
+  registration (`app_id` `moe.crafty.matrix.webpush`, pushkey = endpoint,
+  p256dh/auth keys in `data`).
+- `static/sw.js` — `push` and `notificationclick` handlers, with the same
+  homeserver-enrichment as the Android service.
+- Requires HTTPS and a registered service worker (already used for media auth).
+- iOS Safari supports web push only for apps **added to the Home Screen**
+  (iOS 16.4+).

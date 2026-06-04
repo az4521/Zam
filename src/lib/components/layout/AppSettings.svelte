@@ -11,8 +11,10 @@
         setDefaultPushRuleLevel,
         DEFAULT_PUSH_RULES,
         getClient,
+        getPushRuleSummary,
         type RoomNotificationSetting,
         type PushRuleLevel,
+        type PushRuleSummary,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import {
@@ -59,6 +61,7 @@
     let debugPushersError = $state("");
     let gatewayHealth = $state<GatewayHealth | null>(null);
     let nativeSession = $state<NativeSessionState | null>(null);
+    let ruleSummary = $state<PushRuleSummary[] | null>(null);
 
     async function runPushDiagnostics() {
         debugLoading = true;
@@ -66,6 +69,8 @@
         debugPushers = null;
         gatewayHealth = null;
         nativeSession = null;
+        // Catch-all push-rule levels — synchronous, from the live client state.
+        ruleSummary = getPushRuleSummary();
 
         // Each probe assigns its own result as soon as it resolves, so a slow
         // or hung network probe can't prevent the others (notably the local
@@ -775,6 +780,44 @@
                                         </div>
                                     </div>
                                 {/if}
+                            </div>
+                        {/if}
+
+                        <!-- Catch-all push rules (govern background pushes) -->
+                        {#if ruleSummary}
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Notification Rules (server)
+                                </p>
+                                {#if ruleSummary.some((r) => r.ruleId === ".m.rule.message" && r.level !== "off")}
+                                    <p
+                                        class="text-sm text-discord-warning mb-2"
+                                    >
+                                        ⚠ "Rooms" is on — you'll be pushed for
+                                        every message in every room. Set it to
+                                        Off in the Notifications tab unless this
+                                        is intended.
+                                    </p>
+                                {/if}
+                                <div
+                                    class="text-xs font-mono text-discord-textMuted space-y-0.5"
+                                >
+                                    {#each ruleSummary as r}
+                                        <div class="flex justify-between gap-3">
+                                            <span class="break-all"
+                                                >{r.label}</span
+                                            >
+                                            <span
+                                                class={r.level === "off"
+                                                    ? "text-discord-textMuted"
+                                                    : "text-discord-textPrimary"}
+                                                >{r.level}</span
+                                            >
+                                        </div>
+                                    {/each}
+                                </div>
                             </div>
                         {/if}
                     </div>

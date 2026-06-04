@@ -61,6 +61,7 @@ jobs:
       - run: npm run build
         env:
           VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -116,6 +117,7 @@ jobs:
       - run: npm run build
         env:
           VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
       - name: Build desktop app
         run: npx electron-builder --publish never
         env:
