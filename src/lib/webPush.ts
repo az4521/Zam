@@ -6,9 +6,9 @@
  *   1. Ask for Notification permission.
  *   2. Subscribe the service worker's PushManager with the server's VAPID
  *      public key.
- *   3. Register a Matrix HTTP pusher whose pushkey is the subscription endpoint
- *      and whose data carries the p256dh/auth keys, in the shape Sygnal's
- *      webpush pushkin expects.
+ *   3. Register a Matrix HTTP pusher whose pushkey is the subscription p256dh
+ *      key and whose data carries endpoint/auth, in the shape Sygnal's webpush
+ *      pushkin expects.
  *
  * Server side you need a Sygnal `apps` entry of type `webpush` with a matching
  * `vapid_private_key` / `vapid_contact_email`, and the public key exposed to
@@ -45,6 +45,43 @@ export function webPushSupported(): boolean {
 
 export function webPushConfigured(): boolean {
     return !!VAPID_PUBLIC_KEY;
+}
+
+export const WEBPUSH_APP_ID = APP_ID;
+
+export interface WebPushDebug {
+    supported: boolean;
+    configured: boolean;
+    permission: string; // granted | denied | default | unsupported
+    subscribed: boolean;
+    endpoint: string | null;
+    error?: string;
+}
+
+/** Inspect the live web-push state for Settings → Debug Info. */
+export async function readWebPushState(): Promise<WebPushDebug> {
+    const base: WebPushDebug = {
+        supported: webPushSupported(),
+        configured: webPushConfigured(),
+        permission:
+            typeof Notification !== "undefined"
+                ? Notification.permission
+                : "unsupported",
+        subscribed: false,
+        endpoint: null,
+    };
+    if (!base.supported) return base;
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+            base.subscribed = true;
+            base.endpoint = sub.endpoint;
+        }
+    } catch (err) {
+        base.error = err instanceof Error ? err.message : String(err);
+    }
+    return base;
 }
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
@@ -110,15 +147,16 @@ async function registerWebPusher(
             app_id: APP_ID,
             app_display_name: "Matrix Client (Web)",
             device_display_name: navigator.userAgent.slice(0, 80),
-            // The endpoint is the unique pushkey for this browser subscription.
-            pushkey: endpoint,
+            // Sygnal's webpush pushkin treats pushkey as the p256dh key.
+            pushkey: p256dh,
             lang: navigator.language || "en",
             data: {
                 url: PUSH_GATEWAY_URL,
                 format: "event_id_only",
-                // Sygnal webpush pushkin reads these from data.
+                // Sygnal's webpush pushkin reads endpoint/auth from data and
+                // the p256dh key from the Matrix pusher pushkey.
                 endpoint,
-                keys: { p256dh, auth },
+                auth,
                 default_payload: {},
             },
             append: false,
@@ -138,16 +176,26 @@ export async function teardownWebPush(
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
+            const json = sub.toJSON();
+            const p256dh =
+                json.keys?.p256dh ?? bufToBase64Url(sub.getKey("p256dh"));
+            const pushkeys = new Set([p256dh, sub.endpoint]);
             try {
-                await (matrixClient as any).setPusher({
-                    kind: null,
-                    app_id: APP_ID,
-                    pushkey: sub.endpoint,
-                    app_display_name: "",
-                    device_display_name: "",
-                    lang: "en",
-                    data: {},
-                });
+                await Promise.all(
+                    Array.from(pushkeys)
+                        .filter(Boolean)
+                        .map((pushkey) =>
+                            (matrixClient as any).setPusher({
+                                kind: null,
+                                app_id: APP_ID,
+                                pushkey,
+                                app_display_name: "",
+                                device_display_name: "",
+                                lang: "en",
+                                data: {},
+                            }),
+                        ),
+                );
             } catch {
                 /* ignore */
             }

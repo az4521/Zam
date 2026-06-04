@@ -221,9 +221,21 @@ async function buildNotification(data) {
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
-		const json = event.data ? event.data.json() : {};
-		// Sygnal webpush wraps the Matrix push in { notification: { ... } }.
-		data = json.notification || json || {};
+		if (event.data) {
+			// Sygnal webpush sends JSON; tolerate plain-text too.
+			try {
+				const json = event.data.json();
+				data = json.notification || json || {};
+			} catch {
+				const txt = event.data.text();
+				try {
+					const json = JSON.parse(txt);
+					data = json.notification || json || {};
+				} catch {
+					data = { _raw: txt };
+				}
+			}
+		}
 	} catch {
 		data = {};
 	}
@@ -231,17 +243,27 @@ self.addEventListener("push", (event) => {
 	// counts.unread === 0 → a "clear" push; don't show anything.
 	if (data.counts && data.counts.unread === 0) return;
 
+	// userVisibleOnly subscriptions REQUIRE a notification per push or the
+	// browser penalises/blocks the subscription — so always show something,
+	// even if enrichment fails.
 	event.waitUntil(
-		buildNotification(data).then((n) =>
-			self.registration.showNotification(n.title, {
-				body: n.body,
-				icon: n.icon,
-				badge: "/favicon.png",
-				tag: n.roomId || undefined,
-				renotify: true,
-				data: { roomId: n.roomId },
-			}),
-		),
+		buildNotification(data)
+			.catch(() => ({
+				title: "New message",
+				body: "You have a new message",
+				icon: "/favicon.png",
+				roomId: data.room_id,
+			}))
+			.then((n) =>
+				self.registration.showNotification(n.title, {
+					body: n.body,
+					icon: n.icon,
+					badge: "/favicon.png",
+					tag: n.roomId || undefined,
+					renotify: true,
+					data: { roomId: n.roomId },
+				}),
+			),
 	);
 });
 

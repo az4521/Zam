@@ -37,6 +37,11 @@
         readNativeSession,
         type NativeSessionState,
     } from "$lib/nativeSession";
+    import {
+        readWebPushState,
+        WEBPUSH_APP_ID,
+        type WebPushDebug,
+    } from "$lib/webPush";
 
     interface Props {
         onClose: () => void;
@@ -62,6 +67,7 @@
     let gatewayHealth = $state<GatewayHealth | null>(null);
     let nativeSession = $state<NativeSessionState | null>(null);
     let ruleSummary = $state<PushRuleSummary[] | null>(null);
+    let webPush = $state<WebPushDebug | null>(null);
 
     async function runPushDiagnostics() {
         debugLoading = true;
@@ -69,6 +75,7 @@
         debugPushers = null;
         gatewayHealth = null;
         nativeSession = null;
+        webPush = null;
         // Catch-all push-rule levels — synchronous, from the live client state.
         ruleSummary = getPushRuleSummary();
 
@@ -77,6 +84,23 @@
         // native-session readback) from rendering.
         const client = getClient();
         const tasks: Promise<void>[] = [];
+
+        tasks.push(
+            readWebPushState()
+                .then((r) => {
+                    webPush = r;
+                })
+                .catch((e) => {
+                    webPush = {
+                        supported: true,
+                        configured: true,
+                        permission: "default",
+                        subscribed: false,
+                        endpoint: null,
+                        error: e?.message ?? String(e),
+                    };
+                }),
+        );
 
         tasks.push(
             readNativeSession()
@@ -702,6 +726,67 @@
                                         {/each}
                                     </div>
                                 {/if}
+                            </div>
+                        {/if}
+
+                        <!-- Web Push (PWA / browser) -->
+                        {#if webPush && webPush.supported}
+                            {@const wpOk =
+                                webPush.configured &&
+                                webPush.permission === "granted" &&
+                                webPush.subscribed}
+                            {@const wpPusher =
+                                debugPushers?.some(
+                                    (p) => p.app_id === WEBPUSH_APP_ID,
+                                ) ?? false}
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Web Push (PWA)
+                                </p>
+                                <p
+                                    class="text-sm {wpOk
+                                        ? 'text-green-400'
+                                        : 'text-discord-warning'}"
+                                >
+                                    {wpOk
+                                        ? "✓ Subscribed to web push."
+                                        : "⚠ Web push not active."}
+                                </p>
+                                <div
+                                    class="text-xs font-mono text-discord-textMuted mt-1 space-y-0.5 break-all"
+                                >
+                                    <div>
+                                        VAPID key: {webPush.configured
+                                            ? "set"
+                                            : "(missing)"}
+                                    </div>
+                                    <div>permission: {webPush.permission}</div>
+                                    <div>
+                                        subscription: {webPush.subscribed
+                                            ? "active"
+                                            : "(none)"}
+                                    </div>
+                                    {#if webPush.endpoint}
+                                        <div>
+                                            endpoint: {webPush.endpoint.slice(
+                                                0,
+                                                48,
+                                            )}…
+                                        </div>
+                                    {/if}
+                                    <div>
+                                        homeserver pusher: {wpPusher
+                                            ? "registered"
+                                            : "(not found — run with pushers loaded)"}
+                                    </div>
+                                    {#if webPush.error}
+                                        <div class="text-discord-error">
+                                            error: {webPush.error}
+                                        </div>
+                                    {/if}
+                                </div>
                             </div>
                         {/if}
 
