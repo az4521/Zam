@@ -839,7 +839,7 @@
                   : `Message #${roomName}`}
             {disabled}
             rows="1"
-            class="flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted resize-none outline-none focus-visible:outline-none text-sm leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+            class="flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted resize-none outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
         ></textarea>
 
         <!-- GIF picker button -->
