@@ -105,18 +105,26 @@ function bufToBase64Url(buf: ArrayBuffer | null): string {
 }
 
 /**
+ * Ask for web-push notification permission. Call this from a user gesture
+ * (tap/click), which iOS Safari requires before it will show the prompt.
+ */
+export async function requestWebPushPermission(): Promise<
+    NotificationPermission | "unsupported"
+> {
+    if (!webPushSupported() || !webPushConfigured()) return "unsupported";
+    if (Notification.permission !== "default") return Notification.permission;
+    return Notification.requestPermission();
+}
+
+/**
  * Subscribe to web push and register the pusher. Safe to call repeatedly; it
- * reuses an existing subscription. No-ops when unsupported/unconfigured.
+ * reuses an existing subscription. No-ops when unsupported/unconfigured or
+ * notification permission has not already been granted.
  */
 export async function initWebPush(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<void> {
     if (!webPushSupported() || !webPushConfigured()) return;
-
-    if (Notification.permission === "default") {
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") return;
-    }
     if (Notification.permission !== "granted") return;
 
     const reg = await navigator.serviceWorker.ready;

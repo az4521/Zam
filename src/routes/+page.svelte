@@ -14,6 +14,7 @@
         loadStoredSession,
     } from "$lib/stores/auth.svelte";
     import { DEFAULT_HOMESERVER } from "$lib/config";
+    import { requestWebPushPermission } from "$lib/webPush";
 
     let homeserverUrl = $state(DEFAULT_HOMESERVER);
     let username = $state("");
@@ -96,6 +97,8 @@
         isLoading = true;
 
         try {
+            await requestWebPushPermission().catch(() => {});
+
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
@@ -119,6 +122,8 @@
         isLoading = true;
 
         try {
+            await requestWebPushPermission().catch(() => {});
+
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");

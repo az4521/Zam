@@ -408,14 +408,6 @@
             navigator.serviceWorker.addEventListener("message", onSwMessage);
         }
 
-        // Ask for desktop-notification permission (granted by default in Electron).
-        if (
-            typeof Notification !== "undefined" &&
-            Notification.permission === "default"
-        ) {
-            Notification.requestPermission().catch(() => {});
-        }
-
         const mq = window.matchMedia("(max-width: 767px)");
         const pq = window.matchMedia("(pointer: coarse)");
         const hq = window.matchMedia("(hover: none)");
