@@ -253,19 +253,30 @@
         return mxcToHttp(content?.url as string);
     });
 
-    // Image conversion
-    const imageHttpUrl = $derived(() => {
+    // Whether this uploaded image is a GIF (eligible for favouriting)
+    const isGif = $derived(
+        msgtype === "m.image" &&
+            ((content?.info as { mimetype?: string } | undefined)?.mimetype ===
+                "image/gif" ||
+                body().toLowerCase().endsWith(".gif")),
+    );
+
+    // Image conversion.
+    // In chat we show a server-scaled 800x600 thumbnail to save bandwidth; the
+    // full-resolution image is only requested when opened in the lightbox.
+    const imageFullUrl = $derived(() => {
         if (msgtype !== "m.image") return null;
-        const info = content?.info as
-            | { w?: number; h?: number; thumbnail_url?: string }
-            | undefined;
-        const w = info?.w ?? 800;
-        const h = info?.h ?? 600;
-        const thumbnailMxc = info?.thumbnail_url as string | undefined;
-        if (thumbnailMxc && (w > 800 || h > 600)) {
-            return mxcToHttp(thumbnailMxc) ?? mxcToHttp(content?.url as string);
-        }
         return mxcToHttp(content?.url as string);
+    });
+    const imageThumbUrl = $derived(() => {
+        if (msgtype !== "m.image") return null;
+        // GIFs are served full-res in chat so they keep animating; the server
+        // thumbnail would (depending on homeserver) drop the animation.
+        if (isGif) return mxcToHttp(content?.url as string);
+        return (
+            mxcToHttp(content?.url as string, 800, 600, "scale") ??
+            mxcToHttp(content?.url as string)
+        );
     });
 
     // Video: lazy-load blob only after thumbnail is clicked
@@ -327,29 +338,22 @@
         };
     });
 
-    // Whether this uploaded image is a GIF (eligible for favouriting)
-    const isGif = $derived(
-        msgtype === "m.image" &&
-            ((content?.info as { mimetype?: string } | undefined)?.mimetype ===
-                "image/gif" ||
-                body().toLowerCase().endsWith(".gif")),
-    );
-
-    // Reactively track whether the current image URL is favourited
+    // Reactively track whether the current image URL is favourited. The
+    // full-resolution URL is the favourite key (so the picker sends full quality).
     const imageIsFavourited = $derived.by(() => {
         favouritesState.gifs; // track
-        const src = imageHttpUrl();
+        const src = imageFullUrl();
         return !!src && isFavouriteGif(src);
     });
 
     function toggleImageFavourite(e: MouseEvent) {
         e.stopPropagation();
-        const src = imageHttpUrl();
-        if (!src) return;
-        if (isFavouriteGif(src)) {
-            removeFavouriteGif(src);
+        const full = imageFullUrl();
+        if (!full) return;
+        if (isFavouriteGif(full)) {
+            removeFavouriteGif(full);
         } else {
-            addFavouriteGif({ url: src, previewUrl: src });
+            addFavouriteGif({ url: full, previewUrl: imageThumbUrl() ?? full });
         }
     }
 
@@ -675,11 +679,12 @@
                     {@html withTwemoji(plainToHtml(body()))}
                 </div>
             {/if}
-            {@const src = imageHttpUrl()}
-            {#if src}
+            {@const thumb = imageThumbUrl()}
+            {@const full = imageFullUrl()}
+            {#if thumb}
                 <div class="relative inline-block group/img mt-1">
                     <a
-                        href={src}
+                        href={full}
                         target="_blank"
                         rel="noopener noreferrer"
                         onclick={(e) => {
@@ -688,7 +693,7 @@
                         }}
                     >
                         <img
-                            {src}
+                            src={thumb}
                             alt={body()}
                             class="max-w-sm w-full max-h-72 rounded-lg object-contain cursor-pointer block"
                             loading="lazy"
@@ -730,10 +735,13 @@
                         </button>
                     {/if}
                 </div>
-                {#if imageLightboxOpen}
+                {#if imageLightboxOpen && full}
                     <Lightbox
-                        {src}
+                        src={full}
                         alt={body()}
+                        favourite={isGif
+                            ? { url: full, previewUrl: thumb ?? full }
+                            : undefined}
                         onClose={() => (imageLightboxOpen = false)}
                     />
                 {/if}
