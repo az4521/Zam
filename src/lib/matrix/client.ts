@@ -1804,19 +1804,61 @@ export interface CustomEmojiPack {
     id: string; // 'user' or a room ID
     name: string;
     avatarUrl?: string; // http avatar URL for space packs
+    roomId?: string;
+    stateKey?: string;
+    sourceName?: string;
+    inherited?: boolean;
     emojis: CustomEmoji[];
+}
+
+interface RoomEmoteImageContent {
+    url?: string;
+    usage?: string[];
+    [key: string]: unknown;
+}
+
+interface RoomEmoteContent {
+    images?: Record<string, RoomEmoteImageContent>;
+    pack?: {
+        display_name?: string;
+        usage?: string[];
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
 }
 
 // Sticker types mirror emoji types
 export type CustomSticker = CustomEmoji;
+
+export type ImageUsage = "emoticon" | "sticker";
+
+export interface CustomPackImage extends CustomEmoji {
+    usage: ImageUsage[];
+    canEmoji: boolean;
+    canSticker: boolean;
+}
+
+export interface CustomImagePack {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    roomId?: string;
+    stateKey?: string;
+    sourceName?: string;
+    inherited?: boolean;
+    images: CustomPackImage[];
+}
+
 export interface CustomStickerPack {
     id: string;
     name: string;
     avatarUrl?: string;
+    roomId?: string;
+    stateKey?: string;
+    sourceName?: string;
+    inherited?: boolean;
     stickers: CustomSticker[];
 }
-
-type ImageUsage = "emoticon" | "sticker";
 
 // Effective usage: image-level overrides pack-level; absent at both levels means both kinds.
 function matchesUsage(
@@ -1830,48 +1872,496 @@ function matchesUsage(
     return effective.includes(kind);
 }
 
-function extractRoomImages(room: Room, kind: ImageUsage): CustomEmoji[] {
-    try {
-        const events =
-            room
-                .getLiveTimeline()
-                .getState(EventTimeline.FORWARDS)
-                ?.getStateEvents("im.ponies.room_emotes") ?? [];
-        const seen = new Set<string>();
-        return events.flatMap((event) => {
-            const content = event.getContent();
-            const images = content?.images as
-                | Record<string, { url?: string; usage?: string[] }>
-                | undefined;
-            if (!images) return [];
-            const packUsage = (
-                content?.pack as { usage?: string[] } | undefined
-            )?.usage;
-            return Object.entries(images)
-                .filter(
-                    ([shortcode, data]) =>
-                        data?.url?.startsWith("mxc://") &&
-                        !seen.has(shortcode) &&
-                        matchesUsage(data.usage, packUsage, kind),
-                )
-                .flatMap(([shortcode, data]) => {
-                    seen.add(shortcode);
-                    const http = mxcToHttp(data.url!);
-                    return http
-                        ? [{ shortcode, mxcUrl: data.url!, url: http }]
-                        : [];
-                });
+function effectiveUsage(
+    imageUsage: string[] | undefined,
+    packUsage: string[] | undefined,
+): ImageUsage[] {
+    const raw =
+        imageUsage && imageUsage.length > 0 ? imageUsage : packUsage ?? [];
+    const usage = raw.filter((u): u is ImageUsage =>
+        u === "emoticon" || u === "sticker",
+    );
+    return usage.length > 0 ? usage : ["emoticon", "sticker"];
+}
+
+function roomEmoteContentToPackImages(
+    content: RoomEmoteContent,
+): CustomPackImage[] {
+    const images = content.images ?? {};
+    const packUsage = content.pack?.usage;
+    return Object.entries(images)
+        .filter(([, data]) => data?.url?.startsWith("mxc://"))
+        .flatMap(([shortcode, data]) => {
+            const http = mxcToHttp(data.url!);
+            if (!http) return [];
+            const usage = effectiveUsage(data.usage, packUsage);
+            return [
+                {
+                    shortcode,
+                    mxcUrl: data.url!,
+                    url: http,
+                    usage,
+                    canEmoji: usage.includes("emoticon"),
+                    canSticker: usage.includes("sticker"),
+                },
+            ];
         });
+}
+
+function roomEmoteContentToImages(
+    content: RoomEmoteContent,
+    kind: ImageUsage,
+): CustomEmoji[] {
+    const images = content.images ?? {};
+    const packUsage = content.pack?.usage;
+    return Object.entries(images)
+        .filter(
+            ([, data]) =>
+                data?.url?.startsWith("mxc://") &&
+                matchesUsage(data.usage, packUsage, kind),
+        )
+        .flatMap(([shortcode, data]) => {
+            const http = mxcToHttp(data.url!);
+            return http ? [{ shortcode, mxcUrl: data.url!, url: http }] : [];
+        });
+}
+
+function getRoomEmotePacksBase(room: Room): CustomImagePack[] {
+    const events =
+        room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("im.ponies.room_emotes") ?? [];
+    const arr = Array.isArray(events) ? events : [events];
+    return arr
+        .map((event) => {
+            const content = event.getContent() as RoomEmoteContent;
+            const stateKey = event.getStateKey() ?? "";
+            const images = roomEmoteContentToPackImages(content);
+            return {
+                id: `${room.roomId}:${stateKey}`,
+                roomId: room.roomId,
+                stateKey,
+                name:
+                    content.pack?.display_name ||
+                    stateKey ||
+                    `${room.name || "Room"} Emotes`,
+                sourceName: room.name || room.roomId,
+                avatarUrl: getRoomAvatar(room) ?? undefined,
+                images,
+            };
+        })
+        .filter((pack) => pack.images.length > 0);
+}
+
+function getRoomImagePacks(room: Room, kind: ImageUsage): CustomEmojiPack[] {
+    const events =
+        room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("im.ponies.room_emotes") ?? [];
+    const arr = Array.isArray(events) ? events : [events];
+    return arr
+        .map((event) => {
+            const content = event.getContent() as RoomEmoteContent;
+            const stateKey = event.getStateKey() ?? "";
+            const emojis = roomEmoteContentToImages(content, kind);
+            return {
+                id: `${room.roomId}:${stateKey}`,
+                roomId: room.roomId,
+                stateKey,
+                name:
+                    content.pack?.display_name ||
+                    stateKey ||
+                    `${room.name || "Room"} ${kind === "sticker" ? "Stickers" : "Emojis"}`,
+                sourceName: room.name || room.roomId,
+                avatarUrl: getRoomAvatar(room) ?? undefined,
+                emojis,
+            };
+        })
+        .filter((pack) => pack.emojis.length > 0);
+}
+
+export function getRoomEmotePacks(room: Room): CustomImagePack[] {
+    try {
+        return getRoomEmotePacksBase(room);
     } catch {
         return [];
     }
 }
 
-function extractRoomEmojis(room: Room): CustomEmoji[] {
-    return extractRoomImages(room, "emoticon");
+export function getRoomEmojiPacks(room: Room): CustomEmojiPack[] {
+    try {
+        return getRoomImagePacks(room, "emoticon");
+    } catch {
+        return [];
+    }
 }
-function extractRoomStickers(room: Room): CustomSticker[] {
-    return extractRoomImages(room, "sticker");
+
+export function getRoomEmojiPack(room: Room): CustomEmoji[] {
+    return getRoomEmojiPacks(room).flatMap((pack) => pack.emojis);
+}
+
+export function getRoomStickerPacks(room: Room): CustomStickerPack[] {
+    try {
+        return getRoomImagePacks(room, "sticker").map((pack) => ({
+            id: pack.id,
+            name: pack.name,
+            avatarUrl: pack.avatarUrl,
+            roomId: pack.roomId,
+            stateKey: pack.stateKey,
+            sourceName: pack.sourceName,
+            inherited: pack.inherited,
+            stickers: pack.emojis,
+        }));
+    } catch {
+        return [];
+    }
+}
+
+export function getParentSpaceIds(roomId: string): string[] {
+    if (!matrixClient) return [];
+    const result: string[] = [];
+    const visited = new Set<string>();
+
+    function add(parentId: string) {
+        if (visited.has(parentId)) return;
+        visited.add(parentId);
+        result.push(parentId);
+        visit(parentId);
+    }
+
+    function visit(childId: string) {
+        const child = matrixClient?.getRoom(childId);
+        const parentEvents =
+            child
+                ?.getLiveTimeline()
+                .getState(EventTimeline.FORWARDS)
+                ?.getStateEvents("m.space.parent") ?? [];
+        const parentArr = Array.isArray(parentEvents)
+            ? parentEvents
+            : [parentEvents];
+        for (const event of parentArr) {
+            const parentId = event.getStateKey();
+            if (parentId) add(parentId);
+        }
+
+        for (const space of getSpaces()) {
+            if (!getSpaceChildIds(space.roomId).includes(childId)) continue;
+            add(space.roomId);
+        }
+    }
+
+    visit(roomId);
+    return result;
+}
+
+export function getAvailableRoomEmojiPacks(room: Room): CustomEmojiPack[] {
+    if (!matrixClient) return [];
+    const current = getRoomEmojiPacks(room);
+    const inherited = getParentSpaceIds(room.roomId).flatMap((spaceId) => {
+        const parent = matrixClient!.getRoom(spaceId);
+        if (!parent) return [];
+        return getRoomEmojiPacks(parent).map((pack) => ({
+            ...pack,
+            inherited: true,
+        }));
+    });
+    return [...current, ...inherited];
+}
+
+export function getAvailableRoomStickerPacks(room: Room): CustomStickerPack[] {
+    if (!matrixClient) return [];
+    const current = getRoomStickerPacks(room);
+    const inherited = getParentSpaceIds(room.roomId).flatMap((spaceId) => {
+        const parent = matrixClient!.getRoom(spaceId);
+        if (!parent) return [];
+        return getRoomStickerPacks(parent).map((pack) => ({
+            ...pack,
+            inherited: true,
+        }));
+    });
+    return [...current, ...inherited];
+}
+
+export function getAvailableRoomEmotePacks(room: Room): CustomImagePack[] {
+    if (!matrixClient) return [];
+    const current = getRoomEmotePacks(room);
+    const inherited = getParentSpaceIds(room.roomId).flatMap((spaceId) => {
+        const parent = matrixClient!.getRoom(spaceId);
+        if (!parent) return [];
+        return getRoomEmotePacks(parent).map((pack) => ({
+            ...pack,
+            inherited: true,
+        }));
+    });
+    return [...current, ...inherited];
+}
+
+function normalizeEmojiShortcode(shortcode: string): string {
+    return shortcode.trim().replace(/^:+|:+$/g, "");
+}
+
+function isValidEmojiShortcode(shortcode: string): boolean {
+    return /^[A-Za-z0-9_.+-]+$/.test(shortcode);
+}
+
+export function validateEmojiShortcode(shortcode: string): string | null {
+    const normalized = normalizeEmojiShortcode(shortcode);
+    if (!normalized) return "Enter a shortcode.";
+    if (!isValidEmojiShortcode(normalized)) {
+        return "Use only letters, numbers, dots, underscores, pluses, and hyphens.";
+    }
+    return null;
+}
+
+async function fetchRoomEmoteContent(
+    roomId: string,
+    stateKey: string,
+): Promise<RoomEmoteContent> {
+    try {
+        return ((await matrixClient?.getStateEvent(
+            roomId,
+            "im.ponies.room_emotes",
+            stateKey,
+        )) ?? {}) as RoomEmoteContent;
+    } catch {
+        return {};
+    }
+}
+
+function withUsage(
+    usage: string[] | undefined,
+    kind: ImageUsage,
+): string[] {
+    return [...new Set([...(usage ?? []), kind])];
+}
+
+function normalizeUsage(usage: ImageUsage[]): ImageUsage[] {
+    return [...new Set(usage)].filter(
+        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
+    );
+}
+
+async function setRoomPackImageUsage(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    usage: ImageUsage[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const nextUsage = normalizeUsage(usage);
+    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized];
+    if (!existing?.url) throw new Error("Image not found.");
+    images[normalized] = {
+        ...existing,
+        usage: nextUsage,
+    };
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        { ...current, images },
+        stateKey,
+    );
+}
+
+export async function setRoomEmoteUsage(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    usage: ImageUsage[],
+): Promise<void> {
+    await setRoomPackImageUsage(roomId, stateKey, shortcode, usage);
+}
+
+async function addRoomPackImage(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    mxcUrl: string,
+    packName: string,
+    kind: ImageUsage,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const error = validateEmojiShortcode(normalized);
+    if (error) throw new Error(error);
+
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized] ?? {};
+    images[normalized] = {
+        ...existing,
+        url: mxcUrl,
+        usage: withUsage(existing.usage, kind),
+    };
+
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        {
+            ...current,
+            pack: {
+                ...(current.pack ?? {}),
+                display_name: current.pack?.display_name ?? packName,
+            },
+            images,
+        },
+        stateKey,
+    );
+    return normalized;
+}
+
+export async function addRoomEmote(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    mxcUrl: string,
+    packName: string,
+    usage: ImageUsage[],
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const error = validateEmojiShortcode(normalized);
+    const nextUsage = normalizeUsage(usage);
+    if (error) throw new Error(error);
+    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized] ?? {};
+    images[normalized] = {
+        ...existing,
+        url: mxcUrl,
+        usage: nextUsage,
+    };
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        {
+            ...current,
+            pack: {
+                ...(current.pack ?? {}),
+                display_name: current.pack?.display_name ?? packName,
+            },
+            images,
+        },
+        stateKey,
+    );
+    return normalized;
+}
+
+export async function addRoomEmoji(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    mxcUrl: string,
+    packName: string,
+): Promise<string> {
+    return addRoomPackImage(
+        roomId,
+        stateKey,
+        shortcode,
+        mxcUrl,
+        packName,
+        "emoticon",
+    );
+}
+
+export async function addRoomSticker(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    mxcUrl: string,
+    packName: string,
+): Promise<string> {
+    return addRoomPackImage(
+        roomId,
+        stateKey,
+        shortcode,
+        mxcUrl,
+        packName,
+        "sticker",
+    );
+}
+
+async function removeRoomPackImage(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+    kind: ImageUsage,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized];
+
+    if (existing) {
+        const usage = existing.usage?.length ? existing.usage : undefined;
+        const packUsage = current.pack?.usage?.length
+            ? current.pack.usage
+            : undefined;
+        const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
+        if (usage?.includes(otherKind)) {
+            images[normalized] = {
+                ...existing,
+                usage: usage.filter((u) => u !== kind),
+            };
+        } else if (!usage && (!packUsage || packUsage.includes(otherKind))) {
+            images[normalized] = {
+                ...existing,
+                usage: [otherKind],
+            };
+        } else {
+            delete images[normalized];
+        }
+    }
+
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        { ...current, images },
+        stateKey,
+    );
+}
+
+export async function removeRoomEmoji(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+): Promise<void> {
+    await removeRoomPackImage(roomId, stateKey, shortcode, "emoticon");
+}
+
+export async function removeRoomSticker(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+): Promise<void> {
+    await removeRoomPackImage(roomId, stateKey, shortcode, "sticker");
+}
+
+export async function removeRoomEmoteImage(
+    roomId: string,
+    stateKey: string,
+    shortcode: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    const images = { ...(current.images ?? {}) };
+    delete images[normalized];
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        { ...current, images },
+        stateKey,
+    );
 }
 
 function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
@@ -1905,10 +2395,200 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
     }
 }
 
+function getUserEmoteContent(): RoomEmoteContent {
+    if (!matrixClient) return {};
+    return (
+        (matrixClient
+            .getAccountData("im.ponies.user_emotes")
+            ?.getContent() as RoomEmoteContent | undefined) ?? {}
+    );
+}
+
+export function getUserEmotePack(): CustomPackImage[] {
+    return roomEmoteContentToPackImages(getUserEmoteContent());
+}
+
+async function fetchUserEmoteContent(): Promise<RoomEmoteContent> {
+    return getUserEmoteContent();
+}
+
+async function addUserPackImage(
+    shortcode: string,
+    mxcUrl: string,
+    packName: string,
+    kind: ImageUsage,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const error = validateEmojiShortcode(normalized);
+    if (error) throw new Error(error);
+
+    const current = await fetchUserEmoteContent();
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized] ?? {};
+    images[normalized] = {
+        ...existing,
+        url: mxcUrl,
+        usage: withUsage(existing.usage, kind),
+    };
+
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        pack: {
+            ...(current.pack ?? {}),
+            display_name: current.pack?.display_name ?? packName,
+        },
+        images,
+    });
+    return normalized;
+}
+
+export async function addUserEmote(
+    shortcode: string,
+    mxcUrl: string,
+    usage: ImageUsage[],
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const error = validateEmojiShortcode(normalized);
+    const nextUsage = normalizeUsage(usage);
+    if (error) throw new Error(error);
+    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+
+    const current = await fetchUserEmoteContent();
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized] ?? {};
+    images[normalized] = {
+        ...existing,
+        url: mxcUrl,
+        usage: nextUsage,
+    };
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        pack: {
+            ...(current.pack ?? {}),
+            display_name: current.pack?.display_name ?? "My Emotes",
+        },
+        images,
+    });
+    return normalized;
+}
+
+export async function setUserEmoteUsage(
+    shortcode: string,
+    usage: ImageUsage[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const nextUsage = normalizeUsage(usage);
+    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    const current = await fetchUserEmoteContent();
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized];
+    if (!existing?.url) throw new Error("Image not found.");
+    images[normalized] = {
+        ...existing,
+        usage: nextUsage,
+    };
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        images,
+    });
+}
+
+async function removeUserPackImage(
+    shortcode: string,
+    kind: ImageUsage,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const current = await fetchUserEmoteContent();
+    const images = { ...(current.images ?? {}) };
+    const existing = images[normalized];
+
+    if (existing) {
+        const usage = existing.usage?.length ? existing.usage : undefined;
+        const packUsage = current.pack?.usage?.length
+            ? current.pack.usage
+            : undefined;
+        const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
+        if (usage?.includes(otherKind)) {
+            images[normalized] = {
+                ...existing,
+                usage: usage.filter((u) => u !== kind),
+            };
+        } else if (!usage && (!packUsage || packUsage.includes(otherKind))) {
+            images[normalized] = {
+                ...existing,
+                usage: [otherKind],
+            };
+        } else {
+            delete images[normalized];
+        }
+    }
+
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        images,
+    });
+}
+
+export function getUserEmojiPack(): CustomEmoji[] {
+    return getUserPackImages("emoticon");
+}
+
+export function getUserStickerPack(): CustomSticker[] {
+    return getUserPackImages("sticker");
+}
+
+export async function addUserEmoji(
+    shortcode: string,
+    mxcUrl: string,
+): Promise<string> {
+    return addUserPackImage(shortcode, mxcUrl, "My Emojis", "emoticon");
+}
+
+export async function removeUserEmoji(shortcode: string): Promise<void> {
+    await removeUserPackImage(shortcode, "emoticon");
+}
+
+export async function addUserSticker(
+    shortcode: string,
+    mxcUrl: string,
+): Promise<string> {
+    return addUserPackImage(shortcode, mxcUrl, "My Stickers", "sticker");
+}
+
+export async function removeUserSticker(shortcode: string): Promise<void> {
+    await removeUserPackImage(shortcode, "sticker");
+}
+
+export async function removeUserEmoteImage(shortcode: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const normalized = normalizeEmojiShortcode(shortcode);
+    const current = await fetchUserEmoteContent();
+    const images = { ...(current.images ?? {}) };
+    delete images[normalized];
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        images,
+    });
+}
+
+function uniquePacks<T extends { id: string }>(packs: T[]): T[] {
+    const seen = new Set<string>();
+    return packs.filter((pack) => {
+        if (seen.has(pack.id)) return false;
+        seen.add(pack.id);
+        return true;
+    });
+}
+
 // Returns custom emoji packs (emoticons only): user pack first, then active space.
 export function getCustomEmojiPacks(
     activeSpaceId: string | null,
     _spaces: Room[],
+    room?: Room | null,
 ): CustomEmojiPack[] {
     if (!matrixClient) return [];
     const packs: CustomEmojiPack[] = [];
@@ -1917,28 +2597,24 @@ export function getCustomEmojiPacks(
     if (userEmojis.length > 0)
         packs.push({ id: "user", name: "My Emojis", emojis: userEmojis });
 
+    if (room) {
+        packs.push(...getAvailableRoomEmojiPacks(room));
+    }
+
     if (activeSpaceId) {
         const spaceRoom = matrixClient.getRoom(activeSpaceId);
         if (spaceRoom) {
-            const emojis = extractRoomEmojis(spaceRoom);
-            if (emojis.length > 0) {
-                const avatarUrl = getRoomAvatar(spaceRoom) ?? undefined;
-                packs.push({
-                    id: activeSpaceId,
-                    name: spaceRoom.name || "Space",
-                    avatarUrl,
-                    emojis,
-                });
-            }
+            packs.push(...getAvailableRoomEmojiPacks(spaceRoom));
         }
     }
 
-    return packs;
+    return uniquePacks(packs);
 }
 
 // Returns custom sticker packs: user pack first, then active space.
 export function getCustomStickerPacks(
     activeSpaceId: string | null,
+    room?: Room | null,
 ): CustomStickerPack[] {
     if (!matrixClient) return [];
     const packs: CustomStickerPack[] = [];
@@ -1947,23 +2623,18 @@ export function getCustomStickerPacks(
     if (userStickers.length > 0)
         packs.push({ id: "user", name: "My Stickers", stickers: userStickers });
 
+    if (room) {
+        packs.push(...getAvailableRoomStickerPacks(room));
+    }
+
     if (activeSpaceId) {
         const spaceRoom = matrixClient.getRoom(activeSpaceId);
         if (spaceRoom) {
-            const stickers = extractRoomStickers(spaceRoom);
-            if (stickers.length > 0) {
-                const avatarUrl = getRoomAvatar(spaceRoom) ?? undefined;
-                packs.push({
-                    id: activeSpaceId,
-                    name: spaceRoom.name || "Space",
-                    avatarUrl,
-                    stickers,
-                });
-            }
+            packs.push(...getAvailableRoomStickerPacks(spaceRoom));
         }
     }
 
-    return packs;
+    return uniquePacks(packs);
 }
 
 // Flat list of all custom emojis (emoticons only) — used at send time to resolve shortcodes.
@@ -1984,10 +2655,18 @@ export function getCustomEmojis(
     };
 
     add(getUserPackImages("emoticon"));
-    if (room) add(extractRoomEmojis(room));
+    if (room) {
+        add(getAvailableRoomEmojiPacks(room).flatMap((pack) => pack.emojis));
+    }
     if (activeSpaceId) {
         const spaceRoom = matrixClient.getRoom(activeSpaceId);
-        if (spaceRoom) add(extractRoomEmojis(spaceRoom));
+        if (spaceRoom) {
+            add(
+                getAvailableRoomEmojiPacks(spaceRoom).flatMap(
+                    (pack) => pack.emojis,
+                ),
+            );
+        }
     }
 
     return result;

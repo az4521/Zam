@@ -535,6 +535,7 @@
             style="bottom: {keyboardOffset}px;"
         >
             <EmojiPicker
+                {room}
                 onSelect={async (emoji) => {
                     await sendReaction(room.roomId, eventId, emoji);
                     closeModal();
@@ -1151,6 +1152,7 @@
                         : "absolute bottom-full right-0 mb-1 z-50"}
                 >
                     <EmojiPicker
+                        {room}
                         onSelect={async (emoji) => {
                             await sendReaction(room.roomId, eventId, emoji);
                             closeModal();

@@ -18,7 +18,6 @@ Messaging
 - Location sharing (m.location)
 - Slash commands (/me, /shrug, /join, /invite, /kick)
 - Code block syntax highlighting
-- Composer drafts (persist typed text per-room across switches)
 
 Rooms
 
@@ -52,7 +51,6 @@ Encryption
 Media
 
 - Audio / video calling (WebRTC)
-- Custom emoji upload UI / pack management
 - Image gallery / attachment browser
 - Better URL previews (Blocked by Tuwunel)
 

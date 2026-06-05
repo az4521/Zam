@@ -1,5 +1,6 @@
 <script lang="ts">
     import { tick } from "svelte";
+    import type { Room } from "matrix-js-sdk";
     import {
         getCustomStickerPacks,
         getOwnAvatarUrl,
@@ -10,13 +11,20 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
 
     interface Props {
+        room?: Room | null;
         onSelect: (sticker: CustomSticker) => void;
         onClose: () => void;
         onSwitchToEmoji?: () => void;
         onSwitchToGif?: () => void;
     }
 
-    let { onSelect, onClose, onSwitchToEmoji, onSwitchToGif }: Props = $props();
+    let {
+        room = null,
+        onSelect,
+        onClose,
+        onSwitchToEmoji,
+        onSwitchToGif,
+    }: Props = $props();
 
     let search = $state("");
     let activeTab = $state("");
@@ -45,7 +53,7 @@
     });
 
     const stickerPacks = $derived(
-        getCustomStickerPacks(roomsState.activeSpaceId),
+        getCustomStickerPacks(roomsState.activeSpaceId, room),
     );
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 

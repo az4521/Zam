@@ -1,5 +1,6 @@
 <script lang="ts">
     import { tick } from "svelte";
+    import type { Room } from "matrix-js-sdk";
     import { EMOJI_CATEGORIES, ALL_EMOJIS } from "$lib/data/emojis";
     import {
         getCustomEmojiPacks,
@@ -12,6 +13,7 @@
     import { renderEmoji } from "$lib/utils/twemoji";
 
     interface Props {
+        room?: Room | null;
         onSelect: (emoji: string) => void;
         onSelectCustom?: (emoji: CustomEmoji) => void;
         onClose: () => void;
@@ -20,6 +22,7 @@
     }
 
     let {
+        room = null,
         onSelect,
         onSelectCustom,
         onClose,
@@ -61,7 +64,7 @@
     }
 
     const customPacks = $derived(
-        getCustomEmojiPacks(roomsState.activeSpaceId, roomsState.spaces),
+        getCustomEmojiPacks(roomsState.activeSpaceId, roomsState.spaces, room),
     );
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 

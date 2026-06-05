@@ -11,12 +11,30 @@
         setDefaultPushRuleLevel,
         DEFAULT_PUSH_RULES,
         getClient,
+        uploadContent,
+        mxcToHttp,
+        getUserEmotePack,
+        getUserEmojiPack,
+        getUserStickerPack,
+        addUserEmote,
+        addUserEmoji,
+        addUserSticker,
+        setUserEmoteUsage,
+        removeUserEmoteImage,
+        removeUserEmoji,
+        removeUserSticker,
+        validateEmojiShortcode,
         getPushRuleSummary,
+        type CustomPackImage,
+        type CustomEmoji,
+        type CustomSticker,
+        type ImageUsage,
         type RoomNotificationSetting,
         type PushRuleLevel,
         type PushRuleSummary,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
+    import { roomsState } from "$lib/stores/rooms.svelte";
     import {
         APP_VERSION,
         CAN_INSTALL_UPDATE,
@@ -52,11 +70,19 @@
 
     let { onClose, onLogout }: Props = $props();
 
-    type Tab = "account" | "notifications" | "about" | "debug";
+    type Tab =
+        | "account"
+        | "emotes"
+        | "emojis"
+        | "stickers"
+        | "notifications"
+        | "about"
+        | "debug";
     let activeTab = $state<Tab>("account");
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
+        { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
         { id: "about", label: "About" },
         { id: "debug", label: "Debug Info" },
@@ -290,6 +316,254 @@
         soundEnabled = !soundEnabled;
         localStorage.setItem("notifSoundEnabled", String(soundEnabled));
     }
+
+    // ── User emoji/sticker packs ──────────────────────────────────────────────
+    let userEmotes = $state<CustomPackImage[]>([]);
+    let userEmoteShortcode = $state("");
+    let userEmoteUploading = $state(false);
+    let userEmotePending = $state<string | null>(null);
+    let userEmoteError = $state("");
+    let newUserEmoteAsEmoji = $state(true);
+    let newUserEmoteAsSticker = $state(false);
+
+    let userEmojis = $state<CustomEmoji[]>([]);
+    let userEmojiShortcode = $state("");
+    let userEmojiUploading = $state(false);
+    let userEmojiPending = $state<string | null>(null);
+    let userEmojiError = $state("");
+
+    let userStickers = $state<CustomSticker[]>([]);
+    let userStickerShortcode = $state("");
+    let userStickerUploading = $state(false);
+    let userStickerPending = $state<string | null>(null);
+    let userStickerError = $state("");
+
+    function sortPackItems<T extends { shortcode: string }>(items: T[]): T[] {
+        return [...items].sort((a, b) =>
+            a.shortcode.localeCompare(b.shortcode),
+        );
+    }
+
+    function loadUserPacks() {
+        userEmotes = sortPackItems(getUserEmotePack());
+        userEmojis = sortPackItems(getUserEmojiPack());
+        userStickers = sortPackItems(getUserStickerPack());
+    }
+
+    $effect(() => {
+        const tab = activeTab;
+        if (tab === "emotes" || tab === "emojis" || tab === "stickers")
+            loadUserPacks();
+    });
+
+    function usageFromFlags(emoji: boolean, sticker: boolean): ImageUsage[] {
+        return [
+            ...(emoji ? (["emoticon"] as ImageUsage[]) : []),
+            ...(sticker ? (["sticker"] as ImageUsage[]) : []),
+        ];
+    }
+
+    function updateUserEmoteLocal(shortcode: string, usage: ImageUsage[]) {
+        userEmotes = sortPackItems(
+            userEmotes.map((item) =>
+                item.shortcode === shortcode
+                    ? {
+                          ...item,
+                          usage,
+                          canEmoji: usage.includes("emoticon"),
+                          canSticker: usage.includes("sticker"),
+                      }
+                    : item,
+            ),
+        );
+    }
+
+    async function handleUserEmoteUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        userEmoteError = validateEmojiShortcode(userEmoteShortcode) ?? "";
+        const usage = usageFromFlags(
+            newUserEmoteAsEmoji,
+            newUserEmoteAsSticker,
+        );
+        if (!userEmoteError && usage.length === 0) {
+            userEmoteError = "Choose at least one usage.";
+        }
+        if (userEmoteError) {
+            input.value = "";
+            return;
+        }
+
+        userEmoteUploading = true;
+        try {
+            const mxcUrl = await uploadContent(file);
+            const shortcode = await addUserEmote(
+                userEmoteShortcode,
+                mxcUrl,
+                usage,
+            );
+            const url = mxcToHttp(mxcUrl);
+            userEmotes = sortPackItems([
+                ...userEmotes.filter((item) => item.shortcode !== shortcode),
+                {
+                    shortcode,
+                    mxcUrl,
+                    url: url ?? "",
+                    usage,
+                    canEmoji: usage.includes("emoticon"),
+                    canSticker: usage.includes("sticker"),
+                },
+            ]).filter((item) => item.url);
+            userEmoteShortcode = "";
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userEmoteError = err?.message ?? "Upload failed";
+        } finally {
+            userEmoteUploading = false;
+            input.value = "";
+        }
+    }
+
+    async function setUserEmoteFlag(
+        item: CustomPackImage,
+        kind: ImageUsage,
+        enabled: boolean,
+    ) {
+        const usage = usageFromFlags(
+            kind === "emoticon" ? enabled : item.canEmoji,
+            kind === "sticker" ? enabled : item.canSticker,
+        );
+        if (usage.length === 0) {
+            userEmoteError = "Choose at least one usage.";
+            return;
+        }
+        userEmotePending = `${item.shortcode}:${kind}`;
+        userEmoteError = "";
+        try {
+            await setUserEmoteUsage(item.shortcode, usage);
+            updateUserEmoteLocal(item.shortcode, usage);
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userEmoteError = err?.message ?? "Failed to update usage";
+        } finally {
+            userEmotePending = null;
+        }
+    }
+
+    async function doRemoveUserEmote(shortcode: string) {
+        userEmotePending = `${shortcode}:remove`;
+        userEmoteError = "";
+        try {
+            await removeUserEmoteImage(shortcode);
+            userEmotes = userEmotes.filter(
+                (item) => item.shortcode !== shortcode,
+            );
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userEmoteError = err?.message ?? "Failed to remove image";
+        } finally {
+            userEmotePending = null;
+        }
+    }
+
+    async function handleUserEmojiUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        userEmojiError = validateEmojiShortcode(userEmojiShortcode) ?? "";
+        if (userEmojiError) {
+            input.value = "";
+            return;
+        }
+
+        userEmojiUploading = true;
+        try {
+            const mxcUrl = await uploadContent(file);
+            const shortcode = await addUserEmoji(userEmojiShortcode, mxcUrl);
+            const url = mxcToHttp(mxcUrl);
+            userEmojis = sortPackItems([
+                ...userEmojis.filter((emoji) => emoji.shortcode !== shortcode),
+                { shortcode, mxcUrl, url: url ?? "" },
+            ]).filter((emoji) => emoji.url);
+            userEmojiShortcode = "";
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userEmojiError = err?.message ?? "Upload failed";
+        } finally {
+            userEmojiUploading = false;
+            input.value = "";
+        }
+    }
+
+    async function doRemoveUserEmoji(shortcode: string) {
+        userEmojiPending = shortcode;
+        userEmojiError = "";
+        try {
+            await removeUserEmoji(shortcode);
+            userEmojis = userEmojis.filter(
+                (emoji) => emoji.shortcode !== shortcode,
+            );
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userEmojiError = err?.message ?? "Failed to remove emoji";
+        } finally {
+            userEmojiPending = null;
+        }
+    }
+
+    async function handleUserStickerUpload(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) return;
+
+        userStickerError = validateEmojiShortcode(userStickerShortcode) ?? "";
+        if (userStickerError) {
+            input.value = "";
+            return;
+        }
+
+        userStickerUploading = true;
+        try {
+            const mxcUrl = await uploadContent(file);
+            const shortcode = await addUserSticker(
+                userStickerShortcode,
+                mxcUrl,
+            );
+            const url = mxcToHttp(mxcUrl);
+            userStickers = sortPackItems([
+                ...userStickers.filter(
+                    (sticker) => sticker.shortcode !== shortcode,
+                ),
+                { shortcode, mxcUrl, url: url ?? "" },
+            ]).filter((sticker) => sticker.url);
+            userStickerShortcode = "";
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userStickerError = err?.message ?? "Upload failed";
+        } finally {
+            userStickerUploading = false;
+            input.value = "";
+        }
+    }
+
+    async function doRemoveUserSticker(shortcode: string) {
+        userStickerPending = shortcode;
+        userStickerError = "";
+        try {
+            await removeUserSticker(shortcode);
+            userStickers = userStickers.filter(
+                (sticker) => sticker.shortcode !== shortcode,
+            );
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            userStickerError = err?.message ?? "Failed to remove sticker";
+        } finally {
+            userStickerPending = null;
+        }
+    }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -395,6 +669,400 @@
                                 class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors"
                                 >Log Out</button
                             >
+                        </div>
+                    </div>
+
+                    <!-- ── My Emotes ───────────────────────────────────────── -->
+                {:else if activeTab === "emotes"}
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label
+                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                for="user-emote-shortcode"
+                            >
+                                Add Image
+                            </label>
+                            <div class="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                                <div
+                                    class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                                >
+                                    <span
+                                        class="pl-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                    <input
+                                        id="user-emote-shortcode"
+                                        bind:value={userEmoteShortcode}
+                                        disabled={userEmoteUploading}
+                                        placeholder="shortcode"
+                                        class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
+                                    />
+                                    <span
+                                        class="pr-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                </div>
+                                <div
+                                    class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary"
+                                >
+                                    <label
+                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={newUserEmoteAsEmoji}
+                                            disabled={userEmoteUploading}
+                                            class="accent-discord-accent"
+                                        />
+                                        Emoji
+                                    </label>
+                                    <label
+                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={newUserEmoteAsSticker}
+                                            disabled={userEmoteUploading}
+                                            class="accent-discord-accent"
+                                        />
+                                        Sticker
+                                    </label>
+                                </div>
+                                <label
+                                    class="shrink-0 cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {userEmoteUploading
+                                        ? 'opacity-50 pointer-events-none'
+                                        : ''}"
+                                >
+                                    {userEmoteUploading
+                                        ? "Uploading…"
+                                        : "Upload Image"}
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        onchange={handleUserEmoteUpload}
+                                        disabled={userEmoteUploading}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {#if userEmoteError}<p
+                                class="text-sm text-discord-danger"
+                            >
+                                {userEmoteError}
+                            </p>{/if}
+
+                        <div class="space-y-1.5">
+                            {#each userEmotes as item (item.shortcode)}
+                                <div
+                                    class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                >
+                                    <div
+                                        class="w-12 h-12 rounded bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                                    >
+                                        <img
+                                            src={item.url}
+                                            alt=""
+                                            class="max-w-full max-h-full object-contain"
+                                        />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p
+                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                        >
+                                            :{item.shortcode}:
+                                        </p>
+                                        <p
+                                            class="text-xs text-discord-textMuted truncate"
+                                        >
+                                            {item.mxcUrl}
+                                        </p>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <label
+                                            class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={item.canEmoji}
+                                                onchange={(e) =>
+                                                    setUserEmoteFlag(
+                                                        item,
+                                                        "emoticon",
+                                                        (
+                                                            e.target as HTMLInputElement
+                                                        ).checked,
+                                                    )}
+                                                disabled={userEmotePending ===
+                                                    `${item.shortcode}:emoticon`}
+                                                class="accent-discord-accent"
+                                            />
+                                            Emoji
+                                        </label>
+                                        <label
+                                            class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={item.canSticker}
+                                                onchange={(e) =>
+                                                    setUserEmoteFlag(
+                                                        item,
+                                                        "sticker",
+                                                        (
+                                                            e.target as HTMLInputElement
+                                                        ).checked,
+                                                    )}
+                                                disabled={userEmotePending ===
+                                                    `${item.shortcode}:sticker`}
+                                                class="accent-discord-accent"
+                                            />
+                                            Sticker
+                                        </label>
+                                    </div>
+                                    <button
+                                        onclick={() =>
+                                            doRemoveUserEmote(item.shortcode)}
+                                        disabled={userEmotePending ===
+                                            `${item.shortcode}:remove`}
+                                        class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        title="Remove image"
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                            ><path
+                                                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59z"
+                                            /></svg
+                                        >
+                                    </button>
+                                </div>
+                            {/each}
+                            {#if userEmotes.length === 0}<p
+                                    class="text-sm text-discord-textMuted text-center py-4"
+                                >
+                                    No custom images
+                                </p>{/if}
+                        </div>
+                    </div>
+
+                    <!-- ── My Emojis ───────────────────────────────────────── -->
+                {:else if activeTab === "emojis"}
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label
+                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                for="user-emoji-shortcode"
+                            >
+                                Add Emoji
+                            </label>
+                            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+                                <div
+                                    class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                                >
+                                    <span
+                                        class="pl-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                    <input
+                                        id="user-emoji-shortcode"
+                                        bind:value={userEmojiShortcode}
+                                        disabled={userEmojiUploading}
+                                        placeholder="shortcode"
+                                        class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
+                                    />
+                                    <span
+                                        class="pr-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                </div>
+                                <label
+                                    class="shrink-0 cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {userEmojiUploading
+                                        ? 'opacity-50 pointer-events-none'
+                                        : ''}"
+                                >
+                                    {userEmojiUploading
+                                        ? "Uploading…"
+                                        : "Upload Image"}
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        onchange={handleUserEmojiUpload}
+                                        disabled={userEmojiUploading}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {#if userEmojiError}<p
+                                class="text-sm text-discord-danger"
+                            >
+                                {userEmojiError}
+                            </p>{/if}
+
+                        <div class="space-y-1.5">
+                            {#each userEmojis as emoji (emoji.shortcode)}
+                                <div
+                                    class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                >
+                                    <div
+                                        class="w-9 h-9 rounded bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                                    >
+                                        <img
+                                            src={emoji.url}
+                                            alt=""
+                                            class="max-w-full max-h-full object-contain"
+                                        />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p
+                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                        >
+                                            :{emoji.shortcode}:
+                                        </p>
+                                        <p
+                                            class="text-xs text-discord-textMuted truncate"
+                                        >
+                                            {emoji.mxcUrl}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onclick={() =>
+                                            doRemoveUserEmoji(emoji.shortcode)}
+                                        disabled={userEmojiPending ===
+                                            emoji.shortcode}
+                                        class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        title="Remove emoji"
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                            ><path
+                                                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59z"
+                                            /></svg
+                                        >
+                                    </button>
+                                </div>
+                            {/each}
+                            {#if userEmojis.length === 0}<p
+                                    class="text-sm text-discord-textMuted text-center py-4"
+                                >
+                                    No custom emojis
+                                </p>{/if}
+                        </div>
+                    </div>
+
+                    <!-- ── My Stickers ─────────────────────────────────────── -->
+                {:else if activeTab === "stickers"}
+                    <div class="space-y-4">
+                        <div class="space-y-2">
+                            <label
+                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                for="user-sticker-shortcode"
+                            >
+                                Add Sticker
+                            </label>
+                            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+                                <div
+                                    class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                                >
+                                    <span
+                                        class="pl-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                    <input
+                                        id="user-sticker-shortcode"
+                                        bind:value={userStickerShortcode}
+                                        disabled={userStickerUploading}
+                                        placeholder="shortcode"
+                                        class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
+                                    />
+                                    <span
+                                        class="pr-3 text-sm text-discord-textMuted"
+                                        >:</span
+                                    >
+                                </div>
+                                <label
+                                    class="shrink-0 cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {userStickerUploading
+                                        ? 'opacity-50 pointer-events-none'
+                                        : ''}"
+                                >
+                                    {userStickerUploading
+                                        ? "Uploading…"
+                                        : "Upload Image"}
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        onchange={handleUserStickerUpload}
+                                        disabled={userStickerUploading}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        {#if userStickerError}<p
+                                class="text-sm text-discord-danger"
+                            >
+                                {userStickerError}
+                            </p>{/if}
+
+                        <div class="space-y-1.5">
+                            {#each userStickers as sticker (sticker.shortcode)}
+                                <div
+                                    class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                >
+                                    <div
+                                        class="w-12 h-12 rounded bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                                    >
+                                        <img
+                                            src={sticker.url}
+                                            alt=""
+                                            class="max-w-full max-h-full object-contain"
+                                        />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p
+                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                        >
+                                            :{sticker.shortcode}:
+                                        </p>
+                                        <p
+                                            class="text-xs text-discord-textMuted truncate"
+                                        >
+                                            {sticker.mxcUrl}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onclick={() =>
+                                            doRemoveUserSticker(
+                                                sticker.shortcode,
+                                            )}
+                                        disabled={userStickerPending ===
+                                            sticker.shortcode}
+                                        class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        title="Remove sticker"
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                            ><path
+                                                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59z"
+                                            /></svg
+                                        >
+                                    </button>
+                                </div>
+                            {/each}
+                            {#if userStickers.length === 0}<p
+                                    class="text-sm text-discord-textMuted text-center py-4"
+                                >
+                                    No custom stickers
+                                </p>{/if}
                         </div>
                     </div>
 

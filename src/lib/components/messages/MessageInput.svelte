@@ -1070,6 +1070,7 @@
                         style="bottom: {keyboardOffset}px;"
                     >
                         <StickerPicker
+                            {room}
                             onSelect={sendStickerMessage}
                             onClose={() => closePicker("sticker", true)}
                             onSwitchToEmoji={() => openPicker("emoji")}
@@ -1079,6 +1080,7 @@
                 {:else}
                     <div class="absolute bottom-full right-0 mb-2 z-50">
                         <StickerPicker
+                            {room}
                             onSelect={sendStickerMessage}
                             onClose={() => closePicker("sticker", true)}
                             onSwitchToEmoji={() => openPicker("emoji")}
@@ -1115,6 +1117,7 @@
                         style="bottom: {keyboardOffset}px;"
                     >
                         <EmojiPicker
+                            {room}
                             onSelect={insertEmoji}
                             onSelectCustom={insertCustomEmoji}
                             onClose={() => closePicker("emoji", true)}
@@ -1125,6 +1128,7 @@
                 {:else}
                     <div class="absolute bottom-full right-0 mb-2 z-50">
                         <EmojiPicker
+                            {room}
                             onSelect={insertEmoji}
                             onSelectCustom={insertCustomEmoji}
                             onClose={() => closePicker("emoji", true)}
