@@ -205,12 +205,24 @@ export async function reconnect(
     });
 }
 
+// False until the first PREPARED (i.e. the initial sync has finished). Used to
+// suppress notification sounds/popups for the backlog of events replayed on
+// page load — the user should only be alerted for events that arrive live.
+let initialSyncComplete = false;
+
+/** True once the initial sync has finished and incoming events are genuinely new. */
+export function isInitialSyncComplete(): boolean {
+    return initialSyncComplete;
+}
+
 export async function startSync(
     onStateChange: (state: string) => void,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
+    initialSyncComplete = false;
     matrixClient.on(ClientEvent.Sync, (state) => {
+        if (state === "PREPARED") initialSyncComplete = true;
         onStateChange(state as string);
     });
 

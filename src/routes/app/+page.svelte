@@ -46,6 +46,7 @@
         onAnyReceiptEvent,
         getClient,
         getOwnUserId,
+        isInitialSyncComplete,
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
@@ -470,11 +471,17 @@
             const body =
                 typeof content?.body === "string" ? content.body : "";
 
+            // Alerts (sound + desktop popup) fire only for events that arrive
+            // live, never for the backlog replayed during the initial sync on
+            // page load. The red-dot / inbox is still fed below so unread state
+            // stays correct (already-read items are pruned via read receipts).
+            const live = isInitialSyncComplete();
+
             // Loud notifications: play the sound and feed the red-dot / inbox.
             if (loud) {
                 const soundEnabled =
                     localStorage.getItem("notifSoundEnabled") !== "false";
-                if (soundEnabled) {
+                if (live && soundEnabled) {
                     pingAudio.currentTime = 0;
                     pingAudio.play().catch(() => {});
                 }
@@ -488,7 +495,7 @@
             }
 
             // Any notifying event also pops a desktop notification.
-            showDesktopNotification(event, room, body);
+            if (live) showDesktopNotification(event, room, body);
         });
         const unsubReceipts = onAnyReceiptEvent(() => {
             bumpUnreadTick();
