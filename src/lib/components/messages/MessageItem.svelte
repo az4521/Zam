@@ -571,7 +571,7 @@
     <!-- Avatar column -->
     <div class="w-10 flex-shrink-0 mt-0.5">
         {#if showHeader}
-            <Avatar src={avatarSrc} name={displayName} size={40} />
+            <Avatar src={avatarSrc} name={displayName} id={senderId} size={40} />
         {/if}
     </div>
 
@@ -1020,24 +1020,14 @@
         {#if receipts.length > 0}
             <div class="flex items-center gap-0.5 px-4 pb-0.5 justify-end">
                 {#each receipts.slice(0, 5) as r (r.userId)}
-                    {#if r.avatarUrl}
-                        <img
+                    <div title={r.name}>
+                        <Avatar
                             src={r.avatarUrl}
-                            alt={r.name}
-                            title={r.name}
-                            class="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                            name={r.name}
+                            id={r.userId}
+                            size={16}
                         />
-                    {:else}
-                        <div
-                            class="w-4 h-4 rounded-full bg-discord-backgroundTertiary flex items-center justify-center flex-shrink-0"
-                            title={r.name}
-                        >
-                            <span
-                                class="text-[8px] text-discord-textMuted font-semibold leading-none"
-                                >{r.name[0]?.toUpperCase()}</span
-                            >
-                        </div>
-                    {/if}
+                    </div>
                 {/each}
                 {#if receipts.length > 5}
                     <span class="text-[10px] text-discord-textMuted ml-1"

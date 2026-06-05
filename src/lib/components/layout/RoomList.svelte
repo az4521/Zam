@@ -20,6 +20,7 @@
         canAddRoomToSpace,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
+        getOwnAvatarUrl,
         type RoomNotificationSetting,
     } from "$lib/matrix/client";
     import {
@@ -44,6 +45,10 @@
     }
 
     let { onLogout, onOpenSpaceSettings, onOpenRoomSettings }: Props = $props();
+    const ownAvatarSrc = $derived.by(() => {
+        roomsState.roomsTick;
+        return getOwnAvatarUrl();
+    });
 
     // Rooms currently being joined (show spinner)
     let joiningIds = $state(new Set<string>());
@@ -608,7 +613,12 @@
         class="h-14 px-2 flex items-center gap-2 bg-discord-backgroundTertiary flex-shrink-0"
     >
         <div class="relative">
-            <Avatar name={auth.userId || "?"} size={32} />
+            <Avatar
+                src={ownAvatarSrc}
+                name={auth.userId || "?"}
+                id={auth.userId}
+                size={32}
+            />
             <div
                 class="absolute bottom-0 right-0 w-3 h-3 bg-discord-online rounded-full border-2 border-discord-backgroundTertiary"
             ></div>

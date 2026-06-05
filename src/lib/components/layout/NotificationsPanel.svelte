@@ -5,7 +5,6 @@
         getRoomDisplayName,
         getMemberName,
         getMemberAvatar,
-        mxcToHttp,
         fetchServerNotifications,
         onTimelineEvent,
         type ServerNotification,
@@ -147,7 +146,7 @@
                         ? getRoomDisplayName(room)
                         : n.roomId}
                     {@const avatarUrl = room
-                        ? mxcToHttp(getMemberAvatar(room, n.sender))
+                        ? getMemberAvatar(room, n.sender)
                         : null}
                     {@const name = room
                         ? getMemberName(room, n.sender)
@@ -161,7 +160,12 @@
                             : 'border-yellow-500/70'}"
                     >
                         <div class="flex items-center gap-2 mb-1">
-                            <Avatar src={avatarUrl} {name} size={18} />
+                            <Avatar
+                                src={avatarUrl}
+                                {name}
+                                id={n.sender}
+                                size={18}
+                            />
                             <span
                                 class="text-xs font-semibold text-discord-textPrimary truncate"
                                 >{name}</span

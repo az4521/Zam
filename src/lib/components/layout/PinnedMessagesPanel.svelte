@@ -7,7 +7,6 @@
         fetchEventById,
         getMemberName,
         getMemberAvatar,
-        mxcToHttp,
         getMyPowerLevel,
         getRoomPowerLevels,
     } from "$lib/matrix/client";
@@ -95,15 +94,18 @@
             <div class="p-2 space-y-1">
                 {#each pinnedEvents as event (event.getId())}
                     {@const sender = event.getSender() ?? ""}
-                    {@const avatarUrl = mxcToHttp(
-                        getMemberAvatar(room, sender),
-                    )}
+                    {@const avatarUrl = getMemberAvatar(room, sender)}
                     {@const name = getMemberName(room, sender)}
                     <div
                         class="p-2 rounded-lg hover:bg-discord-messageHover transition-colors group"
                     >
                         <div class="flex items-center gap-2 mb-1">
-                            <Avatar src={avatarUrl} {name} size={18} />
+                            <Avatar
+                                src={avatarUrl}
+                                {name}
+                                id={sender}
+                                size={18}
+                            />
                             <span
                                 class="text-xs font-semibold text-discord-textPrimary truncate"
                                 >{name}</span

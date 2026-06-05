@@ -80,6 +80,7 @@
                             <Avatar
                                 src={getAvatarSrc(member)}
                                 name={member.name}
+                                id={member.userId}
                                 size={32}
                             />
                             <div
@@ -116,6 +117,7 @@
                             <Avatar
                                 src={getAvatarSrc(member)}
                                 name={member.name}
+                                id={member.userId}
                                 size={32}
                             />
                         </div>
@@ -146,6 +148,7 @@
                             <Avatar
                                 src={getAvatarSrc(member)}
                                 name={member.name}
+                                id={member.userId}
                                 size={32}
                             />
                         </div>

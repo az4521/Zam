@@ -1,9 +1,10 @@
 <script lang="ts">
-    import { AVATAR_PALETTE } from "$lib/utils/colors";
+    import { getAvatarColor, getAvatarInitials } from "$lib/utils/colors";
 
     interface Props {
         src?: string | null;
         name?: string;
+        id?: string | null;
         size?: number;
         rounded?: "full" | "lg" | "md" | "xl" | "2xl" | "none";
         class?: string;
@@ -12,28 +13,15 @@
     let {
         src = null,
         name = "?",
+        id = null,
         size = 40,
         rounded = "full",
         class: extraClass = "",
     }: Props = $props();
 
     const resolvedSrc = $derived(src ?? null);
-
-    const initials = $derived(() => {
-        if (!name) return "?";
-        const words = name.trim().split(/\s+/);
-        if (words.length === 1) return words[0][0]?.toUpperCase() ?? "?";
-        return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-    });
-
-    // Deterministic color from name
-    const bgColor = $derived(() => {
-        let hash = 0;
-        for (let i = 0; i < name.length; i++) {
-            hash = name.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-    });
+    const initials = $derived(getAvatarInitials(name));
+    const bgColor = $derived(getAvatarColor(id ?? name));
 
     const roundedClass = $derived(() => {
         if (rounded === "none") return "";
@@ -49,7 +37,7 @@
     class="flex-shrink-0 flex items-center justify-center overflow-hidden {roundedClass()} {extraClass}"
     style="width: {size}px; height: {size}px; background-color: {resolvedSrc
         ? 'transparent'
-        : bgColor()};"
+        : bgColor};"
 >
     {#if resolvedSrc}
         <img
@@ -62,7 +50,7 @@
             class="text-white font-semibold select-none"
             style="font-size: {size * 0.4}px;"
         >
-            {initials()}
+            {initials}
         </span>
     {/if}
 </div>

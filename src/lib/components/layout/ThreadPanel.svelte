@@ -44,6 +44,7 @@
     const rootSender = $derived(
         rootEvent ? getMemberName(room, rootEvent.getSender() ?? "") : "",
     );
+    const rootSenderId = $derived(rootEvent?.getSender() ?? null);
     const rootAvatar = $derived(
         rootEvent ? getMemberAvatar(room, rootEvent.getSender() ?? "") : null,
     );
@@ -148,7 +149,12 @@
             class="px-4 py-3 border-b border-discord-divider flex-shrink-0 bg-discord-backgroundSecondary"
         >
             <div class="flex items-center gap-2 mb-1">
-                <Avatar src={rootAvatar} name={rootSender} size={20} />
+                <Avatar
+                    src={rootAvatar}
+                    name={rootSender}
+                    id={rootSenderId}
+                    size={20}
+                />
                 <span class="text-xs font-semibold text-discord-textPrimary"
                     >{rootSender}</span
                 >

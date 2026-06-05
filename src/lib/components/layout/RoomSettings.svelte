@@ -664,6 +664,7 @@
                                                 member.getMxcAvatarUrl(),
                                             )}
                                             name={member.name}
+                                            id={member.userId}
                                             size={28}
                                         />
                                         <div class="flex-1 min-w-0">
@@ -716,6 +717,7 @@
                                                     member.getMxcAvatarUrl(),
                                                 )}
                                                 name={member.name}
+                                                id={member.userId}
                                                 size={28}
                                             />
                                             <div class="flex-1 min-w-0">

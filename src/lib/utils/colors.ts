@@ -12,3 +12,23 @@ export const AVATAR_PALETTE = [
     "var(--avatar-color-6)",
     "var(--avatar-color-7)",
 ];
+
+export function getAvatarInitials(name: string | null | undefined): string {
+    let label = name?.trim();
+    if (!label) return "?";
+    if (label.startsWith("@")) {
+        label = label.slice(1).split(":")[0] || label;
+    }
+    const words = label.split(/\s+/);
+    if (words.length === 1) return words[0][0]?.toUpperCase() ?? "?";
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+export function getAvatarColor(seed: string | null | undefined): string {
+    const value = seed || "?";
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+        hash = value.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+}

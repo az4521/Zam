@@ -23,6 +23,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
+    import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -939,20 +940,12 @@
                     class:bg-discord-messageHover={i === mentionSelectedIdx}
                     onpointerenter={() => (mentionSelectedIdx = i)}
                 >
-                    {#if getMemberAvatar(room!, member.userId)}
-                        <img
-                            src={getMemberAvatar(room!, member.userId)!}
-                            alt=""
-                            class="w-6 h-6 rounded-full object-cover flex-shrink-0"
-                        />
-                    {:else}
-                        <div
-                            class="w-6 h-6 rounded-full bg-discord-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                        >
-                            {(member.rawDisplayName ||
-                                member.userId)[0]?.toUpperCase()}
-                        </div>
-                    {/if}
+                    <Avatar
+                        src={getMemberAvatar(room!, member.userId)}
+                        name={member.rawDisplayName || member.userId}
+                        id={member.userId}
+                        size={24}
+                    />
                     <span
                         class="text-sm text-discord-textPrimary font-medium truncate"
                     >
