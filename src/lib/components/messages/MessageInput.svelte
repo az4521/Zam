@@ -11,6 +11,7 @@
         getMemberAvatar,
         getRoomMembers,
         getCustomEmojis,
+        mxcToHttp,
         sendTyping,
         onTypingEvent,
         getOwnUserId,
@@ -60,14 +61,16 @@
     let text = $state("");
     let isSending = $state(false);
     let fileQueue = $state<QueuedFile[]>([]);
-    let textareaEl: HTMLTextAreaElement | undefined = $state();
+    let textareaEl: HTMLDivElement | undefined = $state();
+    let renderingComposer = false;
 
     // Expose a focus hook so the global "type to focus" shortcut (+page) can
     // focus this composer.
     $effect(() => {
         interfaceState.focusComposer = () => textareaEl?.focus();
         return () => {
-            if (interfaceState.focusComposer) interfaceState.focusComposer = null;
+            if (interfaceState.focusComposer)
+                interfaceState.focusComposer = null;
         };
     });
     let fileInputEl: HTMLInputElement | undefined = $state();
@@ -102,9 +105,57 @@
             mentionSelectedIdx = 0;
     });
 
-    function detectMentionQuery() {
+    function getComposerText(): string {
+        return textareaEl?.innerText.replace(/\u00a0/g, " ") ?? "";
+    }
+
+    function getCaretOffset(): number {
+        if (!textareaEl) return text.length;
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return text.length;
+        const range = selection.getRangeAt(0);
+        if (!textareaEl.contains(range.endContainer)) return text.length;
+
+        const preCaret = range.cloneRange();
+        preCaret.selectNodeContents(textareaEl);
+        preCaret.setEnd(range.endContainer, range.endOffset);
+        return preCaret.toString().length;
+    }
+
+    function setCaretOffset(offset: number): void {
         if (!textareaEl) return;
-        const pos = textareaEl.selectionStart ?? 0;
+        const target = Math.max(0, Math.min(offset, getComposerText().length));
+        const walker = document.createTreeWalker(
+            textareaEl,
+            NodeFilter.SHOW_TEXT,
+        );
+        let remaining = target;
+        let node = walker.nextNode();
+        while (node) {
+            const len = node.textContent?.length ?? 0;
+            if (remaining <= len) {
+                const range = document.createRange();
+                const selection = window.getSelection();
+                range.setStart(node, remaining);
+                range.collapse(true);
+                selection?.removeAllRanges();
+                selection?.addRange(range);
+                return;
+            }
+            remaining -= len;
+            node = walker.nextNode();
+        }
+
+        const range = document.createRange();
+        const selection = window.getSelection();
+        range.selectNodeContents(textareaEl);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+    }
+
+    function detectMentionQuery() {
+        const pos = getCaretOffset();
         const before = text.slice(0, pos);
         const match = before.match(/@(\S*)$/);
         if (match) {
@@ -133,11 +184,9 @@
         ]);
         mentionQuery = null;
         tick().then(() => {
-            if (!textareaEl) return;
             const newPos = mentionStart + 1 + displayName.length + 1;
-            textareaEl.selectionStart = newPos;
-            textareaEl.selectionEnd = newPos;
-            textareaEl.focus();
+            renderComposer(newPos);
+            textareaEl?.focus();
         });
     }
 
@@ -182,8 +231,7 @@
     });
 
     function detectEmojiQuery() {
-        if (!textareaEl) return;
-        const pos = textareaEl.selectionStart ?? 0;
+        const pos = getCaretOffset();
         const before = text.slice(0, pos);
         // Match :word with no closing colon yet (at least 1 char after :)
         const match = before.match(/:(\w+)$/);
@@ -203,9 +251,7 @@
             text = before + candidate.emoji + " " + after.replace(/^\S*/, "");
             const newPos = emojiStart + candidate.emoji.length + 1;
             tick().then(() => {
-                if (!textareaEl) return;
-                textareaEl.selectionStart = newPos;
-                textareaEl.selectionEnd = newPos;
+                renderComposer(newPos);
                 textareaEl.focus();
             });
         } else {
@@ -213,9 +259,7 @@
             text = before + insertion + after.replace(/^\S*/, "");
             const newPos = emojiStart + insertion.length;
             tick().then(() => {
-                if (!textareaEl) return;
-                textareaEl.selectionStart = newPos;
-                textareaEl.selectionEnd = newPos;
+                renderComposer(newPos);
                 textareaEl.focus();
             });
         }
@@ -303,7 +347,10 @@
         openComposerPicker(which);
     }
 
-    function closePicker(_which: "emoji" | "sticker" | "gif", refocus: boolean) {
+    function closePicker(
+        _which: "emoji" | "sticker" | "gif",
+        refocus: boolean,
+    ) {
         closeModal();
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
     }
@@ -315,6 +362,13 @@
                   replyToEvent.getSender() ?? "",
               )
             : null,
+    );
+    const composerPlaceholder = $derived(
+        disabled
+            ? "Select a room to start chatting"
+            : replyToEvent
+              ? `Reply to ${replyToEvent.getSender()}...`
+              : `Message #${roomName}`,
     );
 
     // Focus textarea when reply is set
@@ -366,6 +420,93 @@
         return { html: changed ? html : null, mentionedUserIds };
     }
 
+    function escapeHtml(plain: string): string {
+        return plain
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    function renderCustomEmojiToken(token: string): string | null {
+        const shortcode = token.slice(1, -1);
+        const emoji = getCustomEmojis(room, roomsState.activeSpaceId).find(
+            (e) => e.shortcode === shortcode,
+        );
+        const src = emoji ? mxcToHttp(emoji.mxcUrl) : null;
+        if (!src) return null;
+        return `<span class="composer-custom-emoji"><img src="${escapeHtml(src)}" alt="" draggable="false" contenteditable="false" />${escapeHtml(token)}</span>`;
+    }
+
+    function isMentionToken(token: string): boolean {
+        if (!token.startsWith("@") || token.length < 2) return false;
+        const name = token.slice(1).replace(/[.,!?;:]$/, "");
+        if (pendingMentions.has(name)) return true;
+        if (!room) return false;
+        return getRoomMembers(room).some(
+            (m) =>
+                m.userId === token ||
+                m.userId.toLowerCase().includes(name.toLowerCase()) ||
+                (m.rawDisplayName ?? "").toLowerCase() === name.toLowerCase(),
+        );
+    }
+
+    function decorateInline(plain: string): string {
+        const tokenRe =
+            /(https?:\/\/[^\s<>)"']+|@[^\s<]+|`[^`\n]+`|\*\*\*[^*\n][\s\S]*?\*\*\*|\*\*[^*\n][\s\S]*?\*\*|(?<![\w])__[^_\n][\s\S]*?__(?![\w])|\*[^*\n]+\*|(?<![\w])_[^_\n]+_(?![\w])|~~[^~\n]+~~|\|\|[^|\n]+\|\||:[a-zA-Z0-9_+-]+:)/g;
+        let html = "";
+        let pos = 0;
+        for (const match of plain.matchAll(tokenRe)) {
+            const token = match[0];
+            const index = match.index ?? 0;
+            html += escapeHtml(plain.slice(pos, index));
+
+            const customEmoji = renderCustomEmojiToken(token);
+            if (customEmoji) {
+                html += customEmoji;
+            } else if (token.startsWith("@") && isMentionToken(token)) {
+                html += `<span class="composer-mention">${escapeHtml(token)}</span>`;
+            } else if (
+                token.startsWith("http://") ||
+                token.startsWith("https://")
+            ) {
+                html += `<span class="composer-link">${escapeHtml(token)}</span>`;
+            } else if (token.startsWith("`")) {
+                html += `<code>${escapeHtml(token)}</code>`;
+            } else if (token.startsWith("||")) {
+                html += `<span class="composer-spoiler">${escapeHtml(token)}</span>`;
+            } else if (token.startsWith("~~")) {
+                html += `<del>${escapeHtml(token)}</del>`;
+            } else if (token.startsWith("***")) {
+                html += `<strong><em>${escapeHtml(token)}</em></strong>`;
+            } else if (token.startsWith("**")) {
+                html += `<strong>${escapeHtml(token)}</strong>`;
+            } else if (token.startsWith("__")) {
+                html += `<u>${escapeHtml(token)}</u>`;
+            } else if (token.startsWith("*") || token.startsWith("_")) {
+                html += `<em>${escapeHtml(token)}</em>`;
+            } else {
+                html += escapeHtml(token);
+            }
+            pos = index + token.length;
+        }
+        html += escapeHtml(plain.slice(pos));
+        return html.replace(/\n/g, "<br>");
+    }
+
+    function renderComposer(caretOffset = getCaretOffset()): void {
+        if (!textareaEl) return;
+        renderingComposer = true;
+        textareaEl.innerHTML = decorateInline(text);
+        renderingComposer = false;
+        setCaretOffset(caretOffset);
+    }
+
+    function setComposerText(next: string, caretOffset = next.length): void {
+        text = next;
+        tick().then(() => renderComposer(caretOffset));
+    }
+
     async function send() {
         const trimmed = text.trim();
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
@@ -408,7 +549,7 @@
             mentionQuery = null;
             emojiQuery = null;
             pendingMentions = new Map();
-            if (textareaEl) textareaEl.style.height = "auto";
+            renderComposer(0);
             // Revoke object URLs and clear queue
             for (const item of filesToSend) {
                 if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -522,19 +663,20 @@
     }
 
     function insertGif(url: string) {
-        text = text ? text + " " + url : url;
+        const next = text ? text + " " + url : url;
+        setComposerText(next);
         closeModal();
         textareaEl?.focus();
     }
 
     function insertEmoji(emoji: string) {
-        text += emoji;
+        setComposerText(text + emoji);
         closeModal();
         textareaEl?.focus();
     }
 
     function insertCustomEmoji(emoji: CustomEmoji) {
-        text += `:${emoji.shortcode}:`;
+        setComposerText(text + `:${emoji.shortcode}:`);
         closeModal();
         textareaEl?.focus();
     }
@@ -574,10 +716,27 @@
                     item.kind === "file" && item.type.startsWith("image/"),
             )
             ?.getAsFile();
-        if (!file) return;
+        if (file) {
+            e.preventDefault();
+            const ts = new Date()
+                .toISOString()
+                .replace(/[:.]/g, "-")
+                .slice(0, 19);
+            enqueueFile(file, `pasted-image-${ts}.png`);
+            return;
+        }
+
+        const pastedText = e.clipboardData?.getData("text/plain");
+        if (!pastedText) return;
         e.preventDefault();
-        const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        enqueueFile(file, `pasted-image-${ts}.png`);
+        const start = getCaretOffset();
+        const selection = window.getSelection();
+        const selected = selection?.rangeCount
+            ? selection.getRangeAt(0).toString().length
+            : 0;
+        const next =
+            text.slice(0, start) + pastedText + text.slice(start + selected);
+        setComposerText(next, start + pastedText.length);
     }
 
     function onFileSelected(e: Event) {
@@ -588,9 +747,10 @@
     }
 
     function onInput() {
-        if (!textareaEl) return;
-        textareaEl.style.height = "auto";
-        textareaEl.style.height = Math.min(textareaEl.scrollHeight, 200) + "px";
+        if (!textareaEl || renderingComposer) return;
+        const caret = getCaretOffset();
+        text = getComposerText();
+        renderComposer(caret);
         detectMentionQuery();
         detectEmojiQuery();
 
@@ -822,9 +982,11 @@
             </svg>
         </button>
 
-        <textarea
+        <div
             bind:this={textareaEl}
-            bind:value={text}
+            role="textbox"
+            aria-multiline="true"
+            aria-label={composerPlaceholder}
             onkeydown={onKeydown}
             oninput={onInput}
             onpaste={onPaste}
@@ -832,15 +994,11 @@
                 detectMentionQuery();
                 detectEmojiQuery();
             }}
-            placeholder={disabled
-                ? "Select a room to start chatting"
-                : replyToEvent
-                  ? `Reply to ${replyToEvent.getSender()}…`
-                  : `Message #${roomName}`}
-            {disabled}
-            rows="1"
-            class="flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted resize-none outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
-        ></textarea>
+            placeholder={composerPlaceholder}
+            contenteditable={!disabled}
+            tabindex={disabled ? -1 : 0}
+            class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+        ></div>
 
         <!-- GIF picker button -->
         <div class="relative flex-shrink-0">
@@ -957,10 +1115,7 @@
                 <!-- Backdrop to close picker on outside click -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <div
-                    class="fixed inset-0 z-40"
-                    onclick={closeModal}
-                ></div>
+                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
                 {#if interfaceState.isTouchscreen}
                     <div
                         class="fixed left-0 right-0 z-50"
@@ -1030,5 +1185,66 @@
     .input-box:focus-within {
         outline: none;
         border-color: rgb(var(--discord-accent-rgb) / 0.3);
+    }
+
+    .composer-editor {
+        min-height: 1.625rem;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
+
+    .composer-editor:empty::before {
+        content: attr(placeholder);
+        color: var(--discord-text-muted);
+        pointer-events: none;
+    }
+
+    .composer-editor :global(.composer-mention) {
+        padding: 0 0.2rem;
+        border-radius: 3px;
+        color: rgb(var(--discord-accent-rgb));
+        background-color: rgb(var(--discord-accent-rgb) / 0.18);
+        font-weight: 500;
+    }
+
+    .composer-editor :global(.composer-custom-emoji) {
+        color: var(--discord-text-primary);
+    }
+
+    .composer-editor :global(.composer-link) {
+        color: rgb(var(--discord-accent-rgb));
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    .composer-editor :global(.composer-custom-emoji img) {
+        display: inline-block;
+        width: auto;
+        height: 1.25em;
+        margin-right: 0.15rem;
+        vertical-align: -0.25em;
+        object-fit: contain;
+    }
+
+    .composer-editor :global(.composer-spoiler) {
+        padding: 0 3px;
+        border-radius: 3px;
+        color: transparent;
+        background-color: var(--discord-spoiler-bg);
+        text-shadow: none;
+    }
+
+    .composer-editor :global(code) {
+        padding: 0.05rem 0.25rem;
+        border-radius: 3px;
+        background-color: var(--discord-bg-tertiary);
+        font-family:
+            ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 0.875em;
+    }
+
+    .composer-editor :global(a) {
+        color: rgb(var(--discord-accent-rgb));
+        text-decoration: none;
     }
 </style>

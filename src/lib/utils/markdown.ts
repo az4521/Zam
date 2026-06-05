@@ -53,9 +53,9 @@ function processInline(raw: string): { html: string; changed: boolean } {
     s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
     s = s.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/__(.+?)__/g, "<u>$1</u>");
+    s = s.replace(/(?<![\w])__(.+?)__(?![\w])/g, "<u>$1</u>");
     s = s.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
-    s = s.replace(/_([^_\n]+?)_/g, "<em>$1</em>");
+    s = s.replace(/(?<![\w])_([^_\n]+?)_(?![\w])/g, "<em>$1</em>");
 
     // Restore escaped characters and code spans
     s = s.replace(/\x04(\d+)\x05/g, (_, i) => escaped[+i]);
