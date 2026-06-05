@@ -90,6 +90,29 @@
 
     let dragPending = false; // touch down, direction not yet determined
     let dragStartY = 0;
+    let dragTarget: Element | null = null; // element the touch began on
+
+    // True when the touch started inside a horizontally-scrollable element (a
+    // wide code block, table, etc.) that can still scroll in the swipe's
+    // direction — in which case we let it scroll natively instead of hijacking
+    // the gesture to drag the drawer.
+    function targetCanScrollHoriz(el: Element | null, dx: number): boolean {
+        let node: Element | null = el;
+        while (node && node !== document.body) {
+            if (node.scrollWidth > node.clientWidth + 1) {
+                const overflowX = getComputedStyle(node).overflowX;
+                if (overflowX === "auto" || overflowX === "scroll") {
+                    const maxScroll = node.scrollWidth - node.clientWidth;
+                    // Swipe right (dx > 0) scrolls content toward the start;
+                    // swipe left (dx < 0) scrolls toward the end.
+                    if (dx > 0 && node.scrollLeft > 0) return true;
+                    if (dx < 0 && node.scrollLeft < maxScroll) return true;
+                }
+            }
+            node = node.parentElement;
+        }
+        return false;
+    }
 
     function drawerDragMove(e: TouchEvent) {
         if (!dragPending && !isDragging) return;
@@ -101,6 +124,13 @@
             if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
             if (Math.abs(dy) > Math.abs(dx)) {
                 // Primarily vertical — cancel
+                dragPending = false;
+                cleanupDocListeners();
+                return;
+            }
+            // Horizontal gesture that began inside a scrollable code block /
+            // table — let it scroll natively instead of opening the drawer.
+            if (targetCanScrollHoriz(dragTarget, dx)) {
                 dragPending = false;
                 cleanupDocListeners();
                 return;
@@ -155,6 +185,7 @@
             return;
         dragStartX = e.touches[0].clientX;
         dragStartY = e.touches[0].clientY;
+        dragTarget = e.target instanceof Element ? e.target : null;
         dragBaseTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
         dragPending = true;
         document.addEventListener("touchmove", drawerDragMove, {

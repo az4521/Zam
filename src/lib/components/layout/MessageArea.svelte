@@ -225,6 +225,28 @@
     let memberDragStartY = 0;
     let memberDragBase = 0;
 
+    // Element the touch began on — used to detect swipes that should scroll a
+    // wide code block / table natively rather than dragging a drawer open.
+    let dragTarget: Element | null = null;
+
+    function targetCanScrollHoriz(el: Element | null, dx: number): boolean {
+        let node: Element | null = el;
+        while (node && node !== document.body) {
+            if (node.scrollWidth > node.clientWidth + 1) {
+                const overflowX = getComputedStyle(node).overflowX;
+                if (overflowX === "auto" || overflowX === "scroll") {
+                    const maxScroll = node.scrollWidth - node.clientWidth;
+                    // Swipe right (dx > 0) scrolls content toward the start;
+                    // swipe left (dx < 0) scrolls toward the end.
+                    if (dx > 0 && node.scrollLeft > 0) return true;
+                    if (dx < 0 && node.scrollLeft < maxScroll) return true;
+                }
+            }
+            node = node.parentElement;
+        }
+        return false;
+    }
+
     $effect(() => {
         if (!isMemberDragging) {
             memberTranslate = showMemberList ? 0 : MEMBER_WIDTH;
@@ -244,6 +266,13 @@
         if (memberDragPending) {
             if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
             if (Math.abs(dy) > Math.abs(dx)) {
+                memberDragPending = false;
+                cleanupMemberListeners();
+                return;
+            }
+            // Horizontal gesture inside a scrollable code block / table — let it
+            // scroll natively instead of opening the member drawer.
+            if (targetCanScrollHoriz(dragTarget, dx)) {
                 memberDragPending = false;
                 cleanupMemberListeners();
                 return;
@@ -337,6 +366,13 @@
         if (pinnedDragPending) {
             if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
             if (Math.abs(dy) > Math.abs(dx) || dx <= 0) {
+                pinnedDragPending = false;
+                cleanupPinnedListeners();
+                return;
+            }
+            // Horizontal gesture inside a scrollable code block / table — let it
+            // scroll natively instead of opening the pinned drawer.
+            if (targetCanScrollHoriz(dragTarget, dx)) {
                 pinnedDragPending = false;
                 cleanupPinnedListeners();
                 return;
@@ -643,6 +679,7 @@
     ondragover={onDragOver}
     ondrop={onDrop}
     ontouchstart={(e) => {
+        dragTarget = e.target instanceof Element ? e.target : null;
         memberDragStart(e);
         pinnedDragStart(e);
     }}
