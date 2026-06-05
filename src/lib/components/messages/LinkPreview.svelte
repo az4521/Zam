@@ -512,6 +512,7 @@
             <Lightbox
                 src={preview.imageUrl}
                 alt=""
+                favourite={{ url, previewUrl: preview.imageUrl }}
                 onClose={() => (lightboxOpen = false)}
             />
         {/if}
