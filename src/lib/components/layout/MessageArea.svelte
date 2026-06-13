@@ -15,6 +15,7 @@
         onReactionEvent,
         onEditEvent,
         onRedactionEvent,
+        onTimelineReset,
         loadPreviousMessages,
         loadMessagesUntilEvent,
         loadContextAroundEvent,
@@ -63,9 +64,11 @@
 
     let scrollEl: HTMLDivElement | undefined = $state();
     let bottomAnchorEl: HTMLDivElement | undefined = $state();
+    let topSentinelEl: HTMLDivElement | undefined = $state();
     let messageInputEl: ReturnType<typeof MessageInput> | undefined = $state();
     let isAtBottom = $state(true);
     let loadingOlder = $state(false);
+    let backfilling = false;
     let replyToEvent = $state<MatrixEvent | null>(null);
     let editRequestedEventId = $state<string | null>(null);
     let isDragOver = $state(false);
@@ -481,7 +484,7 @@
             if (scrollEl && scrollEl.scrollHeight <= scrollEl.clientHeight) {
                 markAsRead();
             }
-            autoFillMessages();
+            backfillFromTop();
         });
     });
 
@@ -491,8 +494,32 @@
         const currentRoomId = roomId;
         const unsub = onSyncPrepared(() => {
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
-            autoFillMessages();
+            backfillFromTop();
             if (isAtBottom) markAsRead();
+        });
+        return unsub;
+    });
+
+    // Reload when the live timeline is reset by a gappy/limited sync (reconnect,
+    // resuming the PWA from a notification, etc). The SDK discards the old
+    // timeline and starts a fresh one after the gap, so we must replace the
+    // displayed list — otherwise the post-gap events get appended onto stale
+    // ones and the intervening messages appear to never have existed.
+    $effect(() => {
+        const currentRoom = room;
+        const currentRoomId = roomId;
+        const unsub = onTimelineReset(currentRoom, () => {
+            if (isContextView) return; // context view uses its own timeline set
+            setMessages(currentRoomId, getTimelineMessages(currentRoom));
+            // The fresh timeline can be paginated back to fill the gap.
+            setCanLoadMore(currentRoomId, true);
+            tick().then(() => {
+                if (isAtBottom) {
+                    scrollToBottom(true);
+                    markAsRead();
+                }
+                backfillFromTop();
+            });
         });
         return unsub;
     });
@@ -583,16 +610,13 @@
 
     function onScroll() {
         if (!scrollEl) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+        const { scrollTop } = scrollEl;
         const wasAtBottom = isAtBottom;
         isAtBottom = scrollTop > -100;
 
         if (!wasAtBottom && isAtBottom) markAsRead();
-
-        // Load older messages when near the visual top (scrollTop near 0)
-        if (scrollTop < -(scrollHeight - clientHeight) + 100 && !loadingOlder) {
-            loadOlderMessages();
-        }
+        // Loading older messages near the top is driven by the IntersectionObserver
+        // on topSentinelEl (see below) — more reliable than a scroll-position check.
     }
 
     async function loadOlderMessages() {
@@ -619,18 +643,60 @@
         }
     }
 
-    // Keep paginating until the content fills the viewport (or no more history)
-    async function autoFillMessages() {
-        await tick();
-        while (
-            scrollEl &&
-            canLoadMore(roomId) &&
-            scrollEl.scrollHeight <= scrollEl.clientHeight
-        ) {
-            await loadOlderMessages();
+    // Returns whether the top sentinel is on/near screen — i.e. the user has
+    // scrolled (almost) to the top, OR there aren't enough messages to make the
+    // list scrollable so the top is permanently in view. Reads live geometry so
+    // it's accurate mid-pagination.
+    function isTopSentinelNearViewport(): boolean {
+        if (!scrollEl || !topSentinelEl) return false;
+        const rootRect = scrollEl.getBoundingClientRect();
+        const sentRect = topSentinelEl.getBoundingClientRect();
+        // Sentinel sits at the visual top; once enough older content loads above
+        // it, its bottom edge moves well above the viewport top.
+        return sentRect.bottom > rootRect.top - 400;
+    }
+
+    // Keep paginating older history while the top is in view and the server still
+    // has more. Covers both "scrolled to the top" and "too few messages to fill
+    // the viewport". Driven by the IntersectionObserver and the explicit fill
+    // points (room open, sync prepared, timeline reset).
+    async function backfillFromTop() {
+        if (backfilling || isContextView) return;
+        backfilling = true;
+        try {
             await tick();
+            let guard = 0;
+            while (
+                canLoadMore(roomId) &&
+                !isContextView &&
+                isTopSentinelNearViewport() &&
+                guard++ < 50
+            ) {
+                await loadOlderMessages();
+                await tick();
+            }
+        } finally {
+            backfilling = false;
         }
     }
+
+    // Reliably trigger backfill when the visual top approaches (rootMargin
+    // pre-fetches before the user hits the very top) or stays in view because the
+    // list is too short to scroll. Re-created per room.
+    $effect(() => {
+        const root = scrollEl;
+        const sentinel = topSentinelEl;
+        roomId; // re-establish the observer when the room changes
+        if (!root || !sentinel) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((e) => e.isIntersecting)) backfillFromTop();
+            },
+            { root, rootMargin: "400px 0px 0px 0px" },
+        );
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    });
 
     // Group consecutive messages from the same sender (within 5 min)
     function shouldShowHeader(events: MatrixEvent[], index: number): boolean {
@@ -921,6 +987,13 @@
                         class="w-6 h-6 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                     ></div>
                 </div>
+            {/if}
+
+            <!-- Backfill sentinel. flex-col-reverse puts the visual top at the
+                 DOM end, so this sits at the oldest-loaded edge. The
+                 IntersectionObserver watches it to load older history. -->
+            {#if reversedMessages.length > 0 && !isContextView}
+                <div bind:this={topSentinelEl} class="h-px w-full"></div>
             {/if}
         </div>
 

@@ -3000,6 +3000,19 @@ export function onReceiptEvent(room: Room, callback: () => void): () => void {
     return () => room.off(RoomEvent.Receipt as never, callback as never);
 }
 
+/**
+ * Fires when the room's live timeline is reset. This happens on a "limited"
+ * (gappy) sync — e.g. after reconnecting or resuming the PWA from a
+ * notification — where the server reports a gap between our last known event
+ * and the new ones. The SDK discards the old in-memory timeline and starts a
+ * fresh one, so the displayed message list must be reloaded from scratch to
+ * avoid stitching stale events onto the post-gap events.
+ */
+export function onTimelineReset(room: Room, callback: () => void): () => void {
+    room.on(RoomEvent.TimelineReset as never, callback as never);
+    return () => room.off(RoomEvent.TimelineReset as never, callback as never);
+}
+
 export function findEventById(room: Room, eventId: string): MatrixEvent | null {
     const timelineSet = room.getUnfilteredTimelineSet();
     return timelineSet.findEventById(eventId) ?? null;
