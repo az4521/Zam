@@ -167,25 +167,50 @@
         }
     }
 
+    // The text shown after "@" for a mention. Normally the display name, but if
+    // another member in the room shares that display name (e.g. same username on
+    // a different homeserver) it's ambiguous, so fall back to the full Matrix ID
+    // — that way the inserted "@<token>" uniquely identifies the right person.
+    function mentionLabelFor(member: {
+        userId: string;
+        rawDisplayName?: string;
+    }): string {
+        const name = member.rawDisplayName?.trim();
+        if (name && room) {
+            const sharing = getRoomMembers(room).filter(
+                (m) =>
+                    (m.rawDisplayName ?? "").trim().toLowerCase() ===
+                    name.toLowerCase(),
+            );
+            if (sharing.length <= 1) return name;
+        } else if (name) {
+            return name;
+        }
+        // Ambiguous (or no display name): use the MXID without its leading "@",
+        // since the caller prepends one.
+        return member.userId.replace(/^@/, "");
+    }
+
     function commitMention(member: {
         userId: string;
         rawDisplayName?: string;
     }) {
-        const displayName = member.rawDisplayName || member.userId;
+        const label = mentionLabelFor(member);
         const after = text.slice(
             mentionStart + 1 + (mentionQuery?.length ?? 0),
         );
         const before = text.slice(0, mentionStart);
-        // Insert pill: display name + trailing space
-        text = before + "@" + displayName + " " + after.replace(/^\S*/, "");
-        // Record so buildFormattedBody can emit the proper HTML link
+        // Insert pill: "@" + label + trailing space
+        text = before + "@" + label + " " + after.replace(/^\S*/, "");
+        // Record keyed by the full inserted token (incl. "@") so distinct users
+        // who happen to share a display name map to distinct, unambiguous keys.
         pendingMentions = new Map([
             ...pendingMentions,
-            [displayName, member.userId],
+            ["@" + label, member.userId],
         ]);
         mentionQuery = null;
         tick().then(() => {
-            const newPos = mentionStart + 1 + displayName.length + 1;
+            const newPos = mentionStart + 1 + label.length + 1;
             renderComposer(newPos);
             textareaEl?.focus();
         });
@@ -405,15 +430,18 @@
             }
         }
 
-        // Replace @DisplayName tokens with Matrix mention links
+        // Replace @-mention tokens with Matrix mention links. Keys already
+        // include the leading "@". The negative lookahead matches whole tokens
+        // only, so "@alice" doesn't match inside "@alice:hs" or "@alicia".
         const mentionedUserIds: string[] = [];
-        for (const [displayName, userId] of pendingMentions) {
-            const escaped = displayName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const re = new RegExp(`@${escaped}`, "g");
-            if (re.test(plain)) {
-                const link = `<a href="https://matrix.to/#/${userId}">@${displayName}</a>`;
-                html = html.replace(new RegExp(`@${escaped}`, "g"), link);
-                mentionedUserIds.push(userId);
+        for (const [token, userId] of pendingMentions) {
+            const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const pattern = `${escaped}(?![\\w:.-])`;
+            if (new RegExp(pattern).test(plain)) {
+                const link = `<a href="https://matrix.to/#/${userId}">${token}</a>`;
+                html = html.replace(new RegExp(pattern, "g"), link);
+                if (!mentionedUserIds.includes(userId))
+                    mentionedUserIds.push(userId);
                 changed = true;
             }
         }
@@ -441,8 +469,9 @@
 
     function isMentionToken(token: string): boolean {
         if (!token.startsWith("@") || token.length < 2) return false;
+        // Keys include the leading "@" (e.g. "@alice" or "@alice:hs").
+        if (pendingMentions.has(token)) return true;
         const name = token.slice(1).replace(/[.,!?;:]$/, "");
-        if (pendingMentions.has(name)) return true;
         if (!room) return false;
         return getRoomMembers(room).some(
             (m) =>
