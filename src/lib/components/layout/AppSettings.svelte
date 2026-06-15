@@ -36,6 +36,10 @@
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
+        settingsState,
+        setShowAllEvents,
+    } from "$lib/stores/settings.svelte";
+    import {
         APP_VERSION,
         CAN_INSTALL_UPDATE,
         checkForUpdate,
@@ -1371,6 +1375,46 @@
                         ["Pusher registered this session", pushDebug.pusherRegistered ? "Yes" : "No"],
                     ] as [string, string][]}
                     <div class="space-y-6">
+                        <!-- Local-only debug toggles (never synced to the homeserver) -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Developer
+                            </p>
+                            <div
+                                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Show all events
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Display every Matrix timeline event (state
+                                        changes, edits, redactions, reactions…) in
+                                        the chat log. Stored locally only.
+                                    </p>
+                                </div>
+                                <button
+                                    onclick={() =>
+                                        setShowAllEvents(
+                                            !settingsState.showAllEvents,
+                                        )}
+                                    class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors"
+                                    class:bg-discord-accent={settingsState.showAllEvents}
+                                    class:bg-discord-backgroundTertiary={!settingsState.showAllEvents}
+                                    title={settingsState.showAllEvents
+                                        ? "Show only messages"
+                                        : "Show all events"}
+                                >
+                                    <span
+                                        class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                                        class:-translate-x-4={!settingsState.showAllEvents}
+                                    ></span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div>
                             <p
                                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"

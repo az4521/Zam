@@ -14,6 +14,7 @@ import {
     IndexedDBStore,
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
+import { settingsState } from "$lib/stores/settings.svelte";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -395,7 +396,11 @@ export function getDirectRooms(): Room[] {
 }
 
 export function getTimelineMessages(room: Room): MatrixEvent[] {
+    // Debug mode: surface every timeline event (state events, edits, redacted,
+    // reactions, etc) instead of just renderable messages.
+    const showAll = settingsState.showAllEvents;
     const filter = (e: MatrixEvent) => {
+        if (showAll) return true;
         if (e.isRedacted()) return false;
         if (e.getType() !== "m.room.message" && e.getType() !== "m.sticker")
             return false;
@@ -871,10 +876,11 @@ export function onTimelineEvent(
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
         if (
             room &&
-            !isReplacement &&
-            (event.getType() === "m.room.message" ||
-                event.getType() === "m.sticker") &&
-            !event.isRedacted()
+            (settingsState.showAllEvents ||
+                (!isReplacement &&
+                    (event.getType() === "m.room.message" ||
+                        event.getType() === "m.sticker") &&
+                    !event.isRedacted()))
         ) {
             callback(event, room);
         }

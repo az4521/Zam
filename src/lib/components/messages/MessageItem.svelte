@@ -221,11 +221,18 @@
     });
 
     // Replied-to event, if this is a reply
-    const inReplyToId = $derived(
-        content?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
+    const inReplyToId = $derived.by(() => {
+        const fromContent =
+            content?.["m.relates_to"]?.["m.in_reply_to"]?.event_id;
+        if (fromContent) return fromContent as string;
+        // Edits send m.new_content without m.relates_to, so after an m.replace
+        // getContent() drops the reply relation. Fall back to the original
+        // event content so edited replies still render their quoted message.
+        const original = event.getOriginalContent();
+        return original?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
             | string
-            | undefined,
-    );
+            | undefined;
+    });
     const replyTarget = $derived(
         (void messagesState.timelineTick,
         inReplyToId ? findEventById(room, inReplyToId) : null),

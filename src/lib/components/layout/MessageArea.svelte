@@ -6,6 +6,8 @@
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import MemberList from "$lib/components/layout/MemberList.svelte";
     import DebugPanel from "$lib/components/debug/DebugPanel.svelte";
+    import DebugEventItem from "$lib/components/debug/DebugEventItem.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         getTimelineMessages,
         getLatestTimelineEvent,
@@ -488,6 +490,28 @@
         });
     });
 
+    // Reload the timeline when the "show all events" debug toggle flips so the
+    // list switches between filtered messages and the full raw event stream.
+    $effect(() => {
+        settingsState.showAllEvents; // track only the toggle
+        untrack(() => {
+            if (isContextView) return;
+            setMessages(roomId, getTimelineMessages(room));
+            setCanLoadMore(roomId, true);
+        });
+    });
+
+    // Whether an event should render as a raw debug row rather than a normal
+    // message. Only possible when "show all events" is on (otherwise the
+    // timeline only contains renderable messages/stickers).
+    function isRawDebugEvent(event: MatrixEvent): boolean {
+        if (!settingsState.showAllEvents) return false;
+        if (event.isRedacted()) return true;
+        const type = event.getType();
+        if (type !== "m.room.message" && type !== "m.sticker") return true;
+        return event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+    }
+
     // Reload messages once the initial sync completes (catches messages missed during SYNCING state)
     $effect(() => {
         const currentRoom = room;
@@ -946,19 +970,23 @@
                         <div class="flex-1 h-px bg-red-500/60"></div>
                     </div>
                 {/if}
-                <MessageItem
-                    {event}
-                    {room}
-                    showHeader={shouldShowHeader(reversedMessages, i)}
-                    onReply={(e) => {
-                        replyToEvent = e;
-                    }}
-                    jumpToReply={scrollToMessage}
-                    editRequested={editRequestedEventId === event.getId()}
-                    onEditDone={() => messageInputEl?.focus()}
-                    {receipts}
-                    loudHighlight={isLoudEvent(event)}
-                />
+                {#if isRawDebugEvent(event)}
+                    <DebugEventItem {event} />
+                {:else}
+                    <MessageItem
+                        {event}
+                        {room}
+                        showHeader={shouldShowHeader(reversedMessages, i)}
+                        onReply={(e) => {
+                            replyToEvent = e;
+                        }}
+                        jumpToReply={scrollToMessage}
+                        editRequested={editRequestedEventId === event.getId()}
+                        onEditDone={() => messageInputEl?.focus()}
+                        {receipts}
+                        loudHighlight={isLoudEvent(event)}
+                    />
+                {/if}
             {/each}
 
             <!-- Welcome message at the top -->
