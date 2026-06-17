@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { EventStatus } from "matrix-js-sdk";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -20,6 +21,8 @@
         getPinnedEventIds,
         pinMessage,
         unpinMessage,
+        resendMessage,
+        deleteFailedMessage,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
 
@@ -188,6 +191,26 @@
         reactionTick;
         return !!event.replacingEvent();
     });
+
+    // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
+    // further sends in this room until it's retried or removed.
+    const isFailed = $derived.by(() => {
+        void messagesState.timelineTick;
+        return event.status === EventStatus.NOT_SENT;
+    });
+    let isResending = $state(false);
+
+    async function retrySend() {
+        if (isResending) return;
+        isResending = true;
+        try {
+            await resendMessage(event);
+        } catch (err) {
+            console.error("Failed to resend:", err);
+        } finally {
+            isResending = false;
+        }
+    }
 
     const senderId = $derived(event.getSender() ?? "");
     const displayName = $derived(getMemberName(room, senderId));
@@ -1031,6 +1054,42 @@
 
         <!-- Reactions -->
         <Reactions {eventId} {room} {reactionTick} />
+
+        <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
+        {#if isFailed}
+            <div
+                class="flex items-center gap-2 px-4 py-0.5 text-xs text-discord-danger"
+            >
+                <svg
+                    class="w-4 h-4 flex-shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>Failed to send.</span>
+                <button
+                    class="font-semibold underline hover:no-underline disabled:opacity-50"
+                    disabled={isResending}
+                    onclick={retrySend}
+                >
+                    {isResending ? "Retrying…" : "Retry"}
+                </button>
+                <span class="text-discord-textMuted">·</span>
+                <button
+                    class="font-semibold underline hover:no-underline"
+                    onclick={() => deleteFailedMessage(event)}
+                >
+                    Delete
+                </button>
+            </div>
+        {/if}
 
         <!-- Read receipts -->
         {#if receipts.length > 0}

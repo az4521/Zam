@@ -278,7 +278,7 @@
             const newPos = emojiStart + candidate.emoji.length + 1;
             tick().then(() => {
                 renderComposer(newPos);
-                textareaEl.focus();
+                textareaEl?.focus();
             });
         } else {
             const insertion = `:${candidate.shortcode}: `;
@@ -286,7 +286,7 @@
             const newPos = emojiStart + insertion.length;
             tick().then(() => {
                 renderComposer(newPos);
-                textareaEl.focus();
+                textareaEl?.focus();
             });
         }
         emojiQuery = null;
@@ -550,9 +550,25 @@
 
         isSending = true;
         const filesToSend = fileQueue.slice();
+        // Resolve mentions before clearing the composer below (buildFormattedBody
+        // reads pendingMentions, which we reset up front).
+        const formatted = trimmed ? buildFormattedBody(trimmed) : null;
+
+        // The SDK creates the local echo synchronously, so a text message shows
+        // in the timeline the moment we send it — with a retry/delete affordance
+        // there if it fails (see MessageItem). Clear the composer up front so the
+        // message isn't shown in two places and can't be sent twice by accident.
+        if (trimmed) {
+            text = "";
+            mentionQuery = null;
+            emojiQuery = null;
+            pendingMentions = new Map();
+            renderComposer(0);
+        }
+
         try {
-            if (trimmed) {
-                const { html, mentionedUserIds } = buildFormattedBody(trimmed);
+            if (trimmed && formatted) {
+                const { html, mentionedUserIds } = formatted;
                 const mentions =
                     mentionedUserIds.length > 0
                         ? { user_ids: mentionedUserIds }
@@ -575,12 +591,7 @@
             for (const item of filesToSend) {
                 await sendFile(roomId, item.file);
             }
-            text = "";
-            mentionQuery = null;
-            emojiQuery = null;
-            pendingMentions = new Map();
-            renderComposer(0);
-            // Revoke object URLs and clear queue
+            // Files sent: revoke object URLs and clear the queue.
             for (const item of filesToSend) {
                 if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
             }

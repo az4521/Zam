@@ -234,6 +234,20 @@ export async function startSync(
     });
 }
 
+/** Retry a failed (NOT_SENT) local echo. */
+export async function resendMessage(event: MatrixEvent): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(event.getRoomId() ?? "");
+    if (!room) return;
+    await matrixClient.resendEvent(event, room);
+}
+
+/** Discard a failed (NOT_SENT) local echo, removing it from the queue. */
+export function deleteFailedMessage(event: MatrixEvent): void {
+    if (!matrixClient) return;
+    matrixClient.cancelPendingEvent(event);
+}
+
 const FAV_GIFS_KEY = "m.favourite_gifs";
 
 export interface FavouriteGif {
@@ -409,15 +423,12 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
         return true;
     };
     const timeline = room.getLiveTimeline().getEvents().filter(filter);
-    // Include pending (local echo) events but skip failed sends
+    // Include pending (local echo) events. Keep NOT_SENT echoes so the user
+    // can see a failed send and retry/delete it (see resendMessage /
+    // deleteFailedMessage); only drop ones already cancelled.
     const pending = room
         .getPendingEvents()
-        .filter(
-            (e) =>
-                filter(e) &&
-                e.status !== EventStatus.NOT_SENT &&
-                e.status !== EventStatus.CANCELLED,
-        );
+        .filter((e) => filter(e) && e.status !== EventStatus.CANCELLED);
     return [...timeline, ...pending];
 }
 
