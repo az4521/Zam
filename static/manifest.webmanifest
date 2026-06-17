@@ -10,16 +10,40 @@
     "theme_color": "#313338",
     "icons": [
         {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "/favicon_maskable.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/favicon_foreground.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "monochrome"
+        },
+        {
             "src": "/favicon.png",
-            "sizes": "707x707",
+            "sizes": "1024x1024",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/1024.png",
+            "src": "/favicon_maskable.png",
             "sizes": "1024x1024",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "maskable"
+        },
+        {
+            "src": "/favicon_foreground.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "purpose": "monochrome"
         }
     ]
 }

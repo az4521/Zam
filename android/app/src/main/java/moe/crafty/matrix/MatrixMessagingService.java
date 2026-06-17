@@ -311,7 +311,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             this, roomId != null ? roomId.hashCode() : 0, intent, flags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // Small (status-bar) icon: Android renders it from the alpha channel
+            // only, so it must be a transparent-background silhouette. The
+            // adaptive foreground layer is a white-on-transparent logo, unlike
+            // ic_launcher (a near-opaque square that would show as a blob).
+            .setSmallIcon(R.mipmap.ic_launcher_adaptive_fore)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))

@@ -90,7 +90,7 @@ The single module that imports `matrix-js-sdk`. Everything else calls these wrap
 - **`auth.svelte.ts`** — `auth` (isAuthenticated, userId, accessToken, deviceId, homeserverUrl, syncState, error). Persisted to `localStorage["matrix_session"]`. `saveSession`, `loadStoredSession`, `clearSession`.
 - **`rooms.svelte.ts`** — `roomsState` (spaces, orphanRooms, directRooms, invitedRooms, activeSpaceId, activeRoomId, showInbox, roomsInSpace, spaceHierarchy, hierarchyLoading, unreadTick, roomsTick, spaceLayout). Active space/room persisted per-space in localStorage. `setActiveSpace`, `setActiveRoom`, `bumpUnreadTick`, `getActiveRoom`.
 - **`messages.svelte.ts`** — `messagesState.byRoom` = `Record<roomId, { events, isLoading, canLoadMore }>` (plain object for Svelte deep reactivity). `getMessages`, `setMessages`, `appendMessage`, `prependMessages`, plus `reactionTick`/`timelineTick`.
-- **`notifications.svelte.ts`** — tracks "loud" (sound-triggering) notifications. `notificationsState.byRoom` persisted to `localStorage["matrix_loud_notifications"]`. `markLoudNotification`, `clearReadNotifications(room, userId)`, `hasLoudInRoom`, `hasLoudInSpace`, `getLoudEventIds`, `getAllLoudNotifications`. Drives the red unread dots and the notifications inbox panel.
+- **`notifications.svelte.ts`** — tracks notifications, each flagged `loud` (sound-triggering) or silent. `notificationsState.byRoom` persisted to `localStorage["matrix_loud_notifications"]`. `markNotification`, `clearReadNotifications(room, userId)`, `hasLoudInRoom`, `hasLoudInSpace`, `getLoudEventIds`, `getAllNotifications`. Loud entries drive the red unread dots; the inbox panel shows both loud and silent.
 - **`favourites.svelte.ts`** — favourite GIFs via account data (`m.favourite_gifs`); `initFavourites()` reloads on sync/account-data.
 
 ## Components
@@ -152,7 +152,7 @@ Mobile **back button** (`popstate` + a pushed history "guard" entry):
 ## Notifications
 
 A message whose push actions include the `sound` tweak (see `isLoudEvent`) is a "loud" notification:
-1. `onTimelineEvent` in `+page.svelte` plays the ping (if enabled) and calls `markLoudNotification`.
+1. `onTimelineEvent` in `+page.svelte` plays the ping (if enabled); it calls `markNotification` for every notifying event (loud or silent).
 2. The originating room — and every space/folder containing it — shows a **red** unread indicator (`hasLoudInRoom` / `hasLoudInSpace`).
 3. The message itself renders with a yellow highlight in the timeline.
 4. The notifications inbox panel lists them (server-backed when available).

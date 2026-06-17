@@ -10,7 +10,7 @@
         type ServerNotification,
     } from "$lib/matrix/client";
     import {
-        getAllLoudNotifications,
+        getAllNotifications,
         notificationsState,
         clearAllForRoom,
         type LoudNotification,
@@ -39,11 +39,10 @@
             serverSupport = "no";
         } else {
             serverSupport = "yes";
-            // Filter to only notifications with a sound tweak — that's our "loud" set.
+            // Keep anything that actually notifies — both "loud" (has a sound
+            // tweak) and "silent" (notify with no sound). Drop dont_notify rows.
             serverNotifications = res.notifications.filter((n) =>
-                (n.actions ?? []).some(
-                    (a: any) => a?.set_tweak === "sound",
-                ),
+                (n.actions ?? []).includes("notify"),
             );
         }
         loading = false;
@@ -87,7 +86,7 @@
         if (serverSupport === "yes") {
             return serverNotifications.map(fromServer);
         }
-        return getAllLoudNotifications().map(fromLocal);
+        return getAllNotifications().map(fromLocal);
     });
 
     function jump(roomId: string, eventId: string) {

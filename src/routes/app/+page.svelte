@@ -25,7 +25,7 @@
     } from "$lib/stores/interface.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import {
-        markLoudNotification,
+        markNotification,
         clearReadNotifications,
     } from "$lib/stores/notifications.svelte";
     import {
@@ -335,6 +335,7 @@
             const n = new Notification(getRoomDisplayName(room), {
                 body: body ? `${sender}: ${body}` : `${sender} sent a message`,
                 icon: "/favicon.png",
+                badge: "/favicon_foreground.png",
                 tag: event.getId() ?? undefined,
             });
             n.onclick = () => {
@@ -477,7 +478,8 @@
             // stays correct (already-read items are pruned via read receipts).
             const live = isInitialSyncComplete();
 
-            // Loud notifications: play the sound and feed the red-dot / inbox.
+            // Loud notifications play the sound; only loud ones drive the
+            // red-dot badges (see markNotification / isLoud in the store).
             if (loud) {
                 const soundEnabled =
                     localStorage.getItem("notifSoundEnabled") !== "false";
@@ -485,14 +487,18 @@
                     pingAudio.currentTime = 0;
                     pingAudio.play().catch(() => {});
                 }
-                markLoudNotification({
-                    roomId: room.roomId,
-                    eventId: event.getId()!,
-                    ts: event.getTs(),
-                    sender: event.getSender() ?? "",
-                    body,
-                });
             }
+
+            // Record both loud and silent notifications so the inbox panel can
+            // show them when the server can't fetch past notifications.
+            markNotification({
+                roomId: room.roomId,
+                eventId: event.getId()!,
+                ts: event.getTs(),
+                sender: event.getSender() ?? "",
+                body,
+                loud,
+            });
 
             // Any notifying event also pops a desktop notification.
             if (live) showDesktopNotification(event, room, body);

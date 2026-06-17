@@ -7,6 +7,16 @@ export interface LoudNotification {
     ts: number;
     sender: string;
     body: string;
+    // Whether this notification is "loud" (sound tweak) vs "silent" (notify
+    // only). Silent ones show in the notifications panel but don't drive the
+    // red-dot badges/counts. Legacy stored entries lack this field and are
+    // treated as loud.
+    loud: boolean;
+}
+
+/** A stored notification counts toward red-dot badges only when loud. */
+function isLoud(n: LoudNotification): boolean {
+    return n.loud !== false;
 }
 
 const STORAGE_KEY = "matrix_loud_notifications";
@@ -37,7 +47,7 @@ function bump() {
     persist(notificationsState.byRoom);
 }
 
-export function markLoudNotification(n: LoudNotification): void {
+export function markNotification(n: LoudNotification): void {
     const existing = notificationsState.byRoom[n.roomId] ?? [];
     if (existing.some((e) => e.eventId === n.eventId)) return;
     notificationsState.byRoom[n.roomId] = [...existing, n];
@@ -71,13 +81,15 @@ export function clearAllForRoom(roomId: string): void {
 
 export function hasLoudInRoom(roomId: string): boolean {
     void notificationsState.tick;
-    return (notificationsState.byRoom[roomId]?.length ?? 0) > 0;
+    return (notificationsState.byRoom[roomId] ?? []).some(isLoud);
 }
 
 export function getLoudEventIds(roomId: string): Set<string> {
     void notificationsState.tick;
     return new Set(
-        (notificationsState.byRoom[roomId] ?? []).map((n) => n.eventId),
+        (notificationsState.byRoom[roomId] ?? [])
+            .filter(isLoud)
+            .map((n) => n.eventId),
     );
 }
 
@@ -99,7 +111,8 @@ export function hasLoudInSpace(
     return false;
 }
 
-export function getAllLoudNotifications(): LoudNotification[] {
+/** All stored notifications (loud + silent), newest first — for the panel. */
+export function getAllNotifications(): LoudNotification[] {
     void notificationsState.tick;
     const all: LoudNotification[] = [];
     for (const arr of Object.values(notificationsState.byRoom)) {
@@ -108,9 +121,12 @@ export function getAllLoudNotifications(): LoudNotification[] {
     return all.sort((a, b) => b.ts - a.ts);
 }
 
+/** Count of loud notifications only — drives the red-dot badge. */
 export function getLoudNotificationCount(): number {
     void notificationsState.tick;
     let n = 0;
-    for (const arr of Object.values(notificationsState.byRoom)) n += arr.length;
+    for (const arr of Object.values(notificationsState.byRoom)) {
+        n += arr.filter(isLoud).length;
+    }
     return n;
 }

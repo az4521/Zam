@@ -12,6 +12,7 @@ import {
     PushRuleActionName,
     RuleId,
     IndexedDBStore,
+    ConditionKind,
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
@@ -1234,7 +1235,7 @@ export async function setRoomNotificationSetting(
             {
                 actions: [],
                 conditions: [
-                    { kind: "event_match", key: "room_id", pattern: roomId },
+                    { kind: ConditionKind.EventMatch, key: "room_id", pattern: roomId },
                 ],
             },
         );

@@ -258,7 +258,7 @@ self.addEventListener("push", (event) => {
 				self.registration.showNotification(n.title, {
 					body: n.body,
 					icon: n.icon,
-					badge: "/favicon.png",
+					badge: "/favicon_foreground.png",
 					tag: n.roomId || undefined,
 					renotify: true,
 					data: { roomId: n.roomId },
