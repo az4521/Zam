@@ -2050,6 +2050,20 @@ export async function deleteMessage(
     await matrixClient.redactEvent(roomId, eventId);
 }
 
+/**
+ * Report an event to the homeserver admins as inappropriate.
+ * `score` ranges -100 (most offensive) to 0 (inoffensive).
+ */
+export async function reportEvent(
+    roomId: string,
+    eventId: string,
+    score: number,
+    reason: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.reportEvent(roomId, eventId, score, reason);
+}
+
 export interface CustomEmoji {
     shortcode: string;
     mxcUrl: string; // mxc:// url (used in formatted_body so other clients can proxy it)
