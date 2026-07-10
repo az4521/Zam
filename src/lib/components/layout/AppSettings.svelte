@@ -33,6 +33,10 @@
         getServerVersions,
         getServerCapabilities,
         probeCallingSupport,
+        changeAccountPassword,
+        deactivateOwnAccount,
+        getOwnThreePids,
+        type ThreePid,
         type CustomPackImage,
         type CustomEmoji,
         type CustomSticker,
@@ -48,8 +52,13 @@
         serverSupports,
         specAtLeast,
         labelUnstableFeature,
+        type Capabilities,
         type GatedFeature,
     } from "$lib/utils/serverCapabilities";
+    import {
+        validatePasswordChange,
+        deactivationConfirmed,
+    } from "$lib/utils/accountSecurity";
     import {
         settingsState,
         setShowAllEvents,
@@ -290,6 +299,106 @@
             profileError = (err as Error)?.message ?? "Failed to save name";
         } finally {
             savingName = false;
+        }
+    }
+
+    // ── Account tab: security ──────────────────────────────────────────────────
+    let accountCaps = $state<Capabilities | null>(null);
+    let threePids = $state<ThreePid[]>([]);
+    let threePidsLoaded = $state(false);
+    let securityLoaded = $state(false);
+
+    const canChangePassword = $derived(
+        serverSupports("changePassword", accountCaps),
+    );
+    const canManage3pids = $derived(serverSupports("change3pid", accountCaps));
+
+    async function loadAccountSecurity() {
+        accountCaps = (await getServerCapabilities()) as Capabilities;
+        try {
+            threePids = await getOwnThreePids();
+        } catch {
+            threePids = [];
+        }
+        threePidsLoaded = true;
+    }
+
+    $effect(() => {
+        if (activeTab === "account" && !securityLoaded) {
+            securityLoaded = true;
+            loadAccountSecurity();
+        }
+    });
+
+    // Change password
+    let pwCurrent = $state("");
+    let pwNew = $state("");
+    let pwConfirm = $state("");
+    let pwLogoutOthers = $state(true);
+    let pwBusy = $state(false);
+    let pwError = $state("");
+    let pwChanged = $state(false);
+
+    const pwProblem = $derived(
+        validatePasswordChange({
+            current: pwCurrent,
+            next: pwNew,
+            confirm: pwConfirm,
+        }),
+    );
+
+    async function submitPasswordChange() {
+        if (pwProblem || pwBusy) return;
+        pwBusy = true;
+        pwError = "";
+        pwChanged = false;
+        try {
+            await changeAccountPassword(pwCurrent, pwNew, pwLogoutOthers);
+            pwCurrent = "";
+            pwNew = "";
+            pwConfirm = "";
+            pwChanged = true;
+        } catch (err) {
+            pwError = (err as Error)?.message ?? "Failed to change password";
+        } finally {
+            pwBusy = false;
+        }
+    }
+
+    // Deactivate account
+    let deactivateOpen = $state(false);
+    let deactivateTyped = $state("");
+    let deactivatePassword = $state("");
+    let deactivateErase = $state(false);
+    let deactivateBusy = $state(false);
+    let deactivateError = $state("");
+
+    const deactivateArmed = $derived(
+        deactivationConfirmed(deactivateTyped, auth.userId) &&
+            deactivatePassword.length > 0,
+    );
+
+    function cancelDeactivation() {
+        deactivateOpen = false;
+        deactivateTyped = "";
+        deactivatePassword = "";
+        deactivateErase = false;
+        deactivateError = "";
+    }
+
+    async function submitDeactivation() {
+        if (!deactivateArmed || deactivateBusy) return;
+        deactivateBusy = true;
+        deactivateError = "";
+        try {
+            await deactivateOwnAccount(deactivatePassword, deactivateErase);
+            // The account is gone and every token is dead — tear down the
+            // local session exactly like a logout.
+            onLogout();
+        } catch (err) {
+            deactivateError =
+                (err as Error)?.message ?? "Failed to deactivate account";
+            deactivateBusy = false;
         }
     }
 
@@ -979,12 +1088,245 @@
                             </div>
                         </div>
 
+                        <!-- Password -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Password
+                            </p>
+                            {#if canChangePassword}
+                                <div class="space-y-3 max-w-sm">
+                                    <div>
+                                        <label
+                                            for="pw-current"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        >
+                                            Current password
+                                        </label>
+                                        <input
+                                            id="pw-current"
+                                            type="password"
+                                            bind:value={pwCurrent}
+                                            autocomplete="current-password"
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            for="pw-new"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        >
+                                            New password
+                                        </label>
+                                        <input
+                                            id="pw-new"
+                                            type="password"
+                                            bind:value={pwNew}
+                                            autocomplete="new-password"
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            for="pw-confirm"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        >
+                                            Confirm new password
+                                        </label>
+                                        <input
+                                            id="pw-confirm"
+                                            type="password"
+                                            bind:value={pwConfirm}
+                                            autocomplete="new-password"
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                    </div>
+                                    <label
+                                        class="flex items-center gap-2 text-sm text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={pwLogoutOthers}
+                                            class="accent-discord-accent"
+                                        />
+                                        Sign out all other sessions
+                                    </label>
+                                    <button
+                                        onclick={submitPasswordChange}
+                                        disabled={pwBusy || pwProblem !== null}
+                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {pwBusy
+                                            ? "Changing…"
+                                            : "Change password"}
+                                    </button>
+                                    {#if pwError}
+                                        <p class="text-xs text-discord-danger">
+                                            {pwError}
+                                        </p>
+                                    {:else if pwChanged}
+                                        <p class="text-xs text-green-400">
+                                            Password changed.
+                                        </p>
+                                    {:else if pwProblem && (pwCurrent || pwNew || pwConfirm)}
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
+                                            {pwProblem}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {:else}
+                                <p class="text-sm text-discord-textMuted">
+                                    This server does not allow changing your
+                                    password from this app.
+                                </p>
+                            {/if}
+                        </div>
+
+                        <!-- Email addresses & phone numbers -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Email & phone numbers
+                            </p>
+                            {#if !threePidsLoaded}
+                                <p class="text-sm text-discord-textMuted">
+                                    Loading…
+                                </p>
+                            {:else if threePids.length === 0}
+                                <p class="text-sm text-discord-textMuted">
+                                    No email addresses or phone numbers are
+                                    linked to this account.
+                                </p>
+                            {:else}
+                                <div class="text-sm">
+                                    {#each threePids as pid (pid.medium + pid.address)}
+                                        <div
+                                            class="flex justify-between items-center py-2 border-b border-discord-divider"
+                                        >
+                                            <span
+                                                class="text-discord-textMuted font-medium"
+                                            >
+                                                {pid.medium === "email"
+                                                    ? "Email"
+                                                    : pid.medium === "msisdn"
+                                                      ? "Phone"
+                                                      : pid.medium}
+                                            </span>
+                                            <span
+                                                class="text-discord-textPrimary font-mono text-xs"
+                                                >{pid.address}</span
+                                            >
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+                            {#if threePidsLoaded && !canManage3pids}
+                                <p class="mt-2 text-xs text-discord-textMuted">
+                                    This server does not allow adding or
+                                    removing them from this app.
+                                </p>
+                            {/if}
+                        </div>
+
                         <div class="pt-2">
                             <button
                                 onclick={onLogout}
                                 class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors"
                                 >Log Out</button
                             >
+                        </div>
+
+                        <!-- Danger zone -->
+                        <div class="pt-4 border-t border-discord-divider">
+                            <p
+                                class="text-xs font-semibold text-discord-danger uppercase tracking-wide mb-3"
+                            >
+                                Danger zone
+                            </p>
+                            {#if !deactivateOpen}
+                                <button
+                                    onclick={() => (deactivateOpen = true)}
+                                    class="px-4 py-2 border border-discord-danger text-discord-danger hover:bg-discord-danger hover:text-white rounded font-medium text-sm transition-colors"
+                                >
+                                    Deactivate account…
+                                </button>
+                            {:else}
+                                <div class="space-y-3 max-w-sm">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Deactivating your account is permanent:
+                                        you are signed out everywhere, the user
+                                        id can never be registered again, and
+                                        this cannot be undone.
+                                    </p>
+                                    <div>
+                                        <label
+                                            for="deactivate-confirm"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        >
+                                            Type your user id to confirm
+                                        </label>
+                                        <input
+                                            id="deactivate-confirm"
+                                            bind:value={deactivateTyped}
+                                            placeholder={auth.userId ?? ""}
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label
+                                            for="deactivate-password"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        >
+                                            Current password
+                                        </label>
+                                        <input
+                                            id="deactivate-password"
+                                            type="password"
+                                            bind:value={deactivatePassword}
+                                            autocomplete="current-password"
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                    </div>
+                                    <label
+                                        class="flex items-center gap-2 text-sm text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={deactivateErase}
+                                            class="accent-discord-accent"
+                                        />
+                                        Also erase my messages where possible
+                                    </label>
+                                    <div class="flex gap-2">
+                                        <button
+                                            onclick={submitDeactivation}
+                                            disabled={!deactivateArmed ||
+                                                deactivateBusy}
+                                            class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {deactivateBusy
+                                                ? "Deactivating…"
+                                                : "Deactivate account"}
+                                        </button>
+                                        <button
+                                            onclick={cancelDeactivation}
+                                            disabled={deactivateBusy}
+                                            class="px-4 py-2 bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                    {#if deactivateError}
+                                        <p class="text-xs text-discord-danger">
+                                            {deactivateError}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {/if}
                         </div>
                     </div>
 

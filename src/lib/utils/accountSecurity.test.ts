@@ -14,14 +14,16 @@ describe("validatePasswordChange — can the change-password form be submitted?"
 
     it("accepts a well-formed change", () => {
         expect(
-            validatePasswordChange(fields("old-pass", "new-pass-1", "new-pass-1")),
+            validatePasswordChange(
+                fields("old-pass", "new-pass-1", "new-pass-1"),
+            ),
         ).toBeNull();
     });
 
     it("requires the current password", () => {
-        expect(validatePasswordChange(fields("", "new-pass-1", "new-pass-1"))).toBe(
-            "Enter your current password.",
-        );
+        expect(
+            validatePasswordChange(fields("", "new-pass-1", "new-pass-1")),
+        ).toBe("Enter your current password.");
     });
 
     it("requires a new password before complaining about the confirmation", () => {
@@ -31,54 +33,67 @@ describe("validatePasswordChange — can the change-password form be submitted?"
     });
 
     it("rejects new passwords shorter than 8 characters", () => {
-        expect(validatePasswordChange(fields("old-pass", "short", "short"))).toBe(
-            "New password must be at least 8 characters.",
-        );
+        expect(
+            validatePasswordChange(fields("old-pass", "short", "short")),
+        ).toBe("New password must be at least 8 characters.");
     });
 
     it("rejects reusing the current password", () => {
         expect(
-            validatePasswordChange(fields("same-pass", "same-pass", "same-pass")),
+            validatePasswordChange(
+                fields("same-pass", "same-pass", "same-pass"),
+            ),
         ).toBe("New password must be different from your current password.");
     });
 
     it("rejects a mismatched confirmation", () => {
         expect(
-            validatePasswordChange(fields("old-pass", "new-pass-1", "new-pass-2")),
+            validatePasswordChange(
+                fields("old-pass", "new-pass-1", "new-pass-2"),
+            ),
         ).toBe("Passwords do not match.");
     });
 
     it("does not trim passwords — whitespace is significant", () => {
         expect(
-            validatePasswordChange(fields("old-pass", "new-pass-1", "new-pass-1 ")),
+            validatePasswordChange(
+                fields("old-pass", "new-pass-1", "new-pass-1 "),
+            ),
         ).toBe("Passwords do not match.");
         expect(
-            validatePasswordChange(fields("old-pass", " padded pw", " padded pw")),
+            validatePasswordChange(
+                fields("old-pass", " padded pw", " padded pw"),
+            ),
         ).toBeNull();
     });
 });
 
 describe("deactivationConfirmed — typed confirmation must match the user id", () => {
     it("accepts the exact user id", () => {
-        expect(deactivationConfirmed("@alice:example.org", "@alice:example.org")).toBe(
-            true,
-        );
+        expect(
+            deactivationConfirmed("@alice:example.org", "@alice:example.org"),
+        ).toBe(true);
     });
 
     it("tolerates surrounding whitespace from copy-paste", () => {
         expect(
-            deactivationConfirmed("  @alice:example.org ", "@alice:example.org"),
+            deactivationConfirmed(
+                "  @alice:example.org ",
+                "@alice:example.org",
+            ),
         ).toBe(true);
     });
 
     it("is case-sensitive — user ids are identifiers, not prose", () => {
-        expect(deactivationConfirmed("@Alice:example.org", "@alice:example.org")).toBe(
-            false,
-        );
+        expect(
+            deactivationConfirmed("@Alice:example.org", "@alice:example.org"),
+        ).toBe(false);
     });
 
     it("rejects partial or empty input", () => {
-        expect(deactivationConfirmed("@alice", "@alice:example.org")).toBe(false);
+        expect(deactivationConfirmed("@alice", "@alice:example.org")).toBe(
+            false,
+        );
         expect(deactivationConfirmed("", "@alice:example.org")).toBe(false);
     });
 
@@ -90,7 +105,9 @@ describe("deactivationConfirmed — typed confirmation must match the user id", 
 
 describe("supportsPasswordUia — can we complete a UIA flow with just a password?", () => {
     it("accepts a single-stage password flow", () => {
-        expect(supportsPasswordUia([{ stages: ["m.login.password"] }])).toBe(true);
+        expect(supportsPasswordUia([{ stages: ["m.login.password"] }])).toBe(
+            true,
+        );
     });
 
     it("accepts it among other flows we cannot complete", () => {
