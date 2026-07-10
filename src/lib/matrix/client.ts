@@ -18,6 +18,7 @@ import {
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { buildReplyContent } from "$lib/utils/replyContent";
 import {
     buildThreadReplyContent,
     isThreadReplyContent,
