@@ -883,7 +883,18 @@ export function onTimelineEvent(
     callback: (event: MatrixEvent, room: Room) => void,
 ): () => void {
     if (!matrixClient) return () => {};
-    const handler = (event: MatrixEvent, room: Room | undefined) => {
+    const handler = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        _removed?: boolean,
+        data?: { liveEvent?: boolean },
+    ) => {
+        // Ignore backfilled history — events paginated in when scrolling up
+        // (toStartOfTimeline) or otherwise non-live. Without this, scroll-up
+        // backfill is treated as new messages and drives false unread bumps
+        // and notifications for already-read events.
+        if (toStartOfTimeline || data?.liveEvent === false) return;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
         if (
@@ -1235,7 +1246,11 @@ export async function setRoomNotificationSetting(
             {
                 actions: [],
                 conditions: [
-                    { kind: ConditionKind.EventMatch, key: "room_id", pattern: roomId },
+                    {
+                        kind: ConditionKind.EventMatch,
+                        key: "room_id",
+                        pattern: roomId,
+                    },
                 ],
             },
         );
@@ -1907,9 +1922,9 @@ function effectiveUsage(
     packUsage: string[] | undefined,
 ): ImageUsage[] {
     const raw =
-        imageUsage && imageUsage.length > 0 ? imageUsage : packUsage ?? [];
-    const usage = raw.filter((u): u is ImageUsage =>
-        u === "emoticon" || u === "sticker",
+        imageUsage && imageUsage.length > 0 ? imageUsage : (packUsage ?? []);
+    const usage = raw.filter(
+        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
     );
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
 }
@@ -2160,10 +2175,7 @@ async function fetchRoomEmoteContent(
     }
 }
 
-function withUsage(
-    usage: string[] | undefined,
-    kind: ImageUsage,
-): string[] {
+function withUsage(usage: string[] | undefined, kind: ImageUsage): string[] {
     return [...new Set([...(usage ?? []), kind])];
 }
 
@@ -2428,9 +2440,9 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
 function getUserEmoteContent(): RoomEmoteContent {
     if (!matrixClient) return {};
     return (
-        (matrixClient
-            .getAccountData("im.ponies.user_emotes")
-            ?.getContent() as RoomEmoteContent | undefined) ?? {}
+        (matrixClient.getAccountData("im.ponies.user_emotes")?.getContent() as
+            | RoomEmoteContent
+            | undefined) ?? {}
     );
 }
 
