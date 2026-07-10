@@ -3062,6 +3062,21 @@ export function getBannedMembers(room: Room): RoomMember[] {
     return room.getMembers().filter((m) => m.membership === "ban");
 }
 
+/** The user ids on the account's m.ignored_user_list (empty when logged out). */
+export function getIgnoredUsers(): string[] {
+    return matrixClient?.getIgnoredUsers() ?? [];
+}
+
+/** Replaces the account's entire ignore list (m.ignored_user_list). */
+export async function setIgnoredUsers(userIds: string[]): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setIgnoredUsers(userIds);
+}
+
+export function isUserIgnored(userId: string): boolean {
+    return matrixClient?.isUserIgnored(userId) ?? false;
+}
+
 export async function setRoomName(roomId: string, name: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.setRoomName(roomId, name);
