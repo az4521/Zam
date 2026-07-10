@@ -1021,8 +1021,7 @@ async function completeWithPasswordUia(
             session?: string;
             flows?: { stages: string[] }[];
         };
-        if (uia.httpStatus !== 401 || !data.flows)
-            throw serverErrorMessage(e);
+        if (uia.httpStatus !== 401 || !data.flows) throw serverErrorMessage(e);
         if (!supportsPasswordUia(data.flows)) {
             throw new Error(
                 "This server does not allow confirming this action with a password — use its account page instead.",
