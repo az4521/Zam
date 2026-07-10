@@ -87,9 +87,7 @@ describe("shouldOfferKnock", () => {
         expect(shouldOfferKnock({ errcode: "M_NOT_FOUND" }, "knock")).toBe(
             false,
         );
-        expect(shouldOfferKnock({ errcode: "M_UNKNOWN" }, "knock")).toBe(
-            false,
-        );
+        expect(shouldOfferKnock({ errcode: "M_UNKNOWN" }, "knock")).toBe(false);
     });
 
     it("does not offer for errors without an errcode", () => {

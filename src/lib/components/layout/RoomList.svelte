@@ -7,6 +7,8 @@
         getHighlightCount,
         getRoomUnreadInfo,
         joinRoom,
+        knockRoom,
+        cancelKnock,
         leaveRoom,
         acceptInvite,
         rejectInvite,
@@ -22,7 +24,9 @@
         setRoomNotificationSetting,
         getOwnAvatarUrl,
         type RoomNotificationSetting,
+        type SpaceChildInfo,
     } from "$lib/matrix/client";
+    import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import {
         roomsState,
         setActiveRoom,
@@ -53,6 +57,11 @@
     // Rooms currently being joined (show spinner)
     let joiningIds = $state(new Set<string>());
     let inviteActionIds = $state(new Set<string>());
+
+    // Knock-to-join prompt (shown when a join is refused but knocking may work)
+    let knockPromptId = $state<string | null>(null);
+    let knockReason = $state("");
+    let knockError = $state("");
 
     // Context menu state
     let contextMenu = $state<{
@@ -205,10 +214,11 @@
         roomsState.activeSpaceId === null && roomsState.directRooms.length > 0,
     );
 
-    async function handleJoin(roomId: string, via?: string[]) {
+    async function handleJoin(room: SpaceChildInfo) {
+        const roomId = room.roomId;
         joiningIds = new Set(joiningIds).add(roomId);
         try {
-            await joinRoom(roomId, via);
+            await joinRoom(roomId, room.via);
             // Mark as joined in hierarchy so the UI updates immediately
             roomsState.spaceHierarchy = roomsState.spaceHierarchy.map((r) =>
                 r.roomId === roomId ? { ...r, isJoined: true } : r,
@@ -217,6 +227,51 @@
             setActiveRoom(roomId);
         } catch (err) {
             console.error("Failed to join room:", err);
+            if (shouldOfferKnock(err, room.joinRule)) {
+                knockPromptId = roomId;
+                knockReason = "";
+                knockError = "";
+            }
+        } finally {
+            const next = new Set(joiningIds);
+            next.delete(roomId);
+            joiningIds = next;
+        }
+    }
+
+    async function handleKnock(room: SpaceChildInfo) {
+        const roomId = room.roomId;
+        joiningIds = new Set(joiningIds).add(roomId);
+        knockError = "";
+        try {
+            await knockRoom(roomId, knockReason, room.via);
+            knockPromptId = null;
+            // Mark as requested in hierarchy so the UI updates immediately
+            roomsState.spaceHierarchy = roomsState.spaceHierarchy.map((r) =>
+                r.roomId === roomId ? { ...r, isKnocked: true } : r,
+            );
+        } catch (err) {
+            console.error("Failed to knock on room:", err);
+            knockError = matrixErrorMessage(
+                err,
+                "Could not send the join request",
+            );
+        } finally {
+            const next = new Set(joiningIds);
+            next.delete(roomId);
+            joiningIds = next;
+        }
+    }
+
+    async function handleCancelKnock(roomId: string) {
+        joiningIds = new Set(joiningIds).add(roomId);
+        try {
+            await cancelKnock(roomId);
+            roomsState.spaceHierarchy = roomsState.spaceHierarchy.map((r) =>
+                r.roomId === roomId ? { ...r, isKnocked: false } : r,
+            );
+        } catch (err) {
+            console.error("Failed to cancel join request:", err);
         } finally {
             const next = new Set(joiningIds);
             next.delete(roomId);
@@ -362,11 +417,12 @@
                     /></svg
                 >
                 <span class="flex-1 text-sm truncate">Pending Invites</span>
-                {#if roomsState.invitedRooms.length > 0}
+                {#if roomsState.invitedRooms.length + roomsState.knockedRooms.length > 0}
                     <span
                         class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                     >
-                        {roomsState.invitedRooms.length}
+                        {roomsState.invitedRooms.length +
+                            roomsState.knockedRooms.length}
                     </span>
                 {/if}
             </button>
@@ -533,23 +589,71 @@
                             {/if}
                         </div>
 
-                        <!-- Join button -->
-                        <button
-                            onclick={() => handleJoin(room.roomId, room.via)}
-                            disabled={isJoining}
-                            class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
-                        >
-                            {#if isJoining}
-                                <span class="flex items-center gap-1">
-                                    <span
-                                        class="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                                    ></span>
-                                </span>
-                            {:else}
-                                Join
-                            {/if}
-                        </button>
+                        {#if room.isKnocked}
+                            <!-- Pending knock: state chip + cancel on hover -->
+                            <span
+                                class="flex-shrink-0 text-xs font-semibold text-discord-textMuted group-hover:hidden"
+                                >Requested</span
+                            >
+                            <button
+                                onclick={() => handleCancelKnock(room.roomId)}
+                                disabled={isJoining}
+                                class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
+                            >
+                                Cancel request
+                            </button>
+                        {:else}
+                            <!-- Join button -->
+                            <button
+                                onclick={() => handleJoin(room)}
+                                disabled={isJoining}
+                                class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                            >
+                                {#if isJoining}
+                                    <span class="flex items-center gap-1">
+                                        <span
+                                            class="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"
+                                        ></span>
+                                    </span>
+                                {:else}
+                                    Join
+                                {/if}
+                            </button>
+                        {/if}
                     </div>
+                    {#if knockPromptId === room.roomId && !room.isKnocked}
+                        <div
+                            class="mx-2 mb-1.5 p-2 rounded bg-discord-backgroundTertiary flex flex-col gap-1.5"
+                        >
+                            <p class="text-xs text-discord-textMuted">
+                                You can't join this room directly — request to
+                                join instead?
+                            </p>
+                            <input
+                                bind:value={knockReason}
+                                placeholder="Reason (optional)"
+                                class="w-full px-2 py-1 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-xs"
+                            />
+                            {#if knockError}
+                                <p class="text-xs text-discord-error">
+                                    {knockError}
+                                </p>
+                            {/if}
+                            <div class="flex justify-end gap-1.5">
+                                <button
+                                    onclick={() => (knockPromptId = null)}
+                                    class="px-2 py-0.5 text-xs font-medium rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                                    >Not now</button
+                                >
+                                <button
+                                    onclick={() => handleKnock(room)}
+                                    disabled={isJoining}
+                                    class="px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60"
+                                    >Request to join</button
+                                >
+                            </div>
+                        </div>
+                    {/if}
                 {/each}
             </div>
         {/if}
