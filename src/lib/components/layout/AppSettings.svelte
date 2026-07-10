@@ -18,6 +18,10 @@
         fetchOwnProfile,
         setOwnDisplayName,
         setOwnAvatarMxc,
+        getOwnDeviceId,
+        getOwnDevices,
+        renameDevice,
+        deleteOwnDevice,
         getUserEmotePack,
         getUserEmojiPack,
         getUserStickerPack,
@@ -50,6 +54,12 @@
         labelUnstableFeature,
         type GatedFeature,
     } from "$lib/utils/serverCapabilities";
+    import {
+        sortDevices,
+        formatLastSeen,
+        describeUserAgent,
+        type DeviceInfo,
+    } from "$lib/utils/deviceSessions";
     import {
         settingsState,
         setShowAllEvents,
@@ -91,6 +101,7 @@
 
     type Tab =
         | "account"
+        | "sessions"
         | "emotes"
         | "emojis"
         | "stickers"
@@ -102,6 +113,7 @@
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
+        { id: "sessions", label: "Sessions" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
         { id: "server", label: "Server" },
@@ -291,6 +303,114 @@
         } finally {
             savingName = false;
         }
+    }
+
+    // ── Sessions tab: device management ─────────────────────────────────────────
+    let devices = $state<DeviceInfo[]>([]);
+    let devicesLoaded = $state(false);
+    let devicesLoading = $state(false);
+    let devicesError = $state("");
+    let devicesFetchedAt = $state(0);
+    let currentDeviceId = $state<string | null>(null);
+    let renamingId = $state<string | null>(null);
+    let renameValue = $state("");
+    let renameSaving = $state(false);
+    let confirmSignOutId = $state<string | null>(null);
+    let passwordPromptId = $state<string | null>(null);
+    let signOutPassword = $state("");
+    let signOutBusy = $state(false);
+    let signOutError = $state("");
+
+    const currentDevice = $derived(
+        devices.find((d) => d.deviceId === currentDeviceId) ?? null,
+    );
+    const otherDevices = $derived(
+        devices.filter((d) => d.deviceId !== currentDeviceId),
+    );
+
+    async function loadDevices() {
+        devicesLoading = true;
+        devicesError = "";
+        try {
+            currentDeviceId = getOwnDeviceId();
+            devices = sortDevices(await getOwnDevices(), currentDeviceId);
+            devicesFetchedAt = Date.now();
+            devicesLoaded = true;
+        } catch (err) {
+            devicesError = (err as Error)?.message ?? "Failed to load sessions";
+        } finally {
+            devicesLoading = false;
+        }
+    }
+
+    // Load the device list the first time the Sessions tab is opened.
+    $effect(() => {
+        if (activeTab === "sessions" && !devicesLoaded && !devicesLoading)
+            loadDevices();
+    });
+
+    function startRename(device: DeviceInfo) {
+        renamingId = device.deviceId;
+        renameValue = device.displayName ?? "";
+    }
+
+    async function saveRename() {
+        if (renamingId === null || renameSaving) return;
+        renameSaving = true;
+        devicesError = "";
+        try {
+            await renameDevice(renamingId, renameValue.trim());
+            renamingId = null;
+            await loadDevices();
+        } catch (err) {
+            devicesError =
+                (err as Error)?.message ?? "Failed to rename session";
+        } finally {
+            renameSaving = false;
+        }
+    }
+
+    // First click arms the button ("Sign out?"), the second actually signs
+    // the session out — same two-click confirm as leaving a room.
+    function requestSignOut(deviceId: string) {
+        signOutError = "";
+        if (confirmSignOutId !== deviceId) {
+            confirmSignOutId = deviceId;
+            passwordPromptId = null;
+            return;
+        }
+        void performSignOut(deviceId);
+    }
+
+    async function performSignOut(deviceId: string, password?: string) {
+        signOutBusy = true;
+        signOutError = "";
+        try {
+            const result = await deleteOwnDevice(deviceId, password);
+            if (result === "password-required") {
+                // Server wants re-auth: swap the confirm button for an
+                // inline password prompt on this row.
+                passwordPromptId = deviceId;
+                signOutPassword = "";
+            } else {
+                passwordPromptId = null;
+                confirmSignOutId = null;
+                signOutPassword = "";
+                await loadDevices();
+            }
+        } catch (err) {
+            signOutError =
+                (err as Error)?.message ?? "Failed to sign out session";
+        } finally {
+            signOutBusy = false;
+        }
+    }
+
+    function cancelSignOut() {
+        confirmSignOutId = null;
+        passwordPromptId = null;
+        signOutPassword = "";
+        signOutError = "";
     }
 
     // ── Debug Info tab ─────────────────────────────────────────────────────────
@@ -985,6 +1105,226 @@
                                 class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors"
                                 >Log Out</button
                             >
+                        </div>
+                    </div>
+
+                    <!-- ── Sessions ────────────────────────────────────────── -->
+                {:else if activeTab === "sessions"}
+                    <div class="space-y-6">
+                        {#snippet deviceRow(
+                            device: DeviceInfo,
+                            isCurrent: boolean,
+                        )}
+                            {@const agent = describeUserAgent(
+                                device.lastSeenUserAgent,
+                            )}
+                            {@const lastSeen = formatLastSeen(
+                                device.lastSeenTs,
+                                devicesFetchedAt,
+                            )}
+                            <div
+                                class="rounded bg-discord-backgroundTertiary px-4 py-3"
+                            >
+                                <div
+                                    class="flex items-start justify-between gap-3"
+                                >
+                                    <div class="min-w-0">
+                                        {#if renamingId === device.deviceId}
+                                            <div class="flex gap-2">
+                                                <input
+                                                    bind:value={renameValue}
+                                                    maxlength="100"
+                                                    placeholder="Session name"
+                                                    onkeydown={(e) =>
+                                                        e.key === "Enter" &&
+                                                        saveRename()}
+                                                    class="flex-1 bg-discord-backgroundDark text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50"
+                                                />
+                                                <button
+                                                    onclick={saveRename}
+                                                    disabled={renameSaving}
+                                                    class="px-2.5 py-1 bg-discord-accent hover:bg-discord-accent/80 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+                                                >
+                                                    {renameSaving
+                                                        ? "Saving…"
+                                                        : "Save"}
+                                                </button>
+                                                <button
+                                                    onclick={() =>
+                                                        (renamingId = null)}
+                                                    class="px-2.5 py-1 bg-discord-messageHover text-discord-textPrimary rounded text-xs font-medium transition-colors"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        {:else}
+                                            <p
+                                                class="text-sm font-medium text-discord-textPrimary truncate"
+                                            >
+                                                {device.displayName ||
+                                                    device.deviceId}
+                                                {#if isCurrent}
+                                                    <span
+                                                        class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-discord-accent/20 text-discord-accent align-middle"
+                                                        >Current</span
+                                                    >
+                                                {/if}
+                                            </p>
+                                        {/if}
+                                        <p
+                                            class="text-xs text-discord-textMuted font-mono mt-0.5"
+                                        >
+                                            {device.deviceId}
+                                        </p>
+                                        <p
+                                            class="text-xs text-discord-textMuted mt-1"
+                                        >
+                                            {#if agent}{agent} ·
+                                            {/if}Last seen
+                                            {lastSeen}{#if device.lastSeenIp}
+                                                · {device.lastSeenIp}{/if}
+                                        </p>
+                                    </div>
+                                    <div class="flex gap-2 flex-shrink-0">
+                                        {#if renamingId !== device.deviceId}
+                                            <button
+                                                onclick={() =>
+                                                    startRename(device)}
+                                                class="px-2.5 py-1 bg-discord-messageHover hover:bg-discord-messageHover/70 text-discord-textPrimary rounded text-xs font-medium transition-colors"
+                                            >
+                                                Rename
+                                            </button>
+                                        {/if}
+                                        {#if !isCurrent && passwordPromptId !== device.deviceId}
+                                            <button
+                                                onclick={() =>
+                                                    requestSignOut(
+                                                        device.deviceId,
+                                                    )}
+                                                disabled={signOutBusy}
+                                                class="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50 {confirmSignOutId ===
+                                                device.deviceId
+                                                    ? 'bg-discord-danger hover:bg-discord-danger/80 text-white'
+                                                    : 'bg-discord-messageHover hover:bg-discord-danger/20 text-discord-danger'}"
+                                            >
+                                                {confirmSignOutId ===
+                                                device.deviceId
+                                                    ? "Sign out?"
+                                                    : "Sign out"}
+                                            </button>
+                                        {/if}
+                                    </div>
+                                </div>
+
+                                {#if passwordPromptId === device.deviceId}
+                                    <div
+                                        class="mt-3 pt-3 border-t border-discord-divider"
+                                    >
+                                        <p
+                                            class="text-xs text-discord-textMuted mb-2"
+                                        >
+                                            Confirm your account password to
+                                            sign out this session.
+                                        </p>
+                                        <div class="flex gap-2">
+                                            <input
+                                                type="password"
+                                                bind:value={signOutPassword}
+                                                placeholder="Account password"
+                                                onkeydown={(e) =>
+                                                    e.key === "Enter" &&
+                                                    signOutPassword &&
+                                                    performSignOut(
+                                                        device.deviceId,
+                                                        signOutPassword,
+                                                    )}
+                                                class="flex-1 bg-discord-backgroundDark text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                            />
+                                            <button
+                                                onclick={() =>
+                                                    performSignOut(
+                                                        device.deviceId,
+                                                        signOutPassword,
+                                                    )}
+                                                disabled={signOutBusy ||
+                                                    !signOutPassword}
+                                                class="px-3 py-1.5 bg-discord-danger hover:bg-discord-danger/80 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+                                            >
+                                                {signOutBusy
+                                                    ? "Signing out…"
+                                                    : "Sign out"}
+                                            </button>
+                                            <button
+                                                onclick={cancelSignOut}
+                                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs font-medium transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                {/if}
+
+                                {#if signOutError && (confirmSignOutId === device.deviceId || passwordPromptId === device.deviceId)}
+                                    <p class="mt-2 text-xs text-discord-danger">
+                                        {signOutError}
+                                    </p>
+                                {/if}
+                            </div>
+                        {/snippet}
+
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                >
+                                    This device
+                                </p>
+                                <button
+                                    onclick={loadDevices}
+                                    disabled={devicesLoading}
+                                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-50"
+                                >
+                                    {devicesLoading ? "Refreshing…" : "Refresh"}
+                                </button>
+                            </div>
+                            {#if devicesError}
+                                <p class="text-xs text-discord-danger mb-3">
+                                    {devicesError}
+                                </p>
+                            {/if}
+                            {#if currentDevice}
+                                {@render deviceRow(currentDevice, true)}
+                            {:else if devicesLoading}
+                                <p class="text-sm text-discord-textMuted">
+                                    Loading sessions…
+                                </p>
+                            {/if}
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                            >
+                                Other sessions {devicesLoaded
+                                    ? `(${otherDevices.length})`
+                                    : ""}
+                            </p>
+                            <p class="text-xs text-discord-textMuted mb-3">
+                                Sign out any session you don't recognize — and
+                                consider changing your password if you find one.
+                            </p>
+                            {#if devicesLoaded && otherDevices.length === 0}
+                                <p class="text-sm text-discord-textMuted">
+                                    No other sessions — you're only signed in
+                                    here.
+                                </p>
+                            {:else}
+                                <div class="space-y-2">
+                                    {#each otherDevices as device (device.deviceId)}
+                                        {@render deviceRow(device, false)}
+                                    {/each}
+                                </div>
+                            {/if}
                         </div>
                     </div>
 
