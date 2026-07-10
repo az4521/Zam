@@ -23,10 +23,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
-import {
-    tagUpdatesForToggle,
-    type RoomTagMap,
-} from "$lib/utils/roomOrdering";
+import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
