@@ -19,6 +19,7 @@ export type ModalId =
     | "color-picker"
     | "create-room"
     | "add-room"
+    | "room-directory"
     | "reaction-picker"
     | "composer-picker"
     | "lightbox";

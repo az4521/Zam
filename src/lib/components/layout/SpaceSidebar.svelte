@@ -2,6 +2,7 @@
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
+    import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
     import {
         getRoomAvatar,
         getRoomDisplayName,
@@ -545,6 +546,13 @@
     function openAddRoom(spaceId: string) {
         addRoomModal = { spaceId };
         openModal("add-room", () => (addRoomModal = null));
+    }
+
+    let exploreOpen = $state(false);
+
+    function openExplore() {
+        exploreOpen = true;
+        openModal("room-directory", () => (exploreOpen = false));
     }
 
     async function submitCreateRoom() {
@@ -1093,6 +1101,23 @@
         <div class="w-8 h-px bg-discord-divider my-1 flex-shrink-0"></div>
     {/if}
 
+    <!-- Explore public rooms -->
+    <button
+        onclick={openExplore}
+        class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0"
+        title="Explore rooms"
+    >
+        <svg
+            class="w-6 h-6 text-discord-textPositive group-hover:text-white transition-colors"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19zM12 10.9a1.1 1.1 0 100 2.2 1.1 1.1 0 000-2.2z"
+            />
+        </svg>
+    </button>
+
     <!-- Color picker dialog -->
     {#if colorPicker}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -1360,6 +1385,11 @@
                 </div>
             </div>
         </div>
+    {/if}
+
+    <!-- Explore rooms modal -->
+    {#if exploreOpen}
+        <RoomDirectory />
     {/if}
 
     <!-- Settings button -->
