@@ -508,6 +508,13 @@
         );
     }
 
+    // Two-click confirmation for the destructive Leave Space action.
+    let leaveConfirmId = $state<string | null>(null);
+    $effect(() => {
+        void contextMenu; // reset whenever the menu opens/closes/changes
+        leaveConfirmId = null;
+    });
+
     async function handleLeaveSpace(spaceId: string) {
         closeModal();
         try {
@@ -804,7 +811,8 @@
                 ></div>
             {:else if n.unread}
                 <div
-                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.loud || n.highlight
+                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.loud ||
+                    n.highlight
                         ? 'h-4 bg-discord-danger'
                         : 'h-2 bg-white'}"
                 ></div>
@@ -872,7 +880,8 @@
                     ></div>
                 {:else if spaceNotifs.unread}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.loud || spaceNotifs.highlight
+                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.loud ||
+                        spaceNotifs.highlight
                             ? 'h-4 bg-discord-danger'
                             : 'h-2 bg-white'}"
                     ></div>
@@ -976,7 +985,8 @@
                         ></div>
                     {:else if folderNotifs.unread && !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.loud || folderNotifs.highlight
+                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.loud ||
+                            folderNotifs.highlight
                                 ? 'h-4 bg-discord-danger'
                                 : 'h-2 bg-white'}"
                         ></div>
@@ -1050,7 +1060,8 @@
                                     ></div>
                                 {:else if isn.unread}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.loud || isn.highlight
+                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.loud ||
+                                        isn.highlight
                                             ? 'h-3 bg-discord-danger'
                                             : 'h-1.5 bg-white'}"
                                     ></div>
@@ -1441,11 +1452,19 @@
                     >
                     <div class="w-full h-px bg-discord-divider my-1"></div>
                 {/if}
-                <button
-                    onclick={() => handleLeaveSpace(cm.spaceId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500 hover:text-white text-left"
-                    >Leave Space</button
-                >
+                {#if leaveConfirmId === cm.spaceId}
+                    <button
+                        onclick={() => handleLeaveSpace(cm.spaceId)}
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500 text-white font-medium text-left"
+                        >Click again to leave</button
+                    >
+                {:else}
+                    <button
+                        onclick={() => (leaveConfirmId = cm.spaceId)}
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500 hover:text-white text-left"
+                        >Leave Space</button
+                    >
+                {/if}
             {:else if cm.kind === "folder"}
                 <button
                     onclick={() => openColorPicker(cm.folderId)}

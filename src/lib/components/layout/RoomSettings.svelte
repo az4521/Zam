@@ -198,8 +198,15 @@
     let reasonInputs = $state<Record<string, string>>({});
     let showReasonFor = $state<string | null>(null);
 
-    const allMembers = $derived(getRoomMembers(room));
-    const bannedMembers = $derived(getBannedMembers(room));
+    // Depend on roomsTick (bumped every sync + on membership changes) so the
+    // list and power-level badges refresh after a kick/ban/role change echoes
+    // back from the server, rather than only when the modal is reopened.
+    const allMembers = $derived(
+        (void roomsState.roomsTick, getRoomMembers(room)),
+    );
+    const bannedMembers = $derived(
+        (void roomsState.roomsTick, getBannedMembers(room)),
+    );
 
     const filteredMembers = $derived(
         allMembers
@@ -407,7 +414,9 @@
         const editablePacks = currentEmotePacks();
         if (
             selectedEmotePackKey !== "__new" &&
-            !editablePacks.some((pack) => packKey(pack) === selectedEmotePackKey)
+            !editablePacks.some(
+                (pack) => packKey(pack) === selectedEmotePackKey,
+            )
         ) {
             selectedEmotePackKey = editablePacks[0]
                 ? packKey(editablePacks[0])
@@ -651,7 +660,9 @@
         const editablePacks = currentEmojiPacks();
         if (
             selectedEmojiPackKey !== "__new" &&
-            !editablePacks.some((pack) => packKey(pack) === selectedEmojiPackKey)
+            !editablePacks.some(
+                (pack) => packKey(pack) === selectedEmojiPackKey,
+            )
         ) {
             selectedEmojiPackKey = editablePacks[0]
                 ? packKey(editablePacks[0])
@@ -806,9 +817,7 @@
         );
     }
 
-    function sortStickerPacks(
-        packs: CustomStickerPack[],
-    ): CustomStickerPack[] {
+    function sortStickerPacks(packs: CustomStickerPack[]): CustomStickerPack[] {
         return [...packs]
             .map((pack) => ({
                 ...pack,
@@ -1602,9 +1611,7 @@
                                                 >{pack.name}</option
                                             >
                                         {/each}
-                                        <option value="__new"
-                                            >New pack</option
-                                        >
+                                        <option value="__new">New pack</option>
                                     </select>
                                 </div>
                                 <div
@@ -1751,7 +1758,9 @@
                                                         {item.mxcUrl}
                                                     </p>
                                                 </div>
-                                                <div class="flex items-center gap-3">
+                                                <div
+                                                    class="flex items-center gap-3"
+                                                >
                                                     <label
                                                         class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
                                                     >
@@ -1857,9 +1866,7 @@
                                                 >{pack.name}</option
                                             >
                                         {/each}
-                                        <option value="__new"
-                                            >New pack</option
-                                        >
+                                        <option value="__new">New pack</option>
                                     </select>
                                 </div>
                                 {#if selectedEmojiPackKey === "__new"}
@@ -2053,9 +2060,7 @@
                                                 >{pack.name}</option
                                             >
                                         {/each}
-                                        <option value="__new"
-                                            >New pack</option
-                                        >
+                                        <option value="__new">New pack</option>
                                     </select>
                                 </div>
                                 {#if selectedStickerPackKey === "__new"}

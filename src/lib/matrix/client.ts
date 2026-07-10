@@ -1040,7 +1040,18 @@ export function onTimelineEvent(
     callback: (event: MatrixEvent, room: Room) => void,
 ): () => void {
     if (!matrixClient) return () => {};
-    const handler = (event: MatrixEvent, room: Room | undefined) => {
+    const handler = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        _removed?: boolean,
+        data?: { liveEvent?: boolean },
+    ) => {
+        // Ignore backfilled history — events paginated in when scrolling up
+        // (toStartOfTimeline) or otherwise non-live. Without this, scroll-up
+        // backfill is treated as new messages and drives false unread bumps
+        // and notifications for already-read events.
+        if (toStartOfTimeline || data?.liveEvent === false) return;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
         if (
