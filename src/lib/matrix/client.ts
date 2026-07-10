@@ -18,6 +18,7 @@ import {
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { buildReplyContent } from "$lib/utils/replyContent";
 import {
     buildThreadReplyContent,
     isThreadReplyContent,
@@ -928,6 +929,59 @@ export async function setOwnDisplayName(name: string): Promise<void> {
 export async function setOwnAvatarMxc(mxc: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.setAvatarUrl(mxc);
+}
+
+// ── Server capabilities ────────────────────────────────────────────────────
+
+export async function getServerVersions(): Promise<{
+    versions: string[];
+    unstableFeatures: Record<string, boolean>;
+}> {
+    if (!matrixClient) return { versions: [], unstableFeatures: {} };
+    const r = await matrixClient.getVersions();
+    return {
+        versions: r.versions ?? [],
+        unstableFeatures: r.unstable_features ?? {},
+    };
+}
+
+export async function getServerCapabilities(): Promise<
+    Record<string, Record<string, unknown>>
+> {
+    if (!matrixClient) return {};
+    try {
+        return (await matrixClient.getCapabilities()) as Record<
+            string,
+            Record<string, unknown>
+        >;
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Probe whether the homeserver exposes VoIP TURN config — a rough proxy for
+ * "calling could work here". Calling is not advertised in /capabilities, so
+ * this is an attempt-and-interpret probe, not a capability lookup.
+ */
+export async function probeCallingSupport(): Promise<
+    "available" | "unavailable" | "unknown"
+> {
+    if (!matrixClient) return "unknown";
+    const token = matrixClient.getAccessToken();
+    const base = matrixClient.getHomeserverUrl();
+    if (!token || !base) return "unknown";
+    try {
+        const res = await fetch(
+            `${base.replace(/\/$/, "")}/_matrix/client/v3/voip/turnServer`,
+            { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (res.status === 404 || res.status === 400) return "unavailable";
+        if (res.ok) return "available";
+        return "unknown";
+    } catch {
+        return "unknown";
+    }
 }
 
 export function getRoomDisplayName(room: Room): string {

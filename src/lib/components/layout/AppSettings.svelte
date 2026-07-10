@@ -30,6 +30,9 @@
         removeUserSticker,
         validateEmojiShortcode,
         getPushRuleSummary,
+        getServerVersions,
+        getServerCapabilities,
+        probeCallingSupport,
         type CustomPackImage,
         type CustomEmoji,
         type CustomSticker,
@@ -41,6 +44,12 @@
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { syncStateLabel } from "$lib/utils/syncStatus";
+    import {
+        serverSupports,
+        specAtLeast,
+        labelUnstableFeature,
+        type GatedFeature,
+    } from "$lib/utils/serverCapabilities";
     import {
         settingsState,
         setShowAllEvents,
@@ -86,6 +95,7 @@
         | "emojis"
         | "stickers"
         | "notifications"
+        | "server"
         | "about"
         | "debug";
     let activeTab = $state<Tab>("account");
@@ -94,9 +104,104 @@
         { id: "account", label: "Account" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
+        { id: "server", label: "Server" },
         { id: "about", label: "About" },
         { id: "debug", label: "Debug Info" },
     ];
+
+    // ── Server tab: capability scan ─────────────────────────────────────────────
+    type Support = "yes" | "no" | "unknown";
+    interface CapRow {
+        label: string;
+        support: Support;
+        detail?: string;
+    }
+    let serverLoaded = $state(false);
+    let serverLoading = $state(false);
+    let serverError = $state("");
+    let specVersions = $state<string[]>([]);
+    let clientFeatureRows = $state<CapRow[]>([]);
+    let roomVersion = $state<string>("");
+    let unstableLabels = $state<string[]>([]);
+    let callingSupport = $state<Support>("unknown");
+
+    async function loadServerInfo() {
+        serverLoading = true;
+        serverError = "";
+        try {
+            const [ver, caps, calling] = await Promise.all([
+                getServerVersions(),
+                getServerCapabilities(),
+                probeCallingSupport(),
+            ]);
+            specVersions = ver.versions;
+
+            const gate = (f: GatedFeature): Support =>
+                serverSupports(f, caps) ? "yes" : "no";
+            clientFeatureRows = [
+                { label: "Change password", support: gate("changePassword") },
+                {
+                    label: "Change display name",
+                    support: gate("setDisplayName"),
+                },
+                { label: "Change avatar", support: gate("setAvatarUrl") },
+                {
+                    label: "Manage emails / phone numbers",
+                    support: gate("change3pid"),
+                },
+                {
+                    label: "Threads",
+                    support: specAtLeast(ver.versions, "v1.4")
+                        ? "yes"
+                        : "unknown",
+                },
+                {
+                    label: "Private read receipts",
+                    support:
+                        specAtLeast(ver.versions, "v1.4") ||
+                        ver.unstableFeatures["org.matrix.msc2285.stable"]
+                            ? "yes"
+                            : "unknown",
+                },
+            ];
+
+            const rv = caps["m.room_versions"] as
+                | { default?: string }
+                | undefined;
+            roomVersion = rv?.default ?? "";
+
+            unstableLabels = Object.entries(ver.unstableFeatures)
+                .filter(([, on]) => on)
+                .map(([k]) => labelUnstableFeature(k))
+                .sort((a, b) => a.localeCompare(b));
+
+            callingSupport =
+                calling === "available"
+                    ? "yes"
+                    : calling === "unavailable"
+                      ? "no"
+                      : "unknown";
+            serverLoaded = true;
+        } catch (err) {
+            serverError =
+                (err as Error)?.message ?? "Failed to read server capabilities";
+        } finally {
+            serverLoading = false;
+        }
+    }
+
+    $effect(() => {
+        if (activeTab === "server" && !serverLoaded && !serverLoading) {
+            loadServerInfo();
+        }
+    });
+
+    function supportBadge(s: Support): { text: string; cls: string } {
+        if (s === "yes") return { text: "Supported", cls: "text-green-400" };
+        if (s === "no")
+            return { text: "Not supported", cls: "text-discord-danger" };
+        return { text: "Unknown", cls: "text-discord-textMuted" };
+    }
 
     // ── Account tab: profile editing ───────────────────────────────────────────
     let profileDisplayName = $state("");
@@ -1496,6 +1601,137 @@
                             <p class="text-sm text-discord-textMuted italic">
                                 No rooms found.
                             </p>
+                        {/if}
+                    </div>
+
+                    <!-- ── Server ─────────────────────────────────────────────── -->
+                {:else if activeTab === "server"}
+                    <div class="space-y-6">
+                        {#if serverLoading && !serverLoaded}
+                            <p class="text-sm text-discord-textMuted">
+                                Scanning server…
+                            </p>
+                        {:else if serverError}
+                            <p class="text-sm text-discord-danger">
+                                {serverError}
+                            </p>
+                        {:else}
+                            <p class="text-xs text-discord-textMuted">
+                                What <span class="text-discord-textSecondary"
+                                    >{auth.homeserverUrl}</span
+                                > advertises. Items marked “Unknown” aren’t advertised
+                                by the server and are detected only when used.
+                            </p>
+
+                            <!-- Account & messaging (gated by server capabilities) -->
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                                >
+                                    Account &amp; messaging
+                                </p>
+                                <div class="space-y-0 text-sm">
+                                    {#each clientFeatureRows as row}
+                                        {@const b = supportBadge(row.support)}
+                                        <div
+                                            class="flex justify-between items-center py-2 border-b border-discord-divider"
+                                        >
+                                            <span
+                                                class="text-discord-textSecondary"
+                                                >{row.label}</span
+                                            >
+                                            <span class="text-xs {b.cls}"
+                                                >{b.text}</span
+                                            >
+                                        </div>
+                                    {/each}
+                                </div>
+                            </div>
+
+                            <!-- Not implemented in this client yet -->
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                                >
+                                    Not in this client yet
+                                </p>
+                                <p class="text-xs text-discord-textMuted mb-3">
+                                    Server-side availability shown; the client
+                                    doesn’t implement these.
+                                </p>
+                                <div class="space-y-0 text-sm">
+                                    <div
+                                        class="flex justify-between items-center py-2 border-b border-discord-divider"
+                                    >
+                                        <span class="text-discord-textSecondary"
+                                            >Voice / video calling (TURN)</span
+                                        >
+                                        <span
+                                            class="text-xs {supportBadge(
+                                                callingSupport,
+                                            ).cls}"
+                                            >{supportBadge(callingSupport)
+                                                .text}</span
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Server / spec -->
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                                >
+                                    Server
+                                </p>
+                                <div class="space-y-0 text-sm">
+                                    <div
+                                        class="flex justify-between items-center py-2 border-b border-discord-divider"
+                                    >
+                                        <span class="text-discord-textMuted"
+                                            >Latest spec version</span
+                                        >
+                                        <span
+                                            class="text-discord-textPrimary text-xs font-mono"
+                                            >{specVersions[
+                                                specVersions.length - 1
+                                            ] ?? "—"}</span
+                                        >
+                                    </div>
+                                    {#if roomVersion}
+                                        <div
+                                            class="flex justify-between items-center py-2 border-b border-discord-divider"
+                                        >
+                                            <span class="text-discord-textMuted"
+                                                >Default room version</span
+                                            >
+                                            <span
+                                                class="text-discord-textPrimary text-xs font-mono"
+                                                >{roomVersion}</span
+                                            >
+                                        </div>
+                                    {/if}
+                                </div>
+                            </div>
+
+                            <!-- Advertised (unstable) features -->
+                            {#if unstableLabels.length > 0}
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                                    >
+                                        Advertised features ({unstableLabels.length})
+                                    </p>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        {#each unstableLabels as f}
+                                            <span
+                                                class="px-2 py-0.5 rounded text-xs bg-discord-backgroundTertiary text-discord-textSecondary border border-discord-divider"
+                                                >{f}</span
+                                            >
+                                        {/each}
+                                    </div>
+                                </div>
+                            {/if}
                         {/if}
                     </div>
 
