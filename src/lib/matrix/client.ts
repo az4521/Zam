@@ -1860,7 +1860,11 @@ export async function getPublicRooms(
         server: opts.server,
         limit: opts.limit ?? 30,
         since: opts.since,
-        filter: opts.search ? { generic_search_term: opts.search } : undefined,
+        // Only include filter when searching: any extra key (even undefined)
+        // makes the SDK switch from GET to the POST /publicRooms form.
+        ...(opts.search
+            ? { filter: { generic_search_term: opts.search } }
+            : {}),
     });
     return {
         rooms: mapPublicRooms(res.chunk ?? []),
