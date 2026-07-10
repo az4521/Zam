@@ -142,6 +142,13 @@
         await addRoomToSpace(spaceId, roomId);
     }
 
+    // Two-click confirmation for the destructive Leave action.
+    let leaveConfirmId = $state<string | null>(null);
+    $effect(() => {
+        void contextMenu; // reset whenever the menu opens/closes/changes
+        leaveConfirmId = null;
+    });
+
     async function handleLeave(roomId: string) {
         closeModal();
         try {
@@ -374,7 +381,8 @@
                     {roomsState.activeSpaceId ? "Channels" : "Rooms"}
                 </p>
                 {#each visibleRooms as room (room.roomId)}
-                    {@const { isActive, unread, highlight, loud } = roomButton(room)}
+                    {@const { isActive, unread, highlight, loud } =
+                        roomButton(room)}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                         class="group/room flex items-center transition-colors"
@@ -404,7 +412,8 @@
                             >
                                 {#if unread && !isActive}
                                     <span
-                                        class="w-2 h-2 rounded-full {loud || highlight
+                                        class="w-2 h-2 rounded-full {loud ||
+                                        highlight
                                             ? 'bg-discord-danger'
                                             : 'bg-white'} flex-shrink-0"
                                     ></span>
@@ -554,7 +563,8 @@
                     Direct Messages
                 </p>
                 {#each roomsState.directRooms as room (room.roomId)}
-                    {@const { isActive, unread, highlight, loud } = roomButton(room)}
+                    {@const { isActive, unread, highlight, loud } =
+                        roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
                     <button
                         onclick={() => setActiveRoom(room.roomId)}
@@ -580,7 +590,8 @@
                             />
                             {#if unread && !isActive}
                                 <span
-                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud || highlight
+                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
+                                    highlight
                                         ? 'bg-discord-danger'
                                         : 'bg-white'}"
                                 ></span>
@@ -704,11 +715,19 @@
                 {/each}
             {/if}
             <div class="w-full h-px bg-discord-divider my-1"></div>
-            <button
-                onclick={() => handleLeave(cm.roomId)}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
-                >Leave Room</button
-            >
+            {#if leaveConfirmId === cm.roomId}
+                <button
+                    onclick={() => handleLeave(cm.roomId)}
+                    class="w-full text-left px-3 py-1.5 text-sm bg-discord-danger text-white font-medium transition-colors"
+                    >Click again to leave</button
+                >
+            {:else}
+                <button
+                    onclick={() => (leaveConfirmId = cm.roomId)}
+                    class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                    >Leave Room</button
+                >
+            {/if}
         {/snippet}
 
         {#if cm.touch}
