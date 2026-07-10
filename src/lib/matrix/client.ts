@@ -23,6 +23,10 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
+import {
+    tagUpdatesForToggle,
+    type RoomTagMap,
+} from "$lib/utils/roomOrdering";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -432,6 +436,46 @@ export function getDirectRooms(): Room[] {
     return getRooms().filter(
         (r) => directIds.has(r.roomId) && !r.isSpaceRoom(),
     );
+}
+
+// ── Room tags (favourites / low priority) ──────────────────────────────────
+
+/** Read a room's tags from local synced state (no HTTP round-trip). */
+export function getRoomTags(roomId: string): RoomTagMap {
+    return (matrixClient?.getRoom(roomId)?.tags ?? {}) as RoomTagMap;
+}
+
+export async function setRoomTag(
+    roomId: string,
+    tag: string,
+    order?: number,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setRoomTag(
+        roomId,
+        tag,
+        order === undefined ? {} : { order },
+    );
+}
+
+export async function deleteRoomTag(
+    roomId: string,
+    tag: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.deleteRoomTag(roomId, tag);
+}
+
+/** Toggle m.favourite / m.lowpriority on a room. The two are mutually
+ *  exclusive; the UI refreshes when the tag change comes back over sync. */
+export async function toggleRoomTag(
+    roomId: string,
+    toggle: "favourite" | "lowPriority",
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { add, remove } = tagUpdatesForToggle(getRoomTags(roomId), toggle);
+    for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
+    if (add) await matrixClient.setRoomTag(roomId, add, {});
 }
 
 export function getTimelineMessages(room: Room): MatrixEvent[] {
@@ -1516,9 +1560,11 @@ export function onRoomUpdate(callback: () => void): () => void {
     };
     matrixClient.on(ClientEvent.Sync, syncHandler as never);
     matrixClient.on("Room.myMembership" as never, callback as never);
+    matrixClient.on(RoomEvent.Tags as never, callback as never);
     return () => {
         matrixClient?.off(ClientEvent.Sync, syncHandler as never);
         matrixClient?.off("Room.myMembership" as never, callback as never);
+        matrixClient?.off(RoomEvent.Tags as never, callback as never);
     };
 }
 
