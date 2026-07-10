@@ -35,9 +35,10 @@ export const EMOJI_CATEGORIES: EmojiCategory[] = (groups as RawGroup[]).map(
         id: g.slug,
         label: GROUP_LABELS[g.name] ?? g.emojis[0]?.emoji ?? "?",
         name: g.name,
-        emojis: g.emojis
-            .filter((e) => !e.skin_tone_support) // base emoji only, skip skin tone variants
-            .map((e) => ({ emoji: e.emoji, name: e.name })),
+        // One entry per base emoji; `skin_tone_support` merely flags whether
+        // tone variants exist, so it must NOT be used to drop entries (doing so
+        // removed ~320 common emoji like 👋 👍 🙏).
+        emojis: g.emojis.map((e) => ({ emoji: e.emoji, name: e.name })),
     }),
 );
 

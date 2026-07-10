@@ -13,7 +13,9 @@
         "format": "prettier --write .",
         "electron": "electron .",
         "electron:dev": "npm run build && electron .",
-        "electron:build": "npm run build && electron-builder"
+        "electron:build": "npm run build && electron-builder",
+        "test": "vitest run",
+        "test:watch": "vitest"
     },
     "build": {
         "appId": "moe.crafty.matrix",
@@ -68,7 +70,9 @@
         "svelte-check": "^4.2.1",
         "tailwindcss": "^3.4.17",
         "typescript": "^5.8.2",
-        "vite": "^6.3.5"
+        "vite": "^6.3.5",
+        "vitest": "^4.1.10",
+        "jsdom": "^29.1.1"
     },
     "type": "module",
     "dependencies": {
