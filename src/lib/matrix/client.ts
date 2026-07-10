@@ -1839,6 +1839,18 @@ export async function joinRoomByAlias(alias: string): Promise<string> {
     return result.roomId;
 }
 
+/**
+ * Resolve a room alias to its room id plus candidate via servers, without
+ * joining. Rejects (M_NOT_FOUND) when the alias does not exist.
+ */
+export async function getRoomIdForAlias(
+    alias: string,
+): Promise<{ roomId: string; servers: string[] }> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const result = await matrixClient.getRoomIdForAlias(alias);
+    return { roomId: result.room_id, servers: result.servers ?? [] };
+}
+
 export async function createRoom(
     name: string,
     topic: string,
