@@ -35,6 +35,7 @@
     import { tick } from "svelte";
     import { format } from "date-fns";
     import { renderHtml } from "$lib/utils/twemoji";
+    import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
     import {
         isFavouriteGif,
         addFavouriteGif,
@@ -184,7 +185,8 @@
     const reactionTick = $derived(messagesState.reactionTick);
     const eventId = $derived(event.getId() ?? "");
     const mobileSelected = $derived(
-        interfaceState.isTouchscreen && interfaceState.selectedMessageId === eventId,
+        interfaceState.isTouchscreen &&
+            interfaceState.selectedMessageId === eventId,
     );
     const isOwnMessage = $derived(event.getSender() === auth.userId);
     const isEdited = $derived.by(() => {
@@ -536,23 +538,7 @@
     }
 
     function sanitize(html: string): string {
-        return (
-            html
-                .replace(
-                    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-                    "",
-                )
-                .replace(
-                    /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
-                    "",
-                )
-                .replace(/\son\w+="[^"]*"/g, "")
-                // Convert mxc:// src attributes to HTTP URLs so browsers can load them
-                .replace(/src="(mxc:\/\/[^"]+)"/g, (_match, mxc) => {
-                    const http = mxcToHttp(mxc);
-                    return http ? `src="${http}"` : `src=""`;
-                })
-        );
+        return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
     }
 </script>
 
@@ -606,7 +592,12 @@
     <!-- Avatar column -->
     <div class="w-10 flex-shrink-0 mt-0.5">
         {#if showHeader}
-            <Avatar src={avatarSrc} name={displayName} id={senderId} size={40} />
+            <Avatar
+                src={avatarSrc}
+                name={displayName}
+                id={senderId}
+                size={40}
+            />
         {/if}
     </div>
 
