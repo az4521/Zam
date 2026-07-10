@@ -15,8 +15,15 @@ import {
     ConditionKind,
     HttpApiEvent,
 } from "matrix-js-sdk";
-import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
+import type {
+    AuthDict,
+    MatrixClient,
+    MatrixError,
+    Room,
+    RoomMember,
+} from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
+import { supportsPasswordUia } from "$lib/utils/accountSecurity";
 import { parseMarkdown } from "$lib/utils/markdown";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
@@ -982,6 +989,115 @@ export async function probeCallingSupport(): Promise<
     } catch {
         return "unknown";
     }
+}
+
+// ── Account security ─────────────────────────────────────────────────────────
+
+/** Prefer the server's own human-readable error string when it sent one. */
+function serverErrorMessage(e: unknown): Error {
+    const text = ((e as MatrixError).data as { error?: string } | undefined)
+        ?.error;
+    return text ? new Error(text) : (e as Error);
+}
+
+/**
+ * Drive a password-guarded User-Interactive Auth dance: probe the endpoint
+ * without auth, expect the 401 challenge, then retry completing the single
+ * m.login.password stage. Throws "Incorrect password" when the server
+ * rejects the retry; other server errors are surfaced verbatim.
+ */
+async function completeWithPasswordUia(
+    attempt: (auth?: AuthDict) => Promise<unknown>,
+    password: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const userId = matrixClient.getUserId();
+    try {
+        await attempt(undefined);
+        return;
+    } catch (e) {
+        const uia = e as MatrixError;
+        const data = (uia.data ?? {}) as {
+            session?: string;
+            flows?: { stages: string[] }[];
+        };
+        if (uia.httpStatus !== 401 || !data.flows)
+            throw serverErrorMessage(e);
+        if (!supportsPasswordUia(data.flows)) {
+            throw new Error(
+                "This server does not allow confirming this action with a password — use its account page instead.",
+            );
+        }
+        try {
+            await attempt({
+                type: "m.login.password",
+                identifier: { type: "m.id.user", user: userId },
+                password,
+                session: data.session,
+            });
+        } catch (retryError) {
+            if ((retryError as MatrixError).httpStatus === 401) {
+                throw new Error("Incorrect password");
+            }
+            throw serverErrorMessage(retryError);
+        }
+    }
+}
+
+/**
+ * Change the account password, confirming with the current one via UIA.
+ * When `logoutOtherDevices` is set the server signs out every other session
+ * (this one survives). Server-side password-policy rejections come back
+ * verbatim.
+ */
+export async function changeAccountPassword(
+    currentPassword: string,
+    newPassword: string,
+    logoutOtherDevices: boolean,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const client = matrixClient;
+    await completeWithPasswordUia(
+        // setPassword's auth parameter is required by its type, but an
+        // undefined auth is dropped by JSON serialization, which is exactly
+        // the "no auth yet" probe the UIA dance starts with.
+        (auth) =>
+            client.setPassword(
+                auth as AuthDict,
+                newPassword,
+                logoutOtherDevices,
+            ),
+        currentPassword,
+    );
+}
+
+/**
+ * Permanently deactivate the account, optionally asking the server to also
+ * erase message contents. Irreversible. Servers may forbid deactivation
+ * entirely — that error is surfaced verbatim.
+ */
+export async function deactivateOwnAccount(
+    password: string,
+    erase: boolean,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const client = matrixClient;
+    await completeWithPasswordUia(
+        (auth) => client.deactivateAccount(auth, erase),
+        password,
+    );
+}
+
+export interface ThreePid {
+    medium: string; // "email" | "msisdn"
+    address: string;
+}
+
+/** The email addresses / phone numbers the server has linked to the account. */
+export async function getOwnThreePids(): Promise<ThreePid[]> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { threepids } = await matrixClient.getThreePids();
+    return threepids.map((t) => ({ medium: t.medium, address: t.address }));
 }
 
 export function getRoomDisplayName(room: Room): string {
