@@ -15,9 +15,18 @@ import {
     ConditionKind,
     HttpApiEvent,
 } from "matrix-js-sdk";
-import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
+import type {
+    MatrixClient,
+    MatrixError,
+    Room,
+    RoomMember,
+} from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
+import {
+    supportsPasswordUia,
+    type DeviceInfo,
+} from "$lib/utils/deviceSessions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
     buildThreadReplyContent,
@@ -981,6 +990,80 @@ export async function probeCallingSupport(): Promise<
         return "unknown";
     } catch {
         return "unknown";
+    }
+}
+
+// ── Device / session management ─────────────────────────────────────────────
+
+export function getOwnDeviceId(): string | null {
+    return matrixClient?.getDeviceId() ?? null;
+}
+
+/** Fetch all sessions (devices) the server has recorded for this account. */
+export async function getOwnDevices(): Promise<DeviceInfo[]> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { devices } = await matrixClient.getDevices();
+    return devices.map((d) => ({
+        deviceId: d.device_id,
+        displayName: d.display_name,
+        lastSeenIp: d.last_seen_ip,
+        lastSeenTs: d.last_seen_ts,
+        lastSeenUserAgent: d.last_seen_user_agent,
+    }));
+}
+
+export async function renameDevice(
+    deviceId: string,
+    name: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setDeviceDetails(deviceId, { display_name: name });
+}
+
+export type DeleteDeviceResult = "deleted" | "password-required";
+
+/**
+ * Sign out another session. Servers guard this behind User-Interactive Auth:
+ * the first call (without a password) normally comes back
+ * "password-required" — call again with the account password to complete it.
+ * Throws "Incorrect password" when the server rejects the retry.
+ */
+export async function deleteOwnDevice(
+    deviceId: string,
+    password?: string,
+): Promise<DeleteDeviceResult> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const userId = matrixClient.getUserId();
+    try {
+        await matrixClient.deleteDevice(deviceId);
+        return "deleted";
+    } catch (e) {
+        const uia = e as MatrixError;
+        const data = (uia.data ?? {}) as {
+            session?: string;
+            flows?: { stages: string[] }[];
+        };
+        if (uia.httpStatus !== 401 || !data.flows) throw e;
+        if (!supportsPasswordUia(data.flows)) {
+            throw new Error(
+                "This server does not allow signing out sessions with a password — use its account page instead.",
+            );
+        }
+        if (password === undefined) return "password-required";
+        try {
+            await matrixClient.deleteDevice(deviceId, {
+                type: "m.login.password",
+                identifier: { type: "m.id.user", user: userId },
+                password,
+                session: data.session,
+            });
+            return "deleted";
+        } catch (retryError) {
+            if ((retryError as MatrixError).httpStatus === 401) {
+                throw new Error("Incorrect password");
+            }
+            throw retryError;
+        }
     }
 }
 
