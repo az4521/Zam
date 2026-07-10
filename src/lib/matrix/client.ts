@@ -23,6 +23,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
+import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -1837,6 +1838,35 @@ export async function joinRoomByAlias(alias: string): Promise<string> {
     const room = matrixClient.getRoom(result.roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return result.roomId;
+}
+
+export interface PublicRoomsPage {
+    rooms: DirectoryRoom[];
+    nextBatch: string | null;
+    totalEstimate: number | null;
+}
+
+/** One page of the public room directory (local homeserver by default). */
+export async function getPublicRooms(
+    opts: {
+        server?: string;
+        search?: string;
+        since?: string;
+        limit?: number;
+    } = {},
+): Promise<PublicRoomsPage> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.publicRooms({
+        server: opts.server,
+        limit: opts.limit ?? 30,
+        since: opts.since,
+        filter: opts.search ? { generic_search_term: opts.search } : undefined,
+    });
+    return {
+        rooms: mapPublicRooms(res.chunk ?? []),
+        nextBatch: res.next_batch ?? null,
+        totalEstimate: res.total_room_count_estimate ?? null,
+    };
 }
 
 export async function createRoom(
