@@ -1006,7 +1006,7 @@
 >
     <div
         class="bg-discord-backgroundSecondary rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
-        style="max-height: 85dvh;"
+        style="height: 85dvh;"
     >
         <!-- Header -->
         <div
