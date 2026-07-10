@@ -53,6 +53,7 @@
     import {
         settingsState,
         setShowAllEvents,
+        setPrivateReadReceipts,
     } from "$lib/stores/settings.svelte";
     import {
         APP_VERSION,
@@ -1474,6 +1475,47 @@
                                     <span
                                         class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
                                         class:-translate-x-4={!soundEnabled}
+                                    ></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Read-receipt privacy -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Privacy
+                            </p>
+                            <div
+                                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Private read receipts
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Hide your read receipts from other
+                                        users. Your unread counts still work;
+                                        others just can't see how far you've
+                                        read.
+                                    </p>
+                                </div>
+                                <button
+                                    onclick={() =>
+                                        setPrivateReadReceipts(
+                                            !settingsState.privateReadReceipts,
+                                        )}
+                                    class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors"
+                                    class:bg-discord-accent={settingsState.privateReadReceipts}
+                                    class:bg-discord-backgroundTertiary={!settingsState.privateReadReceipts}
+                                    title={settingsState.privateReadReceipts
+                                        ? "Send public read receipts"
+                                        : "Send private read receipts"}
+                                >
+                                    <span
+                                        class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                                        class:-translate-x-4={!settingsState.privateReadReceipts}
                                     ></span>
                                 </button>
                             </div>

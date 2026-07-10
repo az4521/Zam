@@ -15,7 +15,12 @@ import {
     ConditionKind,
     HttpApiEvent,
 } from "matrix-js-sdk";
-import type { MatrixClient, Room, RoomMember, ReceiptType } from "matrix-js-sdk";
+import type {
+    MatrixClient,
+    Room,
+    RoomMember,
+    ReceiptType,
+} from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
