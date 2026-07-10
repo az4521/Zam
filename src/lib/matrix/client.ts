@@ -3326,7 +3326,9 @@ export function getUserPresence(userId: string): PresenceInfo | null {
 
 /** GET /presence/{userId}/status — direct server query, bypassing the sync
  *  cache. Null when the server refuses (presence disabled / not shared). */
-export async function getPresence(userId: string): Promise<PresenceInfo | null> {
+export async function getPresence(
+    userId: string,
+): Promise<PresenceInfo | null> {
     if (!matrixClient) return null;
     try {
         const status = await matrixClient.getPresence(userId);

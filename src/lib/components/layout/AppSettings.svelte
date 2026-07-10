@@ -54,6 +54,11 @@
         settingsState,
         setShowAllEvents,
     } from "$lib/stores/settings.svelte";
+    import { changeOwnPresence } from "$lib/stores/presence.svelte";
+    import {
+        OWN_PRESENCE_OPTIONS,
+        type PresenceState,
+    } from "$lib/utils/presence";
     import {
         APP_VERSION,
         CAN_INSTALL_UPDATE,
@@ -237,6 +242,24 @@
     $effect(() => {
         if (activeTab === "account" && !profileLoaded) loadProfile();
     });
+
+    // ── Account tab: presence ──────────────────────────────────────────────────
+    let presenceError = $state("");
+    const selectedPresenceOption = $derived(
+        OWN_PRESENCE_OPTIONS.find((o) => o.value === settingsState.ownPresence),
+    );
+
+    async function onPresenceChange(e: Event) {
+        const value = (e.currentTarget as HTMLSelectElement)
+            .value as PresenceState;
+        presenceError = "";
+        try {
+            await changeOwnPresence(value);
+        } catch (err) {
+            presenceError =
+                err instanceof Error ? err.message : "Could not set presence";
+        }
+    }
 
     let savedTimeout: ReturnType<typeof setTimeout> | undefined;
     function flashSaved() {
@@ -977,6 +1000,36 @@
                                     </span>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Presence -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Presence
+                            </p>
+                            <div class="flex items-center gap-3">
+                                <select
+                                    value={settingsState.ownPresence}
+                                    onchange={onPresenceChange}
+                                    class="bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                >
+                                    {#each OWN_PRESENCE_OPTIONS as option (option.value)}
+                                        <option value={option.value}
+                                            >{option.label}</option
+                                        >
+                                    {/each}
+                                </select>
+                                <p class="text-xs text-discord-textMuted">
+                                    {selectedPresenceOption?.description}
+                                </p>
+                            </div>
+                            {#if presenceError}
+                                <p class="mt-2 text-xs text-discord-danger">
+                                    {presenceError}
+                                </p>
+                            {/if}
                         </div>
 
                         <div class="pt-2">

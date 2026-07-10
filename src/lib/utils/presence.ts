@@ -65,7 +65,19 @@ export const OWN_PRESENCE_OPTIONS: ReadonlyArray<{
     label: string;
     description: string;
 }> = [
-    { value: "online", label: "Online", description: "Seen as online while the app is syncing" },
-    { value: "unavailable", label: "Away", description: "Shown as idle to other users" },
-    { value: "offline", label: "Invisible", description: "Appear offline to other users" },
+    {
+        value: "online",
+        label: "Online",
+        description: "Seen as online while the app is syncing",
+    },
+    {
+        value: "unavailable",
+        label: "Away",
+        description: "Shown as idle to other users",
+    },
+    {
+        value: "offline",
+        label: "Invisible",
+        description: "Appear offline to other users",
+    },
 ];

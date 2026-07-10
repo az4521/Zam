@@ -8,6 +8,12 @@
         mxcToHttp,
     } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
+    import {
+        presenceDot,
+        presenceDotClass,
+        presenceLabel,
+    } from "$lib/utils/presence";
 
     interface Props {
         room: Room;
@@ -47,6 +53,25 @@
         const mxc = member.getMxcAvatarUrl();
         return mxcToHttp(mxc);
     }
+
+    // Presence dot class + tooltip per member. Depends on the presence tick
+    // so dots recolor when m.presence events arrive over sync; unknown
+    // presence (e.g. the server has it disabled) renders as offline.
+    const memberPresence = $derived.by(() => {
+        void presenceState.presenceTick;
+        const map = new Map<string, { dotClass: string; label: string }>();
+        for (const member of members) {
+            const p = presenceFor(member.userId);
+            const state = p?.state ?? "offline";
+            map.set(member.userId, {
+                dotClass: presenceDotClass(presenceDot(state)),
+                label: p?.statusMsg
+                    ? `${presenceLabel(state)} — ${p.statusMsg}`
+                    : presenceLabel(state),
+            });
+        }
+        return map;
+    });
 </script>
 
 <div
@@ -73,6 +98,7 @@
                     Admins — {admins.length}
                 </p>
                 {#each admins as member (member.userId)}
+                    {@const presence = memberPresence.get(member.userId)}
                     <div
                         class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
@@ -84,7 +110,9 @@
                                 size={32}
                             />
                             <div
-                                class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-discord-online rounded-full border-2 border-discord-backgroundSecondary"
+                                title={presence?.label}
+                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
                             ></div>
                         </div>
                         <div class="min-w-0 flex-1">
@@ -110,6 +138,7 @@
                     Moderators — {moderators.length}
                 </p>
                 {#each moderators as member (member.userId)}
+                    {@const presence = memberPresence.get(member.userId)}
                     <div
                         class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
@@ -120,6 +149,11 @@
                                 id={member.userId}
                                 size={32}
                             />
+                            <div
+                                title={presence?.label}
+                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
+                            ></div>
                         </div>
                         <div class="min-w-0 flex-1">
                             <p
@@ -141,6 +175,7 @@
                     Members — {regularMembers.length}
                 </p>
                 {#each regularMembers as member (member.userId)}
+                    {@const presence = memberPresence.get(member.userId)}
                     <div
                         class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
@@ -151,6 +186,11 @@
                                 id={member.userId}
                                 size={32}
                             />
+                            <div
+                                title={presence?.label}
+                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
+                            ></div>
                         </div>
                         <div class="min-w-0 flex-1">
                             <p

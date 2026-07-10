@@ -21,8 +21,16 @@
         getRoomNotificationSetting,
         setRoomNotificationSetting,
         getOwnAvatarUrl,
+        getDMPartnerId,
         type RoomNotificationSetting,
     } from "$lib/matrix/client";
+    import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        presenceDot,
+        presenceDotClass,
+        presenceLabel,
+    } from "$lib/utils/presence";
     import {
         roomsState,
         setActiveRoom,
@@ -48,6 +56,37 @@
     const ownAvatarSrc = $derived.by(() => {
         roomsState.roomsTick;
         return getOwnAvatarUrl();
+    });
+
+    // Presence dot per DM partner, keyed by room id. Unknown presence (server
+    // may have it disabled) renders as offline.
+    const dmPresence = $derived.by(() => {
+        void presenceState.presenceTick;
+        void roomsState.roomsTick;
+        const map = new Map<string, { dotClass: string; label: string }>();
+        for (const room of roomsState.directRooms) {
+            const p = presenceFor(getDMPartnerId(room));
+            const state = p?.state ?? "offline";
+            map.set(room.roomId, {
+                dotClass: presenceDotClass(presenceDot(state)),
+                label: p?.statusMsg
+                    ? `${presenceLabel(state)} — ${p.statusMsg}`
+                    : presenceLabel(state),
+            });
+        }
+        return map;
+    });
+
+    // Own dot: prefer the server-echoed presence (arrives over sync), fall
+    // back to the advertised setting when nothing has come back yet.
+    const ownPresence = $derived.by(() => {
+        void presenceState.presenceTick;
+        const p = auth.userId ? presenceFor(auth.userId) : null;
+        const state = p?.state ?? settingsState.ownPresence;
+        return {
+            dotClass: presenceDotClass(presenceDot(state)),
+            label: presenceLabel(state),
+        };
     });
 
     // Rooms currently being joined (show spinner)
@@ -595,6 +634,13 @@
                                         ? 'bg-discord-danger'
                                         : 'bg-white'}"
                                 ></span>
+                            {:else}
+                                {@const presence = dmPresence.get(room.roomId)}
+                                <span
+                                    title={presence?.label}
+                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
+                                        'bg-discord-offline'}"
+                                ></span>
                             {/if}
                         </div>
                         <span class="flex-1 text-sm truncate"
@@ -631,7 +677,8 @@
                 size={32}
             />
             <div
-                class="absolute bottom-0 right-0 w-3 h-3 bg-discord-online rounded-full border-2 border-discord-backgroundTertiary"
+                title={ownPresence.label}
+                class="absolute bottom-0 right-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
             ></div>
         </div>
         <div class="flex-1 min-w-0">

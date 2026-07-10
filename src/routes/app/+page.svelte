@@ -24,6 +24,7 @@
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
+    import { initPresence } from "$lib/stores/presence.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -512,6 +513,7 @@
             }
         });
         const unsubFavourites = initFavourites();
+        const unsubPresence = initPresence();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -557,6 +559,7 @@
             unsubTimeline();
             unsubReceipts();
             unsubFavourites();
+            unsubPresence();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
