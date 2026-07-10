@@ -47,14 +47,12 @@
         getClient,
         getOwnUserId,
         isInitialSyncComplete,
+        clearServiceWorkerAuth,
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
-    import {
-        syncNativeSession,
-        clearNativeSession,
-    } from "$lib/nativeSession";
+    import { syncNativeSession, clearNativeSession } from "$lib/nativeSession";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -164,7 +162,9 @@
         isDragging = false;
         const progress = (drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH;
         const startedOpen = dragBaseTranslate === 0;
-        interfaceState.leftOpen = startedOpen ? progress >= 0.85 : progress > 0.15;
+        interfaceState.leftOpen = startedOpen
+            ? progress >= 0.85
+            : progress > 0.15;
         drawerTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
     }
 
@@ -469,8 +469,7 @@
 
             const loud = !!(actions.tweaks as any)?.sound;
             const content = event.getContent() as any;
-            const body =
-                typeof content?.body === "string" ? content.body : "";
+            const body = typeof content?.body === "string" ? content.body : "";
 
             // Alerts (sound + desktop popup) fire only for events that arrive
             // live, never for the backlog replayed during the initial sync on
@@ -561,8 +560,7 @@
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
-            if (onPopState)
-                window.removeEventListener("popstate", onPopState);
+            if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
             if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.removeEventListener(
@@ -598,6 +596,7 @@
         if (client) unregisterPush(client).catch(() => {});
         if (client) teardownWebPush(client).catch(() => {});
         clearNativeSession().catch(() => {});
+        clearServiceWorkerAuth();
         logout().catch(() => {});
         // Clear local session and leave immediately.
         clearSession();

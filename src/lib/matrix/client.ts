@@ -13,6 +13,7 @@ import {
     RuleId,
     IndexedDBStore,
     ConditionKind,
+    HttpApiEvent,
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
@@ -220,6 +221,7 @@ export function isInitialSyncComplete(): boolean {
 
 export async function startSync(
     onStateChange: (state: string) => void,
+    onSessionExpired?: () => void,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
@@ -228,6 +230,13 @@ export async function startSync(
         if (state === "PREPARED") initialSyncComplete = true;
         onStateChange(state as string);
     });
+
+    // Fired when any request comes back with M_UNKNOWN_TOKEN (token revoked,
+    // password changed, device deleted, server data wiped). Without this the
+    // client sits in a permanent sync-error state with no path back to login.
+    if (onSessionExpired) {
+        matrixClient.on(HttpApiEvent.SessionLoggedOut, onSessionExpired);
+    }
 
     await matrixClient.startClient({
         initialSyncLimit: 8,
@@ -288,15 +297,24 @@ export function onSyncPrepared(callback: () => void): () => void {
 }
 
 export async function logout(): Promise<void> {
-    if (matrixClient) {
+    const client = matrixClient;
+    if (client) {
         try {
-            await matrixClient.logout(true);
+            // stopClient=true; invalidates the token server-side.
+            await client.logout(true);
         } catch {
             // ignore errors on logout
         }
-        matrixClient.stopClient();
-        matrixClient = null;
+        // Wipe the persisted sync store so the next user on this device can't
+        // recover the previous account's cached rooms/messages from IndexedDB.
+        try {
+            await client.clearStores();
+        } catch {
+            // ignore
+        }
     }
+    matrixClient = null;
+    matrixStore = null;
 }
 
 export function stopClient(): void {
@@ -642,6 +660,14 @@ export function updateServiceWorkerAuth(): void {
                 homeserverUrl: hsUrl,
             });
         })
+        .catch(() => {});
+}
+
+/** Tell the service worker to forget the stored access token (on logout). */
+export function clearServiceWorkerAuth(): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.active?.postMessage({ type: "CLEAR_AUTH" }))
         .catch(() => {});
 }
 

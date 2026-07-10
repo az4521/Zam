@@ -7,11 +7,14 @@
         reconnect,
         startSync,
         initServiceWorker,
+        clearServiceWorkerAuth,
+        stopClient,
     } from "$lib/matrix/client";
     import {
         auth,
         saveSession,
         loadStoredSession,
+        clearSession,
     } from "$lib/stores/auth.svelte";
     import { DEFAULT_HOMESERVER } from "$lib/config";
     import { requestWebPushPermission } from "$lib/webPush";
@@ -25,7 +28,27 @@
     let statusMsg = $state("");
     let mode = $state<"login" | "register">("login");
 
+    // Invoked when the homeserver rejects our token (M_UNKNOWN_TOKEN) — either
+    // during restore or later while the app is open. Tears down the dead
+    // session and returns the user to the login form with an explanation. The
+    // message goes through the global auth store so it survives the redirect
+    // from /app (which unmounts and remounts this page).
+    function handleSessionExpired() {
+        stopClient();
+        clearServiceWorkerAuth();
+        clearSession();
+        auth.error = "Your session has expired. Please sign in again.";
+        isLoading = false;
+        statusMsg = "";
+        goto("/");
+    }
+
     onMount(() => {
+        // Surface a session-expiry message handed over via the auth store.
+        if (auth.error) {
+            error = auth.error;
+            auth.error = null;
+        }
         // Try to restore a previous session
         const stored = loadStoredSession();
         if (stored) {
@@ -52,7 +75,7 @@
                         if (state === "ERROR" || state === "STOPPED") {
                             error = "Failed to reconnect. Please log in again.";
                         }
-                    });
+                    }, handleSessionExpired);
                 } catch {
                     isLoading = false;
                     statusMsg = "";
@@ -85,7 +108,7 @@
                 statusMsg = "";
                 error = "Sync error. Check your connection.";
             }
-        });
+        }, handleSessionExpired);
     }
 
     async function handleLogin() {
