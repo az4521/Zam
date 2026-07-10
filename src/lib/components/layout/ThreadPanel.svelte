@@ -4,7 +4,6 @@
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import {
         getThreadMessages,
-        getThreadSummary,
         sendThreadReply,
         onThreadEvent,
         onLocalEchoUpdated,
@@ -183,6 +182,7 @@
                 {room}
                 showHeader={shouldShowHeader(messages, i)}
                 onReply={() => {}}
+                jumpToReply={() => {}}
             />
         {/each}
     </div>

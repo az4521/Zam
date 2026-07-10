@@ -16,6 +16,11 @@ import {
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
+import { parseMarkdown } from "$lib/utils/markdown";
+import {
+    buildThreadReplyContent,
+    isThreadReplyContent,
+} from "$lib/utils/threadContent";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -436,6 +441,91 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
 export function getLatestTimelineEvent(room: Room): MatrixEvent {
     const timeline = room.getLiveTimeline().getEvents();
     return timeline[timeline.length - 1];
+}
+
+// ── Threads (lightweight) ──────────────────────────────────────────────────
+// Thread replies (m.thread relations) are read directly from the room's live
+// timeline rather than the SDK's Thread model, so they also stay visible
+// inline in the main timeline. The relation is read from each event's original
+// content, since an edit moves the top-level relation to m.replace.
+
+function eventThreadRoot(event: MatrixEvent): string | null {
+    const rel = event.getOriginalContent()?.["m.relates_to"];
+    return rel?.rel_type === "m.thread" ? (rel.event_id ?? null) : null;
+}
+
+export function getThreadMessages(
+    room: Room,
+    rootEventId: string,
+): MatrixEvent[] {
+    const belongs = (e: MatrixEvent) =>
+        isThreadReplyContent({
+            type: e.getType(),
+            isRedacted: e.isRedacted(),
+            relatesTo: e.getOriginalContent()?.["m.relates_to"],
+            rootEventId,
+        });
+    const timeline = room.getLiveTimeline().getEvents().filter(belongs);
+    const pending = room
+        .getPendingEvents()
+        .filter((e) => belongs(e) && e.status !== EventStatus.CANCELLED);
+    return [...timeline, ...pending];
+}
+
+export interface ThreadSummary {
+    count: number;
+    latestEventId: string | null;
+    latestTs: number;
+}
+
+export function getThreadSummary(
+    room: Room,
+    rootEventId: string,
+): ThreadSummary {
+    const messages = getThreadMessages(room, rootEventId);
+    const latest = messages[messages.length - 1] ?? null;
+    return {
+        count: messages.length,
+        latestEventId: latest?.getId() ?? null,
+        latestTs: latest?.getTs() ?? 0,
+    };
+}
+
+export async function sendThreadReply(
+    roomId: string,
+    rootEventId: string,
+    text: string,
+    mentions?: { user_ids?: string[]; room?: boolean },
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    const latestEventId =
+        (room && getThreadSummary(room, rootEventId).latestEventId) ||
+        rootEventId;
+    const { formattedBody, hasFormatting } = parseMarkdown(text);
+    const content = buildThreadReplyContent({
+        rootEventId,
+        latestEventId,
+        text,
+        formattedText: hasFormatting ? formattedBody : undefined,
+        mentions,
+    });
+    await matrixClient.sendMessage(roomId, content as never);
+}
+
+// Fires when a thread reply, an edit, or a redaction lands on the timeline, so
+// an open ThreadPanel can re-read. Broad by design — the panel re-derives.
+export function onThreadEvent(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (event: MatrixEvent) => {
+        const isThread = eventThreadRoot(event) !== null;
+        const relType = event.getContent()?.["m.relates_to"]?.rel_type;
+        const isEdit = relType === "m.replace";
+        const isRedaction = event.getType() === "m.room.redaction";
+        if (isThread || isEdit || isRedaction) callback();
+    };
+    matrixClient.on(RoomEvent.Timeline, handler as never);
+    return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
 }
 
 async function captureVideoThumbnail(file: File): Promise<{
@@ -1235,7 +1325,11 @@ export async function setRoomNotificationSetting(
             {
                 actions: [],
                 conditions: [
-                    { kind: ConditionKind.EventMatch, key: "room_id", pattern: roomId },
+                    {
+                        kind: ConditionKind.EventMatch,
+                        key: "room_id",
+                        pattern: roomId,
+                    },
                 ],
             },
         );
@@ -1907,9 +2001,9 @@ function effectiveUsage(
     packUsage: string[] | undefined,
 ): ImageUsage[] {
     const raw =
-        imageUsage && imageUsage.length > 0 ? imageUsage : packUsage ?? [];
-    const usage = raw.filter((u): u is ImageUsage =>
-        u === "emoticon" || u === "sticker",
+        imageUsage && imageUsage.length > 0 ? imageUsage : (packUsage ?? []);
+    const usage = raw.filter(
+        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
     );
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
 }
@@ -2160,10 +2254,7 @@ async function fetchRoomEmoteContent(
     }
 }
 
-function withUsage(
-    usage: string[] | undefined,
-    kind: ImageUsage,
-): string[] {
+function withUsage(usage: string[] | undefined, kind: ImageUsage): string[] {
     return [...new Set([...(usage ?? []), kind])];
 }
 
@@ -2428,9 +2519,9 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
 function getUserEmoteContent(): RoomEmoteContent {
     if (!matrixClient) return {};
     return (
-        (matrixClient
-            .getAccountData("im.ponies.user_emotes")
-            ?.getContent() as RoomEmoteContent | undefined) ?? {}
+        (matrixClient.getAccountData("im.ponies.user_emotes")?.getContent() as
+            | RoomEmoteContent
+            | undefined) ?? {}
     );
 }
 

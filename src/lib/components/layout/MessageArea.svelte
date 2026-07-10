@@ -49,6 +49,7 @@
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
+    import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
     import {
         getPinnedEventIds,
         findEventById,
@@ -73,6 +74,20 @@
     let backfilling = false;
     let replyToEvent = $state<MatrixEvent | null>(null);
     let editRequestedEventId = $state<string | null>(null);
+    let threadRootId = $state<string | null>(null);
+
+    function openThread(rootEventId: string) {
+        threadRootId = rootEventId;
+        closeSidebar();
+    }
+    function closeThread() {
+        threadRootId = null;
+    }
+    // Close any open thread when switching rooms.
+    $effect(() => {
+        void room.roomId;
+        threadRootId = null;
+    });
     let isDragOver = $state(false);
     let intervalId: NodeJS.Timeout | undefined = $state();
     let scrollStopTimeout: NodeJS.Timeout | undefined = $state();
@@ -219,7 +234,6 @@
             joiningUpgrade = false;
         }
     }
-
 
     // Animated right drawer (mobile member list)
     const MEMBER_WIDTH = 280;
@@ -981,6 +995,7 @@
                             replyToEvent = e;
                         }}
                         jumpToReply={scrollToMessage}
+                        onOpenThread={openThread}
                         editRequested={editRequestedEventId === event.getId()}
                         onEditDone={() => messageInputEl?.focus()}
                         {receipts}
@@ -1188,5 +1203,28 @@
     {:else if showMemberList}
         <MemberList {room} />
     {/if}
-</div>
 
+    <!-- Thread panel (inline on desktop, overlay on mobile) -->
+    {#if threadRootId}
+        {#if isMobile}
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <div
+                class="absolute inset-0 z-30 bg-black/50"
+                onclick={closeThread}
+            ></div>
+            <div class="absolute inset-y-0 right-0 z-40 h-full">
+                <ThreadPanel
+                    {room}
+                    rootEventId={threadRootId}
+                    onClose={closeThread}
+                />
+            </div>
+        {:else}
+            <ThreadPanel
+                {room}
+                rootEventId={threadRootId}
+                onClose={closeThread}
+            />
+        {/if}
+    {/if}
+</div>
