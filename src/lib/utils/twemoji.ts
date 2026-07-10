@@ -3,12 +3,31 @@ import twemoji from "@twemoji/api";
 export const TWEMOJI_BASE =
     "https://cdn.jsdelivr.net/gh/jdecked/twemoji@314c9f493f5609ab3a2691fba9650827c3e317a1/assets/";
 
+function escapeAttr(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+/**
+ * True when the string is composed solely of emoji (pictographic characters,
+ * variation selectors and ZWJ). Used as a safety gate before rendering a
+ * value as raw HTML — arbitrary text (e.g. a hostile reaction key) returns
+ * false and must be rendered as escaped text instead.
+ */
+export function isEmojiOnly(s: string): boolean {
+    if (!s) return false;
+    return /^(?:\p{Extended_Pictographic}|\p{Emoji_Component}|️|‍)+$/u.test(s);
+}
+
 function fallback(emoji: string, className: string): string {
     try {
         const cp = twemoji.convert.toCodePoint(emoji);
-        return `<img src="${TWEMOJI_BASE}svg/${cp}.svg" alt="${emoji}" class="${className}" draggable="false" />`;
+        return `<img src="${TWEMOJI_BASE}svg/${cp}.svg" alt="${escapeAttr(emoji)}" class="${className}" draggable="false" />`;
     } catch {
-        return emoji;
+        return escapeAttr(emoji);
     }
 }
 

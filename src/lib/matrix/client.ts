@@ -16,6 +16,7 @@ import {
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
+import { buildReplyContent } from "$lib/utils/replyContent";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -1235,7 +1236,11 @@ export async function setRoomNotificationSetting(
             {
                 actions: [],
                 conditions: [
-                    { kind: ConditionKind.EventMatch, key: "room_id", pattern: roomId },
+                    {
+                        kind: ConditionKind.EventMatch,
+                        key: "room_id",
+                        pattern: roomId,
+                    },
                 ],
             },
         );
@@ -1907,9 +1912,9 @@ function effectiveUsage(
     packUsage: string[] | undefined,
 ): ImageUsage[] {
     const raw =
-        imageUsage && imageUsage.length > 0 ? imageUsage : packUsage ?? [];
-    const usage = raw.filter((u): u is ImageUsage =>
-        u === "emoticon" || u === "sticker",
+        imageUsage && imageUsage.length > 0 ? imageUsage : (packUsage ?? []);
+    const usage = raw.filter(
+        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
     );
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
 }
@@ -2160,10 +2165,7 @@ async function fetchRoomEmoteContent(
     }
 }
 
-function withUsage(
-    usage: string[] | undefined,
-    kind: ImageUsage,
-): string[] {
+function withUsage(usage: string[] | undefined, kind: ImageUsage): string[] {
     return [...new Set([...(usage ?? []), kind])];
 }
 
@@ -2428,9 +2430,9 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
 function getUserEmoteContent(): RoomEmoteContent {
     if (!matrixClient) return {};
     return (
-        (matrixClient
-            .getAccountData("im.ponies.user_emotes")
-            ?.getContent() as RoomEmoteContent | undefined) ?? {}
+        (matrixClient.getAccountData("im.ponies.user_emotes")?.getContent() as
+            | RoomEmoteContent
+            | undefined) ?? {}
     );
 }
 
@@ -3058,34 +3060,17 @@ export async function sendReply(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
-    const replyEventId = replyToEvent.getId()!;
-    const replySender = replyToEvent.getSender() ?? "";
     const replyContent = replyToEvent.getContent();
-    const replyBody: string = replyContent?.body ?? "";
+    const content = buildReplyContent({
+        roomId: replyToEvent.getRoomId() ?? roomId,
+        replyEventId: replyToEvent.getId()!,
+        replySender: replyToEvent.getSender() ?? "",
+        replyBody: replyContent?.body ?? "",
+        replyFormattedBody: replyContent?.formatted_body,
+        text,
+        formattedText,
+        mentions,
+    });
 
-    // Matrix reply fallback: prefix each line of the original with "> "
-    const quotedLines = replyBody
-        .split("\n")
-        .map((l: string) => `> ${l}`)
-        .join("\n");
-    const fallbackBody = `> <${replySender}> ${quotedLines}\n\n${text}`;
-
-    // HTML reply block per Matrix spec
-    const replyHtml = replyContent?.formatted_body ?? replyBody;
-    const formattedQuote =
-        `<mx-reply><blockquote>` +
-        `<a href="https://matrix.to/#/${replyToEvent.getRoomId()}/${replyEventId}">In reply to</a> ` +
-        `<a href="https://matrix.to/#/${replySender}">${replySender}</a><br>${replyHtml}` +
-        `</blockquote></mx-reply>`;
-
-    await matrixClient.sendMessage(roomId, {
-        msgtype: "m.text",
-        body: fallbackBody,
-        format: "org.matrix.custom.html",
-        formatted_body: formattedQuote + (formattedText ?? text),
-        "m.relates_to": {
-            "m.in_reply_to": { event_id: replyEventId },
-        },
-        ...(mentions ? { "m.mentions": mentions } : {}),
-    } as never);
+    await matrixClient.sendMessage(roomId, content as never);
 }

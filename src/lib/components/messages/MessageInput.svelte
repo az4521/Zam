@@ -767,9 +767,20 @@
             return;
         }
 
-        const pastedText = e.clipboardData?.getData("text/plain");
-        if (!pastedText) return;
+        // Always take over the paste so raw clipboard HTML is never inserted
+        // into the contenteditable. If only text/html is available, project it
+        // down to plain text via textContent (parsing does not execute scripts).
         e.preventDefault();
+        let pastedText = e.clipboardData?.getData("text/plain") ?? "";
+        if (!pastedText) {
+            const html = e.clipboardData?.getData("text/html");
+            if (html) {
+                pastedText =
+                    new DOMParser().parseFromString(html, "text/html").body
+                        .textContent ?? "";
+            }
+        }
+        if (!pastedText) return;
         const start = getCaretOffset();
         const selection = window.getSelection();
         const selected = selection?.rangeCount
