@@ -13,6 +13,7 @@ import {
     RuleId,
     IndexedDBStore,
     ConditionKind,
+    HttpApiEvent,
 } from "matrix-js-sdk";
 import type { MatrixClient, Room, RoomMember } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
@@ -224,6 +225,7 @@ export function isInitialSyncComplete(): boolean {
 
 export async function startSync(
     onStateChange: (state: string) => void,
+    onSessionExpired?: () => void,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
@@ -232,6 +234,13 @@ export async function startSync(
         if (state === "PREPARED") initialSyncComplete = true;
         onStateChange(state as string);
     });
+
+    // Fired when any request comes back with M_UNKNOWN_TOKEN (token revoked,
+    // password changed, device deleted, server data wiped). Without this the
+    // client sits in a permanent sync-error state with no path back to login.
+    if (onSessionExpired) {
+        matrixClient.on(HttpApiEvent.SessionLoggedOut, onSessionExpired);
+    }
 
     await matrixClient.startClient({
         initialSyncLimit: 8,
@@ -292,15 +301,24 @@ export function onSyncPrepared(callback: () => void): () => void {
 }
 
 export async function logout(): Promise<void> {
-    if (matrixClient) {
+    const client = matrixClient;
+    if (client) {
         try {
-            await matrixClient.logout(true);
+            // stopClient=true; invalidates the token server-side.
+            await client.logout(true);
         } catch {
             // ignore errors on logout
         }
-        matrixClient.stopClient();
-        matrixClient = null;
+        // Wipe the persisted sync store so the next user on this device can't
+        // recover the previous account's cached rooms/messages from IndexedDB.
+        try {
+            await client.clearStores();
+        } catch {
+            // ignore
+        }
     }
+    matrixClient = null;
+    matrixStore = null;
 }
 
 export function stopClient(): void {
@@ -731,6 +749,14 @@ export function updateServiceWorkerAuth(): void {
                 homeserverUrl: hsUrl,
             });
         })
+        .catch(() => {});
+}
+
+/** Tell the service worker to forget the stored access token (on logout). */
+export function clearServiceWorkerAuth(): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.active?.postMessage({ type: "CLEAR_AUTH" }))
         .catch(() => {});
 }
 
@@ -3149,34 +3175,17 @@ export async function sendReply(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
 
-    const replyEventId = replyToEvent.getId()!;
-    const replySender = replyToEvent.getSender() ?? "";
     const replyContent = replyToEvent.getContent();
-    const replyBody: string = replyContent?.body ?? "";
+    const content = buildReplyContent({
+        roomId: replyToEvent.getRoomId() ?? roomId,
+        replyEventId: replyToEvent.getId()!,
+        replySender: replyToEvent.getSender() ?? "",
+        replyBody: replyContent?.body ?? "",
+        replyFormattedBody: replyContent?.formatted_body,
+        text,
+        formattedText,
+        mentions,
+    });
 
-    // Matrix reply fallback: prefix each line of the original with "> "
-    const quotedLines = replyBody
-        .split("\n")
-        .map((l: string) => `> ${l}`)
-        .join("\n");
-    const fallbackBody = `> <${replySender}> ${quotedLines}\n\n${text}`;
-
-    // HTML reply block per Matrix spec
-    const replyHtml = replyContent?.formatted_body ?? replyBody;
-    const formattedQuote =
-        `<mx-reply><blockquote>` +
-        `<a href="https://matrix.to/#/${replyToEvent.getRoomId()}/${replyEventId}">In reply to</a> ` +
-        `<a href="https://matrix.to/#/${replySender}">${replySender}</a><br>${replyHtml}` +
-        `</blockquote></mx-reply>`;
-
-    await matrixClient.sendMessage(roomId, {
-        msgtype: "m.text",
-        body: fallbackBody,
-        format: "org.matrix.custom.html",
-        formatted_body: formattedQuote + (formattedText ?? text),
-        "m.relates_to": {
-            "m.in_reply_to": { event_id: replyEventId },
-        },
-        ...(mentions ? { "m.mentions": mentions } : {}),
-    } as never);
+    await matrixClient.sendMessage(roomId, content as never);
 }

@@ -6,7 +6,7 @@
         removeReaction,
         mxcToHttp,
     } from "$lib/matrix/client";
-    import { renderEmoji } from "$lib/utils/twemoji";
+    import { renderEmoji, isEmojiOnly } from "$lib/utils/twemoji";
 
     interface Props {
         eventId: string;
@@ -110,8 +110,11 @@
                     />
                 {:else if group.key.startsWith(":") && group.key.endsWith(":")}
                     <span class="font-mono">{group.key}</span>
-                {:else}
+                {:else if isEmojiOnly(group.key)}
                     {@html emojiHtml(group.key)}
+                {:else}
+                    <!-- Arbitrary reaction key: render as escaped text, never raw HTML -->
+                    <span>{group.key}</span>
                 {/if}
                 <span>{group.count}</span>
             </button>

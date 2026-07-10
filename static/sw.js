@@ -62,6 +62,12 @@ self.addEventListener("message", async (event) => {
 		homeserverUrl = hs;
 		await dbSet("accessToken", token);
 		await dbSet("homeserverUrl", hs);
+	} else if (event.data?.type === "CLEAR_AUTH") {
+		// Logout / session expiry — forget the token so we stop injecting it.
+		accessToken = null;
+		homeserverUrl = null;
+		await dbSet("accessToken", null);
+		await dbSet("homeserverUrl", null);
 	}
 });
 

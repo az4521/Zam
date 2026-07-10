@@ -35,6 +35,7 @@
     import { tick } from "svelte";
     import { format } from "date-fns";
     import { renderHtml } from "$lib/utils/twemoji";
+    import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
     import {
         isFavouriteGif,
         addFavouriteGif,
@@ -546,23 +547,7 @@
     }
 
     function sanitize(html: string): string {
-        return (
-            html
-                .replace(
-                    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
-                    "",
-                )
-                .replace(
-                    /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi,
-                    "",
-                )
-                .replace(/\son\w+="[^"]*"/g, "")
-                // Convert mxc:// src attributes to HTTP URLs so browsers can load them
-                .replace(/src="(mxc:\/\/[^"]+)"/g, (_match, mxc) => {
-                    const http = mxcToHttp(mxc);
-                    return http ? `src="${http}"` : `src=""`;
-                })
-        );
+        return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
     }
 </script>
 
