@@ -1115,13 +1115,16 @@
                             device: DeviceInfo,
                             isCurrent: boolean,
                         )}
-                            {@const agent = describeUserAgent(
-                                device.lastSeenUserAgent,
-                            )}
-                            {@const lastSeen = formatLastSeen(
-                                device.lastSeenTs,
-                                devicesFetchedAt,
-                            )}
+                            {@const lastSeenLine = [
+                                describeUserAgent(device.lastSeenUserAgent),
+                                `Last seen ${formatLastSeen(
+                                    device.lastSeenTs,
+                                    devicesFetchedAt,
+                                )}`,
+                                device.lastSeenIp,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             <div
                                 class="rounded bg-discord-backgroundTertiary px-4 py-3"
                             >
@@ -1179,10 +1182,7 @@
                                         <p
                                             class="text-xs text-discord-textMuted mt-1"
                                         >
-                                            {#if agent}{agent} ·
-                                            {/if}Last seen
-                                            {lastSeen}{#if device.lastSeenIp}
-                                                · {device.lastSeenIp}{/if}
+                                            {lastSeenLine}
                                         </p>
                                     </div>
                                     <div class="flex gap-2 flex-shrink-0">
