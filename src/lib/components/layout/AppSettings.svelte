@@ -13,6 +13,11 @@
         getClient,
         uploadContent,
         mxcToHttp,
+        getOwnDisplayName,
+        getOwnAvatarMxc,
+        fetchOwnProfile,
+        setOwnDisplayName,
+        setOwnAvatarMxc,
         getUserEmotePack,
         getUserEmojiPack,
         getUserStickerPack,
@@ -35,6 +40,7 @@
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { syncStateLabel } from "$lib/utils/syncStatus";
     import {
         settingsState,
         setShowAllEvents,
@@ -91,6 +97,96 @@
         { id: "about", label: "About" },
         { id: "debug", label: "Debug Info" },
     ];
+
+    // ── Account tab: profile editing ───────────────────────────────────────────
+    let profileDisplayName = $state("");
+    let profileAvatarMxc = $state<string | null>(null);
+    let profileLoaded = $state(false);
+    let avatarUploading = $state(false);
+    let savingName = $state(false);
+    let profileError = $state("");
+    let profileSaved = $state(false);
+    let avatarInputEl: HTMLInputElement | undefined = $state();
+
+    const avatarPreviewUrl = $derived(mxcToHttp(profileAvatarMxc));
+    const syncStatus = $derived(syncStateLabel(auth.syncState));
+    const nameChanged = $derived(
+        profileDisplayName.trim() !== (getOwnDisplayName() ?? ""),
+    );
+
+    async function loadProfile() {
+        // Seed from the local cache immediately, then refresh from the server.
+        profileDisplayName = getOwnDisplayName() ?? "";
+        profileAvatarMxc = getOwnAvatarMxc();
+        profileLoaded = true;
+        try {
+            const p = await fetchOwnProfile();
+            profileDisplayName = p.displayName ?? "";
+            profileAvatarMxc = p.avatarMxc;
+        } catch {
+            // Keep the cached values if the fetch fails.
+        }
+    }
+
+    // Load the profile the first time the Account tab is opened.
+    $effect(() => {
+        if (activeTab === "account" && !profileLoaded) loadProfile();
+    });
+
+    let savedTimeout: ReturnType<typeof setTimeout> | undefined;
+    function flashSaved() {
+        profileSaved = true;
+        clearTimeout(savedTimeout);
+        savedTimeout = setTimeout(() => (profileSaved = false), 2000);
+    }
+
+    async function onAvatarSelected(e: Event) {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (avatarInputEl) avatarInputEl.value = "";
+        if (!file) return;
+        avatarUploading = true;
+        profileError = "";
+        profileSaved = false;
+        try {
+            const mxc = await uploadContent(file);
+            await setOwnAvatarMxc(mxc);
+            profileAvatarMxc = mxc;
+            flashSaved();
+        } catch (err) {
+            profileError = (err as Error)?.message ?? "Avatar upload failed";
+        } finally {
+            avatarUploading = false;
+        }
+    }
+
+    async function removeAvatar() {
+        avatarUploading = true;
+        profileError = "";
+        profileSaved = false;
+        try {
+            await setOwnAvatarMxc("");
+            profileAvatarMxc = null;
+            flashSaved();
+        } catch (err) {
+            profileError = (err as Error)?.message ?? "Failed to remove avatar";
+        } finally {
+            avatarUploading = false;
+        }
+    }
+
+    async function saveDisplayName() {
+        savingName = true;
+        profileError = "";
+        profileSaved = false;
+        try {
+            await setOwnDisplayName(profileDisplayName.trim());
+            flashSaved();
+        } catch (err) {
+            profileError = (err as Error)?.message ?? "Failed to save name";
+        } finally {
+            savingName = false;
+        }
+    }
 
     // ── Debug Info tab ─────────────────────────────────────────────────────────
     let debugLoading = $state(false);
@@ -187,8 +283,7 @@
     const matchingPusher = $derived(
         debugPushers?.find(
             (p) =>
-                p.app_id === PUSH_APP_ID &&
-                p.url === PUSH_GATEWAY_NOTIFY_URL,
+                p.app_id === PUSH_APP_ID && p.url === PUSH_GATEWAY_NOTIFY_URL,
         ) ?? null,
     );
 
@@ -212,7 +307,9 @@
 
     // ── Notifications tab ──────────────────────────────────────────────────────
 
-    function getNotificationPermission(): NotificationPermission | "unsupported" {
+    function getNotificationPermission():
+        | NotificationPermission
+        | "unsupported" {
         if (typeof Notification === "undefined") return "unsupported";
         return Notification.permission;
     }
@@ -621,7 +718,105 @@
             <div class="flex-1 overflow-y-auto p-6 min-w-0">
                 <!-- ── Account ───────────────────────────────────────────── -->
                 {#if activeTab === "account"}
-                    <div class="space-y-5">
+                    <div class="space-y-6">
+                        <!-- Profile -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Profile
+                            </p>
+                            <div class="flex items-center gap-4">
+                                {#if avatarPreviewUrl}
+                                    <img
+                                        src={avatarPreviewUrl}
+                                        alt="Your avatar"
+                                        class="w-20 h-20 rounded-full object-cover flex-shrink-0"
+                                    />
+                                {:else}
+                                    <div
+                                        class="w-20 h-20 rounded-full bg-discord-accent/80 text-white flex items-center justify-center text-2xl font-semibold flex-shrink-0"
+                                    >
+                                        {(
+                                            profileDisplayName ||
+                                            auth.userId ||
+                                            "?"
+                                        )
+                                            .replace(/^@/, "")
+                                            .charAt(0)
+                                            .toUpperCase()}
+                                    </div>
+                                {/if}
+                                <div class="flex flex-col gap-2">
+                                    <div class="flex gap-2">
+                                        <button
+                                            onclick={() =>
+                                                avatarInputEl?.click()}
+                                            disabled={avatarUploading}
+                                            class="px-3 py-1.5 bg-discord-accent hover:bg-discord-accent/80 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                        >
+                                            {avatarUploading
+                                                ? "Uploading…"
+                                                : "Change avatar"}
+                                        </button>
+                                        {#if profileAvatarMxc}
+                                            <button
+                                                onclick={removeAvatar}
+                                                disabled={avatarUploading}
+                                                class="px-3 py-1.5 bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                            >
+                                                Remove
+                                            </button>
+                                        {/if}
+                                    </div>
+                                    <p class="text-xs text-discord-textMuted">
+                                        JPG, PNG or GIF.
+                                    </p>
+                                </div>
+                                <input
+                                    bind:this={avatarInputEl}
+                                    type="file"
+                                    accept="image/*"
+                                    onchange={onAvatarSelected}
+                                    class="hidden"
+                                />
+                            </div>
+
+                            <div class="mt-4">
+                                <label
+                                    for="profile-display-name"
+                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                >
+                                    Display name
+                                </label>
+                                <div class="flex gap-2">
+                                    <input
+                                        id="profile-display-name"
+                                        bind:value={profileDisplayName}
+                                        maxlength="255"
+                                        placeholder="Your display name"
+                                        class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                    />
+                                    <button
+                                        onclick={saveDisplayName}
+                                        disabled={savingName || !nameChanged}
+                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accent/80 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {savingName ? "Saving…" : "Save"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {#if profileError}
+                                <p class="mt-2 text-xs text-discord-danger">
+                                    {profileError}
+                                </p>
+                            {:else if profileSaved}
+                                <p class="mt-2 text-xs text-green-400">Saved</p>
+                            {/if}
+                        </div>
+
+                        <!-- Account -->
                         <div>
                             <p
                                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
@@ -658,15 +853,27 @@
                                 >
                                     <span
                                         class="text-discord-textMuted font-medium"
-                                        >Sync state</span
+                                        >Connection</span
                                     >
                                     <span
-                                        class="text-discord-textPrimary text-xs"
-                                        >{auth.syncState}</span
+                                        class="flex items-center gap-2 text-discord-textPrimary text-xs"
                                     >
+                                        <span
+                                            class="w-2 h-2 rounded-full {syncStatus.tone ===
+                                            'ok'
+                                                ? 'bg-green-500'
+                                                : syncStatus.tone === 'warn'
+                                                  ? 'bg-yellow-500'
+                                                  : syncStatus.tone === 'error'
+                                                    ? 'bg-red-500'
+                                                    : 'bg-discord-textMuted'}"
+                                        ></span>
+                                        {syncStatus.label}
+                                    </span>
                                 </div>
                             </div>
                         </div>
+
                         <div class="pt-2">
                             <button
                                 onclick={onLogout}
@@ -686,7 +893,9 @@
                             >
                                 Add Image
                             </label>
-                            <div class="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                            <div
+                                class="grid gap-2 sm:grid-cols-[1fr_auto_auto]"
+                            >
                                 <div
                                     class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
                                 >
@@ -1089,20 +1298,26 @@
                                         >
                                             Push notifications
                                         </p>
-                                        <p class="text-xs text-discord-textMuted">
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
                                             {#if notificationPermission === "denied"}
-                                                Permission is blocked in system settings
+                                                Permission is blocked in system
+                                                settings
                                             {:else if notificationPermission === "unsupported"}
-                                                Notifications are not supported here
+                                                Notifications are not supported
+                                                here
                                             {:else}
-                                                Allow this app to send notifications
+                                                Allow this app to send
+                                                notifications
                                             {/if}
                                         </p>
                                     </div>
                                     <button
                                         onclick={handleRequestNotificationPermission}
                                         disabled={notificationPermissionLoading ||
-                                            notificationPermission === "denied" ||
+                                            notificationPermission ===
+                                                "denied" ||
                                             notificationPermission ===
                                                 "unsupported"}
                                         class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-discord-accent flex items-center gap-2 flex-shrink-0"
@@ -1344,7 +1559,8 @@
                                         </p>
                                     </div>
                                     <button
-                                        onclick={() => openReleasePage(info.url)}
+                                        onclick={() =>
+                                            openReleasePage(info.url)}
                                         disabled={!CAN_INSTALL_UPDATE}
                                         title={CAN_INSTALL_UPDATE
                                             ? ""
@@ -1364,15 +1580,31 @@
                     <!-- ── Debug Info ─────────────────────────────────────────── -->
                 {:else if activeTab === "debug"}
                     {@const rows = [
-                        ["Platform", pushDebug.native ? "Native (Capacitor)" : "Web/Desktop"],
-                        ["Push enabled in build", pushDebug.pushEnabled ? "Yes" : "No"],
+                        [
+                            "Platform",
+                            pushDebug.native
+                                ? "Native (Capacitor)"
+                                : "Web/Desktop",
+                        ],
+                        [
+                            "Push enabled in build",
+                            pushDebug.pushEnabled ? "Yes" : "No",
+                        ],
                         ["Gateway URL", PUSH_GATEWAY_NOTIFY_URL],
                         ["App ID", PUSH_APP_ID],
                         ["Notification permission", pushDebug.permission],
-                        ["FCM token", pushDebug.fcmToken
-                            ? pushDebug.fcmToken.slice(0, 12) + "…" + pushDebug.fcmToken.slice(-6)
-                            : "(none)"],
-                        ["Pusher registered this session", pushDebug.pusherRegistered ? "Yes" : "No"],
+                        [
+                            "FCM token",
+                            pushDebug.fcmToken
+                                ? pushDebug.fcmToken.slice(0, 12) +
+                                  "…" +
+                                  pushDebug.fcmToken.slice(-6)
+                                : "(none)",
+                        ],
+                        [
+                            "Pusher registered this session",
+                            pushDebug.pusherRegistered ? "Yes" : "No",
+                        ],
                     ] as [string, string][]}
                     <div class="space-y-6">
                         <!-- Local-only debug toggles (never synced to the homeserver) -->
@@ -1390,9 +1622,10 @@
                                         Show all events
                                     </p>
                                     <p class="text-xs text-discord-textMuted">
-                                        Display every Matrix timeline event (state
-                                        changes, edits, redactions, reactions…) in
-                                        the chat log. Stored locally only.
+                                        Display every Matrix timeline event
+                                        (state changes, edits, redactions,
+                                        reactions…) in the chat log. Stored
+                                        locally only.
                                     </p>
                                 </div>
                                 <button
@@ -1501,7 +1734,9 @@
                                                 <div>
                                                     app_id: {p.app_id}
                                                 </div>
-                                                <div>url: {p.url ?? "(none)"}</div>
+                                                <div>
+                                                    url: {p.url ?? "(none)"}
+                                                </div>
                                                 <div>
                                                     device: {p.device_display_name ??
                                                         "(none)"}
