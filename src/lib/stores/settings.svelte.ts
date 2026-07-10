@@ -24,9 +24,17 @@ export const settingsState = $state({
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
+    /** Send private read receipts (m.read.private): the server still tracks
+     *  what you've read, but other users can't see it. Default is public. */
+    privateReadReceipts: readBool("privateReadReceipts", false),
 });
 
 export function setShowAllEvents(value: boolean): void {
     settingsState.showAllEvents = value;
     writeBool("showAllEvents", value);
+}
+
+export function setPrivateReadReceipts(value: boolean): void {
+    settingsState.privateReadReceipts = value;
+    writeBool("privateReadReceipts", value);
 }
