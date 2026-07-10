@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isEmojiOnly, renderEmoji } from "./twemoji";
+import { isEmojiOnly, renderEmoji, renderHtml } from "./twemoji";
 
 describe("isEmojiOnly — reaction-key safety gate", () => {
     it("accepts a single emoji", () => {
@@ -26,5 +26,19 @@ describe("renderEmoji — fallback escapes its alt attribute", () => {
         // A string that twemoji can't map should never break out of alt="".
         const out = renderEmoji('a"b', "cls");
         expect(out).not.toContain('alt="a"b"');
+    });
+});
+
+describe("self-hosted assets — no CDN references", () => {
+    it("renderEmoji points at the bundled /twemoji/ assets", () => {
+        const out = renderEmoji("😀", "cls");
+        expect(out).toContain('src="/twemoji/svg/1f600.svg"');
+        expect(out).not.toMatch(/https?:\/\//);
+    });
+
+    it("renderHtml (including the fallback pass) stays local", () => {
+        const out = renderHtml("<p>hi 😀</p>", "cls");
+        expect(out).toContain('src="/twemoji/svg/1f600.svg"');
+        expect(out).not.toMatch(/https?:\/\//);
     });
 });
