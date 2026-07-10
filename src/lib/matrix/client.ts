@@ -23,6 +23,19 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
+import {
+    isPollStartEventType,
+    isPollResponseEventType,
+    isPollEndEventType,
+    parsePollStart,
+    extractResponseAnswers,
+    aggregatePollVotes,
+    canEndPoll,
+    pickPollEndTs,
+    POLL_RESPONSE_TYPES,
+    POLL_END_TYPES,
+    type PollStartData,
+} from "$lib/utils/pollContent";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -441,7 +454,11 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
     const filter = (e: MatrixEvent) => {
         if (showAll) return true;
         if (e.isRedacted()) return false;
-        if (e.getType() !== "m.room.message" && e.getType() !== "m.sticker")
+        if (
+            e.getType() !== "m.room.message" &&
+            e.getType() !== "m.sticker" &&
+            !isPollStartEventType(e.getType())
+        )
             return false;
         const rel = e.getContent()?.["m.relates_to"];
         if (rel?.rel_type === "m.replace") return false;
@@ -1036,6 +1053,8 @@ const NOTIFICATION_EVENT_TYPES = [
     "m.room.message",
     "m.room.encrypted",
     "m.sticker",
+    "org.matrix.msc3381.poll.start",
+    "m.poll.start",
 ];
 
 function isNotificationEvent(event: MatrixEvent): boolean {
@@ -1113,7 +1132,8 @@ export function onTimelineEvent(
             (settingsState.showAllEvents ||
                 (!isReplacement &&
                     (event.getType() === "m.room.message" ||
-                        event.getType() === "m.sticker") &&
+                        event.getType() === "m.sticker" ||
+                        isPollStartEventType(event.getType())) &&
                     !event.isRedacted()))
         ) {
             callback(event, room);
@@ -1579,7 +1599,11 @@ export async function loadContextAroundEvent(
     });
     const filter = (e: MatrixEvent) => {
         if (e.isRedacted()) return false;
-        if (e.getType() !== "m.room.message" && e.getType() !== "m.sticker")
+        if (
+            e.getType() !== "m.room.message" &&
+            e.getType() !== "m.sticker" &&
+            !isPollStartEventType(e.getType())
+        )
             return false;
         const rel = e.getContent()?.["m.relates_to"];
         if (rel?.rel_type === "m.replace") return false;
@@ -3220,6 +3244,140 @@ export function onReactionEvent(
     if (!matrixClient) return () => {};
     const handler = (event: MatrixEvent, room: Room | undefined) => {
         if (room && event.getType() === "m.reaction") {
+            callback(event, room);
+        }
+    };
+    matrixClient.on(RoomEvent.Timeline, handler as never);
+    return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
+}
+
+// ── Polls (MSC3381, read-only rendering) ───────────────────────────────────
+
+export interface PollView {
+    poll: PollStartData;
+    counts: Record<string, number>;
+    totalVotes: number;
+    winners: string[];
+    /** Answer ids the current user voted for. */
+    myAnswers: string[];
+    ended: boolean;
+    /** Whether tallies may be shown: disclosed poll, or the poll has closed. */
+    showResults: boolean;
+}
+
+/** All response/end events the SDK has aggregated for this poll locally. */
+function pollRelationEvents(room: Room, pollStartId: string): MatrixEvent[] {
+    const out: MatrixEvent[] = [];
+    for (const type of [...POLL_RESPONSE_TYPES, ...POLL_END_TYPES]) {
+        const rel = room.relations.getChildEventsForEvent(
+            pollStartId,
+            "m.reference",
+            type,
+        );
+        if (rel) out.push(...rel.getRelations());
+    }
+    return out;
+}
+
+/**
+ * Compute the rendered state of a poll from its start event plus every
+ * known response/end relation: what the SDK aggregated from the loaded
+ * timeline, merged with `extraEvents` fetched from the /relations endpoint
+ * (see fetchPollRelations) so votes older than the timeline window count.
+ */
+export function getPollView(
+    room: Room,
+    startEvent: MatrixEvent,
+    extraEvents: MatrixEvent[] = [],
+): PollView | null {
+    const poll = parsePollStart(startEvent.getContent());
+    if (!poll) return null;
+    const startId = startEvent.getId();
+    if (!startId) return null;
+
+    const seen = new Set<string>();
+    const related: MatrixEvent[] = [];
+    for (const e of [...pollRelationEvents(room, startId), ...extraEvents]) {
+        const id = e.getId();
+        if (!id || seen.has(id) || e.isRedacted()) continue;
+        seen.add(id);
+        related.push(e);
+    }
+
+    const creator = startEvent.getSender() ?? "";
+    const powerLevels = getRoomPowerLevels(room);
+    const endTs = pickPollEndTs(
+        related
+            .filter((e) => isPollEndEventType(e.getType()))
+            .map((e) => ({ sender: e.getSender() ?? "", ts: e.getTs() })),
+        (sender) => canEndPoll(sender, creator, powerLevels),
+    );
+
+    const responses = related
+        .filter((e) => isPollResponseEventType(e.getType()))
+        .map((e) => ({
+            sender: e.getSender() ?? "",
+            ts: e.getTs(),
+            eventId: e.getId() ?? "",
+            answers: extractResponseAnswers(e.getContent()),
+        }));
+
+    const tally = aggregatePollVotes(poll, responses, endTs);
+    const me = matrixClient?.getUserId();
+    return {
+        poll,
+        counts: tally.counts,
+        totalVotes: tally.totalVotes,
+        winners: tally.winners,
+        myAnswers: (me && tally.votesBySender[me]) || [],
+        ended: endTs !== null,
+        showResults: poll.kind === "disclosed" || endTs !== null,
+    };
+}
+
+/**
+ * Fetch a poll's full response/end history from the server. The SDK only
+ * aggregates relations for events in the locally loaded timeline window,
+ * so votes older than that window would otherwise be missed. Pages until
+ * exhausted, bounded at 10 pages for pathological polls (the cap is logged).
+ */
+export async function fetchPollRelations(
+    roomId: string,
+    pollStartId: string,
+): Promise<MatrixEvent[]> {
+    if (!matrixClient) return [];
+    const events: MatrixEvent[] = [];
+    let from: string | undefined;
+    for (let page = 0; page < 10; page++) {
+        const res = await matrixClient.relations(
+            roomId,
+            pollStartId,
+            "m.reference",
+            null,
+            { from },
+        );
+        events.push(...res.events);
+        if (!res.nextBatch) return events;
+        from = res.nextBatch;
+    }
+    console.warn(
+        `Poll ${pollStartId} has more than 10 pages of votes; tallies may be incomplete`,
+    );
+    return events;
+}
+
+/** Fires when a poll response or end event lands on a timeline, so visible
+ *  polls can re-tally. */
+export function onPollEvent(
+    callback: (event: MatrixEvent, room: Room) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (event: MatrixEvent, room: Room | undefined) => {
+        const type = event.getType();
+        if (
+            room &&
+            (isPollResponseEventType(type) || isPollEndEventType(type))
+        ) {
             callback(event, room);
         }
     };
