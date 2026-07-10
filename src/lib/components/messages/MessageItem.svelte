@@ -56,6 +56,7 @@
         showHeader: boolean;
         onReply: (event: MatrixEvent) => void;
         jumpToReply: (eventId: string) => void;
+        onOpenThread?: (rootEventId: string) => void;
         editRequested?: boolean;
         onEditDone?: () => void;
         receipts?: ReadReceiptInfo[];
@@ -68,6 +69,7 @@
         showHeader,
         onReply,
         jumpToReply,
+        onOpenThread,
         editRequested = false,
         onEditDone,
         receipts = [],
@@ -392,6 +394,13 @@
     // Whether this message is a thread reply
     const isThreadReply = $derived(
         content?.["m.relates_to"]?.rel_type === "m.thread",
+    );
+    // Root of the thread to open for this message: the reply's own thread root
+    // if it's a thread reply, otherwise this message starts a new thread.
+    const threadRootId = $derived(
+        isThreadReply
+            ? ((content?.["m.relates_to"]?.event_id as string) ?? eventId)
+            : eventId,
     );
 
     // Extract http/https URLs from the plain body for link previews
@@ -1027,8 +1036,10 @@
 
         <!-- Thread badge -->
         {#if isThreadReply}
-            <span
-                class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider"
+            <button
+                onclick={() => onOpenThread?.(threadRootId)}
+                class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
+                title="Open thread"
             >
                 <svg
                     class="w-3 h-3 flex-shrink-0"
@@ -1040,7 +1051,7 @@
                     />
                 </svg>
                 Thread
-            </span>
+            </button>
         {/if}
 
         <!-- Reactions -->
@@ -1246,6 +1257,19 @@
                 />
             </svg>
         </button>
+        {#if onOpenThread}
+            <button
+                onclick={() => onOpenThread(threadRootId)}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title={isThreadReply ? "Open thread" : "Reply in thread"}
+            >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z"
+                    />
+                </svg>
+            </button>
+        {/if}
     </div>
 </div>
 
