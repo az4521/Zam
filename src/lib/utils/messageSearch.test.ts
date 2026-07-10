@@ -62,10 +62,9 @@ describe("buildSnippetSegments — split a body into highlightable segments", ()
     });
 
     it("keeps HTML in the body as literal text, never markup", () => {
-        const segments = buildSnippetSegments(
-            '<b onmouseover="x()">bold</b>',
-            ["bold"],
-        );
+        const segments = buildSnippetSegments('<b onmouseover="x()">bold</b>', [
+            "bold",
+        ]);
         expect(segments).toEqual([
             { text: '<b onmouseover="x()">', highlight: false },
             { text: "bold", highlight: true },

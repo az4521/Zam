@@ -23,7 +23,7 @@ export type ModalId =
     | "composer-picker"
     | "lightbox";
 
-export type SidebarId = "members" | "pinned" | "notifications";
+export type SidebarId = "members" | "pinned" | "notifications" | "search";
 
 export const interfaceState = $state({
     isMobile: false,
