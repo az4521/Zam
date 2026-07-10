@@ -889,6 +889,47 @@ export function getOwnAvatarUrl(): string | null {
     return mxcToHttp(mxc);
 }
 
+// ── Own profile ────────────────────────────────────────────────────────────
+
+export function getOwnDisplayName(): string | null {
+    const userId = matrixClient?.getUserId();
+    if (!userId) return null;
+    return matrixClient?.getUser(userId)?.displayName ?? null;
+}
+
+export function getOwnAvatarMxc(): string | null {
+    const userId = matrixClient?.getUserId();
+    if (!userId) return null;
+    return matrixClient?.getUser(userId)?.avatarUrl ?? null;
+}
+
+/** Fetch the logged-in user's profile fresh from the server. */
+export async function fetchOwnProfile(): Promise<{
+    displayName: string | null;
+    avatarMxc: string | null;
+}> {
+    const userId = matrixClient?.getUserId();
+    if (!matrixClient || !userId) {
+        return { displayName: null, avatarMxc: null };
+    }
+    const profile = await matrixClient.getProfileInfo(userId);
+    return {
+        displayName: profile.displayname ?? null,
+        avatarMxc: profile.avatar_url ?? null,
+    };
+}
+
+export async function setOwnDisplayName(name: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setDisplayName(name);
+}
+
+/** Set (mxc URI) or clear (empty string) the logged-in user's avatar. */
+export async function setOwnAvatarMxc(mxc: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setAvatarUrl(mxc);
+}
+
 export function getRoomDisplayName(room: Room): string {
     return room.name || room.roomId;
 }
