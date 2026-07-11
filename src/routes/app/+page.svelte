@@ -626,7 +626,13 @@
         }
     });
 
+    // Re-entrancy guard: handleLogout awaits for up to 4s, and a second run
+    // in that window would remove the successor account from the registry.
+    let loggingOut = false;
+
     async function handleLogout() {
+        if (loggingOut) return;
+        loggingOut = true;
         const client = getClient();
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
