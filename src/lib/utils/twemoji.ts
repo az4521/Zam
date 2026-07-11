@@ -1,7 +1,10 @@
 import twemoji from "@twemoji/api";
 
-export const TWEMOJI_BASE =
-    "https://cdn.jsdelivr.net/gh/jdecked/twemoji@314c9f493f5609ab3a2691fba9650827c3e317a1/assets/";
+// Self-hosted copy of jdecked/twemoji@314c9f493f5609ab3a2691fba9650827c3e317a1
+// assets/svg, vendored in static/twemoji (see the README there). Root-absolute
+// works on every target: web/PWA, Electron (localhost HTTP server) and
+// Capacitor (local origin).
+export const TWEMOJI_BASE = "/twemoji/";
 
 function escapeAttr(s: string): string {
     return s
