@@ -21,6 +21,7 @@ export type ModalId =
     | "add-room"
     | "reaction-picker"
     | "composer-picker"
+    | "profile-card"
     | "lightbox";
 
 export type SidebarId = "members" | "pinned" | "notifications";
