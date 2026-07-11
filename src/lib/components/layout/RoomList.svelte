@@ -55,6 +55,7 @@
     } from "$lib/stores/interface.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
+    import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -398,6 +399,15 @@
         const { unread, highlight } = getRoomUnreadInfo(room);
         const loud = hasLoudInRoom(room.roomId);
         return { isActive, unread: unread || loud, highlight, loud };
+    }
+
+    // Account switcher popout (shared modal slot: one popup at a time,
+    // central Escape/back dismissal).
+    let accountSwitcherOpen = $state(false);
+
+    function openAccountSwitcher() {
+        accountSwitcherOpen = true;
+        openModal("account-switcher", () => (accountSwitcherOpen = false));
     }
 </script>
 
@@ -835,26 +845,34 @@
     <div
         class="h-14 px-2 flex items-center gap-2 bg-discord-backgroundTertiary flex-shrink-0"
     >
-        <div class="relative">
-            <Avatar
-                src={ownAvatarSrc}
-                name={auth.userId || "?"}
-                id={auth.userId}
-                size={32}
-            />
-            <div
-                title={ownPresence.label}
-                class="absolute bottom-0 right-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
-            ></div>
-        </div>
-        <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-discord-textPrimary truncate">
-                {auth.userId?.split(":")[0].replace("@", "") ?? "Unknown"}
-            </p>
-            <p class="text-xs text-discord-textSecondary truncate">
-                {auth.userId ?? ""}
-            </p>
-        </div>
+        <button
+            onclick={openAccountSwitcher}
+            class="flex-1 flex items-center gap-2 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-left"
+            title="Switch accounts"
+        >
+            <div class="relative">
+                <Avatar
+                    src={ownAvatarSrc}
+                    name={auth.userId || "?"}
+                    id={auth.userId}
+                    size={32}
+                />
+                <div
+                    title={ownPresence.label}
+                    class="absolute bottom-0 right-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
+                ></div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p
+                    class="text-sm font-semibold text-discord-textPrimary truncate"
+                >
+                    {auth.userId?.split(":")[0].replace("@", "") ?? "Unknown"}
+                </p>
+                <p class="text-xs text-discord-textSecondary truncate">
+                    {auth.userId ?? ""}
+                </p>
+            </div>
+        </button>
         <button
             onclick={onLogout}
             class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
@@ -980,3 +998,7 @@
         {/if}
     {/if}
 </Portal>
+
+{#if accountSwitcherOpen}
+    <AccountSwitcher onClose={closeModal} {onLogout} />
+{/if}
