@@ -24,6 +24,7 @@
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -611,6 +612,17 @@
             ? getRoom(roomsState.activeRoomId)
             : null;
     });
+
+    // Auto-close the mobile drawer after any navigation (Home, space, room,
+    // inbox) — the single place this rule lives, so every navigation source
+    // behaves the same. Users can pin the drawer open in Settings instead.
+    $effect(() => {
+        void roomsState.activeRoomId;
+        void roomsState.activeSpaceId;
+        void roomsState.showInbox;
+        if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
+            interfaceState.leftOpen = false;
+    });
 </script>
 
 <svelte:head>
@@ -688,10 +700,7 @@
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
             >
                 <SpaceSidebar
-                    onHomeClick={() => {
-                        setActiveSpace(null);
-                        interfaceState.leftOpen = false;
-                    }}
+                    onHomeClick={() => setActiveSpace(null)}
                     onSettingsClick={() => {
                         openAppSettings();
                         interfaceState.leftOpen = false;

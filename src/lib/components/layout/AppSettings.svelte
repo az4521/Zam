@@ -53,6 +53,7 @@
     import {
         settingsState,
         setShowAllEvents,
+        setKeepSidebarOpen,
     } from "$lib/stores/settings.svelte";
     import {
         APP_VERSION,
@@ -976,6 +977,46 @@
                                         {syncStatus.label}
                                     </span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Interface -->
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Interface
+                            </p>
+                            <div
+                                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Keep room list open
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Don't auto-close the room list after
+                                        opening a room, space or Home (applies
+                                        to the drawer on small screens).
+                                    </p>
+                                </div>
+                                <button
+                                    onclick={() =>
+                                        setKeepSidebarOpen(
+                                            !settingsState.keepSidebarOpen,
+                                        )}
+                                    class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors"
+                                    class:bg-discord-accent={settingsState.keepSidebarOpen}
+                                    class:bg-discord-backgroundTertiary={!settingsState.keepSidebarOpen}
+                                    title={settingsState.keepSidebarOpen
+                                        ? "Auto-close the room list"
+                                        : "Keep the room list open"}
+                                >
+                                    <span
+                                        class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                                        class:-translate-x-4={!settingsState.keepSidebarOpen}
+                                    ></span>
+                                </button>
                             </div>
                         </div>
 
