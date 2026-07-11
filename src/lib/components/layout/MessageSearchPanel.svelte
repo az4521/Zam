@@ -43,9 +43,14 @@
         error = null;
     });
 
-    // Focus the input when the panel opens.
+    // Focus the input when the panel opens. preventScroll matters: on mobile
+    // the panel mounts offscreen-right inside MessageArea's overflow-hidden
+    // root and slides in; a plain focus() during the slide makes the browser
+    // scroll that root sideways to reveal the input, shifting the whole chat
+    // 280px left (search panel half offscreen, closed member drawer dragged
+    // into view).
     $effect(() => {
-        inputEl?.focus();
+        inputEl?.focus({ preventScroll: true });
     });
 
     async function runSearch() {
