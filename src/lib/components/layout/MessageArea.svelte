@@ -15,6 +15,7 @@
         onLocalEchoUpdated,
         onSyncPrepared,
         onReactionEvent,
+        onPollEvent,
         onEditEvent,
         onRedactionEvent,
         onTimelineReset,
@@ -56,6 +57,7 @@
         isLoudEvent,
     } from "$lib/matrix/client";
     import { preventDefault } from "svelte/legacy";
+    import { isPollStartEventType } from "$lib/utils/pollContent";
 
     interface Props {
         room: Room;
@@ -522,7 +524,12 @@
         if (!settingsState.showAllEvents) return false;
         if (event.isRedacted()) return true;
         const type = event.getType();
-        if (type !== "m.room.message" && type !== "m.sticker") return true;
+        if (
+            type !== "m.room.message" &&
+            type !== "m.sticker" &&
+            !isPollStartEventType(type)
+        )
+            return true;
         return event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
     }
 
@@ -591,10 +598,15 @@
         return unsub;
     });
 
-    // Subscribe to reaction and edit events to trigger re-renders
+    // Subscribe to reaction, poll-vote, and edit events to trigger re-renders
     $effect(() => {
         const currentRoomId = roomId;
         const unsubReaction = onReactionEvent(
+            (_event: MatrixEvent, eventRoom: Room) => {
+                if (eventRoom.roomId === currentRoomId) bumpReactionTick();
+            },
+        );
+        const unsubPoll = onPollEvent(
             (_event: MatrixEvent, eventRoom: Room) => {
                 if (eventRoom.roomId === currentRoomId) bumpReactionTick();
             },
@@ -606,6 +618,7 @@
         );
         return () => {
             unsubReaction();
+            unsubPoll();
             unsubEdit();
         };
     });
