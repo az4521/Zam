@@ -47,6 +47,7 @@
         openModal,
         closeModal,
     } from "$lib/stores/interface.svelte";
+    import { openProfileCard } from "$lib/stores/profileCard.svelte";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -601,12 +602,21 @@
     <!-- Avatar column -->
     <div class="w-10 flex-shrink-0 mt-0.5">
         {#if showHeader}
-            <Avatar
-                src={avatarSrc}
-                name={displayName}
-                id={senderId}
-                size={40}
-            />
+            <button
+                onclick={(e) => {
+                    e.stopPropagation();
+                    openProfileCard(senderId, e.currentTarget);
+                }}
+                class="block rounded-full"
+                title="View profile"
+            >
+                <Avatar
+                    src={avatarSrc}
+                    name={displayName}
+                    id={senderId}
+                    size={40}
+                />
+            </button>
         {/if}
     </div>
 
@@ -615,11 +625,15 @@
         <!-- Sender + timestamp -->
         {#if showHeader}
             <div class="flex items-baseline gap-2 mb-0.5">
-                <span
+                <button
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        openProfileCard(senderId, e.currentTarget);
+                    }}
                     class="font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
                 >
                     {displayName}
-                </span>
+                </button>
                 <span class="text-xs text-discord-textMuted"
                     >{formatTime(timestamp)}</span
                 >

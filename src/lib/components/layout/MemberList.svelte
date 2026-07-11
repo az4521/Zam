@@ -8,6 +8,7 @@
         mxcToHttp,
     } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import {
         presenceDot,
@@ -99,8 +100,10 @@
                 </p>
                 {#each admins as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
-                    <div
-                        class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                    <button
+                        onclick={(e) =>
+                            openProfileCard(member.userId, e.currentTarget)}
+                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -125,7 +128,7 @@
                                 Admin
                             </p>
                         </div>
-                    </div>
+                    </button>
                 {/each}
             </div>
         {/if}
@@ -139,8 +142,10 @@
                 </p>
                 {#each moderators as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
-                    <div
-                        class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                    <button
+                        onclick={(e) =>
+                            openProfileCard(member.userId, e.currentTarget)}
+                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -162,7 +167,7 @@
                                 {member.name}
                             </p>
                         </div>
-                    </div>
+                    </button>
                 {/each}
             </div>
         {/if}
@@ -176,8 +181,10 @@
                 </p>
                 {#each regularMembers as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
-                    <div
-                        class="flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                    <button
+                        onclick={(e) =>
+                            openProfileCard(member.userId, e.currentTarget)}
+                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -199,7 +206,7 @@
                                 {member.name}
                             </p>
                         </div>
-                    </div>
+                    </button>
                 {/each}
             </div>
         {/if}
