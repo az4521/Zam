@@ -688,10 +688,7 @@
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
             >
                 <SpaceSidebar
-                    onHomeClick={() => {
-                        setActiveSpace(null);
-                        interfaceState.leftOpen = false;
-                    }}
+                    onHomeClick={() => setActiveSpace(null)}
                     onSettingsClick={() => {
                         openAppSettings();
                         interfaceState.leftOpen = false;

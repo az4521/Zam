@@ -24,9 +24,17 @@ export const settingsState = $state({
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
+    /** Keep the mobile room-list drawer open after navigating (Home, spaces,
+     *  rooms) instead of auto-closing it. */
+    keepSidebarOpen: readBool("keepSidebarOpen", false),
 });
 
 export function setShowAllEvents(value: boolean): void {
     settingsState.showAllEvents = value;
     writeBool("showAllEvents", value);
+}
+
+export function setKeepSidebarOpen(value: boolean): void {
+    settingsState.keepSidebarOpen = value;
+    writeBool("keepSidebarOpen", value);
 }

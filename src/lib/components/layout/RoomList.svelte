@@ -346,6 +346,9 @@
                 onclick={() => {
                     roomsState.showInbox = true;
                     roomsState.activeRoomId = null;
+                    // The inbox fills the main area like a room — always close.
+                    if (interfaceState.isMobile)
+                        interfaceState.leftOpen = false;
                 }}
                 class="mb-2 w-full flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
                 class:text-discord-textPrimary={roomsState.showInbox}

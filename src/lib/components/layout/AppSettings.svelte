@@ -63,6 +63,7 @@
     import {
         settingsState,
         setShowAllEvents,
+        setKeepSidebarOpen,
     } from "$lib/stores/settings.svelte";
     import {
         APP_VERSION,
@@ -102,6 +103,7 @@
     type Tab =
         | "account"
         | "sessions"
+        | "behavior"
         | "emotes"
         | "emojis"
         | "stickers"
@@ -114,6 +116,7 @@
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
         { id: "sessions", label: "Sessions" },
+        { id: "behavior", label: "Behavior" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
         { id: "server", label: "Server" },
@@ -1324,6 +1327,51 @@
                                     {/each}
                                 </div>
                             {/if}
+                        </div>
+                    </div>
+
+                    <!-- ── Behavior ────────────────────────────────────────── -->
+                {:else if activeTab === "behavior"}
+                    <div class="space-y-6">
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                            >
+                                Navigation
+                            </p>
+                            <div
+                                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                            >
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-discord-textPrimary">
+                                        Keep room list open
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Don't auto-close the room list when
+                                        switching between spaces or Home.
+                                        Opening a room or DM always closes it
+                                        (applies to the drawer on small
+                                        screens).
+                                    </p>
+                                </div>
+                                <button
+                                    onclick={() =>
+                                        setKeepSidebarOpen(
+                                            !settingsState.keepSidebarOpen,
+                                        )}
+                                    class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors"
+                                    class:bg-discord-accent={settingsState.keepSidebarOpen}
+                                    class:bg-discord-backgroundTertiary={!settingsState.keepSidebarOpen}
+                                    title={settingsState.keepSidebarOpen
+                                        ? "Auto-close the room list"
+                                        : "Keep the room list open"}
+                                >
+                                    <span
+                                        class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                                        class:-translate-x-4={!settingsState.keepSidebarOpen}
+                                    ></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
