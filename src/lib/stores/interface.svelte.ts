@@ -16,6 +16,7 @@ export type ModalId =
     | "room-menu"
     | "room-header-menu"
     | "space-menu"
+    | "account-switcher"
     | "color-picker"
     | "create-room"
     | "add-room"

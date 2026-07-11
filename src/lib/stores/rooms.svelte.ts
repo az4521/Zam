@@ -3,6 +3,12 @@ import { findSpaceForRoom } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
 import { interfaceState } from "./interface.svelte";
 import { settingsState } from "./settings.svelte";
+import { auth } from "./auth.svelte";
+import {
+    readScoped,
+    writeScoped,
+    removeScoped,
+} from "$lib/utils/scopedStorage";
 
 const STORAGE_KEY = "matrix_last_room_by_space";
 const SPACE_KEY = "matrix_last_space";
@@ -10,7 +16,7 @@ const HOME_KEY = "__home__";
 
 function loadLastRooms(): Record<string, string> {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+        return JSON.parse(readScoped(STORAGE_KEY, auth.userId) ?? "{}");
     } catch {
         return {};
     }
@@ -19,7 +25,7 @@ function loadLastRooms(): Record<string, string> {
 function saveLastRoom(spaceId: string | null, roomId: string): void {
     const map = loadLastRooms();
     map[spaceId ?? HOME_KEY] = roomId;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+    writeScoped(STORAGE_KEY, auth.userId, JSON.stringify(map));
 }
 
 function getLastRoom(spaceId: string | null): string | null {
@@ -27,15 +33,24 @@ function getLastRoom(spaceId: string | null): string | null {
 }
 
 function loadLastSpace(): string | null {
-    return localStorage.getItem(SPACE_KEY);
+    return readScoped(SPACE_KEY, auth.userId);
 }
 
 function saveLastSpace(spaceId: string | null): void {
     if (spaceId === null) {
-        localStorage.removeItem(SPACE_KEY);
+        removeScoped(SPACE_KEY, auth.userId);
     } else {
-        localStorage.setItem(SPACE_KEY, spaceId);
+        writeScoped(SPACE_KEY, auth.userId, spaceId);
     }
+}
+
+/**
+ * Re-read the active account's persisted last space and room. Module init
+ * runs before the account is known, so the app shell calls this on boot.
+ */
+export function reloadLastLocationFromStorage(): void {
+    roomsState.activeSpaceId = loadLastSpace();
+    roomsState.activeRoomId = getLastRoom(roomsState.activeSpaceId);
 }
 
 export const roomsState = $state({

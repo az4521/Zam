@@ -15,6 +15,7 @@
         setActiveSpace,
         navigateToRoom,
         bumpUnreadTick,
+        reloadLastLocationFromStorage,
     } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -29,7 +30,9 @@
     import {
         markNotification,
         clearReadNotifications,
+        reloadNotificationsFromStorage,
     } from "$lib/stores/notifications.svelte";
+    import { updateAccountProfile } from "$lib/stores/accounts.svelte";
     import {
         getSpaces,
         getOrphanRooms,
@@ -51,6 +54,8 @@
         getOwnUserId,
         isInitialSyncComplete,
         clearServiceWorkerAuth,
+        fetchOwnProfile,
+        mxcToHttp,
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
@@ -522,6 +527,23 @@
                 clearReadNotifications(room, userId);
             }
         });
+        reloadLastLocationFromStorage();
+        reloadNotificationsFromStorage();
+        // Refresh the registry's cached profile for this account so the
+        // account switcher shows a current name/avatar even when this
+        // account is later inactive. Fire-and-forget.
+        (async () => {
+            try {
+                const profile = await fetchOwnProfile();
+                if (!auth.userId) return;
+                updateAccountProfile(auth.userId, {
+                    displayName: profile.displayName,
+                    avatarUrl: mxcToHttp(profile.avatarMxc, 64, 64),
+                });
+            } catch {
+                // offline boot — cached values stay
+            }
+        })();
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
@@ -604,7 +626,13 @@
         }
     });
 
-    function handleLogout() {
+    // Re-entrancy guard: handleLogout awaits for up to 4s, and a second run
+    // in that window would remove the successor account from the registry.
+    let loggingOut = false;
+
+    async function handleLogout() {
+        if (loggingOut) return;
+        loggingOut = true;
         const client = getClient();
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
@@ -612,10 +640,16 @@
         if (client) teardownWebPush(client).catch(() => {});
         clearNativeSession().catch(() => {});
         clearServiceWorkerAuth();
-        logout().catch(() => {});
-        // Clear local session and leave immediately.
+        // Give the server-side token invalidation and the local store wipe a
+        // bounded window to finish, then leave via a full reload so no store
+        // state survives into the successor account's boot.
+        await Promise.race([
+            logout(),
+            new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+        // Clear local session and leave.
         clearSession();
-        goto("/");
+        window.location.assign("/");
     }
 
     // Derive directly from activeRoomId (a stable string) rather than the room arrays,

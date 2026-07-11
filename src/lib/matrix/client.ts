@@ -92,7 +92,12 @@ async function createAuthenticatedClient(opts: {
     deviceId: string;
 }): Promise<MatrixClient> {
     matrixClient?.stopClient();
-    matrixStore?.destroy().catch(() => {});
+    // Do NOT destroy the previous store here: with multiple signed-in
+    // accounts the outgoing client usually belongs to an account that stays
+    // signed in, and deleting its per-account sync cache (or racing that
+    // async deletion against the add-account reload) corrupts or cold-boots
+    // its next session. The deliberate privacy wipe on sign-out lives in
+    // logout() via clearStores().
     matrixStore = null;
 
     const indexedDB = getIndexedDBFactory();
@@ -352,8 +357,12 @@ export async function logout(): Promise<void> {
             // ignore
         }
     }
-    matrixClient = null;
-    matrixStore = null;
+    // Only release the module slot if we still own it — a successor account's
+    // client may have been created (via reconnect) while the awaits were in flight.
+    if (matrixClient === client) {
+        matrixClient = null;
+        matrixStore = null;
+    }
 }
 
 export function stopClient(): void {
