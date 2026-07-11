@@ -49,6 +49,11 @@
 
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import {
+        blockUser,
+        unblockUser,
+        isUserBlocked,
+    } from "$lib/stores/ignoredUsers.svelte";
 
     interface Props {
         room: Room;
@@ -241,6 +246,19 @@
         try {
             await banUser(room.roomId, userId, reasonInputs[userId]);
             showReasonFor = null;
+        } catch (e: any) {
+            memberError = e?.message ?? "Failed";
+        } finally {
+            memberActionPending = null;
+        }
+    }
+
+    async function doToggleBlock(userId: string) {
+        memberActionPending = userId;
+        memberError = "";
+        try {
+            if (isUserBlocked(userId)) await unblockUser(userId);
+            else await blockUser(userId);
         } catch (e: any) {
             memberError = e?.message ?? "Failed";
         } finally {
@@ -1394,7 +1412,7 @@
                                                 class="text-xs text-discord-textMuted flex-shrink-0"
                                                 >{plLabel(member.powerLevel)} ({member.powerLevel})</span
                                             >
-                                            {#if canActOnMember}
+                                            {#if !isSelf}
                                                 <button
                                                     onclick={() =>
                                                         (showReasonFor =
@@ -1416,19 +1434,21 @@
                                                 </button>
                                             {/if}
                                         </div>
-                                        {#if showReasonFor === member.userId && canActOnMember}
+                                        {#if showReasonFor === member.userId && !isSelf}
                                             <div
                                                 class="px-3 pb-3 pt-1 border-t border-discord-divider space-y-2"
                                             >
-                                                <input
-                                                    bind:value={
-                                                        reasonInputs[
-                                                            member.userId
-                                                        ]
-                                                    }
-                                                    placeholder="Reason (optional)"
-                                                    class="w-full bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
-                                                />
+                                                {#if canActOnMember && (canKick || canBan)}
+                                                    <input
+                                                        bind:value={
+                                                            reasonInputs[
+                                                                member.userId
+                                                            ]
+                                                        }
+                                                        placeholder="Reason (optional)"
+                                                        class="w-full bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                                    />
+                                                {/if}
                                                 <div
                                                     class="flex flex-wrap gap-2"
                                                 >
@@ -1464,7 +1484,7 @@
                                                             >
                                                         </select>
                                                     {/if}
-                                                    {#if canKick}
+                                                    {#if canActOnMember && canKick}
                                                         <button
                                                             onclick={() =>
                                                                 doKick(
@@ -1476,7 +1496,7 @@
                                                             >Kick</button
                                                         >
                                                     {/if}
-                                                    {#if canBan}
+                                                    {#if canActOnMember && canBan}
                                                         <button
                                                             onclick={() =>
                                                                 doBan(
@@ -1486,6 +1506,30 @@
                                                                 member.userId}
                                                             class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
                                                             >Ban</button
+                                                        >
+                                                    {/if}
+                                                    {#if isUserBlocked(member.userId)}
+                                                        <button
+                                                            onclick={() =>
+                                                                doToggleBlock(
+                                                                    member.userId,
+                                                                )}
+                                                            disabled={memberActionPending ===
+                                                                member.userId}
+                                                            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                            >Unblock</button
+                                                        >
+                                                    {:else}
+                                                        <button
+                                                            onclick={() =>
+                                                                doToggleBlock(
+                                                                    member.userId,
+                                                                )}
+                                                            disabled={memberActionPending ===
+                                                                member.userId}
+                                                            title="Hide this user's messages everywhere (stored on your account)"
+                                                            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
+                                                            >Block</button
                                                         >
                                                     {/if}
                                                 </div>

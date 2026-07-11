@@ -47,6 +47,8 @@
         closeSidebar,
     } from "$lib/stores/interface.svelte";
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
+    import { ignoredUsersState } from "$lib/stores/ignoredUsers.svelte";
+    import { shouldHideMessage } from "$lib/utils/ignoredUsers";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
@@ -83,10 +85,14 @@
     function closeThread() {
         threadRootId = null;
     }
-    // Close any open thread when switching rooms.
+    // Blocked-message placeholders the user chose to reveal, by event id.
+    let revealedBlockedIds = $state<Record<string, boolean>>({});
+
+    // Close any open thread and re-collapse blocked messages when switching rooms.
     $effect(() => {
         void room.roomId;
         threadRootId = null;
+        revealedBlockedIds = {};
     });
     let isDragOver = $state(false);
     let intervalId: NodeJS.Timeout | undefined = $state();
@@ -986,6 +992,27 @@
                 {/if}
                 {#if isRawDebugEvent(event)}
                     <DebugEventItem {event} />
+                {:else if shouldHideMessage(event.getSender(), ignoredUsersState.userIds, auth.userId) && !revealedBlockedIds[event.getId() ?? ""]}
+                    <div
+                        class="px-4 py-1.5 flex items-center gap-2 text-xs text-discord-textMuted"
+                    >
+                        <svg
+                            class="w-3.5 h-3.5 flex-shrink-0"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                            ><path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"
+                            /></svg
+                        >
+                        <span class="italic">Message from a blocked user</span>
+                        <button
+                            onclick={() =>
+                                (revealedBlockedIds[event.getId() ?? ""] =
+                                    true)}
+                            class="text-discord-accent hover:underline font-medium"
+                            >Show blocked message</button
+                        >
+                    </div>
                 {:else}
                     <MessageItem
                         {event}

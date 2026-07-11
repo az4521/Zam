@@ -45,8 +45,13 @@
         type PushRuleLevel,
         type PushRuleSummary,
     } from "$lib/matrix/client";
+    import Avatar from "$lib/components/ui/Avatar.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import {
+        ignoredUsersState,
+        unblockUser,
+    } from "$lib/stores/ignoredUsers.svelte";
     import { syncStateLabel } from "$lib/utils/syncStatus";
     import {
         serverSupports,
@@ -109,6 +114,7 @@
         | "emojis"
         | "stickers"
         | "notifications"
+        | "blocked"
         | "server"
         | "about"
         | "debug";
@@ -120,6 +126,7 @@
         { id: "behavior", label: "Behavior" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
+        { id: "blocked", label: "Blocked Users" },
         { id: "server", label: "Server" },
         { id: "about", label: "About" },
         { id: "debug", label: "Debug Info" },
@@ -234,6 +241,26 @@
     const nameChanged = $derived(
         profileDisplayName.trim() !== (getOwnDisplayName() ?? ""),
     );
+
+    // ── Blocked Users tab ────────────────────────────────────────────────────
+    let unblockPending = $state<string | null>(null);
+    let blockedError = $state("");
+
+    const blockedUserIds = $derived(
+        [...ignoredUsersState.userIds].sort((a, b) => a.localeCompare(b)),
+    );
+
+    async function doUnblock(userId: string) {
+        unblockPending = userId;
+        blockedError = "";
+        try {
+            await unblockUser(userId);
+        } catch (e: any) {
+            blockedError = e?.message ?? "Failed";
+        } finally {
+            unblockPending = null;
+        }
+    }
 
     async function loadProfile() {
         // Seed from the local cache immediately, then refresh from the server.
@@ -2161,6 +2188,56 @@
                                     </div>
                                 </div>
                             {/if}
+                        {/if}
+                    </div>
+
+                    <!-- ── Blocked Users ──────────────────────────────────────── -->
+                {:else if activeTab === "blocked"}
+                    <div class="space-y-4">
+                        <p class="text-xs text-discord-textMuted">
+                            Messages from blocked users are hidden in every
+                            room. The list is stored on your account and applies
+                            to all your sessions.
+                        </p>
+
+                        {#if blockedError}
+                            <p class="text-sm text-discord-danger">
+                                {blockedError}
+                            </p>
+                        {/if}
+
+                        {#if blockedUserIds.length === 0}
+                            <p
+                                class="text-sm text-discord-textMuted text-center py-8"
+                            >
+                                You haven't blocked anyone.
+                            </p>
+                        {:else}
+                            <div class="space-y-1">
+                                {#each blockedUserIds as userId (userId)}
+                                    <div
+                                        class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                    >
+                                        <Avatar
+                                            src={null}
+                                            name={userId.replace(/^@/, "")}
+                                            id={userId}
+                                            size={28}
+                                        />
+                                        <p
+                                            class="flex-1 min-w-0 text-sm text-discord-textPrimary font-mono truncate"
+                                        >
+                                            {userId}
+                                        </p>
+                                        <button
+                                            onclick={() => doUnblock(userId)}
+                                            disabled={unblockPending === userId}
+                                            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                            >Unblock</button
+                                        >
+                                    </div>
+                                {/each}
+                            </div>
                         {/if}
                     </div>
 
