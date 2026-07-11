@@ -16,6 +16,7 @@ import {
     HttpApiEvent,
 } from "matrix-js-sdk";
 import type {
+    ISearchResults,
     MatrixClient,
     MatrixError,
     Room,
@@ -1715,6 +1716,29 @@ export async function loadContextAroundEvent(
         return true;
     };
     return timeline.getEvents().filter(filter);
+}
+
+/** Server-side message search scoped to a single room (order: most recent
+ *  first). The returned object carries the SDK's pagination state — pass it
+ *  to searchRoomMessagesMore to append the next page in place. */
+export async function searchRoomMessages(
+    roomId: string,
+    term: string,
+): Promise<ISearchResults | null> {
+    if (!matrixClient) return null;
+    return matrixClient.searchRoomEvents({
+        term,
+        filter: { rooms: [roomId] },
+    });
+}
+
+/** Backfill the next page of an earlier searchRoomMessages result. Mutates
+ *  and returns the same results object (SDK contract). */
+export async function searchRoomMessagesMore(
+    results: ISearchResults,
+): Promise<ISearchResults | null> {
+    if (!matrixClient) return null;
+    return matrixClient.backPaginateRoomEventsSearch(results);
 }
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
