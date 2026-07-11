@@ -23,8 +23,14 @@
         unpinMessage,
         resendMessage,
         deleteFailedMessage,
+        reportEvent,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
+    import {
+        canSubmitReport,
+        buildReport,
+        reportErrorMessage,
+    } from "$lib/utils/reportMessage";
 
     import {
         messagesState,
@@ -116,6 +122,69 @@
         }
     });
     let confirmingDelete = $state(false);
+
+    // Report dialog ("report-message" modal slot: one open across all messages,
+    // central Escape/back dismissal like the reaction picker).
+    let showReportDialog = $state(false);
+    let reportDialogEl: HTMLDivElement | undefined = $state();
+    let reportBtnEl: HTMLButtonElement | undefined = $state();
+    let reportTextareaEl: HTMLTextAreaElement | undefined = $state();
+    let reportBelow = $state(false);
+    let reportReason = $state("");
+    let reportOffensive = $state(false);
+    let reportStatus = $state<"idle" | "sending" | "sent" | "error">("idle");
+    let reportError = $state("");
+
+    function openReportDialog() {
+        reportReason = "";
+        reportOffensive = false;
+        reportStatus = "idle";
+        reportError = "";
+        showReportDialog = true;
+        openModal("report-message", () => {
+            showReportDialog = false;
+            interfaceState.selectedMessageId = null;
+        });
+        setTimeout(() => reportTextareaEl?.focus(), 0);
+    }
+
+    async function submitReport() {
+        if (!canSubmitReport(reportReason) || reportStatus === "sending")
+            return;
+        reportStatus = "sending";
+        reportError = "";
+        try {
+            const { reason, score } = buildReport(
+                reportReason,
+                reportOffensive,
+            );
+            await reportEvent(room.roomId, eventId, score, reason);
+            reportStatus = "sent";
+            setTimeout(() => {
+                if (showReportDialog) closeModal();
+            }, 1200);
+        } catch (err) {
+            reportStatus = "error";
+            reportError = reportErrorMessage(err);
+        }
+    }
+
+    $effect(() => {
+        if (showReportDialog && !interfaceState.isTouchscreen) {
+            const handler = (e: MouseEvent) => {
+                const t = e.target as Node;
+                if (
+                    reportDialogEl &&
+                    !reportDialogEl.contains(t) &&
+                    !reportBtnEl?.contains(t)
+                ) {
+                    closeModal();
+                }
+            };
+            document.addEventListener("mousedown", handler);
+            return () => document.removeEventListener("mousedown", handler);
+        }
+    });
 
     let keyboardOffset = $state(0);
     $effect(() => {
@@ -1126,7 +1195,10 @@
 
     <!-- Hover action bar: always visible when emoji picker is open, otherwise on group-hover -->
     <div
-        class="{showEmojiPicker || confirmingDelete || mobileSelected
+        class="{showEmojiPicker ||
+        confirmingDelete ||
+        showReportDialog ||
+        mobileSelected
             ? 'flex'
             : 'hidden group-hover:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
@@ -1269,6 +1341,103 @@
                     />
                 </svg>
             </button>
+        {/if}
+        {#if !isOwnMessage && !isFailed}
+            <div class="relative">
+                <button
+                    bind:this={reportBtnEl}
+                    onclick={() => {
+                        if (showReportDialog) {
+                            closeModal();
+                        } else {
+                            reportBelow =
+                                (reportBtnEl?.getBoundingClientRect().top ??
+                                    400) < 400;
+                            openReportDialog();
+                        }
+                    }}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                    title="Report message"
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" />
+                    </svg>
+                </button>
+                {#if showReportDialog}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    {#if interfaceState.isTouchscreen}<div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                        ></div>{/if}
+                    <div
+                        bind:this={reportDialogEl}
+                        class="{interfaceState.isTouchscreen
+                            ? 'fixed left-2 right-2 z-50'
+                            : reportBelow
+                              ? 'absolute top-full right-0 mt-1 z-50 w-72'
+                              : 'absolute bottom-full right-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-left"
+                        style={interfaceState.isTouchscreen
+                            ? `bottom: ${keyboardOffset + 8}px;`
+                            : ""}
+                    >
+                        {#if reportStatus === "sent"}
+                            <p class="text-sm text-discord-textPrimary">
+                                Report sent
+                            </p>
+                        {:else}
+                            <p
+                                class="text-xs font-semibold uppercase text-discord-textMuted mb-2"
+                            >
+                                Report message
+                            </p>
+                            <textarea
+                                bind:this={reportTextareaEl}
+                                bind:value={reportReason}
+                                rows="3"
+                                placeholder="Why are you reporting this message?"
+                                disabled={reportStatus === "sending"}
+                                class="w-full resize-none rounded bg-discord-backgroundSecondary border border-discord-divider p-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:border-discord-accent"
+                            ></textarea>
+                            <label
+                                class="flex items-center gap-2 mt-2 text-xs text-discord-textMuted select-none cursor-pointer"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={reportOffensive}
+                                    disabled={reportStatus === "sending"}
+                                />
+                                Mark as extremely offensive
+                            </label>
+                            {#if reportStatus === "error"}
+                                <p class="text-xs text-discord-danger mt-2">
+                                    {reportError}
+                                </p>
+                            {/if}
+                            <div class="flex justify-end gap-2 mt-2">
+                                <button
+                                    onclick={closeModal}
+                                    class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                    >Cancel</button
+                                >
+                                <button
+                                    onclick={submitReport}
+                                    disabled={!canSubmitReport(reportReason) ||
+                                        reportStatus === "sending"}
+                                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >{reportStatus === "sending"
+                                        ? "Reporting…"
+                                        : "Report"}</button
+                                >
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+            </div>
         {/if}
     </div>
 </div>
