@@ -23,6 +23,7 @@ export type ModalId =
     | "reaction-picker"
     | "report-message"
     | "composer-picker"
+    | "profile-card"
     | "lightbox";
 
 export type SidebarId = "members" | "pinned" | "notifications" | "search";

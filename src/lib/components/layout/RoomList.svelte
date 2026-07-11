@@ -583,7 +583,6 @@
 
         {#if visibleRooms.length > 0}
             <div class="mb-2">
-
                 {#if roomGroups.favourites.length > 0}
                     <p
                         class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"

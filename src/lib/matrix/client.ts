@@ -3963,3 +3963,31 @@ export function getDMPartnerId(room: Room): string {
     }
     return room.guessDMUserId();
 }
+
+export interface MutualRoomInfo {
+    roomId: string;
+    name: string;
+}
+
+/** Non-space rooms both the current user and `userId` are joined to, DM rooms
+ *  with that user excluded (a shared DM is not a "mutual room"). */
+export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
+    if (!matrixClient) return [];
+    const direct = matrixClient.getAccountData("m.direct")?.getContent() as
+        | Record<string, string[]>
+        | undefined;
+    const dmRoomIds = new Set(direct?.[userId] ?? []);
+    return matrixClient
+        .getRooms()
+        .filter(
+            (room) =>
+                !room.isSpaceRoom() &&
+                !dmRoomIds.has(room.roomId) &&
+                room.getMyMembership() === "join" &&
+                room.getMember(userId)?.membership === "join",
+        )
+        .map((room) => ({
+            roomId: room.roomId,
+            name: getRoomDisplayName(room),
+        }));
+}

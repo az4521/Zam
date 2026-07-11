@@ -55,6 +55,7 @@
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
     import MessageSearchPanel from "$lib/components/layout/MessageSearchPanel.svelte";
     import { searchState } from "$lib/stores/search.svelte";
+    import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import {
         getPinnedEventIds,
         findEventById,
@@ -1175,6 +1176,9 @@
 
     <!-- Debug panel (Ctrl+Shift+D to toggle) -->
     <DebugPanel {room} />
+
+    <!-- User profile card (opened from the member list or a message header) -->
+    <UserProfileCard {room} />
 
     <!-- Right panel (pinned or notifications inbox) -->
     {#if isMobile}
