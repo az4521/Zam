@@ -14,6 +14,8 @@ import {
     IndexedDBStore,
     ConditionKind,
     HttpApiEvent,
+    UserEvent,
+    SetPresence,
 } from "matrix-js-sdk";
 import type {
     ISearchResults,
@@ -21,8 +23,10 @@ import type {
     MatrixError,
     Room,
     RoomMember,
+    User,
     ReceiptType,
 } from "matrix-js-sdk";
+import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
 import {
@@ -3550,4 +3554,96 @@ export async function sendReply(
     });
 
     await matrixClient.sendMessage(roomId, content as never);
+}
+
+// ── Presence ──────────────────────────────────────────────────────────────────
+
+export interface PresenceInfo {
+    presence: string;
+    currentlyActive: boolean;
+    lastActiveAgo?: number;
+    statusMsg?: string;
+}
+
+/**
+ * Locally-synced presence for a user, or null when the server has never sent
+ * us presence for them (unknown ≠ offline — some servers disable presence;
+ * callers decide how to render the gap).
+ */
+export function getUserPresence(userId: string): PresenceInfo | null {
+    const user = matrixClient?.getUser(userId);
+    if (!user?.events.presence) return null;
+    return {
+        presence: user.presence,
+        currentlyActive: user.currentlyActive,
+        lastActiveAgo: user.lastActiveAgo,
+        statusMsg: user.presenceStatusMsg,
+    };
+}
+
+/** GET /presence/{userId}/status — direct server query, bypassing the sync
+ *  cache. Null when the server refuses (presence disabled / not shared). */
+export async function getPresence(
+    userId: string,
+): Promise<PresenceInfo | null> {
+    if (!matrixClient) return null;
+    try {
+        const status = await matrixClient.getPresence(userId);
+        return {
+            presence: status.presence,
+            currentlyActive: status.currently_active ?? false,
+            lastActiveAgo: status.last_active_ago,
+            statusMsg: status.status_msg,
+        };
+    } catch {
+        return null;
+    }
+}
+
+const SYNC_PRESENCE: Record<PresenceState, SetPresence> = {
+    online: SetPresence.Online,
+    unavailable: SetPresence.Unavailable,
+    offline: SetPresence.Offline,
+};
+
+/**
+ * Advertise our own presence. Sets both the immediate state (PUT /presence)
+ * and the set_presence param of subsequent /sync long-polls — without the
+ * latter the very next sync would flip us straight back to online.
+ */
+export async function setOwnPresence(presence: PresenceState): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.setSyncPresence(SYNC_PRESENCE[presence]);
+    await matrixClient.setPresence({ presence });
+}
+
+/** Subscribe to presence changes of any known user. Returns unsubscribe. */
+export function onPresenceEvent(
+    callback: (userId: string) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (_event: MatrixEvent | undefined, user: User) =>
+        callback(user.userId);
+    matrixClient.on(UserEvent.Presence, handler);
+    matrixClient.on(UserEvent.CurrentlyActive, handler);
+    return () => {
+        matrixClient?.off(UserEvent.Presence, handler);
+        matrixClient?.off(UserEvent.CurrentlyActive, handler);
+    };
+}
+
+/** User id of the other party in a DM room (m.direct mapping, falling back
+ *  to the SDK's member-based guess). */
+export function getDMPartnerId(room: Room): string {
+    const direct = matrixClient?.getAccountData("m.direct")?.getContent() as
+        | Record<string, string[]>
+        | undefined;
+    if (direct) {
+        for (const [userId, roomIds] of Object.entries(direct)) {
+            if (Array.isArray(roomIds) && roomIds.includes(room.roomId)) {
+                return userId;
+            }
+        }
+    }
+    return room.guessDMUserId();
 }

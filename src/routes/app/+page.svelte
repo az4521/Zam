@@ -25,6 +25,7 @@
     } from "$lib/stores/interface.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
+    import { initPresence } from "$lib/stores/presence.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -514,6 +515,7 @@
         });
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
+        const unsubPresence = initPresence();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -560,6 +562,7 @@
             unsubReceipts();
             unsubFavourites();
             unsubIgnored();
+            unsubPresence();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
