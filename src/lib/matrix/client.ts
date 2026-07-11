@@ -1951,6 +1951,32 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     return room.oldState.paginationToken !== null;
 }
 
+// Reply previews reference events that are often outside the loaded
+// timeline window. Fetch them individually, promise-cached so concurrent
+// renders of the same reply share one request; failures aren't cached so
+// a later re-render can retry.
+const singleEventCache = new Map<string, Promise<MatrixEvent | null>>();
+
+export function fetchSingleEvent(
+    roomId: string,
+    eventId: string,
+): Promise<MatrixEvent | null> {
+    if (!matrixClient) return Promise.resolve(null);
+    const key = `${roomId}|${eventId}`;
+    let promise = singleEventCache.get(key);
+    if (!promise) {
+        promise = matrixClient
+            .fetchRoomEvent(roomId, eventId)
+            .then((raw) => matrixClient!.getEventMapper()(raw))
+            .catch(() => {
+                singleEventCache.delete(key);
+                return null;
+            });
+        singleEventCache.set(key, promise);
+    }
+    return promise;
+}
+
 /** Pages backwards until `eventId` appears in the live timeline or `maxBatches` is exhausted.
  *  Returns true if the event was found. */
 export async function loadMessagesUntilEvent(

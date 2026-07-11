@@ -14,6 +14,7 @@
         mxcToHttp,
         fetchAttachmentBlob,
         findEventById,
+        fetchSingleEvent,
         sendReaction,
         sendEdit,
         deleteMessage,
@@ -347,10 +348,29 @@
             | string
             | undefined;
     });
-    const replyTarget = $derived(
+    const timelineReplyTarget = $derived(
         (void messagesState.timelineTick,
         inReplyToId ? findEventById(room, inReplyToId) : null),
     );
+    // Parents outside the loaded timeline window are fetched individually —
+    // modern clients (gomuks & friends) omit the legacy "> quote" fallback,
+    // so without this their replies render "Original message not loaded".
+    let fetchedReplyTarget = $state<MatrixEvent | null>(null);
+    $effect(() => {
+        const id = inReplyToId;
+        if (!id || timelineReplyTarget) {
+            fetchedReplyTarget = null;
+            return;
+        }
+        let cancelled = false;
+        fetchSingleEvent(room.roomId, id).then((ev) => {
+            if (!cancelled) fetchedReplyTarget = ev;
+        });
+        return () => {
+            cancelled = true;
+        };
+    });
+    const replyTarget = $derived(timelineReplyTarget ?? fetchedReplyTarget);
     const replyTargetSender = $derived(
         replyTarget ? getMemberName(room, replyTarget.getSender() ?? "") : null,
     );
@@ -861,8 +881,12 @@
                             >{fallbackLine.text || "…"}</span
                         >
                     {:else}
+                        <!-- A fetched parent with no previewable content was
+                             deleted; otherwise the fetch is pending/failed. -->
                         <span class="text-xs text-discord-textMuted italic"
-                            >Original message not loaded</span
+                            >{replyTarget
+                                ? "Original message deleted"
+                                : "Original message not loaded"}</span
                         >
                     {/if}
                 </div>
