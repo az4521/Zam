@@ -110,6 +110,32 @@
         return textareaEl?.innerText.replace(/\u00a0/g, " ") ?? "";
     }
 
+    /**
+     * Length of a node's content in composer-model characters: text length
+     * plus one per <br>. The model (`text`, from innerText) represents line
+     * breaks as "\n", but Range.toString() and text-node walks don't see
+     * <br> elements at all \u2014 using them uncorrected desyncs every caret
+     * offset by one per line break above it, scrambling edits and pastes in
+     * multiline messages.
+     */
+    function modelLength(root: Node): number {
+        let length = 0;
+        const walker = document.createTreeWalker(
+            root,
+            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+        );
+        let node = walker.nextNode();
+        while (node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                length += node.textContent?.length ?? 0;
+            } else if ((node as Element).tagName === "BR") {
+                length += 1;
+            }
+            node = walker.nextNode();
+        }
+        return length;
+    }
+
     function getCaretOffset(): number {
         if (!textareaEl) return text.length;
         const selection = window.getSelection();
@@ -120,7 +146,7 @@
         const preCaret = range.cloneRange();
         preCaret.selectNodeContents(textareaEl);
         preCaret.setEnd(range.endContainer, range.endOffset);
-        return preCaret.toString().length;
+        return modelLength(preCaret.cloneContents());
     }
 
     function setCaretOffset(offset: number): void {
@@ -128,22 +154,35 @@
         const target = Math.max(0, Math.min(offset, getComposerText().length));
         const walker = document.createTreeWalker(
             textareaEl,
-            NodeFilter.SHOW_TEXT,
+            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
         );
         let remaining = target;
         let node = walker.nextNode();
         while (node) {
-            const len = node.textContent?.length ?? 0;
-            if (remaining <= len) {
-                const range = document.createRange();
-                const selection = window.getSelection();
-                range.setStart(node, remaining);
-                range.collapse(true);
-                selection?.removeAllRanges();
-                selection?.addRange(range);
-                return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const len = node.textContent?.length ?? 0;
+                if (remaining <= len) {
+                    const range = document.createRange();
+                    const selection = window.getSelection();
+                    range.setStart(node, remaining);
+                    range.collapse(true);
+                    selection?.removeAllRanges();
+                    selection?.addRange(range);
+                    return;
+                }
+                remaining -= len;
+            } else if ((node as Element).tagName === "BR") {
+                if (remaining === 0) {
+                    const range = document.createRange();
+                    const selection = window.getSelection();
+                    range.setStartBefore(node);
+                    range.collapse(true);
+                    selection?.removeAllRanges();
+                    selection?.addRange(range);
+                    return;
+                }
+                remaining -= 1;
             }
-            remaining -= len;
             node = walker.nextNode();
         }
 
@@ -521,7 +560,12 @@
             pos = index + token.length;
         }
         html += escapeHtml(plain.slice(pos));
-        return html.replace(/\n/g, "<br>");
+        let out = html.replace(/\n/g, "<br>");
+        // A trailing <br> renders as nothing in a contenteditable (and drops
+        // out of innerText), so a message ending in a newline needs a
+        // placeholder <br> to keep the empty line visible and round-trippable.
+        if (plain.endsWith("\n")) out += "<br>";
+        return out;
     }
 
     function renderComposer(caretOffset = getCaretOffset()): void {
