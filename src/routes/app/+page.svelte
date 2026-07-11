@@ -8,6 +8,7 @@
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
+    import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -828,3 +829,5 @@
         }}
     />
 {/if}
+
+<ErrorToasts />

@@ -44,6 +44,7 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { matrixErrorMessage } from "$lib/utils/knock";
 
     import {
         messagesState,
@@ -71,6 +72,7 @@
         closeModal,
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -710,9 +712,12 @@
                 openProfileCard(target.userId, anchor as HTMLElement);
                 return;
             }
-            navigateToMatrixTarget(target).catch((err) =>
-                console.error("Failed to open Matrix link:", err),
-            );
+            navigateToMatrixTarget(target).catch((err) => {
+                console.error("Failed to open Matrix link:", err);
+                showErrorToast(
+                    matrixErrorMessage(err, "Could not open the Matrix link"),
+                );
+            });
         }
         // Full-id tooltip on user links (the anchor text may be a nickname).
         function decorate() {
