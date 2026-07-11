@@ -256,6 +256,9 @@
     );
 
     const canAccessSpaceSettings = $derived.by(() => {
+        // Power levels arrive over sync mutating the same Room object, so
+        // re-run on the tick or this stays false after a fresh page load.
+        void roomsState.roomsTick;
         if (!activeSpaceRoom) return false;
         const myPl = getMyPowerLevel(activeSpaceRoom);
         const pl = getRoomPowerLevels(activeSpaceRoom);

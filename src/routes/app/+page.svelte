@@ -707,7 +707,10 @@
 
         <main class="flex flex-1 min-w-0 overflow-hidden bg-discord-background">
             {#if roomsState.showInbox}
-                <InboxPanel />
+                <InboxPanel
+                    isMobile={interfaceState.isMobile}
+                    onMenuOpen={() => (interfaceState.leftOpen = true)}
+                />
             {:else if activeRoom}
                 <MessageArea
                     room={activeRoom}
