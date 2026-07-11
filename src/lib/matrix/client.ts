@@ -35,6 +35,7 @@ import {
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
+import { mapUserSearchResults } from "$lib/utils/userSearch";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -2029,6 +2030,31 @@ export async function addRoomToSpace(
         { via: serverName ? [serverName] : [] },
         roomId,
     );
+}
+
+export interface UserSearchResult {
+    userId: string;
+    displayName: string | null;
+    /** http thumbnail URL, ready for <img src> */
+    avatarUrl: string | null;
+}
+
+/** Search the homeserver's user directory (user IDs, display names, domains). */
+export async function searchUserDirectory(
+    term: string,
+    limit = 10,
+): Promise<{ users: UserSearchResult[]; limited: boolean }> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.searchUserDirectory({ term, limit });
+    const users = mapUserSearchResults(res.results, {
+        ownUserId: matrixClient.getUserId(),
+        term,
+    }).map((u) => ({
+        userId: u.userId,
+        displayName: u.displayName,
+        avatarUrl: mxcToHttp(u.avatarMxc, 64),
+    }));
+    return { users, limited: res.limited };
 }
 
 export async function createDirectMessage(userId: string): Promise<string> {
