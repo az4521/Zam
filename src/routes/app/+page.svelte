@@ -32,6 +32,7 @@
         clearReadNotifications,
         reloadNotificationsFromStorage,
     } from "$lib/stores/notifications.svelte";
+    import { updateAccountProfile } from "$lib/stores/accounts.svelte";
     import {
         getSpaces,
         getOrphanRooms,
@@ -53,6 +54,8 @@
         getOwnUserId,
         isInitialSyncComplete,
         clearServiceWorkerAuth,
+        fetchOwnProfile,
+        mxcToHttp,
     } from "$lib/matrix/client";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
@@ -526,6 +529,21 @@
         });
         reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
+        // Refresh the registry's cached profile for this account so the
+        // account switcher shows a current name/avatar even when this
+        // account is later inactive. Fire-and-forget.
+        (async () => {
+            try {
+                const profile = await fetchOwnProfile();
+                if (!auth.userId) return;
+                updateAccountProfile(auth.userId, {
+                    displayName: profile.displayName,
+                    avatarUrl: mxcToHttp(profile.avatarMxc, 64, 64),
+                });
+            } catch {
+                // offline boot — cached values stay
+            }
+        })();
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
