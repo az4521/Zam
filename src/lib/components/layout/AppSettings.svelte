@@ -92,6 +92,7 @@
 
     type Tab =
         | "account"
+        | "behavior"
         | "emotes"
         | "emojis"
         | "stickers"
@@ -103,6 +104,7 @@
 
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
+        { id: "behavior", label: "Behavior" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
         { id: "server", label: "Server" },
@@ -980,12 +982,23 @@
                             </div>
                         </div>
 
-                        <!-- Interface -->
+                        <div class="pt-2">
+                            <button
+                                onclick={onLogout}
+                                class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors"
+                                >Log Out</button
+                            >
+                        </div>
+                    </div>
+
+                    <!-- ── Behavior ────────────────────────────────────────── -->
+                {:else if activeTab === "behavior"}
+                    <div class="space-y-6">
                         <div>
                             <p
                                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
                             >
-                                Interface
+                                Navigation
                             </p>
                             <div
                                 class="flex items-center gap-3 py-2 border-b border-discord-divider"
@@ -1018,14 +1031,6 @@
                                     ></span>
                                 </button>
                             </div>
-                        </div>
-
-                        <div class="pt-2">
-                            <button
-                                onclick={onLogout}
-                                class="px-4 py-2 bg-discord-danger hover:bg-discord-danger/80 text-white rounded font-medium text-sm transition-colors"
-                                >Log Out</button
-                            >
                         </div>
                     </div>
 
