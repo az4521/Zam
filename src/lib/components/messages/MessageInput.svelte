@@ -107,7 +107,11 @@
     });
 
     function getComposerText(): string {
-        return textareaEl?.innerText.replace(/\u00a0/g, " ") ?? "";
+        const raw = textareaEl?.innerText.replace(/\u00a0/g, " ") ?? "";
+        // The canonical DOM keeps a placeholder <br> after a trailing line
+        // break (and browsers keep one in an emptied contenteditable), which
+        // innerText reports as one extra newline — drop exactly one.
+        return raw.replace(/\n$/, "");
     }
 
     /**
@@ -717,6 +721,16 @@
             }
         }
 
+        // Insert line breaks through the model rather than letting the
+        // browser mutate the contenteditable: the browser's own <br>
+        // insertions (and their placeholder quirks) drift out of sync with
+        // the canonical form renderComposer produces.
+        if (e.key === "Enter" && e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            insertLineBreakAtCaret();
+            return;
+        }
+
         // Send on a *physical* Enter. Virtual/soft keyboards (Android) and IME
         // composition report keyCode 229 / isComposing — treat those as a
         // newline. Phones always treat Enter as newline (use the send button).
@@ -794,6 +808,35 @@
         fileQueue = fileQueue.filter((_, i) => i !== index);
     }
 
+    /** Model length of the current selection ("" when collapsed). */
+    function getSelectedLength(): number {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return 0;
+        const range = selection.getRangeAt(0);
+        if (!textareaEl?.contains(range.endContainer)) return 0;
+        return modelLength(range.cloneContents());
+    }
+
+    function insertLineBreakAtCaret(): void {
+        const end = getCaretOffset();
+        const selected = getSelectedLength();
+        const start = end - selected;
+        const next = text.slice(0, start) + "\n" + text.slice(end);
+        setComposerText(next, start + 1);
+    }
+
+    // Soft keyboards and IMEs insert newlines via input events, not an Enter
+    // keydown — route those through the model too.
+    function onBeforeInput(e: InputEvent) {
+        if (
+            e.inputType === "insertLineBreak" ||
+            e.inputType === "insertParagraph"
+        ) {
+            e.preventDefault();
+            insertLineBreakAtCaret();
+        }
+    }
+
     function onPaste(e: ClipboardEvent) {
         const file = [...(e.clipboardData?.items ?? [])]
             .find(
@@ -825,13 +868,10 @@
             }
         }
         if (!pastedText) return;
-        const start = getCaretOffset();
-        const selection = window.getSelection();
-        const selected = selection?.rangeCount
-            ? selection.getRangeAt(0).toString().length
-            : 0;
-        const next =
-            text.slice(0, start) + pastedText + text.slice(start + selected);
+        const end = getCaretOffset();
+        const selected = getSelectedLength();
+        const start = end - selected;
+        const next = text.slice(0, start) + pastedText + text.slice(end);
         setComposerText(next, start + pastedText.length);
     }
 
@@ -1077,6 +1117,7 @@
             aria-label={composerPlaceholder}
             onkeydown={onKeydown}
             oninput={onInput}
+            onbeforeinput={onBeforeInput}
             onpaste={onPaste}
             onclick={() => {
                 detectMentionQuery();
