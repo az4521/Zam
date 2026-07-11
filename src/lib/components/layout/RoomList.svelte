@@ -20,9 +20,16 @@
         canAddRoomToSpace,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
+        getRoomTags,
+        toggleRoomTag,
         getOwnAvatarUrl,
         type RoomNotificationSetting,
     } from "$lib/matrix/client";
+    import {
+        groupRoomsByTag,
+        sortRoomsByTag,
+        roomTagKind,
+    } from "$lib/utils/roomOrdering";
     import {
         roomsState,
         setActiveRoom,
@@ -149,6 +156,19 @@
         leaveConfirmId = null;
     });
 
+    async function handleToggleTag(
+        roomId: string,
+        kind: "favourite" | "lowPriority",
+    ) {
+        closeModal();
+        try {
+            await toggleRoomTag(roomId, kind);
+            roomsState.roomsTick++;
+        } catch (err) {
+            console.error("Failed to update room tag:", err);
+        }
+    }
+
     async function handleLeave(roomId: string) {
         closeModal();
         try {
@@ -188,6 +208,19 @@
             ? roomsState.orphanRooms
             : roomsState.roomsInSpace,
     );
+
+    // Tags mutate in place on the live Room objects, so depend on roomsTick.
+    const roomGroups = $derived.by(() => {
+        void roomsState.roomsTick;
+        return groupRoomsByTag(visibleRooms, (r) => getRoomTags(r.roomId));
+    });
+
+    const sortedDirectRooms = $derived.by(() => {
+        void roomsState.roomsTick;
+        return sortRoomsByTag(roomsState.directRooms, (r) =>
+            getRoomTags(r.roomId),
+        );
+    });
 
     const unjoinedRooms = $derived(
         roomsState.activeSpaceId !== null
@@ -379,89 +412,113 @@
         {/if}
 
         <!-- Joined rooms / channels -->
+        {#snippet channelRow(room: Room)}
+            {@const { isActive, unread, highlight, loud } = roomButton(room)}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+                class="group/room flex items-center transition-colors"
+                class:hover:bg-discord-messageHover={!isActive}
+                style={isActive
+                    ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
+                    : ""}
+                oncontextmenu={(e) => openContextMenu(e, room.roomId)}
+                ontouchstart={(e) => onRoomTouchStart(e, room.roomId)}
+                ontouchmove={onRoomTouchMove}
+                ontouchend={onRoomTouchEnd}
+            >
+                <button
+                    onclick={() => setActiveRoom(room.roomId)}
+                    class="flex-1 flex items-center py-1.5 min-w-0 text-left transition-colors"
+                    class:text-discord-textPrimary={isActive || unread}
+                    class:text-discord-textSecondary={!isActive && !unread}
+                    class:hover:text-discord-textPrimary={!isActive}
+                    class:font-semibold={unread}
+                    style={isActive
+                        ? "padding-left: calc(0.5rem - 3px);"
+                        : "padding-left: 0.5rem;"}
+                >
+                    <div
+                        class="w-4 flex-shrink-0 flex items-center justify-center mr-1.5"
+                    >
+                        {#if unread && !isActive}
+                            <span
+                                class="w-2 h-2 rounded-full {loud || highlight
+                                    ? 'bg-discord-danger'
+                                    : 'bg-white'} flex-shrink-0"
+                            ></span>
+                        {:else}
+                            <span
+                                class="w-5 h-5 opacity-70 font-semibold flex items-center justify-center text-[0.8rem]"
+                                >#</span
+                            >
+                        {/if}
+                    </div>
+                    <span class="flex-1 text-sm truncate"
+                        >{getRoomDisplayName(room)}</span
+                    >
+                    {#if highlight && !isActive}
+                        <span
+                            class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center ml-1"
+                        >
+                            {highlight > 99 ? "99+" : highlight}
+                        </span>
+                    {/if}
+                </button>
+                <!-- svelte-ignore a11y_consider_explicit_label -->
+                <button
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        onOpenRoomSettings?.(room);
+                    }}
+                    class="flex-shrink-0 p-1 mr-1 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors opacity-0 group-hover/room:opacity-100"
+                    title="Room settings"
+                >
+                    <svg
+                        class="w-3.5 h-3.5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.37 1.04.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
+                        />
+                    </svg>
+                </button>
+            </div>
+        {/snippet}
+
         {#if visibleRooms.length > 0}
             <div class="mb-2">
-                <p
-                    class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-                >
-                    {roomsState.activeSpaceId ? "Channels" : "Rooms"}
-                </p>
-                {#each visibleRooms as room (room.roomId)}
-                    {@const { isActive, unread, highlight, loud } =
-                        roomButton(room)}
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                        class="group/room flex items-center transition-colors"
-                        class:hover:bg-discord-messageHover={!isActive}
-                        style={isActive
-                            ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
-                            : ""}
-                        oncontextmenu={(e) => openContextMenu(e, room.roomId)}
-                        ontouchstart={(e) => onRoomTouchStart(e, room.roomId)}
-                        ontouchmove={onRoomTouchMove}
-                        ontouchend={onRoomTouchEnd}
+
+                {#if roomGroups.favourites.length > 0}
+                    <p
+                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                     >
-                        <button
-                            onclick={() => setActiveRoom(room.roomId)}
-                            class="flex-1 flex items-center py-1.5 min-w-0 text-left transition-colors"
-                            class:text-discord-textPrimary={isActive || unread}
-                            class:text-discord-textSecondary={!isActive &&
-                                !unread}
-                            class:hover:text-discord-textPrimary={!isActive}
-                            class:font-semibold={unread}
-                            style={isActive
-                                ? "padding-left: calc(0.5rem - 3px);"
-                                : "padding-left: 0.5rem;"}
-                        >
-                            <div
-                                class="w-4 flex-shrink-0 flex items-center justify-center mr-1.5"
-                            >
-                                {#if unread && !isActive}
-                                    <span
-                                        class="w-2 h-2 rounded-full {loud ||
-                                        highlight
-                                            ? 'bg-discord-danger'
-                                            : 'bg-white'} flex-shrink-0"
-                                    ></span>
-                                {:else}
-                                    <span
-                                        class="w-5 h-5 opacity-70 font-semibold flex items-center justify-center text-[0.8rem]"
-                                        >#</span
-                                    >
-                                {/if}
-                            </div>
-                            <span class="flex-1 text-sm truncate"
-                                >{getRoomDisplayName(room)}</span
-                            >
-                            {#if highlight && !isActive}
-                                <span
-                                    class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center ml-1"
-                                >
-                                    {highlight > 99 ? "99+" : highlight}
-                                </span>
-                            {/if}
-                        </button>
-                        <!-- svelte-ignore a11y_consider_explicit_label -->
-                        <button
-                            onclick={(e) => {
-                                e.stopPropagation();
-                                onOpenRoomSettings?.(room);
-                            }}
-                            class="flex-shrink-0 p-1 mr-1 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors opacity-0 group-hover/room:opacity-100"
-                            title="Room settings"
-                        >
-                            <svg
-                                class="w-3.5 h-3.5"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.37 1.04.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
-                                />
-                            </svg>
-                        </button>
-                    </div>
-                {/each}
+                        Favourites
+                    </p>
+                    {#each roomGroups.favourites as room (room.roomId)}
+                        {@render channelRow(room)}
+                    {/each}
+                {/if}
+                {#if roomGroups.normal.length > 0}
+                    <p
+                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    >
+                        {roomsState.activeSpaceId ? "Channels" : "Rooms"}
+                    </p>
+                    {#each roomGroups.normal as room (room.roomId)}
+                        {@render channelRow(room)}
+                    {/each}
+                {/if}
+                {#if roomGroups.lowPriority.length > 0}
+                    <p
+                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    >
+                        Low Priority
+                    </p>
+                    {#each roomGroups.lowPriority as room (room.roomId)}
+                        {@render channelRow(room)}
+                    {/each}
+                {/if}
             </div>
         {/if}
 
@@ -568,7 +625,7 @@
                 >
                     Direct Messages
                 </p>
-                {#each roomsState.directRooms as room (room.roomId)}
+                {#each sortedDirectRooms as room (room.roomId)}
                     {@const { isActive, unread, highlight, loud } =
                         roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
@@ -697,6 +754,24 @@
                 >
                     <span class="w-3 text-center text-xs"
                         >{currentSetting === val ? "●" : ""}</span
+                    >
+                    {label}
+                </button>
+            {/each}
+            <div class="w-full h-px bg-discord-divider my-1"></div>
+            {@const activeTagKind =
+                (void roomsState.roomsTick,
+                roomTagKind(getRoomTags(cm.roomId)))}
+            {#each [["favourite", "Favourite"], ["lowPriority", "Low Priority"]] as const as [kind, label]}
+                <button
+                    onclick={() => handleToggleTag(cm.roomId, kind)}
+                    class="w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
+                    class:text-discord-textPrimary={activeTagKind === kind}
+                    class:text-discord-textSecondary={activeTagKind !== kind}
+                    class:hover:bg-discord-messageHover={true}
+                >
+                    <span class="w-3 text-center text-xs"
+                        >{activeTagKind === kind ? "●" : ""}</span
                     >
                     {label}
                 </button>
