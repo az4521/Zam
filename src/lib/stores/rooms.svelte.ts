@@ -44,6 +44,15 @@ function saveLastSpace(spaceId: string | null): void {
     }
 }
 
+/**
+ * Re-read the active account's persisted last space and room. Module init
+ * runs before the account is known, so the app shell calls this on boot.
+ */
+export function reloadLastLocationFromStorage(): void {
+    roomsState.activeSpaceId = loadLastSpace();
+    roomsState.activeRoomId = getLastRoom(roomsState.activeSpaceId);
+}
+
 export const roomsState = $state({
     spaces: [] as Room[],
     orphanRooms: [] as Room[],

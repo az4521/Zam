@@ -15,6 +15,7 @@
         setActiveSpace,
         navigateToRoom,
         bumpUnreadTick,
+        reloadLastLocationFromStorage,
     } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -523,6 +524,7 @@
                 clearReadNotifications(room, userId);
             }
         });
+        reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
