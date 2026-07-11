@@ -3,6 +3,7 @@
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
+    import PollBody from "$lib/components/messages/PollBody.svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -39,6 +40,7 @@
         linkifyMatrixIdentifiers,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
+    import { isPollStartEventType } from "$lib/utils/pollContent";
 
     import {
         messagesState,
@@ -303,6 +305,7 @@
     });
     const eventType = $derived(event.getType());
     const msgtype = $derived(content?.msgtype ?? "");
+    const isPoll = $derived(isPollStartEventType(eventType));
 
     // Strip the Matrix reply fallback prefix ("> quoted text\n\n") from body
     const body = $derived(() => {
@@ -834,7 +837,9 @@
         {/if}
 
         <!-- Message body -->
-        {#if eventType === "m.sticker"}
+        {#if isPoll}
+            <PollBody {event} {room} />
+        {:else if eventType === "m.sticker"}
             {@const src = stickerHttpUrl()}
             {#if src}
                 <img

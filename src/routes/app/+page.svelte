@@ -473,7 +473,14 @@
 
             const loud = !!(actions.tweaks as any)?.sound;
             const content = event.getContent() as any;
-            const body = typeof content?.body === "string" ? content.body : "";
+            // Extensible events (e.g. polls) carry their text fallback in the
+            // MSC1767 key instead of body.
+            const body =
+                typeof content?.body === "string"
+                    ? content.body
+                    : typeof content?.["org.matrix.msc1767.text"] === "string"
+                      ? content["org.matrix.msc1767.text"]
+                      : "";
 
             // Alerts (sound + desktop popup) fire only for events that arrive
             // live, never for the backlog replayed during the initial sync on
