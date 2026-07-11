@@ -37,6 +37,7 @@ import {
 } from "$lib/utils/threadContent";
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
+import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -2005,6 +2006,39 @@ export async function getRoomIdForAlias(
     if (!matrixClient) throw new Error("Not logged in");
     const result = await matrixClient.getRoomIdForAlias(alias);
     return { roomId: result.room_id, servers: result.servers ?? [] };
+}
+
+export interface PublicRoomsPage {
+    rooms: DirectoryRoom[];
+    nextBatch: string | null;
+    totalEstimate: number | null;
+}
+
+/** One page of the public room directory (local homeserver by default). */
+export async function getPublicRooms(
+    opts: {
+        server?: string;
+        search?: string;
+        since?: string;
+        limit?: number;
+    } = {},
+): Promise<PublicRoomsPage> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.publicRooms({
+        server: opts.server,
+        limit: opts.limit ?? 30,
+        since: opts.since,
+        // Only include filter when searching: any extra key (even undefined)
+        // makes the SDK switch from GET to the POST /publicRooms form.
+        ...(opts.search
+            ? { filter: { generic_search_term: opts.search } }
+            : {}),
+    });
+    return {
+        rooms: mapPublicRooms(res.chunk ?? []),
+        nextBatch: res.next_batch ?? null,
+        totalEstimate: res.total_room_count_estimate ?? null,
+    };
 }
 
 export async function createRoom(
