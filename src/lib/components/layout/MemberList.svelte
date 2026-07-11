@@ -8,6 +8,7 @@
         mxcToHttp,
     } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { roomsState } from "$lib/stores/rooms.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import {
@@ -31,6 +32,10 @@
 
     const members = $derived.by(() => {
         void memberTick;
+        // Re-derive on sync updates too, or kicks/bans/joins from other
+        // sessions never leave the list (same fix the room-settings members
+        // tab got; live SDK Room objects mutate in place).
+        void roomsState.roomsTick;
         return getRoomMembers(room);
     });
 
