@@ -10,6 +10,13 @@
     } from "$lib/matrix/client";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
 
+    interface Props {
+        isMobile?: boolean;
+        onMenuOpen?: () => void;
+    }
+
+    let { isMobile = false, onMenuOpen }: Props = $props();
+
     let busyIds = $state(new Set<string>());
 
     async function accept(roomId: string) {
@@ -38,8 +45,19 @@
 
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
     <div
-        class="h-12 px-4 flex items-center border-b border-discord-divider shadow-sm flex-shrink-0"
+        class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
     >
+        {#if isMobile}
+            <button
+                onclick={onMenuOpen}
+                class="p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                title="Open room list"
+            >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                </svg>
+            </button>
+        {/if}
         <h2 class="font-semibold text-discord-textPrimary">Inbox</h2>
     </div>
 
