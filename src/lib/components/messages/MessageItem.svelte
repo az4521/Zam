@@ -37,6 +37,7 @@
     } from "$lib/utils/reportMessage";
     import {
         parseMatrixLink,
+        mergeViaServers,
         linkifyMatrixIdentifiers,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
@@ -641,7 +642,7 @@
         if (target.kind === "alias") {
             const resolved = await getRoomIdForAlias(target.alias);
             roomId = resolved.roomId;
-            via = [...new Set([...target.via, ...resolved.servers])];
+            via = mergeViaServers(target.via, resolved.servers);
         } else {
             roomId = target.roomId;
             via = target.via;

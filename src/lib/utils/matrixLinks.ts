@@ -134,6 +134,24 @@ export function parseMatrixLink(input: string): MatrixLinkTarget | null {
     return null;
 }
 
+/**
+ * Merge a link's explicit `via` servers with the servers returned by alias
+ * resolution into a bounded candidate list for `/join?server_name=…`.
+ *
+ * The cap matters: servers can return the full member-server list (continuwuity
+ * sent 889 for one space), and putting them all in the query string produces a
+ * ~40 KB request URI that proxies kill — taking the connection, and the
+ * in-flight /sync on it, down with it. A handful of candidates is all the
+ * homeserver needs. Explicit link vias come first: the sharer curated them.
+ */
+export function mergeViaServers(
+    linkVia: string[],
+    resolvedServers: string[],
+    max = 5,
+): string[] {
+    return [...new Set([...linkVia, ...resolvedServers])].slice(0, max);
+}
+
 // Bare mentions in message text: a sigil after a word boundary, a localpart,
 // and a dotted server name (optional port). Requiring the dot keeps things
 // like "#1:30pm" from linkifying; explicit links stay loose (see above).
