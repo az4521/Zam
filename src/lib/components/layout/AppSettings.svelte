@@ -775,14 +775,13 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-1 sm:p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-0 md:p-4"
     onclick={(e) => {
         if (e.target === e.currentTarget) onClose();
     }}
 >
     <div
-        class="bg-discord-backgroundSecondary rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden"
-        style="height: 85dvh;"
+        class="bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
     >
         <!-- Header -->
         <div
@@ -802,15 +801,15 @@
             </button>
         </div>
 
-        <div class="flex flex-1 min-h-0">
-            <!-- Tab sidebar -->
+        <div class="flex flex-col md:flex-row flex-1 min-h-0">
+            <!-- Tab bar: horizontal scrollable strip on mobile, sidebar on desktop -->
             <nav
-                class="w-40 flex-shrink-0 border-r border-discord-divider py-3 flex flex-col gap-0.5 px-2"
+                class="flex flex-row md:flex-col flex-shrink-0 w-full md:w-40 gap-1 md:gap-0.5 overflow-x-auto md:overflow-x-visible border-b md:border-b-0 md:border-r border-discord-divider px-2 py-2 md:py-3"
             >
                 {#each tabs as tab (tab.id)}
                     <button
                         onclick={() => (activeTab = tab.id)}
-                        class="w-full text-left px-3 py-2 rounded text-sm font-medium transition-colors"
+                        class="flex-shrink-0 w-auto md:w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
                         class:bg-discord-messageHover={activeTab === tab.id}
                         class:text-discord-textPrimary={activeTab === tab.id}
                         class:text-discord-textMuted={activeTab !== tab.id}
@@ -820,7 +819,7 @@
             </nav>
 
             <!-- Tab content -->
-            <div class="flex-1 overflow-y-auto p-6 min-w-0">
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
                 <!-- ── Account ───────────────────────────────────────────── -->
                 {#if activeTab === "account"}
                     <div class="space-y-6">
