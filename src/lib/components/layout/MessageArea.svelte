@@ -19,6 +19,7 @@
         onEditEvent,
         onRedactionEvent,
         onTimelineReset,
+        onRoomHealed,
         loadPreviousMessages,
         loadMessagesUntilEvent,
         loadContextAroundEvent,
@@ -564,6 +565,27 @@
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
             backfillFromTop();
             if (isAtBottom) markAsRead();
+        });
+        return unsub;
+    });
+
+    // Reload after a state-less stub room gets seeded and backfilled (rooms
+    // joined over federation that sync omits) — the timeline is populated
+    // outside any SDK sync event, so the displayed list must be re-read.
+    $effect(() => {
+        const currentRoom = room;
+        const currentRoomId = roomId;
+        const unsub = onRoomHealed((healedId) => {
+            if (healedId !== currentRoomId || isContextView) return;
+            setMessages(currentRoomId, getTimelineMessages(currentRoom));
+            setCanLoadMore(currentRoomId, true);
+            tick().then(() => {
+                if (isAtBottom) {
+                    scrollToBottom(true);
+                    markAsRead();
+                }
+                backfillFromTop();
+            });
         });
         return unsub;
     });

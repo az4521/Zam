@@ -16,6 +16,7 @@ import {
     HttpApiEvent,
     UserEvent,
     SetPresence,
+    Direction,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -282,6 +283,15 @@ export async function startSync(
     // (covers joins from other devices too, not just this client's wrappers).
     matrixClient.on(
         "Room.myMembership" as never,
+        ((room: Room) => {
+            if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
+        }) as never,
+    );
+    // Sync creates the room ALREADY joined (bare membership, no state), so
+    // no membership transition fires and the join wrapper ran before the
+    // room existed — ClientEvent.Room is the moment the stub appears.
+    matrixClient.on(
+        ClientEvent.Room as never,
         ((room: Room) => {
             if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
         }) as never,
@@ -1802,6 +1812,17 @@ export async function sendEdit(
 
 const seedingRooms = new Set<string>();
 const roomUpdateSubscribers = new Set<() => void>();
+const roomHealedSubscribers = new Set<(roomId: string) => void>();
+
+/**
+ * Fires after a state-less stub room has been seeded and backfilled — the
+ * live timeline changed without any SDK sync event, so timeline views must
+ * re-read it (room lists go through onRoomUpdate, which also fires).
+ */
+export function onRoomHealed(callback: (roomId: string) => void): () => void {
+    roomHealedSubscribers.add(callback);
+    return () => roomHealedSubscribers.delete(callback);
+}
 
 function roomLacksState(room: Room): boolean {
     return (
@@ -1811,6 +1832,30 @@ function roomLacksState(room: Room): boolean {
             .getState(EventTimeline.FORWARDS)
             ?.getStateEvents("m.room.create", "")
     );
+}
+
+/**
+ * Backfill a room whose live timeline has no backward pagination token —
+ * scrollback() treats a missing token as "already at the start of history"
+ * and silently no-ops, and sync never supplies the token for the rooms it
+ * omits. A token-less /messages probe yields a starting point to prime it.
+ */
+async function backfillStubTimeline(room: Room): Promise<void> {
+    if (!matrixClient) return;
+    const timeline = room.getLiveTimeline();
+    if (!timeline.getPaginationToken(Direction.Backward)) {
+        const probe = await matrixClient.createMessagesRequest(
+            room.roomId,
+            null,
+            1,
+            Direction.Backward,
+        );
+        const token = probe.start ?? null;
+        timeline.setPaginationToken(token, Direction.Backward);
+        // scrollback() reads the legacy oldState alias, not the timeline.
+        room.oldState.paginationToken = token;
+    }
+    await matrixClient.scrollback(room, 30);
 }
 
 /**
@@ -1832,8 +1877,11 @@ export async function seedRoomStateIfMissing(roomId: string): Promise<boolean> {
         room.recalculate();
         // The timeline suffers the same omission as the state — backfill so
         // the room doesn't open as an empty chat despite having history.
-        await matrixClient.scrollback(room, 30).catch(() => {});
+        await backfillStubTimeline(room).catch((err) =>
+            console.warn("Backfill after state seeding failed:", err),
+        );
         for (const cb of roomUpdateSubscribers) cb();
+        for (const cb of roomHealedSubscribers) cb(roomId);
         return true;
     } catch (err) {
         console.error("Failed to seed room state:", err);
@@ -1857,12 +1905,14 @@ function seedStatelessRooms(): void {
             // State present but an empty timeline (seeded before backfill
             // existed, or the sync omission's timeline variant) — backfill
             // so the room doesn't open as an empty chat.
-            void matrixClient
-                .scrollback(room, 30)
+            void backfillStubTimeline(room)
                 .then(() => {
                     for (const cb of roomUpdateSubscribers) cb();
+                    for (const cb of roomHealedSubscribers) cb(room.roomId);
                 })
-                .catch(() => {});
+                .catch((err) =>
+                    console.warn("Boot-pass timeline backfill failed:", err),
+                );
         }
     }
 }
