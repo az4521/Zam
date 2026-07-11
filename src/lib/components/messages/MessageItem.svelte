@@ -657,9 +657,9 @@
     }
 
     // Svelte action: open Matrix links (matrix.to permalinks, matrix: URIs,
-    // mention anchors) in-app — join if needed, then switch rooms — instead
-    // of letting the SPA navigate away to matrix.to. User links are a noop
-    // with a tooltip until a profile UI exists.
+    // mention anchors) in-app — user links open the profile card; room and
+    // alias links join if needed, then switch rooms — instead of letting the
+    // SPA navigate away to matrix.to.
     function matrixLinks(node: HTMLElement) {
         function onClick(e: MouseEvent) {
             if (e.defaultPrevented) return;
@@ -670,12 +670,15 @@
             const target = parseMatrixLink(anchor.getAttribute("href") ?? "");
             if (!target) return;
             e.preventDefault();
-            if (target.kind === "user") return;
+            if (target.kind === "user") {
+                openProfileCard(target.userId, anchor as HTMLElement);
+                return;
+            }
             navigateToMatrixTarget(target).catch((err) =>
                 console.error("Failed to open Matrix link:", err),
             );
         }
-        // Tooltip fallback for user links — there is no profile UI to open.
+        // Full-id tooltip on user links (the anchor text may be a nickname).
         function decorate() {
             node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
                 if (a.dataset.matrixLinkReady) return;
