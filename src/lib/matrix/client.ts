@@ -44,6 +44,7 @@ import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts } from "$lib/utils/knock";
+import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -1971,52 +1972,38 @@ export interface SpaceChildInfo {
     isKnocked?: boolean;
 }
 
+// Spaces whose direct /hierarchy call failed this session — the periodic
+// refresh would otherwise re-attempt (and re-403) every couple of seconds
+// while the user browses an unjoined sub-space.
+const hierarchyDirectFailed = new Set<string>();
+
 export async function fetchSpaceHierarchy(
     spaceId: string,
+    parentSpaceId?: string,
 ): Promise<SpaceChildInfo[]> {
     if (!matrixClient) return [];
-    try {
-        // depth 1 = direct children only; limit 200 rooms
-        const result = (await (
-            matrixClient as unknown as Record<string, Function>
-        )["getRoomHierarchy"](spaceId, 200, 1)) as {
-            rooms: Array<Record<string, unknown>>;
-        };
 
-        // Knocked rooms are tracked by the SDK too — keep them out of the
-        // "joined" set so they stay visible in Browse Channels (with a
-        // pending-request state) instead of silently disappearing.
-        const trackedRooms = matrixClient.getRooms();
-        const joinedIds = new Set(
-            trackedRooms
-                .filter((r) => r.getMyMembership() !== "knock")
-                .map((r) => r.roomId),
-        );
-        const knockedIds = new Set(
-            trackedRooms
-                .filter((r) => r.getMyMembership() === "knock")
-                .map((r) => r.roomId),
-        );
+    const getHierarchy = (id: string, depth: number) =>
+        (matrixClient as unknown as Record<string, Function>)[
+            "getRoomHierarchy"
+        ](id, 200, depth) as Promise<{
+            rooms: Array<Record<string, unknown>>;
+        }>;
+
+    let rooms: Array<Record<string, unknown>>;
+    const viaMap = new Map<string, string[]>();
+    try {
+        if (parentSpaceId && hierarchyDirectFailed.has(spaceId)) {
+            throw new Error("skipping direct hierarchy fetch");
+        }
+        // depth 1 = direct children only; limit 200 rooms
+        const result = await getHierarchy(spaceId, 1);
+        hierarchyDirectFailed.delete(spaceId);
+        rooms = result.rooms.filter((r) => r["room_id"] !== spaceId);
 
         // Build a via-servers map from the space entry's children_state
-        const viaMap = new Map<string, string[]>();
-        const spaceEntry = result.rooms.find((r) => r["room_id"] === spaceId);
-        if (spaceEntry) {
-            const childrenState =
-                (spaceEntry["children_state"] as Array<
-                    Record<string, unknown>
-                >) ?? [];
-            for (const ev of childrenState) {
-                if (ev["type"] === "m.space.child") {
-                    const childRoomId = ev["state_key"] as string;
-                    const via =
-                        ((ev["content"] as Record<string, unknown>)?.[
-                            "via"
-                        ] as string[]) ?? [];
-                    if (childRoomId && via.length) viaMap.set(childRoomId, via);
-                }
-            }
-        }
+        const slice = extractSubspaceChildren(result.rooms, spaceId);
+        if (slice) for (const [k, v] of slice.viaMap) viaMap.set(k, v);
 
         // Also fall back to the local room state for via servers
         const spaceRoom = matrixClient.getRoom(spaceId);
@@ -2034,31 +2021,72 @@ export async function fetchSpaceHierarchy(
                 }
             }
         }
-
-        return result.rooms
-            .filter((r) => r["room_id"] !== spaceId)
-            .map((r) => {
-                const mxcAvatar = r["avatar_url"] as string | undefined;
-                const roomId = r["room_id"] as string;
-                return {
-                    roomId,
-                    name: (r["name"] as string) || roomId,
-                    topic: r["topic"] as string | undefined,
-                    avatarUrl: mxcAvatar
-                        ? (mxcToHttp(mxcAvatar) ?? undefined)
-                        : undefined,
-                    numMembers: (r["num_joined_members"] as number) ?? 0,
-                    isJoined: joinedIds.has(roomId),
-                    via: viaMap.get(roomId) ?? [],
-                    isSpace: r["room_type"] === "m.space",
-                    joinRule: r["join_rule"] as string | undefined,
-                    isKnocked: knockedIds.has(roomId),
-                };
-            });
     } catch (err) {
-        console.error("Failed to fetch space hierarchy:", err);
-        return [];
+        // Continuwuity answers /hierarchy with 403 "This room does not
+        // exist" for spaces this server hasn't joined — including
+        // sub-spaces it lists as children of a joined parent. Walk in
+        // through the parent instead: its hierarchy one level deeper
+        // carries the sub-space's children (best effort — a page holds
+        // 200 rooms).
+        if (!parentSpaceId) {
+            console.error("Failed to fetch space hierarchy:", err);
+            return [];
+        }
+        hierarchyDirectFailed.add(spaceId);
+        try {
+            const parent = await getHierarchy(parentSpaceId, 2);
+            const slice = extractSubspaceChildren(parent.rooms, spaceId);
+            if (!slice) {
+                console.error("Failed to fetch space hierarchy:", err);
+                return [];
+            }
+            rooms = parent.rooms.filter((r) =>
+                slice.childIds.has(r["room_id"] as string),
+            );
+            for (const [k, v] of slice.viaMap) viaMap.set(k, v);
+        } catch (parentErr) {
+            console.error(
+                "Failed to fetch space hierarchy (direct and via parent):",
+                err,
+                parentErr,
+            );
+            return [];
+        }
     }
+
+    // Knocked rooms are tracked by the SDK too — keep them out of the
+    // "joined" set so they stay visible in Browse Channels (with a
+    // pending-request state) instead of silently disappearing.
+    const trackedRooms = matrixClient.getRooms();
+    const joinedIds = new Set(
+        trackedRooms
+            .filter((r) => r.getMyMembership() !== "knock")
+            .map((r) => r.roomId),
+    );
+    const knockedIds = new Set(
+        trackedRooms
+            .filter((r) => r.getMyMembership() === "knock")
+            .map((r) => r.roomId),
+    );
+
+    return rooms.map((r) => {
+        const mxcAvatar = r["avatar_url"] as string | undefined;
+        const roomId = r["room_id"] as string;
+        return {
+            roomId,
+            name: (r["name"] as string) || roomId,
+            topic: r["topic"] as string | undefined,
+            avatarUrl: mxcAvatar
+                ? (mxcToHttp(mxcAvatar) ?? undefined)
+                : undefined,
+            numMembers: (r["num_joined_members"] as number) ?? 0,
+            isJoined: joinedIds.has(roomId),
+            via: viaMap.get(roomId) ?? [],
+            isSpace: r["room_type"] === "m.space",
+            joinRule: r["join_rule"] as string | undefined,
+            isKnocked: knockedIds.has(roomId),
+        };
+    });
 }
 
 const SPACE_ORDER_KEY = "im.client.space_order";

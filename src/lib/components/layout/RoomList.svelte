@@ -249,7 +249,9 @@
             ? "Home"
             : roomsState.spaces.find(
                   (s) => s.roomId === roomsState.activeSpaceId,
-              )?.name || "Space",
+              )?.name ||
+                  roomsState.spaceDrillName ||
+                  "Space",
     );
 
     const visibleRooms = $derived(
@@ -636,7 +638,15 @@
                 </p>
                 {#each childSpaces as space (space.roomId)}
                     <button
-                        onclick={() => setActiveSpace(space.roomId)}
+                        onclick={() =>
+                            setActiveSpace(space.roomId, {
+                                // Chain to the nearest joined ancestor so the
+                                // hierarchy fallback has a fetchable parent.
+                                parentId:
+                                    roomsState.spaceDrillParentId ??
+                                    roomsState.activeSpaceId!,
+                                name: space.name,
+                            })}
                         class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-discord-messageHover transition-colors group"
                     >
                         <svg

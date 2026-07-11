@@ -370,7 +370,10 @@
         hierarchyRefreshTimer = setTimeout(() => {
             hierarchyRefreshTimer = null;
             if (roomsState.activeSpaceId !== spaceId) return;
-            fetchSpaceHierarchy(spaceId).then((hierarchy) => {
+            fetchSpaceHierarchy(
+                spaceId,
+                roomsState.spaceDrillParentId ?? undefined,
+            ).then((hierarchy) => {
                 if (roomsState.activeSpaceId === spaceId) {
                     roomsState.spaceHierarchy = hierarchy;
                 }
@@ -616,7 +619,10 @@
 
         if (spaceId) {
             roomsState.hierarchyLoading = true;
-            fetchSpaceHierarchy(spaceId).then((hierarchy) => {
+            fetchSpaceHierarchy(
+                spaceId,
+                roomsState.spaceDrillParentId ?? undefined,
+            ).then((hierarchy) => {
                 // Only apply if the space hasn't changed while we were fetching
                 if (roomsState.activeSpaceId === spaceId) {
                     roomsState.spaceHierarchy = hierarchy;

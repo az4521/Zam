@@ -64,6 +64,14 @@ export const roomsState = $state({
     showInbox: false,
     roomsInSpace: [] as Room[],
     spaceHierarchy: [] as SpaceChildInfo[],
+    /**
+     * Set while browsing a sub-space reached from inside another space: the
+     * nearest *joined* ancestor (for the hierarchy-via-parent fallback and
+     * the sidebar highlight) and the sub-space's display name (unjoined
+     * sub-spaces have no local Room to read a name from).
+     */
+    spaceDrillParentId: null as string | null,
+    spaceDrillName: null as string | null,
     hierarchyLoading: false,
     isLoading: false,
     unreadTick: 0,
@@ -75,12 +83,20 @@ export function bumpUnreadTick(): void {
     roomsState.unreadTick++;
 }
 
-export function setActiveSpace(spaceId: string | null): void {
+export function setActiveSpace(
+    spaceId: string | null,
+    drill?: { parentId: string; name?: string },
+): void {
     if (spaceId === roomsState.activeSpaceId) return;
     roomsState.activeSpaceId = spaceId;
     roomsState.activeRoomId = getLastRoom(spaceId);
     roomsState.spaceHierarchy = [];
-    saveLastSpace(spaceId);
+    roomsState.spaceDrillParentId = drill?.parentId ?? null;
+    roomsState.spaceDrillName = drill?.name ?? null;
+    // When drilling into a sub-space, persist the ancestor: booting into a
+    // possibly-unjoined sub-space would strand the user in an empty view
+    // (no parent context for the hierarchy fallback).
+    saveLastSpace(drill ? drill.parentId : spaceId);
     // Switching space/Home only swaps the room list — keep the mobile drawer
     // open for browsing when the user has pinned it in Settings > Behavior.
     if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
@@ -106,6 +122,8 @@ export function navigateToRoom(roomId: string): void {
     if (targetSpace !== roomsState.activeSpaceId) {
         roomsState.activeSpaceId = targetSpace;
         roomsState.spaceHierarchy = [];
+        roomsState.spaceDrillParentId = null;
+        roomsState.spaceDrillName = null;
         saveLastSpace(targetSpace);
     }
     setActiveRoom(roomId);
