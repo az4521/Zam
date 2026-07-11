@@ -840,7 +840,9 @@
         {/if}
 
         {#if item.kind === "space"}
-            {@const isActive = roomsState.activeSpaceId === item.space.roomId}
+            {@const isActive =
+                roomsState.activeSpaceId === item.space.roomId ||
+                roomsState.spaceDrillParentId === item.space.roomId}
             {@const avatarSrc = getRoomAvatar(item.space)}
             {@const isMergeTarget =
                 dropTarget?.id === item.id && dropTarget.position === "into"}

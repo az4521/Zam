@@ -19,6 +19,7 @@
         onEditEvent,
         onRedactionEvent,
         onTimelineReset,
+        onRoomHealed,
         loadPreviousMessages,
         loadMessagesUntilEvent,
         loadContextAroundEvent,
@@ -471,8 +472,12 @@
     }
 
     const roomId = $derived(room.roomId);
-    const roomName = $derived(getRoomDisplayName(room));
-    const topic = $derived(getRoomTopic(room));
+    // Tick dependency: the Room mutates in place when state arrives late
+    // (late-seeded federated joins, renames) — same reference, new name.
+    const roomName = $derived(
+        (void roomsState.roomsTick, getRoomDisplayName(room)),
+    );
+    const topic = $derived((void roomsState.roomsTick, getRoomTopic(room)));
     let contextMessages = $state<MatrixEvent[] | null>(null);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
@@ -564,18 +569,15 @@
         return unsub;
     });
 
-    // Reload when the live timeline is reset by a gappy/limited sync (reconnect,
-    // resuming the PWA from a notification, etc). The SDK discards the old
-    // timeline and starts a fresh one after the gap, so we must replace the
-    // displayed list — otherwise the post-gap events get appended onto stale
-    // ones and the intervening messages appear to never have existed.
+    // Reload after a state-less stub room gets seeded and backfilled (rooms
+    // joined over federation that sync omits) — the timeline is populated
+    // outside any SDK sync event, so the displayed list must be re-read.
     $effect(() => {
         const currentRoom = room;
         const currentRoomId = roomId;
-        const unsub = onTimelineReset(currentRoom, () => {
-            if (isContextView) return; // context view uses its own timeline set
+        const unsub = onRoomHealed((healedId) => {
+            if (healedId !== currentRoomId || isContextView) return;
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
-            // The fresh timeline can be paginated back to fill the gap.
             setCanLoadMore(currentRoomId, true);
             tick().then(() => {
                 if (isAtBottom) {
@@ -587,6 +589,104 @@
         });
         return unsub;
     });
+
+    // Reload when the live timeline is reset by a gappy/limited sync (reconnect,
+    // resuming the PWA from a notification, etc). The SDK discards the old
+    // timeline and starts a fresh one after the gap, so we must replace the
+    // displayed list — otherwise the post-gap events get appended onto stale
+    // ones and the intervening messages appear to never have existed. For a
+    // user who had paginated back, that replacement would throw away their
+    // scroll-back position, so we then re-paginate until their history returns
+    // (see recoverScrollback).
+    $effect(() => {
+        const currentRoom = room;
+        const currentRoomId = roomId;
+        const unsub = onTimelineReset(currentRoom, () => {
+            if (isContextView) return; // context view uses its own timeline set
+            // Capture what the reset is about to discard — the handler runs
+            // before setMessages, so `messages` is still the pre-reset list.
+            const prevOldestId = isAtBottom ? undefined : messages[0]?.getId();
+            const anchor = isAtBottom ? null : captureViewportAnchor();
+            setMessages(currentRoomId, getTimelineMessages(currentRoom));
+            // The fresh timeline can be paginated back to fill the gap.
+            setCanLoadMore(currentRoomId, true);
+            tick().then(async () => {
+                if (isAtBottom) {
+                    scrollToBottom(true);
+                    markAsRead();
+                } else if (prevOldestId) {
+                    await recoverScrollback(
+                        currentRoom,
+                        currentRoomId,
+                        prevOldestId,
+                        anchor,
+                    );
+                }
+                backfillFromTop();
+            });
+        });
+        return unsub;
+    });
+
+    // The first message row visible in the viewport plus its on-screen offset,
+    // so the view can be pinned back to it after the list is rebuilt.
+    function captureViewportAnchor(): { eventId: string; top: number } | null {
+        if (!scrollEl) return null;
+        const rootTop = scrollEl.getBoundingClientRect().top;
+        for (const el of scrollEl.querySelectorAll<HTMLElement>(
+            "[data-event-id]",
+        )) {
+            const rect = el.getBoundingClientRect();
+            if (rect.bottom > rootTop && el.dataset.eventId) {
+                return { eventId: el.dataset.eventId, top: rect.top };
+            }
+        }
+        return null;
+    }
+
+    // After a reset replaces the displayed list with the short fresh timeline,
+    // paginate backward until the previously-oldest displayed event reappears,
+    // then restore the viewport to the captured anchor. Bounded: a gap deeper
+    // than RECOVERY_MAX_BATCHES leaves the user at the fresh timeline exactly
+    // as before this recovery existed.
+    const RECOVERY_MAX_BATCHES = 10;
+    async function recoverScrollback(
+        currentRoom: Room,
+        currentRoomId: string,
+        prevOldestId: string,
+        anchor: { eventId: string; top: number } | null,
+    ) {
+        if (backfilling) return;
+        backfilling = true; // keep the top-sentinel observer from interleaving
+        try {
+            for (let i = 0; i < RECOVERY_MAX_BATCHES; i++) {
+                if (
+                    getTimelineMessages(currentRoom).some(
+                        (e) => e.getId() === prevOldestId,
+                    )
+                )
+                    break;
+                const hasMore = await loadPreviousMessages(currentRoom);
+                if (!hasMore) {
+                    setCanLoadMore(currentRoomId, false);
+                    break;
+                }
+            }
+            if (roomId !== currentRoomId) return; // room switched mid-recovery
+            setMessages(currentRoomId, getTimelineMessages(currentRoom));
+            await tick();
+            if (!anchor || !scrollEl) return;
+            const el = scrollEl.querySelector(
+                `[data-event-id="${anchor.eventId}"]`,
+            );
+            if (el) {
+                scrollEl.scrollTop +=
+                    el.getBoundingClientRect().top - anchor.top;
+            }
+        } finally {
+            backfilling = false;
+        }
+    }
 
     // Subscribe to new live timeline events (incoming and confirmed own messages)
     $effect(() => {

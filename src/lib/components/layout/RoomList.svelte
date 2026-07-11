@@ -249,7 +249,9 @@
             ? "Home"
             : roomsState.spaces.find(
                   (s) => s.roomId === roomsState.activeSpaceId,
-              )?.name || "Space",
+              )?.name ||
+                  roomsState.spaceDrillName ||
+                  "Space",
     );
 
     const visibleRooms = $derived(
@@ -558,8 +560,11 @@
                             >
                         {/if}
                     </div>
+                    <!-- Tick dependency: names change by in-place Room
+                         mutation (late-seeded state, renames). -->
                     <span class="flex-1 text-sm truncate"
-                        >{getRoomDisplayName(room)}</span
+                        >{(void roomsState.roomsTick,
+                        getRoomDisplayName(room))}</span
                     >
                     {#if highlight && !isActive}
                         <span
@@ -636,7 +641,19 @@
                 </p>
                 {#each childSpaces as space (space.roomId)}
                     <button
-                        onclick={() => setActiveSpace(space.roomId)}
+                        onclick={() =>
+                            setActiveSpace(space.roomId, {
+                                // Chain to the nearest joined ancestor so the
+                                // hierarchy fallback has a fetchable parent,
+                                // tracking how many levels down we are.
+                                parentId:
+                                    roomsState.spaceDrillParentId ??
+                                    roomsState.activeSpaceId!,
+                                name: space.name,
+                                depth: roomsState.spaceDrillParentId
+                                    ? roomsState.spaceDrillDepth + 1
+                                    : 1,
+                            })}
                         class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-discord-messageHover transition-colors group"
                     >
                         <svg

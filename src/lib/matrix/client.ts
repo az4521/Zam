@@ -16,6 +16,7 @@ import {
     HttpApiEvent,
     UserEvent,
     SetPresence,
+    Direction,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -44,6 +45,8 @@ import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts } from "$lib/utils/knock";
+import { viaFallbackCandidates } from "$lib/utils/joinFallback";
+import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -271,9 +274,29 @@ export async function startSync(
 
     initialSyncComplete = false;
     matrixClient.on(ClientEvent.Sync, (state) => {
-        if (state === "PREPARED") initialSyncComplete = true;
+        if (state === "PREPARED") {
+            initialSyncComplete = true;
+            seedStatelessRooms();
+        }
         onStateChange(state as string);
     });
+    // Membership changes are how new joins surface — heal stubs right away
+    // (covers joins from other devices too, not just this client's wrappers).
+    matrixClient.on(
+        "Room.myMembership" as never,
+        ((room: Room) => {
+            if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
+        }) as never,
+    );
+    // Sync creates the room ALREADY joined (bare membership, no state), so
+    // no membership transition fires and the join wrapper ran before the
+    // room existed — ClientEvent.Room is the moment the stub appears.
+    matrixClient.on(
+        ClientEvent.Room as never,
+        ((room: Room) => {
+            if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
+        }) as never,
+    );
 
     // Fired when any request comes back with M_UNKNOWN_TOKEN (token revoked,
     // password changed, device deleted, server data wiped). Without this the
@@ -1781,8 +1804,123 @@ export async function sendEdit(
     );
 }
 
+// --- State-less stub healing ------------------------------------------------
+// Continuwuity never delivers rooms joined over federation in incremental
+// /sync: the SDK is left holding a state-less stub ("Empty room", no
+// m.room.create, isSpaceRoom() false) that pollutes room lists and can't be
+// recognized as a space. The server demonstrably HAS the full state (a plain
+// /rooms/{id}/state returns it), so fetch it and seed the SDK's store.
+
+const seedingRooms = new Set<string>();
+const roomUpdateSubscribers = new Set<() => void>();
+const roomHealedSubscribers = new Set<(roomId: string) => void>();
+
+/**
+ * Fires after a state-less stub room has been seeded and backfilled — the
+ * live timeline changed without any SDK sync event, so timeline views must
+ * re-read it (room lists go through onRoomUpdate, which also fires).
+ */
+export function onRoomHealed(callback: (roomId: string) => void): () => void {
+    roomHealedSubscribers.add(callback);
+    return () => roomHealedSubscribers.delete(callback);
+}
+
+function roomLacksState(room: Room): boolean {
+    return (
+        room.getMyMembership() === "join" &&
+        !room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("m.room.create", "")
+    );
+}
+
+/**
+ * Backfill a room whose live timeline has no backward pagination token —
+ * scrollback() treats a missing token as "already at the start of history"
+ * and silently no-ops, and sync never supplies the token for the rooms it
+ * omits. A token-less /messages probe yields a starting point to prime it.
+ */
+async function backfillStubTimeline(room: Room): Promise<void> {
+    if (!matrixClient) return;
+    const timeline = room.getLiveTimeline();
+    if (!timeline.getPaginationToken(Direction.Backward)) {
+        const probe = await matrixClient.createMessagesRequest(
+            room.roomId,
+            null,
+            1,
+            Direction.Backward,
+        );
+        const token = probe.start ?? null;
+        timeline.setPaginationToken(token, Direction.Backward);
+        // scrollback() reads the legacy oldState alias, not the timeline.
+        room.oldState.paginationToken = token;
+    }
+    await matrixClient.scrollback(room, 30);
+}
+
+/**
+ * Fetch and inject the room's current state if the SDK only holds a
+ * state-less stub. No-op (false) when the room already has state, isn't
+ * known, or the fetch fails. Resolves true when state was seeded.
+ */
+export async function seedRoomStateIfMissing(roomId: string): Promise<boolean> {
+    if (!matrixClient) return false;
+    const room = matrixClient.getRoom(roomId);
+    if (!room || !roomLacksState(room) || seedingRooms.has(roomId))
+        return false;
+    seedingRooms.add(roomId);
+    try {
+        const events = await matrixClient.roomState(roomId);
+        const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+        if (!state) return false;
+        state.setStateEvents(events.map((e) => new MatrixEvent(e)));
+        room.recalculate();
+        // The timeline suffers the same omission as the state — backfill so
+        // the room doesn't open as an empty chat despite having history.
+        await backfillStubTimeline(room).catch((err) =>
+            console.warn("Backfill after state seeding failed:", err),
+        );
+        for (const cb of roomUpdateSubscribers) cb();
+        for (const cb of roomHealedSubscribers) cb(roomId);
+        return true;
+    } catch (err) {
+        console.error("Failed to seed room state:", err);
+        return false;
+    } finally {
+        seedingRooms.delete(roomId);
+    }
+}
+
+/** Heal every state-less joined room the SDK knows about (boot pass). */
+function seedStatelessRooms(): void {
+    if (!matrixClient) return;
+    for (const room of matrixClient.getRooms()) {
+        if (roomLacksState(room)) {
+            void seedRoomStateIfMissing(room.roomId);
+        } else if (
+            room.getMyMembership() === "join" &&
+            !room.isSpaceRoom() &&
+            room.getLiveTimeline().getEvents().length === 0
+        ) {
+            // State present but an empty timeline (seeded before backfill
+            // existed, or the sync omission's timeline variant) — backfill
+            // so the room doesn't open as an empty chat.
+            void backfillStubTimeline(room)
+                .then(() => {
+                    for (const cb of roomUpdateSubscribers) cb();
+                    for (const cb of roomHealedSubscribers) cb(room.roomId);
+                })
+                .catch((err) =>
+                    console.warn("Boot-pass timeline backfill failed:", err),
+                );
+        }
+    }
+}
+
 export function onRoomUpdate(callback: () => void): () => void {
     if (!matrixClient) return () => {};
+    roomUpdateSubscribers.add(callback);
     const syncHandler = (state: string) => {
         if (state === "PREPARED" || state === "SYNCING") callback();
     };
@@ -1790,18 +1928,54 @@ export function onRoomUpdate(callback: () => void): () => void {
     matrixClient.on("Room.myMembership" as never, callback as never);
     matrixClient.on(RoomEvent.Tags as never, callback as never);
     return () => {
+        roomUpdateSubscribers.delete(callback);
         matrixClient?.off(ClientEvent.Sync, syncHandler as never);
         matrixClient?.off("Room.myMembership" as never, callback as never);
         matrixClient?.off(RoomEvent.Tags as never, callback as never);
     };
 }
 
+/**
+ * Page one batch of older history into the live timeline. Returns whether
+ * more history remains.
+ *
+ * "No new events added" is NOT the end-of-history signal: after a gappy
+ * sync resets the timeline, pagination restarts near "now" and the first
+ * batches are all duplicates of already-known events — but the token still
+ * advances past them. Treating an all-duplicate batch as the end froze
+ * pagination permanently in busy rooms. The reliable signal is the SDK
+ * nulling the backward token, which it only does on an empty server page.
+ */
 export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
-    const before = room.getLiveTimeline().getEvents().length;
     await matrixClient.scrollback(room, 30);
-    const after = room.getLiveTimeline().getEvents().length;
-    return after > before;
+    return room.oldState.paginationToken !== null;
+}
+
+// Reply previews reference events that are often outside the loaded
+// timeline window. Fetch them individually, promise-cached so concurrent
+// renders of the same reply share one request; failures aren't cached so
+// a later re-render can retry.
+const singleEventCache = new Map<string, Promise<MatrixEvent | null>>();
+
+export function fetchSingleEvent(
+    roomId: string,
+    eventId: string,
+): Promise<MatrixEvent | null> {
+    if (!matrixClient) return Promise.resolve(null);
+    const key = `${roomId}|${eventId}`;
+    let promise = singleEventCache.get(key);
+    if (!promise) {
+        promise = matrixClient
+            .fetchRoomEvent(roomId, eventId)
+            .then((raw) => matrixClient!.getEventMapper()(raw))
+            .catch(() => {
+                singleEventCache.delete(key);
+                return null;
+            });
+        singleEventCache.set(key, promise);
+    }
+    return promise;
 }
 
 /** Pages backwards until `eventId` appears in the live timeline or `maxBatches` is exhausted.
@@ -1820,10 +1994,10 @@ export async function loadMessagesUntilEvent(
                 .some((e) => e.getId() === eventId)
         )
             return true;
-        const before = room.getLiveTimeline().getEvents().length;
         await matrixClient.scrollback(room, 50);
-        const after = room.getLiveTimeline().getEvents().length;
-        if (after === before) return false; // no more history
+        // All-duplicate batches happen after gappy-sync timeline resets and
+        // must not abort the walk — only a null token means no more history.
+        if (room.oldState.paginationToken === null) break;
     }
     return room
         .getLiveTimeline()
@@ -1971,52 +2145,41 @@ export interface SpaceChildInfo {
     isKnocked?: boolean;
 }
 
+// Spaces whose direct /hierarchy call failed this session — the periodic
+// refresh would otherwise re-attempt (and re-403) every couple of seconds
+// while the user browses an unjoined sub-space.
+const hierarchyDirectFailed = new Set<string>();
+
 export async function fetchSpaceHierarchy(
     spaceId: string,
+    parentSpaceId?: string,
+    // How many levels below parentSpaceId the drilled space sits — the
+    // fallback must fetch one level deeper than that to see its children.
+    drillDepth = 1,
 ): Promise<SpaceChildInfo[]> {
     if (!matrixClient) return [];
-    try {
-        // depth 1 = direct children only; limit 200 rooms
-        const result = (await (
-            matrixClient as unknown as Record<string, Function>
-        )["getRoomHierarchy"](spaceId, 200, 1)) as {
-            rooms: Array<Record<string, unknown>>;
-        };
 
-        // Knocked rooms are tracked by the SDK too — keep them out of the
-        // "joined" set so they stay visible in Browse Channels (with a
-        // pending-request state) instead of silently disappearing.
-        const trackedRooms = matrixClient.getRooms();
-        const joinedIds = new Set(
-            trackedRooms
-                .filter((r) => r.getMyMembership() !== "knock")
-                .map((r) => r.roomId),
-        );
-        const knockedIds = new Set(
-            trackedRooms
-                .filter((r) => r.getMyMembership() === "knock")
-                .map((r) => r.roomId),
-        );
+    const getHierarchy = (id: string, depth: number) =>
+        (matrixClient as unknown as Record<string, Function>)[
+            "getRoomHierarchy"
+        ](id, 200, depth) as Promise<{
+            rooms: Array<Record<string, unknown>>;
+        }>;
+
+    let rooms: Array<Record<string, unknown>>;
+    const viaMap = new Map<string, string[]>();
+    try {
+        if (parentSpaceId && hierarchyDirectFailed.has(spaceId)) {
+            throw new Error("skipping direct hierarchy fetch");
+        }
+        // depth 1 = direct children only; limit 200 rooms
+        const result = await getHierarchy(spaceId, 1);
+        hierarchyDirectFailed.delete(spaceId);
+        rooms = result.rooms.filter((r) => r["room_id"] !== spaceId);
 
         // Build a via-servers map from the space entry's children_state
-        const viaMap = new Map<string, string[]>();
-        const spaceEntry = result.rooms.find((r) => r["room_id"] === spaceId);
-        if (spaceEntry) {
-            const childrenState =
-                (spaceEntry["children_state"] as Array<
-                    Record<string, unknown>
-                >) ?? [];
-            for (const ev of childrenState) {
-                if (ev["type"] === "m.space.child") {
-                    const childRoomId = ev["state_key"] as string;
-                    const via =
-                        ((ev["content"] as Record<string, unknown>)?.[
-                            "via"
-                        ] as string[]) ?? [];
-                    if (childRoomId && via.length) viaMap.set(childRoomId, via);
-                }
-            }
-        }
+        const slice = extractSubspaceChildren(result.rooms, spaceId);
+        if (slice) for (const [k, v] of slice.viaMap) viaMap.set(k, v);
 
         // Also fall back to the local room state for via servers
         const spaceRoom = matrixClient.getRoom(spaceId);
@@ -2034,31 +2197,72 @@ export async function fetchSpaceHierarchy(
                 }
             }
         }
-
-        return result.rooms
-            .filter((r) => r["room_id"] !== spaceId)
-            .map((r) => {
-                const mxcAvatar = r["avatar_url"] as string | undefined;
-                const roomId = r["room_id"] as string;
-                return {
-                    roomId,
-                    name: (r["name"] as string) || roomId,
-                    topic: r["topic"] as string | undefined,
-                    avatarUrl: mxcAvatar
-                        ? (mxcToHttp(mxcAvatar) ?? undefined)
-                        : undefined,
-                    numMembers: (r["num_joined_members"] as number) ?? 0,
-                    isJoined: joinedIds.has(roomId),
-                    via: viaMap.get(roomId) ?? [],
-                    isSpace: r["room_type"] === "m.space",
-                    joinRule: r["join_rule"] as string | undefined,
-                    isKnocked: knockedIds.has(roomId),
-                };
-            });
     } catch (err) {
-        console.error("Failed to fetch space hierarchy:", err);
-        return [];
+        // Continuwuity answers /hierarchy with 403 "This room does not
+        // exist" for spaces this server hasn't joined — including
+        // sub-spaces it lists as children of a joined parent. Walk in
+        // through the parent instead: its hierarchy one level deeper
+        // carries the sub-space's children (best effort — a page holds
+        // 200 rooms).
+        if (!parentSpaceId) {
+            console.error("Failed to fetch space hierarchy:", err);
+            return [];
+        }
+        hierarchyDirectFailed.add(spaceId);
+        try {
+            const parent = await getHierarchy(parentSpaceId, drillDepth + 1);
+            const slice = extractSubspaceChildren(parent.rooms, spaceId);
+            if (!slice) {
+                console.error("Failed to fetch space hierarchy:", err);
+                return [];
+            }
+            rooms = parent.rooms.filter((r) =>
+                slice.childIds.has(r["room_id"] as string),
+            );
+            for (const [k, v] of slice.viaMap) viaMap.set(k, v);
+        } catch (parentErr) {
+            console.error(
+                "Failed to fetch space hierarchy (direct and via parent):",
+                err,
+                parentErr,
+            );
+            return [];
+        }
     }
+
+    // Knocked rooms are tracked by the SDK too — keep them out of the
+    // "joined" set so they stay visible in Browse Channels (with a
+    // pending-request state) instead of silently disappearing.
+    const trackedRooms = matrixClient.getRooms();
+    const joinedIds = new Set(
+        trackedRooms
+            .filter((r) => r.getMyMembership() !== "knock")
+            .map((r) => r.roomId),
+    );
+    const knockedIds = new Set(
+        trackedRooms
+            .filter((r) => r.getMyMembership() === "knock")
+            .map((r) => r.roomId),
+    );
+
+    return rooms.map((r) => {
+        const mxcAvatar = r["avatar_url"] as string | undefined;
+        const roomId = r["room_id"] as string;
+        return {
+            roomId,
+            name: (r["name"] as string) || roomId,
+            topic: r["topic"] as string | undefined,
+            avatarUrl: mxcAvatar
+                ? (mxcToHttp(mxcAvatar) ?? undefined)
+                : undefined,
+            numMembers: (r["num_joined_members"] as number) ?? 0,
+            isJoined: joinedIds.has(roomId),
+            via: viaMap.get(roomId) ?? [],
+            isSpace: r["room_type"] === "m.space",
+            joinRule: r["join_rule"] as string | undefined,
+            isKnocked: knockedIds.has(roomId),
+        };
+    });
 }
 
 const SPACE_ORDER_KEY = "im.client.space_order";
@@ -2146,15 +2350,34 @@ export function getTombstone(room: Room): RoomTombstone | null {
 
 export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.joinRoom(
-        roomId,
-        via?.length ? { viaServers: via } : undefined,
-    );
+    try {
+        await matrixClient.joinRoom(
+            roomId,
+            via?.length ? { viaServers: via } : undefined,
+        );
+    } catch (err) {
+        // Some servers (continuwuity) give up on the first via candidate that
+        // answers "not found" instead of trying the rest — retry the remaining
+        // candidates one at a time before giving up ourselves.
+        let joined = false;
+        for (const server of viaFallbackCandidates(err, via)) {
+            try {
+                await matrixClient.joinRoom(roomId, { viaServers: [server] });
+                joined = true;
+                break;
+            } catch {
+                // candidate failed — try the next one
+            }
+        }
+        if (!joined) throw err;
+    }
+    await seedRoomStateIfMissing(roomId);
 }
 
 export async function joinRoomByAlias(alias: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     const result = await matrixClient.joinRoom(alias);
+    await seedRoomStateIfMissing(result.roomId);
     const room = matrixClient.getRoom(result.roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return result.roomId;

@@ -14,6 +14,7 @@
         mxcToHttp,
         fetchAttachmentBlob,
         findEventById,
+        fetchSingleEvent,
         sendReaction,
         sendEdit,
         deleteMessage,
@@ -27,6 +28,7 @@
         reportEvent,
         getRoom,
         joinRoom,
+        seedRoomStateIfMissing,
         getRoomIdForAlias,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
@@ -37,16 +39,22 @@
     } from "$lib/utils/reportMessage";
     import {
         parseMatrixLink,
+        mergeViaServers,
         linkifyMatrixIdentifiers,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { matrixErrorMessage } from "$lib/utils/knock";
 
     import {
         messagesState,
         bumpReactionTick,
     } from "$lib/stores/messages.svelte";
-    import { roomsState, navigateToRoom } from "$lib/stores/rooms.svelte";
+    import {
+        roomsState,
+        navigateToRoom,
+        setActiveSpace,
+    } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { tick } from "svelte";
     import { format } from "date-fns";
@@ -64,6 +72,7 @@
         closeModal,
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -341,10 +350,29 @@
             | string
             | undefined;
     });
-    const replyTarget = $derived(
+    const timelineReplyTarget = $derived(
         (void messagesState.timelineTick,
         inReplyToId ? findEventById(room, inReplyToId) : null),
     );
+    // Parents outside the loaded timeline window are fetched individually —
+    // modern clients (gomuks & friends) omit the legacy "> quote" fallback,
+    // so without this their replies render "Original message not loaded".
+    let fetchedReplyTarget = $state<MatrixEvent | null>(null);
+    $effect(() => {
+        const id = inReplyToId;
+        if (!id || timelineReplyTarget) {
+            fetchedReplyTarget = null;
+            return;
+        }
+        let cancelled = false;
+        fetchSingleEvent(room.roomId, id).then((ev) => {
+            if (!cancelled) fetchedReplyTarget = ev;
+        });
+        return () => {
+            cancelled = true;
+        };
+    });
+    const replyTarget = $derived(timelineReplyTarget ?? fetchedReplyTarget);
     const replyTargetSender = $derived(
         replyTarget ? getMemberName(room, replyTarget.getSender() ?? "") : null,
     );
@@ -641,13 +669,23 @@
         if (target.kind === "alias") {
             const resolved = await getRoomIdForAlias(target.alias);
             roomId = resolved.roomId;
-            via = [...new Set([...target.via, ...resolved.servers])];
+            via = mergeViaServers(target.via, resolved.servers);
         } else {
             roomId = target.roomId;
             via = target.via;
         }
         if (getRoom(roomId)?.getMyMembership() !== "join") {
             await joinRoom(roomId, via);
+        } else {
+            // Already joined, but possibly as a state-less stub (see
+            // seedRoomStateIfMissing) — heal before deciding how to open it.
+            await seedRoomStateIfMissing(roomId);
+        }
+        // A space link focuses the space; opening it as a chat room would
+        // render an empty timeline with a live composer.
+        if (getRoom(roomId)?.isSpaceRoom()) {
+            setActiveSpace(roomId);
+            return;
         }
         if (roomId === room.roomId) {
             if (target.eventId) jumpToReply(target.eventId);
@@ -657,9 +695,9 @@
     }
 
     // Svelte action: open Matrix links (matrix.to permalinks, matrix: URIs,
-    // mention anchors) in-app — join if needed, then switch rooms — instead
-    // of letting the SPA navigate away to matrix.to. User links are a noop
-    // with a tooltip until a profile UI exists.
+    // mention anchors) in-app — user links open the profile card; room and
+    // alias links join if needed, then switch rooms — instead of letting the
+    // SPA navigate away to matrix.to.
     function matrixLinks(node: HTMLElement) {
         function onClick(e: MouseEvent) {
             if (e.defaultPrevented) return;
@@ -670,12 +708,18 @@
             const target = parseMatrixLink(anchor.getAttribute("href") ?? "");
             if (!target) return;
             e.preventDefault();
-            if (target.kind === "user") return;
-            navigateToMatrixTarget(target).catch((err) =>
-                console.error("Failed to open Matrix link:", err),
-            );
+            if (target.kind === "user") {
+                openProfileCard(target.userId, anchor as HTMLElement);
+                return;
+            }
+            navigateToMatrixTarget(target).catch((err) => {
+                console.error("Failed to open Matrix link:", err);
+                showErrorToast(
+                    matrixErrorMessage(err, "Could not open the Matrix link"),
+                );
+            });
         }
-        // Tooltip fallback for user links — there is no profile UI to open.
+        // Full-id tooltip on user links (the anchor text may be a nickname).
         function decorate() {
             node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
                 if (a.dataset.matrixLinkReady) return;
@@ -842,8 +886,12 @@
                             >{fallbackLine.text || "…"}</span
                         >
                     {:else}
+                        <!-- A fetched parent with no previewable content was
+                             deleted; otherwise the fetch is pending/failed. -->
                         <span class="text-xs text-discord-textMuted italic"
-                            >Original message not loaded</span
+                            >{replyTarget
+                                ? "Original message deleted"
+                                : "Original message not loaded"}</span
                         >
                     {/if}
                 </div>

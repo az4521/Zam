@@ -8,6 +8,7 @@
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
+    import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -370,7 +371,11 @@
         hierarchyRefreshTimer = setTimeout(() => {
             hierarchyRefreshTimer = null;
             if (roomsState.activeSpaceId !== spaceId) return;
-            fetchSpaceHierarchy(spaceId).then((hierarchy) => {
+            fetchSpaceHierarchy(
+                spaceId,
+                roomsState.spaceDrillParentId ?? undefined,
+                roomsState.spaceDrillDepth || 1,
+            ).then((hierarchy) => {
                 if (roomsState.activeSpaceId === spaceId) {
                     roomsState.spaceHierarchy = hierarchy;
                 }
@@ -469,6 +474,10 @@
         const pingAudio = new Audio("/sounds/ping.mp3");
 
         const unsubRooms = onRoomUpdate(() => scheduleRefreshRooms());
+        // Room updates that resolved between the first refreshRooms() and
+        // this subscription (e.g. state seeding right after PREPARED) would
+        // otherwise never re-derive the lists — catch up once.
+        scheduleRefreshRooms();
         const unsubTimeline = onTimelineEvent((event, room) => {
             bumpUnreadTick();
             if (event.getSender() === getOwnUserId()) return;
@@ -616,7 +625,11 @@
 
         if (spaceId) {
             roomsState.hierarchyLoading = true;
-            fetchSpaceHierarchy(spaceId).then((hierarchy) => {
+            fetchSpaceHierarchy(
+                spaceId,
+                roomsState.spaceDrillParentId ?? undefined,
+                roomsState.spaceDrillDepth || 1,
+            ).then((hierarchy) => {
                 // Only apply if the space hasn't changed while we were fetching
                 if (roomsState.activeSpaceId === spaceId) {
                     roomsState.spaceHierarchy = hierarchy;
@@ -816,3 +829,5 @@
         }}
     />
 {/if}
+
+<ErrorToasts />

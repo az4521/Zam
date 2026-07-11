@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseMatrixLink, linkifyMatrixIdentifiers } from "./matrixLinks";
+import {
+    parseMatrixLink,
+    linkifyMatrixIdentifiers,
+    mergeViaServers,
+} from "./matrixLinks";
 
 describe("parseMatrixLink — matrix.to URLs", () => {
     it("parses a user link", () => {
@@ -335,5 +339,35 @@ describe("linkifyMatrixIdentifiers — bare mentions in escaped plain text", () 
         expect(
             linkifyMatrixIdentifiers("<span data-mx-spoiler>@a:x.org</span>"),
         ).toBe(`<span data-mx-spoiler>${link("@a:x.org")}</span>`);
+    });
+});
+
+describe("mergeViaServers", () => {
+    it("puts the link's explicit vias first, then resolution servers", () => {
+        expect(
+            mergeViaServers(["a.org", "b.org"], ["c.org", "d.org"], 5),
+        ).toEqual(["a.org", "b.org", "c.org", "d.org"]);
+    });
+
+    it("dedupes servers that appear in both lists", () => {
+        expect(
+            mergeViaServers(["a.org", "b.org"], ["b.org", "a.org", "c.org"], 5),
+        ).toEqual(["a.org", "b.org", "c.org"]);
+    });
+
+    it("caps the total number of candidates", () => {
+        const resolved = Array.from({ length: 889 }, (_, i) => `s${i}.org`);
+        const via = mergeViaServers(["a.org"], resolved, 5);
+        expect(via).toEqual(["a.org", "s0.org", "s1.org", "s2.org", "s3.org"]);
+    });
+
+    it("handles empty inputs", () => {
+        expect(mergeViaServers([], [], 5)).toEqual([]);
+        expect(mergeViaServers([], ["a.org"], 5)).toEqual(["a.org"]);
+    });
+
+    it("defaults to a small cap", () => {
+        const resolved = Array.from({ length: 20 }, (_, i) => `s${i}.org`);
+        expect(mergeViaServers([], resolved).length).toBeLessThanOrEqual(5);
     });
 });
