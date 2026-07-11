@@ -20,6 +20,7 @@ import type {
     MatrixError,
     Room,
     RoomMember,
+    ReceiptType,
 } from "matrix-js-sdk";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
@@ -27,6 +28,7 @@ import {
     supportsPasswordUia,
     type DeviceInfo,
 } from "$lib/utils/deviceSessions";
+import { receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
     buildThreadReplyContent,
@@ -1673,7 +1675,10 @@ export async function loadContextAroundEvent(
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
-    await matrixClient.sendReadReceipt(event);
+    const receiptType = receiptTypeForSetting(
+        settingsState.privateReadReceipts,
+    ) as ReceiptType;
+    await matrixClient.sendReadReceipt(event, receiptType);
     await matrixClient.setRoomReadMarkers(event.getRoomId()!, event.getId()!);
 }
 

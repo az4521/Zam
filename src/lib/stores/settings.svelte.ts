@@ -27,6 +27,9 @@ export const settingsState = $state({
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
+    /** Send private read receipts (m.read.private): the server still tracks
+     *  what you've read, but other users can't see it. Default is public. */
+    privateReadReceipts: readBool("privateReadReceipts", false),
 });
 
 export function setShowAllEvents(value: boolean): void {
@@ -37,4 +40,9 @@ export function setShowAllEvents(value: boolean): void {
 export function setKeepSidebarOpen(value: boolean): void {
     settingsState.keepSidebarOpen = value;
     writeBool("keepSidebarOpen", value);
+}
+
+export function setPrivateReadReceipts(value: boolean): void {
+    settingsState.privateReadReceipts = value;
+    writeBool("privateReadReceipts", value);
 }
