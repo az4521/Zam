@@ -471,8 +471,12 @@
     }
 
     const roomId = $derived(room.roomId);
-    const roomName = $derived(getRoomDisplayName(room));
-    const topic = $derived(getRoomTopic(room));
+    // Tick dependency: the Room mutates in place when state arrives late
+    // (late-seeded federated joins, renames) — same reference, new name.
+    const roomName = $derived(
+        (void roomsState.roomsTick, getRoomDisplayName(room)),
+    );
+    const topic = $derived((void roomsState.roomsTick, getRoomTopic(room)));
     let contextMessages = $state<MatrixEvent[] | null>(null);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);

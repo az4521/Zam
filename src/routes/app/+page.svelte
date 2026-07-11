@@ -373,6 +373,7 @@
             fetchSpaceHierarchy(
                 spaceId,
                 roomsState.spaceDrillParentId ?? undefined,
+                roomsState.spaceDrillDepth || 1,
             ).then((hierarchy) => {
                 if (roomsState.activeSpaceId === spaceId) {
                     roomsState.spaceHierarchy = hierarchy;
@@ -472,6 +473,10 @@
         const pingAudio = new Audio("/sounds/ping.mp3");
 
         const unsubRooms = onRoomUpdate(() => scheduleRefreshRooms());
+        // Room updates that resolved between the first refreshRooms() and
+        // this subscription (e.g. state seeding right after PREPARED) would
+        // otherwise never re-derive the lists — catch up once.
+        scheduleRefreshRooms();
         const unsubTimeline = onTimelineEvent((event, room) => {
             bumpUnreadTick();
             if (event.getSender() === getOwnUserId()) return;
@@ -622,6 +627,7 @@
             fetchSpaceHierarchy(
                 spaceId,
                 roomsState.spaceDrillParentId ?? undefined,
+                roomsState.spaceDrillDepth || 1,
             ).then((hierarchy) => {
                 // Only apply if the space hasn't changed while we were fetching
                 if (roomsState.activeSpaceId === spaceId) {

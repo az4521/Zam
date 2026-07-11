@@ -72,6 +72,8 @@ export const roomsState = $state({
      */
     spaceDrillParentId: null as string | null,
     spaceDrillName: null as string | null,
+    /** Levels below the joined ancestor (1 = direct child, 2 = nested, …). */
+    spaceDrillDepth: 0,
     hierarchyLoading: false,
     isLoading: false,
     unreadTick: 0,
@@ -85,7 +87,7 @@ export function bumpUnreadTick(): void {
 
 export function setActiveSpace(
     spaceId: string | null,
-    drill?: { parentId: string; name?: string },
+    drill?: { parentId: string; name?: string; depth?: number },
 ): void {
     if (spaceId === roomsState.activeSpaceId) return;
     roomsState.activeSpaceId = spaceId;
@@ -93,6 +95,7 @@ export function setActiveSpace(
     roomsState.spaceHierarchy = [];
     roomsState.spaceDrillParentId = drill?.parentId ?? null;
     roomsState.spaceDrillName = drill?.name ?? null;
+    roomsState.spaceDrillDepth = drill ? (drill.depth ?? 1) : 0;
     // When drilling into a sub-space, persist the ancestor: booting into a
     // possibly-unjoined sub-space would strand the user in an empty view
     // (no parent context for the hierarchy fallback).
@@ -124,6 +127,7 @@ export function navigateToRoom(roomId: string): void {
         roomsState.spaceHierarchy = [];
         roomsState.spaceDrillParentId = null;
         roomsState.spaceDrillName = null;
+        roomsState.spaceDrillDepth = 0;
         saveLastSpace(targetSpace);
     }
     setActiveRoom(roomId);

@@ -27,6 +27,7 @@
         reportEvent,
         getRoom,
         joinRoom,
+        seedRoomStateIfMissing,
         getRoomIdForAlias,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
@@ -47,7 +48,11 @@
         messagesState,
         bumpReactionTick,
     } from "$lib/stores/messages.svelte";
-    import { roomsState, navigateToRoom } from "$lib/stores/rooms.svelte";
+    import {
+        roomsState,
+        navigateToRoom,
+        setActiveSpace,
+    } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { tick } from "svelte";
     import { format } from "date-fns";
@@ -649,6 +654,16 @@
         }
         if (getRoom(roomId)?.getMyMembership() !== "join") {
             await joinRoom(roomId, via);
+        } else {
+            // Already joined, but possibly as a state-less stub (see
+            // seedRoomStateIfMissing) — heal before deciding how to open it.
+            await seedRoomStateIfMissing(roomId);
+        }
+        // A space link focuses the space; opening it as a chat room would
+        // render an empty timeline with a live composer.
+        if (getRoom(roomId)?.isSpaceRoom()) {
+            setActiveSpace(roomId);
+            return;
         }
         if (roomId === room.roomId) {
             if (target.eventId) jumpToReply(target.eventId);

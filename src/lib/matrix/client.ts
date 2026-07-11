@@ -272,9 +272,20 @@ export async function startSync(
 
     initialSyncComplete = false;
     matrixClient.on(ClientEvent.Sync, (state) => {
-        if (state === "PREPARED") initialSyncComplete = true;
+        if (state === "PREPARED") {
+            initialSyncComplete = true;
+            seedStatelessRooms();
+        }
         onStateChange(state as string);
     });
+    // Membership changes are how new joins surface — heal stubs right away
+    // (covers joins from other devices too, not just this client's wrappers).
+    matrixClient.on(
+        "Room.myMembership" as never,
+        ((room: Room) => {
+            if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
+        }) as never,
+    );
 
     // Fired when any request comes back with M_UNKNOWN_TOKEN (token revoked,
     // password changed, device deleted, server data wiped). Without this the
@@ -1782,8 +1793,83 @@ export async function sendEdit(
     );
 }
 
+// --- State-less stub healing ------------------------------------------------
+// Continuwuity never delivers rooms joined over federation in incremental
+// /sync: the SDK is left holding a state-less stub ("Empty room", no
+// m.room.create, isSpaceRoom() false) that pollutes room lists and can't be
+// recognized as a space. The server demonstrably HAS the full state (a plain
+// /rooms/{id}/state returns it), so fetch it and seed the SDK's store.
+
+const seedingRooms = new Set<string>();
+const roomUpdateSubscribers = new Set<() => void>();
+
+function roomLacksState(room: Room): boolean {
+    return (
+        room.getMyMembership() === "join" &&
+        !room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("m.room.create", "")
+    );
+}
+
+/**
+ * Fetch and inject the room's current state if the SDK only holds a
+ * state-less stub. No-op (false) when the room already has state, isn't
+ * known, or the fetch fails. Resolves true when state was seeded.
+ */
+export async function seedRoomStateIfMissing(roomId: string): Promise<boolean> {
+    if (!matrixClient) return false;
+    const room = matrixClient.getRoom(roomId);
+    if (!room || !roomLacksState(room) || seedingRooms.has(roomId))
+        return false;
+    seedingRooms.add(roomId);
+    try {
+        const events = await matrixClient.roomState(roomId);
+        const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+        if (!state) return false;
+        state.setStateEvents(events.map((e) => new MatrixEvent(e)));
+        room.recalculate();
+        // The timeline suffers the same omission as the state — backfill so
+        // the room doesn't open as an empty chat despite having history.
+        await matrixClient.scrollback(room, 30).catch(() => {});
+        for (const cb of roomUpdateSubscribers) cb();
+        return true;
+    } catch (err) {
+        console.error("Failed to seed room state:", err);
+        return false;
+    } finally {
+        seedingRooms.delete(roomId);
+    }
+}
+
+/** Heal every state-less joined room the SDK knows about (boot pass). */
+function seedStatelessRooms(): void {
+    if (!matrixClient) return;
+    for (const room of matrixClient.getRooms()) {
+        if (roomLacksState(room)) {
+            void seedRoomStateIfMissing(room.roomId);
+        } else if (
+            room.getMyMembership() === "join" &&
+            !room.isSpaceRoom() &&
+            room.getLiveTimeline().getEvents().length === 0
+        ) {
+            // State present but an empty timeline (seeded before backfill
+            // existed, or the sync omission's timeline variant) — backfill
+            // so the room doesn't open as an empty chat.
+            void matrixClient
+                .scrollback(room, 30)
+                .then(() => {
+                    for (const cb of roomUpdateSubscribers) cb();
+                })
+                .catch(() => {});
+        }
+    }
+}
+
 export function onRoomUpdate(callback: () => void): () => void {
     if (!matrixClient) return () => {};
+    roomUpdateSubscribers.add(callback);
     const syncHandler = (state: string) => {
         if (state === "PREPARED" || state === "SYNCING") callback();
     };
@@ -1791,6 +1877,7 @@ export function onRoomUpdate(callback: () => void): () => void {
     matrixClient.on("Room.myMembership" as never, callback as never);
     matrixClient.on(RoomEvent.Tags as never, callback as never);
     return () => {
+        roomUpdateSubscribers.delete(callback);
         matrixClient?.off(ClientEvent.Sync, syncHandler as never);
         matrixClient?.off("Room.myMembership" as never, callback as never);
         matrixClient?.off(RoomEvent.Tags as never, callback as never);
@@ -1980,6 +2067,9 @@ const hierarchyDirectFailed = new Set<string>();
 export async function fetchSpaceHierarchy(
     spaceId: string,
     parentSpaceId?: string,
+    // How many levels below parentSpaceId the drilled space sits — the
+    // fallback must fetch one level deeper than that to see its children.
+    drillDepth = 1,
 ): Promise<SpaceChildInfo[]> {
     if (!matrixClient) return [];
 
@@ -2034,7 +2124,7 @@ export async function fetchSpaceHierarchy(
         }
         hierarchyDirectFailed.add(spaceId);
         try {
-            const parent = await getHierarchy(parentSpaceId, 2);
+            const parent = await getHierarchy(parentSpaceId, drillDepth + 1);
             const slice = extractSubspaceChildren(parent.rooms, spaceId);
             if (!slice) {
                 console.error("Failed to fetch space hierarchy:", err);
@@ -2178,11 +2268,13 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
         roomId,
         via?.length ? { viaServers: via } : undefined,
     );
+    await seedRoomStateIfMissing(roomId);
 }
 
 export async function joinRoomByAlias(alias: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     const result = await matrixClient.joinRoom(alias);
+    await seedRoomStateIfMissing(result.roomId);
     const room = matrixClient.getRoom(result.roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return result.roomId;
