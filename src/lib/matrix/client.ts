@@ -1934,12 +1934,21 @@ export function onRoomUpdate(callback: () => void): () => void {
     };
 }
 
+/**
+ * Page one batch of older history into the live timeline. Returns whether
+ * more history remains.
+ *
+ * "No new events added" is NOT the end-of-history signal: after a gappy
+ * sync resets the timeline, pagination restarts near "now" and the first
+ * batches are all duplicates of already-known events — but the token still
+ * advances past them. Treating an all-duplicate batch as the end froze
+ * pagination permanently in busy rooms. The reliable signal is the SDK
+ * nulling the backward token, which it only does on an empty server page.
+ */
 export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
-    const before = room.getLiveTimeline().getEvents().length;
     await matrixClient.scrollback(room, 30);
-    const after = room.getLiveTimeline().getEvents().length;
-    return after > before;
+    return room.oldState.paginationToken !== null;
 }
 
 /** Pages backwards until `eventId` appears in the live timeline or `maxBatches` is exhausted.
@@ -1958,10 +1967,10 @@ export async function loadMessagesUntilEvent(
                 .some((e) => e.getId() === eventId)
         )
             return true;
-        const before = room.getLiveTimeline().getEvents().length;
         await matrixClient.scrollback(room, 50);
-        const after = room.getLiveTimeline().getEvents().length;
-        if (after === before) return false; // no more history
+        // All-duplicate batches happen after gappy-sync timeline resets and
+        // must not abort the walk — only a null token means no more history.
+        if (room.oldState.paginationToken === null) break;
     }
     return room
         .getLiveTimeline()
