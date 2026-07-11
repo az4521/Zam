@@ -139,6 +139,17 @@
         window.location.assign("/");
     }
 
+    function backToActive(): void {
+        if (auth.isAuthenticated) {
+            // SPA-entered add mode: the session is still running.
+            goto("/app");
+        } else {
+            // Full-page load of /?add: restore was skipped, so boot the
+            // active account through the normal "/" restore path.
+            window.location.assign("/");
+        }
+    }
+
     async function handleLogin() {
         error = "";
         statusMsg = "";
@@ -393,10 +404,10 @@
 
             {#if isAddAccountMode && accountsState.registry.activeUserId}
                 <div class="mt-3 text-center">
-                    <a
-                        href="/app"
+                    <button
+                        onclick={backToActive}
                         class="text-sm text-discord-accent hover:underline font-medium"
-                        >← Back to {accountsState.registry.activeUserId}</a
+                        >← Back to {accountsState.registry.activeUserId}</button
                     >
                 </div>
             {/if}
