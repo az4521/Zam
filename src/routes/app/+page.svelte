@@ -626,7 +626,7 @@
         }
     });
 
-    function handleLogout() {
+    async function handleLogout() {
         const client = getClient();
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
@@ -634,10 +634,16 @@
         if (client) teardownWebPush(client).catch(() => {});
         clearNativeSession().catch(() => {});
         clearServiceWorkerAuth();
-        logout().catch(() => {});
-        // Clear local session and leave immediately.
+        // Give the server-side token invalidation and the local store wipe a
+        // bounded window to finish, then leave via a full reload so no store
+        // state survives into the successor account's boot.
+        await Promise.race([
+            logout(),
+            new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+        // Clear local session and leave.
         clearSession();
-        goto("/");
+        window.location.assign("/");
     }
 
     // Derive directly from activeRoomId (a stable string) rather than the room arrays,

@@ -352,8 +352,12 @@ export async function logout(): Promise<void> {
             // ignore
         }
     }
-    matrixClient = null;
-    matrixStore = null;
+    // Only release the module slot if we still own it — a successor account's
+    // client may have been created (via reconnect) while the awaits were in flight.
+    if (matrixClient === client) {
+        matrixClient = null;
+        matrixStore = null;
+    }
 }
 
 export function stopClient(): void {
