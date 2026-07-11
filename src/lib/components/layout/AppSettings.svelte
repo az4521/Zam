@@ -90,6 +90,7 @@
         CAN_INSTALL_UPDATE,
         checkForUpdate,
         openReleasePage,
+        reloadToLatest,
         type UpdateInfo,
     } from "$lib/update";
     import {
@@ -679,6 +680,7 @@
     let updateChecking = $state(false);
     let updateInfo = $state<UpdateInfo | null>(null);
     let updateError = $state("");
+    let updateReloading = $state(false);
 
     async function checkUpdates() {
         updateChecking = true;
@@ -690,6 +692,19 @@
             updateError = e?.message ?? "Failed to check for updates.";
         } finally {
             updateChecking = false;
+        }
+    }
+
+    async function applyUpdate(info: UpdateInfo) {
+        if (CAN_INSTALL_UPDATE) {
+            openReleasePage(info.url);
+            return;
+        }
+        updateReloading = true;
+        try {
+            await reloadToLatest();
+        } catch {
+            updateReloading = false;
         }
     }
 
@@ -2696,15 +2711,23 @@
                                         </p>
                                     </div>
                                     <button
-                                        onclick={() =>
-                                            openReleasePage(info.url)}
-                                        disabled={!CAN_INSTALL_UPDATE}
+                                        onclick={() => applyUpdate(info)}
+                                        disabled={updateReloading}
                                         title={CAN_INSTALL_UPDATE
                                             ? ""
-                                            : "Reload the page to get the latest web version"}
+                                            : "Reload to fetch the latest version"}
                                         class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-discord-accent"
-                                        >Update</button
                                     >
+                                        {#if updateReloading}
+                                            Reloading…
+                                        {:else if CAN_INSTALL_UPDATE}
+                                            Update
+                                        {:else}
+                                            Reload to update
+                                        {/if}
+                                    </button
+                                    >
+
                                 </div>
                             {:else}
                                 <p class="text-sm text-discord-textMuted">

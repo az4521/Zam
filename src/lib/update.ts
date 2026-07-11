@@ -86,3 +86,33 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 export function openReleasePage(url: string): void {
     window.open(url, "_blank", "noopener");
 }
+
+/**
+ * Force this tab/PWA to pick up a newly deployed build. Web/PWA installs have
+ * no installer to run — "updating" means making sure a stale service worker
+ * or HTTP-cached HTML/JS bundle isn't still being served, then reloading.
+ *
+ * A plain `location.reload()` isn't reliable here: an installed PWA has no
+ * address bar to hard-refresh from, and a normal reload still respects the
+ * HTTP cache, which can keep serving the old `index.html` (and therefore the
+ * old hashed JS bundle) indefinitely depending on how the static build is
+ * hosted.
+ */
+export async function reloadToLatest(): Promise<void> {
+    if ("serviceWorker" in navigator) {
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            await reg?.update();
+        } catch {
+            // Ignore — still attempt the reload below regardless.
+        }
+    }
+    try {
+        // Bypass the HTTP cache so a stale cached document doesn't just get
+        // handed straight back to us by the reload() call that follows.
+        await fetch(location.href, { cache: "reload" });
+    } catch {
+        // Offline or blocked — fall through and reload anyway.
+    }
+    location.reload();
+}
