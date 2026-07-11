@@ -14,12 +14,25 @@
         auth,
         saveSession,
         loadStoredSession,
-        clearSession,
+        expireActiveSession,
+        loadLastHomeserver,
     } from "$lib/stores/auth.svelte";
+    import { accountsState, switchActive } from "$lib/stores/accounts.svelte";
     import { DEFAULT_HOMESERVER } from "$lib/config";
     import { requestWebPushPermission } from "$lib/webPush";
+    import Avatar from "$lib/components/ui/Avatar.svelte";
 
-    let homeserverUrl = $state(DEFAULT_HOMESERVER);
+    let homeserverUrl = $state(loadLastHomeserver() ?? DEFAULT_HOMESERVER);
+    // "/?add": logging in an additional account — skip auto-restore and
+    // offer a way back to the running session.
+    let isAddAccountMode = $state(false);
+    // Signed-in accounts offered by the "continue as" list (only rendered
+    // when no account is active, e.g. after a session expiry).
+    const dormantAccounts = $derived(
+        accountsState.registry.activeUserId === null
+            ? accountsState.registry.accounts
+            : [],
+    );
     let username = $state("");
     let password = $state("");
     let registrationToken = $state("");
@@ -36,7 +49,7 @@
     function handleSessionExpired() {
         stopClient();
         clearServiceWorkerAuth();
-        clearSession();
+        expireActiveSession();
         auth.error = "Your session has expired. Please sign in again.";
         isLoading = false;
         statusMsg = "";
@@ -49,9 +62,12 @@
             error = auth.error;
             auth.error = null;
         }
+        isAddAccountMode = new URLSearchParams(window.location.search).has(
+            "add",
+        );
         // Try to restore a previous session
         const stored = loadStoredSession();
-        if (stored) {
+        if (stored && !isAddAccountMode) {
             statusMsg = "Restoring session…";
             isLoading = true;
             (async () => {
@@ -98,6 +114,13 @@
             homeserverUrl: result.homeserverUrl,
         });
 
+        if (isAddAccountMode) {
+            // Booting the new account through the normal restore path (full
+            // page load) guarantees no store state from the previous
+            // account survives the switch.
+            window.location.assign("/");
+            return;
+        }
         initServiceWorker();
         statusMsg = "Syncing…";
         goto("/app");
@@ -109,6 +132,11 @@
                 error = "Sync error. Check your connection.";
             }
         }, handleSessionExpired);
+    }
+
+    function continueAs(userId: string): void {
+        switchActive(userId);
+        window.location.assign("/");
     }
 
     async function handleLogin() {
@@ -184,10 +212,12 @@
                 </div>
                 {#if mode === "login"}
                     <h1 class="text-2xl font-bold text-discord-textPrimary">
-                        Welcome back!
+                        {isAddAccountMode ? "Add an account" : "Welcome back!"}
                     </h1>
                     <p class="text-discord-textSecondary mt-1">
-                        Sign in to your Matrix account
+                        {isAddAccountMode
+                            ? "Sign in with another Matrix account"
+                            : "Sign in to your Matrix account"}
                     </p>
                 {:else}
                     <h1 class="text-2xl font-bold text-discord-textPrimary">
@@ -360,6 +390,53 @@
                     </p>
                 {/if}
             </div>
+
+            {#if isAddAccountMode && accountsState.registry.activeUserId}
+                <div class="mt-3 text-center">
+                    <a
+                        href="/app"
+                        class="text-sm text-discord-accent hover:underline font-medium"
+                        >← Back to {accountsState.registry.activeUserId}</a
+                    >
+                </div>
+            {/if}
+
+            {#if dormantAccounts.length > 0}
+                <div class="mt-5 pt-4 border-t border-discord-divider">
+                    <p
+                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                    >
+                        Or continue as
+                    </p>
+                    <div class="space-y-1">
+                        {#each dormantAccounts as account (account.userId)}
+                            <button
+                                onclick={() => continueAs(account.userId)}
+                                disabled={isLoading}
+                                class="w-full flex items-center gap-2.5 p-2 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-left transition-colors disabled:opacity-50"
+                            >
+                                <Avatar
+                                    src={account.avatarUrl ?? null}
+                                    name={account.displayName ?? account.userId}
+                                    id={account.userId}
+                                    size={28}
+                                />
+                                <span class="flex-1 min-w-0">
+                                    <span
+                                        class="block text-sm text-discord-textPrimary truncate"
+                                        >{account.displayName ??
+                                            account.userId}</span
+                                    >
+                                    <span
+                                        class="block text-xs text-discord-textMuted truncate"
+                                        >{account.userId}</span
+                                    >
+                                </span>
+                            </button>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
 
             <p
                 class="text-center text-xs text-discord-textMuted mt-4 leading-relaxed"
