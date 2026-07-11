@@ -1008,9 +1008,11 @@
                                         Keep room list open
                                     </p>
                                     <p class="text-xs text-discord-textMuted">
-                                        Don't auto-close the room list after
-                                        opening a room, space or Home (applies
-                                        to the drawer on small screens).
+                                        Don't auto-close the room list when
+                                        switching between spaces or Home.
+                                        Opening a room or DM always closes it
+                                        (applies to the drawer on small
+                                        screens).
                                     </p>
                                 </div>
                                 <button

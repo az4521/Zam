@@ -1,6 +1,8 @@
 import type { Room } from "matrix-js-sdk";
 import { findSpaceForRoom } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
+import { interfaceState } from "./interface.svelte";
+import { settingsState } from "./settings.svelte";
 
 const STORAGE_KEY = "matrix_last_room_by_space";
 const SPACE_KEY = "matrix_last_space";
@@ -63,12 +65,19 @@ export function setActiveSpace(spaceId: string | null): void {
     roomsState.activeRoomId = getLastRoom(spaceId);
     roomsState.spaceHierarchy = [];
     saveLastSpace(spaceId);
+    // Switching space/Home only swaps the room list — keep the mobile drawer
+    // open for browsing when the user has pinned it in Settings > Behavior.
+    if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
+        interfaceState.leftOpen = false;
 }
 
 export function setActiveRoom(roomId: string): void {
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
     saveLastRoom(roomsState.activeSpaceId, roomId);
+    // Picking a room/DM is a destination: always dismiss the mobile drawer,
+    // regardless of the keep-open setting.
+    if (interfaceState.isMobile) interfaceState.leftOpen = false;
 }
 
 /**
