@@ -24,6 +24,9 @@
         resendMessage,
         deleteFailedMessage,
         reportEvent,
+        getRoom,
+        joinRoom,
+        getRoomIdForAlias,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
@@ -31,12 +34,17 @@
         buildReport,
         reportErrorMessage,
     } from "$lib/utils/reportMessage";
+    import {
+        parseMatrixLink,
+        linkifyMatrixIdentifiers,
+        type MatrixLinkTarget,
+    } from "$lib/utils/matrixLinks";
 
     import {
         messagesState,
         bumpReactionTick,
     } from "$lib/stores/messages.svelte";
-    import { roomsState } from "$lib/stores/rooms.svelte";
+    import { roomsState, navigateToRoom } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { tick } from "svelte";
     import { format } from "date-fns";
@@ -584,12 +592,14 @@
     }
 
     function plainToHtml(text: string): string {
-        return text
+        const escaped = text
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
-            .replace(/\|\|(.+?)\|\|/gs, "<span data-mx-spoiler>$1</span>")
-            .replace(/\n/g, "<br>");
+            .replace(/\|\|(.+?)\|\|/gs, "<span data-mx-spoiler>$1</span>");
+        // Escaping above keeps this injection-safe; linkify before <br> so
+        // newlines still count as mention boundaries.
+        return linkifyMatrixIdentifiers(escaped).replace(/\n/g, "<br>");
     }
 
     // Svelte action: make [data-mx-spoiler] spans toggle-reveal on click
@@ -617,6 +627,70 @@
 
     function sanitize(html: string): string {
         return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
+    }
+
+    async function navigateToMatrixTarget(
+        target: Exclude<MatrixLinkTarget, { kind: "user" }>,
+    ): Promise<void> {
+        let roomId: string;
+        let via: string[];
+        if (target.kind === "alias") {
+            const resolved = await getRoomIdForAlias(target.alias);
+            roomId = resolved.roomId;
+            via = [...new Set([...target.via, ...resolved.servers])];
+        } else {
+            roomId = target.roomId;
+            via = target.via;
+        }
+        if (getRoom(roomId)?.getMyMembership() !== "join") {
+            await joinRoom(roomId, via);
+        }
+        if (roomId === room.roomId) {
+            if (target.eventId) jumpToReply(target.eventId);
+        } else {
+            navigateToRoom(roomId);
+        }
+    }
+
+    // Svelte action: open Matrix links (matrix.to permalinks, matrix: URIs,
+    // mention anchors) in-app — join if needed, then switch rooms — instead
+    // of letting the SPA navigate away to matrix.to. User links are a noop
+    // with a tooltip until a profile UI exists.
+    function matrixLinks(node: HTMLElement) {
+        function onClick(e: MouseEvent) {
+            if (e.defaultPrevented) return;
+            // Modified/middle clicks keep the browser default (new tab).
+            if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+            const anchor = (e.target as Element).closest?.("a[href]");
+            if (!anchor || !node.contains(anchor)) return;
+            const target = parseMatrixLink(anchor.getAttribute("href") ?? "");
+            if (!target) return;
+            e.preventDefault();
+            if (target.kind === "user") return;
+            navigateToMatrixTarget(target).catch((err) =>
+                console.error("Failed to open Matrix link:", err),
+            );
+        }
+        // Tooltip fallback for user links — there is no profile UI to open.
+        function decorate() {
+            node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
+                if (a.dataset.matrixLinkReady) return;
+                const target = parseMatrixLink(a.getAttribute("href")!);
+                if (!target) return;
+                a.dataset.matrixLinkReady = "1";
+                if (target.kind === "user") a.title = target.userId;
+            });
+        }
+        decorate();
+        const observer = new MutationObserver(decorate);
+        observer.observe(node, { childList: true, subtree: true });
+        node.addEventListener("click", onClick);
+        return {
+            destroy() {
+                observer.disconnect();
+                node.removeEventListener("click", onClick);
+            },
+        };
     }
 </script>
 
@@ -773,6 +847,7 @@
         {:else if msgtype === "m.image"}
             {#if body()}
                 <div
+                    use:matrixLinks
                     class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 >
                     {@html withTwemoji(plainToHtml(body()))}
@@ -1084,6 +1159,7 @@
         {:else}
             <div
                 use:spoilers
+                use:matrixLinks
                 class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 class:emoji-only={emojiOnly}
             >
