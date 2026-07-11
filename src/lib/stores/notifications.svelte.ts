@@ -1,5 +1,7 @@
 import type { Room } from "matrix-js-sdk";
 import { getRoom, getRoomsInSpace, getSpaceChildIds } from "$lib/matrix/client";
+import { auth } from "./auth.svelte";
+import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
 
 export interface LoudNotification {
     roomId: string;
@@ -23,24 +25,28 @@ const STORAGE_KEY = "matrix_loud_notifications";
 
 function loadFromStorage(): Record<string, LoudNotification[]> {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+        return JSON.parse(readScoped(STORAGE_KEY, auth.userId) ?? "{}");
     } catch {
         return {};
     }
 }
 
 function persist(byRoom: Record<string, LoudNotification[]>): void {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(byRoom));
-    } catch {
-        // ignore
-    }
+    writeScoped(STORAGE_KEY, auth.userId, JSON.stringify(byRoom));
 }
 
 export const notificationsState = $state({
-    byRoom: loadFromStorage() as Record<string, LoudNotification[]>,
+    // Populated by reloadNotificationsFromStorage() once auth is known —
+    // module init runs before the active account is established.
+    byRoom: {} as Record<string, LoudNotification[]>,
     tick: 0,
 });
+
+/** (Re)load the active account's persisted notifications. App-boot call. */
+export function reloadNotificationsFromStorage(): void {
+    notificationsState.byRoom = loadFromStorage();
+    notificationsState.tick++;
+}
 
 function bump() {
     notificationsState.tick++;

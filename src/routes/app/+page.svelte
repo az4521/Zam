@@ -29,6 +29,7 @@
     import {
         markNotification,
         clearReadNotifications,
+        reloadNotificationsFromStorage,
     } from "$lib/stores/notifications.svelte";
     import {
         getSpaces,
@@ -522,6 +523,7 @@
                 clearReadNotifications(room, userId);
             }
         });
+        reloadNotificationsFromStorage();
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
