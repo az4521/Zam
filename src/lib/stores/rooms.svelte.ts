@@ -43,6 +43,7 @@ export const roomsState = $state({
     orphanRooms: [] as Room[],
     directRooms: [] as Room[],
     invitedRooms: [] as Room[],
+    knockedRooms: [] as Room[],
     activeSpaceId: loadLastSpace() as string | null,
     activeRoomId: getLastRoom(loadLastSpace()) as string | null,
     showInbox: false,

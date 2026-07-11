@@ -36,6 +36,7 @@
         getDirectRooms,
         getRoomsInSpace,
         getInvitedRooms,
+        getKnockedRooms,
         getSpaceLayout,
         fetchSpaceHierarchy,
         getRoom,
@@ -398,6 +399,7 @@
         roomsState.orphanRooms = getOrphanRooms();
         roomsState.directRooms = getDirectRooms();
         roomsState.invitedRooms = getInvitedRooms();
+        roomsState.knockedRooms = getKnockedRooms();
         if (roomsState.activeSpaceId) {
             roomsState.roomsInSpace = getRoomsInSpace(roomsState.activeSpaceId);
             scheduleHierarchyRefresh(roomsState.activeSpaceId);

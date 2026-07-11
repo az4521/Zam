@@ -42,6 +42,7 @@ import {
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
+import { buildKnockOpts } from "$lib/utils/knock";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -1824,6 +1825,8 @@ export interface SpaceChildInfo {
     isJoined: boolean;
     via: string[];
     isSpace?: boolean;
+    joinRule?: string;
+    isKnocked?: boolean;
 }
 
 export async function fetchSpaceHierarchy(
@@ -1838,7 +1841,20 @@ export async function fetchSpaceHierarchy(
             rooms: Array<Record<string, unknown>>;
         };
 
-        const joinedIds = new Set(matrixClient.getRooms().map((r) => r.roomId));
+        // Knocked rooms are tracked by the SDK too — keep them out of the
+        // "joined" set so they stay visible in Browse Channels (with a
+        // pending-request state) instead of silently disappearing.
+        const trackedRooms = matrixClient.getRooms();
+        const joinedIds = new Set(
+            trackedRooms
+                .filter((r) => r.getMyMembership() !== "knock")
+                .map((r) => r.roomId),
+        );
+        const knockedIds = new Set(
+            trackedRooms
+                .filter((r) => r.getMyMembership() === "knock")
+                .map((r) => r.roomId),
+        );
 
         // Build a via-servers map from the space entry's children_state
         const viaMap = new Map<string, string[]>();
@@ -1893,6 +1909,8 @@ export async function fetchSpaceHierarchy(
                     isJoined: joinedIds.has(roomId),
                     via: viaMap.get(roomId) ?? [],
                     isSpace: r["room_type"] === "m.space",
+                    joinRule: r["join_rule"] as string | undefined,
+                    isKnocked: knockedIds.has(roomId),
                 };
             });
     } catch (err) {
@@ -2173,6 +2191,37 @@ export async function acceptInvite(roomId: string): Promise<void> {
 }
 
 export async function rejectInvite(roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.leave(roomId);
+}
+
+/**
+ * Knock on a room (request to join). Resolves to the room id; the membership
+ * becomes "knock" via sync. Knocking an already-knocked room is a server-side
+ * no-op.
+ */
+export async function knockRoom(
+    roomIdOrAlias: string,
+    reason?: string,
+    via?: string[],
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const result = await matrixClient.knockRoom(
+        roomIdOrAlias,
+        buildKnockOpts(reason, via),
+    );
+    return result.room_id;
+}
+
+export function getKnockedRooms(): Room[] {
+    if (!matrixClient) return [];
+    return matrixClient
+        .getRooms()
+        .filter((r) => r.getMyMembership() === "knock");
+}
+
+/** Retract a pending knock by leaving the room. */
+export async function cancelKnock(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.leave(roomId);
 }

@@ -6,6 +6,7 @@
         getRoomTopic,
         acceptInvite,
         rejectInvite,
+        cancelKnock,
         getInviteSender,
     } from "$lib/matrix/client";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -41,6 +42,17 @@
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
     }
+
+    async function cancelRequest(roomId: string) {
+        busyIds = new Set([...busyIds, roomId]);
+        try {
+            await cancelKnock(roomId);
+        } catch (e) {
+            console.error("Failed to cancel join request", e);
+        } finally {
+            busyIds = new Set([...busyIds].filter((id) => id !== roomId));
+        }
+    }
 </script>
 
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -62,7 +74,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
-        {#if roomsState.invitedRooms.length === 0}
+        {#if roomsState.invitedRooms.length === 0 && roomsState.knockedRooms.length === 0}
             <div
                 class="flex flex-col items-center justify-center h-full text-center py-16"
             >
@@ -87,11 +99,13 @@
             </div>
         {:else}
             <div class="max-w-lg mx-auto flex flex-col gap-3">
-                <p
-                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
-                >
-                    Pending invites — {roomsState.invitedRooms.length}
-                </p>
+                {#if roomsState.invitedRooms.length > 0}
+                    <p
+                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                    >
+                        Pending invites — {roomsState.invitedRooms.length}
+                    </p>
+                {/if}
                 {#each roomsState.invitedRooms as room (room.roomId)}
                     {@const busy = busyIds.has(room.roomId)}
                     {@const sender = getInviteSender(room)}
@@ -145,6 +159,53 @@
                         </div>
                     </div>
                 {/each}
+                {#if roomsState.knockedRooms.length > 0}
+                    <p
+                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 {roomsState
+                            .invitedRooms.length > 0
+                            ? 'mt-3'
+                            : ''}"
+                    >
+                        Pending join requests — {roomsState.knockedRooms.length}
+                    </p>
+                    {#each roomsState.knockedRooms as room (room.roomId)}
+                        {@const busy = busyIds.has(room.roomId)}
+                        <div
+                            class="flex items-center gap-4 p-4 rounded-lg bg-discord-backgroundSecondary border border-discord-divider"
+                        >
+                            <Avatar
+                                src={getRoomAvatar(room)}
+                                name={getRoomDisplayName(room)}
+                                size={48}
+                            />
+                            <div class="flex-1 min-w-0">
+                                <p
+                                    class="font-semibold text-discord-textPrimary truncate"
+                                >
+                                    {getRoomDisplayName(room)}
+                                </p>
+                                <p class="text-xs text-discord-textMuted">
+                                    You asked to join — waiting for someone to
+                                    let you in.
+                                </p>
+                            </div>
+                            <div class="flex gap-2 flex-shrink-0">
+                                <button
+                                    onclick={() => cancelRequest(room.roomId)}
+                                    disabled={busy}
+                                    class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {#if busy}
+                                        <div
+                                            class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
+                                        ></div>
+                                    {/if}
+                                    Cancel request
+                                </button>
+                            </div>
+                        </div>
+                    {/each}
+                {/if}
             </div>
         {/if}
     </div>

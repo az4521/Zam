@@ -4,10 +4,12 @@
         createSpace,
         createDirectMessage,
         joinRoomByAlias,
+        knockRoom,
         canAddRoomToSpace,
         searchUserDirectory,
         type UserSearchResult,
     } from "$lib/matrix/client";
+    import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -101,12 +103,24 @@
         }
     }
 
+    // Knock-to-join flow (join-room mode only)
+    let knockOffered = $state(false);
+    let knockReason = $state("");
+    let knockSent = $state(false);
+
+    function resetKnock() {
+        knockOffered = false;
+        knockReason = "";
+        knockSent = false;
+    }
+
     function open(m: Mode) {
         onaction?.();
         mode = m;
         input1 = "";
         input2 = "";
         error = "";
+        resetKnock();
         openModal("quick-actions", () => (mode = null));
     }
 
@@ -152,6 +166,22 @@
             close();
         } catch (e: any) {
             error = e?.data?.error ?? e?.message ?? "Something went wrong";
+            if (mode === "join-room" && shouldOfferKnock(e, undefined)) {
+                knockOffered = true;
+            }
+        } finally {
+            loading = false;
+        }
+    }
+
+    async function submitKnock() {
+        error = "";
+        loading = true;
+        try {
+            await knockRoom(input1.trim(), knockReason);
+            knockSent = true;
+        } catch (e) {
+            error = matrixErrorMessage(e, "Could not send the join request");
         } finally {
             loading = false;
         }
@@ -160,7 +190,9 @@
     function onKeydown(e: KeyboardEvent) {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            submit();
+            if (mode === "join-room" && knockSent) close();
+            else if (mode === "join-room" && knockOffered) submitKnock();
+            else submit();
         }
     }
 </script>
@@ -373,17 +405,43 @@
                         {/if}
                     </div>
                 {:else}
-                    <div>
-                        <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                            >Room address or ID</label
-                        >
-                        <input
-                            bind:value={input1}
-                            placeholder="#room:server.com"
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
-                        />
+                    <div class="flex flex-col gap-3">
+                        <div>
+                            <!-- svelte-ignore a11y_label_has_associated_control -->
+                            <label
+                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                >Room address or ID</label
+                            >
+                            <input
+                                bind:value={input1}
+                                oninput={() => {
+                                    resetKnock();
+                                    error = "";
+                                }}
+                                placeholder="#room:server.com"
+                                class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                            />
+                        </div>
+                        {#if knockSent}
+                            <p class="text-sm text-discord-textSecondary">
+                                Request sent — you'll be able to join once
+                                someone lets you in.
+                            </p>
+                        {:else if knockOffered}
+                            <div>
+                                <p
+                                    class="text-sm text-discord-textMuted mb-1.5"
+                                >
+                                    You can't join this room directly, but you
+                                    can request to join it.
+                                </p>
+                                <input
+                                    bind:value={knockReason}
+                                    placeholder="Reason (optional)"
+                                    class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                                />
+                            </div>
+                        {/if}
                     </div>
                 {/if}
 
@@ -396,24 +454,43 @@
                         onclick={close}
                         disabled={loading}
                         class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                        >Cancel</button
+                        >{mode === "join-room" && knockSent
+                            ? "Close"
+                            : "Cancel"}</button
                     >
-                    <button
-                        onclick={submit}
-                        disabled={loading || !input1.trim()}
-                        class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {#if loading}
-                            <div
-                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                            ></div>
-                        {/if}
-                        {#if mode === "create-room"}Create
-                        {:else if mode === "create-space"}Create
-                        {:else if mode === "create-dm"}Open DM
-                        {:else}Join
-                        {/if}
-                    </button>
+                    {#if mode === "join-room" && knockSent}
+                        <!-- Request already sent; nothing left to submit -->
+                    {:else if mode === "join-room" && knockOffered}
+                        <button
+                            onclick={submitKnock}
+                            disabled={loading || !input1.trim()}
+                            class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {#if loading}
+                                <div
+                                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                ></div>
+                            {/if}
+                            Request to join
+                        </button>
+                    {:else}
+                        <button
+                            onclick={submit}
+                            disabled={loading || !input1.trim()}
+                            class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {#if loading}
+                                <div
+                                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                ></div>
+                            {/if}
+                            {#if mode === "create-room"}Create
+                            {:else if mode === "create-space"}Create
+                            {:else if mode === "create-dm"}Open DM
+                            {:else}Join
+                            {/if}
+                        </button>
+                    {/if}
                 </div>
             </div>
         </div>
