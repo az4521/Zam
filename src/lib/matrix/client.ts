@@ -45,6 +45,7 @@ import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts } from "$lib/utils/knock";
+import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
     isPollStartEventType,
@@ -2349,10 +2350,27 @@ export function getTombstone(room: Room): RoomTombstone | null {
 
 export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.joinRoom(
-        roomId,
-        via?.length ? { viaServers: via } : undefined,
-    );
+    try {
+        await matrixClient.joinRoom(
+            roomId,
+            via?.length ? { viaServers: via } : undefined,
+        );
+    } catch (err) {
+        // Some servers (continuwuity) give up on the first via candidate that
+        // answers "not found" instead of trying the rest — retry the remaining
+        // candidates one at a time before giving up ourselves.
+        let joined = false;
+        for (const server of viaFallbackCandidates(err, via)) {
+            try {
+                await matrixClient.joinRoom(roomId, { viaServers: [server] });
+                joined = true;
+                break;
+            } catch {
+                // candidate failed — try the next one
+            }
+        }
+        if (!joined) throw err;
+    }
     await seedRoomStateIfMissing(roomId);
 }
 
