@@ -24,6 +24,7 @@ body {
 }
 
 :root {
+    color-scheme: dark;
     /* ── Brand (blurple) scale ───────────────────────── */
     --brand-100: #f8f9fd;
     --brand-130: #f2f4fc;
@@ -119,6 +120,14 @@ body {
     --discord-spoiler-bg: #1e1f22;
     --discord-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
 
+    /* ── Syntax highlighting ─────────────────────────── */
+    --syntax-keyword: #ff7ab2;
+    --syntax-string: #a8cc8c;
+    --syntax-number: #d2a8ff;
+    --syntax-title: #82aaff;
+    --syntax-comment: #8b949e;
+    --syntax-variable: #f8c555;
+
     /* ── Avatar palette (deterministic bg colours) ───── */
     --avatar-color-0: var(--brand-500);
     --avatar-color-1: #3ba55c;
@@ -128,6 +137,49 @@ body {
     --avatar-color-5: #00b0f0;
     --avatar-color-6: #9475f5;
     --avatar-color-7: #23a559;
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --discord-bg: #f2f3f5;
+    --discord-bg-secondary: #ffffff;
+    --discord-bg-tertiary: #e3e5e8;
+    --discord-bg-dark: #dfe1e5;
+    --discord-bg-hover: #e7e9ed;
+    --discord-bg-selected: #d8dbe0;
+    --discord-bg-rgb: 242 243 245;
+    --discord-bg-secondary-rgb: 255 255 255;
+
+    --discord-text-primary: #2e3338;
+    --discord-text-secondary: #4e5058;
+    --discord-text-muted: #6d6f78;
+
+    --discord-accent: #5865c7;
+    --discord-accent-hover: #4752a8;
+    --discord-accent-rgb: 88 101 199;
+    --discord-accent-hover-rgb: 71 82 168;
+    --discord-divider: #d4d7dc;
+
+    --discord-online: #248046;
+    --discord-idle: #b87900;
+    --discord-dnd: #d83c3e;
+    --discord-offline: #80848e;
+    --discord-danger: #d83c3e;
+    --discord-danger-hover: #b92d30;
+    --discord-warning: #a86600;
+    --discord-positive: #1f7a43;
+    --discord-star: #a86600;
+
+    --discord-spoiler-bg: #c9ccd1;
+    --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
+
+    --syntax-keyword: #a626a4;
+    --syntax-string: #40781f;
+    --syntax-number: #7c3ab5;
+    --syntax-title: #285db5;
+    --syntax-comment: #687078;
+    --syntax-variable: #986000;
 }
 
 * {

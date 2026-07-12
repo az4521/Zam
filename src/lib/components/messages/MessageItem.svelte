@@ -4,6 +4,9 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
+    import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
+    import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
+    import { Forward } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -25,18 +28,12 @@
         unpinMessage,
         resendMessage,
         deleteFailedMessage,
-        reportEvent,
         getRoom,
         joinRoom,
         seedRoomStateIfMissing,
         getRoomIdForAlias,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
-    import {
-        canSubmitReport,
-        buildReport,
-        reportErrorMessage,
-    } from "$lib/utils/reportMessage";
     import {
         parseMatrixLink,
         mergeViaServers,
@@ -61,6 +58,10 @@
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
     import {
+        highlightCodeBlocks,
+        mapOutsideCode,
+    } from "$lib/utils/codeHighlight";
+    import {
         isFavouriteGif,
         addFavouriteGif,
         removeFavouriteGif,
@@ -73,6 +74,11 @@
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import {
+        settingsState,
+        getDoubleTapReaction,
+    } from "$lib/stores/settings.svelte";
+    import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -142,69 +148,84 @@
         }
     });
     let confirmingDelete = $state(false);
+    let showForwardDialog = $state(false);
+    let previousTap: TapPoint | null = null;
 
-    // Report dialog ("report-message" modal slot: one open across all messages,
-    // central Escape/back dismissal like the reaction picker).
-    let showReportDialog = $state(false);
-    let reportDialogEl: HTMLDivElement | undefined = $state();
-    let reportBtnEl: HTMLButtonElement | undefined = $state();
-    let reportTextareaEl: HTMLTextAreaElement | undefined = $state();
-    let reportBelow = $state(false);
-    let reportReason = $state("");
-    let reportOffensive = $state(false);
-    let reportStatus = $state<"idle" | "sending" | "sent" | "error">("idle");
-    let reportError = $state("");
-
-    function openReportDialog() {
-        reportReason = "";
-        reportOffensive = false;
-        reportStatus = "idle";
-        reportError = "";
-        showReportDialog = true;
-        openModal("report-message", () => {
-            showReportDialog = false;
+    function openForwardDialog() {
+        showForwardDialog = true;
+        openModal("forward-message", () => {
+            showForwardDialog = false;
             interfaceState.selectedMessageId = null;
         });
-        setTimeout(() => reportTextareaEl?.focus(), 0);
     }
 
-    async function submitReport() {
-        if (!canSubmitReport(reportReason) || reportStatus === "sending")
+    async function runDoubleTapAction() {
+        if (isFailed) return;
+        interfaceState.selectedMessageId = null;
+        const action = isOwnMessage
+            ? settingsState.ownDoubleTapAction
+            : settingsState.otherDoubleTapAction;
+        if (action === "none") return;
+        if (action === "reply") {
+            onReply(event);
             return;
-        reportStatus = "sending";
-        reportError = "";
+        }
+        if (action === "edit") {
+            if (
+                isOwnMessage &&
+                eventType === "m.room.message" &&
+                msgtype === "m.text"
+            ) {
+                startEdit();
+                tick().then(() => editTextareaEl?.focus());
+            }
+            return;
+        }
         try {
-            const { reason, score } = buildReport(
-                reportReason,
-                reportOffensive,
+            await sendReaction(
+                room.roomId,
+                eventId,
+                getDoubleTapReaction(roomsState.activeSpaceId),
             );
-            await reportEvent(room.roomId, eventId, score, reason);
-            reportStatus = "sent";
-            setTimeout(() => {
-                if (showReportDialog) closeModal();
-            }, 1200);
         } catch (err) {
-            reportStatus = "error";
-            reportError = reportErrorMessage(err);
+            showErrorToast(
+                err instanceof Error ? err.message : "Failed to react",
+            );
         }
     }
 
-    $effect(() => {
-        if (showReportDialog && !interfaceState.isTouchscreen) {
-            const handler = (e: MouseEvent) => {
-                const t = e.target as Node;
-                if (
-                    reportDialogEl &&
-                    !reportDialogEl.contains(t) &&
-                    !reportBtnEl?.contains(t)
-                ) {
-                    closeModal();
-                }
-            };
-            document.addEventListener("mousedown", handler);
-            return () => document.removeEventListener("mousedown", handler);
+    function onMessageTouchEnd(e: TouchEvent) {
+        if (!interfaceState.isTouchscreen || e.changedTouches.length !== 1)
+            return;
+        const target = e.target as Element | null;
+        if (
+            target?.closest(
+                "button, a, input, textarea, select, video, audio, [role='button'], [contenteditable='true'], .cursor-pointer",
+            )
+        ) {
+            previousTap = null;
+            return;
         }
-    });
+        if (window.getSelection()?.toString()) {
+            previousTap = null;
+            return;
+        }
+        const touch = e.changedTouches[0];
+        const current = {
+            at: Date.now(),
+            x: touch.clientX,
+            y: touch.clientY,
+        };
+        if (isDoubleTap(previousTap, current)) {
+            e.preventDefault();
+            previousTap = null;
+            runDoubleTapAction();
+        } else {
+            previousTap = current;
+        }
+    }
+
+    let showReportDialog = $state(false);
 
     let keyboardOffset = $state(0);
     $effect(() => {
@@ -534,7 +555,10 @@
     });
 
     function withTwemoji(html: string): string {
-        return renderHtml(html, "twemoji");
+        const emojiRendered = mapOutsideCode(html, (fragment) =>
+            renderHtml(fragment, "twemoji"),
+        );
+        return highlightCodeBlocks(emojiRendered);
     }
 
     function formatTime(ts: number, timeOnly = false): string {
@@ -775,7 +799,7 @@
     bind:this={rootEl}
     class="{interfaceState.isTouchscreen
         ? ''
-        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors {loudHighlight
+        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation {loudHighlight
         ? 'bg-yellow-500/10 border-l-2 border-yellow-500'
         : ''}"
     class:pt-3={showHeader}
@@ -787,6 +811,7 @@
         if (interfaceState.isTouchscreen)
             interfaceState.selectedMessageId = mobileSelected ? null : eventId;
     }}
+    ontouchend={onMessageTouchEnd}
     data-event-id={eventId}
 >
     <!-- Avatar column -->
@@ -1485,105 +1510,29 @@
                 </svg>
             </button>
         {/if}
+        {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
+            <button
+                onclick={openForwardDialog}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title="Forward message"
+            >
+                <Forward size={16} />
+            </button>
+        {/if}
         {#if !isOwnMessage && !isFailed}
-            <div class="relative">
-                <button
-                    bind:this={reportBtnEl}
-                    onclick={() => {
-                        if (showReportDialog) {
-                            closeModal();
-                        } else {
-                            reportBelow =
-                                (reportBtnEl?.getBoundingClientRect().top ??
-                                    400) < 400;
-                            openReportDialog();
-                        }
-                    }}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                    title="Report message"
-                >
-                    <svg
-                        class="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" />
-                    </svg>
-                </button>
-                {#if showReportDialog}
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    {#if interfaceState.isTouchscreen}<div
-                            class="fixed inset-0 z-40"
-                            onclick={closeModal}
-                        ></div>{/if}
-                    <div
-                        bind:this={reportDialogEl}
-                        class="{interfaceState.isTouchscreen
-                            ? 'fixed left-2 right-2 z-50'
-                            : reportBelow
-                              ? 'absolute top-full right-0 mt-1 z-50 w-72'
-                              : 'absolute bottom-full right-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-left"
-                        style={interfaceState.isTouchscreen
-                            ? `bottom: ${keyboardOffset + 8}px;`
-                            : ""}
-                    >
-                        {#if reportStatus === "sent"}
-                            <p class="text-sm text-discord-textPrimary">
-                                Report sent
-                            </p>
-                        {:else}
-                            <p
-                                class="text-xs font-semibold uppercase text-discord-textMuted mb-2"
-                            >
-                                Report message
-                            </p>
-                            <textarea
-                                bind:this={reportTextareaEl}
-                                bind:value={reportReason}
-                                rows="3"
-                                placeholder="Why are you reporting this message?"
-                                disabled={reportStatus === "sending"}
-                                class="w-full resize-none rounded bg-discord-backgroundSecondary border border-discord-divider p-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:border-discord-accent"
-                            ></textarea>
-                            <label
-                                class="flex items-center gap-2 mt-2 text-xs text-discord-textMuted select-none cursor-pointer"
-                            >
-                                <input
-                                    type="checkbox"
-                                    bind:checked={reportOffensive}
-                                    disabled={reportStatus === "sending"}
-                                />
-                                Mark as extremely offensive
-                            </label>
-                            {#if reportStatus === "error"}
-                                <p class="text-xs text-discord-danger mt-2">
-                                    {reportError}
-                                </p>
-                            {/if}
-                            <div class="flex justify-end gap-2 mt-2">
-                                <button
-                                    onclick={closeModal}
-                                    class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                                    >Cancel</button
-                                >
-                                <button
-                                    onclick={submitReport}
-                                    disabled={!canSubmitReport(reportReason) ||
-                                        reportStatus === "sending"}
-                                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >{reportStatus === "sending"
-                                        ? "Reporting…"
-                                        : "Report"}</button
-                                >
-                            </div>
-                        {/if}
-                    </div>
-                {/if}
-            </div>
+            <MessageReportAction
+                roomId={room.roomId}
+                {eventId}
+                {keyboardOffset}
+                bind:open={showReportDialog}
+            />
         {/if}
     </div>
 </div>
+
+{#if showForwardDialog}
+    <ForwardMessageDialog {event} />
+{/if}
 
 <style>
     /* Spoiler tags */
@@ -1643,6 +1592,46 @@
     :global(.message-body pre) {
         overflow-x: auto;
         max-width: 100%;
+        margin: 0.35rem 0;
+        border: 1px solid var(--discord-divider);
+        border-radius: 6px;
+        background: var(--discord-bg-tertiary);
+        padding: 0.75rem;
+    }
+    :global(.message-body pre code) {
+        font-family: "Roboto Mono", Consolas, "Liberation Mono", monospace;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+    }
+    :global(.message-body .hljs-keyword),
+    :global(.message-body .hljs-selector-tag),
+    :global(.message-body .hljs-literal) {
+        color: var(--syntax-keyword);
+    }
+    :global(.message-body .hljs-string),
+    :global(.message-body .hljs-attr),
+    :global(.message-body .hljs-template-tag) {
+        color: var(--syntax-string);
+    }
+    :global(.message-body .hljs-number),
+    :global(.message-body .hljs-symbol),
+    :global(.message-body .hljs-bullet) {
+        color: var(--syntax-number);
+    }
+    :global(.message-body .hljs-title),
+    :global(.message-body .hljs-function),
+    :global(.message-body .hljs-section) {
+        color: var(--syntax-title);
+    }
+    :global(.message-body .hljs-comment),
+    :global(.message-body .hljs-quote) {
+        color: var(--syntax-comment);
+        font-style: italic;
+    }
+    :global(.message-body .hljs-variable),
+    :global(.message-body .hljs-params),
+    :global(.message-body .hljs-type) {
+        color: var(--syntax-variable);
     }
     :global(.message-body table) {
         display: block;

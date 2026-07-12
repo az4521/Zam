@@ -3,10 +3,24 @@
     <head>
         <meta charset="utf-8" />
         <link rel="icon" href="%sveltekit.assets%/favicon.png" />
-        <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+        <link
+            rel="icon"
+            href="%sveltekit.assets%/favicon.svg"
+            type="image/svg+xml"
+        />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
         <meta name="theme-color" content="#313338" />
+        <script>
+            try {
+                if (localStorage.getItem("settings:theme") === "light") {
+                    document.documentElement.dataset.theme = "light";
+                    document
+                        .querySelector('meta[name="theme-color"]')
+                        ?.setAttribute("content", "#f2f3f5");
+                }
+            } catch {}
+        </script>
         <link rel="apple-touch-icon" href="%sveltekit.assets%/favicon.png" />
         %sveltekit.head%
     </head>

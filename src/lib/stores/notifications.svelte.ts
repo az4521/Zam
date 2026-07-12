@@ -127,6 +127,16 @@ export function getAllNotifications(): LoudNotification[] {
     return all.sort((a, b) => b.ts - a.ts);
 }
 
+/** Count of unread events that appear in the notifications inbox. */
+export function getNotificationCount(): number {
+    void notificationsState.tick;
+    let count = 0;
+    for (const entries of Object.values(notificationsState.byRoom)) {
+        count += entries.length;
+    }
+    return count;
+}
+
 /** Count of loud notifications only — drives the red-dot badge. */
 export function getLoudNotificationCount(): number {
     void notificationsState.tick;

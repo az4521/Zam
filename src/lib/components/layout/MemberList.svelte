@@ -125,7 +125,7 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p
-                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-white transition-colors"
+                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
                             >
                                 {member.name}
                             </p>
@@ -167,7 +167,7 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p
-                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-white transition-colors"
+                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
                             >
                                 {member.name}
                             </p>

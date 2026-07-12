@@ -1,8 +1,16 @@
 <script lang="ts">
     import type { MatrixEvent, Room } from "matrix-js-sdk";
-    import { getPollView, fetchPollRelations } from "$lib/matrix/client";
-    import { messagesState } from "$lib/stores/messages.svelte";
+    import {
+        getPollView,
+        fetchPollRelations,
+        sendPollResponse,
+    } from "$lib/matrix/client";
+    import {
+        messagesState,
+        bumpReactionTick,
+    } from "$lib/stores/messages.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     interface Props {
         event: MatrixEvent;
@@ -41,6 +49,55 @@
         void roomsState.roomsTick;
         return getPollView(room, event, fetchedRelations);
     });
+
+    let draftAnswers = $state<string[] | null>(null);
+    let isVoting = $state(false);
+    const selectedAnswers = $derived(draftAnswers ?? view?.myAnswers ?? []);
+
+    function toggleAnswer(answerId: string) {
+        if (!view || view.ended || isVoting) return;
+        if (view.poll.maxSelections === 1) {
+            const next = selectedAnswers.includes(answerId) ? [] : [answerId];
+            draftAnswers = next;
+            submitVote(next);
+            return;
+        }
+        const current = selectedAnswers;
+        draftAnswers = current.includes(answerId)
+            ? current.filter((id) => id !== answerId)
+            : current.length < view.poll.maxSelections
+              ? [...current, answerId]
+              : current;
+    }
+
+    async function submitVote(selection = selectedAnswers) {
+        if (!view || view.ended || isVoting) return;
+        isVoting = true;
+        try {
+            await sendPollResponse(room.roomId, event, selection);
+            bumpReactionTick();
+            draftAnswers = null;
+        } catch (err) {
+            showErrorToast(
+                err instanceof Error ? err.message : "Failed to submit vote",
+            );
+            isVoting = false;
+            return;
+        }
+
+        const pollId = event.getId();
+        if (pollId) {
+            try {
+                fetchedRelations = await fetchPollRelations(
+                    room.roomId,
+                    pollId,
+                );
+            } catch (err) {
+                console.warn("[poll] vote sent but refresh failed", err);
+            }
+        }
+        isVoting = false;
+    }
 
     function pct(count: number, total: number): number {
         return total === 0 ? 0 : Math.round((count / total) * 100);
@@ -87,11 +144,17 @@
                 {@const count = view.counts[answer.id] ?? 0}
                 {@const isWinner =
                     view.ended && view.winners.includes(answer.id)}
-                {@const isMine = view.myAnswers.includes(answer.id)}
-                <div
+                {@const isMine = selectedAnswers.includes(answer.id)}
+                <button
+                    type="button"
+                    onclick={() => toggleAnswer(answer.id)}
+                    disabled={view.ended || isVoting}
+                    aria-pressed={isMine}
                     class="rounded border px-2.5 py-1.5 {isWinner
                         ? 'border-discord-accent bg-discord-accent/10'
-                        : 'border-discord-divider bg-discord-backgroundTertiary'}"
+                        : isMine
+                          ? 'border-discord-accent bg-discord-accent/10'
+                          : 'border-discord-divider bg-discord-backgroundTertiary'} text-left transition-colors disabled:cursor-default enabled:hover:border-discord-accent/60"
                 >
                     <div class="flex items-center justify-between gap-2">
                         <span
@@ -101,7 +164,7 @@
                             {#if isMine}
                                 <span
                                     class="text-xs text-discord-accent font-semibold whitespace-nowrap"
-                                    >✓ your vote</span
+                                    >✓ selected</span
                                 >
                             {/if}
                         </span>
@@ -125,9 +188,20 @@
                             ></div>
                         </div>
                     {/if}
-                </div>
+                </button>
             {/each}
         </div>
+
+        {#if !view.ended && view.poll.maxSelections > 1}
+            <button
+                type="button"
+                onclick={() => submitVote()}
+                disabled={isVoting || draftAnswers === null}
+                class="mt-2 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {isVoting ? "Submitting…" : "Submit vote"}
+            </button>
+        {/if}
 
         <p class="mt-2 text-xs text-discord-textMuted">
             {#if view.showResults}
@@ -136,9 +210,8 @@
             {:else}
                 Votes are hidden
             {/if}
-            {#if !view.ended}
-                · voting from this app isn't supported yet
-            {/if}
+            {#if !view.ended && isVoting}
+                · saving vote…{/if}
         </p>
     </div>
 {:else}

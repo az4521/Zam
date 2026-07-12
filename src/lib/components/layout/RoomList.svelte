@@ -551,7 +551,7 @@
                             <span
                                 class="w-2 h-2 rounded-full {loud || highlight
                                     ? 'bg-discord-danger'
-                                    : 'bg-white'} flex-shrink-0"
+                                    : 'bg-discord-textPrimary'} flex-shrink-0"
                             ></span>
                         {:else}
                             <span
@@ -825,7 +825,7 @@
                                     class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
                                     highlight
                                         ? 'bg-discord-danger'
-                                        : 'bg-white'}"
+                                        : 'bg-discord-textPrimary'}"
                                 ></span>
                             {:else}
                                 {@const presence = dmPresence.get(room.roomId)}

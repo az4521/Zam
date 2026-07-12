@@ -1,7 +1,6 @@
 /**
- * Pure MSC3381 poll logic: parsing `m.poll.start` content and aggregating
- * response/end events into tallies. Read-only — building vote/create content
- * is intentionally out of scope. Both the stable (`m.poll.*`) and unstable
+ * Pure MSC3381 poll logic: parsing poll content, building responses, and
+ * aggregating response/end events into tallies. Both the stable (`m.poll.*`) and unstable
  * (`org.matrix.msc3381.poll.*`) event names and content keys are accepted,
  * since deployed clients (Element included) still send the unstable form.
  */
@@ -132,6 +131,32 @@ export function extractResponseAnswers(content: unknown): string[] | null {
     if (!response) return null;
     if (!Array.isArray(response.answers)) return null;
     return response.answers.filter((a): a is string => typeof a === "string");
+}
+
+/** Build a poll response in the same event-name family as the poll start. */
+export function buildPollResponse(
+    pollStartType: string,
+    pollStartId: string,
+    answerIds: string[],
+): { eventType: string; content: Record<string, unknown> } {
+    const stable = pollStartType === "m.poll.start";
+    const responseKey = stable
+        ? "m.poll.response"
+        : "org.matrix.msc3381.poll.response";
+    const textKey = stable ? "m.text" : "org.matrix.msc1767.text";
+    return {
+        eventType: responseKey,
+        content: {
+            [textKey]: stable
+                ? [{ body: "Poll response", mimetype: "text/plain" }]
+                : "Poll response",
+            [responseKey]: { answers: [...new Set(answerIds)] },
+            "m.relates_to": {
+                rel_type: "m.reference",
+                event_id: pollStartId,
+            },
+        },
+    };
 }
 
 export interface PollResponse {

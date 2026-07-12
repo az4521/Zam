@@ -1,6 +1,6 @@
 {
     "name": "matrix-client",
-    "version": "0.5.1",
+    "version": "0.6.0",
     "private": true,
     "main": "electron/main.cjs",
     "scripts": {
@@ -72,8 +72,7 @@
         "tailwindcss": "^3.4.17",
         "typescript": "^5.8.2",
         "vite": "^6.3.5",
-        "vitest": "^4.1.10",
-        "jsdom": "^29.1.1"
+        "vitest": "^4.1.10"
     },
     "type": "module",
     "dependencies": {
@@ -87,6 +86,7 @@
         "@twemoji/api": "^17.0.2",
         "date-fns": "^4.1.0",
         "dompurify": "^3.4.11",
+        "highlight.js": "^11.11.1",
         "lucide-svelte": "^0.509.0",
         "marked": "^15.0.7",
         "matrix-js-sdk": "^34.1.0",

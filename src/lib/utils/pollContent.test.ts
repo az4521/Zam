@@ -8,9 +8,40 @@ import {
     aggregatePollVotes,
     canEndPoll,
     pickPollEndTs,
+    buildPollResponse,
     type PollStartData,
     type PollResponse,
 } from "./pollContent";
+
+describe("buildPollResponse — stable and unstable payloads", () => {
+    it("builds a stable m.reference response and deduplicates answers", () => {
+        expect(
+            buildPollResponse("m.poll.start", "$poll", ["a", "a", "b"]),
+        ).toEqual({
+            eventType: "m.poll.response",
+            content: {
+                "m.text": [{ body: "Poll response", mimetype: "text/plain" }],
+                "m.poll.response": { answers: ["a", "b"] },
+                "m.relates_to": {
+                    rel_type: "m.reference",
+                    event_id: "$poll",
+                },
+            },
+        });
+    });
+
+    it("uses the deployed MSC3381 names for an unstable poll", () => {
+        const result = buildPollResponse(
+            "org.matrix.msc3381.poll.start",
+            "$poll",
+            [],
+        );
+        expect(result.eventType).toBe("org.matrix.msc3381.poll.response");
+        expect(result.content["org.matrix.msc3381.poll.response"]).toEqual({
+            answers: [],
+        });
+    });
+});
 
 // ── Event-type guards ───────────────────────────────────────────────────────
 

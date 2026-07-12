@@ -28,10 +28,12 @@
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
+    import { reloadAccountSettings } from "$lib/stores/settings.svelte";
     import {
         markNotification,
         clearReadNotifications,
         reloadNotificationsFromStorage,
+        getNotificationCount,
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
     import {
@@ -58,6 +60,7 @@
         fetchOwnProfile,
         mxcToHttp,
     } from "$lib/matrix/client";
+    import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -423,6 +426,7 @@
             return;
         }
 
+        reloadAccountSettings();
         refreshRooms();
         const client = getClient();
         if (client) initPush(client).catch(console.error);
@@ -673,10 +677,24 @@
             ? getRoom(roomsState.activeRoomId)
             : null;
     });
+    const notificationCount = $derived.by(() => {
+        return getNotificationCount();
+    });
+
+    $effect(() => {
+        updateFaviconBadge(notificationCount).catch(() => {});
+        return () => {
+            updateFaviconBadge(0).catch(() => {});
+        };
+    });
 </script>
 
 <svelte:head>
-    <title>Matrix Client</title>
+    <title
+        >{notificationCount > 0
+            ? `(${notificationCount}) Matrix Client`
+            : "Matrix Client"}</title
+    >
 </svelte:head>
 
 <svelte:window onkeydown={onWindowKeydown} />

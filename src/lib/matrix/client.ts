@@ -12,7 +12,6 @@ import {
     PushRuleActionName,
     RuleId,
     IndexedDBStore,
-    ConditionKind,
     HttpApiEvent,
     UserEvent,
     SetPresence,
@@ -59,7 +58,25 @@ import {
     POLL_RESPONSE_TYPES,
     POLL_END_TYPES,
     type PollStartData,
+    buildPollResponse,
 } from "$lib/utils/pollContent";
+import { buildForwardContent } from "$lib/utils/forwardContent";
+import {
+    getRoomNotificationSettingForClient,
+    setRoomNotificationSettingForClient,
+    type RoomNotificationSetting,
+} from "$lib/matrix/pushRules";
+import { pushRulesState } from "$lib/stores/pushRules.svelte";
+import {
+    fetchServerNotificationsForClient,
+    type ServerNotificationResult,
+} from "$lib/matrix/notifications";
+
+export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
+export type {
+    ServerNotification,
+    ServerNotificationResult,
+} from "$lib/matrix/notifications";
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -781,6 +798,23 @@ export async function sendFormattedMessage(
     } as never);
 }
 
+/** Forward a message or sticker as a fresh event in another joined room. */
+export async function forwardMessage(
+    roomId: string,
+    event: MatrixEvent,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const eventType = event.getType();
+    if (eventType !== "m.room.message" && eventType !== "m.sticker") {
+        throw new Error("This event type cannot be forwarded");
+    }
+    await matrixClient.sendEvent(
+        roomId,
+        eventType as never,
+        buildForwardContent(event.getContent()) as never,
+    );
+}
+
 export function mxcToHttp(
     mxcUrl: string | null | undefined,
     width = 0,
@@ -942,55 +976,12 @@ export function isLoudEvent(event: MatrixEvent): boolean {
     }
 }
 
-export interface ServerNotification {
-    actions: unknown[];
-    event: MatrixEvent;
-    profile_tag: string | null;
-    read: boolean;
-    room_id: string;
-    ts: number;
-}
-
-/**
- * Fetches the user's notification history from the homeserver via
- * `GET /_matrix/client/v3/notifications`. Returns null if the server
- * doesn't support it (e.g. 404).
- */
 export async function fetchServerNotifications(
     limit = 50,
     from?: string,
-): Promise<{
-    notifications: ServerNotification[];
-    nextToken?: string;
-} | null> {
-    if (!matrixClient) return null;
-    const params: Record<string, string> = { limit: String(limit) };
-    if (from) params.from = from;
-    try {
-        const res: any = await (matrixClient as any).http.authedRequest(
-            "GET",
-            "/notifications",
-            params,
-        );
-        const mapper = matrixClient.getEventMapper();
-        const notifications: ServerNotification[] = (
-            res?.notifications ?? []
-        ).map((n: any) => ({
-            actions: n.actions ?? [],
-            event: mapper(n.event),
-            profile_tag: n.profile_tag ?? null,
-            read: !!n.read,
-            room_id: n.room_id,
-            ts: n.ts,
-        }));
-        return { notifications, nextToken: res?.next_token };
-    } catch (err: any) {
-        if (err?.httpStatus === 404 || err?.errcode === "M_UNRECOGNIZED") {
-            return null;
-        }
-        console.warn("[notifications] fetch failed:", err);
-        return null;
-    }
+): Promise<ServerNotificationResult> {
+    if (!matrixClient) return { status: "error", error: new Error("Not connected") };
+    return fetchServerNotificationsForClient(matrixClient, limit, from);
 }
 
 export function getOwnAvatarUrl(): string | null {
@@ -1680,35 +1671,12 @@ export async function setDefaultPushRuleLevel(
 
 // ── Per-room notification settings ────────────────────────────────────────
 
-export type RoomNotificationSetting = "default" | "all" | "mentions" | "mute";
-
 export function getRoomNotificationSetting(
     roomId: string,
 ): RoomNotificationSetting {
+    void pushRulesState.revision;
     if (!matrixClient) return "default";
-    const global = getGlobalPushRules();
-    // Check override rules for a mute entry matching this room
-    const overrideRule = (global?.override ?? []).find(
-        (r: any) => r.rule_id === roomId,
-    );
-    if (
-        overrideRule &&
-        (overrideRule.actions.length === 0 ||
-            overrideRule.actions[0] === "dont_notify")
-    ) {
-        return "mute";
-    }
-    // Check room-specific rules for an "all messages" entry
-    const roomSpecificRule = (global?.room ?? []).find(
-        (r: any) => r.rule_id === roomId,
-    );
-    if (
-        roomSpecificRule &&
-        roomSpecificRule.actions[0] === PushRuleActionName.Notify
-    ) {
-        return "all";
-    }
-    return "default";
+    return getRoomNotificationSettingForClient(matrixClient, roomId);
 }
 
 export async function setRoomNotificationSetting(
@@ -1716,52 +1684,11 @@ export async function setRoomNotificationSetting(
     setting: RoomNotificationSetting,
 ): Promise<void> {
     if (!matrixClient) return;
-    // Remove any existing room-specific or override rule first
     try {
-        await matrixClient.deletePushRule(
-            "global",
-            PushRuleKind.RoomSpecific,
-            roomId,
-        );
-    } catch {
-        /* didn't exist */
+        await setRoomNotificationSettingForClient(matrixClient, roomId, setting);
+    } finally {
+        pushRulesState.revision++;
     }
-    try {
-        await matrixClient.deletePushRule(
-            "global",
-            PushRuleKind.Override,
-            roomId,
-        );
-    } catch {
-        /* didn't exist */
-    }
-    if (setting === "all") {
-        await matrixClient.addPushRule(
-            "global",
-            PushRuleKind.RoomSpecific,
-            roomId,
-            {
-                actions: [PushRuleActionName.Notify],
-            },
-        );
-    } else if (setting === "mute") {
-        await matrixClient.addPushRule(
-            "global",
-            PushRuleKind.Override,
-            roomId,
-            {
-                actions: [],
-                conditions: [
-                    {
-                        kind: ConditionKind.EventMatch,
-                        key: "room_id",
-                        pattern: roomId,
-                    },
-                ],
-            },
-        );
-    }
-    // "mentions" = no rule = server default
 }
 
 export function onAnyReceiptEvent(callback: () => void): () => void {
@@ -3901,7 +3828,7 @@ export function onReactionEvent(
     return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
 }
 
-// ── Polls (MSC3381, read-only rendering) ───────────────────────────────────
+// ── Polls (MSC3381) ────────────────────────────────────────────────────────
 
 export interface PollView {
     poll: PollStartData;
@@ -3983,6 +3910,29 @@ export function getPollView(
         ended: endTs !== null,
         showResults: poll.kind === "disclosed" || endTs !== null,
     };
+}
+
+/** Cast or replace the current user's vote. An empty selection retracts it. */
+export async function sendPollResponse(
+    roomId: string,
+    pollStartEvent: MatrixEvent,
+    answerIds: string[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const pollStartId = pollStartEvent.getId();
+    if (!pollStartId) throw new Error("Poll has no event id");
+    const poll = parsePollStart(pollStartEvent.getContent());
+    if (!poll) throw new Error("Unsupported poll");
+    const allowed = new Set(poll.answers.map((answer) => answer.id));
+    const selected = [...new Set(answerIds)]
+        .filter((id) => allowed.has(id))
+        .slice(0, poll.maxSelections);
+    const { eventType, content } = buildPollResponse(
+        pollStartEvent.getType(),
+        pollStartId,
+        selected,
+    );
+    await matrixClient.sendEvent(roomId, eventType as never, content as never);
 }
 
 /**

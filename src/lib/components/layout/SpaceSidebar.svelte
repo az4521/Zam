@@ -32,6 +32,7 @@
         hasLoudInSpace,
     } from "$lib/stores/notifications.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
+    import { mapWithConcurrency } from "$lib/utils/async";
 
     function getSpaceNotifs(
         spaceId: string,
@@ -493,19 +494,21 @@
     ) {
         closeModal();
         // Apply to the space room itself and all its rooms recursively
-        const allRoomIds = [spaceId];
+        const allRoomIds = new Set([spaceId]);
         const collect = (id: string, visited = new Set<string>()) => {
             if (visited.has(id)) return;
             visited.add(id);
-            for (const r of getRoomsInSpace(id)) allRoomIds.push(r.roomId);
+            for (const r of getRoomsInSpace(id)) allRoomIds.add(r.roomId);
             for (const childId of getSpaceChildIds(id)) {
                 const child = getRoom(childId);
                 if (child?.isSpaceRoom()) collect(childId, visited);
             }
         };
         collect(spaceId);
-        await Promise.all(
-            allRoomIds.map((id) => setRoomNotificationSetting(id, setting)),
+        await mapWithConcurrency(
+            [...allRoomIds],
+            4,
+            (id) => setRoomNotificationSetting(id, setting),
         );
     }
 
@@ -809,20 +812,26 @@
         class:hover:bg-discord-accent={roomsState.activeSpaceId !== null}
         title="Home"
     >
-        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <svg
+            class="w-6 h-6 transition-colors {roomsState.activeSpaceId === null
+                ? 'text-white'
+                : 'text-discord-textPrimary group-hover:text-white'}"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+        >
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
         </svg>
         {#each [getHomeNotifs()] as n}
             {#if roomsState.activeSpaceId === null}
                 <div
-                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-white rounded-r-full"
+                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
                 ></div>
             {:else if n.unread}
                 <div
                     class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.loud ||
                     n.highlight
                         ? 'h-4 bg-discord-danger'
-                        : 'h-2 bg-white'}"
+                        : 'h-2 bg-discord-textPrimary'}"
                 ></div>
             {/if}
         {/each}
@@ -886,18 +895,18 @@
                 />
                 {#if isActive}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-white rounded-r-full"
+                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
                     ></div>
                 {:else if spaceNotifs.unread}
                     <div
                         class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.loud ||
                         spaceNotifs.highlight
                             ? 'h-4 bg-discord-danger'
-                            : 'h-2 bg-white'}"
+                            : 'h-2 bg-discord-textPrimary'}"
                     ></div>
                 {:else}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-white rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
+                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
                     ></div>
                 {/if}
             </button>
@@ -991,18 +1000,18 @@
                     </div>
                     {#if folderHasActive && !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-white rounded-r-full"
+                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
                         ></div>
                     {:else if folderNotifs.unread && !isExpanded}
                         <div
                             class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.loud ||
                             folderNotifs.highlight
                                 ? 'h-4 bg-discord-danger'
-                                : 'h-2 bg-white'}"
+                                : 'h-2 bg-discord-textPrimary'}"
                         ></div>
                     {:else if !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-white rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
+                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
                         ></div>
                     {/if}
                 </button>
@@ -1066,18 +1075,18 @@
                                 />
                                 {#if isActive}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-6 bg-white rounded-r-full"
+                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-6 bg-discord-textPrimary rounded-r-full"
                                     ></div>
                                 {:else if isn.unread}
                                     <div
                                         class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.loud ||
                                         isn.highlight
                                             ? 'h-3 bg-discord-danger'
-                                            : 'h-1.5 bg-white'}"
+                                            : 'h-1.5 bg-discord-textPrimary'}"
                                     ></div>
                                 {:else}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-white rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-4 transition-all duration-200"
+                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-4 transition-all duration-200"
                                     ></div>
                                 {/if}
                             </button>

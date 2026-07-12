@@ -23,6 +23,7 @@ export type ModalId =
     | "room-directory"
     | "reaction-picker"
     | "report-message"
+    | "forward-message"
     | "composer-picker"
     | "profile-card"
     | "lightbox";

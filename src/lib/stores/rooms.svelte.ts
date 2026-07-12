@@ -101,7 +101,7 @@ export function setActiveSpace(
     // (no parent context for the hierarchy fallback).
     saveLastSpace(drill ? drill.parentId : spaceId);
     // Switching space/Home only swaps the room list — keep the mobile drawer
-    // open for browsing when the user has pinned it in Settings > Behavior.
+    // open for browsing when pinned in Settings > Customization.
     if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
         interfaceState.leftOpen = false;
 }

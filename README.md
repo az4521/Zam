@@ -10,35 +10,20 @@ things left to do:
 
 Messaging
 
-- Message search
-- Threads/replies as collapsible threads
+- Collapsible thread UI (lightweight thread viewing and replies are supported)
 - Sending voice messages (m.audio recording)
-- Message forwarding
-- Polls (m.poll / MSC3381)
 - Location sharing (m.location)
 - Slash commands (/me, /shrug, /join, /invite, /kick)
-- Code block syntax highlighting
 
 Rooms
 
 - Initiating room upgrades
-- Room directory / public room search
-- Knock to join (requesting access to invite-only rooms)
-- Notification badge on browser tab (favicon)
 - Moderation (kick/ban/deleting messages)
-- matrix.to / matrix: URI link handling
 - Server admin tools (Synapse admin API)
 
 User
 
-- User profile editing (display name, avatar)
-- User info panel when clicking a member (profile, shared rooms, DM button)
-- Presence (online/away/offline status)
-- Ignore/block users
 - SSO / OAuth login
-- Device / session management
-- Account settings (password change, deactivation)
-- Multi-account / account switcher
 - Identity server / 3PID invites (invite by email)
 - Custom notification keyword rules UI
 
@@ -56,7 +41,6 @@ Media
 
 UI / Polish
 
-- Light theme / theme switching
 - Empty-state illustrations
 - First-run / onboarding flow
 - Accessibility audit (focus trapping, ARIA)

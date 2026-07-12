@@ -27,16 +27,29 @@
 
     let { onClose, onJumpTo }: Props = $props();
 
-    // null = not yet checked, "yes" = supported, "no" = not supported
-    let serverSupport = $state<"unknown" | "yes" | "no">("unknown");
+    let serverSupport = $state<"unknown" | "yes" | "no" | "error">("unknown");
     let serverNotifications = $state<ServerNotification[]>([]);
     let loading = $state(true);
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let refreshQueued = false;
+    let refreshGeneration = 0;
 
     async function refresh() {
+        if (refreshInFlight) {
+            refreshQueued = true;
+            return;
+        }
+        refreshInFlight = true;
+        const generation = ++refreshGeneration;
         loading = true;
         const res = await fetchServerNotifications(100);
-        if (res === null) {
+        if (generation !== refreshGeneration) return;
+        if (res.status === "unsupported") {
             serverSupport = "no";
+        } else if (res.status === "error") {
+            console.warn("[notifications] fetch failed", res.error);
+            serverSupport = "error";
         } else {
             serverSupport = "yes";
             // Keep anything that actually notifies — both "loud" (has a sound
@@ -46,14 +59,29 @@
             );
         }
         loading = false;
+        refreshInFlight = false;
+        if (refreshQueued) {
+            refreshQueued = false;
+            scheduleRefresh();
+        }
+    }
+
+    function scheduleRefresh() {
+        if (refreshTimer) clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+            refreshTimer = null;
+            refresh();
+        }, 250);
     }
 
     $effect(() => {
         refresh();
-        const unsub = onTimelineEvent(() => {
-            if (serverSupport === "yes") refresh();
-        });
-        return () => unsub();
+        const unsub = onTimelineEvent(scheduleRefresh);
+        return () => {
+            unsub();
+            refreshGeneration++;
+            if (refreshTimer) clearTimeout(refreshTimer);
+        };
     });
 
     interface DisplayItem {
@@ -115,7 +143,7 @@
         >
             Notifications
         </h3>
-        {#if serverSupport === "no" && items.length > 0}
+        {#if (serverSupport === "no" || serverSupport === "error") && items.length > 0}
             <button
                 onclick={clearLocal}
                 class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
@@ -127,6 +155,15 @@
     </div>
 
     <div class="flex-1 overflow-y-auto">
+        {#if serverSupport === "error"}
+            <button
+                type="button"
+                onclick={refresh}
+                class="w-full px-4 py-2 text-left text-xs text-discord-textMuted bg-discord-backgroundTertiary hover:text-discord-textPrimary"
+            >
+                Could not refresh server notifications. Tap to retry.
+            </button>
+        {/if}
         {#if loading && serverSupport === "unknown"}
             <div class="flex justify-center mt-8">
                 <div
@@ -174,9 +211,7 @@
                                 >{format(n.ts, "MMM d, HH:mm")}</span
                             >
                         </div>
-                        <p
-                            class="text-xs text-discord-textMuted truncate mb-1"
-                        >
+                        <p class="text-xs text-discord-textMuted truncate mb-1">
                             in #{roomName}
                         </p>
                         <p
