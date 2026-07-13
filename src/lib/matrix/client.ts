@@ -923,6 +923,11 @@ export interface UrlPreview {
     description?: string;
     imageUrl?: string;
     videoUrl?: string;
+    /** Poster frame for a video preview, shown before the video is loaded. */
+    videoThumbnailUrl?: string;
+    /** Intrinsic video dimensions (og:video:width/height), for poster aspect ratio. */
+    videoWidth?: number;
+    videoHeight?: number;
     siteName?: string;
     canonicalUrl?: string;
     /** MIME type or og:type returned by the homeserver preview (e.g. "video/mp4") */
@@ -961,12 +966,27 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
         const videoUrl = rawVideo?.startsWith("mxc://")
             ? (mxcToHttp(rawVideo) ?? undefined)
             : rawVideo;
+        // Poster for the video: prefer an explicit og:image, otherwise ask the
+        // homeserver to thumbnail the video's own mxc (Synapse extracts a frame).
+        const videoThumbnailUrl = videoUrl
+            ? (imageUrl ??
+              (rawVideo?.startsWith("mxc://")
+                  ? (mxcToHttp(rawVideo, 640, 480, "scale") ?? undefined)
+                  : undefined))
+            : undefined;
+        const parseDim = (v: unknown): number | undefined => {
+            const n = Number(v);
+            return Number.isFinite(n) && n > 0 ? n : undefined;
+        };
         return {
             title: data["og:title"] as string | undefined,
             description: data["og:description"] as string | undefined,
             imageUrl,
 
             videoUrl,
+            videoThumbnailUrl,
+            videoWidth: parseDim(data["og:video:width"]),
+            videoHeight: parseDim(data["og:video:height"]),
             siteName: data["og:site_name"] as string | undefined,
             canonicalUrl: (data["og:url"] as string | undefined) ?? url,
             contentType: data["og:type"] as string | undefined,

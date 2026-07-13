@@ -23,6 +23,10 @@
     let preview = $state<UrlPreview | null>(null);
     let imageError = $state(false);
     let lightboxOpen = $state(false);
+    // Video previews load the poster first; the <video> is only mounted once
+    // the user clicks play (mirrors uploaded m.video behaviour).
+    let videoPlaying = $state(false);
+    let videoThumbError = $state(false);
 
     type DirectEmbed =
         | { type: "youtube"; embedUrl: string }
@@ -48,8 +52,9 @@
         e.stopPropagation();
         if (isFavouriteGif(url)) {
             removeFavouriteGif(url);
-        } else if (preview?.imageUrl) {
-            addFavouriteGif({ url, previewUrl: preview.imageUrl });
+        } else {
+            const previewUrl = preview?.imageUrl ?? preview?.videoThumbnailUrl;
+            if (previewUrl) addFavouriteGif({ url, previewUrl });
         }
     }
 
@@ -120,6 +125,8 @@
         imageError = false;
         directEmbed = null;
         tweetEmbed = null;
+        videoPlaying = false;
+        videoThumbError = false;
 
         const ytUrl = getYoutubeEmbedUrl(currentUrl);
         if (ytUrl) {
@@ -219,17 +226,29 @@
             !preview.siteName,
     );
 
-    // Tenor GIF pages have metadata but should still embed inline.
-    const isTenor = $derived.by(() => {
+    // GIF-sharing sites (Tenor/Giphy/Klipy) have page metadata but should embed
+    // inline. Their previews expose the animation as a *video* URL, which we play
+    // back gif-style (muted, looped, no controls) so it behaves like a real GIF.
+    const isGifSite = $derived.by(() => {
         try {
-            return new URL(url).hostname.endsWith("tenor.com");
+            // Match on the registrable domain's second-level label so that
+            // e.g. `media.tenor.com` counts but `tenor.com.evil.example` does not.
+            const labels = new URL(url).hostname.split(".");
+            const sld = labels[labels.length - 2];
+            return sld === "tenor" || sld === "giphy" || sld === "klipy";
         } catch {
             return false;
         }
     });
 
     const showInline = $derived(
-        isDirect || (isTenor && !!(preview?.videoUrl || preview?.imageUrl)),
+        isDirect ||
+            // A preview with a playable video (e.g. an Instagram reel proxied
+            // to an mxc:// via the homeserver) should embed the video inline,
+            // even when the page also carries a title/description — otherwise it
+            // falls through to the link-preview card, which only renders images.
+            !!preview?.videoUrl ||
+            (isGifSite && !!preview?.imageUrl),
     );
 
     const flashUrl = $derived.by(() => {
@@ -413,13 +432,65 @@
     {#if showInline && preview.videoUrl}
         <!-- Direct video embed -->
         <div class="relative inline-block group/media mt-1">
-            <!-- svelte-ignore a11y_media_has_caption -->
-            <video
-                src={preview.videoUrl}
-                class="max-w-sm max-h-72 rounded-lg block"
-                controls
-                preload="metadata"
-            ></video>
+            {#if isGifSite}
+                <!-- GIF-sharing sites: play the video like a GIF — muted, looped,
+                     autoplaying, and with no controls so it can't be paused/seeked. -->
+                <!-- svelte-ignore a11y_media_has_caption -->
+                <video
+                    src={preview.videoUrl}
+                    poster={preview.videoThumbnailUrl}
+                    class="max-w-sm max-h-72 rounded-lg block pointer-events-none"
+                    autoplay
+                    muted
+                    loop
+                    playsinline
+                    disablepictureinpicture
+                    preload="auto"
+                    onpause={(e) => e.currentTarget.play()}
+                ></video>
+            {:else if videoPlaying || !preview.videoThumbnailUrl || videoThumbError}
+                <!-- No usable thumbnail (or the user clicked play): show the video
+                     itself rather than a placeholder card. -->
+                <!-- svelte-ignore a11y_media_has_caption -->
+                <video
+                    src={preview.videoUrl}
+                    poster={preview.videoThumbnailUrl}
+                    class="max-w-sm max-h-72 rounded-lg block"
+                    controls
+                    autoplay={videoPlaying}
+                    preload={videoPlaying ? "auto" : "metadata"}
+                ></video>
+            {:else}
+                <button
+                    type="button"
+                    aria-label="Play video"
+                    class="relative max-w-sm w-full max-h-72 rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
+                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 18rem;`}
+                    onclick={() => (videoPlaying = true)}
+                >
+                    <img
+                        src={preview.videoThumbnailUrl}
+                        alt=""
+                        class="w-full h-full object-cover"
+                        loading="lazy"
+                        onerror={() => (videoThumbError = true)}
+                    />
+                    <div
+                        class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
+                    >
+                        <div
+                            class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                        >
+                            <svg
+                                class="w-7 h-7 text-white ml-1"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path d="M8 5v14l11-7z" /></svg
+                            >
+                        </div>
+                    </div>
+                </button>
+            {/if}
             <button
                 onclick={toggleFavourite}
                 title={favourited
