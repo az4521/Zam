@@ -16,6 +16,7 @@ import {
     UserEvent,
     SetPresence,
     Direction,
+    EventType,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -77,6 +78,18 @@ export type {
     ServerNotification,
     ServerNotificationResult,
 } from "$lib/matrix/notifications";
+
+// The SDK (>=v35) strongly-types account-data methods against the
+// `AccountDataEvents` interface. Declare the custom, app-specific account-data
+// event types we read/write so `getAccountData`/`setAccountData` accept them.
+declare module "matrix-js-sdk" {
+    interface AccountDataEvents {
+        "m.favourite_gifs": { gifs: FavouriteGif[] };
+        "im.client.space_layout": SpaceLayout;
+        "im.client.space_order": { order?: string[] };
+        "im.ponies.user_emotes": RoomEmoteContent;
+    }
+}
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
@@ -486,7 +499,7 @@ export function getRoomsInSpace(spaceId: string): Room[] {
 }
 
 export function getDirectRoomIds(): Set<string> {
-    const directEvent = matrixClient?.getAccountData("m.direct");
+    const directEvent = matrixClient?.getAccountData(EventType.Direct);
     if (!directEvent) return new Set();
     const content = directEvent.getContent() as Record<string, string[]>;
     return new Set(Object.values(content).flat());
@@ -922,6 +935,9 @@ export async function getRawUrlPreview(
 ): Promise<Record<string, unknown> | null> {
     if (!matrixClient) return null;
     try {
+        // matrix-js-sdk >=41.1 routes this through the authenticated media
+        // endpoint (`/_matrix/client/v1/media/preview_url`) when the server
+        // advertises Matrix 1.11, falling back to the legacy path otherwise.
         return (await matrixClient.getUrlPreview(url, Date.now())) as Record<
             string,
             unknown
@@ -2444,7 +2460,7 @@ export async function searchUserDirectory(
 export async function createDirectMessage(userId: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists
-    const existing = matrixClient.getAccountData("m.direct")?.getContent() as
+    const existing = matrixClient.getAccountData(EventType.Direct)?.getContent() as
         | Record<string, string[]>
         | undefined;
     if (existing?.[userId]?.length) {
@@ -2462,7 +2478,7 @@ export async function createDirectMessage(userId: string): Promise<string> {
     // Update m.direct account data so the room shows in DMs
     const dmData: Record<string, string[]> = { ...(existing ?? {}) };
     dmData[userId] = [...(dmData[userId] ?? []), roomId];
-    await matrixClient.setAccountData("m.direct", dmData);
+    await matrixClient.setAccountData(EventType.Direct, dmData);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return roomId;
@@ -4133,7 +4149,7 @@ export function onPresenceEvent(
 /** User id of the other party in a DM room (m.direct mapping, falling back
  *  to the SDK's member-based guess). */
 export function getDMPartnerId(room: Room): string {
-    const direct = matrixClient?.getAccountData("m.direct")?.getContent() as
+    const direct = matrixClient?.getAccountData(EventType.Direct)?.getContent() as
         | Record<string, string[]>
         | undefined;
     if (direct) {
@@ -4155,7 +4171,7 @@ export interface MutualRoomInfo {
  *  with that user excluded (a shared DM is not a "mutual room"). */
 export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
     if (!matrixClient) return [];
-    const direct = matrixClient.getAccountData("m.direct")?.getContent() as
+    const direct = matrixClient.getAccountData(EventType.Direct)?.getContent() as
         | Record<string, string[]>
         | undefined;
     const dmRoomIds = new Set(direct?.[userId] ?? []);

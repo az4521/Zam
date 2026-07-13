@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Room, MatrixEvent } from "matrix-js-sdk";
+    import { EventType } from "matrix-js-sdk";
     import {
         getClient,
         getRawUrlPreview,
@@ -89,7 +90,7 @@
         const mx = getClient();
         if (!mx) return null;
         const rules = mx
-            .getAccountData("m.push_rules")
+            .getAccountData(EventType.PushRules)
             ?.getContent<{ global: Record<string, any[]> }>();
         return rules?.global ?? null;
     });
