@@ -7,11 +7,18 @@
         reloadToLatest,
         type UpdateInfo,
     } from "$lib/update";
+    import { clearCacheAndReload } from "$lib/matrix/client";
 
     let checking = $state(false);
     let info = $state<UpdateInfo | null>(null);
     let error = $state("");
     let reloading = $state(false);
+    let clearingCache = $state(false);
+
+    function clearCache() {
+        clearingCache = true;
+        void clearCacheAndReload();
+    }
 
     async function check() {
         checking = true;
@@ -99,4 +106,32 @@
             You’re on the latest version.
         </p>
     {/if}
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            Troubleshooting
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Clear cache and resync
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Re-downloads your rooms from the server. Fixes rooms that
+                    are missing or stuck. You stay signed in.
+                </p>
+            </div>
+            <button
+                onclick={clearCache}
+                disabled={clearingCache}
+                class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+                {clearingCache ? "Resyncing…" : "Clear cache"}
+            </button>
+        </div>
+    </section>
 </div>

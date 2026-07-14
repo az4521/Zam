@@ -314,6 +314,7 @@ export async function startSync(
         if (state === "PREPARED") {
             initialSyncComplete = true;
             seedStatelessRooms();
+            void reconcileJoinedRooms();
         }
         onStateChange(state as string);
     });
@@ -1890,6 +1891,56 @@ function seedStatelessRooms(): void {
                     console.warn("Boot-pass timeline backfill failed:", err),
                 );
         }
+    }
+}
+
+/**
+ * Wipe the local sync cache (IndexedDB) and reload the app. Auth is
+ * untouched — the next boot performs a fresh initial sync. Escape hatch for
+ * stale-cache states the server never re-delivers (continuwuity omits
+ * rooms it considers "unchanged" from incremental sync, so a room cached
+ * wrongly stays wrong forever).
+ */
+export async function clearCacheAndReload(): Promise<void> {
+    try {
+        matrixClient?.stopClient();
+        await matrixStore?.deleteAllData();
+    } catch (err) {
+        console.warn("Sync cache wipe failed, reloading anyway:", err);
+    }
+    window.location.reload();
+}
+
+// A poisoned sync cache can hide a room the server considers joined, and it
+// never self-heals (see clearCacheAndReload). After each initial sync,
+// compare the server's joined list against ours; on mismatch, reset the
+// cache once. The sessionStorage flag stops a reload loop if the mismatch
+// somehow survives a fresh initial sync.
+const RECONCILE_FLAG = "syncReconcileAttempted";
+
+async function reconcileJoinedRooms(): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        const server = await matrixClient.getJoinedRooms();
+        const missing = server.joined_rooms.filter(
+            (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
+        );
+        if (missing.length === 0) {
+            sessionStorage.removeItem(RECONCILE_FLAG);
+            return;
+        }
+        if (sessionStorage.getItem(RECONCILE_FLAG)) {
+            console.warn(
+                "Joined-rooms mismatch persists after a cache reset:",
+                missing,
+            );
+            return;
+        }
+        console.warn("Sync cache is missing joined rooms, resetting:", missing);
+        sessionStorage.setItem(RECONCILE_FLAG, "1");
+        await clearCacheAndReload();
+    } catch {
+        // Reconciliation is best-effort — never let it break boot.
     }
 }
 
