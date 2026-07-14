@@ -21,6 +21,8 @@
         setJoinRule,
         getHistoryVisibility,
         setHistoryVisibility,
+        getRoomDirectoryVisibility,
+        setRoomDirectoryVisibility,
         getSpaceChildren,
         setSpaceChildOrder,
         removeSpaceChild,
@@ -166,6 +168,39 @@
             accessError = e?.message ?? "Failed to save";
         } finally {
             accessSaving = false;
+        }
+    }
+
+    // ── Access tab: directory visibility (separate server call) ─────────────────
+    let dirVisibility = $state<"public" | "private">("private");
+    let dirLoaded = $state(false);
+    let dirSaving = $state(false);
+    let dirError = $state("");
+
+    $effect(() => {
+        if (activeTab !== "access" || dirLoaded) return;
+        getRoomDirectoryVisibility(room.roomId)
+            .then((v) => {
+                dirVisibility = v;
+                dirLoaded = true;
+            })
+            .catch(() => (dirLoaded = true));
+    });
+
+    async function toggleDirVisibility(next: "public" | "private") {
+        if (dirSaving || next === dirVisibility) return;
+        dirSaving = true;
+        dirError = "";
+        const prev = dirVisibility;
+        dirVisibility = next;
+        try {
+            await setRoomDirectoryVisibility(room.roomId, next);
+        } catch (e: any) {
+            dirVisibility = prev;
+            dirError =
+                e?.data?.error ?? e?.message ?? "Could not change visibility";
+        } finally {
+            dirSaving = false;
         }
     }
 
@@ -1226,6 +1261,46 @@
                                     </label>
                                 {/each}
                             </div>
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Discoverability
+                            </p>
+                            <label
+                                class="flex items-center gap-2.5 cursor-pointer {!canEditState ||
+                                dirSaving
+                                    ? 'opacity-50 pointer-events-none'
+                                    : ''}"
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={dirVisibility === "public"}
+                                    onchange={(e) =>
+                                        toggleDirVisibility(
+                                            e.currentTarget.checked
+                                                ? "public"
+                                                : "private",
+                                        )}
+                                    class="accent-discord-accent"
+                                />
+                                <span class="text-sm text-discord-textPrimary"
+                                    >List this {isSpace ? "space" : "room"} in the
+                                    server directory</span
+                                >
+                            </label>
+                            <p class="text-xs text-discord-textMuted mt-1">
+                                Lists the {isSpace ? "space" : "room"} by ID. Being
+                                found by name also needs a published address (coming
+                                later).
+                            </p>
+                            {#if dirError}<p
+                                    class="text-sm text-discord-danger mt-1"
+                                >
+                                    {dirError}
+                                </p>{/if}
                         </div>
 
                         {#if accessError}<p class="text-sm text-discord-danger">
