@@ -6,6 +6,7 @@
     import RoomList from "$lib/components/layout/RoomList.svelte";
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
+    import InviteModal from "$lib/components/layout/InviteModal.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
@@ -25,6 +26,7 @@
         closeSidebar,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
+    import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
@@ -851,6 +853,10 @@
                 );
         }}
     />
+{/if}
+
+{#if interfaceState.modal === "invite" && inviteDialogState.roomId}
+    <InviteModal roomId={inviteDialogState.roomId} />
 {/if}
 
 <ErrorToasts />
