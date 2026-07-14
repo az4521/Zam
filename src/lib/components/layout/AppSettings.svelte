@@ -8,6 +8,7 @@
     import SessionSettings from "$lib/components/settings/SessionSettings.svelte";
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
+    import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
 
     interface Props {
         onClose: () => void;
@@ -22,6 +23,7 @@
         | "customization"
         | "emotes"
         | "notifications"
+        | "voice"
         | "blocked"
         | "server"
         | "about"
@@ -34,6 +36,7 @@
         { id: "customization", label: "Customization" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
+        { id: "voice", label: "Voice & Audio" },
         { id: "blocked", label: "Blocked Users" },
         { id: "server", label: "Server" },
         { id: "about", label: "About" },
@@ -100,6 +103,8 @@
                     <CustomPackSettings kind="emotes" />
                 {:else if activeTab === "notifications"}
                     <NotificationSettings />
+                {:else if activeTab === "voice"}
+                    <VoiceAudioSettings />
                 {:else if activeTab === "server"}
                     <ServerSettings />
                 {:else if activeTab === "blocked"}
