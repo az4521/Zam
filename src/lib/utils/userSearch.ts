@@ -18,6 +18,12 @@ export function isValidUserId(input: string): boolean {
     return /^@[^\s:@]+:[^\s:@]+(:\d+)?$/.test(input);
 }
 
+/** The server-name portion of a Matrix user id (everything after the first colon). */
+export function userDomain(userId: string): string {
+    const i = userId.indexOf(":");
+    return i === -1 ? "" : userId.slice(i + 1);
+}
+
 /**
  * Normalize a user directory response: drop malformed entries and the
  * searching user, dedupe by user id, and hoist an exact user-id match for the
@@ -39,6 +45,18 @@ export function mapUserSearchResults(
             displayName: entry.display_name?.trim() || null,
             avatarMxc: entry.avatar_url ?? null,
         });
+    }
+    // Rank same-homeserver users above federated ones. The directory returns
+    // remote users the server has seen in public rooms; a same-domain match is
+    // almost always who the user means. Array.sort is stable, so input order is
+    // preserved within each group.
+    const ownDomain = opts.ownUserId ? userDomain(opts.ownUserId) : "";
+    if (ownDomain) {
+        mapped.sort(
+            (a, b) =>
+                (userDomain(a.userId) === ownDomain ? 0 : 1) -
+                (userDomain(b.userId) === ownDomain ? 0 : 1),
+        );
     }
     const term = opts.term?.trim();
     if (term) {
