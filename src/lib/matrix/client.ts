@@ -4299,6 +4299,10 @@ interface ActiveVoiceCall {
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
+// Monotonic token for joinVoiceCall: a newer join bumps it, and any older
+// in-flight invocation bails out at its next staleness check instead of
+// reconnecting a room it no longer owns.
+let voiceJoinSeq = 0;
 let voicePlaybackMuted = false;
 
 type VoiceConnStateCb = (
@@ -4359,11 +4363,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
     if (!room) throw new Error("Unknown room");
+    const seq = ++voiceJoinSeq;
     await leaveVoiceCall();
+    if (seq !== voiceJoinSeq) return; // superseded while leaving
 
     // Fail fast on mic permission before announcing membership.
     const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
     probe.getTracks().forEach((t) => t.stop());
+    if (seq !== voiceJoinSeq) return;
 
     const session = matrixClient.matrixRTC.getRoomSession(room);
     const oldest = session.getOldestMembership();
@@ -4372,17 +4379,21 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
               .map((m) => m.getTransport(oldest))
               .filter((t): t is NonNullable<typeof t> => !!t)
         : [];
-    const target = pickLivekitTransport(
-        memberTransports,
-        await configuredRtcFoci(),
-        roomId,
-    );
+    const foci = await configuredRtcFoci();
+    if (seq !== voiceJoinSeq) return;
+    const target = pickLivekitTransport(memberTransports, foci, roomId);
     if (!target) throw new Error("No LiveKit focus available for this call");
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
     const lkRoom = new LivekitRoom();
-    activeVoice = { roomId, session, lkRoom, audioEls: new Set() };
+    const call: ActiveVoiceCall = {
+        roomId,
+        session,
+        lkRoom,
+        audioEls: new Set(),
+    };
+    activeVoice = call;
     notifyVoiceConnState("connecting");
 
     try {
@@ -4400,6 +4411,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         );
 
         const openIdToken = await matrixClient.getOpenIdToken();
+        if (seq !== voiceJoinSeq) return;
         const jwtRes = await fetch(sfuJwtUrl(target.serviceUrl), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -4409,6 +4421,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 device_id: deviceId,
             }),
         });
+        if (seq !== voiceJoinSeq) return;
         if (!jwtRes.ok) {
             throw new Error(
                 `Voice server rejected the join (${jwtRes.status})`,
@@ -4418,17 +4431,23 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             url: string;
             jwt: string;
         };
+        if (seq !== voiceJoinSeq) return;
 
         lkRoom.on(LivekitRoomEvent.TrackSubscribed, (track: RemoteTrack) => {
             if (track.kind !== LivekitTrack.Kind.Audio) return;
+            if (activeVoice !== call) {
+                // Call already superseded/left — don't attach at all.
+                track.detach().forEach((el) => el.remove());
+                return;
+            }
             const el = track.attach() as HTMLAudioElement;
             el.muted = voicePlaybackMuted;
+            call.audioEls.add(el);
             document.body.appendChild(el);
-            activeVoice?.audioEls.add(el);
         });
         lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
             for (const el of track.detach()) {
-                activeVoice?.audioEls.delete(el as HTMLAudioElement);
+                call.audioEls.delete(el as HTMLAudioElement);
                 el.remove();
             }
         });
@@ -4448,10 +4467,26 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
 
         await lkRoom.connect(url, jwt);
+        if (seq !== voiceJoinSeq) {
+            await lkRoom.disconnect().catch(() => {});
+            return;
+        }
         await lkRoom.localParticipant.setMicrophoneEnabled(true);
+        if (seq !== voiceJoinSeq) {
+            await lkRoom.disconnect().catch(() => {});
+            return;
+        }
         notifyVoiceConnState("connected");
     } catch (err) {
-        await leaveVoiceCall();
+        if (activeVoice === call) {
+            await leaveVoiceCall();
+        } else {
+            // Superseded mid-join: tear down our own resources only.
+            for (const el of call.audioEls) el.remove();
+            call.audioEls.clear();
+            await call.lkRoom.disconnect().catch(() => {});
+            void call.session.leaveRoomSession(5_000).catch(() => {});
+        }
         throw err;
     }
 }
