@@ -1016,7 +1016,8 @@ export async function fetchServerNotifications(
     limit = 50,
     from?: string,
 ): Promise<ServerNotificationResult> {
-    if (!matrixClient) return { status: "error", error: new Error("Not connected") };
+    if (!matrixClient)
+        return { status: "error", error: new Error("Not connected") };
     return fetchServerNotificationsForClient(matrixClient, limit, from);
 }
 
@@ -1721,7 +1722,11 @@ export async function setRoomNotificationSetting(
 ): Promise<void> {
     if (!matrixClient) return;
     try {
-        await setRoomNotificationSettingForClient(matrixClient, roomId, setting);
+        await setRoomNotificationSettingForClient(
+            matrixClient,
+            roomId,
+            setting,
+        );
     } finally {
         pushRulesState.revision++;
     }
@@ -2480,9 +2485,9 @@ export async function searchUserDirectory(
 export async function createDirectMessage(userId: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists
-    const existing = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const existing = matrixClient
+        .getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     if (existing?.[userId]?.length) {
         const existingRoomId = existing[userId][0];
         if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
@@ -4169,9 +4174,9 @@ export function onPresenceEvent(
 /** User id of the other party in a DM room (m.direct mapping, falling back
  *  to the SDK's member-based guess). */
 export function getDMPartnerId(room: Room): string {
-    const direct = matrixClient?.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const direct = matrixClient
+        ?.getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     if (direct) {
         for (const [userId, roomIds] of Object.entries(direct)) {
             if (Array.isArray(roomIds) && roomIds.includes(room.roomId)) {
@@ -4191,9 +4196,9 @@ export interface MutualRoomInfo {
  *  with that user excluded (a shared DM is not a "mutual room"). */
 export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
     if (!matrixClient) return [];
-    const direct = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const direct = matrixClient
+        .getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     const dmRoomIds = new Set(direct?.[userId] ?? []);
     return matrixClient
         .getRooms()
@@ -4208,4 +4213,67 @@ export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
             roomId: room.roomId,
             name: getRoomDisplayName(room),
         }));
+}
+
+// --- MatrixRTC voice calls -----------------------------------------------
+// All matrix-js-sdk `matrixrtc` access lives behind this seam: the module is
+// semi-internal upstream and its API churns between SDK majors. Event names
+// are string literals because the enums live in modules the SDK does not
+// re-export ("session_started"/"session_ended" on the manager,
+// "memberships_changed" on a session).
+
+export interface VoiceMembership {
+    userId: string;
+    deviceId: string;
+    joinedTs: number;
+}
+
+/** Non-expired MatrixRTC memberships for a room (empty when no call). */
+export function getRoomCallMemberships(room: Room): VoiceMembership[] {
+    if (!matrixClient) return [];
+    const session = matrixClient.matrixRTC.getRoomSession(room);
+    return session.memberships
+        .filter((m) => !m.isExpired())
+        .map((m) => ({
+            userId: m.userId,
+            deviceId: m.deviceId,
+            joinedTs: m.createdTs(),
+        }));
+}
+
+const voiceSessionSubscribers = new Set<() => void>();
+const subscribedVoiceSessions = new WeakSet<object>();
+
+function notifyVoiceSessions(): void {
+    for (const cb of voiceSessionSubscribers) cb();
+}
+
+function watchVoiceSession(session: {
+    on: (ev: never, fn: never) => unknown;
+}): void {
+    if (subscribedVoiceSessions.has(session)) return;
+    subscribedVoiceSessions.add(session);
+    session.on("memberships_changed" as never, notifyVoiceSessions as never);
+}
+
+/**
+ * Fires whenever any room's MatrixRTC memberships change (someone joins or
+ * leaves a call anywhere). Cheap consumers bump a tick and re-derive.
+ */
+export function onVoiceSessionsChanged(cb: () => void): () => void {
+    if (!matrixClient) return () => {};
+    voiceSessionSubscribers.add(cb);
+    const manager = matrixClient.matrixRTC;
+    const onStarted = (_roomId: string, session: object) => {
+        watchVoiceSession(session as never);
+        notifyVoiceSessions();
+    };
+    const onEnded = () => notifyVoiceSessions();
+    manager.on("session_started" as never, onStarted as never);
+    manager.on("session_ended" as never, onEnded as never);
+    return () => {
+        voiceSessionSubscribers.delete(cb);
+        manager.off("session_started" as never, onStarted as never);
+        manager.off("session_ended" as never, onEnded as never);
+    };
 }
