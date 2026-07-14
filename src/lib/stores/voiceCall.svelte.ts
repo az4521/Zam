@@ -6,6 +6,7 @@ import {
     onVoiceSessionsChanged,
     onVoiceConnStateChanged,
     onActiveSpeakersChanged,
+    onVoiceCallError,
 } from "$lib/matrix/client";
 import {
     toggleMute,
@@ -50,10 +51,12 @@ export function initVoiceCall(): () => void {
     const unsubSpeakers = onActiveSpeakersChanged((ids) => {
         voiceCallState.speakingMemberIds = ids;
     });
+    const unsubError = onVoiceCallError((msg) => showErrorToast(msg));
     return () => {
         unsubSessions();
         unsubConn();
         unsubSpeakers();
+        unsubError();
     };
 }
 

@@ -4227,7 +4227,7 @@ export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
 // semi-internal upstream and its API churns between SDK majors. Event names
 // are string literals because the enums live in modules the SDK does not
 // re-export ("session_started"/"session_ended" on the manager,
-// "memberships_changed" on a session).
+// "memberships_changed"/"membership_manager_error" on a session).
 
 export interface VoiceMembership {
     userId: string;
@@ -4296,6 +4296,7 @@ interface ActiveVoiceCall {
     session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
     lkRoom: LivekitRoom;
     audioEls: Set<HTMLAudioElement>;
+    onMmError: (err: unknown) => void;
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
@@ -4329,6 +4330,15 @@ export function onActiveSpeakersChanged(
 ): () => void {
     activeSpeakerSubscribers.add(cb);
     return () => activeSpeakerSubscribers.delete(cb);
+}
+
+const voiceErrorSubscribers = new Set<(message: string) => void>();
+
+/** Fires when an established/joining call fails fatally (e.g. the server
+ *  rejects our membership state event) and has been torn down. */
+export function onVoiceCallError(cb: (message: string) => void): () => void {
+    voiceErrorSubscribers.add(cb);
+    return () => voiceErrorSubscribers.delete(cb);
 }
 
 export function getActiveVoiceRoomId(): string | null {
@@ -4396,14 +4406,29 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
     const lkRoom = new LivekitRoom();
+    // The SDK's MembershipManager gives up for good on some failures (e.g.
+    // a 403 on the call.member state PUT in rooms where we lack power) and
+    // only reports it via this session event — without it we'd stay
+    // connected to LiveKit, audible but invisible to everyone else.
+    const onMmError = (err: unknown) => {
+        if (activeVoice !== call) return;
+        console.error("Voice call membership failed:", err);
+        for (const cb of voiceErrorSubscribers)
+            cb(
+                "The server rejected your call membership — you may lack permission to join calls in this room",
+            );
+        void leaveVoiceCall();
+    };
     const call: ActiveVoiceCall = {
         roomId,
         session,
         lkRoom,
         audioEls: new Set(),
+        onMmError,
     };
     activeVoice = call;
     notifyVoiceConnState("connecting");
+    session.on("membership_manager_error" as never, onMmError as never);
 
     try {
         session.joinRTCSession(
@@ -4512,6 +4537,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
     const call = activeVoice;
     if (!call) return;
     activeVoice = null;
+    call.session.off(
+        "membership_manager_error" as never,
+        call.onMmError as never,
+    );
     for (const el of call.audioEls) el.remove();
     call.audioEls.clear();
     try {
