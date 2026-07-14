@@ -745,6 +745,7 @@
             <SpaceSidebar
                 onHomeClick={() => setActiveSpace(null)}
                 onSettingsClick={openAppSettings}
+                onOpenSpaceSettings={openRoomSettings}
             />
             <RoomList
                 onLogout={handleLogout}
@@ -780,6 +781,7 @@
                         openAppSettings();
                         interfaceState.leftOpen = false;
                     }}
+                    onOpenSpaceSettings={openRoomSettings}
                 />
                 <RoomList
                     onLogout={handleLogout}
