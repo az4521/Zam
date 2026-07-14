@@ -1095,7 +1095,10 @@
             >
                 {#each tabs as tab (tab.id)}
                     <button
-                        onclick={() => (activeTab = tab.id)}
+                        onclick={() => {
+                            activeTab = tab.id;
+                            showInvite = false;
+                        }}
                         class="flex-shrink-0 w-auto md:w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
                         class:bg-discord-messageHover={activeTab === tab.id}
                         class:text-discord-textPrimary={activeTab === tab.id}
@@ -1284,6 +1287,9 @@
                                                 ? "public"
                                                 : "private",
                                         )}
+                                    disabled={!canEditState ||
+                                        dirSaving ||
+                                        !dirLoaded}
                                     class="accent-discord-accent"
                                 />
                                 <span class="text-sm text-discord-textPrimary"

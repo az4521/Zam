@@ -1,4 +1,8 @@
-import { openModal, closeModal } from "$lib/stores/interface.svelte";
+import {
+    interfaceState,
+    openModal,
+    closeModal,
+} from "$lib/stores/interface.svelte";
 
 export const inviteDialogState = $state<{ roomId: string | null }>({
     roomId: null,
@@ -11,5 +15,5 @@ export function openInviteDialog(roomId: string): void {
 }
 
 export function closeInviteDialog(): void {
-    closeModal();
+    if (interfaceState.modal === "invite") closeModal();
 }

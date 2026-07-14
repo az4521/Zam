@@ -10,6 +10,7 @@
         excludeUserIds = [],
         autofocus = false,
         placeholder = "Search for people…",
+        disabled = false,
         onpick,
     }: {
         mode?: "single" | "multi";
@@ -17,6 +18,7 @@
         excludeUserIds?: string[];
         autofocus?: boolean;
         placeholder?: string;
+        disabled?: boolean;
         onpick?: (userId: string) => void;
     } = $props();
 
@@ -69,7 +71,7 @@
     });
 
     function pick(userId: string) {
-        if (excluded.has(userId)) return;
+        if (disabled || excluded.has(userId)) return;
         if (mode === "multi") {
             selected = [...selected, userId];
             input = "";
@@ -129,6 +131,8 @@
             {#each visibleResults as user (user.userId)}
                 <button
                     onclick={() => pick(user.userId)}
+                    {disabled}
+                    class:opacity-50={disabled}
                     class="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-discord-messageHover transition-colors"
                 >
                     <Avatar

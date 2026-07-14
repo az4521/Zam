@@ -155,9 +155,9 @@ export function mergeViaServers(
 /**
  * Build a matrix.to permalink for a user, alias, or room id. Users and aliases
  * are self-routing; a room id (`!…`) isn't joinable on its own, so up to 5 `via`
- * servers are appended as `?via=` params. Segments are percent-encoded exactly
- * like `linkifyMatrixIdentifiers` above, so the result round-trips through
- * `parseMatrixLink`.
+ * servers are appended as `?via=` params. Segments are percent-encoded
+ * similarly to `linkifyMatrixIdentifiers` above, so the result round-trips
+ * through `parseMatrixLink`.
  */
 export function matrixToUrl(idOrAlias: string, via: string[] = []): string {
     const encoded = encodeURIComponent(idOrAlias).replace(/!/g, "%21");

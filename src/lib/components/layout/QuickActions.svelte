@@ -271,6 +271,7 @@
                     <UserPicker
                         mode="single"
                         autofocus
+                        disabled={loading}
                         onpick={startDm}
                         placeholder="Find someone to message…"
                     />
