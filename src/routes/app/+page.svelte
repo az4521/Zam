@@ -28,6 +28,7 @@
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
+    import { initVoiceCall, leaveCall } from "$lib/stores/voiceCall.svelte";
     import { reloadAccountSettings } from "$lib/stores/settings.svelte";
     import {
         markNotification,
@@ -560,6 +561,7 @@
         const unsubFavourites = initFavourites();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
+        const unsubVoice = initVoiceCall();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -607,6 +609,7 @@
             unsubFavourites();
             unsubIgnored();
             unsubPresence();
+            unsubVoice();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
@@ -650,6 +653,8 @@
     async function handleLogout() {
         if (loggingOut) return;
         loggingOut = true;
+        // A live call must not survive logout.
+        leaveCall();
         const client = getClient();
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
