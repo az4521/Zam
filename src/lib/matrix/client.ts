@@ -2557,6 +2557,11 @@ export interface UserSearchResult {
     avatarUrl: string | null;
 }
 
+/** The logged-in account's server name (the part after `:` in your own user id). */
+export function getOwnServerName(): string {
+    return matrixClient?.getDomain() ?? "";
+}
+
 /** Search the homeserver's user directory (user IDs, display names, domains). */
 export async function searchUserDirectory(
     term: string,

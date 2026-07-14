@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { searchUserDirectory } from "$lib/matrix/client";
+    import { searchUserDirectory, getOwnServerName } from "$lib/matrix/client";
     import type { UserSearchResult } from "$lib/matrix/client";
     import { isValidUserId, debounce } from "$lib/utils/userSearch";
     import Avatar from "./Avatar.svelte";
@@ -32,6 +32,31 @@
     const excluded = $derived(new Set([...excludeUserIds, ...selected]));
     const visibleResults = $derived(
         results.filter((u) => !excluded.has(u.userId)),
+    );
+
+    // The homeserver's user directory doesn't index everyone (private/local
+    // accounts often aren't searchable), so let the raw input resolve to a
+    // pickable user id: a full typed `@user:server`, or a bare localpart
+    // assumed to be on your OWN homeserver — so you don't have to guess the
+    // server name from the homeserver URL.
+    const ownDomain = getOwnServerName();
+    function toCandidate(raw: string): string | null {
+        const term = raw.trim();
+        if (!term) return null;
+        if (isValidUserId(term)) return term;
+        if (ownDomain && /^[^\s:@]+$/.test(term))
+            return `@${term}:${ownDomain}`;
+        return null;
+    }
+    const candidate = $derived(toCandidate(input));
+    // Hide the candidate row when a search result already offers the same id.
+    const candidateShown = $derived(
+        candidate && !visibleResults.some((u) => u.userId === candidate)
+            ? candidate
+            : null,
+    );
+    const candidateExcluded = $derived(
+        candidateShown ? excluded.has(candidateShown) : false,
     );
 
     async function run(term: string) {
@@ -87,8 +112,7 @@
     function onKeydown(e: KeyboardEvent) {
         if (e.key !== "Enter") return;
         e.preventDefault();
-        const term = input.trim();
-        if (isValidUserId(term)) pick(term);
+        if (candidate) pick(candidate);
         else if (visibleResults.length) pick(visibleResults[0].userId);
     }
 </script>
@@ -124,6 +148,34 @@
         <p class="text-xs text-discord-textMuted">{searchError}</p>
     {/if}
 
+    {#if candidateShown}
+        <button
+            onclick={() => pick(candidateShown)}
+            disabled={disabled || candidateExcluded}
+            class:opacity-50={disabled || candidateExcluded}
+            class="w-full flex items-center gap-2.5 px-2.5 py-2 text-left rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors"
+        >
+            <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-discord-backgroundTertiary text-discord-textMuted text-sm"
+                >@</span
+            >
+            <span class="min-w-0">
+                <span class="block text-sm text-discord-textPrimary truncate"
+                    >Invite {candidateShown}</span
+                >
+                <span class="block text-xs text-discord-textMuted truncate">
+                    {#if candidateExcluded}
+                        {selected.includes(candidateShown)
+                            ? "Already added"
+                            : "Already in this room"}
+                    {:else}
+                        Send an invite to this exact user ID
+                    {/if}
+                </span>
+            </span>
+        </button>
+    {/if}
+
     {#if visibleResults.length}
         <div
             class="max-h-56 overflow-y-auto rounded bg-discord-backgroundSecondary divide-y divide-discord-divider"
@@ -156,11 +208,11 @@
                 </button>
             {/each}
         </div>
-    {:else if searched && !searching && input.trim().length >= 2}
+    {:else if !candidateShown && searched && !searching && input.trim().length >= 2}
         <p class="text-xs text-discord-textMuted">
-            No matches. Enter a full user ID like <span
+            No matches. Type a full user ID like <span
                 class="text-discord-textSecondary">@user:server</span
-            > and press Enter.
+            > to invite someone the directory doesn't list.
         </p>
     {/if}
 </div>
