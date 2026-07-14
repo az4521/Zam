@@ -965,11 +965,18 @@
             {#if !topic}<div class="flex-1"></div>{/if}
             <!-- Start voice call button -->
             {#if voiceCallState.roomId !== room.roomId}
+                {@const joining =
+                    voiceCallState.joinPendingRoomId === room.roomId}
                 <button
                     onclick={() => joinCall(room.roomId)}
-                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
-                    title="Start voice call"
-                    aria-label="Start voice call"
+                    disabled={voiceCallState.joinPendingRoomId !== null}
+                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50 {joining
+                        ? 'animate-pulse'
+                        : ''}"
+                    title={joining ? "Joining voice call…" : "Start voice call"}
+                    aria-label={joining
+                        ? "Joining voice call…"
+                        : "Start voice call"}
                 >
                     <Phone size={20} />
                 </button>

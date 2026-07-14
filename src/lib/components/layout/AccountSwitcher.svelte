@@ -9,6 +9,7 @@
     } from "$lib/stores/accounts.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { interfaceState, closeModal } from "$lib/stores/interface.svelte";
+    import { leaveVoiceCall } from "$lib/matrix/client";
 
     interface Props {
         onClose: () => void;
@@ -28,11 +29,18 @@
         }
     }
 
-    function switchTo(userId: string): void {
+    async function switchTo(userId: string): Promise<void> {
         if (userId === auth.userId) {
             onClose();
             return;
         }
+        // A hard reload would strand our MatrixRTC membership as a ghost
+        // participant (up to 4h — no MSC4140 on continuwuity). Leave first,
+        // bounded so a hung leave can't block the switch.
+        await Promise.race([
+            leaveVoiceCall(),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
         switchActive(userId);
         // Full reload: the session-restore path boots the account with
         // clean stores (no cross-account state survives).

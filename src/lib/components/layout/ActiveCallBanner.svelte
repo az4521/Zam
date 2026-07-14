@@ -61,11 +61,14 @@
                 <PhoneOff size={14} /> Leave
             </button>
         {:else}
+            {@const joining = voiceCallState.joinPendingRoomId === room.roomId}
             <button
                 onclick={() => joinCall(room.roomId)}
-                class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors"
+                disabled={voiceCallState.joinPendingRoomId !== null}
+                class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
             >
-                <Phone size={14} /> Join
+                <Phone size={14} />
+                {joining ? "Joining…" : "Join"}
             </button>
         {/if}
     </div>

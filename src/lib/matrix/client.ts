@@ -4653,15 +4653,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             }
         });
         lkRoom.on(LivekitRoomEvent.ActiveSpeakersChanged, (speakers) => {
+            if (activeVoice !== call) return;
             const ids = speakers.map((p) => p.identity);
             for (const cb of activeSpeakerSubscribers) cb(ids);
         });
-        lkRoom.on(LivekitRoomEvent.Reconnecting, () =>
-            notifyVoiceConnState("reconnecting"),
-        );
-        lkRoom.on(LivekitRoomEvent.Reconnected, () =>
-            notifyVoiceConnState("connected"),
-        );
+        lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
+            if (activeVoice !== call) return;
+            notifyVoiceConnState("reconnecting");
+        });
+        lkRoom.on(LivekitRoomEvent.Reconnected, () => {
+            if (activeVoice !== call) return;
+            notifyVoiceConnState("connected");
+        });
         lkRoom.on(LivekitRoomEvent.Disconnected, () => {
             // SFU kicked us or the connection died for good — tear down
             // fully and tell the user. User-initiated leaves null
@@ -4723,30 +4726,41 @@ export async function leaveVoiceCall(): Promise<void> {
     await leaveVoiceCallInternal();
 }
 
+let voiceLeaveInFlight: Promise<void> | null = null;
+
 async function leaveVoiceCallInternal(): Promise<void> {
+    while (voiceLeaveInFlight) await voiceLeaveInFlight;
     const call = activeVoice;
     if (!call) return;
-    activeVoice = null;
-    // Playback mute (deafen) is per-call state — a stale flag would attach
-    // every remote track of the NEXT call muted while the UI shows undeafened.
-    voicePlaybackMuted = false;
-    // Notify subscribers before the network teardown below so the UI clears
-    // instantly; the join seq guard protects a racing join.
-    for (const cb of activeSpeakerSubscribers) cb([]);
-    notifyVoiceConnState(null);
-    setVoicePlaybackBlocked(false);
-    call.session.off(
-        "membership_manager_error" as never,
-        call.onMmError as never,
-    );
-    for (const el of call.audioEls) el.remove();
-    call.audioEls.clear();
+    const run = (async () => {
+        activeVoice = null;
+        // Playback mute (deafen) is per-call state — a stale flag would attach
+        // every remote track of the NEXT call muted while the UI shows undeafened.
+        voicePlaybackMuted = false;
+        // Notify subscribers before the network teardown below so the UI clears
+        // instantly; the join seq guard protects a racing join.
+        for (const cb of activeSpeakerSubscribers) cb([]);
+        notifyVoiceConnState(null);
+        setVoicePlaybackBlocked(false);
+        call.session.off(
+            "membership_manager_error" as never,
+            call.onMmError as never,
+        );
+        for (const el of call.audioEls) el.remove();
+        call.audioEls.clear();
+        try {
+            await call.lkRoom.disconnect();
+        } catch {
+            // already disconnected
+        }
+        await call.session.leaveRoomSession(10_000).catch(() => {});
+    })();
+    voiceLeaveInFlight = run;
     try {
-        await call.lkRoom.disconnect();
-    } catch {
-        // already disconnected
+        await run;
+    } finally {
+        voiceLeaveInFlight = null;
     }
-    await call.session.leaveRoomSession(10_000).catch(() => {});
 }
 
 /** Returns false when the device refused (e.g. unmuting a dead mic) so the

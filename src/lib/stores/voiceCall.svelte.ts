@@ -28,6 +28,9 @@ class VoiceCallState {
     mutedByDeafen = $state(false);
     speakingMemberIds = $state<string[]>([]);
     voiceTick = $state(0);
+    /** Room id of a join in flight (gUM prompt → connected); UI disables
+     *  join buttons while set. */
+    joinPendingRoomId = $state<string | null>(null);
 }
 
 export const voiceCallState = new VoiceCallState();
@@ -61,6 +64,8 @@ export function initVoiceCall(): () => void {
 }
 
 export async function joinCall(roomId: string): Promise<void> {
+    if (voiceCallState.joinPendingRoomId) return; // a join is already in flight
+    voiceCallState.joinPendingRoomId = roomId;
     try {
         await joinVoiceCall(roomId);
     } catch (err) {
@@ -68,6 +73,8 @@ export async function joinCall(roomId: string): Promise<void> {
         showErrorToast(
             matrixErrorMessage(err, "Could not join the voice call"),
         );
+    } finally {
+        voiceCallState.joinPendingRoomId = null;
     }
 }
 
