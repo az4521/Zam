@@ -4359,12 +4359,21 @@ async function configuredRtcFoci(): Promise<unknown[]> {
     return Array.isArray(foci) ? foci : [];
 }
 
+/**
+ * Join the MatrixRTC voice call in a room.
+ *
+ * Resolves without joining when superseded mid-flight by a newer
+ * `joinVoiceCall` or an explicit `leaveVoiceCall`; rejects on
+ * mic-permission, JWT, or SFU failure. Observe the actual state via
+ * `onVoiceConnStateChanged` / `getActiveVoiceRoomId`, not the returned
+ * promise.
+ */
 export async function joinVoiceCall(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
     if (!room) throw new Error("Unknown room");
     const seq = ++voiceJoinSeq;
-    await leaveVoiceCall();
+    await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
 
     // Fail fast on mic permission before announcing membership.
@@ -4481,17 +4490,25 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         if (activeVoice === call) {
             await leaveVoiceCall();
         } else {
-            // Superseded mid-join: tear down our own resources only.
+            // Superseded mid-join: tear down our own resources only. The
+            // superseder's leave already left the RTC session; don't touch
+            // the per-room session object a rejoin may be re-joining.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
             await call.lkRoom.disconnect().catch(() => {});
-            void call.session.leaveRoomSession(5_000).catch(() => {});
         }
         throw err;
     }
 }
 
 export async function leaveVoiceCall(): Promise<void> {
+    // An explicit leave invalidates any in-flight join, which bails at its
+    // next staleness check instead of resurrecting the call.
+    voiceJoinSeq++;
+    await leaveVoiceCallInternal();
+}
+
+async function leaveVoiceCallInternal(): Promise<void> {
     const call = activeVoice;
     if (!call) return;
     activeVoice = null;
