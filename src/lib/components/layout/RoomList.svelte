@@ -60,6 +60,7 @@
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
+    import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -884,6 +885,8 @@
             </p>
         {/if}
     </div>
+
+    <VoiceCallPanel />
 
     <!-- User bar -->
     <div
