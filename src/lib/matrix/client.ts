@@ -4378,6 +4378,19 @@ let voicePlaybackMuted = false;
 // toggled during the connect window isn't clobbered.
 let desiredMicMuted = false;
 
+// Output routing/volume for every tracked <audio> element. Captured from
+// settings at join (account switches reload the page and re-read).
+let voiceOutputDeviceId: string | null = null;
+let voiceOutputVolume = 1;
+
+function applyVoiceSink(el: HTMLAudioElement): void {
+    const sinkEl = el as HTMLAudioElement & {
+        setSinkId?: (id: string) => Promise<void>;
+    };
+    // "" selects the default sink; missing setSinkId (Android) → OS routes.
+    void sinkEl.setSinkId?.(voiceOutputDeviceId ?? "").catch(() => {});
+}
+
 type VoiceConnStateCb = (
     state: "connecting" | "connected" | "reconnecting" | null,
     roomId: string | null,
@@ -4477,7 +4490,16 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
-    const lkRoom = new LivekitRoom();
+    const lkRoom = new LivekitRoom({
+        audioCaptureDefaults: {
+            deviceId: settingsState.audioInputDeviceId ?? undefined,
+            noiseSuppression: settingsState.noiseSuppression,
+            echoCancellation: settingsState.echoCancellation,
+            autoGainControl: settingsState.autoGainControl,
+        },
+    });
+    voiceOutputDeviceId = settingsState.audioOutputDeviceId;
+    voiceOutputVolume = settingsState.callOutputVolume;
     // The SDK's MembershipManager gives up for good on some failures (e.g.
     // a 403 on the call.member state PUT in rooms where we lack power) and
     // only reports it via this session event — without it we'd stay
@@ -4551,6 +4573,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             }
             const el = track.attach() as HTMLAudioElement;
             el.muted = voicePlaybackMuted;
+            applyVoiceSink(el);
+            el.volume = voiceOutputVolume;
             call.audioEls.add(el);
             document.body.appendChild(el);
         });
@@ -4648,4 +4672,53 @@ export function setVoicePlaybackMuted(muted: boolean): void {
     voicePlaybackMuted = muted;
     if (!activeVoice) return;
     for (const el of activeVoice.audioEls) el.muted = muted;
+}
+
+/** Route call audio to an output device (null = system default). Applies to
+ *  the live call and to future attaches; no-op where setSinkId is missing. */
+export function setVoiceOutputDevice(deviceId: string | null): void {
+    voiceOutputDeviceId = deviceId;
+    if (!activeVoice) return;
+    for (const el of activeVoice.audioEls) applyVoiceSink(el);
+}
+
+export function setVoiceOutputVolume(volume: number): void {
+    voiceOutputVolume = Math.min(1, Math.max(0, volume));
+    if (!activeVoice) return;
+    for (const el of activeVoice.audioEls) el.volume = voiceOutputVolume;
+}
+
+/** Switch the live call's microphone. Null (system default) takes effect on
+ *  the next join — mid-call the current device is kept. */
+export async function setVoiceInputDevice(
+    deviceId: string | null,
+): Promise<void> {
+    if (!activeVoice || !deviceId) return;
+    await activeVoice.lkRoom
+        .switchActiveDevice("audioinput", deviceId)
+        .catch(() => {});
+}
+
+/** Live NS/EC/AGC change on the published mic track (no-op when not in a
+ *  call — the next join reads the settings via audioCaptureDefaults). */
+export async function setVoiceCaptureConstraints(c: {
+    noiseSuppression: boolean;
+    echoCancellation: boolean;
+    autoGainControl: boolean;
+}): Promise<void> {
+    const track = activeVoice?.lkRoom.localParticipant.getTrackPublication(
+        LivekitTrack.Source.Microphone,
+    )?.audioTrack;
+    if (!track) return;
+    await track.restartTrack({ ...c }).catch(() => {});
+}
+
+/** Live srcObject streams of the call's remote <audio> elements (feeds the
+ *  settings tab's incoming-audio meter; re-read on voiceTick changes). */
+export function getRemoteAudioStreams(): MediaStream[] {
+    if (!activeVoice) return [];
+    const streams: MediaStream[] = [];
+    for (const el of activeVoice.audioEls)
+        if (el.srcObject instanceof MediaStream) streams.push(el.srcObject);
+    return streams;
 }
