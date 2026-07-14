@@ -4391,6 +4391,37 @@ function applyVoiceSink(el: HTMLAudioElement): void {
     void sinkEl.setSinkId?.(voiceOutputDeviceId ?? "").catch(() => {});
 }
 
+// Mid-call input unplug: LiveKit falls back to the default device on its
+// own; surface why the chosen mic stopped being used. One notice per call.
+let voiceDeviceWatchStop: (() => void) | null = null;
+let inputGoneNotified: ActiveVoiceCall | null = null;
+
+function ensureVoiceDeviceWatch(): void {
+    if (voiceDeviceWatchStop || !navigator.mediaDevices?.addEventListener)
+        return;
+    const onChange = async () => {
+        const call = activeVoice;
+        const saved = settingsState.audioInputDeviceId;
+        if (!call || !saved || inputGoneNotified === call) return;
+        const devices = await navigator.mediaDevices
+            .enumerateDevices()
+            .catch(() => []);
+        if (activeVoice !== call) return;
+        const stillThere = devices.some(
+            (d) => d.kind === "audioinput" && d.deviceId === saved,
+        );
+        if (!stillThere) {
+            inputGoneNotified = call;
+            notifyVoiceNotice(
+                "Microphone disconnected — switched to the default device",
+            );
+        }
+    };
+    navigator.mediaDevices.addEventListener("devicechange", onChange);
+    voiceDeviceWatchStop = () =>
+        navigator.mediaDevices.removeEventListener("devicechange", onChange);
+}
+
 type VoiceConnStateCb = (
     state: "connecting" | "connected" | "reconnecting" | null,
     roomId: string | null,
@@ -4424,6 +4455,42 @@ const voiceErrorSubscribers = new Set<(message: string) => void>();
 export function onVoiceCallError(cb: (message: string) => void): () => void {
     voiceErrorSubscribers.add(cb);
     return () => voiceErrorSubscribers.delete(cb);
+}
+
+const voiceNoticeSubscribers = new Set<(message: string) => void>();
+
+/** Non-fatal call notices (device errors, silent mic): toast, no teardown.
+ *  Kept separate from onVoiceCallError so error-sound logic never misfires. */
+export function onVoiceNotice(cb: (message: string) => void): () => void {
+    voiceNoticeSubscribers.add(cb);
+    return () => voiceNoticeSubscribers.delete(cb);
+}
+
+function notifyVoiceNotice(message: string): void {
+    for (const cb of voiceNoticeSubscribers) cb(message);
+}
+
+let voicePlaybackBlocked = false;
+const voicePlaybackBlockedSubscribers = new Set<(blocked: boolean) => void>();
+
+/** Autoplay policy blocked remote audio; show "Enable audio" and call
+ *  resumeVoicePlayback() from a user gesture. */
+export function onVoicePlaybackBlockedChanged(
+    cb: (blocked: boolean) => void,
+): () => void {
+    voicePlaybackBlockedSubscribers.add(cb);
+    return () => voicePlaybackBlockedSubscribers.delete(cb);
+}
+
+function setVoicePlaybackBlocked(blocked: boolean): void {
+    if (voicePlaybackBlocked === blocked) return;
+    voicePlaybackBlocked = blocked;
+    for (const cb of voicePlaybackBlockedSubscribers) cb(blocked);
+}
+
+export async function resumeVoicePlayback(): Promise<void> {
+    if (!activeVoice) return;
+    await activeVoice.lkRoom.startAudio().catch(() => {});
 }
 
 export function getActiveVoiceRoomId(): string | null {
@@ -4523,6 +4590,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMmError,
     };
     activeVoice = call;
+    ensureVoiceDeviceWatch();
     desiredMicMuted = false;
     notifyVoiceConnState("connecting");
     session.on("membership_manager_error" as never, onMmError as never);
@@ -4604,6 +4672,22 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 void leaveVoiceCall();
             }
         });
+        lkRoom.on(LivekitRoomEvent.AudioPlaybackStatusChanged, () => {
+            if (activeVoice !== call) return;
+            setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
+        });
+        let silenceNotified = false;
+        lkRoom.on(LivekitRoomEvent.LocalAudioSilenceDetected, () => {
+            if (activeVoice !== call || silenceNotified) return;
+            silenceNotified = true;
+            notifyVoiceNotice(
+                "Your microphone appears silent — check your input device",
+            );
+        });
+        lkRoom.on(LivekitRoomEvent.MediaDevicesError, (e: Error) => {
+            if (activeVoice !== call) return;
+            notifyVoiceNotice(`Audio device error: ${e.message}`);
+        });
 
         await lkRoom.connect(url, jwt);
         if (seq !== voiceJoinSeq) {
@@ -4616,6 +4700,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             return;
         }
         notifyVoiceConnState("connected");
+        setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
     } catch (err) {
         if (activeVoice === call) {
             await leaveVoiceCall();
@@ -4649,6 +4734,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
     // instantly; the join seq guard protects a racing join.
     for (const cb of activeSpeakerSubscribers) cb([]);
     notifyVoiceConnState(null);
+    setVoicePlaybackBlocked(false);
     call.session.off(
         "membership_manager_error" as never,
         call.onMmError as never,
@@ -4663,9 +4749,20 @@ async function leaveVoiceCallInternal(): Promise<void> {
     await call.session.leaveRoomSession(10_000).catch(() => {});
 }
 
-export function setMicMuted(muted: boolean): void {
+/** Returns false when the device refused (e.g. unmuting a dead mic) so the
+ *  caller can roll the UI back to the truth. */
+export async function setMicMuted(muted: boolean): Promise<boolean> {
     desiredMicMuted = muted;
-    void activeVoice?.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
+    const call = activeVoice;
+    if (!call) return true;
+    try {
+        await call.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
+        return true;
+    } catch {
+        // A failed unmute leaves the mic muted in reality.
+        if (activeVoice === call && !muted) desiredMicMuted = true;
+        return false;
+    }
 }
 
 export function setVoicePlaybackMuted(muted: boolean): void {
