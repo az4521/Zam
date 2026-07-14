@@ -1945,6 +1945,80 @@ async function reconcileJoinedRooms(): Promise<void> {
     }
 }
 
+// ── In-session joined-rooms self-heal ─────────────────────────────────────────
+// reconcileJoinedRooms() only runs at boot. But continuwuity can drop a freshly
+// joined/created room from INCREMENTAL sync entirely (the cache never re-delivers
+// it), so mid-session a room you're joined to can stay invisible until a manual
+// reload. This heals it in place — no reload — by re-asserting the join and
+// seeding state, and only falls back to the cache reset if a room truly can't be
+// materialized.
+
+/** Re-materialize + state-seed one joined room the local cache is missing. */
+async function healMissingJoinedRoom(roomId: string): Promise<boolean> {
+    if (!matrixClient) return false;
+    if (matrixClient.getRoom(roomId)?.getMyMembership() === "join") return true;
+    try {
+        // Idempotent for an already-joined room; makes the SDK create/correct
+        // the Room object the poisoned cache dropped. Raw SDK call (not the
+        // joinRoom wrapper) so it never re-triggers reconciliation.
+        await matrixClient.joinRoom(roomId);
+    } catch {
+        // Already joined or transient — fall through and try seeding anyway.
+    }
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return false;
+    if (roomLacksState(room)) await seedRoomStateIfMissing(roomId);
+    return room.getMyMembership() === "join";
+}
+
+let liveReconcileRunning = false;
+
+/**
+ * Compare the server's joined list against ours mid-session and heal any room
+ * incremental sync dropped, WITHOUT a reload. Best-effort; the boot cache-reset
+ * is a last resort only if in-place healing leaves a room unrecovered.
+ */
+export async function reconcileJoinedRoomsLive(): Promise<void> {
+    if (!matrixClient || liveReconcileRunning) return;
+    liveReconcileRunning = true;
+    try {
+        const server = await matrixClient.getJoinedRooms();
+        const missing = server.joined_rooms.filter(
+            (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
+        );
+        if (missing.length === 0) return;
+        console.info("In-session sync heal — rooms missing locally:", missing);
+        let unhealed = false;
+        for (const id of missing) {
+            if (!(await healMissingJoinedRoom(id))) unhealed = true;
+        }
+        for (const cb of roomUpdateSubscribers) cb();
+        for (const id of missing) {
+            if (matrixClient.getRoom(id)?.getMyMembership() === "join")
+                for (const cb of roomHealedSubscribers) cb(id);
+        }
+        // Nothing we could do in place — reuse the boot escape hatch once.
+        if (unhealed && !sessionStorage.getItem(RECONCILE_FLAG)) {
+            sessionStorage.setItem(RECONCILE_FLAG, "1");
+            await clearCacheAndReload();
+        }
+    } catch {
+        // best-effort — never surface as a user-facing error
+    } finally {
+        liveReconcileRunning = false;
+    }
+}
+
+let liveReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+/** Debounced trigger for the in-session joined-rooms heal. */
+export function scheduleJoinedRoomsReconcile(delayMs = 1500): void {
+    if (liveReconcileTimer) return;
+    liveReconcileTimer = setTimeout(() => {
+        liveReconcileTimer = null;
+        void reconcileJoinedRoomsLive();
+    }, delayMs);
+}
+
 export function onRoomUpdate(callback: () => void): () => void {
     if (!matrixClient) return () => {};
     roomUpdateSubscribers.add(callback);
@@ -2421,6 +2495,7 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
         if (!joined) throw err;
     }
     await seedRoomStateIfMissing(roomId);
+    scheduleJoinedRoomsReconcile();
 }
 
 export async function joinRoomByAlias(alias: string): Promise<string> {
@@ -2505,6 +2580,7 @@ export async function createRoom(
     if (spaceId) await addRoomToSpace(spaceId, roomId);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    scheduleJoinedRoomsReconcile();
     return roomId;
 }
 
@@ -2523,6 +2599,7 @@ export async function createSpace(
             events: { "m.space.child": 0 },
         },
     });
+    scheduleJoinedRoomsReconcile();
     return result.room_id;
 }
 
@@ -2673,6 +2750,7 @@ export async function acceptInvite(roomId: string): Promise<void> {
     await matrixClient.joinRoom(roomId);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    scheduleJoinedRoomsReconcile();
 }
 
 export async function rejectInvite(roomId: string): Promise<void> {

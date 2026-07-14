@@ -48,6 +48,7 @@
         getKnockedRooms,
         getSpaceLayout,
         fetchSpaceHierarchy,
+        scheduleJoinedRoomsReconcile,
         getRoom,
         getRoomDisplayName,
         getMemberName,
@@ -634,6 +635,9 @@
 
         if (spaceId) {
             roomsState.hierarchyLoading = true;
+            // Opening a space is a natural moment to catch a joined child room
+            // that incremental sync dropped (heals in place, no reload).
+            scheduleJoinedRoomsReconcile();
             fetchSpaceHierarchy(
                 spaceId,
                 roomsState.spaceDrillParentId ?? undefined,
