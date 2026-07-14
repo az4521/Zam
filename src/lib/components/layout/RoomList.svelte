@@ -16,6 +16,9 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         getRoom,
+        canInviteToRoom,
+        getRoomShareLink,
+        markRoomAsRead,
         getSpaces,
         getRoomDisplayName as getSpaceName,
         addRoomToSpace,
@@ -57,6 +60,7 @@
         openModal,
         closeModal,
     } from "$lib/stores/interface.svelte";
+    import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
@@ -188,6 +192,28 @@
             clearTimeout(ctxTouchTimer);
             ctxTouchTimer = null;
         }
+    }
+
+    function handleOpenSettings(roomId: string) {
+        const room = getRoom(roomId);
+        closeModal();
+        if (room) onOpenRoomSettings?.(room);
+    }
+    function handleInvite(roomId: string) {
+        closeModal();
+        openInviteDialog(roomId);
+    }
+    async function handleCopyLink(roomId: string) {
+        try {
+            await navigator.clipboard.writeText(getRoomShareLink(roomId));
+        } catch {
+            /* clipboard denied — silent */
+        }
+        closeModal();
+    }
+    async function handleMarkRead(roomId: string) {
+        closeModal();
+        await markRoomAsRead(roomId);
     }
 
     async function handleSetNotification(
@@ -954,6 +980,29 @@
         ></div>
 
         {#snippet menuItems()}
+            <button
+                onclick={() => handleOpenSettings(cm.roomId)}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                >Settings</button
+            >
+            {#if (void roomsState.roomsTick, canInviteToRoom(cm.roomId))}
+                <button
+                    onclick={() => handleInvite(cm.roomId)}
+                    class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                    >Invite People</button
+                >
+            {/if}
+            <button
+                onclick={() => handleCopyLink(cm.roomId)}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                >Copy Room Link</button
+            >
+            <button
+                onclick={() => handleMarkRead(cm.roomId)}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                >Mark as Read</button
+            >
+            <div class="w-full h-px bg-discord-divider my-1"></div>
             <p
                 class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
             >
