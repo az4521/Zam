@@ -2638,11 +2638,18 @@ export function canInviteToRoom(roomId: string): boolean {
     const room = matrixClient?.getRoom(roomId);
     const me = matrixClient?.getUserId();
     if (!room || !me) return false;
-    if (getMyPowerLevel(room) >= getRoomPowerLevels(room).invite) return true;
-    const create = room
-        .getLiveTimeline()
-        .getState(EventTimeline.FORWARDS)
-        ?.getStateEvents("m.room.create", "");
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    // The spec default for `invite` is 0 — getRoomPowerLevels() normalizes it to
+    // 50, which would wrongly hide Invite from ordinary members of rooms that
+    // never set an explicit invite PL. Read the raw value with the correct default.
+    const inviteReq = state
+        ?.getStateEvents("m.room.power_levels", "")
+        ?.getContent()?.invite;
+    if (
+        getMyPowerLevel(room) >= (typeof inviteReq === "number" ? inviteReq : 0)
+    )
+        return true;
+    const create = state?.getStateEvents("m.room.create", "");
     const creator = create?.getSender();
     const additional =
         (create?.getContent()?.additional_creators as string[]) ?? [];
