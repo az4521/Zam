@@ -13,7 +13,11 @@
         toggleCallDeafen,
     } from "$lib/stores/voiceCall.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
-    import { getRoom, getRoomDisplayName } from "$lib/matrix/client";
+    import {
+        getRoom,
+        getRoomDisplayName,
+        resumeVoicePlayback,
+    } from "$lib/matrix/client";
     import { navigateToRoom } from "$lib/stores/rooms.svelte";
 
     const roomName = $derived.by(() => {
@@ -29,6 +33,14 @@
     <div
         class="px-2 py-2 border-t border-discord-divider bg-discord-backgroundSecondary"
     >
+        {#if voiceCallState.playbackBlocked}
+            <button
+                onclick={() => void resumeVoicePlayback()}
+                class="w-full mb-1.5 px-2 py-1.5 rounded bg-discord-warning text-black text-xs font-semibold"
+            >
+                Enable audio
+            </button>
+        {/if}
         <div class="flex items-center justify-between gap-2">
             <button
                 class="min-w-0 text-left"
