@@ -4271,6 +4271,12 @@ export function onVoiceSessionsChanged(cb: () => void): () => void {
     const onEnded = () => notifyVoiceSessions();
     manager.on("session_started" as never, onStarted as never);
     manager.on("session_ended" as never, onEnded as never);
+    // Sessions that were already active before this subscription (e.g. a
+    // call in progress at boot) never fire "session_started" again — watch
+    // them now so participant changes still notify.
+    for (const room of matrixClient.getRooms()) {
+        watchVoiceSession(manager.getRoomSession(room) as never);
+    }
     return () => {
         voiceSessionSubscribers.delete(cb);
         manager.off("session_started" as never, onStarted as never);
