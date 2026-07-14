@@ -1038,7 +1038,7 @@
 
             <!-- Backfill sentinel at the visual top (= oldest-loaded edge).
                  The IntersectionObserver watches it to load older history. -->
-            {#if messages.length > 0 && !isContextView}
+            {#if !isContextView}
                 <div
                     bind:this={topSentinelEl}
                     class="h-px w-full flex-shrink-0"
