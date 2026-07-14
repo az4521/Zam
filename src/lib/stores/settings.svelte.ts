@@ -62,6 +62,19 @@ function writeAccountBool(key: string, value: boolean): void {
     writeAccountString(key, String(value));
 }
 
+/** Device ids are stored as "" for "system default" → exposed as null. */
+function readAccountDeviceId(key: string): string | null {
+    const v = readAccountString(key);
+    return v ? v : null;
+}
+
+function readAccountNumber(key: string, fallback: number): number {
+    const v = readAccountString(key);
+    if (v === null) return fallback;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+}
+
 function readPresence(key: string, fallback: PresenceState): PresenceState {
     const v = readAccountString(key);
     return isPresenceState(v) ? v : fallback;
@@ -111,6 +124,18 @@ export const settingsState = $state({
     privateReadReceipts: readAccountBool("privateReadReceipts", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
+    /** Voice: preferred devices (null = system default). Preferences, not
+     *  bindings — resolved against the live device list at each use. */
+    audioInputDeviceId: readAccountDeviceId("audioInputDeviceId"),
+    audioOutputDeviceId: readAccountDeviceId("audioOutputDeviceId"),
+    videoInputDeviceId: readAccountDeviceId("videoInputDeviceId"),
+    /** Master volume for remote call audio (0..1). */
+    callOutputVolume: readAccountNumber("callOutputVolume", 1),
+    noiseSuppression: readAccountBool("noiseSuppression", true),
+    echoCancellation: readAccountBool("echoCancellation", true),
+    autoGainControl: readAccountBool("autoGainControl", true),
+    callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
+    callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
 });
 
 applyTheme(settingsState.theme);
@@ -135,6 +160,22 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
+    settingsState.audioInputDeviceId =
+        readAccountDeviceId("audioInputDeviceId");
+    settingsState.audioOutputDeviceId = readAccountDeviceId(
+        "audioOutputDeviceId",
+    );
+    settingsState.videoInputDeviceId =
+        readAccountDeviceId("videoInputDeviceId");
+    settingsState.callOutputVolume = readAccountNumber("callOutputVolume", 1);
+    settingsState.noiseSuppression = readAccountBool("noiseSuppression", true);
+    settingsState.echoCancellation = readAccountBool("echoCancellation", true);
+    settingsState.autoGainControl = readAccountBool("autoGainControl", true);
+    settingsState.callSoundsEnabled = readAccountBool(
+        "callSoundsEnabled",
+        true,
+    );
+    settingsState.callSoundsVolume = readAccountNumber("callSoundsVolume", 0.5);
 }
 
 export function setTheme(value: Theme): void {
@@ -206,4 +247,55 @@ export function setPrivateReadReceipts(value: boolean): void {
 export function setOwnPresenceSetting(value: PresenceState): void {
     settingsState.ownPresence = value;
     writeAccountString("ownPresence", value);
+}
+
+export function setAudioInputDeviceId(value: string | null): void {
+    settingsState.audioInputDeviceId = value;
+    writeAccountString("audioInputDeviceId", value ?? "");
+}
+
+export function setAudioOutputDeviceId(value: string | null): void {
+    settingsState.audioOutputDeviceId = value;
+    writeAccountString("audioOutputDeviceId", value ?? "");
+}
+
+export function setVideoInputDeviceId(value: string | null): void {
+    settingsState.videoInputDeviceId = value;
+    writeAccountString("videoInputDeviceId", value ?? "");
+}
+
+export function setCallOutputVolume(value: number): void {
+    settingsState.callOutputVolume = Math.min(1, Math.max(0, value));
+    writeAccountString(
+        "callOutputVolume",
+        String(settingsState.callOutputVolume),
+    );
+}
+
+export function setNoiseSuppression(value: boolean): void {
+    settingsState.noiseSuppression = value;
+    writeAccountBool("noiseSuppression", value);
+}
+
+export function setEchoCancellation(value: boolean): void {
+    settingsState.echoCancellation = value;
+    writeAccountBool("echoCancellation", value);
+}
+
+export function setAutoGainControl(value: boolean): void {
+    settingsState.autoGainControl = value;
+    writeAccountBool("autoGainControl", value);
+}
+
+export function setCallSoundsEnabled(value: boolean): void {
+    settingsState.callSoundsEnabled = value;
+    writeAccountBool("callSoundsEnabled", value);
+}
+
+export function setCallSoundsVolume(value: number): void {
+    settingsState.callSoundsVolume = Math.min(1, Math.max(0, value));
+    writeAccountString(
+        "callSoundsVolume",
+        String(settingsState.callSoundsVolume),
+    );
 }
