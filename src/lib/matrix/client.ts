@@ -2283,6 +2283,9 @@ export async function setSpaceOrder(order: string[]): Promise<void> {
 
 export async function leaveRoom(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Leaving the room mid-call must also hang up — otherwise the SFU
+    // connection and mic stay live in a room we're no longer a member of.
+    if (getActiveVoiceRoomId() === roomId) await leaveVoiceCall();
     pendingLeaves.add(roomId);
     try {
         await matrixClient.leave(roomId);
@@ -4305,6 +4308,9 @@ let activeVoice: ActiveVoiceCall | null = null;
 // reconnecting a room it no longer owns.
 let voiceJoinSeq = 0;
 let voicePlaybackMuted = false;
+// The mic state the user last asked for; consulted after connect so a mute
+// toggled during the connect window isn't clobbered.
+let desiredMicMuted = false;
 
 type VoiceConnStateCb = (
     state: "connecting" | "connected" | "reconnecting" | null,
@@ -4427,6 +4433,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMmError,
     };
     activeVoice = call;
+    desiredMicMuted = false;
     notifyVoiceConnState("connecting");
     session.on("membership_manager_error" as never, onMmError as never);
 
@@ -4496,8 +4503,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             notifyVoiceConnState("connected"),
         );
         lkRoom.on(LivekitRoomEvent.Disconnected, () => {
-            // SFU kicked us or the connection died for good — tear down fully.
-            if (activeVoice?.lkRoom === lkRoom) void leaveVoiceCall();
+            // SFU kicked us or the connection died for good — tear down
+            // fully and tell the user. User-initiated leaves null
+            // activeVoice first, so this only fires on genuine drops.
+            if (activeVoice?.lkRoom === lkRoom) {
+                for (const cb of voiceErrorSubscribers)
+                    cb("Voice call disconnected");
+                void leaveVoiceCall();
+            }
         });
 
         await lkRoom.connect(url, jwt);
@@ -4505,7 +4518,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             await lkRoom.disconnect().catch(() => {});
             return;
         }
-        await lkRoom.localParticipant.setMicrophoneEnabled(true);
+        await lkRoom.localParticipant.setMicrophoneEnabled(!desiredMicMuted);
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -4537,6 +4550,13 @@ async function leaveVoiceCallInternal(): Promise<void> {
     const call = activeVoice;
     if (!call) return;
     activeVoice = null;
+    // Playback mute (deafen) is per-call state — a stale flag would attach
+    // every remote track of the NEXT call muted while the UI shows undeafened.
+    voicePlaybackMuted = false;
+    // Notify subscribers before the network teardown below so the UI clears
+    // instantly; the join seq guard protects a racing join.
+    for (const cb of activeSpeakerSubscribers) cb([]);
+    notifyVoiceConnState(null);
     call.session.off(
         "membership_manager_error" as never,
         call.onMmError as never,
@@ -4549,11 +4569,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // already disconnected
     }
     await call.session.leaveRoomSession(10_000).catch(() => {});
-    for (const cb of activeSpeakerSubscribers) cb([]);
-    notifyVoiceConnState(null);
 }
 
 export function setMicMuted(muted: boolean): void {
+    desiredMicMuted = muted;
     void activeVoice?.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
 }
 

@@ -82,7 +82,12 @@ function asLivekit(
     const o = t as Record<string, unknown>;
     if (o.type !== "livekit" || typeof o.livekit_service_url !== "string")
         return null;
-    return o as { livekit_service_url: string; livekit_alias?: string };
+    return {
+        livekit_service_url: o.livekit_service_url,
+        // Remote membership data — a non-string alias must not leak through.
+        livekit_alias:
+            typeof o.livekit_alias === "string" ? o.livekit_alias : undefined,
+    };
 }
 
 /**

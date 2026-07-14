@@ -108,6 +108,13 @@ describe("pickLivekitTransport", () => {
             alias: "!room:s",
         });
     });
+    it("falls back to the room id when a member alias is not a string", () => {
+        const member = { ...focus, livekit_alias: 42 };
+        expect(pickLivekitTransport([member], [], "!room:s")).toEqual({
+            serviceUrl: "https://lk.example/jwt",
+            alias: "!room:s",
+        });
+    });
     it("ignores non-livekit and malformed entries", () => {
         expect(
             pickLivekitTransport(
