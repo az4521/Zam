@@ -53,6 +53,7 @@ import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
+import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
     isPollStartEventType,
@@ -2098,6 +2099,25 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     await matrixClient.setRoomReadMarkers(event.getRoomId()!, event.getId()!);
 }
 
+/** Send a read receipt to the room's newest live event, clearing its unread state. */
+export async function markRoomAsRead(roomId: string): Promise<void> {
+    if (!matrixClient) return;
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return;
+    const events = room.getLiveTimeline().getEvents();
+    const last = events[events.length - 1];
+    if (last) await sendReadReceipt(last);
+}
+
+/** A shareable matrix.to link: canonical alias if set, else room id + our homeserver as via. */
+export function getRoomShareLink(roomId: string): string {
+    const room = matrixClient?.getRoom(roomId);
+    const alias = room?.getCanonicalAlias();
+    if (alias) return matrixToUrl(alias);
+    const domain = matrixClient?.getDomain();
+    return matrixToUrl(roomId, domain ? [domain] : []);
+}
+
 /** Returns the event ID the current user has read up to in this room, or null. */
 export function getReadUpToEventId(room: Room): string | null {
     const userId = matrixClient?.getUserId();
@@ -2583,6 +2603,50 @@ export async function createDirectMessage(userId: string): Promise<string> {
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return roomId;
+}
+
+/** Invite a user to an existing room or space. Throws on failure (caller surfaces). */
+export async function inviteUser(
+    roomId: string,
+    userId: string,
+    reason?: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.invite(roomId, userId, reason);
+}
+
+/** User ids currently in the room with any of the given memberships (default join+invite). */
+export function getRoomMemberIds(
+    roomId: string,
+    memberships: string[] = ["join", "invite"],
+): string[] {
+    const room = matrixClient?.getRoom(roomId);
+    if (!room) return [];
+    return room
+        .getMembers()
+        .filter((m) => memberships.includes(m.membership ?? ""))
+        .map((m) => m.userId);
+}
+
+/**
+ * Whether the current user may invite to this room. Normal path: power level ≥
+ * the room's `invite` PL. Room-v12 (MSC4289) creators have implicit power the
+ * SDK may not surface as a PL number, so the room creator (and additional
+ * creators) always pass — we never hide a capability the server grants.
+ */
+export function canInviteToRoom(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    const me = matrixClient?.getUserId();
+    if (!room || !me) return false;
+    if (getMyPowerLevel(room) >= getRoomPowerLevels(room).invite) return true;
+    const create = room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents("m.room.create", "");
+    const creator = create?.getSender();
+    const additional =
+        (create?.getContent()?.additional_creators as string[]) ?? [];
+    return creator === me || additional.includes(me);
 }
 
 export function getInvitedRooms(): Room[] {
@@ -3841,6 +3905,26 @@ export async function setHistoryVisibility(
         "m.room.history_visibility",
         { history_visibility: visibility },
     );
+}
+
+/** The room's visibility in the server's public room directory. */
+export async function getRoomDirectoryVisibility(
+    roomId: string,
+): Promise<"public" | "private"> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.getRoomDirectoryVisibility(roomId);
+    return (res as { visibility?: string })?.visibility === "public"
+        ? "public"
+        : "private";
+}
+
+/** Publish/unpublish the room to the server's public room directory. */
+export async function setRoomDirectoryVisibility(
+    roomId: string,
+    visibility: "public" | "private",
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).setRoomDirectoryVisibility(roomId, visibility);
 }
 
 export interface SpaceChildEntry {
