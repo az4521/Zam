@@ -28,6 +28,13 @@ import type {
     User,
     ReceiptType,
 } from "matrix-js-sdk";
+import {
+    Room as LivekitRoom,
+    RoomEvent as LivekitRoomEvent,
+    Track as LivekitTrack,
+    type RemoteTrack,
+} from "livekit-client";
+import { pickLivekitTransport, sfuJwtUrl } from "$lib/utils/voiceCall";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
@@ -4282,4 +4289,195 @@ export function onVoiceSessionsChanged(cb: () => void): () => void {
         manager.off("session_started" as never, onStarted as never);
         manager.off("session_ended" as never, onEnded as never);
     };
+}
+
+interface ActiveVoiceCall {
+    roomId: string;
+    session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
+    lkRoom: LivekitRoom;
+    audioEls: Set<HTMLAudioElement>;
+}
+
+let activeVoice: ActiveVoiceCall | null = null;
+let voicePlaybackMuted = false;
+
+type VoiceConnStateCb = (
+    state: "connecting" | "connected" | "reconnecting" | null,
+    roomId: string | null,
+) => void;
+const voiceConnStateSubscribers = new Set<VoiceConnStateCb>();
+const activeSpeakerSubscribers = new Set<(memberIds: string[]) => void>();
+
+function notifyVoiceConnState(
+    state: "connecting" | "connected" | "reconnecting" | null,
+): void {
+    const roomId = activeVoice?.roomId ?? null;
+    for (const cb of voiceConnStateSubscribers) cb(state, roomId);
+}
+
+export function onVoiceConnStateChanged(cb: VoiceConnStateCb): () => void {
+    voiceConnStateSubscribers.add(cb);
+    return () => voiceConnStateSubscribers.delete(cb);
+}
+
+export function onActiveSpeakersChanged(
+    cb: (memberIds: string[]) => void,
+): () => void {
+    activeSpeakerSubscribers.add(cb);
+    return () => activeSpeakerSubscribers.delete(cb);
+}
+
+export function getActiveVoiceRoomId(): string | null {
+    return activeVoice?.roomId ?? null;
+}
+
+/** The homeserver's advertised MatrixRTC foci (MSC4143 .well-known). */
+async function configuredRtcFoci(): Promise<unknown[]> {
+    if (!matrixClient) return [];
+    let wk = matrixClient.getClientWellKnown() as
+        | Record<string, unknown>
+        | undefined;
+    if (!wk) {
+        // startClient() doesn't pass clientWellKnownPollPeriod, so the SDK
+        // never fetches .well-known on its own and getClientWellKnown()
+        // stays undefined — trigger a one-off fetch on demand. The method
+        // is protected in typings but callable at runtime, and it caches.
+        await (
+            matrixClient as unknown as {
+                fetchClientWellKnown(): Promise<unknown>;
+            }
+        ).fetchClientWellKnown();
+        wk = matrixClient.getClientWellKnown() as
+            | Record<string, unknown>
+            | undefined;
+    }
+    const foci = wk?.["org.matrix.msc4143.rtc_foci"];
+    return Array.isArray(foci) ? foci : [];
+}
+
+export async function joinVoiceCall(roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    if (!room) throw new Error("Unknown room");
+    await leaveVoiceCall();
+
+    // Fail fast on mic permission before announcing membership.
+    const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+    probe.getTracks().forEach((t) => t.stop());
+
+    const session = matrixClient.matrixRTC.getRoomSession(room);
+    const oldest = session.getOldestMembership();
+    const memberTransports = oldest
+        ? session.memberships
+              .map((m) => m.getTransport(oldest))
+              .filter((t): t is NonNullable<typeof t> => !!t)
+        : [];
+    const target = pickLivekitTransport(
+        memberTransports,
+        await configuredRtcFoci(),
+        roomId,
+    );
+    if (!target) throw new Error("No LiveKit focus available for this call");
+
+    const userId = matrixClient.getUserId()!;
+    const deviceId = matrixClient.getDeviceId()!;
+    const lkRoom = new LivekitRoom();
+    activeVoice = { roomId, session, lkRoom, audioEls: new Set() };
+    notifyVoiceConnState("connecting");
+
+    try {
+        session.joinRTCSession(
+            { userId, deviceId, memberId: `${userId}:${deviceId}` },
+            [
+                {
+                    type: "livekit",
+                    livekit_service_url: target.serviceUrl,
+                    livekit_alias: target.alias,
+                },
+            ],
+            undefined,
+            { membershipEventExpiryMs: 4 * 60 * 60 * 1000 },
+        );
+
+        const openIdToken = await matrixClient.getOpenIdToken();
+        const jwtRes = await fetch(sfuJwtUrl(target.serviceUrl), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                room: target.alias,
+                openid_token: openIdToken,
+                device_id: deviceId,
+            }),
+        });
+        if (!jwtRes.ok) {
+            throw new Error(
+                `Voice server rejected the join (${jwtRes.status})`,
+            );
+        }
+        const { url, jwt } = (await jwtRes.json()) as {
+            url: string;
+            jwt: string;
+        };
+
+        lkRoom.on(LivekitRoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+            if (track.kind !== LivekitTrack.Kind.Audio) return;
+            const el = track.attach() as HTMLAudioElement;
+            el.muted = voicePlaybackMuted;
+            document.body.appendChild(el);
+            activeVoice?.audioEls.add(el);
+        });
+        lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+            for (const el of track.detach()) {
+                activeVoice?.audioEls.delete(el as HTMLAudioElement);
+                el.remove();
+            }
+        });
+        lkRoom.on(LivekitRoomEvent.ActiveSpeakersChanged, (speakers) => {
+            const ids = speakers.map((p) => p.identity);
+            for (const cb of activeSpeakerSubscribers) cb(ids);
+        });
+        lkRoom.on(LivekitRoomEvent.Reconnecting, () =>
+            notifyVoiceConnState("reconnecting"),
+        );
+        lkRoom.on(LivekitRoomEvent.Reconnected, () =>
+            notifyVoiceConnState("connected"),
+        );
+        lkRoom.on(LivekitRoomEvent.Disconnected, () => {
+            // SFU kicked us or the connection died for good — tear down fully.
+            if (activeVoice?.lkRoom === lkRoom) void leaveVoiceCall();
+        });
+
+        await lkRoom.connect(url, jwt);
+        await lkRoom.localParticipant.setMicrophoneEnabled(true);
+        notifyVoiceConnState("connected");
+    } catch (err) {
+        await leaveVoiceCall();
+        throw err;
+    }
+}
+
+export async function leaveVoiceCall(): Promise<void> {
+    const call = activeVoice;
+    if (!call) return;
+    activeVoice = null;
+    for (const el of call.audioEls) el.remove();
+    call.audioEls.clear();
+    try {
+        await call.lkRoom.disconnect();
+    } catch {
+        // already disconnected
+    }
+    await call.session.leaveRoomSession(10_000).catch(() => {});
+    for (const cb of activeSpeakerSubscribers) cb([]);
+    notifyVoiceConnState(null);
+}
+
+export function setMicMuted(muted: boolean): void {
+    void activeVoice?.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
+}
+
+export function setVoicePlaybackMuted(muted: boolean): void {
+    voicePlaybackMuted = muted;
+    if (!activeVoice) return;
+    for (const el of activeVoice.audioEls) el.muted = muted;
 }
