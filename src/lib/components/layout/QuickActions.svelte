@@ -6,8 +6,6 @@
         joinRoomByAlias,
         knockRoom,
         canAddRoomToSpace,
-        searchUserDirectory,
-        type UserSearchResult,
     } from "$lib/matrix/client";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -16,9 +14,8 @@
         openModal,
         closeModal,
     } from "$lib/stores/interface.svelte";
-    import { debounce, isValidUserId } from "$lib/utils/userSearch";
     import Portal from "$lib/components/ui/Portal.svelte";
-    import Avatar from "$lib/components/ui/Avatar.svelte";
+    import UserPicker from "$lib/components/ui/UserPicker.svelte";
 
     type Mode = "create-room" | "create-space" | "create-dm" | "join-room";
 
@@ -35,59 +32,6 @@
     let input2 = $state(""); // room topic / space topic
     let loading = $state(false);
     let error = $state("");
-
-    // User directory search (create-dm mode)
-    let dmResults = $state<UserSearchResult[]>([]);
-    let dmSearching = $state(false);
-    let dmSearched = $state(false); // a search completed for the current term
-    let dmLimited = $state(false);
-    let dmSearchError = $state("");
-    let searchSeq = 0; // discard responses that arrive after a newer search
-
-    async function runUserSearch(term: string) {
-        if (mode !== "create-dm") return;
-        const seq = ++searchSeq;
-        try {
-            const res = await searchUserDirectory(term, 10);
-            if (seq !== searchSeq || mode !== "create-dm") return;
-            dmResults = res.users;
-            dmLimited = res.limited;
-            dmSearchError = "";
-            dmSearched = true;
-        } catch {
-            if (seq !== searchSeq) return;
-            dmResults = [];
-            dmLimited = false;
-            dmSearchError =
-                "User search failed — you can still enter a full user ID.";
-            dmSearched = true;
-        } finally {
-            if (seq === searchSeq) dmSearching = false;
-        }
-    }
-
-    const debouncedUserSearch = debounce(
-        (term: string) => void runUserSearch(term),
-        300,
-    );
-
-    $effect(() => {
-        if (mode !== "create-dm") return;
-        const term = input1.trim();
-        if (term.length < 2) {
-            debouncedUserSearch.cancel();
-            searchSeq++;
-            dmResults = [];
-            dmSearching = false;
-            dmSearched = false;
-            dmLimited = false;
-            dmSearchError = "";
-            return;
-        }
-        dmSearching = true;
-        dmSearched = false;
-        debouncedUserSearch(term);
-    });
 
     async function startDm(userId: string) {
         error = "";
@@ -141,18 +85,6 @@
                 );
             } else if (mode === "create-space") {
                 roomId = await createSpace(input1.trim(), input2.trim());
-            } else if (mode === "create-dm") {
-                let userId = input1.trim();
-                if (!isValidUserId(userId)) {
-                    // Enter with search results picks the top match
-                    if (dmResults.length > 0) userId = dmResults[0].userId;
-                    else {
-                        error =
-                            "Enter a valid Matrix user ID, e.g. @user:server.com";
-                        return;
-                    }
-                }
-                roomId = await createDirectMessage(userId);
             } else {
                 const alias = input1.trim();
                 if (!alias.startsWith("#") && !alias.startsWith("!")) {
@@ -192,7 +124,7 @@
             e.preventDefault();
             if (mode === "join-room" && knockSent) close();
             else if (mode === "join-room" && knockOffered) submitKnock();
-            else submit();
+            else if (mode !== "create-dm") submit();
         }
     }
 </script>
@@ -336,74 +268,12 @@
                         </div>
                     </div>
                 {:else if mode === "create-dm"}
-                    <div class="flex flex-col gap-2">
-                        <div>
-                            <!-- svelte-ignore a11y_label_has_associated_control -->
-                            <label
-                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                                >Find a user</label
-                            >
-                            <input
-                                bind:value={input1}
-                                placeholder="Search by name, or enter @user:server.com"
-                                class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
-                            />
-                        </div>
-                        {#if dmSearching}
-                            <p class="text-xs text-discord-textMuted">
-                                Searching…
-                            </p>
-                        {:else if dmSearchError}
-                            <p class="text-xs text-discord-error">
-                                {dmSearchError}
-                            </p>
-                        {:else if dmResults.length > 0}
-                            <div
-                                class="max-h-56 overflow-y-auto flex flex-col gap-0.5"
-                            >
-                                {#each dmResults as user (user.userId)}
-                                    <button
-                                        onclick={() => startDm(user.userId)}
-                                        disabled={loading}
-                                        class="w-full flex items-center gap-2 px-1.5 py-1.5 rounded text-left hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                    >
-                                        <Avatar
-                                            src={user.avatarUrl}
-                                            name={user.displayName ??
-                                                user.userId}
-                                            id={user.userId}
-                                            size={32}
-                                        />
-                                        <div class="flex flex-col min-w-0">
-                                            <span
-                                                class="text-sm text-discord-textPrimary truncate"
-                                            >
-                                                {user.displayName ??
-                                                    user.userId}
-                                            </span>
-                                            <span
-                                                class="text-xs text-discord-textMuted truncate"
-                                            >
-                                                {user.userId}
-                                            </span>
-                                        </div>
-                                    </button>
-                                {/each}
-                                {#if dmLimited}
-                                    <p
-                                        class="text-xs text-discord-textMuted px-1.5 pt-1"
-                                    >
-                                        More results available — keep typing to
-                                        narrow the search.
-                                    </p>
-                                {/if}
-                            </div>
-                        {:else if dmSearched}
-                            <p class="text-xs text-discord-textMuted">
-                                No users found.
-                            </p>
-                        {/if}
-                    </div>
+                    <UserPicker
+                        mode="single"
+                        autofocus
+                        onpick={startDm}
+                        placeholder="Find someone to message…"
+                    />
                 {:else}
                     <div class="flex flex-col gap-3">
                         <div>
@@ -473,7 +343,7 @@
                             {/if}
                             Request to join
                         </button>
-                    {:else}
+                    {:else if mode !== "create-dm"}
                         <button
                             onclick={submit}
                             disabled={loading || !input1.trim()}
@@ -486,7 +356,6 @@
                             {/if}
                             {#if mode === "create-room"}Create
                             {:else if mode === "create-space"}Create
-                            {:else if mode === "create-dm"}Open DM
                             {:else}Join
                             {/if}
                         </button>
