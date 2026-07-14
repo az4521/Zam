@@ -28,6 +28,13 @@ import type {
     User,
     ReceiptType,
 } from "matrix-js-sdk";
+import {
+    Room as LivekitRoom,
+    RoomEvent as LivekitRoomEvent,
+    Track as LivekitTrack,
+    type RemoteTrack,
+} from "livekit-client";
+import { pickLivekitTransport, sfuJwtUrl } from "$lib/utils/voiceCall";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
@@ -44,7 +51,7 @@ import {
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
-import { buildKnockOpts } from "$lib/utils/knock";
+import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
@@ -307,6 +314,7 @@ export async function startSync(
         if (state === "PREPARED") {
             initialSyncComplete = true;
             seedStatelessRooms();
+            void reconcileJoinedRooms();
         }
         onStateChange(state as string);
     });
@@ -1016,7 +1024,8 @@ export async function fetchServerNotifications(
     limit = 50,
     from?: string,
 ): Promise<ServerNotificationResult> {
-    if (!matrixClient) return { status: "error", error: new Error("Not connected") };
+    if (!matrixClient)
+        return { status: "error", error: new Error("Not connected") };
     return fetchServerNotificationsForClient(matrixClient, limit, from);
 }
 
@@ -1721,7 +1730,11 @@ export async function setRoomNotificationSetting(
 ): Promise<void> {
     if (!matrixClient) return;
     try {
-        await setRoomNotificationSettingForClient(matrixClient, roomId, setting);
+        await setRoomNotificationSettingForClient(
+            matrixClient,
+            roomId,
+            setting,
+        );
     } finally {
         pushRulesState.revision++;
     }
@@ -1878,6 +1891,56 @@ function seedStatelessRooms(): void {
                     console.warn("Boot-pass timeline backfill failed:", err),
                 );
         }
+    }
+}
+
+/**
+ * Wipe the local sync cache (IndexedDB) and reload the app. Auth is
+ * untouched — the next boot performs a fresh initial sync. Escape hatch for
+ * stale-cache states the server never re-delivers (continuwuity omits
+ * rooms it considers "unchanged" from incremental sync, so a room cached
+ * wrongly stays wrong forever).
+ */
+export async function clearCacheAndReload(): Promise<void> {
+    try {
+        matrixClient?.stopClient();
+        await matrixStore?.deleteAllData();
+    } catch (err) {
+        console.warn("Sync cache wipe failed, reloading anyway:", err);
+    }
+    window.location.reload();
+}
+
+// A poisoned sync cache can hide a room the server considers joined, and it
+// never self-heals (see clearCacheAndReload). After each initial sync,
+// compare the server's joined list against ours; on mismatch, reset the
+// cache once. The sessionStorage flag stops a reload loop if the mismatch
+// somehow survives a fresh initial sync.
+const RECONCILE_FLAG = "syncReconcileAttempted";
+
+async function reconcileJoinedRooms(): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        const server = await matrixClient.getJoinedRooms();
+        const missing = server.joined_rooms.filter(
+            (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
+        );
+        if (missing.length === 0) {
+            sessionStorage.removeItem(RECONCILE_FLAG);
+            return;
+        }
+        if (sessionStorage.getItem(RECONCILE_FLAG)) {
+            console.warn(
+                "Joined-rooms mismatch persists after a cache reset:",
+                missing,
+            );
+            return;
+        }
+        console.warn("Sync cache is missing joined rooms, resetting:", missing);
+        sessionStorage.setItem(RECONCILE_FLAG, "1");
+        await clearCacheAndReload();
+    } catch {
+        // Reconciliation is best-effort — never let it break boot.
     }
 }
 
@@ -2271,6 +2334,9 @@ export async function setSpaceOrder(order: string[]): Promise<void> {
 
 export async function leaveRoom(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Leaving the room mid-call must also hang up — otherwise the SFU
+    // connection and mic stay live in a room we're no longer a member of.
+    if (getActiveVoiceRoomId() === roomId) await leaveVoiceCall();
     pendingLeaves.add(roomId);
     try {
         await matrixClient.leave(roomId);
@@ -2391,6 +2457,15 @@ export async function getPublicRooms(
     };
 }
 
+// Rooms created by this client let every member join MatrixRTC calls: the
+// spec default (state_default 50) would otherwise reserve calls for
+// moderators. Element sets the same overrides at creation.
+const CALL_POWER_LEVEL_EVENTS = {
+    "org.matrix.msc3401.call.member": 0,
+    "m.call.member": 0,
+    "m.rtc.member": 0,
+};
+
 export async function createRoom(
     name: string,
     topic: string,
@@ -2402,6 +2477,9 @@ export async function createRoom(
         topic: topic || undefined,
         visibility: "private" as any,
         preset: "private_chat" as any,
+        power_level_content_override: {
+            events: { ...CALL_POWER_LEVEL_EVENTS },
+        },
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
@@ -2480,9 +2558,9 @@ export async function searchUserDirectory(
 export async function createDirectMessage(userId: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists
-    const existing = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const existing = matrixClient
+        .getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     if (existing?.[userId]?.length) {
         const existingRoomId = existing[userId][0];
         if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
@@ -2493,6 +2571,9 @@ export async function createDirectMessage(userId: string): Promise<string> {
         is_direct: true,
         preset: "trusted_private_chat" as any,
         visibility: "private" as any,
+        power_level_content_override: {
+            events: { ...CALL_POWER_LEVEL_EVENTS },
+        },
     });
     const roomId = result.room_id;
     // Update m.direct account data so the room shows in DMs
@@ -4169,9 +4250,9 @@ export function onPresenceEvent(
 /** User id of the other party in a DM room (m.direct mapping, falling back
  *  to the SDK's member-based guess). */
 export function getDMPartnerId(room: Room): string {
-    const direct = matrixClient?.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const direct = matrixClient
+        ?.getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     if (direct) {
         for (const [userId, roomIds] of Object.entries(direct)) {
             if (Array.isArray(roomIds) && roomIds.includes(room.roomId)) {
@@ -4191,9 +4272,9 @@ export interface MutualRoomInfo {
  *  with that user excluded (a shared DM is not a "mutual room"). */
 export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
     if (!matrixClient) return [];
-    const direct = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+    const direct = matrixClient
+        .getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
     const dmRoomIds = new Set(direct?.[userId] ?? []);
     return matrixClient
         .getRooms()
@@ -4208,4 +4289,363 @@ export function getMutualRoomsWith(userId: string): MutualRoomInfo[] {
             roomId: room.roomId,
             name: getRoomDisplayName(room),
         }));
+}
+
+// --- MatrixRTC voice calls -----------------------------------------------
+// All matrix-js-sdk `matrixrtc` access lives behind this seam: the module is
+// semi-internal upstream and its API churns between SDK majors. Event names
+// are string literals because the enums live in modules the SDK does not
+// re-export ("session_started"/"session_ended" on the manager,
+// "memberships_changed"/"membership_manager_error" on a session).
+
+export interface VoiceMembership {
+    userId: string;
+    deviceId: string;
+    joinedTs: number;
+}
+
+/** Non-expired MatrixRTC memberships for a room (empty when no call). */
+export function getRoomCallMemberships(room: Room): VoiceMembership[] {
+    if (!matrixClient) return [];
+    const session = matrixClient.matrixRTC.getRoomSession(room);
+    return session.memberships
+        .filter((m) => !m.isExpired())
+        .map((m) => ({
+            userId: m.userId,
+            deviceId: m.deviceId,
+            joinedTs: m.createdTs(),
+        }));
+}
+
+const voiceSessionSubscribers = new Set<() => void>();
+const subscribedVoiceSessions = new WeakSet<object>();
+
+function notifyVoiceSessions(): void {
+    for (const cb of voiceSessionSubscribers) cb();
+}
+
+function watchVoiceSession(session: {
+    on: (ev: never, fn: never) => unknown;
+}): void {
+    if (subscribedVoiceSessions.has(session)) return;
+    subscribedVoiceSessions.add(session);
+    session.on("memberships_changed" as never, notifyVoiceSessions as never);
+}
+
+/**
+ * Fires whenever any room's MatrixRTC memberships change (someone joins or
+ * leaves a call anywhere). Cheap consumers bump a tick and re-derive.
+ */
+export function onVoiceSessionsChanged(cb: () => void): () => void {
+    if (!matrixClient) return () => {};
+    voiceSessionSubscribers.add(cb);
+    const manager = matrixClient.matrixRTC;
+    const onStarted = (_roomId: string, session: object) => {
+        watchVoiceSession(session as never);
+        notifyVoiceSessions();
+    };
+    const onEnded = () => notifyVoiceSessions();
+    manager.on("session_started" as never, onStarted as never);
+    manager.on("session_ended" as never, onEnded as never);
+    // Sessions that were already active before this subscription (e.g. a
+    // call in progress at boot) never fire "session_started" again — watch
+    // them now so participant changes still notify.
+    for (const room of matrixClient.getRooms()) {
+        watchVoiceSession(manager.getRoomSession(room) as never);
+    }
+    return () => {
+        voiceSessionSubscribers.delete(cb);
+        manager.off("session_started" as never, onStarted as never);
+        manager.off("session_ended" as never, onEnded as never);
+    };
+}
+
+interface ActiveVoiceCall {
+    roomId: string;
+    session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
+    lkRoom: LivekitRoom;
+    audioEls: Set<HTMLAudioElement>;
+    onMmError: (err: unknown) => void;
+}
+
+let activeVoice: ActiveVoiceCall | null = null;
+// Monotonic token for joinVoiceCall: a newer join bumps it, and any older
+// in-flight invocation bails out at its next staleness check instead of
+// reconnecting a room it no longer owns.
+let voiceJoinSeq = 0;
+let voicePlaybackMuted = false;
+// The mic state the user last asked for; consulted after connect so a mute
+// toggled during the connect window isn't clobbered.
+let desiredMicMuted = false;
+
+type VoiceConnStateCb = (
+    state: "connecting" | "connected" | "reconnecting" | null,
+    roomId: string | null,
+) => void;
+const voiceConnStateSubscribers = new Set<VoiceConnStateCb>();
+const activeSpeakerSubscribers = new Set<(memberIds: string[]) => void>();
+
+function notifyVoiceConnState(
+    state: "connecting" | "connected" | "reconnecting" | null,
+): void {
+    const roomId = activeVoice?.roomId ?? null;
+    for (const cb of voiceConnStateSubscribers) cb(state, roomId);
+}
+
+export function onVoiceConnStateChanged(cb: VoiceConnStateCb): () => void {
+    voiceConnStateSubscribers.add(cb);
+    return () => voiceConnStateSubscribers.delete(cb);
+}
+
+export function onActiveSpeakersChanged(
+    cb: (memberIds: string[]) => void,
+): () => void {
+    activeSpeakerSubscribers.add(cb);
+    return () => activeSpeakerSubscribers.delete(cb);
+}
+
+const voiceErrorSubscribers = new Set<(message: string) => void>();
+
+/** Fires when an established/joining call fails fatally (e.g. the server
+ *  rejects our membership state event) and has been torn down. */
+export function onVoiceCallError(cb: (message: string) => void): () => void {
+    voiceErrorSubscribers.add(cb);
+    return () => voiceErrorSubscribers.delete(cb);
+}
+
+export function getActiveVoiceRoomId(): string | null {
+    return activeVoice?.roomId ?? null;
+}
+
+/** The homeserver's advertised MatrixRTC foci (MSC4143 .well-known). */
+async function configuredRtcFoci(): Promise<unknown[]> {
+    if (!matrixClient) return [];
+    let wk = matrixClient.getClientWellKnown() as
+        | Record<string, unknown>
+        | undefined;
+    if (!wk) {
+        // startClient() doesn't pass clientWellKnownPollPeriod, so the SDK
+        // never fetches .well-known on its own and getClientWellKnown()
+        // stays undefined — trigger a one-off fetch on demand. The method
+        // is protected in typings but callable at runtime, and it caches.
+        await (
+            matrixClient as unknown as {
+                fetchClientWellKnown(): Promise<unknown>;
+            }
+        ).fetchClientWellKnown();
+        wk = matrixClient.getClientWellKnown() as
+            | Record<string, unknown>
+            | undefined;
+    }
+    const foci = wk?.["org.matrix.msc4143.rtc_foci"];
+    return Array.isArray(foci) ? foci : [];
+}
+
+/**
+ * Join the MatrixRTC voice call in a room.
+ *
+ * Resolves without joining when superseded mid-flight by a newer
+ * `joinVoiceCall` or an explicit `leaveVoiceCall`; rejects on
+ * mic-permission, JWT, or SFU failure. Observe the actual state via
+ * `onVoiceConnStateChanged` / `getActiveVoiceRoomId`, not the returned
+ * promise.
+ */
+export async function joinVoiceCall(roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    if (!room) throw new Error("Unknown room");
+    const seq = ++voiceJoinSeq;
+    await leaveVoiceCallInternal();
+    if (seq !== voiceJoinSeq) return; // superseded while leaving
+
+    // Fail fast on mic permission before announcing membership.
+    const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
+    probe.getTracks().forEach((t) => t.stop());
+    if (seq !== voiceJoinSeq) return;
+
+    const session = matrixClient.matrixRTC.getRoomSession(room);
+    const oldest = session.getOldestMembership();
+    const memberTransports = oldest
+        ? session.memberships
+              .map((m) => m.getTransport(oldest))
+              .filter((t): t is NonNullable<typeof t> => !!t)
+        : [];
+    const foci = await configuredRtcFoci();
+    if (seq !== voiceJoinSeq) return;
+    const target = pickLivekitTransport(memberTransports, foci, roomId);
+    if (!target) throw new Error("No LiveKit focus available for this call");
+
+    const userId = matrixClient.getUserId()!;
+    const deviceId = matrixClient.getDeviceId()!;
+    const lkRoom = new LivekitRoom();
+    // The SDK's MembershipManager gives up for good on some failures (e.g.
+    // a 403 on the call.member state PUT in rooms where we lack power) and
+    // only reports it via this session event — without it we'd stay
+    // connected to LiveKit, audible but invisible to everyone else.
+    const onMmError = (err: unknown) => {
+        if (activeVoice !== call) return;
+        console.error("Voice call membership failed:", err);
+        const detail = matrixErrorMessage(
+            err,
+            "the server rejected it — you may lack permission to join calls in this room",
+        );
+        for (const cb of voiceErrorSubscribers)
+            cb(`Call membership failed: ${detail}`);
+        void leaveVoiceCall();
+    };
+    const call: ActiveVoiceCall = {
+        roomId,
+        session,
+        lkRoom,
+        audioEls: new Set(),
+        onMmError,
+    };
+    activeVoice = call;
+    desiredMicMuted = false;
+    notifyVoiceConnState("connecting");
+    session.on("membership_manager_error" as never, onMmError as never);
+
+    try {
+        session.joinRTCSession(
+            { userId, deviceId, memberId: `${userId}:${deviceId}` },
+            [
+                {
+                    type: "livekit",
+                    livekit_service_url: target.serviceUrl,
+                    livekit_alias: target.alias,
+                },
+            ],
+            undefined,
+            { membershipEventExpiryMs: 4 * 60 * 60 * 1000 },
+        );
+
+        const openIdToken = await matrixClient.getOpenIdToken();
+        if (seq !== voiceJoinSeq) return;
+        const jwtRes = await fetch(sfuJwtUrl(target.serviceUrl), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                room: target.alias,
+                openid_token: openIdToken,
+                device_id: deviceId,
+            }),
+        });
+        if (seq !== voiceJoinSeq) return;
+        if (!jwtRes.ok) {
+            throw new Error(
+                `Voice server rejected the join (${jwtRes.status})`,
+            );
+        }
+        const { url, jwt } = (await jwtRes.json()) as {
+            url: string;
+            jwt: string;
+        };
+        if (seq !== voiceJoinSeq) return;
+
+        lkRoom.on(LivekitRoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+            if (track.kind !== LivekitTrack.Kind.Audio) return;
+            if (activeVoice !== call) {
+                // Call already superseded/left — don't attach at all.
+                track.detach().forEach((el) => el.remove());
+                return;
+            }
+            const el = track.attach() as HTMLAudioElement;
+            el.muted = voicePlaybackMuted;
+            call.audioEls.add(el);
+            document.body.appendChild(el);
+        });
+        lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+            for (const el of track.detach()) {
+                call.audioEls.delete(el as HTMLAudioElement);
+                el.remove();
+            }
+        });
+        lkRoom.on(LivekitRoomEvent.ActiveSpeakersChanged, (speakers) => {
+            const ids = speakers.map((p) => p.identity);
+            for (const cb of activeSpeakerSubscribers) cb(ids);
+        });
+        lkRoom.on(LivekitRoomEvent.Reconnecting, () =>
+            notifyVoiceConnState("reconnecting"),
+        );
+        lkRoom.on(LivekitRoomEvent.Reconnected, () =>
+            notifyVoiceConnState("connected"),
+        );
+        lkRoom.on(LivekitRoomEvent.Disconnected, () => {
+            // SFU kicked us or the connection died for good — tear down
+            // fully and tell the user. User-initiated leaves null
+            // activeVoice first, so this only fires on genuine drops.
+            if (activeVoice?.lkRoom === lkRoom) {
+                for (const cb of voiceErrorSubscribers)
+                    cb("Voice call disconnected");
+                void leaveVoiceCall();
+            }
+        });
+
+        await lkRoom.connect(url, jwt);
+        if (seq !== voiceJoinSeq) {
+            await lkRoom.disconnect().catch(() => {});
+            return;
+        }
+        await lkRoom.localParticipant.setMicrophoneEnabled(!desiredMicMuted);
+        if (seq !== voiceJoinSeq) {
+            await lkRoom.disconnect().catch(() => {});
+            return;
+        }
+        notifyVoiceConnState("connected");
+    } catch (err) {
+        if (activeVoice === call) {
+            await leaveVoiceCall();
+        } else {
+            // Superseded mid-join: tear down our own resources only. The
+            // superseder's leave already left the RTC session; don't touch
+            // the per-room session object a rejoin may be re-joining.
+            for (const el of call.audioEls) el.remove();
+            call.audioEls.clear();
+            await call.lkRoom.disconnect().catch(() => {});
+        }
+        throw err;
+    }
+}
+
+export async function leaveVoiceCall(): Promise<void> {
+    // An explicit leave invalidates any in-flight join, which bails at its
+    // next staleness check instead of resurrecting the call.
+    voiceJoinSeq++;
+    await leaveVoiceCallInternal();
+}
+
+async function leaveVoiceCallInternal(): Promise<void> {
+    const call = activeVoice;
+    if (!call) return;
+    activeVoice = null;
+    // Playback mute (deafen) is per-call state — a stale flag would attach
+    // every remote track of the NEXT call muted while the UI shows undeafened.
+    voicePlaybackMuted = false;
+    // Notify subscribers before the network teardown below so the UI clears
+    // instantly; the join seq guard protects a racing join.
+    for (const cb of activeSpeakerSubscribers) cb([]);
+    notifyVoiceConnState(null);
+    call.session.off(
+        "membership_manager_error" as never,
+        call.onMmError as never,
+    );
+    for (const el of call.audioEls) el.remove();
+    call.audioEls.clear();
+    try {
+        await call.lkRoom.disconnect();
+    } catch {
+        // already disconnected
+    }
+    await call.session.leaveRoomSession(10_000).catch(() => {});
+}
+
+export function setMicMuted(muted: boolean): void {
+    desiredMicMuted = muted;
+    void activeVoice?.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
+}
+
+export function setVoicePlaybackMuted(muted: boolean): void {
+    voicePlaybackMuted = muted;
+    if (!activeVoice) return;
+    for (const el of activeVoice.audioEls) el.muted = muted;
 }

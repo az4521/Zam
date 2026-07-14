@@ -87,6 +87,7 @@
         "date-fns": "^4.1.0",
         "dompurify": "^3.4.11",
         "highlight.js": "^11.11.1",
+        "livekit-client": "^2.20.1",
         "lucide-svelte": "^0.509.0",
         "marked": "^15.0.7",
         "matrix-js-sdk": "^41.9.0",

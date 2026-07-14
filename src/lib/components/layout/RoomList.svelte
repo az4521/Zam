@@ -26,9 +26,13 @@
         toggleRoomTag,
         getOwnAvatarUrl,
         getDMPartnerId,
+        getRoomCallMemberships,
         type RoomNotificationSetting,
         type SpaceChildInfo,
     } from "$lib/matrix/client";
+    import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { Volume2 } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -56,6 +60,7 @@
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
+    import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -521,6 +526,9 @@
         <!-- Joined rooms / channels -->
         {#snippet channelRow(room: Room)}
             {@const { isActive, unread, highlight, loud } = roomButton(room)}
+            {@const voiceCount =
+                (void voiceCallState.voiceTick,
+                dedupeParticipants(getRoomCallMemberships(room)).length)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="group/room flex items-center transition-colors"
@@ -566,6 +574,14 @@
                         >{(void roomsState.roomsTick,
                         getRoomDisplayName(room))}</span
                     >
+                    {#if voiceCount > 0}
+                        <span
+                            class="ml-auto flex items-center gap-0.5 text-xs text-discord-accent flex-shrink-0"
+                            title="{voiceCount} in voice"
+                        >
+                            <Volume2 size={12} />{voiceCount}
+                        </span>
+                    {/if}
                     {#if highlight && !isActive}
                         <span
                             class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center ml-1"
@@ -798,6 +814,10 @@
                     {@const { isActive, unread, highlight, loud } =
                         roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
+                    {@const voiceCount =
+                        (void voiceCallState.voiceTick,
+                        dedupeParticipants(getRoomCallMemberships(room))
+                            .length)}
                     <button
                         onclick={() => setActiveRoom(room.roomId)}
                         oncontextmenu={(e) => openContextMenu(e, room.roomId)}
@@ -839,6 +859,14 @@
                         <span class="flex-1 text-sm truncate"
                             >{getRoomDisplayName(room)}</span
                         >
+                        {#if voiceCount > 0}
+                            <span
+                                class="ml-auto flex items-center gap-0.5 text-xs text-discord-accent flex-shrink-0"
+                                title="{voiceCount} in voice"
+                            >
+                                <Volume2 size={12} />{voiceCount}
+                            </span>
+                        {/if}
                         {#if highlight && !isActive}
                             <span
                                 class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
@@ -857,6 +885,8 @@
             </p>
         {/if}
     </div>
+
+    <VoiceCallPanel />
 
     <!-- User bar -->
     <div

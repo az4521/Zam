@@ -70,6 +70,9 @@
     } from "$lib/utils/timelineDisplay";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
+    import { Phone } from "lucide-svelte";
+    import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
 
     interface Props {
         room: Room;
@@ -960,6 +963,17 @@
                 </p>
             {/if}
             {#if !topic}<div class="flex-1"></div>{/if}
+            <!-- Start voice call button -->
+            {#if voiceCallState.roomId !== room.roomId}
+                <button
+                    onclick={() => joinCall(room.roomId)}
+                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                    title="Start voice call"
+                    aria-label="Start voice call"
+                >
+                    <Phone size={20} />
+                </button>
+            {/if}
             <!-- Search messages button -->
             {#if !searchState.unsupported}
                 <button
@@ -1021,6 +1035,8 @@
                 </svg>
             </button>
         </div>
+
+        <ActiveCallBanner {room} />
 
         <!-- Messages scrollable area -->
         <div
