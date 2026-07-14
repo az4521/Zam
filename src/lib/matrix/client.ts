@@ -51,7 +51,7 @@ import {
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
-import { buildKnockOpts } from "$lib/utils/knock";
+import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
@@ -2406,6 +2406,15 @@ export async function getPublicRooms(
     };
 }
 
+// Rooms created by this client let every member join MatrixRTC calls: the
+// spec default (state_default 50) would otherwise reserve calls for
+// moderators. Element sets the same overrides at creation.
+const CALL_POWER_LEVEL_EVENTS = {
+    "org.matrix.msc3401.call.member": 0,
+    "m.call.member": 0,
+    "m.rtc.member": 0,
+};
+
 export async function createRoom(
     name: string,
     topic: string,
@@ -2417,6 +2426,9 @@ export async function createRoom(
         topic: topic || undefined,
         visibility: "private" as any,
         preset: "private_chat" as any,
+        power_level_content_override: {
+            events: { ...CALL_POWER_LEVEL_EVENTS },
+        },
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
@@ -2508,6 +2520,9 @@ export async function createDirectMessage(userId: string): Promise<string> {
         is_direct: true,
         preset: "trusted_private_chat" as any,
         visibility: "private" as any,
+        power_level_content_override: {
+            events: { ...CALL_POWER_LEVEL_EVENTS },
+        },
     });
     const roomId = result.room_id;
     // Update m.direct account data so the room shows in DMs
@@ -4419,10 +4434,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const onMmError = (err: unknown) => {
         if (activeVoice !== call) return;
         console.error("Voice call membership failed:", err);
+        const detail = matrixErrorMessage(
+            err,
+            "the server rejected it — you may lack permission to join calls in this room",
+        );
         for (const cb of voiceErrorSubscribers)
-            cb(
-                "The server rejected your call membership — you may lack permission to join calls in this room",
-            );
+            cb(`Call membership failed: ${detail}`);
         void leaveVoiceCall();
     };
     const call: ActiveVoiceCall = {
