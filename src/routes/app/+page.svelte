@@ -5,6 +5,7 @@
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
+    import CallView from "$lib/components/layout/CallView.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
@@ -802,11 +803,15 @@
                     onMenuOpen={() => (interfaceState.leftOpen = true)}
                 />
             {:else if activeRoom}
-                <MessageArea
-                    room={activeRoom}
-                    isMobile={interfaceState.isMobile}
-                    onMenuOpen={() => (interfaceState.leftOpen = true)}
-                />
+                {#if interfaceState.callViewRoomId === activeRoom.roomId}
+                    <CallView room={activeRoom} />
+                {:else}
+                    <MessageArea
+                        room={activeRoom}
+                        isMobile={interfaceState.isMobile}
+                        onMenuOpen={() => (interfaceState.leftOpen = true)}
+                    />
+                {/if}
             {:else}
                 <div
                     class="flex-1 flex flex-col items-center justify-center text-center p-8"
