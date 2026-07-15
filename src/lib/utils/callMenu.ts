@@ -10,14 +10,11 @@ export interface MenuGateInput {
     targetLevel: number;
     kickLevel: number;
     banLevel: number;
-    /** Disconnect works by redacting their RTC membership event. */
-    redactLevel: number;
 }
 
 export interface MenuGates {
     canKick: boolean;
     canBan: boolean;
-    canDisconnect: boolean;
 }
 
 export function menuGates(input: MenuGateInput): MenuGates {
@@ -25,6 +22,5 @@ export function menuGates(input: MenuGateInput): MenuGates {
     return {
         canKick: canActOnTarget && input.myLevel >= input.kickLevel,
         canBan: canActOnTarget && input.myLevel >= input.banLevel,
-        canDisconnect: canActOnTarget && input.myLevel >= input.redactLevel,
     };
 }
