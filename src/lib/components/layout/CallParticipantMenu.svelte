@@ -17,7 +17,6 @@
         setUserLocalMute,
         participantAudioFor,
     } from "$lib/stores/voiceCall.svelte";
-    import { openModal, clearModal } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import {
         isUserBlocked,
@@ -63,15 +62,6 @@
     });
     const audio = $derived(participantAudioFor(userId));
     const blocked = $derived(isUserBlocked(userId));
-
-    // Own the modal slot so Escape / the mobile back button close the menu
-    // without every call site remembering to register it. Handing off to the
-    // profile card is safe: `openProfileCard` claims the slot as "profile-card",
-    // and `clearModal` only clears when *we* still own it.
-    $effect(() => {
-        openModal("call-participant-menu", onClose);
-        return () => clearModal("call-participant-menu");
-    });
 
     // Same viewport-clamping action the room/space context menus use.
     function positionMenu(node: HTMLElement, pos: { x: number; y: number }) {
