@@ -10,6 +10,7 @@
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
+    import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
@@ -31,7 +32,16 @@
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
-    import { initVoiceCall, leaveCall } from "$lib/stores/voiceCall.svelte";
+    import {
+        initVoiceCall,
+        leaveCall,
+        joinCall,
+    } from "$lib/stores/voiceCall.svelte";
+    import {
+        incomingCallsState,
+        initIncomingCalls,
+        declineIncomingCall,
+    } from "$lib/stores/incomingCalls.svelte";
     import { reloadAccountSettings } from "$lib/stores/settings.svelte";
     import {
         markNotification,
@@ -53,6 +63,7 @@
         getRoom,
         getRoomDisplayName,
         getMemberName,
+        getDMPartnerId,
         logout,
         onRoomUpdate,
         onAccountData,
@@ -364,6 +375,56 @@
         }
     }
 
+    // Incoming DM calls get their own notification and suppression rule: the
+    // message rule at showDesktopNotification() is about whether you are
+    // reading that room, which is not the question here. The only reason to
+    // stay quiet is that the card is already on screen in front of you.
+    const notifiedCalls = new Set<string>();
+
+    function notifyIncomingCall(roomId: string) {
+        if (
+            typeof Notification === "undefined" ||
+            Notification.permission !== "granted"
+        )
+            return;
+        if (document.hasFocus()) return;
+        const room = getRoom(roomId);
+        if (!room) return;
+        const partnerId = getDMPartnerId(room);
+        const name = partnerId ? getMemberName(room, partnerId) : "Someone";
+        try {
+            const n = new Notification(`${name} is calling`, {
+                body: "Incoming call",
+                icon: "/favicon.png",
+                badge: "/favicon_foreground.png",
+                tag: `call:${roomId}`,
+            });
+            n.onclick = () => {
+                window.focus();
+                navigateToRoom(roomId);
+            };
+        } catch {
+            /* notifications unsupported / blocked — the card still shows */
+        }
+    }
+
+    function acceptIncomingCall(roomId: string) {
+        navigateToRoom(roomId);
+        void joinCall(roomId);
+    }
+
+    $effect(() => {
+        const current = new Set(incomingCallsState.ringing);
+        for (const roomId of current)
+            if (!notifiedCalls.has(roomId)) {
+                notifiedCalls.add(roomId);
+                notifyIncomingCall(roomId);
+            }
+        // Forget rooms that stopped ringing, so a re-call notifies again.
+        for (const roomId of notifiedCalls)
+            if (!current.has(roomId)) notifiedCalls.delete(roomId);
+    });
+
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     function scheduleRefreshRooms() {
         if (refreshTimer) return;
@@ -566,6 +627,7 @@
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
+        const unsubIncoming = initIncomingCalls();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -614,6 +676,7 @@
             unsubIgnored();
             unsubPresence();
             unsubVoice();
+            unsubIncoming();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
@@ -868,6 +931,18 @@
 
 {#if interfaceState.modal === "invite" && inviteDialogState.roomId}
     <InviteModal roomId={inviteDialogState.roomId} />
+{/if}
+
+{#if incomingCallsState.ringing.length > 0}
+    <div class="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        {#each incomingCallsState.ringing as roomId (roomId)}
+            <IncomingCallCard
+                {roomId}
+                onAccept={acceptIncomingCall}
+                onDecline={declineIncomingCall}
+            />
+        {/each}
+    </div>
 {/if}
 
 <ErrorToasts />
