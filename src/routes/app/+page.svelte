@@ -400,7 +400,16 @@
                 tag: `call:${roomId}`,
             });
             n.onclick = () => {
-                window.focus();
+                // Electron: window.focus() cannot un-hide a tray-hidden
+                // window, so prefer the preload bridge. Web has no bridge and
+                // needs the plain focus().
+                const desktop = (
+                    window as unknown as {
+                        desktop?: { showWindow?: () => void };
+                    }
+                ).desktop;
+                if (desktop?.showWindow) desktop.showWindow();
+                else window.focus();
                 navigateToRoom(roomId);
             };
         } catch {

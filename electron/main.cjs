@@ -15,6 +15,7 @@ const {
     Menu,
     nativeImage,
     shell,
+    ipcMain,
 } = require("electron");
 const http = require("http");
 const fs = require("fs");
@@ -105,6 +106,10 @@ function showWindow() {
     mainWindow.focus();
 }
 
+// The renderer asks for this when a call notification is clicked while the
+// window is hidden in the tray.
+ipcMain.on("show-window", showWindow);
+
 async function createWindow() {
     const url = await startServer();
 
@@ -119,6 +124,7 @@ async function createWindow() {
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
+            preload: path.join(__dirname, "preload.cjs"),
         },
     });
 
