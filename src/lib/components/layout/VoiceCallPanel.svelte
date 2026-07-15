@@ -13,20 +13,51 @@
         toggleCallDeafen,
     } from "$lib/stores/voiceCall.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
+    import { formatCallDuration } from "$lib/utils/callDuration";
+    import { showCallView } from "$lib/stores/interface.svelte";
     import {
         getRoom,
         getRoomDisplayName,
+        getParentSpaceIds,
         resumeVoicePlayback,
     } from "$lib/matrix/client";
-    import { navigateToRoom } from "$lib/stores/rooms.svelte";
+    import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
 
-    const roomName = $derived.by(() => {
-        void voiceCallState.voiceTick;
-        const room = voiceCallState.roomId
-            ? getRoom(voiceCallState.roomId)
-            : null;
-        return room ? getRoomDisplayName(room) : "";
+    // Ticks only while the panel is on screen; the anchor itself lives in the
+    // store so a reconnect doesn't restart the clock.
+    let now = $state(Date.now());
+    $effect(() => {
+        if (voiceCallState.connectedAt === null) return;
+        const id = setInterval(() => (now = Date.now()), 1000);
+        return () => clearInterval(id);
     });
+    const elapsed = $derived(
+        voiceCallState.connectedAt === null
+            ? null
+            : formatCallDuration(now - voiceCallState.connectedAt),
+    );
+
+    const locationLabel = $derived.by(() => {
+        void voiceCallState.voiceTick;
+        void roomsState.roomsTick;
+        if (!voiceCallState.roomId) return "";
+        const room = getRoom(voiceCallState.roomId);
+        if (!room) return "";
+        const name = getRoomDisplayName(room);
+        const parentId = getParentSpaceIds(voiceCallState.roomId)[0];
+        const parent = parentId ? getRoom(parentId) : null;
+        return parent ? `${name} / ${getRoomDisplayName(parent)}` : name;
+    });
+
+    // The call can live in a room outside the selected space, so switch space +
+    // active room (navigateToRoom) before flipping to the call view — the shell
+    // only renders CallView when callViewRoomId matches the active room.
+    function openCallView(): void {
+        const roomId = voiceCallState.roomId;
+        if (!roomId) return;
+        navigateToRoom(roomId);
+        showCallView(roomId);
+    }
 </script>
 
 {#if voiceCallState.roomId}
@@ -44,8 +75,8 @@
         <div class="flex items-center justify-between gap-2">
             <button
                 class="min-w-0 text-left"
-                onclick={() => navigateToRoom(voiceCallState.roomId!)}
-                title="Go to {roomName}"
+                onclick={openCallView}
+                title="Open call view"
             >
                 <p
                     class="text-xs font-semibold {voiceCallState.connState ===
@@ -54,9 +85,14 @@
                         : 'text-discord-warning'}"
                 >
                     {connStateLabel(voiceCallState.connState)}
+                    {#if elapsed}
+                        <span class="ml-1 font-normal text-discord-textMuted"
+                            >{elapsed}</span
+                        >
+                    {/if}
                 </p>
                 <p class="text-xs text-discord-textMuted truncate">
-                    {roomName}
+                    {locationLabel}
                 </p>
             </button>
             <div class="flex items-center gap-1 flex-shrink-0">

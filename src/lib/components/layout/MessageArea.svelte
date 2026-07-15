@@ -32,6 +32,7 @@
         getReadUpToEventId,
         getReceiptsForEvent,
         onReceiptEvent,
+        getRoomCallMemberships,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -47,6 +48,7 @@
         interfaceState,
         openSidebar,
         closeSidebar,
+        showCallView,
     } from "$lib/stores/interface.svelte";
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
     import { ignoredUsersState } from "$lib/stores/ignoredUsers.svelte";
@@ -71,8 +73,9 @@
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
-    import { Phone } from "lucide-svelte";
+    import { Phone, Volume2 } from "lucide-svelte";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
+    import { dedupeParticipants } from "$lib/utils/voiceCall";
 
     interface Props {
         room: Room;
@@ -481,6 +484,13 @@
         (void roomsState.roomsTick, getRoomDisplayName(room)),
     );
     const topic = $derived((void roomsState.roomsTick, getRoomTopic(room)));
+    // Header "show call" button gate. Computed here rather than as an {@const}
+    // in the markup: the header is a plain <div>, and {@const} may only be an
+    // immediate child of a block.
+    const callCount = $derived(
+        (void voiceCallState.voiceTick,
+        dedupeParticipants(getRoomCallMemberships(room)).length),
+    );
     let contextMessages = $state<MatrixEvent[] | null>(null);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
@@ -979,6 +989,17 @@
                         : "Start voice call"}
                 >
                     <Phone size={20} />
+                </button>
+            {/if}
+            <!-- Flip to the call view (peek without joining) -->
+            {#if callCount > 0}
+                <button
+                    onclick={() => showCallView(room.roomId)}
+                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                    title="Show call"
+                    aria-label="Show call"
+                >
+                    <Volume2 size={20} />
                 </button>
             {/if}
             <!-- Search messages button -->

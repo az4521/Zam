@@ -7,6 +7,11 @@ import {
     normalizeDoubleTapAction,
     type DoubleTapAction,
 } from "$lib/utils/doubleTap";
+import {
+    parseAudioMap,
+    serializeAudioMap,
+    type ParticipantAudio,
+} from "$lib/utils/participantAudio";
 import { auth } from "$lib/stores/auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
 
@@ -136,6 +141,8 @@ export const settingsState = $state({
     autoGainControl: readAccountBool("autoGainControl", true),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
+    /** Per-user call volume/mute, keyed by user id. */
+    participantAudio: parseAudioMap(readAccountString("participantAudio")),
 });
 
 applyTheme(settingsState.theme);
@@ -176,6 +183,9 @@ export function reloadAccountSettings(): void {
         true,
     );
     settingsState.callSoundsVolume = readAccountNumber("callSoundsVolume", 0.5);
+    settingsState.participantAudio = parseAudioMap(
+        readAccountString("participantAudio"),
+    );
 }
 
 export function setTheme(value: Theme): void {
@@ -298,4 +308,17 @@ export function setCallSoundsVolume(value: number): void {
         "callSoundsVolume",
         String(settingsState.callSoundsVolume),
     );
+}
+
+/** Per-user call volume/mute. Stored as one account-scoped JSON blob. */
+export function setParticipantAudioSetting(
+    userId: string,
+    next: ParticipantAudio,
+): void {
+    // Reassigning the Map rather than mutating it is deliberate: $state tracks
+    // the reference, so an in-place map.set would not retrigger derivations.
+    const map = new Map(settingsState.participantAudio);
+    map.set(userId, next);
+    settingsState.participantAudio = map;
+    writeAccountString("participantAudio", serializeAudioMap(map));
 }

@@ -9,9 +9,19 @@ import {
     onVoiceCallError,
     onVoiceNotice,
     onVoicePlaybackBlockedChanged,
+    onParticipantMuteChanged,
+    setParticipantVolume,
+    setParticipantLocalMute,
+    primeParticipantAudio,
     getRoom,
     getRoomCallMemberships,
 } from "$lib/matrix/client";
+import {
+    DEFAULT_PARTICIPANT_AUDIO,
+    withVolume,
+    withLocalMute,
+    type ParticipantAudio,
+} from "$lib/utils/participantAudio";
 import {
     toggleMute,
     toggleDeafen,
@@ -28,7 +38,10 @@ import {
     type CallSoundName,
 } from "$lib/utils/callSounds";
 import { playCallSound, configureCallSounds } from "$lib/audio/soundEffects";
-import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    settingsState,
+    setParticipantAudioSetting,
+} from "$lib/stores/settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
@@ -49,6 +62,12 @@ class VoiceCallState {
     joinPendingRoomId = $state<string | null>(null);
     /** Autoplay policy blocked remote audio ("Enable audio" in the panel). */
     playbackBlocked = $state(false);
+    /** Remote identities ("@user:server:DEVICE") whose mic is muted. Only
+     *  populated for the call we are connected to. */
+    mutedIdentities = $state<string[]>([]);
+    /** When the current call first connected — held across reconnects so a
+     *  blip doesn't reset the timer. Null when not in a call. */
+    connectedAt = $state<number | null>(null);
 }
 
 export const voiceCallState = new VoiceCallState();
@@ -62,6 +81,7 @@ export function initVoiceCall(): () => void {
         enabled: settingsState.callSoundsEnabled,
         sinkId: settingsState.audioOutputDeviceId,
     });
+    primeParticipantAudio(settingsState.participantAudio);
 
     let selfSound: SelfSoundState = INITIAL_SELF_SOUND_STATE;
     let peerIds: string[] | null = null;
@@ -98,6 +118,10 @@ export function initVoiceCall(): () => void {
             // Baseline the roster silently: peers already in the call when
             // we arrive must not bloop.
             peerIds = rosterIds(roomId);
+            // Only the FIRST connect anchors the clock: a reconnect arrives
+            // here as reconnecting → connected without passing through null.
+            if (voiceCallState.connectedAt === null)
+                voiceCallState.connectedAt = Date.now();
         }
         voiceCallState.connState = state;
         voiceCallState.roomId = state === null ? null : roomId;
@@ -107,12 +131,17 @@ export function initVoiceCall(): () => void {
             voiceCallState.deafened = false;
             voiceCallState.mutedByDeafen = false;
             voiceCallState.speakingMemberIds = [];
+            voiceCallState.mutedIdentities = [];
+            voiceCallState.connectedAt = null;
             voiceCallState.playbackBlocked = false;
         }
         voiceCallState.voiceTick++;
     });
     const unsubSpeakers = onActiveSpeakersChanged((ids) => {
         voiceCallState.speakingMemberIds = ids;
+    });
+    const unsubMutes = onParticipantMuteChanged((ids) => {
+        voiceCallState.mutedIdentities = ids;
     });
     const unsubError = onVoiceCallError((msg) => {
         selfSound = flagCallError(selfSound);
@@ -126,6 +155,7 @@ export function initVoiceCall(): () => void {
         unsubSessions();
         unsubConn();
         unsubSpeakers();
+        unsubMutes();
         unsubError();
         unsubNotice();
         unsubBlocked();
@@ -192,4 +222,24 @@ function currentMuteState(): MuteState {
         deafened: voiceCallState.deafened,
         mutedByDeafen: voiceCallState.mutedByDeafen,
     };
+}
+
+export function participantAudioFor(userId: string): ParticipantAudio {
+    return (
+        settingsState.participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO
+    );
+}
+
+/** Set a user's local volume: persist it and apply it to any live elements.
+ *  Settable for a call we haven't joined — it applies when they subscribe. */
+export function setUserVolume(userId: string, volume: number): void {
+    const next = withVolume(participantAudioFor(userId), volume);
+    setParticipantAudioSetting(userId, next);
+    setParticipantVolume(userId, next.volume);
+}
+
+export function setUserLocalMute(userId: string, muted: boolean): void {
+    const next = withLocalMute(participantAudioFor(userId), muted);
+    setParticipantAudioSetting(userId, next);
+    setParticipantLocalMute(userId, next.muted);
 }

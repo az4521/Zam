@@ -27,7 +27,13 @@ export type ModalId =
     | "forward-message"
     | "composer-picker"
     | "profile-card"
-    | "lightbox";
+    | "lightbox"
+    // Shared by two call sites (RoomList roster rows, CallView tiles), and
+    // openModal cannot supersede a same-id owner (it short-circuits when `id`
+    // is unchanged). Safety rests on CallParticipantMenu's `fixed inset-0 z-50`
+    // backdrop eating pointer events; make it pointer-events-none and the two
+    // call sites will strand each other's state.
+    | "call-participant-menu";
 
 export type SidebarId = "members" | "pinned" | "notifications" | "search";
 
@@ -54,6 +60,9 @@ export const interfaceState = $state({
     sidebar: null as SidebarId | null,
     /** Closes the open sidebar (runs its cleanup). Set alongside `sidebar`. */
     sidebarClose: null as null | (() => void),
+    /** Room currently shown as a call view instead of its timeline. The app
+     *  shell renders CallView when this matches the active room. */
+    callViewRoomId: null as string | null,
 });
 
 /** Open (or toggle off) a composer emoji/sticker/gif picker. */
@@ -99,6 +108,16 @@ export function clearModal(id: ModalId): void {
         interfaceState.modal = null;
         interfaceState.modalClose = null;
     }
+}
+
+/** Show a room's call view. Does NOT join the call — peeking is allowed. */
+export function showCallView(roomId: string): void {
+    interfaceState.callViewRoomId = roomId;
+}
+
+/** Flip back to the timeline. */
+export function showChatView(): void {
+    interfaceState.callViewRoomId = null;
 }
 
 /** Open a side panel. Any currently-open sidebar is closed first. */
