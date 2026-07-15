@@ -6,6 +6,7 @@
         getRoomCallMemberships,
         getMemberName,
         getMemberAvatar,
+        getDirectRoomIds,
     } from "$lib/matrix/client";
     import {
         voiceCallState,
@@ -13,6 +14,8 @@
         leaveCall,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { auth } from "$lib/stores/auth.svelte";
+    import { roomsState } from "$lib/stores/rooms.svelte";
 
     interface Props {
         room: Room;
@@ -25,6 +28,27 @@
     );
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
     const speaking = $derived(new Set(voiceCallState.speakingMemberIds));
+    // m.direct is account data: it lands on a sync, never on a matrixRTC
+    // session event, so this hangs off roomsTick (onRoomUpdate bumps it on
+    // every sync) and NOT voiceTick — see CallView.svelte:44. Ringing is
+    // precisely the state in which the roster is frozen, so a voiceTick-gated
+    // read would never re-run: a late m.direct would strand "1 in call" for
+    // the whole ring. Same reasoning as IncomingCallCard.svelte:20.
+    const isDm = $derived(
+        (void roomsState.roomsTick, getDirectRoomIds().has(room.roomId)),
+    );
+    // A DM call with nobody else in it yet: we are ringing them. Derived, not
+    // stored — and it stays until they join or we hang up, because a decline
+    // is invisible to the caller without MSC4310. The `=== auth.userId` check
+    // is load-bearing: during join our own membership may not have propagated,
+    // so a bare length===1 could mean "only THEY are here" and would show
+    // "Ringing…" to the wrong side.
+    const ringingOut = $derived(
+        inThisCall &&
+            participants.length === 1 &&
+            participants[0].userId === auth.userId &&
+            isDm,
+    );
 </script>
 
 {#if participants.length > 0}
@@ -51,7 +75,11 @@
             {/each}
         </div>
         <span class="text-sm text-discord-textSecondary min-w-0 truncate">
-            Voice call · {participants.length} in call
+            {#if ringingOut}
+                Ringing…
+            {:else}
+                Voice call · {participants.length} in call
+            {/if}
         </span>
         {#if inThisCall}
             <button

@@ -12,6 +12,8 @@
         setAutoGainControl,
         setCallSoundsEnabled,
         setCallSoundsVolume,
+        setRingEnabled,
+        setRingVolume,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -32,7 +34,11 @@
     import {
         playCallSound,
         configureCallSounds,
+        configureRing,
+        playRingBlip,
+        playRingPreview,
     } from "$lib/audio/soundEffects";
+    import { requestNotificationPermission } from "$lib/utils/notifyPermission";
     import {
         setVoiceInputDevice,
         setVoiceOutputDevice,
@@ -456,6 +462,60 @@
                     configureCallSounds({ volume: v });
                 }}
                 onchange={() => playCallSound("selfJoin")}
+            />
+        </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            Ringing
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    Ring for incoming DM calls
+                </p>
+                <p class="text-xs text-discord-textMuted mt-0.5">
+                    Direct messages ring. Rooms never do — you join those from
+                    the room itself.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.ringEnabled}
+                onChange={(v) => {
+                    setRingEnabled(v);
+                    configureRing({ enabled: v });
+                    if (v) {
+                        playRingBlip();
+                        // Ringing wants an OS notification when the window is
+                        // hidden; this click is the gesture that lets us ask.
+                        void requestNotificationPermission();
+                    }
+                }}
+                label="Ring for incoming DM calls"
+            />
+        </div>
+        <div class="mt-3 flex items-center gap-3">
+            <p class="text-sm text-discord-textPrimary flex-shrink-0">
+                Ringtone volume
+            </p>
+            <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                class="w-full accent-discord-accent"
+                value={settingsState.ringVolume}
+                oninput={(e) => {
+                    const v = Number(e.currentTarget.value);
+                    setRingVolume(v);
+                    configureRing({ volume: v });
+                }}
+                onchange={() => playRingPreview()}
             />
         </div>
     </section>
