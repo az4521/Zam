@@ -4659,6 +4659,9 @@ type VoiceConnStateCb = (
 ) => void;
 const voiceConnStateSubscribers = new Set<VoiceConnStateCb>();
 const activeSpeakerSubscribers = new Set<(memberIds: string[]) => void>();
+const participantMuteSubscribers = new Set<
+    (mutedIdentities: string[]) => void
+>();
 
 function notifyVoiceConnState(
     state: "connecting" | "connected" | "reconnecting" | null,
@@ -4677,6 +4680,19 @@ export function onActiveSpeakersChanged(
 ): () => void {
     activeSpeakerSubscribers.add(cb);
     return () => activeSpeakerSubscribers.delete(cb);
+}
+
+/**
+ * Fires with every currently mic-muted remote identity whenever any of them
+ * changes. Only meaningful for the call we are connected to — LiveKit reports
+ * track mute state only for a room we have joined. Remote deafen is not
+ * knowable and is never reported here.
+ */
+export function onParticipantMuteChanged(
+    cb: (mutedIdentities: string[]) => void,
+): () => void {
+    participantMuteSubscribers.add(cb);
+    return () => participantMuteSubscribers.delete(cb);
 }
 
 const voiceErrorSubscribers = new Set<(message: string) => void>();
@@ -4907,6 +4923,25 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             const ids = speakers.map((p) => p.identity);
             for (const cb of activeSpeakerSubscribers) cb(ids);
         });
+        const notifyMutes = () => {
+            if (activeVoice !== call) return;
+            const muted: string[] = [];
+            for (const p of lkRoom.remoteParticipants.values()) {
+                for (const pub of p.audioTrackPublications.values()) {
+                    if (pub.isMuted) {
+                        muted.push(p.identity);
+                        break;
+                    }
+                }
+            }
+            for (const cb of participantMuteSubscribers) cb(muted);
+        };
+        lkRoom.on(LivekitRoomEvent.TrackMuted, notifyMutes);
+        lkRoom.on(LivekitRoomEvent.TrackUnmuted, notifyMutes);
+        // A participant arriving already muted fires neither event. Separate
+        // from the TrackSubscribed handler above so each stays focused.
+        lkRoom.on(LivekitRoomEvent.TrackSubscribed, notifyMutes);
+        lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyMutes);
         lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("reconnecting");
@@ -4990,6 +5025,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // Notify subscribers before the network teardown below so the UI clears
         // instantly; the join seq guard protects a racing join.
         for (const cb of activeSpeakerSubscribers) cb([]);
+        for (const cb of participantMuteSubscribers) cb([]);
         notifyVoiceConnState(null);
         setVoicePlaybackBlocked(false);
         call.session.off(
