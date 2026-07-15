@@ -20,6 +20,7 @@ export type ModalId =
     | "color-picker"
     | "create-room"
     | "add-room"
+    | "invite"
     | "room-directory"
     | "reaction-picker"
     | "report-message"

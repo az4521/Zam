@@ -152,6 +152,26 @@ export function mergeViaServers(
     return [...new Set([...linkVia, ...resolvedServers])].slice(0, max);
 }
 
+/**
+ * Build a matrix.to permalink for a user, alias, or room id. Users and aliases
+ * are self-routing; a room id (`!…`) isn't joinable on its own, so up to 5 `via`
+ * servers are appended as `?via=` params. Segments are percent-encoded
+ * similarly to `linkifyMatrixIdentifiers` above, so the result round-trips
+ * through `parseMatrixLink`.
+ */
+export function matrixToUrl(idOrAlias: string, via: string[] = []): string {
+    const encoded = encodeURIComponent(idOrAlias).replace(/!/g, "%21");
+    const base = `https://matrix.to/#/${encoded}`;
+    if (idOrAlias.startsWith("!") && via.length) {
+        const qs = via
+            .slice(0, 5)
+            .map((s) => `via=${encodeURIComponent(s)}`)
+            .join("&");
+        return `${base}?${qs}`;
+    }
+    return base;
+}
+
 // Bare mentions in message text: a sigil after a word boundary, a localpart,
 // and a dotted server name (optional port). Requiring the dot keeps things
 // like "#1:30pm" from linkifying; explicit links stay loose (see above).
