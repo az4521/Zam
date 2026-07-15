@@ -18,6 +18,7 @@
         getMemberName,
         getMemberAvatar,
         resumeVoicePlayback,
+        getDirectRoomIds,
     } from "$lib/matrix/client";
     import {
         voiceCallState,
@@ -33,6 +34,7 @@
         clearModal,
     } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
 
     interface Props {
         room: Room;
@@ -53,6 +55,23 @@
         (void roomsState.roomsTick, getRoomDisplayName(room)),
     );
     const joining = $derived(voiceCallState.joinPendingRoomId === room.roomId);
+    // roomsTick, not voiceTick: m.direct is account data that lands on a sync,
+    // and the roster is frozen for the whole ring — see the tick split above
+    // and ActiveCallBanner.svelte.
+    const isDm = $derived(
+        (void roomsState.roomsTick, getDirectRoomIds().has(room.roomId)),
+    );
+    // A DM call with nobody else in it yet: we are ringing them. Derived, not
+    // stored — it stays until they join or we hang up, because a decline is
+    // invisible to the caller without MSC4310. The `=== auth.userId` check
+    // keeps "Ringing…" off the screen of a peer whose own membership has not
+    // propagated yet.
+    const ringingOut = $derived(
+        inThisCall &&
+            participants.length === 1 &&
+            participants[0].userId === auth.userId &&
+            isDm,
+    );
 
     let participantMenu = $state<{
         userId: string;
@@ -75,6 +94,11 @@
         <h2 class="font-semibold text-discord-textPrimary truncate">
             {roomName}
         </h2>
+        {#if ringingOut}
+            <span class="text-sm text-discord-textMuted flex-shrink-0">
+                Ringing…
+            </span>
+        {/if}
         <div class="flex-1"></div>
         <button
             onclick={showChatView}
