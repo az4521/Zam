@@ -141,6 +141,11 @@ export const settingsState = $state({
     autoGainControl: readAccountBool("autoGainControl", true),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
+    /** Ring for incoming DM calls. Deliberately independent of
+     *  callSoundsEnabled: "no join/leave blips" and "never ring me" are
+     *  different wishes. */
+    ringEnabled: readAccountBool("ringEnabled", true),
+    ringVolume: readAccountNumber("ringVolume", 1),
     /** Per-user call volume/mute, keyed by user id. */
     participantAudio: parseAudioMap(readAccountString("participantAudio")),
 });
@@ -183,6 +188,8 @@ export function reloadAccountSettings(): void {
         true,
     );
     settingsState.callSoundsVolume = readAccountNumber("callSoundsVolume", 0.5);
+    settingsState.ringEnabled = readAccountBool("ringEnabled", true);
+    settingsState.ringVolume = readAccountNumber("ringVolume", 1);
     settingsState.participantAudio = parseAudioMap(
         readAccountString("participantAudio"),
     );
@@ -308,6 +315,16 @@ export function setCallSoundsVolume(value: number): void {
         "callSoundsVolume",
         String(settingsState.callSoundsVolume),
     );
+}
+
+export function setRingEnabled(value: boolean): void {
+    settingsState.ringEnabled = value;
+    writeAccountBool("ringEnabled", value);
+}
+
+export function setRingVolume(value: number): void {
+    settingsState.ringVolume = Math.min(1, Math.max(0, value));
+    writeAccountString("ringVolume", String(settingsState.ringVolume));
 }
 
 /** Per-user call volume/mute. Stored as one account-scoped JSON blob. */
