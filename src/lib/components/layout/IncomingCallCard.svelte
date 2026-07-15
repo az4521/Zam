@@ -8,6 +8,7 @@
         getMemberAvatar,
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import { roomsState } from "$lib/stores/rooms.svelte";
 
     interface Props {
         roomId: string;
@@ -16,15 +17,33 @@
     }
     let { roomId, onAccept, onDecline }: Props = $props();
 
-    const room = $derived(getRoom(roomId));
-    const partnerId = $derived(room ? getDMPartnerId(room) : "");
+    // Live SDK objects mutate in place and `roomId` never changes for a card's
+    // lifetime, so every read of room state hangs off roomsTick — it bumps on
+    // every sync (client.ts onRoomUpdate), which is when a federated DM's
+    // late-arriving m.room.member state lands. Without it the card would show a
+    // raw MXID (or your own avatar) for the whole ring. Not voiceTick: that is
+    // the roster's tick and never fires for room state — see CallView.svelte:42.
+    // Each derived threads the tick itself; gating only `room` would not help,
+    // as getRoom() returns the same reference and Svelte halts propagation on an
+    // unchanged value.
+    const room = $derived((void roomsState.roomsTick, getRoom(roomId)));
+    const partnerId = $derived(
+        (void roomsState.roomsTick, room ? getDMPartnerId(room) : ""),
+    );
     const name = $derived(
-        room && partnerId ? getMemberName(room, partnerId) : "Unknown",
+        (void roomsState.roomsTick,
+        room && partnerId ? getMemberName(room, partnerId) : "Unknown"),
     );
     const avatar = $derived(
-        room && partnerId ? getMemberAvatar(room, partnerId) : null,
+        (void roomsState.roomsTick,
+        room && partnerId ? getMemberAvatar(room, partnerId) : null),
     );
-    const joining = $derived(voiceCallState.joinPendingRoomId === roomId);
+    // `!== null`, NOT `=== roomId`: joinCall() is single-flight and early-
+    // returns while ANY join is in flight (voiceCall.svelte.ts:166), so a
+    // per-room predicate would leave this button lit and silently inert while
+    // another card's Accept is resolving. Matches ActiveCallBanner.svelte:67,
+    // CallView.svelte:193 and MessageArea.svelte:982.
+    const busy = $derived(voiceCallState.joinPendingRoomId !== null);
 </script>
 
 <div
@@ -51,7 +70,7 @@
         class="p-2 rounded-full bg-discord-accent hover:bg-discord-accentHover transition-colors disabled:opacity-60"
         title="Accept"
         aria-label="Accept call from {name}"
-        disabled={joining}
+        disabled={busy}
         onclick={() => onAccept(roomId)}
     >
         <Phone size={16} class="text-white" />
