@@ -33,8 +33,17 @@ import {
     RoomEvent as LivekitRoomEvent,
     Track as LivekitTrack,
     type RemoteTrack,
+    type RemoteTrackPublication,
+    type RemoteParticipant,
 } from "livekit-client";
 import { pickLivekitTransport, sfuJwtUrl } from "$lib/utils/voiceCall";
+import {
+    effectiveVolume,
+    withVolume,
+    withLocalMute,
+    DEFAULT_PARTICIPANT_AUDIO,
+    type ParticipantAudio,
+} from "$lib/utils/participantAudio";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { parseMarkdown } from "$lib/utils/markdown";
@@ -4539,6 +4548,9 @@ interface ActiveVoiceCall {
     session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
     lkRoom: LivekitRoom;
     audioEls: Set<HTMLAudioElement>;
+    /** identity ("@user:server:DEVICE") → that publication's elements, so a
+     *  per-user volume can be applied without disturbing anyone else. */
+    elsByIdentity: Map<string, Set<HTMLAudioElement>>;
     onMmError: (err: unknown) => void;
 }
 
@@ -4556,6 +4568,51 @@ let desiredMicMuted = false;
 // settings at join (account switches reload the page and re-read).
 let voiceOutputDeviceId: string | null = null;
 let voiceOutputVolume = 1;
+
+// Per-user local audio (slider + local mute), keyed by userId — one entry per
+// human, applied to every device they are joined from. Primed from persisted
+// settings at init and kept here so a track that subscribes later (a late
+// joiner, or a reconnect re-subscribing everything) gets the right level.
+let participantAudio = new Map<string, ParticipantAudio>();
+
+/** "@user:server:DEVICE" → "@user:server". Device ids never contain ":". */
+function userIdFromIdentity(identity: string): string {
+    return identity.slice(0, identity.lastIndexOf(":"));
+}
+
+function applyElementVolume(el: HTMLAudioElement, identity: string): void {
+    el.volume = effectiveVolume(
+        voiceOutputVolume,
+        participantAudio.get(userIdFromIdentity(identity)),
+    );
+}
+
+function applyVolumeForUser(userId: string): void {
+    if (!activeVoice) return;
+    for (const [identity, els] of activeVoice.elsByIdentity) {
+        if (userIdFromIdentity(identity) !== userId) continue;
+        for (const el of els) applyElementVolume(el, identity);
+    }
+}
+
+/** Seed persisted per-user levels before any call starts. */
+export function primeParticipantAudio(
+    map: Map<string, ParticipantAudio>,
+): void {
+    participantAudio = new Map(map);
+}
+
+export function setParticipantVolume(userId: string, volume: number): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withVolume(current, volume));
+    applyVolumeForUser(userId);
+}
+
+export function setParticipantLocalMute(userId: string, muted: boolean): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withLocalMute(current, muted));
+    applyVolumeForUser(userId);
+}
 
 function applyVoiceSink(el: HTMLAudioElement): void {
     const sinkEl = el as HTMLAudioElement & {
@@ -4761,6 +4818,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         session,
         lkRoom,
         audioEls: new Set(),
+        elsByIdentity: new Map(),
         onMmError,
     };
     activeVoice = call;
@@ -4806,23 +4864,41 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         };
         if (seq !== voiceJoinSeq) return;
 
-        lkRoom.on(LivekitRoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-            if (track.kind !== LivekitTrack.Kind.Audio) return;
-            if (activeVoice !== call) {
-                // Call already superseded/left — don't attach at all.
-                track.detach().forEach((el) => el.remove());
-                return;
-            }
-            const el = track.attach() as HTMLAudioElement;
-            el.muted = voicePlaybackMuted;
-            applyVoiceSink(el);
-            el.volume = voiceOutputVolume;
-            call.audioEls.add(el);
-            document.body.appendChild(el);
-        });
+        lkRoom.on(
+            LivekitRoomEvent.TrackSubscribed,
+            (
+                track: RemoteTrack,
+                _pub: RemoteTrackPublication,
+                participant: RemoteParticipant,
+            ) => {
+                if (track.kind !== LivekitTrack.Kind.Audio) return;
+                if (activeVoice !== call) {
+                    // Call already superseded/left — don't attach at all.
+                    track.detach().forEach((el) => el.remove());
+                    return;
+                }
+                const el = track.attach() as HTMLAudioElement;
+                el.muted = voicePlaybackMuted;
+                applyVoiceSink(el);
+                applyElementVolume(el, participant.identity);
+                call.audioEls.add(el);
+                let els = call.elsByIdentity.get(participant.identity);
+                if (!els) {
+                    els = new Set();
+                    call.elsByIdentity.set(participant.identity, els);
+                }
+                els.add(el);
+                document.body.appendChild(el);
+            },
+        );
         lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
             for (const el of track.detach()) {
-                call.audioEls.delete(el as HTMLAudioElement);
+                const audioEl = el as HTMLAudioElement;
+                call.audioEls.delete(audioEl);
+                for (const [identity, els] of call.elsByIdentity) {
+                    els.delete(audioEl);
+                    if (els.size === 0) call.elsByIdentity.delete(identity);
+                }
                 el.remove();
             }
         });
@@ -4970,7 +5046,9 @@ export function setVoiceOutputDevice(deviceId: string | null): void {
 export function setVoiceOutputVolume(volume: number): void {
     voiceOutputVolume = Math.min(1, Math.max(0, volume));
     if (!activeVoice) return;
-    for (const el of activeVoice.audioEls) el.volume = voiceOutputVolume;
+    for (const [identity, els] of activeVoice.elsByIdentity) {
+        for (const el of els) applyElementVolume(el, identity);
+    }
 }
 
 /** Switch the live call's microphone. Null (system default) takes effect on
