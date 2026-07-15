@@ -30,12 +30,14 @@
         getOwnAvatarUrl,
         getDMPartnerId,
         getRoomCallMemberships,
+        getMemberName,
+        getMemberAvatar,
         type RoomNotificationSetting,
         type SpaceChildInfo,
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { Volume2 } from "lucide-svelte";
+    import { MicOff } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -59,12 +61,15 @@
         interfaceState,
         openModal,
         closeModal,
+        clearModal,
+        showCallView,
     } from "$lib/stores/interface.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
+    import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -153,6 +158,25 @@
         e.preventDefault();
         contextMenu = { roomId, x: e.clientX, y: e.clientY, touch: false };
         openModal("room-menu", () => (contextMenu = null));
+    }
+
+    // Call-roster participant menu. Claims the shared modal slot so Escape /
+    // the mobile back button dismiss it, same as the room menu above.
+    let participantMenu = $state<{
+        room: Room;
+        userId: string;
+        x: number;
+        y: number;
+    } | null>(null);
+
+    function openParticipantMenu(e: MouseEvent, room: Room, userId: string) {
+        e.preventDefault();
+        // Roster rows render as siblings of the row that carries the room
+        // contextmenu handler, so nothing catches this today — but keep the
+        // stop so re-nesting the roster can't silently supersede this menu.
+        e.stopPropagation();
+        participantMenu = { room, userId, x: e.clientX, y: e.clientY };
+        openModal("call-participant-menu", () => (participantMenu = null));
     }
 
     let ctxTouchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -549,12 +573,65 @@
             </button>
         {/if}
 
+        <!-- Who's in this room's call — rendered under the room's own row.
+             Replaces the old participant-count badge. -->
+        {#snippet callRoster(room: Room)}
+            {@const participants =
+                (void voiceCallState.voiceTick,
+                dedupeParticipants(getRoomCallMemberships(room)))}
+            {#if participants.length > 0}
+                {@const speaking = new Set(voiceCallState.speakingMemberIds)}
+                {@const muted = new Set(voiceCallState.mutedIdentities)}
+                <div class="mb-0.5">
+                    {#each participants as p (p.userId)}
+                        {@const identity = `${p.userId}:${p.deviceId}`}
+                        {@const name =
+                            (void roomsState.roomsTick,
+                            getMemberName(room, p.userId))}
+                        <button
+                            class="w-full flex items-center gap-2 pl-8 pr-2 py-0.5 text-left rounded hover:bg-discord-messageHover"
+                            onclick={() => {
+                                setActiveRoom(room.roomId);
+                                showCallView(room.roomId);
+                            }}
+                            oncontextmenu={(e) =>
+                                openParticipantMenu(e, room, p.userId)}
+                            title="{name} — in voice"
+                        >
+                            <div
+                                class="rounded-full flex-shrink-0 ring-2 {speaking.has(
+                                    identity,
+                                )
+                                    ? 'ring-discord-accent'
+                                    : 'ring-transparent'}"
+                            >
+                                <Avatar
+                                    src={getMemberAvatar(room, p.userId)}
+                                    {name}
+                                    id={p.userId}
+                                    size={20}
+                                />
+                            </div>
+                            <span
+                                class="flex-1 text-xs text-discord-textSecondary truncate"
+                            >
+                                {name}
+                            </span>
+                            {#if muted.has(identity)}
+                                <MicOff
+                                    size={12}
+                                    class="flex-shrink-0 text-discord-danger"
+                                />
+                            {/if}
+                        </button>
+                    {/each}
+                </div>
+            {/if}
+        {/snippet}
+
         <!-- Joined rooms / channels -->
         {#snippet channelRow(room: Room)}
             {@const { isActive, unread, highlight, loud } = roomButton(room)}
-            {@const voiceCount =
-                (void voiceCallState.voiceTick,
-                dedupeParticipants(getRoomCallMemberships(room)).length)}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="group/room flex items-center transition-colors"
@@ -600,14 +677,6 @@
                         >{(void roomsState.roomsTick,
                         getRoomDisplayName(room))}</span
                     >
-                    {#if voiceCount > 0}
-                        <span
-                            class="ml-auto flex items-center gap-0.5 text-xs text-discord-accent flex-shrink-0"
-                            title="{voiceCount} in voice"
-                        >
-                            <Volume2 size={12} />{voiceCount}
-                        </span>
-                    {/if}
                     {#if highlight && !isActive}
                         <span
                             class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center ml-1"
@@ -636,6 +705,7 @@
                     </svg>
                 </button>
             </div>
+            {@render callRoster(room)}
         {/snippet}
 
         {#if visibleRooms.length > 0}
@@ -840,67 +910,65 @@
                     {@const { isActive, unread, highlight, loud } =
                         roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
-                    {@const voiceCount =
-                        (void voiceCallState.voiceTick,
-                        dedupeParticipants(getRoomCallMemberships(room))
-                            .length)}
-                    <button
-                        onclick={() => setActiveRoom(room.roomId)}
-                        oncontextmenu={(e) => openContextMenu(e, room.roomId)}
-                        ontouchstart={(e) => onRoomTouchStart(e, room.roomId)}
-                        ontouchmove={onRoomTouchMove}
-                        ontouchend={onRoomTouchEnd}
-                        class="w-full flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
-                        class:text-discord-textPrimary={isActive || unread}
-                        class:text-discord-textSecondary={!isActive && !unread}
-                        class:font-semibold={unread}
-                        class:hover:bg-discord-messageHover={!isActive}
-                        class:hover:text-discord-textPrimary={!isActive}
-                        style={isActive
-                            ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-left: calc(0.5rem - 3px);"
-                            : "padding-left: 0.5rem;"}
-                    >
-                        <div class="relative flex-shrink-0">
-                            <Avatar
-                                src={avatarSrc}
-                                name={getRoomDisplayName(room)}
-                                size={32}
-                            />
-                            {#if unread && !isActive}
-                                <span
-                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
-                                    highlight
-                                        ? 'bg-discord-danger'
-                                        : 'bg-discord-textPrimary'}"
-                                ></span>
-                            {:else}
-                                {@const presence = dmPresence.get(room.roomId)}
-                                <span
-                                    title={presence?.label}
-                                    class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
-                                        'bg-discord-offline'}"
-                                ></span>
-                            {/if}
-                        </div>
-                        <span class="flex-1 text-sm truncate"
-                            >{getRoomDisplayName(room)}</span
+                    <!-- The DM row is a <button>, so the roster can't nest
+                         inside it — wrap both as siblings. -->
+                    <div>
+                        <button
+                            onclick={() => setActiveRoom(room.roomId)}
+                            oncontextmenu={(e) =>
+                                openContextMenu(e, room.roomId)}
+                            ontouchstart={(e) =>
+                                onRoomTouchStart(e, room.roomId)}
+                            ontouchmove={onRoomTouchMove}
+                            ontouchend={onRoomTouchEnd}
+                            class="w-full flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
+                            class:text-discord-textPrimary={isActive || unread}
+                            class:text-discord-textSecondary={!isActive &&
+                                !unread}
+                            class:font-semibold={unread}
+                            class:hover:bg-discord-messageHover={!isActive}
+                            class:hover:text-discord-textPrimary={!isActive}
+                            style={isActive
+                                ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-left: calc(0.5rem - 3px);"
+                                : "padding-left: 0.5rem;"}
                         >
-                        {#if voiceCount > 0}
-                            <span
-                                class="ml-auto flex items-center gap-0.5 text-xs text-discord-accent flex-shrink-0"
-                                title="{voiceCount} in voice"
+                            <div class="relative flex-shrink-0">
+                                <Avatar
+                                    src={avatarSrc}
+                                    name={getRoomDisplayName(room)}
+                                    size={32}
+                                />
+                                {#if unread && !isActive}
+                                    <span
+                                        class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
+                                        highlight
+                                            ? 'bg-discord-danger'
+                                            : 'bg-discord-textPrimary'}"
+                                    ></span>
+                                {:else}
+                                    {@const presence = dmPresence.get(
+                                        room.roomId,
+                                    )}
+                                    <span
+                                        title={presence?.label}
+                                        class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
+                                            'bg-discord-offline'}"
+                                    ></span>
+                                {/if}
+                            </div>
+                            <span class="flex-1 text-sm truncate"
+                                >{getRoomDisplayName(room)}</span
                             >
-                                <Volume2 size={12} />{voiceCount}
-                            </span>
-                        {/if}
-                        {#if highlight && !isActive}
-                            <span
-                                class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
-                            >
-                                {highlight > 99 ? "99+" : highlight}
-                            </span>
-                        {/if}
-                    </button>
+                            {#if highlight && !isActive}
+                                <span
+                                    class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                >
+                                    {highlight > 99 ? "99+" : highlight}
+                                </span>
+                            {/if}
+                        </button>
+                        {@render callRoster(room)}
+                    </div>
                 {/each}
             </div>
         {/if}
@@ -1094,6 +1162,20 @@
         {/if}
     {/if}
 </Portal>
+
+<!-- CallParticipantMenu brings its own Portal + backdrop — don't wrap it. -->
+{#if participantMenu}
+    <CallParticipantMenu
+        room={participantMenu.room}
+        userId={participantMenu.userId}
+        x={participantMenu.x}
+        y={participantMenu.y}
+        onClose={() => {
+            participantMenu = null;
+            clearModal("call-participant-menu");
+        }}
+    />
+{/if}
 
 {#if accountSwitcherOpen}
     <AccountSwitcher onClose={closeModal} {onLogout} />
