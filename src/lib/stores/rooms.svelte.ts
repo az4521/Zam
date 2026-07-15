@@ -109,6 +109,10 @@ export function setActiveSpace(
 export function setActiveRoom(roomId: string): void {
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
+    // Navigating to a room shows its timeline. The three call-view entry
+    // points re-set this immediately after their own setActiveRoom/
+    // navigateToRoom call.
+    interfaceState.callViewRoomId = null;
     saveLastRoom(roomsState.activeSpaceId, roomId);
     // Picking a room/DM is a destination: always dismiss the mobile drawer,
     // regardless of the keep-open setting.

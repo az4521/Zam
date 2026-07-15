@@ -19,4 +19,9 @@ describe("formatCallDuration", () => {
         expect(formatCallDuration(1_999)).toBe("00:01");
         expect(formatCallDuration(-5_000)).toBe("00:00");
     });
+    it("falls back to zero on non-finite input", () => {
+        expect(formatCallDuration(NaN)).toBe("00:00");
+        expect(formatCallDuration(Infinity)).toBe("00:00");
+        expect(formatCallDuration(-Infinity)).toBe("00:00");
+    });
 });

@@ -54,8 +54,6 @@
     );
     const joining = $derived(voiceCallState.joinPendingRoomId === room.roomId);
 
-    // The call emptying while we watch must NOT flip us back to the timeline —
-    // peeking at an empty call and joining it is the point of this view.
     let participantMenu = $state<{
         userId: string;
         x: number;
@@ -90,6 +88,9 @@
 
     <!-- Tiles -->
     <div class="flex-1 min-h-0 overflow-y-auto p-4">
+        <!-- Deliberately no auto-flip effect here: the call emptying while we
+             watch must NOT flip us back to the timeline — peeking at an empty
+             call and joining it is the point of this view. -->
         {#if participants.length === 0}
             <div
                 class="h-full flex flex-col items-center justify-center gap-3 text-discord-textMuted"

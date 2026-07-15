@@ -28,6 +28,11 @@ export type ModalId =
     | "composer-picker"
     | "profile-card"
     | "lightbox"
+    // Shared by two call sites (RoomList roster rows, CallView tiles), and
+    // openModal cannot supersede a same-id owner (it short-circuits when `id`
+    // is unchanged). Safety rests on CallParticipantMenu's `fixed inset-0 z-50`
+    // backdrop eating pointer events; make it pointer-events-none and the two
+    // call sites will strand each other's state.
     | "call-participant-menu";
 
 export type SidebarId = "members" | "pinned" | "notifications" | "search";

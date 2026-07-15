@@ -588,6 +588,9 @@
                         {@const name =
                             (void roomsState.roomsTick,
                             getMemberName(room, p.userId))}
+                        {@const avatar =
+                            (void roomsState.roomsTick,
+                            getMemberAvatar(room, p.userId))}
                         <button
                             class="w-full flex items-center gap-2 pl-8 pr-2 py-0.5 text-left rounded hover:bg-discord-messageHover"
                             onclick={() => {
@@ -606,7 +609,7 @@
                                     : 'ring-transparent'}"
                             >
                                 <Avatar
-                                    src={getMemberAvatar(room, p.userId)}
+                                    src={avatar}
                                     {name}
                                     id={p.userId}
                                     size={20}
