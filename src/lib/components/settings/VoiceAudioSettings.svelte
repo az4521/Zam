@@ -36,6 +36,7 @@
         configureCallSounds,
         configureRing,
         playRingBlip,
+        playRingPreview,
     } from "$lib/audio/soundEffects";
     import { requestNotificationPermission } from "$lib/utils/notifyPermission";
     import {
@@ -514,7 +515,7 @@
                     setRingVolume(v);
                     configureRing({ volume: v });
                 }}
-                onchange={() => playRingBlip()}
+                onchange={() => playRingPreview()}
             />
         </div>
     </section>

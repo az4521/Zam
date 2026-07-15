@@ -30,7 +30,7 @@
     const speaking = $derived(new Set(voiceCallState.speakingMemberIds));
     // m.direct is account data: it lands on a sync, never on a matrixRTC
     // session event, so this hangs off roomsTick (onRoomUpdate bumps it on
-    // every sync) and NOT voiceTick — see CallView.svelte:42. Ringing is
+    // every sync) and NOT voiceTick — see CallView.svelte:44. Ringing is
     // precisely the state in which the roster is frozen, so a voiceTick-gated
     // read would never re-run: a late m.direct would strand "1 in call" for
     // the whole ring. Same reasoning as IncomingCallCard.svelte:20.

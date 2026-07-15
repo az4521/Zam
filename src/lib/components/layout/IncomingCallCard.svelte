@@ -22,7 +22,7 @@
     // every sync (client.ts onRoomUpdate), which is when a federated DM's
     // late-arriving m.room.member state lands. Without it the card would show a
     // raw MXID (or your own avatar) for the whole ring. Not voiceTick: that is
-    // the roster's tick and never fires for room state — see CallView.svelte:42.
+    // the roster's tick and never fires for room state — see CallView.svelte:44.
     // Each derived threads the tick itself; gating only `room` would not help,
     // as getRoom() returns the same reference and Svelte halts propagation on an
     // unchanged value.

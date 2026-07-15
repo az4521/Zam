@@ -41,6 +41,7 @@
         incomingCallsState,
         initIncomingCalls,
         declineIncomingCall,
+        silenceIncomingCall,
     } from "$lib/stores/incomingCalls.svelte";
     import { reloadAccountSettings } from "$lib/stores/settings.svelte";
     import {
@@ -418,6 +419,10 @@
     }
 
     function acceptIncomingCall(roomId: string) {
+        // Silence FIRST. joinCall's mic probe (getUserMedia) can block on a
+        // browser permission prompt, and the ring would otherwise sound until a
+        // sweep sees our own membership echo back — the whole prompt long.
+        silenceIncomingCall(roomId);
         navigateToRoom(roomId);
         void joinCall(roomId);
     }

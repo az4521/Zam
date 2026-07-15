@@ -3,6 +3,8 @@ import {
     getDirectRooms,
     getRoomCallMemberships,
     getActiveVoiceRoomId,
+    isInitialSyncComplete,
+    onSyncPrepared,
 } from "$lib/matrix/client";
 import { diffIncomingCalls, type CallSnapshot } from "$lib/utils/incomingCalls";
 import {
@@ -28,6 +30,32 @@ class IncomingCallsState {
 
 export const incomingCallsState = new IncomingCallsState();
 
+// The ring state is MODULE-scope, not a local of initIncomingCalls(). Do not
+// "tidy" it back into the closure: declineIncomingCall/silenceIncomingCall are
+// module-level exports and must be able to silence a ring that a sweep inside
+// initIncomingCalls() started. A decline sends nothing over the wire, so no
+// membership changes and no sweep ever fires — a closure-local stopRing() would
+// leave the ringtone playing for its full RING_MAX_MS after the card is gone.
+let ringHandle: RingHandle | null = null;
+let ringOwner: string | null = null;
+let ringStartedAt: number | null = null;
+
+// Date.now(), not a timer: setTimeout is throttled to ~1/min in a hidden
+// renderer (the tray case), which would strand this flag on forever.
+const ringSounding = () =>
+    ringStartedAt !== null && Date.now() - ringStartedAt < RING_MAX_MS;
+
+function stopRing(): void {
+    ringHandle?.stop();
+    ringHandle = null;
+    ringOwner = null;
+    // Clearing ringStartedAt is what un-strands `busy`: leave it set and
+    // ringSounding() stays true for the rest of RING_MAX_MS, which downgrades a
+    // genuinely new caller to a blip. Permanently — they land in prevRinging,
+    // and the ring-once latch means they never ring aloud on a later sweep.
+    ringStartedAt = null;
+}
+
 /** Subscribe the store to call-membership changes. Call once from the app
  *  shell; returns an unsub. */
 export function initIncomingCalls(): () => void {
@@ -37,21 +65,6 @@ export function initIncomingCalls(): () => void {
     });
 
     let prev: CallSnapshot | null = null;
-    let ringHandle: RingHandle | null = null;
-    let ringOwner: string | null = null;
-    let ringStartedAt: number | null = null;
-
-    // Date.now(), not a timer: setTimeout is throttled to ~1/min in a hidden
-    // renderer (the tray case), which would strand this flag on forever.
-    const ringSounding = () =>
-        ringStartedAt !== null && Date.now() - ringStartedAt < RING_MAX_MS;
-
-    const stopRing = () => {
-        ringHandle?.stop();
-        ringHandle = null;
-        ringOwner = null;
-        ringStartedAt = null;
-    };
 
     const sweep = () => {
         const dmRoomIds = new Set<string>();
@@ -96,19 +109,46 @@ export function initIncomingCalls(): () => void {
         if (result.blip) playRingBlip();
     };
 
-    // Seed silently: prev === null, so a caller already waiting when we boot
-    // gets a card but no ringtone.
-    sweep();
-    const unsub = onVoiceSessionsChanged(sweep);
+    // Both the seed sweep and the subscription must wait for the initial sync:
+    // this runs from /app's onMount, and the login route calls goto("/app")
+    // BEFORE awaiting startSync, so getRooms() is still empty here. Sweeping now
+    // would iterate zero rooms, and onVoiceSessionsChanged watches the sessions
+    // already in progress by iterating getRooms() at subscribe time — an empty
+    // list means a call that was already running never notifies at all.
+    let unsubSessions: (() => void) | null = null;
+    const start = () => {
+        if (unsubSessions) return; // idempotent: PREPARED can re-fire
+        // Seed silently: prev === null here, so a caller already waiting when we
+        // boot gets a card but no ringtone. This is why the mount-time sweep is
+        // gone rather than kept alongside — sweeping at mount would leave prev as
+        // an empty Map (non-null!), and this sweep would then read an
+        // already-in-progress call as an arrival and RING.
+        sweep();
+        unsubSessions = onVoiceSessionsChanged(sweep);
+    };
+    if (isInitialSyncComplete()) start();
+    const unsubPrepared = onSyncPrepared(start);
     return () => {
-        unsub();
+        unsubPrepared();
+        unsubSessions?.();
         stopRing();
     };
+}
+
+/** Stop the ringtone for a room without declining it. The app shell calls this
+ *  on Accept: joining probes the mic (a first-ever call shows a permission
+ *  prompt), publishes membership, and waits for the echo before a sweep would
+ *  notice — the ring must not sound through all of that. */
+export function silenceIncomingCall(roomId: string): void {
+    if (ringOwner === roomId) stopRing();
 }
 
 /** Decline locally: silence this call and hide its card. Nothing is sent —
  *  the caller cannot tell a decline from a no-answer (that needs MSC4310). */
 export function declineIncomingCall(roomId: string): void {
+    // Nothing is sent, so no membership changes and no sweep will ever fire:
+    // this is the only chance to stop the ringtone.
+    if (ringOwner === roomId) stopRing();
     const declined = new Set(incomingCallsState.declined);
     declined.add(roomId);
     // Reassign rather than mutate: $state tracks the reference.

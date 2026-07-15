@@ -239,6 +239,10 @@ function ensureRingGain(): GainNode | null {
         ringGain = ctx.createGain();
         ringGain.connect(ctx.destination);
     }
+    // Drop any pending stop-ramp (see RingHandle.stop) before restoring the
+    // level: setting .value is itself a setValueAtTime(now), so a ring started
+    // within the ramp's ~15ms would inherit it and fade itself back out.
+    ringGain.gain.cancelScheduledValues(ctx.currentTime);
     ringGain.gain.value = ringEnabled ? ringVolume : 0;
     return ringGain;
 }
@@ -258,15 +262,34 @@ export function startRingtone(): RingHandle {
     const nodes: OscillatorNode[] = [];
     const handle: RingHandle = {
         stop() {
-            for (const osc of nodes) {
+            const stopping = nodes.slice();
+            nodes.length = 0;
+            if (!ctx || stopping.length === 0) return;
+            const t = ctx.currentTime;
+            // Ramp to silence before killing the oscillators: stopping a sine
+            // dead at peak 0.5 truncates the waveform mid-cycle and clicks —
+            // and this path now runs on every accept and every decline,
+            // mid-ring, right before call audio starts. ensureRingGain()
+            // restores the level for the next ring.
+            if (ringGain) {
+                ringGain.gain.cancelScheduledValues(t);
+                ringGain.gain.setValueAtTime(ringGain.gain.value, t);
+                ringGain.gain.linearRampToValueAtTime(0.0001, t + 0.015);
+            }
+            for (const osc of stopping) {
                 try {
-                    osc.stop();
+                    osc.stop(t + 0.02);
                 } catch {
                     // never started, or already stopped — either is fine
                 }
-                osc.disconnect();
             }
-            nodes.length = 0;
+            // Disconnect only after the ramp: doing it now would yank the
+            // oscillators out of the graph instantly and undo the ramp. Cleanup
+            // only — a throttled timer cannot make the ring audible again, the
+            // stop above is scheduled on the audio clock.
+            setTimeout(() => {
+                for (const osc of stopping) osc.disconnect();
+            }, 50);
         },
     };
     if (!ringEnabled) return handle;
@@ -278,6 +301,17 @@ export function startRingtone(): RingHandle {
     for (let i = 0; i < cycles; i++)
         scheduleSegments(dest, RING_PATTERN, t0 + i * RING_CYCLE_S, nodes);
     return handle;
+}
+
+/** One pass of the real ringtone, for the ringtone-volume slider. The blip is
+ *  peak 0.18 against RING_PATTERN's 0.5, so calibrating the ring volume against
+ *  a blip leaves the setting a third too low — and the real call blasts. */
+export function playRingPreview(): void {
+    if (!ringEnabled) return;
+    if (!ensureContext() || !ctx) return;
+    const dest = ensureRingGain();
+    if (!dest) return;
+    scheduleSegments(dest, RING_PATTERN, ctx.currentTime + 0.02);
 }
 
 /** The busy-case blip. Follows the ring settings, not the call-sound ones. */
