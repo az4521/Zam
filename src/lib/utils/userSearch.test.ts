@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { isValidUserId, mapUserSearchResults, debounce } from "./userSearch";
+import {
+    isValidUserId,
+    mapUserSearchResults,
+    debounce,
+    userDomain,
+} from "./userSearch";
 
 describe("isValidUserId — full @localpart:server shape", () => {
     it("accepts a normal user id", () => {
@@ -116,6 +121,92 @@ describe("mapUserSearchResults — normalize the user directory response", () =>
 
     it("handles a missing results array", () => {
         expect(mapUserSearchResults(undefined as never)).toEqual([]);
+    });
+});
+
+describe("userDomain — server-name portion of a user id", () => {
+    it("extracts the server name", () => {
+        expect(userDomain("@alice:example.org")).toBe("example.org");
+    });
+    it("includes a port in the server name", () => {
+        expect(userDomain("@alice:example.org:8448")).toBe("example.org:8448");
+    });
+    it("returns empty for an id with no server part", () => {
+        expect(userDomain("@nolocalpart")).toBe("");
+    });
+});
+
+describe("mapUserSearchResults — same-homeserver ranking", () => {
+    it("sorts same-domain users above federated ones", () => {
+        const result = mapUserSearchResults(
+            [
+                { user_id: "@a:matrix.org" },
+                { user_id: "@b:mystravil.xyz" },
+                { user_id: "@c:other.net" },
+                { user_id: "@d:mystravil.xyz" },
+            ],
+            { ownUserId: "@me:mystravil.xyz" },
+        );
+        expect(result.map((u) => u.userId)).toEqual([
+            "@b:mystravil.xyz",
+            "@d:mystravil.xyz",
+            "@a:matrix.org",
+            "@c:other.net",
+        ]);
+    });
+
+    it("keeps input order within each group (stable sort)", () => {
+        const result = mapUserSearchResults(
+            [
+                { user_id: "@z:matrix.org" },
+                { user_id: "@y:mystravil.xyz" },
+                { user_id: "@x:matrix.org" },
+                { user_id: "@w:mystravil.xyz" },
+            ],
+            { ownUserId: "@me:mystravil.xyz" },
+        );
+        expect(result.map((u) => u.userId)).toEqual([
+            "@y:mystravil.xyz",
+            "@w:mystravil.xyz",
+            "@z:matrix.org",
+            "@x:matrix.org",
+        ]);
+    });
+
+    it("compares the full server name including port", () => {
+        const result = mapUserSearchResults(
+            [
+                { user_id: "@a:matrix.org" },
+                { user_id: "@b:mystravil.xyz:8448" },
+            ],
+            { ownUserId: "@me:mystravil.xyz:8448" },
+        );
+        expect(result[0].userId).toBe("@b:mystravil.xyz:8448");
+    });
+
+    it("keeps an exact term match on top even if it is federated", () => {
+        const result = mapUserSearchResults(
+            [
+                { user_id: "@local:mystravil.xyz" },
+                { user_id: "@target:matrix.org" },
+            ],
+            { ownUserId: "@me:mystravil.xyz", term: "@target:matrix.org" },
+        );
+        expect(result.map((u) => u.userId)).toEqual([
+            "@target:matrix.org",
+            "@local:mystravil.xyz",
+        ]);
+    });
+
+    it("does not reorder when ownUserId is absent", () => {
+        const result = mapUserSearchResults([
+            { user_id: "@a:matrix.org" },
+            { user_id: "@b:mystravil.xyz" },
+        ]);
+        expect(result.map((u) => u.userId)).toEqual([
+            "@a:matrix.org",
+            "@b:mystravil.xyz",
+        ]);
     });
 });
 

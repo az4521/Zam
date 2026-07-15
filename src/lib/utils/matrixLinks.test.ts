@@ -3,6 +3,7 @@ import {
     parseMatrixLink,
     linkifyMatrixIdentifiers,
     mergeViaServers,
+    matrixToUrl,
 } from "./matrixLinks";
 
 describe("parseMatrixLink — matrix.to URLs", () => {
@@ -369,5 +370,33 @@ describe("mergeViaServers", () => {
     it("defaults to a small cap", () => {
         const resolved = Array.from({ length: 20 }, (_, i) => `s${i}.org`);
         expect(mergeViaServers([], resolved).length).toBeLessThanOrEqual(5);
+    });
+});
+
+describe("matrixToUrl — build permalinks", () => {
+    it("encodes a user id with no via", () => {
+        expect(matrixToUrl("@alice:example.org")).toBe(
+            "https://matrix.to/#/%40alice%3Aexample.org",
+        );
+    });
+    it("encodes an alias with no via (aliases self-route)", () => {
+        expect(matrixToUrl("#dev:example.org", ["ignored.org"])).toBe(
+            "https://matrix.to/#/%23dev%3Aexample.org",
+        );
+    });
+    it("appends via params for a room id", () => {
+        expect(matrixToUrl("!abc:example.org", ["one.org", "two.org"])).toBe(
+            "https://matrix.to/#/%21abc%3Aexample.org?via=one.org&via=two.org",
+        );
+    });
+    it("emits a bare (non-joinable) link for a room id with no via", () => {
+        expect(matrixToUrl("!abc:example.org")).toBe(
+            "https://matrix.to/#/%21abc%3Aexample.org",
+        );
+    });
+    it("caps via servers at 5", () => {
+        const via = ["a", "b", "c", "d", "e", "f", "g"];
+        const url = matrixToUrl("!r:s.org", via);
+        expect(url.match(/via=/g)?.length).toBe(5);
     });
 });

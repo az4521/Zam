@@ -16,6 +16,9 @@
         getDirectRooms,
         addRoomToSpace,
         canAddRoomToSpace,
+        canInviteToRoom,
+        getRoomShareLink,
+        markRoomAsRead,
         createRoom as createRoomFn,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
@@ -27,6 +30,7 @@
         setActiveSpace,
         setActiveRoom,
     } from "$lib/stores/rooms.svelte";
+    import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import {
         hasLoudInRoom,
         hasLoudInSpace,
@@ -90,9 +94,10 @@
     interface Props {
         onHomeClick: () => void;
         onSettingsClick: () => void;
+        onOpenSpaceSettings?: (room: Room) => void;
     }
 
-    let { onHomeClick, onSettingsClick }: Props = $props();
+    let { onHomeClick, onSettingsClick, onOpenSpaceSettings }: Props = $props();
 
     type ContextMenu =
         | {
@@ -505,10 +510,8 @@
             }
         };
         collect(spaceId);
-        await mapWithConcurrency(
-            [...allRoomIds],
-            4,
-            (id) => setRoomNotificationSetting(id, setting),
+        await mapWithConcurrency([...allRoomIds], 4, (id) =>
+            setRoomNotificationSetting(id, setting),
         );
     }
 
@@ -549,6 +552,28 @@
     function openAddRoom(spaceId: string) {
         addRoomModal = { spaceId };
         openModal("add-room", () => (addRoomModal = null));
+    }
+
+    function handleOpenSpaceSettings(spaceId: string) {
+        const room = getRoom(spaceId);
+        closeModal();
+        if (room) onOpenSpaceSettings?.(room);
+    }
+    function handleInviteToSpace(spaceId: string) {
+        closeModal();
+        openInviteDialog(spaceId);
+    }
+    async function handleCopySpaceLink(spaceId: string) {
+        try {
+            await navigator.clipboard.writeText(getRoomShareLink(spaceId));
+        } catch {
+            /* clipboard denied */
+        }
+        closeModal();
+    }
+    async function handleMarkSpaceRead(spaceId: string) {
+        closeModal();
+        await markRoomAsRead(spaceId);
     }
 
     let exploreOpen = $state(false);
@@ -1442,6 +1467,29 @@
         ></div>
         {#snippet menuContent()}
             {#if cm.kind === "space"}
+                <button
+                    onclick={() => handleOpenSpaceSettings(cm.spaceId)}
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
+                    >Space Settings</button
+                >
+                {#if (void roomsState.roomsTick, canInviteToRoom(cm.spaceId))}
+                    <button
+                        onclick={() => handleInviteToSpace(cm.spaceId)}
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
+                        >Invite People</button
+                    >
+                {/if}
+                <button
+                    onclick={() => handleCopySpaceLink(cm.spaceId)}
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
+                    >Copy Space Link</button
+                >
+                <button
+                    onclick={() => handleMarkSpaceRead(cm.spaceId)}
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
+                    >Mark as Read</button
+                >
+                <div class="w-full h-px bg-discord-divider my-1"></div>
                 {@const currentNotif = getRoomNotificationSetting(cm.spaceId)}
                 <p
                     class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"

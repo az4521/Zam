@@ -53,6 +53,7 @@ import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
+import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
 import {
     isPollStartEventType,
@@ -1944,6 +1945,80 @@ async function reconcileJoinedRooms(): Promise<void> {
     }
 }
 
+// ── In-session joined-rooms self-heal ─────────────────────────────────────────
+// reconcileJoinedRooms() only runs at boot. But continuwuity can drop a freshly
+// joined/created room from INCREMENTAL sync entirely (the cache never re-delivers
+// it), so mid-session a room you're joined to can stay invisible until a manual
+// reload. This heals it in place — no reload — by re-asserting the join and
+// seeding state, and only falls back to the cache reset if a room truly can't be
+// materialized.
+
+/** Re-materialize + state-seed one joined room the local cache is missing. */
+async function healMissingJoinedRoom(roomId: string): Promise<boolean> {
+    if (!matrixClient) return false;
+    if (matrixClient.getRoom(roomId)?.getMyMembership() === "join") return true;
+    try {
+        // Idempotent for an already-joined room; makes the SDK create/correct
+        // the Room object the poisoned cache dropped. Raw SDK call (not the
+        // joinRoom wrapper) so it never re-triggers reconciliation.
+        await matrixClient.joinRoom(roomId);
+    } catch {
+        // Already joined or transient — fall through and try seeding anyway.
+    }
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return false;
+    if (roomLacksState(room)) await seedRoomStateIfMissing(roomId);
+    return room.getMyMembership() === "join";
+}
+
+let liveReconcileRunning = false;
+
+/**
+ * Compare the server's joined list against ours mid-session and heal any room
+ * incremental sync dropped, WITHOUT a reload. Best-effort; the boot cache-reset
+ * is a last resort only if in-place healing leaves a room unrecovered.
+ */
+export async function reconcileJoinedRoomsLive(): Promise<void> {
+    if (!matrixClient || liveReconcileRunning) return;
+    liveReconcileRunning = true;
+    try {
+        const server = await matrixClient.getJoinedRooms();
+        const missing = server.joined_rooms.filter(
+            (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
+        );
+        if (missing.length === 0) return;
+        console.info("In-session sync heal — rooms missing locally:", missing);
+        let unhealed = false;
+        for (const id of missing) {
+            if (!(await healMissingJoinedRoom(id))) unhealed = true;
+        }
+        for (const cb of roomUpdateSubscribers) cb();
+        for (const id of missing) {
+            if (matrixClient.getRoom(id)?.getMyMembership() === "join")
+                for (const cb of roomHealedSubscribers) cb(id);
+        }
+        // Nothing we could do in place — reuse the boot escape hatch once.
+        if (unhealed && !sessionStorage.getItem(RECONCILE_FLAG)) {
+            sessionStorage.setItem(RECONCILE_FLAG, "1");
+            await clearCacheAndReload();
+        }
+    } catch {
+        // best-effort — never surface as a user-facing error
+    } finally {
+        liveReconcileRunning = false;
+    }
+}
+
+let liveReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+/** Debounced trigger for the in-session joined-rooms heal. */
+export function scheduleJoinedRoomsReconcile(delayMs = 1500): void {
+    if (liveReconcileTimer) return;
+    liveReconcileTimer = setTimeout(() => {
+        liveReconcileTimer = null;
+        void reconcileJoinedRoomsLive();
+    }, delayMs);
+}
+
 export function onRoomUpdate(callback: () => void): () => void {
     if (!matrixClient) return () => {};
     roomUpdateSubscribers.add(callback);
@@ -2096,6 +2171,25 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     ) as ReceiptType;
     await matrixClient.sendReadReceipt(event, receiptType);
     await matrixClient.setRoomReadMarkers(event.getRoomId()!, event.getId()!);
+}
+
+/** Send a read receipt to the room's newest live event, clearing its unread state. */
+export async function markRoomAsRead(roomId: string): Promise<void> {
+    if (!matrixClient) return;
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return;
+    const events = room.getLiveTimeline().getEvents();
+    const last = events[events.length - 1];
+    if (last) await sendReadReceipt(last);
+}
+
+/** A shareable matrix.to link: canonical alias if set, else room id + our homeserver as via. */
+export function getRoomShareLink(roomId: string): string {
+    const room = matrixClient?.getRoom(roomId);
+    const alias = room?.getCanonicalAlias();
+    if (alias) return matrixToUrl(alias);
+    const domain = matrixClient?.getDomain();
+    return matrixToUrl(roomId, domain ? [domain] : []);
 }
 
 /** Returns the event ID the current user has read up to in this room, or null. */
@@ -2401,6 +2495,7 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
         if (!joined) throw err;
     }
     await seedRoomStateIfMissing(roomId);
+    scheduleJoinedRoomsReconcile();
 }
 
 export async function joinRoomByAlias(alias: string): Promise<string> {
@@ -2485,6 +2580,7 @@ export async function createRoom(
     if (spaceId) await addRoomToSpace(spaceId, roomId);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    scheduleJoinedRoomsReconcile();
     return roomId;
 }
 
@@ -2503,6 +2599,7 @@ export async function createSpace(
             events: { "m.space.child": 0 },
         },
     });
+    scheduleJoinedRoomsReconcile();
     return result.room_id;
 }
 
@@ -2535,6 +2632,11 @@ export interface UserSearchResult {
     displayName: string | null;
     /** http thumbnail URL, ready for <img src> */
     avatarUrl: string | null;
+}
+
+/** The logged-in account's server name (the part after `:` in your own user id). */
+export function getOwnServerName(): string {
+    return matrixClient?.getDomain() ?? "";
 }
 
 /** Search the homeserver's user directory (user IDs, display names, domains). */
@@ -2585,6 +2687,57 @@ export async function createDirectMessage(userId: string): Promise<string> {
     return roomId;
 }
 
+/** Invite a user to an existing room or space. Throws on failure (caller surfaces). */
+export async function inviteUser(
+    roomId: string,
+    userId: string,
+    reason?: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.invite(roomId, userId, reason);
+}
+
+/** User ids currently in the room with any of the given memberships (default join+invite). */
+export function getRoomMemberIds(
+    roomId: string,
+    memberships: string[] = ["join", "invite"],
+): string[] {
+    const room = matrixClient?.getRoom(roomId);
+    if (!room) return [];
+    return room
+        .getMembers()
+        .filter((m) => memberships.includes(m.membership ?? ""))
+        .map((m) => m.userId);
+}
+
+/**
+ * Whether the current user may invite to this room. Normal path: power level ≥
+ * the room's `invite` PL. Room-v12 (MSC4289) creators have implicit power the
+ * SDK may not surface as a PL number, so the room creator (and additional
+ * creators) always pass — we never hide a capability the server grants.
+ */
+export function canInviteToRoom(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    const me = matrixClient?.getUserId();
+    if (!room || !me) return false;
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    // The spec default for `invite` is 0 — getRoomPowerLevels() normalizes it to
+    // 50, which would wrongly hide Invite from ordinary members of rooms that
+    // never set an explicit invite PL. Read the raw value with the correct default.
+    const inviteReq = state
+        ?.getStateEvents("m.room.power_levels", "")
+        ?.getContent()?.invite;
+    if (
+        getMyPowerLevel(room) >= (typeof inviteReq === "number" ? inviteReq : 0)
+    )
+        return true;
+    const create = state?.getStateEvents("m.room.create", "");
+    const creator = create?.getSender();
+    const additional =
+        (create?.getContent()?.additional_creators as string[]) ?? [];
+    return creator === me || additional.includes(me);
+}
+
 export function getInvitedRooms(): Room[] {
     if (!matrixClient) return [];
     return matrixClient
@@ -2597,6 +2750,7 @@ export async function acceptInvite(roomId: string): Promise<void> {
     await matrixClient.joinRoom(roomId);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    scheduleJoinedRoomsReconcile();
 }
 
 export async function rejectInvite(roomId: string): Promise<void> {
@@ -3841,6 +3995,26 @@ export async function setHistoryVisibility(
         "m.room.history_visibility",
         { history_visibility: visibility },
     );
+}
+
+/** The room's visibility in the server's public room directory. */
+export async function getRoomDirectoryVisibility(
+    roomId: string,
+): Promise<"public" | "private"> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.getRoomDirectoryVisibility(roomId);
+    return (res as { visibility?: string })?.visibility === "public"
+        ? "public"
+        : "private";
+}
+
+/** Publish/unpublish the room to the server's public room directory. */
+export async function setRoomDirectoryVisibility(
+    roomId: string,
+    visibility: "public" | "private",
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).setRoomDirectoryVisibility(roomId, visibility);
 }
 
 export interface SpaceChildEntry {
