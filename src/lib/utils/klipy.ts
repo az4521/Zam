@@ -2,10 +2,14 @@
 // The picker rides the app's existing URL-as-text rail (see LinkPreview.svelte),
 // so this module produces plain media URLs and never touches matrix-js-sdk.
 //
-// PROVISIONAL (confirm against a live KLIPY response, then adjust here only):
+// CONFIRMED against the live KLIPY API:
 //   - search query param name (`q`)
 //   - paging params (`page`, `per_page`)
-//   - the item.files.<size>.<format>.url rendition shape
+//   - the item.file.<size>.<format>.url rendition shape (field is `file`, singular)
+//
+// The app key defaults to KLIPY's public `web` key, so GIF search works with
+// zero config; override it with VITE_KLIPY_API_KEY to use your own registered
+// key (needed for memes/clips, which the public `web` key returns empty).
 
 export type GifKind = "gifs" | "memes";
 export type GifTab = "gifs" | "favourites";
@@ -26,11 +30,9 @@ export interface GifPage {
 const KLIPY_BASE = "https://api.klipy.com/api/v1";
 const PER_PAGE = 24;
 
-/** Build-time key; empty string when unset. */
-export const KLIPY_API_KEY: string = import.meta.env.VITE_KLIPY_API_KEY ?? "";
-
-/** Whether KLIPY discovery is available at all. */
-export const klipyEnabled = (): boolean => KLIPY_API_KEY.length > 0;
+/** Build-time key; defaults to KLIPY's public `web` key when unset. */
+export const KLIPY_API_KEY: string =
+    import.meta.env.VITE_KLIPY_API_KEY || "web";
 
 export function trendingUrl(kind: GifKind, page: number): string {
     return `${KLIPY_BASE}/${KLIPY_API_KEY}/${kind}/trending?page=${page}&per_page=${PER_PAGE}`;
@@ -46,7 +48,7 @@ type Fmt = { gif?: Rendition; webp?: Rendition; mp4?: Rendition };
 interface KlipyItem {
     id?: string | number;
     slug?: string;
-    files?: Record<string, Fmt | undefined>;
+    file?: Record<string, Fmt | undefined>;
 }
 
 // Largest-first for the inserted url; smallest-first for the grid thumbnail.
@@ -74,8 +76,8 @@ export function normalizeKlipyItems(json: unknown): GifPage {
         : [];
     const items: GifResult[] = [];
     for (const it of rawItems) {
-        const full = pickRendition(it.files, SIZES_LARGE);
-        const small = pickRendition(it.files, SIZES_SMALL) ?? full;
+        const full = pickRendition(it.file, SIZES_LARGE);
+        const small = pickRendition(it.file, SIZES_SMALL) ?? full;
         if (!full?.url || !small?.url) continue;
         items.push({
             id: String(it.id ?? it.slug ?? full.url),

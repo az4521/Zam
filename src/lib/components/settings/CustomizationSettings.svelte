@@ -20,7 +20,7 @@
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
-    import { klipyEnabled, type GifTab } from "$lib/utils/klipy";
+    import { type GifTab } from "$lib/utils/klipy";
     import {
         previewDatePattern,
         type TimeClock,
@@ -185,33 +185,30 @@
         </div>
     </section>
 
-    {#if klipyEnabled()}
-        <section>
-            <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
-            >
-                GIFs
-            </p>
-            <div
-                class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
-            >
-                <div class="flex-1 min-w-0">
-                    <span class="text-sm text-discord-textPrimary"
-                        >Default tab</span
-                    >
-                    <p class="text-xs text-discord-textMuted">
-                        Which tab the GIF picker opens on.
-                    </p>
-                </div>
-                <OptionSelector
-                    value={settingsState.gifDefaultTab}
-                    options={gifTabOptions}
-                    onChange={setGifDefaultTab}
-                    ariaLabel="Default GIF tab"
-                />
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            GIFs
+        </p>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-discord-textPrimary">Default tab</span
+                >
+                <p class="text-xs text-discord-textMuted">
+                    Which tab the GIF picker opens on.
+                </p>
             </div>
-        </section>
-    {/if}
+            <OptionSelector
+                value={settingsState.gifDefaultTab}
+                options={gifTabOptions}
+                onChange={setGifDefaultTab}
+                ariaLabel="Default GIF tab"
+            />
+        </div>
+    </section>
 
     <section>
         <p

@@ -34,24 +34,26 @@ describe("normalizeKlipyItems", () => {
                 {
                     id: 42,
                     slug: "abc",
-                    files: {
+                    file: {
                         hd: {
                             gif: {
-                                url: "https://m.klipy.com/hd.gif",
-                                width: 480,
-                                height: 270,
+                                url: "https://static2.klipy.com/hd.gif",
+                                width: 498,
+                                height: 373,
+                                size: 1,
                             },
                         },
-                        sm: {
+                        xs: {
                             gif: {
-                                url: "https://m.klipy.com/sm.gif",
-                                width: 160,
+                                url: "https://static2.klipy.com/xs.gif",
+                                width: 121,
                                 height: 90,
+                                size: 1,
                             },
                         },
                     },
                 },
-                { id: 7, files: {} }, // no usable rendition -> skipped
+                { id: 7, file: {} }, // no usable rendition -> skipped
             ],
         },
     };
@@ -62,10 +64,10 @@ describe("normalizeKlipyItems", () => {
         expect(page.items).toHaveLength(1);
         expect(page.items[0]).toEqual({
             id: "42",
-            url: "https://m.klipy.com/hd.gif",
-            previewUrl: "https://m.klipy.com/sm.gif",
-            width: 480,
-            height: 270,
+            url: "https://static2.klipy.com/hd.gif",
+            previewUrl: "https://static2.klipy.com/xs.gif",
+            width: 498,
+            height: 373,
         });
     });
 

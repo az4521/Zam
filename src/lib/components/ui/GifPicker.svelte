@@ -7,11 +7,7 @@
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import {
-        klipyEnabled,
-        type GifKind,
-        type GifResult,
-    } from "$lib/utils/klipy";
+    import { type GifKind, type GifResult } from "$lib/utils/klipy";
     import {
         gifSearchState,
         loadGifs,
@@ -30,18 +26,11 @@
     let { onSelect, onClose, onSwitchToEmoji, onSwitchToSticker }: Props =
         $props();
 
-    type Tab = "gifs" | "memes" | "favourites";
+    type Tab = "gifs" | "favourites";
 
-    const enabled = klipyEnabled();
-
-    // Land on the configured tab (only "gifs"/"favourites" are landing options);
-    // with no key, favourites is the only tab.
+    // Land on the configured tab ("gifs" or "favourites").
     let tab = $state<Tab>(
-        enabled
-            ? settingsState.gifDefaultTab === "favourites"
-                ? "favourites"
-                : "gifs"
-            : "favourites",
+        settingsState.gifDefaultTab === "favourites" ? "favourites" : "gifs",
     );
 
     let search = $state("");
@@ -52,20 +41,20 @@
         if (!interfaceState.isTouchscreen) searchEl?.focus();
     });
 
-    // Tab/kind change → immediate KLIPY load. `search` is read untracked so
+    // Tab change → immediate KLIPY load. `search` is read untracked so
     // typing does NOT retrigger this effect; typing is debounced in
-    // onSearchInput instead. This avoids a wasted/wrong-kind request on switch.
+    // onSearchInput instead. This avoids a wasted request on switch.
     $effect(() => {
         const t = tab;
-        if (t === "favourites" || !enabled) return;
-        const kind: GifKind = t === "memes" ? "memes" : "gifs";
+        if (t === "favourites") return;
+        const kind: GifKind = "gifs";
         untrack(() => loadGifs(kind, search));
     });
 
     function onSearchInput(e: Event & { currentTarget: HTMLInputElement }) {
         search = e.currentTarget.value;
-        if (tab !== "favourites" && enabled) {
-            const kind: GifKind = tab === "memes" ? "memes" : "gifs";
+        if (tab !== "favourites") {
+            const kind: GifKind = "gifs";
             queueSearch(kind, search);
         }
     }
@@ -137,21 +126,19 @@
         </div>
     {/if}
 
-    {#if enabled}
-        <!-- Inner content tabs -->
-        <div class="flex gap-1 px-2 pt-2 flex-shrink-0">
-            {#each [["gifs", "GIFs"], ["memes", "Memes"], ["favourites", "★ Favourites"]] as [value, label] (value)}
-                <button
-                    onclick={() => selectTab(value as Tab)}
-                    class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
-                    value
-                        ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                    >{label}</button
-                >
-            {/each}
-        </div>
-    {/if}
+    <!-- Inner content tabs -->
+    <div class="flex gap-1 px-2 pt-2 flex-shrink-0">
+        {#each [["gifs", "GIFs"], ["favourites", "★ Favourites"]] as [value, label] (value)}
+            <button
+                onclick={() => selectTab(value as Tab)}
+                class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
+                value
+                    ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                >{label}</button
+            >
+        {/each}
+    </div>
 
     <!-- Search -->
     <div class="px-3 pt-3 pb-2 flex-shrink-0">
@@ -219,11 +206,10 @@
                 </div>
             {/if}
         {:else}
-            <!-- KLIPY tabs (gifs / memes) -->
+            <!-- KLIPY GIFs -->
             {#if gifSearchState.error && gifSearchState.items.length === 0}
                 <button
-                    onclick={() =>
-                        loadGifs(tab === "memes" ? "memes" : "gifs", search)}
+                    onclick={() => loadGifs("gifs", search)}
                     class="w-full text-center text-discord-textMuted text-sm py-8 px-4 hover:text-discord-textPrimary transition-colors"
                 >
                     {gifSearchState.error}
@@ -291,7 +277,7 @@
         {/if}
     </div>
 
-    {#if enabled && tab !== "favourites"}
+    {#if tab !== "favourites"}
         <div
             class="px-3 py-1.5 flex-shrink-0 border-t border-discord-divider text-[10px] text-discord-textMuted text-right"
         >
