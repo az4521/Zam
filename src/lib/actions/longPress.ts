@@ -8,8 +8,6 @@ export interface LongPressParams {
     /** Movement past this many px cancels the press (lets scrolling win).
      *  Default 10. */
     moveTolerancePx?: number;
-    /** When false, the action arms no listeners. Default true. */
-    enabled?: boolean;
 }
 
 /** True when a touch has moved past `tol` px from its start point. */
@@ -39,7 +37,6 @@ export function longPress(node: HTMLElement, params: LongPressParams) {
     }
 
     function onTouchStart(e: TouchEvent) {
-        if (p.enabled === false) return;
         const t = e.touches[0];
         startX = t.clientX;
         startY = t.clientY;
@@ -77,9 +74,15 @@ export function longPress(node: HTMLElement, params: LongPressParams) {
         }
     }
 
+    function onTouchCancel() {
+        clear();
+        fired = false;
+    }
+
     node.addEventListener("touchstart", onTouchStart);
     node.addEventListener("touchmove", onTouchMove);
     node.addEventListener("touchend", onTouchEnd);
+    node.addEventListener("touchcancel", onTouchCancel);
 
     return {
         update(next: LongPressParams) {
@@ -90,6 +93,7 @@ export function longPress(node: HTMLElement, params: LongPressParams) {
             node.removeEventListener("touchstart", onTouchStart);
             node.removeEventListener("touchmove", onTouchMove);
             node.removeEventListener("touchend", onTouchEnd);
+            node.removeEventListener("touchcancel", onTouchCancel);
         },
     };
 }
