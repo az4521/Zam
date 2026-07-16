@@ -38,7 +38,10 @@
         playRingBlip,
         playRingPreview,
     } from "$lib/audio/soundEffects";
-    import { requestNotificationPermission } from "$lib/utils/notifyPermission";
+    import {
+        requestNotificationPermission,
+        callAlertHint,
+    } from "$lib/utils/notifyPermission";
     import {
         setVoiceInputDevice,
         setVoiceOutputDevice,
@@ -57,6 +60,8 @@
     let micError = $state<string | null>(null);
     let cameraOn = $state(false);
     let cameraError = $state<string | null>(null);
+    // Why incoming-call OS alerts stay silent (blocked/unsupported), or null.
+    let ringNotifyHint = $state<string | null>(null);
     let videoEl: HTMLVideoElement | null = null;
     let cameraStream: MediaStream | null = null;
     let meter: MicMeterHandle | null = null;
@@ -179,9 +184,19 @@
         }
     }
 
+    function currentNotifyPermission(): NotificationPermission | "unsupported" {
+        return typeof Notification === "undefined"
+            ? "unsupported"
+            : Notification.permission;
+    }
+
     onMount(() => {
         void refreshDevices().then(() => void startMeter());
         unsubDevices = onDevicesChanged(() => void refreshDevices());
+        // A user who blocked notifications long ago and still has ringing on
+        // gets no OS call alerts; surface why without making them re-toggle.
+        if (settingsState.ringEnabled)
+            ringNotifyHint = callAlertHint(currentNotifyPermission());
     });
 
     // Incoming-audio meter while in a call; re-taps as tracks come and go.
@@ -493,12 +508,21 @@
                         playRingBlip();
                         // Ringing wants an OS notification when the window is
                         // hidden; this click is the gesture that lets us ask.
-                        void requestNotificationPermission();
+                        // Surface a hint if it's blocked/unsupported so the
+                        // user knows why call alerts stay silent.
+                        void requestNotificationPermission().then((p) => {
+                            ringNotifyHint = callAlertHint(p);
+                        });
+                    } else {
+                        ringNotifyHint = null;
                     }
                 }}
                 label="Ring for incoming DM calls"
             />
         </div>
+        {#if ringNotifyHint}
+            <p class="text-xs text-discord-danger mt-2">{ringNotifyHint}</p>
+        {/if}
         <div class="mt-3 flex items-center gap-3">
             <p class="text-sm text-discord-textPrimary flex-shrink-0">
                 Ringtone volume
