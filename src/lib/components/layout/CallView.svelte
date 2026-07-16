@@ -10,6 +10,7 @@
         Phone,
         Volume2,
     } from "lucide-svelte";
+    import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import {
@@ -38,8 +39,10 @@
 
     interface Props {
         room: Room;
+        isMobile?: boolean;
+        onMenuOpen?: () => void;
     }
-    let { room }: Props = $props();
+    let { room, isMobile = false, onMenuOpen }: Props = $props();
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
@@ -77,10 +80,15 @@
         userId: string;
         x: number;
         y: number;
+        touch: boolean;
     } | null>(null);
-    function openParticipantMenu(e: MouseEvent, userId: string) {
-        e.preventDefault();
-        participantMenu = { userId, x: e.clientX, y: e.clientY };
+    function openParticipantMenu(
+        userId: string,
+        x: number,
+        y: number,
+        touch: boolean,
+    ) {
+        participantMenu = { userId, x, y, touch };
         openModal("call-participant-menu", () => (participantMenu = null));
     }
 </script>
@@ -90,6 +98,18 @@
     <div
         class="h-12 px-4 flex items-center gap-2 flex-shrink-0 border-b border-discord-divider bg-discord-background"
     >
+        {#if isMobile}
+            <button
+                onclick={onMenuOpen}
+                class="p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                title="Open room list"
+                aria-label="Open room list"
+            >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                </svg>
+            </button>
+        {/if}
         <Volume2 size={20} class="text-discord-textMuted flex-shrink-0" />
         <h2 class="font-semibold text-discord-textPrimary truncate">
             {roomName}
@@ -142,7 +162,19 @@
                         )
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
-                        oncontextmenu={(e) => openParticipantMenu(e, p.userId)}
+                        oncontextmenu={(e) => {
+                            e.preventDefault();
+                            openParticipantMenu(
+                                p.userId,
+                                e.clientX,
+                                e.clientY,
+                                false,
+                            );
+                        }}
+                        use:longPress={{
+                            onTrigger: (x, y) =>
+                                openParticipantMenu(p.userId, x, y, true),
+                        }}
                     >
                         <Avatar src={avatar} {name} id={p.userId} size={80} />
                         <div
@@ -231,6 +263,7 @@
         userId={participantMenu.userId}
         x={participantMenu.x}
         y={participantMenu.y}
+        touch={participantMenu.touch}
         onClose={() => {
             participantMenu = null;
             clearModal("call-participant-menu");

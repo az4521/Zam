@@ -887,7 +887,11 @@
                 />
             {:else if activeRoom}
                 {#if interfaceState.callViewRoomId === activeRoom.roomId}
-                    <CallView room={activeRoom} />
+                    <CallView
+                        room={activeRoom}
+                        isMobile={interfaceState.isMobile}
+                        onMenuOpen={() => (interfaceState.leftOpen = true)}
+                    />
                 {:else}
                     <MessageArea
                         room={activeRoom}
