@@ -220,7 +220,7 @@
             {/if}
         {:else}
             <!-- KLIPY tabs (gifs / memes) -->
-            {#if gifSearchState.error}
+            {#if gifSearchState.error && gifSearchState.items.length === 0}
                 <button
                     onclick={() =>
                         loadGifs(tab === "memes" ? "memes" : "gifs", search)}
@@ -278,6 +278,14 @@
                     <p class="text-center text-discord-textMuted text-xs py-3">
                         Loading…
                     </p>
+                {/if}
+                {#if gifSearchState.error}
+                    <button
+                        onclick={() => loadMore()}
+                        class="w-full text-center text-discord-textMuted text-xs py-3 hover:text-discord-textPrimary transition-colors"
+                    >
+                        {gifSearchState.error}
+                    </button>
                 {/if}
             {/if}
         {/if}

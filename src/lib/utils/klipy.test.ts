@@ -19,7 +19,7 @@ describe("klipy url builders", () => {
         const url = searchUrl("memes", "happy dog", 2);
         expect(url).toContain("/memes/search");
         expect(url).toContain("q=happy%20dog");
-        expect(url).toContain("page=2");
+        expect(url).toContain("&page=2");
     });
 });
 

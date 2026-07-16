@@ -16,12 +16,12 @@ import {
     loadMore,
 } from "./gifSearch.svelte";
 
-function page(items: number, hasNext: boolean) {
+function page(items: number, hasNext: boolean, startId = 0) {
     return {
         items: Array.from({ length: items }, (_, i) => ({
-            id: String(i),
-            url: `u${i}`,
-            previewUrl: `p${i}`,
+            id: String(startId + i),
+            url: `u${startId + i}`,
+            previewUrl: `p${startId + i}`,
             width: 1,
             height: 1,
         })),
@@ -79,13 +79,23 @@ describe("gifSearch store", () => {
         fetchKlipy.mockResolvedValueOnce(page(2, true));
         loadGifs("gifs", "");
         await vi.advanceTimersByTimeAsync(0);
-        fetchKlipy.mockResolvedValueOnce(page(2, false));
+        fetchKlipy.mockResolvedValueOnce(page(2, false, 2));
         loadMore();
         await vi.advanceTimersByTimeAsync(0);
         expect(gifSearchState.items).toHaveLength(4);
         expect(gifSearchState.exhausted).toBe(true);
         loadMore(); // exhausted -> no-op
         expect(fetchKlipy).toHaveBeenCalledTimes(2);
+    });
+
+    it("dedups overlapping ids when appending a page", async () => {
+        fetchKlipy.mockResolvedValueOnce(page(2, true, 0)); // ids 0,1
+        loadGifs("gifs", "");
+        await vi.advanceTimersByTimeAsync(0);
+        fetchKlipy.mockResolvedValueOnce(page(2, false, 1)); // ids 1,2 (1 overlaps)
+        loadMore();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.items.map((i) => i.id)).toEqual(["0", "1", "2"]);
     });
 
     it("sets an error message and clears items on failure", async () => {

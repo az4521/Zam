@@ -46,9 +46,15 @@ async function run(
     try {
         const { items, hasNext } = await fetchKlipy(urlFor(kind, query, page));
         if (seq !== requestSeq) return; // a newer request superseded this one
-        gifSearchState.items = append
-            ? [...gifSearchState.items, ...items]
-            : items;
+        if (append) {
+            const seen = new Set(gifSearchState.items.map((i) => i.id));
+            gifSearchState.items = [
+                ...gifSearchState.items,
+                ...items.filter((i) => !seen.has(i.id)),
+            ];
+        } else {
+            gifSearchState.items = items;
+        }
         gifSearchState.page = page;
         gifSearchState.exhausted = !hasNext;
     } catch {
