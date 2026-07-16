@@ -948,7 +948,7 @@
     {/if}
 
     <!-- Main chat area -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden" data-chat-area>
         <!-- Room header -->
         <div
             class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"

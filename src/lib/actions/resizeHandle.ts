@@ -2,10 +2,11 @@
 //
 // Attach to a small grip element that is a direct child of the panel you want
 // to resize. Dragging the grip resizes that parent panel; the size is clamped
-// between a minimum and the viewport (so it can grow as large as the screen —
-// "infinitely" within reason) and persisted to localStorage under `storageKey`.
-// The panel is anchored bottom-right in the composer, so dragging up/left
-// enlarges it. On touch the grip is not rendered, so this never runs there.
+// between a minimum and the chat content area (the `[data-chat-area]` ancestor)
+// so it can grow to fill the chat but never crosses the sidebar or covers the
+// top bar, and is persisted to localStorage under `storageKey`. The panel is
+// anchored bottom-right in the composer, so dragging up/left enlarges it. On
+// touch the grip is not rendered, so this never runs there.
 
 interface ResizeOpts {
     /** localStorage prefix, e.g. "gifPicker" -> keys "gifPicker:w"/"gifPicker:h". */
@@ -22,8 +23,27 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
 
     const minW = opts.minW ?? 260;
     const minH = opts.minH ?? 260;
-    const maxW = () => Math.max(minW, window.innerWidth - 24);
-    const maxH = () => Math.max(minH, window.innerHeight - 24);
+    const HEADER_H = 48; // room header (top bar) height (h-12)
+
+    // Max size = the chat content area. The panel may grow to fill it but not
+    // cross the sidebar (left) or cover the top bar (top). Its right/bottom are
+    // pinned to the composer corner, so those edges are the fixed anchor.
+    // Falls back to the viewport when no [data-chat-area] ancestor is found.
+    function maxSize(): { w: number; h: number } {
+        const pr = panel!.getBoundingClientRect();
+        const area = panel!.closest("[data-chat-area]");
+        if (area) {
+            const ar = area.getBoundingClientRect();
+            return {
+                w: Math.max(minW, pr.right - ar.left),
+                h: Math.max(minH, pr.bottom - ar.top - HEADER_H),
+            };
+        }
+        return {
+            w: Math.max(minW, window.innerWidth - 24),
+            h: Math.max(minH, window.innerHeight - 24),
+        };
+    }
 
     function readNum(key: string): number | null {
         try {
@@ -34,8 +54,9 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
         }
     }
     function apply(w: number, h: number) {
-        panel!.style.width = Math.min(maxW(), Math.max(minW, w)) + "px";
-        panel!.style.height = Math.min(maxH(), Math.max(minH, h)) + "px";
+        const max = maxSize();
+        panel!.style.width = Math.min(max.w, Math.max(minW, w)) + "px";
+        panel!.style.height = Math.min(max.h, Math.max(minH, h)) + "px";
     }
 
     apply(
