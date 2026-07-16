@@ -16,9 +16,11 @@
         setDateStyle,
         setCustomDatePattern,
         setAlwaysAbsolute,
+        setGifDefaultTab,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
+    import { klipyEnabled, type GifTab } from "$lib/utils/klipy";
     import {
         previewDatePattern,
         type TimeClock,
@@ -35,6 +37,10 @@
         { value: "dmy", label: "D/M/Y" },
         { value: "mdy", label: "M/D/Y" },
         { value: "custom", label: "Custom" },
+    ];
+    const gifTabOptions: Array<{ value: GifTab; label: string }> = [
+        { value: "gifs", label: "GIFs" },
+        { value: "favourites", label: "Favourites" },
     ];
 
     let customDraft = $state(settingsState.customDatePattern);
@@ -178,6 +184,34 @@
             />
         </div>
     </section>
+
+    {#if klipyEnabled()}
+        <section>
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            >
+                GIFs
+            </p>
+            <div
+                class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div class="flex-1 min-w-0">
+                    <span class="text-sm text-discord-textPrimary"
+                        >Default tab</span
+                    >
+                    <p class="text-xs text-discord-textMuted">
+                        Which tab the GIF picker opens on.
+                    </p>
+                </div>
+                <OptionSelector
+                    value={settingsState.gifDefaultTab}
+                    options={gifTabOptions}
+                    onChange={setGifDefaultTab}
+                    ariaLabel="Default GIF tab"
+                />
+            </div>
+        </section>
+    {/if}
 
     <section>
         <p

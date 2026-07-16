@@ -13,6 +13,7 @@ import {
     normalizeDoubleTapAction,
     type DoubleTapAction,
 } from "$lib/utils/doubleTap";
+import { normalizeGifTab, type GifTab } from "$lib/utils/klipy";
 import {
     parseAudioMap,
     serializeAudioMap,
@@ -115,6 +116,8 @@ export const settingsState = $state({
     /** Timestamp display (device-global, like theme). See utils/timeFormat. */
     timeClock: normalizeTimeClock(readString("timeClock")),
     dateStyle: normalizeDateStyle(readString("dateStyle")),
+    /** Which tab the GIF picker opens on (device-global, like theme). */
+    gifDefaultTab: normalizeGifTab(readString("gifDefaultTab")),
     customDatePattern: readString("customDatePattern") || "yyyy-MM-dd",
     alwaysAbsolute: readBool("alwaysAbsolute", false),
     ownDoubleTapAction: normalizeDoubleTapAction(
@@ -220,6 +223,11 @@ export function setTimeClock(value: TimeClock): void {
 export function setDateStyle(value: DateStyle): void {
     settingsState.dateStyle = value;
     writeString("dateStyle", value);
+}
+
+export function setGifDefaultTab(value: GifTab): void {
+    settingsState.gifDefaultTab = value;
+    writeString("gifDefaultTab", value);
 }
 
 export function setCustomDatePattern(value: string): void {
