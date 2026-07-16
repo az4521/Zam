@@ -78,6 +78,7 @@
         mxcToHttp,
     } from "$lib/matrix/client";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
+    import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { playPing } from "$lib/audio/soundEffects";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
@@ -369,7 +370,9 @@
                 tag: event.getId() ?? undefined,
             });
             n.onclick = () => {
-                window.focus();
+                // window.focus() alone cannot un-hide a tray-hidden Electron
+                // window; restoreAppWindow() prefers the preload bridge.
+                restoreAppWindow();
                 navigateToRoom(room.roomId);
             };
         } catch {
@@ -381,9 +384,12 @@
     // message rule at showDesktopNotification() is about whether you are
     // reading that room, which is not the question here. The only reason to
     // stay quiet is that the card is already on screen in front of you.
-    const notifiedCalls = new Set<string>();
+    // roomId → its live OS notification (null when we chose not to post one,
+    // e.g. the window was focused), so we can close a stale notification when
+    // the call stops ringing.
+    const notifiedCalls = new Map<string, Notification | null>();
 
-    function notifyIncomingCall(roomId: string) {
+    function notifyIncomingCall(roomId: string): Notification | undefined {
         if (
             typeof Notification === "undefined" ||
             Notification.permission !== "granted"
@@ -402,20 +408,13 @@
                 tag: `call:${roomId}`,
             });
             n.onclick = () => {
-                // Electron: window.focus() cannot un-hide a tray-hidden
-                // window, so prefer the preload bridge. Web has no bridge and
-                // needs the plain focus().
-                const desktop = (
-                    window as unknown as {
-                        desktop?: { showWindow?: () => void };
-                    }
-                ).desktop;
-                if (desktop?.showWindow) desktop.showWindow();
-                else window.focus();
+                restoreAppWindow();
                 navigateToRoom(roomId);
             };
+            return n;
         } catch {
             /* notifications unsupported / blocked — the card still shows */
+            return undefined;
         }
     }
 
@@ -432,12 +431,16 @@
         const current = new Set(incomingCallsState.ringing);
         for (const roomId of current)
             if (!notifiedCalls.has(roomId)) {
-                notifiedCalls.add(roomId);
-                notifyIncomingCall(roomId);
+                notifiedCalls.set(roomId, notifyIncomingCall(roomId) ?? null);
             }
-        // Forget rooms that stopped ringing, so a re-call notifies again.
-        for (const roomId of notifiedCalls)
-            if (!current.has(roomId)) notifiedCalls.delete(roomId);
+        // A room that stopped ringing: close its now-stale OS notification (the
+        // caller gave up, or the ring timed out) and forget it so a re-call
+        // notifies again.
+        for (const roomId of notifiedCalls.keys())
+            if (!current.has(roomId)) {
+                notifiedCalls.get(roomId)?.close();
+                notifiedCalls.delete(roomId);
+            }
     });
 
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;

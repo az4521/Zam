@@ -10,6 +10,15 @@ declare global {
 
     /** App version, injected from package.json at build time (see vite.config.ts). */
     const __APP_VERSION__: string;
+
+    interface Window {
+        /** Electron renderer bridge (electron/preload.cjs); absent in the
+         *  browser and on native. Currently just restores a tray-hidden window,
+         *  which `window.focus()` cannot do. */
+        desktop?: {
+            showWindow?: () => void;
+        };
+    }
 }
 
 export {};
