@@ -106,4 +106,25 @@ describe("gifSearch store", () => {
         await vi.advanceTimersByTimeAsync(0);
         expect(fetchKlipy).toHaveBeenLastCalledWith("trending:memes:2");
     });
+
+    it("drops results from a superseded in-flight request", async () => {
+        let resolveOld!: (v: unknown) => void;
+        let resolveNew!: (v: unknown) => void;
+        const pOld = new Promise((r) => (resolveOld = r));
+        const pNew = new Promise((r) => (resolveNew = r));
+        fetchKlipy.mockReturnValueOnce(pOld).mockReturnValueOnce(pNew);
+
+        loadGifs("gifs", "old"); // seq 1, awaits pOld
+        loadGifs("gifs", "new"); // seq 2, supersedes; awaits pNew
+
+        resolveNew(page(2, false)); // newer resolves first
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.items).toHaveLength(2);
+        expect(gifSearchState.exhausted).toBe(true); // newer request's value
+
+        resolveOld(page(5, true)); // older resolves late -> must be ignored
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.items).toHaveLength(2); // unchanged by stale write
+        expect(gifSearchState.exhausted).toBe(true); // not clobbered by stale write
+    });
 });

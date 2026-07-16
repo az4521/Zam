@@ -40,6 +40,9 @@ async function run(
     gifSearchState.query = query;
     gifSearchState.loading = true;
     gifSearchState.error = null;
+    // Fresh load: drop any stale exhaustion from a prior search so it can't
+    // survive into this request's in-flight window or an error.
+    if (!append) gifSearchState.exhausted = false;
     try {
         const { items, hasNext } = await fetchKlipy(urlFor(kind, query, page));
         if (seq !== requestSeq) return; // a newer request superseded this one
