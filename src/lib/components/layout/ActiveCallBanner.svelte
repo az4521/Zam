@@ -16,6 +16,7 @@
     import { dedupeParticipants } from "$lib/utils/voiceCall";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { showCallView } from "$lib/stores/interface.svelte";
 
     interface Props {
         room: Room;
@@ -55,32 +56,42 @@
     <div
         class="flex items-center gap-3 px-4 py-2 bg-discord-backgroundSecondary border-b border-discord-divider"
     >
-        <div class="flex -space-x-1.5">
-            {#each participants as p (p.userId)}
-                <div
-                    class="rounded-full ring-2 {speaking.has(
-                        `${p.userId}:${p.deviceId}`,
-                    )
-                        ? 'ring-discord-accent'
-                        : 'ring-transparent'}"
-                    title={getMemberName(room, p.userId)}
-                >
-                    <Avatar
-                        src={getMemberAvatar(room, p.userId)}
-                        name={getMemberName(room, p.userId)}
-                        id={p.userId}
-                        size={24}
-                    />
-                </div>
-            {/each}
-        </div>
-        <span class="text-sm text-discord-textSecondary min-w-0 truncate">
-            {#if ringingOut}
-                Ringing…
-            {:else}
-                Voice call · {participants.length} in call
-            {/if}
-        </span>
+        <!-- Body opens the call view (peek without joining); Leave/Join stays
+             a separate action on the right. Same target as the roster rows and
+             the VoiceCallPanel — the banner is rendered only for the active
+             room, so showCallView alone suffices (no navigateToRoom). -->
+        <button
+            onclick={() => showCallView(room.roomId)}
+            class="flex items-center gap-3 min-w-0 flex-1 text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
+            title="Open call"
+        >
+            <div class="flex -space-x-1.5">
+                {#each participants as p (p.userId)}
+                    <div
+                        class="rounded-full ring-2 {speaking.has(
+                            `${p.userId}:${p.deviceId}`,
+                        )
+                            ? 'ring-discord-accent'
+                            : 'ring-transparent'}"
+                        title={getMemberName(room, p.userId)}
+                    >
+                        <Avatar
+                            src={getMemberAvatar(room, p.userId)}
+                            name={getMemberName(room, p.userId)}
+                            id={p.userId}
+                            size={24}
+                        />
+                    </div>
+                {/each}
+            </div>
+            <span class="text-sm text-discord-textSecondary min-w-0 truncate">
+                {#if ringingOut}
+                    Ringing…
+                {:else}
+                    Voice call · {participants.length} in call
+                {/if}
+            </span>
+        </button>
         {#if inThisCall}
             <button
                 onclick={leaveCall}
