@@ -621,6 +621,10 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
         if (
             e.getType() !== "m.room.message" &&
             e.getType() !== "m.sticker" &&
+            // Keep still-encrypted (undecryptable) events visible as UTD
+            // placeholders instead of silently dropping them. A *decrypted*
+            // event already reports its cleartext type and passes above.
+            e.getType() !== "m.room.encrypted" &&
             !isPollStartEventType(e.getType())
         )
             return false;
