@@ -70,6 +70,7 @@
         unreadDividerBefore,
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
+    import { daySeparator } from "$lib/utils/timeFormat";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
@@ -1133,15 +1134,15 @@
             <!-- Message list (chronological: DOM order matches visual order,
                  so selection and copy across messages behave natively) -->
             {#each messages as event, i (event.getId())}
-                {@const dateLabel = dateSeparatorLabel(messages, i)}
+                {@const sepTs = dateSeparatorLabel(messages, i)}
                 {@const receipts =
                     (void receiptTick, getReceiptsForEvent(room, event))}
-                {#if dateLabel}
+                {#if sepTs !== null}
                     <div class="flex items-center gap-4 px-4 my-4">
                         <div class="flex-1 h-px bg-discord-divider"></div>
                         <span
                             class="text-xs font-semibold text-discord-textMuted"
-                            >{dateLabel}</span
+                            >{daySeparator(sepTs)}</span
                         >
                         <div class="flex-1 h-px bg-discord-divider"></div>
                     </div>

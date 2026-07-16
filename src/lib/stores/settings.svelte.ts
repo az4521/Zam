@@ -4,6 +4,12 @@
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import { applyTheme, normalizeTheme, type Theme } from "$lib/utils/theme";
 import {
+    normalizeTimeClock,
+    normalizeDateStyle,
+    type TimeClock,
+    type DateStyle,
+} from "$lib/utils/timeFormat";
+import {
     normalizeDoubleTapAction,
     type DoubleTapAction,
 } from "$lib/utils/doubleTap";
@@ -106,6 +112,11 @@ function readReactionOverrides(): Record<string, string> {
 export const settingsState = $state({
     /** Local interface color theme. */
     theme: normalizeTheme(readString("theme")),
+    /** Timestamp display (device-global, like theme). See utils/timeFormat. */
+    timeClock: normalizeTimeClock(readString("timeClock")),
+    dateStyle: normalizeDateStyle(readString("dateStyle")),
+    customDatePattern: readString("customDatePattern") || "yyyy-MM-dd",
+    alwaysAbsolute: readBool("alwaysAbsolute", false),
     ownDoubleTapAction: normalizeDoubleTapAction(
         readAccountString("ownDoubleTapAction"),
         "none",
@@ -199,6 +210,26 @@ export function setTheme(value: Theme): void {
     settingsState.theme = value;
     writeString("theme", value);
     applyTheme(value);
+}
+
+export function setTimeClock(value: TimeClock): void {
+    settingsState.timeClock = value;
+    writeString("timeClock", value);
+}
+
+export function setDateStyle(value: DateStyle): void {
+    settingsState.dateStyle = value;
+    writeString("dateStyle", value);
+}
+
+export function setCustomDatePattern(value: string): void {
+    settingsState.customDatePattern = value;
+    writeString("customDatePattern", value);
+}
+
+export function setAlwaysAbsolute(value: boolean): void {
+    settingsState.alwaysAbsolute = value;
+    writeBool("alwaysAbsolute", value);
 }
 
 export function setOwnDoubleTapAction(value: DoubleTapAction): void {

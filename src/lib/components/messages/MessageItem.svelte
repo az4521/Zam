@@ -54,7 +54,11 @@
     } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { tick } from "svelte";
-    import { format } from "date-fns";
+    import {
+        messageTimestamp,
+        timeOnly,
+        fullTimestamp,
+    } from "$lib/utils/timeFormat";
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
     import {
@@ -561,19 +565,6 @@
         return highlightCodeBlocks(emojiRendered);
     }
 
-    function formatTime(ts: number, timeOnly = false): string {
-        const d = new Date(ts);
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (d.toDateString() === today.toDateString() || timeOnly)
-            return format(d, "h:mm a");
-        if (d.toDateString() === yesterday.toDateString())
-            return "Yesterday at " + format(d, "h:mm a");
-        return format(d, "yyyy/MM/dd h:mm a");
-    }
-
     $effect(() => {
         if (editRequested) {
             editFromKeyboard = true;
@@ -849,8 +840,10 @@
                 >
                     {displayName}
                 </button>
-                <span class="text-xs text-discord-textMuted"
-                    >{formatTime(timestamp)}</span
+                <span
+                    class="text-xs text-discord-textMuted"
+                    title={fullTimestamp(timestamp)}
+                    >{messageTimestamp(timestamp)}</span
                 >
             </div>
         {/if}
@@ -1356,7 +1349,7 @@
             <span
                 class="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
             >
-                {formatTime(timestamp, true)}
+                {timeOnly(timestamp)}
             </span>
         {/if}
     </div>

@@ -13,7 +13,7 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { format } from "date-fns";
+    import { pinnedDate } from "$lib/utils/timeFormat";
 
     interface Props {
         room: Room;
@@ -112,7 +112,7 @@
                             >
                             <span
                                 class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
-                                >{format(event.getTs(), "MMM d")}</span
+                                >{pinnedDate(event.getTs())}</span
                             >
                         </div>
                         <p
