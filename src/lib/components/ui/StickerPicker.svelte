@@ -9,6 +9,7 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
 
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { resizeHandle } from "$lib/actions/resizeHandle";
 
     interface Props {
         room?: Room | null;
@@ -34,7 +35,21 @@
     let selectedIndex = $state(-1);
     let revealedSections = $state(new Set<string>());
 
-    const COLS = 4;
+    // Responsive columns: fit as many ~68px cells as the width allows, so
+    // widening the panel shows MORE stickers instead of spreading 4 apart.
+    const CELL = 68;
+    let cols = $state(4);
+    $effect(() => {
+        if (!scrollEl) return;
+        const measure = () => {
+            const w = scrollEl!.clientWidth - 16; // minus the px-2 padding
+            if (w > 0) cols = Math.max(4, Math.floor(w / CELL));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(scrollEl);
+        return () => ro.disconnect();
+    });
 
     $effect(() => {
         if (!interfaceState.isTouchscreen) searchEl?.focus();
@@ -172,16 +187,16 @@
                 if (flatItems.length > 0) selectedIndex = 0;
             } else {
                 selectedIndex = Math.min(
-                    selectedIndex + COLS,
+                    selectedIndex + cols,
                     flatItems.length - 1,
                 );
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            if (selectedIndex < COLS) {
+            if (selectedIndex < cols) {
                 selectedIndex = -1;
             } else {
-                selectedIndex -= COLS;
+                selectedIndex -= cols;
             }
         } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
             e.preventDefault();
@@ -217,7 +232,7 @@
     }
 
     function placeholderHeight(count: number) {
-        return Math.ceil(count / COLS) * 68;
+        return Math.ceil(count / cols) * 68;
     }
 </script>
 
@@ -225,12 +240,26 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen
-        ? "max-height: 50dvh;"
-        : "max-height: 380px;"}
+        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
     onkeydown={onKeydown}
 >
+    {#if !interfaceState.isTouchscreen}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            use:resizeHandle={{
+                storageKey: "stickerPicker",
+                defaultW: 340,
+                defaultH: 440,
+            }}
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
+            title="Drag to resize"
+        >
+            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+                <path d="M2 2h5v1.5H3.5V7H2V2z" />
+            </svg>
+        </div>
+    {/if}
     {#if interfaceState.isTouchscreen}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
@@ -328,7 +357,10 @@
                         No results
                     </p>
                 {:else}
-                    <div class="grid grid-cols-4 gap-1 mt-1">
+                    <div
+                        class="grid gap-1 mt-1"
+                        style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                    >
                         {#each searchResults as s, li (s.shortcode)}
                             {@const globalIdx = li}
                             <button
@@ -360,7 +392,10 @@
                             {pack.id === "user" ? "My Stickers" : pack.name}
                         </p>
                         {#if revealedSections.has(pack.id)}
-                            <div class="grid grid-cols-4 gap-1 mb-2">
+                            <div
+                                class="grid gap-1 mb-2"
+                                style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                            >
                                 {#each pack.stickers as s, li (s.shortcode)}
                                     {@const globalIdx =
                                         (sectionOffsets.get(pack.id) ?? 0) + li}

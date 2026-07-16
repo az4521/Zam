@@ -1,10 +1,21 @@
 <script lang="ts">
     import {
         favouritesState,
+        addFavouriteGif,
         removeFavouriteGif,
-        type FavouriteGif,
+        isFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
+    import { type GifKind, type GifResult } from "$lib/utils/klipy";
+    import {
+        gifSearchState,
+        loadGifs,
+        queueSearch,
+        loadMore,
+    } from "$lib/stores/gifSearch.svelte";
+    import { untrack } from "svelte";
+    import { resizeHandle } from "$lib/actions/resizeHandle";
 
     interface Props {
         onSelect: (url: string) => void;
@@ -16,69 +27,102 @@
     let { onSelect, onClose, onSwitchToEmoji, onSwitchToSticker }: Props =
         $props();
 
+    type Tab = "gifs" | "favourites";
+
+    // Land on the configured tab ("gifs" or "favourites").
+    let tab = $state<Tab>(
+        settingsState.gifDefaultTab === "favourites" ? "favourites" : "gifs",
+    );
+
     let search = $state("");
     let searchEl: HTMLInputElement | undefined = $state();
-    let selectedIndex = $state(-1);
-
-    const COLS = 4;
+    let gridEl: HTMLDivElement | undefined = $state();
 
     $effect(() => {
         if (!interfaceState.isTouchscreen) searchEl?.focus();
     });
 
-    const gifs = $derived(favouritesState.gifs);
-
-    const visibleGifs = $derived(
-        search
-            ? gifs.filter((g) =>
-                  g.url.toLowerCase().includes(search.toLowerCase()),
-              )
-            : gifs,
-    );
-
+    // Tab change → immediate KLIPY load. `search` is read untracked so
+    // typing does NOT retrigger this effect; typing is debounced in
+    // onSearchInput instead. This avoids a wasted request on switch.
     $effect(() => {
-        search;
-        selectedIndex = -1;
+        const t = tab;
+        if (t === "favourites") return;
+        const kind: GifKind = "gifs";
+        untrack(() => loadGifs(kind, search));
     });
 
-    function pick(gif: FavouriteGif) {
-        onSelect(gif.url);
+    function onSearchInput(e: Event & { currentTarget: HTMLInputElement }) {
+        search = e.currentTarget.value;
+        if (tab !== "favourites") {
+            const kind: GifKind = "gifs";
+            queueSearch(kind, search);
+        }
+    }
+
+    // Favourites tab: today's local text filter.
+    const favourites = $derived(favouritesState.gifs);
+    const visibleFavourites = $derived(
+        search
+            ? favourites.filter((g) =>
+                  g.url.toLowerCase().includes(search.toLowerCase()),
+              )
+            : favourites,
+    );
+
+    function pickUrl(url: string) {
+        onSelect(url);
         onClose();
     }
 
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") {
-            onClose();
-            return;
-        }
-        // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
+    function toggleStar(r: GifResult) {
+        if (isFavouriteGif(r.url)) removeFavouriteGif(r.url);
+        else addFavouriteGif({ url: r.url, previewUrl: r.previewUrl });
     }
 
-    function onSearchKeydown(e: KeyboardEvent) {
-        if (e.key === "ArrowDown") {
-            e.preventDefault();
-            if (selectedIndex === -1) {
-                if (visibleGifs.length > 0) selectedIndex = 0;
-            } else
-                selectedIndex = Math.min(
-                    selectedIndex + COLS,
-                    visibleGifs.length - 1,
-                );
-        } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            if (selectedIndex < COLS) selectedIndex = -1;
-            else selectedIndex -= COLS;
-        } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
-            e.preventDefault();
-            if (selectedIndex + 1 < visibleGifs.length) selectedIndex++;
-        } else if (e.key === "ArrowLeft" && selectedIndex >= 0) {
-            e.preventDefault();
-            if (selectedIndex > 0) selectedIndex--;
-        } else if (e.key === "Enter" && selectedIndex >= 0) {
-            e.preventDefault();
-            const gif = visibleGifs[selectedIndex];
-            if (gif) pick(gif);
-        }
+    function onGridScroll() {
+        if (!gridEl || tab === "favourites") return;
+        const nearBottom =
+            gridEl.scrollTop + gridEl.clientHeight >= gridEl.scrollHeight - 200;
+        if (nearBottom) loadMore();
+    }
+
+    // Keep the grid filled. If the results don't overflow the scroll area (few
+    // results, or the panel was resized bigger / wider = more columns = shorter
+    // content), there's nothing to scroll, so scroll-based pagination never
+    // fires and you're stuck on page 1. Load more until it overflows or KLIPY
+    // is exhausted. A ResizeObserver bumps `fillTick` so resizing re-triggers.
+    let fillTick = $state(0);
+    $effect(() => {
+        if (!gridEl) return;
+        const ro = new ResizeObserver(() => fillTick++);
+        ro.observe(gridEl);
+        return () => ro.disconnect();
+    });
+    $effect(() => {
+        // re-run when results change or the panel resizes
+        void gifSearchState.items.length;
+        void gifSearchState.loading;
+        void fillTick;
+        if (tab === "favourites" || !gridEl) return;
+        untrack(() => {
+            if (
+                !gifSearchState.loading &&
+                !gifSearchState.exhausted &&
+                gridEl!.scrollHeight <= gridEl!.clientHeight + 8
+            ) {
+                loadMore();
+            }
+        });
+    });
+
+    function onKeydown(e: KeyboardEvent) {
+        if (e.key === "Escape") onClose();
+    }
+
+    function selectTab(next: Tab) {
+        // The $effect above performs the immediate load when `tab` changes.
+        tab = next;
     }
 </script>
 
@@ -86,13 +130,29 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen
-        ? "max-height: 50dvh;"
-        : "max-height: 380px;"}
+        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
     onkeydown={onKeydown}
 >
+    {#if !interfaceState.isTouchscreen}
+        <!-- Resize grip (top-left; panel grows up-and-left from the composer) -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            use:resizeHandle={{
+                storageKey: "gifPicker",
+                defaultW: 416,
+                defaultH: 480,
+            }}
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
+            title="Drag to resize"
+        >
+            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+                <path d="M2 2h5v1.5H3.5V7H2V2z" />
+            </svg>
+        </div>
+    {/if}
     {#if interfaceState.isTouchscreen}
+        <!-- Outer picker tabs (Emoji / Stickers / GIFs) -->
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
@@ -110,69 +170,168 @@
             >
         </div>
     {/if}
+
+    <!-- Inner content tabs -->
+    <div class="flex gap-1 px-2 pt-2 flex-shrink-0">
+        {#each [["gifs", "GIFs"], ["favourites", "★ Favourites"]] as [value, label] (value)}
+            <button
+                onclick={() => selectTab(value as Tab)}
+                class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
+                value
+                    ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                >{label}</button
+            >
+        {/each}
+    </div>
+
     <!-- Search -->
     <div class="px-3 pt-3 pb-2 flex-shrink-0">
         <input
             bind:this={searchEl}
             type="text"
-            bind:value={search}
-            placeholder="Search favourites…"
-            onkeydown={onSearchKeydown}
+            value={search}
+            oninput={onSearchInput}
+            placeholder={tab === "favourites"
+                ? "Search favourites…"
+                : "Search KLIPY…"}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
 
     <!-- Grid -->
-    <div class="flex-1 overflow-y-auto min-h-0 px-2 pb-2">
-        {#if visibleGifs.length === 0}
-            <p class="text-center text-discord-textMuted text-sm py-8 px-4">
-                {gifs.length === 0
-                    ? "No favourite GIFs yet. Star a GIF in chat to save it here."
-                    : "No results"}
-            </p>
-        {:else}
-            <div class="grid grid-cols-4 gap-1 mt-1">
-                {#each visibleGifs as gif, i (gif.url)}
-                    <div class="relative group/gif">
-                        <button
-                            data-item-index={i}
-                            onclick={() => pick(gif)}
-                            title={gif.url}
-                            class="w-full aspect-square rounded hover:bg-discord-messageHover transition-colors flex items-center justify-center overflow-hidden"
-                            class:ring-2={selectedIndex === i}
-                            class:ring-discord-accent={selectedIndex === i}
-                        >
-                            <img
-                                src={gif.previewUrl}
-                                alt=""
-                                class="w-full h-full object-cover rounded"
-                                loading="lazy"
-                            />
-                        </button>
-                        <!-- Remove button -->
-                        <button
-                            onclick={(e) => {
-                                e.stopPropagation();
-                                removeFavouriteGif(gif.url);
-                            }}
-                            title="Remove from favourites"
-                            class="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/60 text-discord-warning opacity-0 group-hover/gif:opacity-100 transition-opacity hover:bg-black/80"
-                        >
-                            <svg
-                                class="w-3.5 h-3.5"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
+    <div
+        bind:this={gridEl}
+        onscroll={onGridScroll}
+        class="flex-1 overflow-y-auto min-h-0 px-2 pb-2"
+    >
+        {#if tab === "favourites"}
+            {#if visibleFavourites.length === 0}
+                <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+                    {favourites.length === 0
+                        ? "No favourite GIFs yet. Star a GIF to save it here."
+                        : "No results"}
+                </p>
+            {:else}
+                <div class="columns-[165px] gap-x-1 mt-1">
+                    {#each visibleFavourites as gif (gif.url)}
+                        <div class="relative group/gif mb-1 break-inside-avoid">
+                            <button
+                                onclick={() => pickUrl(gif.url)}
+                                title={gif.url}
+                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
-                                <path
-                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                <img
+                                    src={gif.previewUrl}
+                                    alt=""
+                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                    loading="lazy"
                                 />
-                            </svg>
-                        </button>
-                    </div>
-                {/each}
-            </div>
+                            </button>
+                            <button
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    removeFavouriteGif(gif.url);
+                                }}
+                                title="Remove from favourites"
+                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-discord-warning opacity-0 group-hover/gif:opacity-100 transition-opacity hover:bg-black/80"
+                            >
+                                <svg
+                                    class="w-3.5 h-3.5"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+        {:else}
+            <!-- KLIPY GIFs -->
+            {#if gifSearchState.error && gifSearchState.items.length === 0}
+                <button
+                    onclick={() => loadGifs("gifs", search)}
+                    class="w-full text-center text-discord-textMuted text-sm py-8 px-4 hover:text-discord-textPrimary transition-colors"
+                >
+                    {gifSearchState.error}
+                </button>
+            {:else if gifSearchState.items.length === 0 && !gifSearchState.loading}
+                <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+                    No results
+                </p>
+            {:else}
+                <div class="columns-[165px] gap-x-1 mt-1">
+                    {#each gifSearchState.items as r (r.id)}
+                        <div class="relative group/gif mb-1 break-inside-avoid">
+                            <button
+                                onclick={() => pickUrl(r.url)}
+                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
+                            >
+                                <img
+                                    src={r.previewUrl}
+                                    alt=""
+                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                    loading="lazy"
+                                    style={r.width && r.height
+                                        ? `aspect-ratio:${r.width}/${r.height}`
+                                        : undefined}
+                                />
+                            </button>
+                            <button
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    toggleStar(r);
+                                }}
+                                title={isFavouriteGif(r.url)
+                                    ? "Remove from favourites"
+                                    : "Add to favourites"}
+                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 transition-opacity hover:bg-black/80 {isFavouriteGif(
+                                    r.url,
+                                )
+                                    ? 'text-discord-warning opacity-100'
+                                    : 'text-white opacity-0 group-hover/gif:opacity-100'}"
+                            >
+                                <svg
+                                    class="w-3.5 h-3.5"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    {/each}
+                </div>
+                {#if gifSearchState.loading}
+                    <p class="text-center text-discord-textMuted text-xs py-3">
+                        Loading…
+                    </p>
+                {/if}
+                {#if gifSearchState.error}
+                    <button
+                        onclick={() => loadMore()}
+                        class="w-full text-center text-discord-textMuted text-xs py-3 hover:text-discord-textPrimary transition-colors"
+                    >
+                        {gifSearchState.error}
+                    </button>
+                {/if}
+            {/if}
         {/if}
     </div>
+
+    {#if tab !== "favourites"}
+        <div
+            class="px-3 py-1.5 flex-shrink-0 border-t border-discord-divider text-[10px] text-discord-textMuted text-right"
+        >
+            Powered by KLIPY
+        </div>
+    {/if}
 </div>
 
 <style>

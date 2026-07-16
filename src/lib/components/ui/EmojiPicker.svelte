@@ -9,6 +9,7 @@
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { resizeHandle } from "$lib/actions/resizeHandle";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -37,7 +38,21 @@
     let searchEl: HTMLInputElement | undefined = $state();
     let selectedIndex = $state(-1);
 
-    const COLS = 6;
+    // Responsive columns: fit as many ~40px cells as the width allows, so
+    // widening the panel shows MORE emojis instead of spreading 6 apart.
+    const CELL = 40;
+    let cols = $state(6);
+    $effect(() => {
+        if (!scrollEl) return;
+        const measure = () => {
+            const w = scrollEl!.clientWidth - 16; // minus the px-2 padding
+            if (w > 0) cols = Math.max(6, Math.floor(w / CELL));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(scrollEl);
+        return () => ro.disconnect();
+    });
 
     // Sections whose emoji have been revealed by the IntersectionObserver
     let revealedSections = $state(new Set<string>());
@@ -261,16 +276,16 @@
                 if (flatItems.length > 0) selectedIndex = 0;
             } else {
                 selectedIndex = Math.min(
-                    selectedIndex + COLS,
+                    selectedIndex + cols,
                     flatItems.length - 1,
                 );
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            if (selectedIndex < COLS) {
+            if (selectedIndex < cols) {
                 selectedIndex = -1;
             } else {
-                selectedIndex -= COLS;
+                selectedIndex -= cols;
             }
         } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
             e.preventDefault();
@@ -312,10 +327,10 @@
     // Estimated placeholder heights to keep scroll length stable before reveal.
     // Standard grid: 8 cols, ~30px/row + 2px gap. Custom grid: 6 cols, ~40px/row + 4px gap.
     function stdPlaceholderHeight(count: number) {
-        return Math.ceil(count / 6) * 44;
+        return Math.ceil(count / cols) * 44;
     }
     function customPlaceholderHeight(count: number) {
-        return Math.ceil(count / 6) * 44;
+        return Math.ceil(count / cols) * 44;
     }
 </script>
 
@@ -323,13 +338,27 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen
-        ? "max-height: 50dvh;"
-        : "max-height: 380px;"}
+        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
     onkeydown={onKeydown}
     onwheel={(e) => e.stopPropagation()}
 >
+    {#if !interfaceState.isTouchscreen}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            use:resizeHandle={{
+                storageKey: "emojiPicker",
+                defaultW: 340,
+                defaultH: 440,
+            }}
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
+            title="Drag to resize"
+        >
+            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+                <path d="M2 2h5v1.5H3.5V7H2V2z" />
+            </svg>
+        </div>
+    {/if}
     {#if interfaceState.isTouchscreen && (onSwitchToSticker || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             <button
@@ -432,7 +461,10 @@
                 >
                     Custom
                 </p>
-                <div class="grid grid-cols-6 gap-1 mb-2">
+                <div
+                    class="grid gap-1 mb-2"
+                    style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                >
                     {#each searchCustom as e, li (e.packId + ":" + e.shortcode)}
                         {@const globalIdx =
                             (sectionOffsets.get("search-custom") ?? 0) + li}
@@ -463,7 +495,10 @@
                         Standard
                     </p>
                 {/if}
-                <div class="grid grid-cols-6 gap-1">
+                <div
+                    class="grid gap-1"
+                    style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                >
                     {#each searchStandard as e, li (e.name)}
                         {@const globalIdx =
                             (sectionOffsets.get("search-standard") ?? 0) + li}
@@ -492,7 +527,10 @@
                         {pack.id === "user" ? "My Emojis" : pack.name}
                     </p>
                     {#if revealedSections.has(pack.id)}
-                        <div class="grid grid-cols-6 gap-1 mb-2">
+                        <div
+                            class="grid gap-1 mb-2"
+                            style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                        >
                             {#each pack.emojis as e, li (pack.id + ":" + e.shortcode)}
                                 {@const globalIdx =
                                     (sectionOffsets.get(pack.id) ?? 0) + li}
@@ -535,7 +573,10 @@
                         {cat.name}
                     </p>
                     {#if revealedSections.has(cat.id)}
-                        <div class="grid grid-cols-6 gap-1 mb-2">
+                        <div
+                            class="grid gap-1 mb-2"
+                            style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                        >
                             {#each cat.emojis as e, li (e.name)}
                                 {@const globalIdx =
                                     (sectionOffsets.get(cat.id) ?? 0) + li}
