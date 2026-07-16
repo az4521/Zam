@@ -87,6 +87,35 @@
         if (nearBottom) loadMore();
     }
 
+    // Keep the grid filled. If the results don't overflow the scroll area (few
+    // results, or the panel was resized bigger / wider = more columns = shorter
+    // content), there's nothing to scroll, so scroll-based pagination never
+    // fires and you're stuck on page 1. Load more until it overflows or KLIPY
+    // is exhausted. A ResizeObserver bumps `fillTick` so resizing re-triggers.
+    let fillTick = $state(0);
+    $effect(() => {
+        if (!gridEl) return;
+        const ro = new ResizeObserver(() => fillTick++);
+        ro.observe(gridEl);
+        return () => ro.disconnect();
+    });
+    $effect(() => {
+        // re-run when results change or the panel resizes
+        void gifSearchState.items.length;
+        void gifSearchState.loading;
+        void fillTick;
+        if (tab === "favourites" || !gridEl) return;
+        untrack(() => {
+            if (
+                !gifSearchState.loading &&
+                !gifSearchState.exhausted &&
+                gridEl!.scrollHeight <= gridEl!.clientHeight + 8
+            ) {
+                loadMore();
+            }
+        });
+    });
+
     function onKeydown(e: KeyboardEvent) {
         if (e.key === "Escape") onClose();
     }

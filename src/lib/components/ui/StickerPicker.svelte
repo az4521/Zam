@@ -35,7 +35,21 @@
     let selectedIndex = $state(-1);
     let revealedSections = $state(new Set<string>());
 
-    const COLS = 4;
+    // Responsive columns: fit as many ~68px cells as the width allows, so
+    // widening the panel shows MORE stickers instead of spreading 4 apart.
+    const CELL = 68;
+    let cols = $state(4);
+    $effect(() => {
+        if (!scrollEl) return;
+        const measure = () => {
+            const w = scrollEl!.clientWidth - 16; // minus the px-2 padding
+            if (w > 0) cols = Math.max(4, Math.floor(w / CELL));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(scrollEl);
+        return () => ro.disconnect();
+    });
 
     $effect(() => {
         if (!interfaceState.isTouchscreen) searchEl?.focus();
@@ -173,16 +187,16 @@
                 if (flatItems.length > 0) selectedIndex = 0;
             } else {
                 selectedIndex = Math.min(
-                    selectedIndex + COLS,
+                    selectedIndex + cols,
                     flatItems.length - 1,
                 );
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            if (selectedIndex < COLS) {
+            if (selectedIndex < cols) {
                 selectedIndex = -1;
             } else {
-                selectedIndex -= COLS;
+                selectedIndex -= cols;
             }
         } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
             e.preventDefault();
@@ -218,7 +232,7 @@
     }
 
     function placeholderHeight(count: number) {
-        return Math.ceil(count / COLS) * 68;
+        return Math.ceil(count / cols) * 68;
     }
 </script>
 
@@ -343,7 +357,10 @@
                         No results
                     </p>
                 {:else}
-                    <div class="grid grid-cols-4 gap-1 mt-1">
+                    <div
+                        class="grid gap-1 mt-1"
+                        style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                    >
                         {#each searchResults as s, li (s.shortcode)}
                             {@const globalIdx = li}
                             <button
@@ -375,7 +392,10 @@
                             {pack.id === "user" ? "My Stickers" : pack.name}
                         </p>
                         {#if revealedSections.has(pack.id)}
-                            <div class="grid grid-cols-4 gap-1 mb-2">
+                            <div
+                                class="grid gap-1 mb-2"
+                                style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                            >
                                 {#each pack.stickers as s, li (s.shortcode)}
                                     {@const globalIdx =
                                         (sectionOffsets.get(pack.id) ?? 0) + li}
