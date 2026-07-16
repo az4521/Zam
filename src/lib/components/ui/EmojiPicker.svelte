@@ -9,6 +9,7 @@
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { resizeHandle } from "$lib/actions/resizeHandle";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -323,13 +324,27 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen
-        ? "max-height: 50dvh;"
-        : "max-height: 380px;"}
+        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
     onkeydown={onKeydown}
     onwheel={(e) => e.stopPropagation()}
 >
+    {#if !interfaceState.isTouchscreen}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            use:resizeHandle={{
+                storageKey: "emojiPicker",
+                defaultW: 340,
+                defaultH: 440,
+            }}
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
+            title="Drag to resize"
+        >
+            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+                <path d="M2 2h5v1.5H3.5V7H2V2z" />
+            </svg>
+        </div>
+    {/if}
     {#if interfaceState.isTouchscreen && (onSwitchToSticker || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             <button

@@ -1119,7 +1119,7 @@
     {/if}
 
     <div
-        class="input-box flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
+        class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
         class:rounded-tl-none={!!replyToEvent}
     >
         <!-- Attach file button -->
@@ -1154,7 +1154,7 @@
         ></div>
 
         <!-- GIF picker button -->
-        <div class="relative flex-shrink-0">
+        <div class="flex-shrink-0">
             <button
                 onclick={() => openPicker("gif")}
                 {disabled}
@@ -1202,7 +1202,7 @@
         </div>
 
         <!-- Sticker button -->
-        <div class="relative flex-shrink-0">
+        <div class="flex-shrink-0">
             <button
                 onclick={() => openPicker("sticker")}
                 class="{interfaceState.isTouchscreen
@@ -1252,7 +1252,7 @@
         </div>
 
         <!-- Emoji button -->
-        <div class="relative flex-shrink-0">
+        <div class="flex-shrink-0">
             <button
                 onclick={() => openPicker("emoji")}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
