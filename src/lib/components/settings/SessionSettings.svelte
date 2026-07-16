@@ -11,6 +11,7 @@
         sortDevices,
         type DeviceInfo,
     } from "$lib/utils/deviceSessions";
+    import { isCryptoAvailable, getOwnDeviceKeyInfo } from "$lib/matrix/crypto";
 
     let devices = $state<DeviceInfo[]>([]);
     let loaded = $state(false);
@@ -26,6 +27,11 @@
     let passwordId = $state<string | null>(null);
     let password = $state("");
     let signOutBusy = $state(false);
+
+    // Read-only E2EE status for this device (Layer 0). Useful for live
+    // cross-client verification; carries no actions yet.
+    let cryptoActive = $state(false);
+    let deviceEd25519 = $state<string | null>(null);
 
     const current = $derived(
         devices.find((device) => device.deviceId === currentId) ?? null,
@@ -110,10 +116,17 @@
         error = "";
     }
 
+    async function loadCryptoStatus() {
+        cryptoActive = isCryptoAvailable();
+        const keys = await getOwnDeviceKeyInfo();
+        deviceEd25519 = keys?.ed25519 ?? null;
+    }
+
     $effect(() => {
         if (!attemptedInitialLoad) {
             attemptedInitialLoad = true;
             load();
+            loadCryptoStatus();
         }
     });
 </script>
@@ -225,6 +238,38 @@
 {/snippet}
 
 <div class="space-y-6">
+    <section
+        class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-1.5"
+    >
+        <div class="flex items-center gap-2">
+            <span
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                >Encryption</span
+            >
+            <span
+                class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {cryptoActive
+                    ? 'bg-discord-accent/20 text-discord-accent'
+                    : 'bg-discord-messageHover text-discord-textMuted'}"
+                >{cryptoActive ? "Active" : "Unavailable"}</span
+            >
+        </div>
+        {#if deviceEd25519}
+            <p class="text-xs text-discord-textMuted">
+                This device's key
+                <span
+                    class="font-mono text-discord-textPrimary break-all select-all"
+                    >{deviceEd25519}</span
+                >
+            </p>
+        {:else if cryptoActive}
+            <p class="text-xs text-discord-textMuted">Loading device key…</p>
+        {:else}
+            <p class="text-xs text-discord-textMuted">
+                End-to-end encryption could not start on this session. Encrypted
+                rooms will show placeholders.
+            </p>
+        {/if}
+    </section>
     <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-discord-textMuted">
             Devices currently signed in to this account.
