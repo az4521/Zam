@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from "svelte";
+    import { tick, untrack } from "svelte";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import {
         sendTextMessage,
@@ -30,6 +30,11 @@
         closeModal,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
+    import {
+        getDraft,
+        setDraft,
+        clearDraft,
+    } from "$lib/stores/composerDrafts.svelte";
 
     interface Props {
         roomId: string;
@@ -585,6 +590,24 @@
         tick().then(() => renderComposer(caretOffset));
     }
 
+    // Per-room draft. Keyed on roomId so it re-runs both when the room switches
+    // (this component stays mounted) and when it unmounts/remounts (flipping to
+    // the call view unmounts MessageArea). The body loads the incoming room's
+    // draft; the cleanup saves the outgoing room's draft (Svelte runs cleanup
+    // before the re-run, so leaving A saves A before B loads, and destroy saves
+    // the current room). untrack() keeps the effect tracking only roomId — never
+    // `text` or the drafts store — so it never reloads what the user is typing.
+    $effect(() => {
+        const id = roomId;
+        untrack(() => {
+            const draft = getDraft(id);
+            text = draft?.text ?? "";
+            pendingMentions = new Map(draft?.mentions ?? []);
+            tick().then(() => renderComposer(text.length));
+        });
+        return () => setDraft(id, text, pendingMentions);
+    });
+
     async function send() {
         const trimmed = text.trim();
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
@@ -611,6 +634,7 @@
             mentionQuery = null;
             emojiQuery = null;
             pendingMentions = new Map();
+            clearDraft(roomId);
             renderComposer(0);
         }
 
