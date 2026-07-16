@@ -704,15 +704,28 @@
     // Subscribe to new live timeline events (incoming and confirmed own messages)
     $effect(() => {
         const currentRoomId = roomId; // capture for closure
-        const unsub = onTimelineEvent((event: MatrixEvent, eventRoom: Room) => {
-            bumpUnreadTick();
-            if (eventRoom.roomId === currentRoomId) {
-                appendMessage(currentRoomId, event);
-                if (isAtBottom) {
-                    tick().then(() => scrollToBottom(false));
+        const unsub = onTimelineEvent(
+            (event: MatrixEvent, eventRoom: Room, isLiveAppend: boolean) => {
+                bumpUnreadTick();
+                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                if (isLiveAppend) {
+                    // Normal tail append — fast path, the event is the newest.
+                    appendMessage(currentRoomId, event);
+                    if (isAtBottom) {
+                        tick().then(() => scrollToBottom(false));
+                    }
+                } else {
+                    // Mid-timeline insertion (thread reply moved to the main
+                    // timeline, out-of-order related event). appendMessage would
+                    // place it at the tail in the wrong spot; re-read the whole
+                    // timeline so it lands in its correct position.
+                    setMessages(currentRoomId, getTimelineMessages(room));
+                    if (isAtBottom) {
+                        tick().then(() => scrollToBottom(false));
+                    }
                 }
-            }
-        });
+            },
+        );
         return unsub;
     });
 

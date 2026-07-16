@@ -19,89 +19,53 @@ export interface ToneSegment {
 }
 
 export const SOUND_RECIPES: Record<CallSoundName, ToneSegment[]> = {
+    // Join/leave cues need to cut through a busy call: brighter triangle
+    // timbre in a higher register (C5-G5) than the old soft sines, as
+    // rising/falling melodic motifs. Self events (rarer, more important) get a
+    // 3-note triad plus an octave-up sine sparkle on the accent note; peer
+    // events get a lighter, quicker 2-note fifth.
     selfJoin: [
-        { type: "sine", from: 480, to: 480, at: 0, duration: 0.09, peak: 0.5 },
-        {
-            type: "sine",
-            from: 660,
-            to: 660,
-            at: 0.1,
-            duration: 0.14,
-            peak: 0.5,
-        },
+        { type: "triangle", from: 523, to: 523, at: 0, duration: 0.12, peak: 0.55 },
+        { type: "triangle", from: 659, to: 659, at: 0.12, duration: 0.12, peak: 0.58 },
+        { type: "triangle", from: 784, to: 784, at: 0.24, duration: 0.18, peak: 0.62 },
+        { type: "sine", from: 1568, to: 1568, at: 0.24, duration: 0.18, peak: 0.22 },
     ],
     selfLeave: [
-        { type: "sine", from: 660, to: 660, at: 0, duration: 0.09, peak: 0.5 },
-        {
-            type: "sine",
-            from: 440,
-            to: 440,
-            at: 0.1,
-            duration: 0.14,
-            peak: 0.5,
-        },
+        { type: "sine", from: 1046, to: 1046, at: 0, duration: 0.12, peak: 0.2 },
+        { type: "triangle", from: 784, to: 784, at: 0, duration: 0.12, peak: 0.6 },
+        { type: "triangle", from: 659, to: 659, at: 0.12, duration: 0.12, peak: 0.56 },
+        { type: "triangle", from: 523, to: 523, at: 0.24, duration: 0.18, peak: 0.55 },
     ],
     peerJoin: [
-        { type: "sine", from: 520, to: 640, at: 0, duration: 0.15, peak: 0.4 },
+        { type: "triangle", from: 523, to: 523, at: 0, duration: 0.1, peak: 0.5 },
+        { type: "triangle", from: 784, to: 784, at: 0.11, duration: 0.16, peak: 0.56 },
     ],
     peerLeave: [
-        { type: "sine", from: 640, to: 520, at: 0, duration: 0.15, peak: 0.4 },
+        { type: "triangle", from: 784, to: 784, at: 0, duration: 0.1, peak: 0.56 },
+        { type: "triangle", from: 523, to: 523, at: 0.11, duration: 0.16, peak: 0.5 },
     ],
+    // Mute/unmute are a descending / ascending two-note square wave. The square
+    // timbre sets them apart from deafen/undeafen; the lower peak keeps the
+    // harmonic-rich square from being louder than the triangle cues.
     mute: [
-        {
-            type: "triangle",
-            from: 320,
-            to: 320,
-            at: 0,
-            duration: 0.08,
-            peak: 0.45,
-        },
+        { type: "square", from: 500, to: 500, at: 0, duration: 0.07, peak: 0.3 },
+        { type: "square", from: 350, to: 350, at: 0.08, duration: 0.1, peak: 0.3 },
     ],
     unmute: [
-        {
-            type: "triangle",
-            from: 520,
-            to: 520,
-            at: 0,
-            duration: 0.08,
-            peak: 0.45,
-        },
+        { type: "square", from: 350, to: 350, at: 0, duration: 0.07, peak: 0.3 },
+        { type: "square", from: 500, to: 500, at: 0.08, duration: 0.1, peak: 0.3 },
     ],
+    // Deafen/undeafen are a descending / ascending THREE-note triangle run —
+    // the extra note sets them clearly apart from the two-note mute/unmute.
     deafen: [
-        {
-            type: "triangle",
-            from: 500,
-            to: 500,
-            at: 0,
-            duration: 0.07,
-            peak: 0.45,
-        },
-        {
-            type: "triangle",
-            from: 350,
-            to: 350,
-            at: 0.08,
-            duration: 0.1,
-            peak: 0.45,
-        },
+        { type: "triangle", from: 660, to: 660, at: 0, duration: 0.07, peak: 0.45 },
+        { type: "triangle", from: 550, to: 550, at: 0.09, duration: 0.07, peak: 0.45 },
+        { type: "triangle", from: 440, to: 440, at: 0.18, duration: 0.12, peak: 0.45 },
     ],
     undeafen: [
-        {
-            type: "triangle",
-            from: 350,
-            to: 350,
-            at: 0,
-            duration: 0.07,
-            peak: 0.45,
-        },
-        {
-            type: "triangle",
-            from: 500,
-            to: 500,
-            at: 0.08,
-            duration: 0.1,
-            peak: 0.45,
-        },
+        { type: "triangle", from: 440, to: 440, at: 0, duration: 0.07, peak: 0.45 },
+        { type: "triangle", from: 550, to: 550, at: 0.09, duration: 0.07, peak: 0.45 },
+        { type: "triangle", from: 660, to: 660, at: 0.18, duration: 0.12, peak: 0.45 },
     ],
     error: [
         {
@@ -191,6 +155,33 @@ export function playCallSound(name: CallSoundName): void {
     scheduleSegments(master, SOUND_RECIPES[name], ctx.currentTime + 0.02);
 }
 
+/**
+ * Message-notification ping (loud DMs / mentions). Synthesized, and routed on
+ * its own gain straight to the destination — it is NOT a voice-call cue, so the
+ * call-sound toggle/volume must not touch it. The caller gates it on the
+ * notification-sound setting.
+ */
+export const PING_PATTERN: ToneSegment[] = [
+    { type: "sine", from: 988, to: 988, at: 0, duration: 0.08, peak: 0.55 },
+    { type: "sine", from: 1319, to: 1319, at: 0.09, duration: 0.2, peak: 0.55 },
+];
+
+export function playPing(): void {
+    if (!ensureContext() || !ctx) return;
+    const dest = ctx.createGain();
+    dest.gain.value = 0.7;
+    dest.connect(ctx.destination);
+    scheduleSegments(dest, PING_PATTERN, ctx.currentTime + 0.02);
+    // Release the transient gain node once the sound has finished.
+    setTimeout(() => {
+        try {
+            dest.disconnect();
+        } catch {
+            // already gone
+        }
+    }, 600);
+}
+
 /** Mirror the persisted call-sound settings into the engine. */
 export function configureCallSounds(opts: {
     volume?: number;
@@ -207,11 +198,19 @@ export function configureCallSounds(opts: {
     if (master) master.gain.value = enabled ? volume : 0;
 }
 
-/** One ring cycle: two chirps, then silence to fill the 2s slot. */
+/** One ring cycle: four tones — high, high, low, low — then silence to fill the
+ *  RING_CYCLE_S slot before the next cycle. Triangle at a high peak so it rings
+ *  loud and bright. */
 export const RING_PATTERN: ToneSegment[] = [
-    { type: "sine", from: 660, to: 660, at: 0, duration: 0.4, peak: 0.5 },
-    { type: "sine", from: 520, to: 520, at: 0.5, duration: 0.4, peak: 0.5 },
+    { type: "triangle", from: 880, to: 880, at: 0, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 880, to: 880, at: 0.2, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 587, to: 587, at: 0.4, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 587, to: 587, at: 0.6, duration: 0.16, peak: 0.7 },
 ];
+
+/** Length of one ring cycle: the four tones span ~0.76s, the rest is the pause
+ *  before the pattern repeats. */
+const RING_CYCLE_S = 1.6;
 
 /** Call-waiting blip: one short, quiet double-tap that sits under live call
  *  audio instead of competing with it. */
@@ -220,7 +219,6 @@ export const RING_BLIP_PATTERN: ToneSegment[] = [
     { type: "sine", from: 880, to: 880, at: 0.11, duration: 0.07, peak: 0.18 },
 ];
 
-const RING_CYCLE_S = 2;
 /** The ring stops itself after this long. Exported so the store can decide
  *  "is a ring still sounding?" from Date.now() rather than a timer — timers
  *  are throttled in a hidden renderer, which is the tray case. */
@@ -266,11 +264,11 @@ export function startRingtone(): RingHandle {
             nodes.length = 0;
             if (!ctx || stopping.length === 0) return;
             const t = ctx.currentTime;
-            // Ramp to silence before killing the oscillators: stopping a sine
-            // dead at peak 0.5 truncates the waveform mid-cycle and clicks —
-            // and this path now runs on every accept and every decline,
-            // mid-ring, right before call audio starts. ensureRingGain()
-            // restores the level for the next ring.
+            // Ramp to silence before killing the oscillators: stopping a tone
+            // dead at peak truncates the waveform mid-cycle and clicks — and
+            // this path runs on every accept and every decline, mid-ring, right
+            // before call audio starts. ensureRingGain() restores the level for
+            // the next ring.
             if (ringGain) {
                 ringGain.gain.cancelScheduledValues(t);
                 ringGain.gain.setValueAtTime(ringGain.gain.value, t);
@@ -284,9 +282,7 @@ export function startRingtone(): RingHandle {
                 }
             }
             // Disconnect only after the ramp: doing it now would yank the
-            // oscillators out of the graph instantly and undo the ramp. Cleanup
-            // only — a throttled timer cannot make the ring audible again, the
-            // stop above is scheduled on the audio clock.
+            // oscillators out of the graph instantly and undo the ramp.
             setTimeout(() => {
                 for (const osc of stopping) osc.disconnect();
             }, 50);
@@ -296,6 +292,9 @@ export function startRingtone(): RingHandle {
     if (!ensureContext() || !ctx) return handle;
     const dest = ensureRingGain();
     if (!dest) return handle;
+    // Schedule every cycle upfront on the WebAudio clock — no timer to be
+    // throttled when the window is hidden, which is what makes ringing work
+    // from the system tray. Stops itself after RING_MAX_MS.
     const t0 = ctx.currentTime + 0.02;
     const cycles = Math.floor(RING_MAX_MS / 1000 / RING_CYCLE_S);
     for (let i = 0; i < cycles; i++)
@@ -303,9 +302,8 @@ export function startRingtone(): RingHandle {
     return handle;
 }
 
-/** One pass of the real ringtone, for the ringtone-volume slider. The blip is
- *  peak 0.18 against RING_PATTERN's 0.5, so calibrating the ring volume against
- *  a blip leaves the setting a third too low — and the real call blasts. */
+/** One pass of the ringtone, for the ringtone-volume slider — calibrated
+ *  against exactly what a call plays. */
 export function playRingPreview(): void {
     if (!ringEnabled) return;
     if (!ensureContext() || !ctx) return;

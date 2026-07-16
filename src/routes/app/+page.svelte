@@ -78,6 +78,7 @@
         mxcToHttp,
     } from "$lib/matrix/client";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
+    import { playPing } from "$lib/audio/soundEffects";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -555,15 +556,18 @@
         pq.addEventListener("change", onPqHqChange);
         hq.addEventListener("change", onPqHqChange);
 
-        const pingAudio = new Audio("/sounds/ping.mp3");
-
         const unsubRooms = onRoomUpdate(() => scheduleRefreshRooms());
         // Room updates that resolved between the first refreshRooms() and
         // this subscription (e.g. state seeding right after PREPARED) would
         // otherwise never re-derive the lists — catch up once.
         scheduleRefreshRooms();
-        const unsubTimeline = onTimelineEvent((event, room) => {
+        const unsubTimeline = onTimelineEvent((event, room, isLiveAppend) => {
             bumpUnreadTick();
+            // Mid-timeline insertions (out-of-order/threaded events the SDK
+            // slots into the middle of the timeline) are forwarded so the view
+            // stays complete, but they must not fire sounds/notifications the
+            // way a fresh tail message does — skip the alert path for them.
+            if (!isLiveAppend) return;
             if (event.getSender() === getOwnUserId()) return;
 
             const actions = getClient()?.getPushActionsForEvent(event);
@@ -592,8 +596,7 @@
                 const soundEnabled =
                     localStorage.getItem("notifSoundEnabled") !== "false";
                 if (live && soundEnabled) {
-                    pingAudio.currentTime = 0;
-                    pingAudio.play().catch(() => {});
+                    playPing();
                 }
             }
 

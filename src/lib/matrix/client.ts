@@ -1431,21 +1431,36 @@ export function getRoomUnreadInfo(room: Room): {
 }
 
 export function onTimelineEvent(
-    callback: (event: MatrixEvent, room: Room) => void,
+    callback: (
+        event: MatrixEvent,
+        room: Room,
+        isLiveAppend: boolean,
+    ) => void,
 ): () => void {
     if (!matrixClient) return () => {};
     const handler = (
         event: MatrixEvent,
         room: Room | undefined,
         toStartOfTimeline?: boolean,
-        _removed?: boolean,
+        removed?: boolean,
         data?: { liveEvent?: boolean },
     ) => {
-        // Ignore backfilled history — events paginated in when scrolling up
-        // (toStartOfTimeline) or otherwise non-live. Without this, scroll-up
-        // backfill is treated as new messages and drives false unread bumps
-        // and notifications for already-read events.
-        if (toStartOfTimeline || data?.liveEvent === false) return;
+        // Ignore scroll-up backfill (toStartOfTimeline) and event removals —
+        // neither is a new message. Without this, scroll-up backfill would be
+        // treated as new messages and drive false unread bumps/notifications.
+        if (toStartOfTimeline || removed) return;
+        // `data.liveEvent === false` covers two very different cases:
+        //   1. events appended live to the tail (liveEvent === true)
+        //   2. events INSERTED into the middle of the live timeline via
+        //      insertEventIntoTimeline (thread replies moved to the main
+        //      timeline, out-of-order related events) — the SDK hardcodes
+        //      liveEvent:false for these even though they are genuinely new.
+        // Conduit-family servers (tuwunel/conduwuit) deliver related/threaded
+        // events out of order often, so dropping every liveEvent:false event
+        // left those mid-timeline messages missing from the view until a full
+        // re-read. Forward both; `isLiveAppend` tells consumers which it is so
+        // the display can re-read (correct ordering) rather than append.
+        const isLiveAppend = data?.liveEvent === true;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
         if (
@@ -1457,7 +1472,7 @@ export function onTimelineEvent(
                         isPollStartEventType(event.getType())) &&
                     !event.isRedacted()))
         ) {
-            callback(event, room);
+            callback(event, room, isLiveAppend);
         }
     };
     matrixClient.on(RoomEvent.Timeline, handler as never);
