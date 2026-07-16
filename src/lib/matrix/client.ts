@@ -91,6 +91,11 @@ import {
 } from "$lib/matrix/notifications";
 import { initCrypto } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import {
+    ROOM_ENCRYPTION_EVENT_TYPE,
+    ENCRYPTION_ALGORITHM,
+    encryptionInitialState,
+} from "$lib/utils/roomEncryption";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -2612,8 +2617,12 @@ export async function createRoom(
     name: string,
     topic: string,
     spaceId?: string,
+    encrypt = false,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
+    // When encrypting, turn it on at creation via initial_state (cleaner and
+    // race-free vs. a follow-up state event). Encryption is irreversible.
+    const initialState = encryptionInitialState(encrypt);
     const result = await matrixClient.createRoom({
         name: name || undefined,
         topic: topic || undefined,
@@ -2622,6 +2631,7 @@ export async function createRoom(
         power_level_content_override: {
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
+        ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
@@ -2704,9 +2714,13 @@ export async function searchUserDirectory(
     return { users, limited: res.limited };
 }
 
-export async function createDirectMessage(userId: string): Promise<string> {
+export async function createDirectMessage(
+    userId: string,
+    encrypt = false,
+): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
-    // Reuse existing DM room if one exists
+    // Reuse existing DM room if one exists. An existing DM keeps its own
+    // encryption state — we never change it here (encryption is irreversible).
     const existing = matrixClient
         .getAccountData(EventType.Direct)
         ?.getContent() as Record<string, string[]> | undefined;
@@ -2715,6 +2729,7 @@ export async function createDirectMessage(userId: string): Promise<string> {
         if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
             return existingRoomId;
     }
+    const initialState = encryptionInitialState(encrypt);
     const result = await matrixClient.createRoom({
         invite: [userId],
         is_direct: true,
@@ -2723,6 +2738,7 @@ export async function createDirectMessage(userId: string): Promise<string> {
         power_level_content_override: {
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
+        ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
     // Update m.direct account data so the room shows in DMs
@@ -2732,6 +2748,23 @@ export async function createDirectMessage(userId: string): Promise<string> {
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     return roomId;
+}
+
+/**
+ * Turn on encryption for an existing room by sending the `m.room.encryption`
+ * state event with the standard Megolm algorithm. IRREVERSIBLE — the Matrix
+ * spec has no way to switch encryption back off. Callers must gate on power
+ * level (see `getEnableEncryptionState`) and confirm intent first. Throws on
+ * failure (e.g. insufficient power level); the caller surfaces the error.
+ */
+export async function enableRoomEncryption(roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        ROOM_ENCRYPTION_EVENT_TYPE,
+        { algorithm: ENCRYPTION_ALGORITHM },
+        "",
+    );
 }
 
 /** Invite a user to an existing room or space. Throws on failure (caller surfaces). */
