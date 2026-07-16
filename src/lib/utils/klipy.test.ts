@@ -40,7 +40,29 @@ describe("normalizeKlipyItems", () => {
                                 url: "https://static2.klipy.com/hd.gif",
                                 width: 498,
                                 height: 373,
-                                size: 1,
+                                size: 396,
+                            },
+                            webp: {
+                                url: "https://static2.klipy.com/hd.webp",
+                                width: 498,
+                                height: 374,
+                                size: 21,
+                            },
+                        },
+                        md: {
+                            webp: {
+                                url: "https://static2.klipy.com/md.webp",
+                                width: 498,
+                                height: 373,
+                                size: 40,
+                            },
+                        },
+                        sm: {
+                            gif: {
+                                url: "https://static2.klipy.com/sm.gif",
+                                width: 220,
+                                height: 165,
+                                size: 72,
                             },
                         },
                         xs: {
@@ -48,7 +70,7 @@ describe("normalizeKlipyItems", () => {
                                 url: "https://static2.klipy.com/xs.gif",
                                 width: 121,
                                 height: 90,
-                                size: 1,
+                                size: 24,
                             },
                         },
                     },
@@ -64,8 +86,8 @@ describe("normalizeKlipyItems", () => {
         expect(page.items).toHaveLength(1);
         expect(page.items[0]).toEqual({
             id: "42",
-            url: "https://static2.klipy.com/hd.gif",
-            previewUrl: "https://static2.klipy.com/xs.gif",
+            url: "https://static2.klipy.com/hd.gif", // full: gif, largest
+            previewUrl: "https://static2.klipy.com/md.webp", // thumb: webp, mid
             width: 498,
             height: 373,
         });

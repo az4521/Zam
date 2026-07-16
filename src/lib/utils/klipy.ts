@@ -51,19 +51,29 @@ interface KlipyItem {
     file?: Record<string, Fmt | undefined>;
 }
 
-// Largest-first for the inserted url; smallest-first for the grid thumbnail.
-const SIZES_LARGE = ["hd", "md", "sm", "xs"];
-const SIZES_SMALL = ["xs", "sm", "md", "hd"];
+// Inserted URL: full-size, gif-first — broadest compatibility on the
+// URL-as-text rail and in other Matrix clients.
+const FULL_SIZES = ["hd", "md", "sm", "xs"];
+const FULL_FORMATS: (keyof Fmt)[] = ["gif", "webp", "mp4"];
+// Grid thumbnail: a mid rendition, webp-first — crisp at tile size yet far
+// lighter than the gif (KLIPY webp is ~1/7th the bytes) and still animated.
+// Avoids the blurry upscaled `xs` thumbnails.
+const PREVIEW_SIZES = ["md", "sm", "hd", "xs"];
+const PREVIEW_FORMATS: (keyof Fmt)[] = ["webp", "gif", "mp4"];
 
 function pickRendition(
-    files: Record<string, Fmt | undefined> | undefined,
-    order: string[],
+    file: Record<string, Fmt | undefined> | undefined,
+    sizes: string[],
+    formats: (keyof Fmt)[],
 ): Rendition | null {
-    if (!files) return null;
-    for (const size of order) {
-        const fmt = files[size];
-        const r = fmt?.gif ?? fmt?.webp ?? fmt?.mp4;
-        if (r?.url) return r;
+    if (!file) return null;
+    for (const size of sizes) {
+        const fmt = file[size];
+        if (!fmt) continue;
+        for (const f of formats) {
+            const r = fmt[f];
+            if (r?.url) return r;
+        }
     }
     return null;
 }
@@ -76,8 +86,9 @@ export function normalizeKlipyItems(json: unknown): GifPage {
         : [];
     const items: GifResult[] = [];
     for (const it of rawItems) {
-        const full = pickRendition(it.file, SIZES_LARGE);
-        const small = pickRendition(it.file, SIZES_SMALL) ?? full;
+        const full = pickRendition(it.file, FULL_SIZES, FULL_FORMATS);
+        const small =
+            pickRendition(it.file, PREVIEW_SIZES, PREVIEW_FORMATS) ?? full;
         if (!full?.url || !small?.url) continue;
         items.push({
             id: String(it.id ?? it.slug ?? full.url),

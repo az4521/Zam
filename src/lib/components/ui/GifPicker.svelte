@@ -98,7 +98,7 @@
     // Desktop panel size — resizable via the top-left grip, persisted to
     // localStorage. Touch is a fixed bottom sheet and is never resized.
     const MIN_W = 288,
-        MAX_W = 640,
+        MAX_W = 760,
         MIN_H = 320,
         MAX_H = 620;
     function loadSize(
@@ -238,7 +238,7 @@
                         : "No results"}
                 </p>
             {:else}
-                <div class="columns-2 gap-x-1 mt-1">
+                <div class="columns-[165px] gap-x-1 mt-1">
                     {#each visibleFavourites as gif (gif.url)}
                         <div class="relative group/gif mb-1 break-inside-avoid">
                             <button
@@ -289,7 +289,7 @@
                     No results
                 </p>
             {:else}
-                <div class="columns-2 gap-x-1 mt-1">
+                <div class="columns-[165px] gap-x-1 mt-1">
                     {#each gifSearchState.items as r (r.id)}
                         <div class="relative group/gif mb-1 break-inside-avoid">
                             <button
