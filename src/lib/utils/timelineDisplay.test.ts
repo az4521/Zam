@@ -56,47 +56,27 @@ describe("shouldShowHeader (chronological order)", () => {
     });
 });
 
-describe("dateSeparatorLabel (chronological order)", () => {
-    const now = new Date("2026-07-11T15:00:00Z");
-    const todayTs = new Date("2026-07-11T10:00:00Z").getTime();
-    const yesterdayTs = new Date("2026-07-10T10:00:00Z").getTime();
-    const olderTs = new Date("2026-07-03T10:00:00Z").getTime();
+describe("dateSeparatorLabel — boundary ts or null (formatting lives in timeFormat)", () => {
+    // Local-time components so same-day comparison is timezone-stable.
+    const dayA = new Date(2026, 6, 3, 10, 0).getTime();
+    const dayB = new Date(2026, 6, 10, 10, 0).getTime();
 
-    it("labels the first loaded message with its day", () => {
-        const events = [ev("$a", "@alice:hs", todayTs)];
-        expect(dateSeparatorLabel(events, 0, now)).toBe("Today");
+    it("returns the first loaded message's ts", () => {
+        const events = [ev("$a", "@alice:hs", dayA)];
+        expect(dateSeparatorLabel(events, 0)).toBe(dayA);
     });
 
     it("returns null between two messages on the same day", () => {
         const events = [
-            ev("$a", "@alice:hs", todayTs),
-            ev("$b", "@alice:hs", todayTs + MIN),
+            ev("$a", "@alice:hs", dayA),
+            ev("$b", "@alice:hs", dayA + MIN),
         ];
-        expect(dateSeparatorLabel(events, 1, now)).toBeNull();
+        expect(dateSeparatorLabel(events, 1)).toBeNull();
     });
 
-    it("labels the yesterday→today boundary as Today (the day starting below the separator)", () => {
-        const events = [
-            ev("$a", "@alice:hs", yesterdayTs),
-            ev("$b", "@bob:hs", todayTs),
-        ];
-        expect(dateSeparatorLabel(events, 1, now)).toBe("Today");
-    });
-
-    it("labels the boundary into yesterday as Yesterday", () => {
-        const events = [
-            ev("$a", "@alice:hs", olderTs),
-            ev("$b", "@bob:hs", yesterdayTs),
-        ];
-        expect(dateSeparatorLabel(events, 1, now)).toBe("Yesterday");
-    });
-
-    it("labels older days with a full date", () => {
-        const events = [ev("$a", "@alice:hs", olderTs)];
-        const label = dateSeparatorLabel(events, 0, now);
-        expect(label).toContain("2026");
-        expect(label).not.toBe("Today");
-        expect(label).not.toBe("Yesterday");
+    it("returns the current message's ts at a day boundary", () => {
+        const events = [ev("$a", "@alice:hs", dayA), ev("$b", "@bob:hs", dayB)];
+        expect(dateSeparatorLabel(events, 1)).toBe(dayB);
     });
 });
 

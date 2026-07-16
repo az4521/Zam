@@ -13,7 +13,7 @@
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { format } from "date-fns";
+    import { timeOnly } from "$lib/utils/timeFormat";
 
     interface Props {
         room: Room;
@@ -113,10 +113,6 @@
         textareaEl.style.height = "auto";
         textareaEl.style.height = Math.min(textareaEl.scrollHeight, 160) + "px";
     }
-
-    function formatTime(ts: number): string {
-        return format(new Date(ts), "h:mm a");
-    }
 </script>
 
 <div
@@ -158,7 +154,7 @@
                     >{rootSender}</span
                 >
                 <span class="text-xs text-discord-textMuted"
-                    >{formatTime(rootTs)}</span
+                    >{timeOnly(rootTs)}</span
                 >
             </div>
             <p

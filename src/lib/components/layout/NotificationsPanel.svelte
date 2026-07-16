@@ -18,7 +18,7 @@
     import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { format } from "date-fns";
+    import { compactDateTime } from "$lib/utils/timeFormat";
 
     interface Props {
         onClose: () => void;
@@ -208,7 +208,7 @@
                             >
                             <span
                                 class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
-                                >{format(n.ts, "MMM d, HH:mm")}</span
+                                >{compactDateTime(n.ts)}</span
                             >
                         </div>
                         <p class="text-xs text-discord-textMuted truncate mb-1">

@@ -26,30 +26,16 @@ export function shouldShowHeader(
     return curr.getTs() - prev.getTs() > GROUP_WINDOW_MS;
 }
 
-function dayLabel(ts: number, now: Date): string {
-    const d = new Date(ts);
-    if (d.toDateString() === now.toDateString()) return "Today";
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-    return d.toLocaleDateString(undefined, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-    });
-}
-
 /**
- * Label for a date separator rendered ABOVE the message at `index`, or null
- * when the message continues the previous message's day. The label names the
- * day starting below the separator.
+ * The timestamp a date separator should be rendered for ABOVE the message at
+ * `index`, or null when the message continues the previous message's day. The
+ * caller formats it (see timeFormat.daySeparator) — this keeps only the "is
+ * this a new day" decision, so timestamp-format settings don't reach here.
  */
 export function dateSeparatorLabel(
     events: TimelineDisplayEvent[],
     index: number,
-    now: Date = new Date(),
-): string | null {
+): number | null {
     const curr = events[index];
     if (index > 0) {
         const prev = events[index - 1];
@@ -58,7 +44,7 @@ export function dateSeparatorLabel(
             new Date(curr.getTs()).toDateString();
         if (sameDay) return null;
     }
-    return dayLabel(curr.getTs(), now);
+    return curr.getTs();
 }
 
 /**
