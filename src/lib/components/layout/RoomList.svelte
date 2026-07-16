@@ -70,6 +70,7 @@
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
+    import { longPress } from "$lib/actions/longPress";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -154,9 +155,13 @@
         });
     }
 
-    function openContextMenu(e: MouseEvent, roomId: string) {
-        e.preventDefault();
-        contextMenu = { roomId, x: e.clientX, y: e.clientY, touch: false };
+    function openContextMenu(
+        roomId: string,
+        x: number,
+        y: number,
+        touch: boolean,
+    ) {
+        contextMenu = { roomId, x, y, touch };
         openModal("room-menu", () => (contextMenu = null));
     }
 
@@ -167,55 +172,18 @@
         userId: string;
         x: number;
         y: number;
+        touch: boolean;
     } | null>(null);
 
-    function openParticipantMenu(e: MouseEvent, room: Room, userId: string) {
-        e.preventDefault();
-        // Roster rows render as siblings of the row that carries the room
-        // contextmenu handler, so nothing catches this today — but keep the
-        // stop so re-nesting the roster can't silently supersede this menu.
-        e.stopPropagation();
-        participantMenu = { room, userId, x: e.clientX, y: e.clientY };
+    function openParticipantMenu(
+        room: Room,
+        userId: string,
+        x: number,
+        y: number,
+        touch: boolean,
+    ) {
+        participantMenu = { room, userId, x, y, touch };
         openModal("call-participant-menu", () => (participantMenu = null));
-    }
-
-    let ctxTouchTimer: ReturnType<typeof setTimeout> | null = null;
-    let ctxTouchStartX = 0,
-        ctxTouchStartY = 0;
-
-    function onRoomTouchStart(e: TouchEvent, roomId: string) {
-        const t = e.touches[0];
-        ctxTouchStartX = t.clientX;
-        ctxTouchStartY = t.clientY;
-        ctxTouchTimer = setTimeout(() => {
-            ctxTouchTimer = null;
-            navigator.vibrate?.(50);
-            contextMenu = {
-                roomId,
-                x: ctxTouchStartX,
-                y: ctxTouchStartY,
-                touch: true,
-            };
-            openModal("room-menu", () => (contextMenu = null));
-        }, 500);
-    }
-
-    function onRoomTouchMove(e: TouchEvent) {
-        if (!ctxTouchTimer) return;
-        const t = e.touches[0];
-        const dx = t.clientX - ctxTouchStartX;
-        const dy = t.clientY - ctxTouchStartY;
-        if (Math.sqrt(dx * dx + dy * dy) > 10) {
-            clearTimeout(ctxTouchTimer);
-            ctxTouchTimer = null;
-        }
-    }
-
-    function onRoomTouchEnd() {
-        if (ctxTouchTimer) {
-            clearTimeout(ctxTouchTimer);
-            ctxTouchTimer = null;
-        }
     }
 
     function handleOpenSettings(roomId: string) {
@@ -597,8 +565,27 @@
                                 setActiveRoom(room.roomId);
                                 showCallView(room.roomId);
                             }}
-                            oncontextmenu={(e) =>
-                                openParticipantMenu(e, room, p.userId)}
+                            oncontextmenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openParticipantMenu(
+                                    room,
+                                    p.userId,
+                                    e.clientX,
+                                    e.clientY,
+                                    false,
+                                );
+                            }}
+                            use:longPress={{
+                                onTrigger: (x, y) =>
+                                    openParticipantMenu(
+                                        room,
+                                        p.userId,
+                                        x,
+                                        y,
+                                        true,
+                                    ),
+                            }}
                             title="{name} — in voice"
                         >
                             <div
@@ -642,10 +629,14 @@
                 style={isActive
                     ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
                     : ""}
-                oncontextmenu={(e) => openContextMenu(e, room.roomId)}
-                ontouchstart={(e) => onRoomTouchStart(e, room.roomId)}
-                ontouchmove={onRoomTouchMove}
-                ontouchend={onRoomTouchEnd}
+                oncontextmenu={(e) => {
+                    e.preventDefault();
+                    openContextMenu(room.roomId, e.clientX, e.clientY, false);
+                }}
+                use:longPress={{
+                    onTrigger: (x, y) =>
+                        openContextMenu(room.roomId, x, y, true),
+                }}
             >
                 <button
                     onclick={() => setActiveRoom(room.roomId)}
@@ -918,12 +909,19 @@
                     <div>
                         <button
                             onclick={() => setActiveRoom(room.roomId)}
-                            oncontextmenu={(e) =>
-                                openContextMenu(e, room.roomId)}
-                            ontouchstart={(e) =>
-                                onRoomTouchStart(e, room.roomId)}
-                            ontouchmove={onRoomTouchMove}
-                            ontouchend={onRoomTouchEnd}
+                            oncontextmenu={(e) => {
+                                e.preventDefault();
+                                openContextMenu(
+                                    room.roomId,
+                                    e.clientX,
+                                    e.clientY,
+                                    false,
+                                );
+                            }}
+                            use:longPress={{
+                                onTrigger: (x, y) =>
+                                    openContextMenu(room.roomId, x, y, true),
+                            }}
                             class="w-full flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
                             class:text-discord-textPrimary={isActive || unread}
                             class:text-discord-textSecondary={!isActive &&
@@ -1173,6 +1171,7 @@
         userId={participantMenu.userId}
         x={participantMenu.x}
         y={participantMenu.y}
+        touch={participantMenu.touch}
         onClose={() => {
             participantMenu = null;
             clearModal("call-participant-menu");
