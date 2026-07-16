@@ -94,18 +94,88 @@
         // The $effect above performs the immediate load when `tab` changes.
         tab = next;
     }
+
+    // Desktop panel size — resizable via the top-left grip, persisted to
+    // localStorage. Touch is a fixed bottom sheet and is never resized.
+    const MIN_W = 288,
+        MAX_W = 640,
+        MIN_H = 320,
+        MAX_H = 620;
+    function loadSize(
+        key: string,
+        fallback: number,
+        min: number,
+        max: number,
+    ): number {
+        try {
+            const v = Number(localStorage.getItem(key));
+            return Number.isFinite(v) && v > 0
+                ? Math.min(max, Math.max(min, v))
+                : fallback;
+        } catch {
+            return fallback;
+        }
+    }
+    let panelW = $state(loadSize("gifPicker:w", 416, MIN_W, MAX_W));
+    let panelH = $state(loadSize("gifPicker:h", 480, MIN_H, MAX_H));
+    let resizeStart: { x: number; y: number; w: number; h: number } | null =
+        null;
+    function onResizeDown(e: PointerEvent) {
+        resizeStart = { x: e.clientX, y: e.clientY, w: panelW, h: panelH };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    function onResizeMove(e: PointerEvent) {
+        if (!resizeStart) return;
+        // Panel is anchored bottom-right, so dragging up/left enlarges it.
+        panelW = Math.min(
+            MAX_W,
+            Math.max(MIN_W, resizeStart.w + (resizeStart.x - e.clientX)),
+        );
+        panelH = Math.min(
+            MAX_H,
+            Math.max(MIN_H, resizeStart.h + (resizeStart.y - e.clientY)),
+        );
+    }
+    function onResizeUp() {
+        if (!resizeStart) return;
+        resizeStart = null;
+        try {
+            localStorage.setItem("gifPicker:w", String(panelW));
+            localStorage.setItem("gifPicker:h", String(panelH));
+        } catch {
+            /* ignore */
+        }
+    }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'w-72 rounded-xl'} bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
     style={interfaceState.isTouchscreen
         ? "max-height: 50dvh;"
-        : "max-height: 380px;"}
+        : `width:${panelW}px;height:${panelH}px;`}
     onkeydown={onKeydown}
 >
+    {#if !interfaceState.isTouchscreen}
+        <!-- Resize grip (top-left; panel grows up-and-left from the composer) -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+            onpointerdown={onResizeDown}
+            onpointermove={onResizeMove}
+            onpointerup={onResizeUp}
+            onpointercancel={onResizeUp}
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
+            title="Drag to resize"
+        >
+            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+                <path d="M2 2h5v1.5H3.5V7H2V2z" />
+            </svg>
+        </div>
+    {/if}
     {#if interfaceState.isTouchscreen}
         <!-- Outer picker tabs (Emoji / Stickers / GIFs) -->
         <div class="flex border-b border-discord-divider flex-shrink-0">
@@ -168,18 +238,18 @@
                         : "No results"}
                 </p>
             {:else}
-                <div class="grid grid-cols-4 gap-1 mt-1">
+                <div class="columns-2 gap-x-1 mt-1">
                     {#each visibleFavourites as gif (gif.url)}
-                        <div class="relative group/gif">
+                        <div class="relative group/gif mb-1 break-inside-avoid">
                             <button
                                 onclick={() => pickUrl(gif.url)}
                                 title={gif.url}
-                                class="w-full aspect-square rounded hover:bg-discord-messageHover transition-colors flex items-center justify-center overflow-hidden"
+                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
                                 <img
                                     src={gif.previewUrl}
                                     alt=""
-                                    class="w-full h-full object-cover rounded"
+                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
                                 />
                             </button>
@@ -189,7 +259,7 @@
                                     removeFavouriteGif(gif.url);
                                 }}
                                 title="Remove from favourites"
-                                class="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/60 text-discord-warning opacity-0 group-hover/gif:opacity-100 transition-opacity hover:bg-black/80"
+                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-discord-warning opacity-0 group-hover/gif:opacity-100 transition-opacity hover:bg-black/80"
                             >
                                 <svg
                                     class="w-3.5 h-3.5"
@@ -219,18 +289,21 @@
                     No results
                 </p>
             {:else}
-                <div class="grid grid-cols-4 gap-1 mt-1">
+                <div class="columns-2 gap-x-1 mt-1">
                     {#each gifSearchState.items as r (r.id)}
-                        <div class="relative group/gif">
+                        <div class="relative group/gif mb-1 break-inside-avoid">
                             <button
                                 onclick={() => pickUrl(r.url)}
-                                class="w-full aspect-square rounded hover:bg-discord-messageHover transition-colors flex items-center justify-center overflow-hidden"
+                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
                                 <img
                                     src={r.previewUrl}
                                     alt=""
-                                    class="w-full h-full object-cover rounded"
+                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
+                                    style={r.width && r.height
+                                        ? `aspect-ratio:${r.width}/${r.height}`
+                                        : undefined}
                                 />
                             </button>
                             <button
@@ -241,7 +314,7 @@
                                 title={isFavouriteGif(r.url)
                                     ? "Remove from favourites"
                                     : "Add to favourites"}
-                                class="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/60 transition-opacity hover:bg-black/80 {isFavouriteGif(
+                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 transition-opacity hover:bg-black/80 {isFavouriteGif(
                                     r.url,
                                 )
                                     ? 'text-discord-warning opacity-100'
