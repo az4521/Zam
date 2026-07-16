@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { requestNotificationPermission } from "./notifyPermission";
+import {
+    requestNotificationPermission,
+    callAlertHint,
+} from "./notifyPermission";
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -39,5 +42,28 @@ describe("requestNotificationPermission", () => {
             requestPermission: vi.fn().mockRejectedValue(new Error("nope")),
         });
         await expect(requestNotificationPermission()).resolves.toBe("denied");
+    });
+});
+
+describe("callAlertHint", () => {
+    it("stays silent when permission is granted", () => {
+        expect(callAlertHint("granted")).toBeNull();
+    });
+
+    it("stays silent when no decision has been made yet", () => {
+        // "default" means we're about to prompt — don't pre-emptively nag.
+        expect(callAlertHint("default")).toBeNull();
+    });
+
+    it("warns, mentioning the block, when permission is denied", () => {
+        const hint = callAlertHint("denied");
+        expect(hint).toBeTruthy();
+        expect(hint).toMatch(/block/i);
+    });
+
+    it("gives a distinct warning when notifications are unsupported", () => {
+        const hint = callAlertHint("unsupported");
+        expect(hint).toBeTruthy();
+        expect(hint).not.toBe(callAlertHint("denied"));
     });
 });
