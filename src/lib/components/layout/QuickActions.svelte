@@ -7,7 +7,9 @@
         knockRoom,
         canAddRoomToSpace,
     } from "$lib/matrix/client";
+    import { isCryptoAvailable } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -32,12 +34,19 @@
     let input2 = $state(""); // room topic / space topic
     let loading = $state(false);
     let error = $state("");
+    // Encryption toggle for create-room / create-dm. Only offered when crypto
+    // started this session (encrypting a room we can't decrypt is a foot-gun).
+    let encrypt = $state(false);
+    const cryptoReady = isCryptoAvailable();
 
     async function startDm(userId: string) {
         error = "";
         loading = true;
         try {
-            const roomId = await createDirectMessage(userId);
+            const roomId = await createDirectMessage(
+                userId,
+                cryptoReady && encrypt,
+            );
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
@@ -64,6 +73,8 @@
         input1 = "";
         input2 = "";
         error = "";
+        // New DMs pre-check the account default; new rooms default off.
+        encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
         resetKnock();
         openModal("quick-actions", () => (mode = null));
     }
@@ -82,6 +93,7 @@
                     input1.trim(),
                     input2.trim(),
                     spaceId,
+                    cryptoReady && encrypt,
                 );
             } else if (mode === "create-space") {
                 roomId = await createSpace(input1.trim(), input2.trim());
@@ -266,15 +278,53 @@
                                 class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                             />
                         </div>
+                        {#if mode === "create-room" && cryptoReady}
+                            <label
+                                class="flex items-start gap-2.5 cursor-pointer"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={encrypt}
+                                    class="mt-0.5 accent-discord-accent"
+                                />
+                                <span class="text-sm text-discord-textPrimary"
+                                    >Enable encryption
+                                    <span
+                                        class="block text-xs text-discord-textMuted"
+                                        >Can't be turned off later.</span
+                                    ></span
+                                >
+                            </label>
+                        {/if}
                     </div>
                 {:else if mode === "create-dm"}
-                    <UserPicker
-                        mode="single"
-                        autofocus
-                        disabled={loading}
-                        onpick={startDm}
-                        placeholder="Find someone to message…"
-                    />
+                    <div class="flex flex-col gap-3">
+                        <UserPicker
+                            mode="single"
+                            autofocus
+                            disabled={loading}
+                            onpick={startDm}
+                            placeholder="Find someone to message…"
+                        />
+                        {#if cryptoReady}
+                            <label
+                                class="flex items-start gap-2.5 cursor-pointer"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={encrypt}
+                                    class="mt-0.5 accent-discord-accent"
+                                />
+                                <span class="text-sm text-discord-textPrimary"
+                                    >Encrypt this DM
+                                    <span
+                                        class="block text-xs text-discord-textMuted"
+                                        >Can't be turned off later.</span
+                                    ></span
+                                >
+                            </label>
+                        {/if}
+                    </div>
                 {:else}
                     <div class="flex flex-col gap-3">
                         <div>

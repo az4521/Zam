@@ -21,6 +21,7 @@ import {
 } from "$lib/utils/participantAudio";
 import { auth } from "$lib/stores/auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
+import { DEFAULT_ENCRYPT_DMS } from "$lib/utils/roomEncryption";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -141,6 +142,10 @@ export const settingsState = $state({
     /** Send private read receipts (m.read.private): the server still tracks
      *  what you've read, but other users can't see it. Default is public. */
     privateReadReceipts: readAccountBool("privateReadReceipts", false),
+    /** Whether new direct messages are created encrypted. Default OFF for v1
+     *  (see DEFAULT_ENCRYPT_DMS) — opt-in so new DMs don't silently become
+     *  unreadable to contacts whose clients aren't set up for E2EE. */
+    encryptNewDms: readAccountBool("encryptNewDms", DEFAULT_ENCRYPT_DMS),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
     /** Voice: preferred devices (null = system default). Preferences, not
@@ -184,6 +189,10 @@ export function reloadAccountSettings(): void {
     settingsState.privateReadReceipts = readAccountBool(
         "privateReadReceipts",
         false,
+    );
+    settingsState.encryptNewDms = readAccountBool(
+        "encryptNewDms",
+        DEFAULT_ENCRYPT_DMS,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.audioInputDeviceId =
@@ -298,6 +307,11 @@ export function setKeepSidebarOpen(value: boolean): void {
 export function setPrivateReadReceipts(value: boolean): void {
     settingsState.privateReadReceipts = value;
     writeAccountBool("privateReadReceipts", value);
+}
+
+export function setEncryptNewDms(value: boolean): void {
+    settingsState.encryptNewDms = value;
+    writeAccountBool("encryptNewDms", value);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {

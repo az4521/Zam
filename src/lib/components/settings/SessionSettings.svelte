@@ -12,6 +12,11 @@
         type DeviceInfo,
     } from "$lib/utils/deviceSessions";
     import { isCryptoAvailable, getOwnDeviceKeyInfo } from "$lib/matrix/crypto";
+    import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import {
+        settingsState,
+        setEncryptNewDms,
+    } from "$lib/stores/settings.svelte";
 
     let devices = $state<DeviceInfo[]>([]);
     let loaded = $state(false);
@@ -268,6 +273,26 @@
                 End-to-end encryption could not start on this session. Encrypted
                 rooms will show placeholders.
             </p>
+        {/if}
+        {#if cryptoActive}
+            <div
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        Encrypt new direct messages
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Turn on encryption for DMs you start. Existing DMs are
+                        left unchanged. Off by default.
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.encryptNewDms}
+                    onChange={setEncryptNewDms}
+                    label="Encrypt new direct messages"
+                />
+            </div>
         {/if}
     </section>
     <div class="flex items-center justify-between gap-3">
