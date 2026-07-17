@@ -11,6 +11,8 @@
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
+    import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
+    import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
@@ -43,6 +45,10 @@
         declineIncomingCall,
         silenceIncomingCall,
     } from "$lib/stores/incomingCalls.svelte";
+    import {
+        verificationState,
+        initVerification,
+    } from "$lib/stores/verification.svelte";
     import { reloadAccountSettings } from "$lib/stores/settings.svelte";
     import {
         markNotification,
@@ -654,6 +660,7 @@
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
         const unsubIncoming = initIncomingCalls();
+        const unsubVerification = initVerification();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -703,6 +710,7 @@
             unsubPresence();
             unsubVoice();
             unsubIncoming();
+            unsubVerification();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
@@ -963,7 +971,7 @@
     <InviteModal roomId={inviteDialogState.roomId} />
 {/if}
 
-{#if incomingCallsState.ringing.length > 0}
+{#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}
     <div class="fixed top-4 right-4 z-50 flex flex-col gap-2">
         {#each incomingCallsState.ringing as roomId (roomId)}
             <IncomingCallCard
@@ -972,7 +980,12 @@
                 onDecline={declineIncomingCall}
             />
         {/each}
+        {#each verificationState.incoming as controller (controller.id)}
+            <VerificationRequestCard {controller} />
+        {/each}
     </div>
 {/if}
+
+<VerificationModal />
 
 <ErrorToasts />

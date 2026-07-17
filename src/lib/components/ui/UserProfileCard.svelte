@@ -32,6 +32,12 @@
         popoutPosition,
         summarizeMutualRooms,
     } from "$lib/utils/profileCard";
+    import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
+    import { userTrustBadge } from "$lib/utils/verification";
+    import {
+        verificationState,
+        verifyUser,
+    } from "$lib/stores/verification.svelte";
 
     interface Props {
         room: Room;
@@ -82,11 +88,32 @@
     const canBanTarget = $derived(canActOnTarget && myPowerLevel >= pl.ban);
     const blocked = $derived(isUserBlocked(userId));
 
-    let pending = $state<null | "message" | "block" | "kick" | "ban">(null);
+    let pending = $state<
+        null | "message" | "block" | "kick" | "ban" | "verify"
+    >(null);
     let confirming = $state<null | "kick" | "ban">(null);
     let errorMsg = $state<string | null>(null);
     let copied = $state(false);
     let copyTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    // Verification trust (Layer 1). Reloaded on retarget and whenever a
+    // verification completes (verificationTick).
+    let userTrust = $state<{
+        isVerified: boolean;
+        needsApproval?: boolean;
+        known?: boolean;
+    } | null>(null);
+    const trustBadge = $derived(
+        !isSelf && userId && isCryptoAvailable()
+            ? userTrustBadge(userTrust)
+            : null,
+    );
+
+    async function loadTrust() {
+        userTrust = null;
+        if (isSelf || !userId || !isCryptoAvailable()) return;
+        userTrust = await getUserTrust(userId);
+    }
 
     // Reset transient state whenever the card retargets or closes.
     $effect(() => {
@@ -95,7 +122,27 @@
         confirming = null;
         errorMsg = null;
         copied = false;
+        loadTrust();
     });
+
+    // Refresh trust when a verification finishes (tick bumps on Done).
+    $effect(() => {
+        void verificationState.verificationTick;
+        loadTrust();
+    });
+
+    async function startVerifyUser() {
+        pending = "verify";
+        errorMsg = null;
+        try {
+            await verifyUser(userId);
+        } catch (e) {
+            errorMsg =
+                e instanceof Error ? e.message : "Could not start verification";
+        } finally {
+            pending = null;
+        }
+    }
 
     // Position: measured card size against the stored anchor, viewport-clamped.
     let innerWidth = $state(0);
@@ -214,9 +261,22 @@
                 ></div>
             </div>
 
-            <p class="font-bold text-discord-textPrimary truncate">
-                {displayName}
-            </p>
+            <div class="flex items-center gap-1.5 min-w-0">
+                <p class="font-bold text-discord-textPrimary truncate">
+                    {displayName}
+                </p>
+                {#if trustBadge}
+                    <span
+                        class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {trustBadge.tone ===
+                        'verified'
+                            ? 'bg-discord-online/20 text-discord-online'
+                            : trustBadge.tone === 'warning'
+                              ? 'bg-discord-warning/20 text-discord-warning'
+                              : 'bg-discord-messageHover text-discord-textMuted'}"
+                        >{trustBadge.label}</span
+                    >
+                {/if}
+            </div>
             <div class="flex items-center gap-1 min-w-0">
                 <p class="text-xs text-discord-textMuted truncate">{userId}</p>
                 <button
@@ -280,6 +340,15 @@
                     >
                         {pending === "message" ? "Opening…" : "Message"}
                     </button>
+                    {#if trustBadge && trustBadge.tone !== "verified"}
+                        <button
+                            onclick={startVerifyUser}
+                            disabled={pending !== null}
+                            class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
+                        >
+                            {pending === "verify" ? "Starting…" : "Verify user"}
+                        </button>
+                    {/if}
                     <button
                         onclick={toggleBlock}
                         disabled={pending !== null}

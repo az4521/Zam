@@ -3,6 +3,7 @@
         deleteOwnDevice,
         getOwnDeviceId,
         getOwnDevices,
+        getOwnUserId,
         renameDevice,
     } from "$lib/matrix/client";
     import {
@@ -11,7 +12,16 @@
         sortDevices,
         type DeviceInfo,
     } from "$lib/utils/deviceSessions";
-    import { isCryptoAvailable, getOwnDeviceKeyInfo } from "$lib/matrix/crypto";
+    import {
+        isCryptoAvailable,
+        getOwnDeviceKeyInfo,
+        getDeviceTrust,
+    } from "$lib/matrix/crypto";
+    import { deviceTrustBadge } from "$lib/utils/verification";
+    import {
+        verificationState,
+        verifyOwnDevice,
+    } from "$lib/stores/verification.svelte";
 
     let devices = $state<DeviceInfo[]>([]);
     let loaded = $state(false);
@@ -32,6 +42,13 @@
     // cross-client verification; carries no actions yet.
     let cryptoActive = $state(false);
     let deviceEd25519 = $state<string | null>(null);
+
+    // Per-device trust (Layer 1): deviceId → reduced verification status, for
+    // the badge + Verify button. Reloaded when a verification completes.
+    let trust = $state<
+        Record<string, { isVerified: boolean; signedByOwner?: boolean } | null>
+    >({});
+    let verifyError = $state("");
 
     const current = $derived(
         devices.find((device) => device.deviceId === currentId) ?? null,
@@ -122,11 +139,47 @@
         deviceEd25519 = keys?.ed25519 ?? null;
     }
 
+    async function loadTrust() {
+        if (!isCryptoAvailable()) return;
+        const userId = getOwnUserId();
+        if (!userId) return;
+        const entries = await Promise.all(
+            devices.map(
+                async (device) =>
+                    [
+                        device.deviceId,
+                        await getDeviceTrust(userId, device.deviceId),
+                    ] as const,
+            ),
+        );
+        trust = Object.fromEntries(entries);
+    }
+
+    async function startVerify(deviceId: string) {
+        verifyError = "";
+        try {
+            await verifyOwnDevice(deviceId);
+        } catch (e) {
+            verifyError =
+                e instanceof Error ? e.message : "Could not start verification";
+        }
+    }
+
     $effect(() => {
         if (!attemptedInitialLoad) {
             attemptedInitialLoad = true;
-            load();
+            load().then(loadTrust);
             loadCryptoStatus();
+        }
+    });
+
+    // Refresh trust badges when a verification completes (tick bumps on Done).
+    let lastSeenTick = 0;
+    $effect(() => {
+        const tick = verificationState.verificationTick;
+        if (tick !== lastSeenTick && loaded) {
+            lastSeenTick = tick;
+            loadTrust();
         }
     });
 </script>
@@ -139,6 +192,9 @@
     ]
         .filter(Boolean)
         .join(" · ")}
+    {@const badge = cryptoActive
+        ? deviceTrustBadge(trust[device.deviceId] ?? null)
+        : null}
     <div class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-3">
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -173,6 +229,15 @@
                                 class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-discord-accent/20 text-discord-accent"
                                 >Current</span
                             >{/if}
+                        {#if badge}<span
+                                class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge.tone ===
+                                'verified'
+                                    ? 'bg-discord-online/20 text-discord-online'
+                                    : badge.tone === 'warning'
+                                      ? 'bg-discord-warning/20 text-discord-warning'
+                                      : 'bg-discord-messageHover text-discord-textMuted'}"
+                                >{badge.label}</span
+                            >{/if}
                     </p>
                 {/if}
                 <p class="text-xs text-discord-textMuted font-mono mt-0.5">
@@ -181,6 +246,13 @@
                 <p class="text-xs text-discord-textMuted mt-1">{details}</p>
             </div>
             <div class="flex gap-2 flex-shrink-0">
+                {#if !isCurrent && badge && badge.tone !== "verified"}
+                    <button
+                        onclick={() => startVerify(device.deviceId)}
+                        class="px-2.5 py-1 bg-discord-accent/20 text-discord-accent rounded text-xs"
+                        >Verify</button
+                    >
+                {/if}
                 {#if renamingId !== device.deviceId}
                     <button
                         onclick={() => startRename(device)}
@@ -282,6 +354,9 @@
         >
     </div>
     {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
+    {#if verifyError}<p class="text-sm text-discord-danger">
+            {verifyError}
+        </p>{/if}
     {#if current}
         {@render deviceRow(current, true)}
     {:else if loading}
