@@ -16,6 +16,7 @@
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
+    import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
         getRoomCallMemberships,
         getRoomDisplayName,
@@ -32,6 +33,8 @@
         toggleCallDeafen,
         toggleCamera,
         toggleScreenShare,
+        focusTile,
+        clearFocus,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
     import { canScreenShare } from "$lib/utils/videoTiles";
@@ -42,6 +45,7 @@
     } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
 
     interface Props {
         room: Room;
@@ -69,6 +73,48 @@
     const speaking = $derived(new Set(voiceCallState.speakingMemberIds));
     // Contract: an identity absent from this set is unmuted, never "unknown".
     const muted = $derived(new Set(voiceCallState.mutedIdentities));
+
+    // Video tiles for THIS call (empty unless we are connected here). Split so
+    // a camera can replace a participant's avatar while their screenshare gets
+    // its own tile. Gated on voiceTick like every other live-object read.
+    const cameraByIdentity = $derived(
+        (void voiceCallState.voiceTick,
+        new Map(
+            voiceCallState.videoTiles
+                .filter((t) => t.source === "camera")
+                .map((t) => [t.identity, t]),
+        )),
+    );
+    const screenTiles = $derived(
+        (void voiceCallState.voiceTick,
+        voiceCallState.videoTiles.filter((t) => t.source === "screenshare")),
+    );
+    const focusedTile = $derived(
+        (void voiceCallState.voiceTick,
+        voiceCallState.videoTiles.find(
+            (t) => t.key === voiceCallState.focusedTileKey,
+        ) ?? null),
+    );
+
+    function tileLabel(
+        identity: string,
+        source: "camera" | "screenshare",
+    ): string {
+        const userId = identity.slice(0, identity.lastIndexOf(":"));
+        const name =
+            userId === auth.userId ? "You" : getMemberName(room, userId);
+        return source === "screenshare" ? `${name}'s screen` : name;
+    }
+    function isLocalIdentity(identity: string): boolean {
+        return identity.slice(0, identity.lastIndexOf(":")) === auth.userId;
+    }
+
+    function onKeydown(e: KeyboardEvent): void {
+        if (e.key === "Escape" && voiceCallState.focusedTileKey) {
+            e.stopPropagation();
+            clearFocus();
+        }
+    }
     const roomName = $derived(
         (void roomsState.roomsTick, getRoomDisplayName(room)),
     );
@@ -108,6 +154,8 @@
     }
 </script>
 
+<svelte:window onkeydown={onKeydown} />
+
 <div class="flex-1 flex flex-col min-w-0 bg-discord-backgroundTertiary">
     <!-- Header -->
     <div
@@ -146,24 +194,57 @@
     </div>
 
     <!-- Tiles -->
-    <div class="flex-1 min-h-0 overflow-y-auto p-4">
-        <!-- Deliberately no auto-flip effect here: the call emptying while we
-             watch must NOT flip us back to the timeline — peeking at an empty
-             call and joining it is the point of this view. -->
+    <div class="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
+        {#if focusedTile}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <div
+                class="flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
+                onclick={clearFocus}
+                title="Back to grid"
+            >
+                <VideoTile
+                    tile={focusedTile}
+                    label={tileLabel(focusedTile.identity, focusedTile.source)}
+                    mirror={focusedTile.source === "camera" &&
+                        isLocalIdentity(focusedTile.identity) &&
+                        settingsState.mirrorCamera}
+                />
+            </div>
+        {/if}
+
         {#if participants.length === 0}
             <div
-                class="h-full flex flex-col items-center justify-center gap-3 text-discord-textMuted"
+                class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
             >
                 <Volume2 size={40} />
                 <p class="text-sm">No one is in this call</p>
             </div>
         {:else}
             <div
-                class="grid gap-3"
+                class="grid gap-3 {focusedTile ? 'flex-shrink-0' : ''}"
                 style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));"
             >
+                {#each screenTiles as t (t.key)}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div
+                        class="relative aspect-video rounded-lg overflow-hidden bg-black cursor-zoom-in border-2 {t.key ===
+                        voiceCallState.focusedTileKey
+                            ? 'border-discord-accent'
+                            : 'border-transparent'}"
+                        onclick={() => focusTile(t.key)}
+                    >
+                        <VideoTile
+                            tile={t}
+                            label={tileLabel(t.identity, t.source)}
+                        />
+                    </div>
+                {/each}
+
                 {#each participants as p (p.userId)}
                     {@const identity = `${p.userId}:${p.deviceId}`}
+                    {@const cam = cameraByIdentity.get(identity)}
                     {@const name =
                         (void roomsState.roomsTick,
                         getMemberName(room, p.userId))}
@@ -171,12 +252,16 @@
                         (void roomsState.roomsTick,
                         getMemberAvatar(room, p.userId))}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
-                        class="relative aspect-video rounded-lg bg-discord-backgroundSecondary flex items-center justify-center border-2 {speaking.has(
+                        class="relative aspect-video rounded-lg overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center border-2 {speaking.has(
                             identity,
                         )
                             ? 'border-discord-accent'
-                            : 'border-transparent'}"
+                            : 'border-transparent'} {cam
+                            ? 'cursor-zoom-in'
+                            : ''}"
+                        onclick={cam ? () => focusTile(cam.key) : undefined}
                         oncontextmenu={(e) => {
                             e.preventDefault();
                             openParticipantMenu(
@@ -191,20 +276,34 @@
                                 openParticipantMenu(p.userId, x, y, true),
                         }}
                     >
-                        <Avatar src={avatar} {name} id={p.userId} size={80} />
-                        <div
-                            class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
-                        >
-                            {#if muted.has(identity)}
-                                <MicOff
-                                    size={12}
-                                    class="text-discord-danger flex-shrink-0"
-                                />
-                            {/if}
-                            <span class="text-xs text-white truncate">
+                        {#if cam}
+                            <VideoTile
+                                tile={cam}
+                                label={name}
+                                mirror={isLocalIdentity(identity) &&
+                                    settingsState.mirrorCamera}
+                            />
+                        {:else}
+                            <Avatar
+                                src={avatar}
                                 {name}
-                            </span>
-                        </div>
+                                id={p.userId}
+                                size={80}
+                            />
+                            <div
+                                class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
+                            >
+                                {#if muted.has(identity)}
+                                    <MicOff
+                                        size={12}
+                                        class="text-discord-danger flex-shrink-0"
+                                    />
+                                {/if}
+                                <span class="text-xs text-white truncate"
+                                    >{name}</span
+                                >
+                            </div>
+                        {/if}
                     </div>
                 {/each}
             </div>
