@@ -15,7 +15,12 @@ import {
     primeParticipantAudio,
     getRoom,
     getRoomCallMemberships,
+    setScreenShareEnabled,
+    setCameraEnabled,
+    setVideoInputDevice,
+    onVideoTracksChanged,
 } from "$lib/matrix/client";
+import { nextFocus, type VideoTileDescriptor } from "$lib/utils/videoTiles";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
@@ -68,6 +73,14 @@ class VoiceCallState {
     /** When the current call first connected — held across reconnects so a
      *  blip doesn't reset the timer. Null when not in a call. */
     connectedAt = $state<number | null>(null);
+    /** Renderable video tiles for the current call (remote + local). */
+    videoTiles = $state<VideoTileDescriptor[]>([]);
+    /** Whether WE are currently publishing a screen share / camera. Derived
+     *  from videoTiles so the browser's native "Stop sharing" bar flips it. */
+    screenSharing = $state(false);
+    cameraOn = $state(false);
+    /** The tile promoted to the spotlight, or null for the plain grid. */
+    focusedTileKey = $state<string | null>(null);
 }
 
 export const voiceCallState = new VoiceCallState();
@@ -134,6 +147,10 @@ export function initVoiceCall(): () => void {
             voiceCallState.mutedIdentities = [];
             voiceCallState.connectedAt = null;
             voiceCallState.playbackBlocked = false;
+            voiceCallState.videoTiles = [];
+            voiceCallState.screenSharing = false;
+            voiceCallState.cameraOn = false;
+            voiceCallState.focusedTileKey = null;
         }
         voiceCallState.voiceTick++;
     });
@@ -151,6 +168,23 @@ export function initVoiceCall(): () => void {
     const unsubBlocked = onVoicePlaybackBlockedChanged((blocked) => {
         voiceCallState.playbackBlocked = blocked;
     });
+    let prevVideoKeys: string[] = [];
+    const unsubVideo = onVideoTracksChanged((tiles) => {
+        voiceCallState.videoTiles = tiles;
+        voiceCallState.screenSharing = tiles.some(
+            (t) => t.isLocal && t.source === "screenshare",
+        );
+        voiceCallState.cameraOn = tiles.some(
+            (t) => t.isLocal && t.source === "camera",
+        );
+        voiceCallState.focusedTileKey = nextFocus(
+            prevVideoKeys,
+            tiles,
+            voiceCallState.focusedTileKey,
+        );
+        prevVideoKeys = tiles.map((t) => t.key);
+        voiceCallState.voiceTick++;
+    });
     return () => {
         unsubSessions();
         unsubConn();
@@ -159,6 +193,7 @@ export function initVoiceCall(): () => void {
         unsubError();
         unsubNotice();
         unsubBlocked();
+        unsubVideo();
     };
 }
 
@@ -242,4 +277,26 @@ export function setUserLocalMute(userId: string, muted: boolean): void {
     const next = withLocalMute(participantAudioFor(userId), muted);
     setParticipantAudioSetting(userId, next);
     setParticipantLocalMute(userId, next.muted);
+}
+
+export async function toggleScreenShare(): Promise<void> {
+    await setScreenShareEnabled(!voiceCallState.screenSharing);
+}
+
+export async function toggleCamera(): Promise<void> {
+    await setCameraEnabled(!voiceCallState.cameraOn);
+}
+
+/** Promote a tile to the spotlight; clicking the focused tile again clears it. */
+export function focusTile(key: string): void {
+    voiceCallState.focusedTileKey =
+        voiceCallState.focusedTileKey === key ? null : key;
+}
+
+export function clearFocus(): void {
+    voiceCallState.focusedTileKey = null;
+}
+
+export function setCallVideoInputDevice(deviceId: string | null): void {
+    void setVideoInputDevice(deviceId);
 }

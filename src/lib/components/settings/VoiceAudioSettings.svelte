@@ -14,6 +14,10 @@
         setCallSoundsVolume,
         setRingEnabled,
         setRingVolume,
+        setMirrorCamera,
+        setShareSystemAudio,
+        setScreenShareResolution,
+        setScreenShareFps,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -21,6 +25,10 @@
         outputPickerMode,
         type DeviceOption,
     } from "$lib/utils/audioDevices";
+    import {
+        SCREEN_RESOLUTIONS,
+        SCREEN_FPS_OPTIONS,
+    } from "$lib/utils/voiceCall";
     import {
         listMediaDevices,
         onDevicesChanged,
@@ -49,7 +57,10 @@
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
     } from "$lib/matrix/client";
-    import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import {
+        voiceCallState,
+        setCallVideoInputDevice,
+    } from "$lib/stores/voiceCall.svelte";
 
     let inputs = $state<DeviceOption[]>([]);
     let outputs = $state<DeviceOption[]>([]);
@@ -177,7 +188,9 @@
     }
 
     function pickCamera(id: string): void {
-        setVideoInputDeviceId(id === "" ? null : id);
+        const dev = id === "" ? null : id;
+        setVideoInputDeviceId(dev);
+        setCallVideoInputDevice(dev);
         if (cameraOn) {
             stopCamera();
             void toggleCamera();
@@ -411,6 +424,21 @@
                 <option value={d.id}>{d.label}</option>
             {/each}
         </select>
+        <div class="flex items-center justify-between py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    Mirror my camera
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    Flip your own preview. Others always see you un-mirrored.
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.mirrorCamera}
+                onChange={(v) => setMirrorCamera(v)}
+                label="Mirror my camera"
+            />
+        </div>
         <button
             onclick={() => void toggleCamera()}
             class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
@@ -432,10 +460,58 @@
                 ? ''
                 : 'hidden'}"
         ></video>
-        <p class="text-xs text-discord-textMuted mt-2">
-            Video calls aren't available yet — this picks the camera for when
-            they are.
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            Screen share
         </p>
+        <div class="flex items-center justify-between py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    Share system audio
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    Include audio when you share your screen (where supported).
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.shareSystemAudio}
+                onChange={(v) => setShareSystemAudio(v)}
+                label="Share system audio"
+            />
+        </div>
+        <div class="mt-3">
+            <div class="text-sm font-medium text-discord-textPrimary mb-1">
+                Quality
+            </div>
+            <div class="text-xs text-discord-textMuted mb-2">
+                Applies the next time you start sharing.
+            </div>
+            <div class="flex gap-2">
+                <select
+                    class={selectClass}
+                    value={settingsState.screenShareResolution}
+                    onchange={(e) =>
+                        setScreenShareResolution(e.currentTarget.value)}
+                >
+                    {#each SCREEN_RESOLUTIONS as r (r.key)}
+                        <option value={r.key}>{r.label}</option>
+                    {/each}
+                </select>
+                <select
+                    class={selectClass}
+                    value={settingsState.screenShareFps}
+                    onchange={(e) => setScreenShareFps(e.currentTarget.value)}
+                >
+                    {#each SCREEN_FPS_OPTIONS as f (f)}
+                        <option value={String(f)}>{f} FPS</option>
+                    {/each}
+                </select>
+            </div>
+        </div>
     </section>
 
     <section>

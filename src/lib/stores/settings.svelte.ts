@@ -165,6 +165,16 @@ export const settingsState = $state({
     noiseSuppression: readAccountBool("noiseSuppression", true),
     echoCancellation: readAccountBool("echoCancellation", true),
     autoGainControl: readAccountBool("autoGainControl", true),
+    /** Mirror the local camera self-view (horizontal flip). Local display
+     *  only — remote participants always see you un-mirrored. */
+    mirrorCamera: readAccountBool("mirrorCamera", true),
+    /** Include system/tab audio when screen sharing. */
+    shareSystemAudio: readAccountBool("shareSystemAudio", true),
+    /** Screen-share capture target, applied when a share starts (a mid-share
+     *  change would re-prompt the OS picker). Stored as strings for the
+     *  <select>s; fps is parsed to a number at the call site. */
+    screenShareResolution: readAccountString("screenShareResolution") ?? "1080",
+    screenShareFps: readAccountString("screenShareFps") ?? "30",
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
     /** Ring for incoming DM calls. Deliberately independent of
@@ -325,6 +335,11 @@ export function reloadAccountSettings(): void {
     settingsState.noiseSuppression = readAccountBool("noiseSuppression", true);
     settingsState.echoCancellation = readAccountBool("echoCancellation", true);
     settingsState.autoGainControl = readAccountBool("autoGainControl", true);
+    settingsState.mirrorCamera = readAccountBool("mirrorCamera", true);
+    settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
+    settingsState.screenShareResolution =
+        readAccountString("screenShareResolution") ?? "1080";
+    settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
     settingsState.callSoundsEnabled = readAccountBool(
         "callSoundsEnabled",
         true,
@@ -485,6 +500,26 @@ export function setEchoCancellation(value: boolean): void {
 export function setAutoGainControl(value: boolean): void {
     settingsState.autoGainControl = value;
     writeAccountBool("autoGainControl", value);
+}
+
+export function setMirrorCamera(value: boolean): void {
+    settingsState.mirrorCamera = value;
+    writeAccountBool("mirrorCamera", value);
+}
+
+export function setShareSystemAudio(value: boolean): void {
+    settingsState.shareSystemAudio = value;
+    writeAccountBool("shareSystemAudio", value);
+}
+
+export function setScreenShareResolution(value: string): void {
+    settingsState.screenShareResolution = value;
+    writeAccountString("screenShareResolution", value);
+}
+
+export function setScreenShareFps(value: string): void {
+    settingsState.screenShareFps = value;
+    writeAccountString("screenShareFps", value);
 }
 
 export function setCallSoundsEnabled(value: boolean): void {

@@ -6,7 +6,28 @@ import {
     toggleDeafen,
     sfuJwtUrl,
     pickLivekitTransport,
+    screenShareCaptureResolution,
 } from "./voiceCall";
+
+describe("screenShareCaptureResolution", () => {
+    it("maps a known resolution key and frame rate", () => {
+        expect(screenShareCaptureResolution("1440", 60)).toEqual({
+            width: 2560,
+            height: 1440,
+            frameRate: 60,
+        });
+    });
+    it("falls back to 1080p for an unknown key", () => {
+        expect(screenShareCaptureResolution("bogus", 30)).toEqual({
+            width: 1920,
+            height: 1080,
+            frameRate: 30,
+        });
+    });
+    it("falls back to 30 fps for a non-preset rate", () => {
+        expect(screenShareCaptureResolution("720", 24).frameRate).toBe(30);
+    });
+});
 
 describe("dedupeParticipants", () => {
     it("keeps one entry per user (earliest join wins) sorted by join time", () => {
