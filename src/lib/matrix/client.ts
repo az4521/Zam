@@ -4895,10 +4895,16 @@ function currentVideoInputs(lkRoom: LivekitRoom): VideoPublicationInput[] {
         for (const pub of p.videoTrackPublications.values()) {
             const track = (pub as TrackPublication).track;
             if (!track) continue; // remote: not subscribed yet
-            // Turning a camera off MUTES its track (LiveKit unpublishes only
-            // screenshares), leaving the publication in place showing a black
-            // frame. Skip muted video so the tile drops back to the avatar.
-            if ((pub as TrackPublication).isMuted) continue;
+            // A dead frame stays published in two ways: turning a camera off
+            // MUTES its track (LiveKit unpublishes only screenshares), and a
+            // stopped remote share can arrive as an SFU stream *pause* rather
+            // than an unpublish. Either way skip it so the tile drops back to
+            // the avatar / disappears instead of freezing on a black frame.
+            if (
+                (pub as TrackPublication).isMuted ||
+                track.streamState === LivekitTrack.StreamState.Paused
+            )
+                continue;
             let source: VideoSource | null = null;
             if (pub.source === LivekitTrack.Source.Camera) source = "camera";
             else if (pub.source === LivekitTrack.Source.ScreenShare)
@@ -5178,6 +5184,11 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // too, so the tile drops to the avatar (and returns) as it toggles.
         lkRoom.on(LivekitRoomEvent.TrackMuted, notifyVideo);
         lkRoom.on(LivekitRoomEvent.TrackUnmuted, notifyVideo);
+        // A remote stopping a share can surface as a bare TrackUnpublished
+        // (no TrackUnsubscribed, if the track was already detached) or as an
+        // SFU stream-state pause — recompute on both so their tile clears.
+        lkRoom.on(LivekitRoomEvent.TrackUnpublished, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.TrackStreamStateChanged, notifyVideo);
         lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyVideo);
         lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
