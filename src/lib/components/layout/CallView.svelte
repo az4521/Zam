@@ -194,8 +194,16 @@
     </div>
 
     <!-- Tiles -->
-    <div class="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-3">
-        {#if focusedTile}
+    <div class="flex-1 min-h-0 p-4 flex flex-col gap-3">
+        {#if participants.length === 0 && screenTiles.length === 0}
+            <div
+                class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
+            >
+                <Volume2 size={40} />
+                <p class="text-sm">No one is in this call</p>
+            </div>
+        {:else if focusedTile}
+            <!-- Spotlight: the focused stream fills the view -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <div
@@ -211,18 +219,71 @@
                         settingsState.mirrorCamera}
                 />
             </div>
-        {/if}
-
-        {#if participants.length === 0 && screenTiles.length === 0}
+            <!-- Filmstrip: everyone else, small, along the bottom -->
             <div
-                class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
+                class="flex-shrink-0 flex gap-2 justify-center overflow-x-auto py-1"
             >
-                <Volume2 size={40} />
-                <p class="text-sm">No one is in this call</p>
+                {#each screenTiles as t (t.key)}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div
+                        class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-black cursor-pointer border-2 {t.key ===
+                        voiceCallState.focusedTileKey
+                            ? 'border-discord-accent'
+                            : 'border-transparent'}"
+                        onclick={() => focusTile(t.key)}
+                        title={tileLabel(t.identity, t.source)}
+                    >
+                        <VideoTile
+                            tile={t}
+                            label={tileLabel(t.identity, t.source)}
+                            compact
+                        />
+                    </div>
+                {/each}
+                {#each participants as p (p.userId)}
+                    {@const identity = `${p.userId}:${p.deviceId}`}
+                    {@const cam = cameraByIdentity.get(identity)}
+                    {@const name =
+                        (void roomsState.roomsTick,
+                        getMemberName(room, p.userId))}
+                    {@const avatar =
+                        (void roomsState.roomsTick,
+                        getMemberAvatar(room, p.userId))}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div
+                        class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center cursor-pointer border-2 {speaking.has(
+                            identity,
+                        ) ||
+                        (cam && cam.key === voiceCallState.focusedTileKey)
+                            ? 'border-discord-accent'
+                            : 'border-transparent'}"
+                        onclick={cam ? () => focusTile(cam.key) : undefined}
+                        title={name}
+                    >
+                        {#if cam}
+                            <VideoTile
+                                tile={cam}
+                                label={name}
+                                compact
+                                mirror={isLocalIdentity(identity) &&
+                                    settingsState.mirrorCamera}
+                            />
+                        {:else}
+                            <Avatar
+                                src={avatar}
+                                {name}
+                                id={p.userId}
+                                size={36}
+                            />
+                        {/if}
+                    </div>
+                {/each}
             </div>
         {:else}
             <div
-                class="grid gap-3 {focusedTile ? 'flex-shrink-0' : ''}"
+                class="grid gap-3 overflow-y-auto"
                 style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));"
             >
                 {#each screenTiles as t (t.key)}
