@@ -6,6 +6,7 @@
     import AboutSettings from "$lib/components/settings/AboutSettings.svelte";
     import DebugSettings from "$lib/components/settings/DebugSettings.svelte";
     import SessionSettings from "$lib/components/settings/SessionSettings.svelte";
+    import SecuritySettings from "$lib/components/settings/SecuritySettings.svelte";
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
@@ -20,6 +21,7 @@
     type Tab =
         | "account"
         | "sessions"
+        | "security"
         | "customization"
         | "emotes"
         | "notifications"
@@ -33,6 +35,7 @@
     const tabs: { id: Tab; label: string }[] = [
         { id: "account", label: "Account" },
         { id: "sessions", label: "Sessions" },
+        { id: "security", label: "Security" },
         { id: "customization", label: "Customization" },
         { id: "emotes", label: "My Emotes" },
         { id: "notifications", label: "Notifications" },
@@ -97,6 +100,8 @@
                     <AccountSettings {onLogout} />
                 {:else if activeTab === "sessions"}
                     <SessionSettings />
+                {:else if activeTab === "security"}
+                    <SecuritySettings />
                 {:else if activeTab === "customization"}
                     <CustomizationSettings />
                 {:else if activeTab === "emotes"}
