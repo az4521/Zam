@@ -26,6 +26,9 @@ import {
     VerificationPhase,
     VerificationRequestEvent,
     VerifierEvent,
+    ImportRoomKeyStage,
+    decodeRecoveryKey,
+    DecryptionKeyDoesNotMatchError,
 } from "matrix-js-sdk/lib/crypto-api";
 import type {
     VerificationRequest,
@@ -33,10 +36,13 @@ import type {
     ShowSasCallbacks,
     EmojiMapping,
     CryptoCallbacks,
+    ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
+import type { RestoreProgress } from "$lib/utils/keyBackup";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
@@ -119,14 +125,16 @@ function detachDecryptionListener(): void {
     decryptionHandler = null;
 }
 
-// Crypto events that change the Security & Encryption view-model (Layer 2):
-// cross-signing keys appearing/changing, and key-backup state flipping (the
-// backup is minted as part of recovery setup). Any of them bumps `securityTick`
-// so the settings section re-reads `getSecurityStatus()`.
+// Crypto events that change the Security & Encryption view-model (Layers 2-3):
+// cross-signing keys appearing/changing, and key-backup state flipping (backup
+// enabled/disabled, the backup key getting cached on unlock, a backup failure).
+// Any of them bumps `securityTick` so the settings section re-reads
+// `getSecurityStatus()` / `getBackupStatus()`.
 const SECURITY_EVENTS = [
     CryptoEvent.KeysChanged,
     CryptoEvent.KeyBackupStatus,
     CryptoEvent.KeyBackupDecryptionKeyCached,
+    CryptoEvent.KeyBackupFailed,
 ] as const;
 
 let securityListenerClient: MatrixClient | null = null;
@@ -672,4 +680,193 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
     } catch {
         return { ...EMPTY_SECURITY_STATUS, available: true };
     }
+}
+
+// ─── Layer 3: key-backup restore & recovery on another session ───────────────
+//
+// The "recover" side of E2EE. On a session that lacks the keys, the user pastes
+// their recovery key to unlock secret storage, which cross-signs (trusts) this
+// session AND loads the message-history backup key so encrypted history restores.
+
+/** Plain view-model of the account's key-backup posture, for the UI. */
+export interface BackupStatus {
+    /** rust-crypto initialised on this session. */
+    available: boolean;
+    /** The server holds a key backup for this account. */
+    exists: boolean;
+    /** This session is actively backing up to it (its backup key is loaded). */
+    active: boolean;
+    /** The backup carries a valid signature from a trusted device. */
+    trusted: boolean;
+    /** The loaded backup decryption key matches the server backup. */
+    matchesDecryptionKey: boolean;
+    /** The active/known backup version, if any. */
+    version: string | null;
+}
+
+const EMPTY_BACKUP_STATUS: BackupStatus = {
+    available: false,
+    exists: false,
+    active: false,
+    trusted: false,
+    matchesDecryptionKey: false,
+    version: null,
+};
+
+/**
+ * Read the account's key-backup posture as a plain view-model. Re-read whenever
+ * `securityState.securityTick` bumps (KeyBackup* CryptoEvents drive it). Never
+ * throws: degrades to the empty status when crypto isn't ready or a read fails.
+ */
+export async function getBackupStatus(): Promise<BackupStatus> {
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) return { ...EMPTY_BACKUP_STATUS };
+    try {
+        const [info, activeVersion] = await Promise.all([
+            crypto.getKeyBackupInfo(),
+            crypto.getActiveSessionBackupVersion(),
+        ]);
+        let trusted = false;
+        let matchesDecryptionKey = false;
+        if (info) {
+            const trust = await crypto.isKeyBackupTrusted(info);
+            trusted = trust.trusted;
+            matchesDecryptionKey = trust.matchesDecryptionKey;
+        }
+        return {
+            available: true,
+            exists: info != null,
+            active: activeVersion != null,
+            trusted,
+            matchesDecryptionKey,
+            version: info?.version ?? activeVersion ?? null,
+        };
+    } catch {
+        return { ...EMPTY_BACKUP_STATUS, available: true };
+    }
+}
+
+/** Result of a successful `unlockWithRecoveryKey` run. */
+export interface UnlockResult {
+    /** Keys found in the server backup (0 when there is no message backup). */
+    total: number;
+    /** Keys actually imported into this session. */
+    imported: number;
+    /** True once this session published its cross-signature (became trusted). */
+    sessionVerified: boolean;
+}
+
+/**
+ * Unlock secret storage with a pasted recovery key, then verify this session and
+ * restore encrypted-message history from the server backup — all in one action.
+ *
+ * Flow: decode the key (malformed → clean retryable error) → validate it against
+ * the account's default 4S key info via `secretStorage.checkKey` (wrong key →
+ * clean retryable error) → cache it so the SDK's secret-storage reads resolve
+ * without prompting → load the backup decryption key from 4S → restore the
+ * backup (with progress) → `bootstrapCrossSigning({})` to publish this device's
+ * cross-signature (keys already exist in 4S from L2, so no UIA upload).
+ *
+ * Never persists or logs the key. Wrong keys are surfaced as retryable errors,
+ * never a crash, and never lock the user out.
+ */
+export async function unlockWithRecoveryKey(
+    recoveryKey: string,
+    onProgress?: (progress: RestoreProgress) => void,
+): Promise<UnlockResult> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!client || !crypto) {
+        throw new Error("Encryption is not ready on this session");
+    }
+
+    // 1. Decode. The SDK checks the prefix + parity byte and throws on a
+    //    malformed key; surface that as an actionable, retryable message.
+    let decoded: Uint8Array<ArrayBuffer>;
+    try {
+        decoded = decodeRecoveryKey(normalizeRecoveryKey(recoveryKey));
+    } catch {
+        throw new Error(
+            "That doesn't look like a valid recovery key. Check for typos and try again.",
+        );
+    }
+
+    // 2. Validate against the account's default secret-storage key info. This is
+    //    the authoritative "is this the right key" check (MAC over the key info).
+    const secretStorage = client.secretStorage;
+    const keyTuple = await secretStorage.getKey();
+    if (!keyTuple) {
+        throw new Error(
+            "This account has no recovery set up yet. Set up recovery first on a session that has your keys.",
+        );
+    }
+    const [keyId, keyInfo] = keyTuple;
+    const matches = await secretStorage.checkKey(decoded, keyInfo);
+    if (!matches) {
+        throw new Error(
+            "That recovery key doesn't match this account. Check for typos and try again.",
+        );
+    }
+
+    // 3. Cache the validated key so the cryptoCallbacks resolve secret-storage
+    //    reads (backup key, cross-signing keys) without re-prompting.
+    secretStorageKeys.set(keyId, decoded);
+
+    // 4. Restore message-history keys, but only if the server actually holds a
+    //    backup — an account may have cross-signing/4S without a message backup.
+    let total = 0;
+    let imported = 0;
+    const backupInfo = await crypto.getKeyBackupInfo();
+    if (backupInfo) {
+        try {
+            // Reads the backup key from 4S, validates it against the server
+            // backup, and caches it (throws DecryptionKeyDoesNotMatchError on
+            // mismatch — the 4S key is right but points at a different backup).
+            await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
+        } catch (e) {
+            if (e instanceof DecryptionKeyDoesNotMatchError) {
+                throw new Error(
+                    "That key doesn't match this account's backup on the server.",
+                );
+            }
+            throw e;
+        }
+        const result = await crypto.restoreKeyBackup(
+            onProgress
+                ? { progressCallback: (p) => onProgress(toRestoreProgress(p)) }
+                : undefined,
+        );
+        total = result.total;
+        imported = result.imported;
+    }
+
+    // 5. Publish this device's cross-signature so the session becomes trusted.
+    //    The cross-signing private keys are now readable from 4S (step 3), so
+    //    this doesn't create new keys and never hits the UIA-guarded upload.
+    //    Best-effort: a restore that succeeded shouldn't be reported as failed
+    //    just because the cross-signature couldn't publish.
+    let sessionVerified = false;
+    try {
+        await crypto.bootstrapCrossSigning({});
+        sessionVerified = true;
+    } catch (e) {
+        console.warn(
+            "[matrix] cross-signing this session after unlock failed",
+            e,
+        );
+    }
+
+    bumpSecurityTick();
+    return { total, imported, sessionVerified };
+}
+
+/** Map the SDK's room-key import progress onto the SDK-free `RestoreProgress`. */
+function toRestoreProgress(p: ImportRoomKeyProgressData): RestoreProgress {
+    if (p.stage === ImportRoomKeyStage.Fetch) return { stage: "fetch" };
+    return {
+        stage: "load_keys",
+        successes: p.successes,
+        failures: p.failures,
+        total: p.total,
+    };
 }
