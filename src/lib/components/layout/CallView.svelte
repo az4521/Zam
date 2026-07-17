@@ -260,6 +260,19 @@
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
                         onclick={cam ? () => focusTile(cam.key) : undefined}
+                        oncontextmenu={(e) => {
+                            e.preventDefault();
+                            openParticipantMenu(
+                                p.userId,
+                                e.clientX,
+                                e.clientY,
+                                false,
+                            );
+                        }}
+                        use:longPress={{
+                            onTrigger: (x, y) =>
+                                openParticipantMenu(p.userId, x, y, true),
+                        }}
                         title={name}
                     >
                         {#if cam}
