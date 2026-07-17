@@ -17,6 +17,7 @@ import {
     SetPresence,
     Direction,
     EventType,
+    MatrixEventEvent,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -4206,6 +4207,31 @@ export function onReactionEvent(
     };
     matrixClient.on(RoomEvent.Timeline, handler as never);
     return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
+}
+
+/**
+ * Fires after the SDK finishes a decryption attempt on an event (the client
+ * re-emits `MatrixEventEvent.Decrypted`, success or failure).
+ *
+ * Needed because an incoming encrypted message reaches the live timeline as
+ * `m.room.encrypted` — a type `onTimelineEvent` filters out — so it is never
+ * live-appended. It only gains its cleartext type once decryption finishes, at
+ * which point consumers should re-read the timeline (`getTimelineMessages`
+ * includes the now-decrypted message and still excludes decrypted reactions).
+ * Without this, new encrypted messages appear only after a manual reload.
+ */
+export function onEventDecrypted(
+    callback: (event: MatrixEvent, room: Room) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (event: MatrixEvent) => {
+        const roomId = event.getRoomId();
+        const room = roomId ? matrixClient?.getRoom(roomId) : undefined;
+        if (room) callback(event, room);
+    };
+    matrixClient.on(MatrixEventEvent.Decrypted as never, handler as never);
+    return () =>
+        matrixClient?.off(MatrixEventEvent.Decrypted as never, handler as never);
 }
 
 // ── Polls (MSC3381) ────────────────────────────────────────────────────────

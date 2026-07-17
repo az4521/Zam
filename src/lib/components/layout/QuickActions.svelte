@@ -6,8 +6,9 @@
         joinRoomByAlias,
         knockRoom,
         canAddRoomToSpace,
+        getRoom,
     } from "$lib/matrix/client";
-    import { isCryptoAvailable } from "$lib/matrix/crypto";
+    import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -39,20 +40,40 @@
     let encrypt = $state(false);
     const cryptoReady = isCryptoAvailable();
 
+    // When encryption is requested but an *existing* (plaintext) DM is reused,
+    // createDirectMessage deliberately won't retroactively encrypt it. Surface
+    // that here instead of silently opening a DM the user asked to encrypt.
+    let notice = $state("");
+    let noticeRoomId = $state<string | null>(null);
+
     async function startDm(userId: string) {
         error = "";
+        notice = "";
+        noticeRoomId = null;
         loading = true;
         try {
-            const roomId = await createDirectMessage(
-                userId,
-                cryptoReady && encrypt,
-            );
+            const wantEncrypted = cryptoReady && encrypt;
+            const roomId = await createDirectMessage(userId, wantEncrypted);
+            if (wantEncrypted && !isRoomEncrypted(getRoom(roomId))) {
+                notice =
+                    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
+                noticeRoomId = roomId;
+                loading = false;
+                return;
+            }
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
             error = e?.data?.error ?? e?.message ?? "Something went wrong";
         } finally {
             loading = false;
+        }
+    }
+
+    function openNoticeRoom() {
+        if (noticeRoomId) {
+            setActiveRoom(noticeRoomId);
+            close();
         }
     }
 
@@ -73,6 +94,8 @@
         input1 = "";
         input2 = "";
         error = "";
+        notice = "";
+        noticeRoomId = null;
         // New DMs pre-check the account default; new rooms default off.
         encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
         resetKnock();
@@ -323,6 +346,20 @@
                                     ></span
                                 >
                             </label>
+                        {/if}
+                        {#if notice}
+                            <div
+                                class="rounded bg-discord-warning/10 border border-discord-warning/30 px-3 py-2 space-y-2"
+                            >
+                                <p class="text-xs text-discord-warning">
+                                    {notice}
+                                </p>
+                                <button
+                                    onclick={openNoticeRoom}
+                                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                                    >Open the DM</button
+                                >
+                            </div>
                         {/if}
                     </div>
                 {:else}

@@ -379,6 +379,10 @@ export async function startDeviceVerification(
     if (!crypto || !userId) {
         throw new Error("Encryption is not ready on this session");
     }
+    // A device that just signed in may not be in our crypto store yet;
+    // requestDeviceVerification throws "not a known device" for unknown
+    // devices. Force a keys download first so the fresh device is resolvable.
+    await crypto.getUserDeviceInfo([userId], true);
     const request = await crypto.requestDeviceVerification(userId, deviceId);
     return createVerificationController(request);
 }
@@ -615,6 +619,35 @@ export async function setupRecovery(
 
     bumpSecurityTick();
     return { recoveryKey: encoded };
+}
+
+/**
+ * Reset recovery when the recovery key has been lost. Wipes the existing setup
+ * ({@link CryptoApi.resetEncryption}: resets cross-signing, removes the old 4S
+ * default key, deletes backups, creates a fresh backup) then sets up recovery
+ * again from the clean slate — minting a NEW recovery key to show once.
+ *
+ * Requires the account password (UIA-guarded signing-key upload). Returns the
+ * new encoded recovery key. Destructive: the previous recovery key and any
+ * device verifications signed by the old cross-signing identity are invalidated.
+ */
+export async function resetRecovery(
+    password: string,
+): Promise<RecoverySetupResult> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    const userId = client?.getUserId();
+    if (!crypto || !userId) {
+        throw new Error("Encryption is not ready on this session");
+    }
+
+    // 1. Tear down the old (unusable) recovery. UIA-guarded → password dance.
+    await crypto.resetEncryption(makeUiaPasswordCallback(userId, password));
+
+    // 2. Set up fresh from the clean slate. bootstrapCrossSigning inside is a
+    //    no-op now (resetEncryption just re-established it, so no re-upload/UIA),
+    //    and a new recovery key is minted + returned for the UI to show once.
+    return setupRecovery(password);
 }
 
 /** Plain view-model of the account's crypto/security posture, for the UI. */

@@ -2,6 +2,7 @@
     import {
         getSecurityStatus,
         setupRecovery,
+        resetRecovery,
         getBackupStatus,
         unlockWithRecoveryKey,
         type SecurityStatus,
@@ -34,6 +35,12 @@
     let saved = $state(false);
     let copied = $state(false);
     let error = $state("");
+
+    // Reset-recovery sub-flow, offered from the "Recovery is set up" panel for a
+    // user who lost their key: confirm → password → working, then hands off into
+    // step="show" with the freshly-minted key (reusing the show screen above).
+    type ResetStep = "idle" | "confirm" | "password" | "working";
+    let resetStep = $state<ResetStep>("idle");
 
     const recoveryDone = $derived(status?.secretStorageReady ?? false);
     const canSetUp = $derived((status?.available ?? false) && !recoveryDone);
@@ -154,6 +161,38 @@
         step = "idle";
     }
 
+    function beginReset() {
+        error = "";
+        password = "";
+        resetStep = "confirm";
+    }
+
+    async function runReset() {
+        if (!password || resetStep === "working") return;
+        error = "";
+        resetStep = "working";
+        try {
+            const result = await resetRecovery(password);
+            recoveryKey = result.recoveryKey;
+            password = "";
+            saved = false;
+            copied = false;
+            resetStep = "idle";
+            // Hand off to the shared show-key screen with the NEW key.
+            step = "show";
+        } catch (e) {
+            error =
+                e instanceof Error ? e.message : "Could not reset recovery";
+            resetStep = "password";
+        }
+    }
+
+    function cancelReset() {
+        password = "";
+        error = "";
+        resetStep = "idle";
+    }
+
     function beginUnlock() {
         unlockError = "";
         unlockKey = "";
@@ -268,7 +307,11 @@
     {/if}
 
     <!-- Set-up-recovery wizard -->
-    {#if canSetUp}
+    <!-- `|| step === "show"` is load-bearing: completing setup flips
+         secretStorageReady → true (via securityTick), which makes canSetUp false.
+         Without this, the freshly-minted key's "save it" screen would unmount the
+         instant setup finishes and the user would never see their recovery key. -->
+    {#if canSetUp || step === "show"}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
@@ -369,15 +412,85 @@
         </section>
     {:else if step === "done" || recoveryDone}
         <section
-            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-1"
+            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
-            <p class="text-sm font-medium text-discord-textPrimary">
-                Recovery is set up
-            </p>
-            <p class="text-xs text-discord-textMuted">
-                Your cross-signing keys and a key backup are stored securely on
-                the server, protected by your recovery key.
-            </p>
+            <div class="space-y-1">
+                <p class="text-sm font-medium text-discord-textPrimary">
+                    Recovery is set up
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Your cross-signing keys and a key backup are stored securely
+                    on the server, protected by your recovery key.
+                </p>
+            </div>
+
+            {#if resetStep === "idle"}
+                <button
+                    onclick={beginReset}
+                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary"
+                    >Lost your recovery key? Reset recovery</button
+                >
+            {:else if resetStep === "confirm"}
+                <div
+                    class="space-y-2 pt-3 border-t border-discord-divider"
+                >
+                    <p class="text-xs text-discord-warning">
+                        Resetting creates a <strong>new</strong> recovery key and
+                        replaces your current backup. Your old recovery key stops
+                        working and other sessions may need re-verifying. Only do
+                        this if you've lost your current key.
+                    </p>
+                    <div class="flex gap-2">
+                        <button
+                            onclick={() => (resetStep = "password")}
+                            class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm"
+                            >Continue</button
+                        >
+                        <button
+                            onclick={cancelReset}
+                            class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                            >Cancel</button
+                        >
+                    </div>
+                </div>
+            {:else if resetStep === "password" || resetStep === "working"}
+                <div
+                    class="space-y-2 pt-3 border-t border-discord-divider"
+                >
+                    <p class="text-xs text-discord-textMuted">
+                        Confirm your account password to reset recovery.
+                    </p>
+                    <input
+                        type="password"
+                        bind:value={password}
+                        placeholder="Account password"
+                        disabled={resetStep === "working"}
+                        onkeydown={(e) =>
+                            e.key === "Enter" && password && runReset()}
+                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                    />
+                    <div class="flex gap-2">
+                        <button
+                            onclick={runReset}
+                            disabled={resetStep === "working" || !password}
+                            class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
+                            >{resetStep === "working"
+                                ? "Resetting…"
+                                : "Reset & create new key"}</button
+                        >
+                        <button
+                            onclick={cancelReset}
+                            disabled={resetStep === "working"}
+                            class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
+                            >Cancel</button
+                        >
+                    </div>
+                </div>
+            {/if}
+
+            {#if error}
+                <p class="text-sm text-discord-danger">{error}</p>
+            {/if}
         </section>
     {/if}
 

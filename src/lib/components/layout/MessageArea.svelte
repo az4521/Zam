@@ -12,6 +12,7 @@
         getTimelineMessages,
         getLatestTimelineEvent,
         onTimelineEvent,
+        onEventDecrypted,
         onLocalEchoUpdated,
         onSyncPrepared,
         onReactionEvent,
@@ -733,6 +734,25 @@
                 }
             },
         );
+        return unsub;
+    });
+
+    // Incoming encrypted messages reach the live timeline as `m.room.encrypted`
+    // and are filtered out of the live-append path (onTimelineEvent) until they
+    // decrypt. Re-read the timeline when an event in this room finishes
+    // decrypting so new encrypted messages appear live instead of only after a
+    // manual reload. getTimelineMessages includes the now-decrypted message and
+    // still excludes decrypted reactions, so the re-read stays correct.
+    $effect(() => {
+        const currentRoomId = roomId;
+        const currentRoom = room;
+        const unsub = onEventDecrypted((_event: MatrixEvent, eventRoom: Room) => {
+            if (eventRoom.roomId !== currentRoomId || isContextView) return;
+            setMessages(currentRoomId, getTimelineMessages(currentRoom));
+            if (isAtBottom) {
+                tick().then(() => scrollToBottom(false));
+            }
+        });
         return unsub;
     });
 

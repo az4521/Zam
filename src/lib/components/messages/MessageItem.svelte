@@ -337,9 +337,18 @@
     const timestamp = $derived(event.getTs());
     const content = $derived.by(() => {
         reactionTick;
+        // A live MatrixEvent mutates IN PLACE when it decrypts (same reference),
+        // so depend on timelineTick — bumped on MatrixEventEvent.Decrypted — or
+        // the encrypted envelope's (empty) content sticks after decryption.
+        void messagesState.timelineTick;
         return event.getContent();
     });
-    const eventType = $derived(event.getType());
+    // Likewise tick-dependent: getType() flips "m.room.encrypted" → the cleartext
+    // type on decryption without changing the object reference, so a plain
+    // $derived(event.getType()) would keep the UTD placeholder up forever.
+    const eventType = $derived(
+        (void messagesState.timelineTick, event.getType()),
+    );
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
 
