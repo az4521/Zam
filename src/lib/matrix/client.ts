@@ -5363,7 +5363,6 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         });
         return on;
     } catch (err) {
-        if (isUserCancel(err)) return false;
         console.error("Camera enable failed:", err);
         notifyVoiceNotice("Could not start the camera — check permissions");
         return false;

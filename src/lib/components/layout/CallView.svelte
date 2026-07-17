@@ -213,7 +213,7 @@
             </div>
         {/if}
 
-        {#if participants.length === 0}
+        {#if participants.length === 0 && screenTiles.length === 0}
             <div
                 class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
             >
@@ -256,7 +256,8 @@
                     <div
                         class="relative aspect-video rounded-lg overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center border-2 {speaking.has(
                             identity,
-                        )
+                        ) ||
+                        (cam && cam.key === voiceCallState.focusedTileKey)
                             ? 'border-discord-accent'
                             : 'border-transparent'} {cam
                             ? 'cursor-zoom-in'
@@ -283,6 +284,16 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
+                            {#if muted.has(identity)}
+                                <div
+                                    class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
+                                >
+                                    <MicOff
+                                        size={12}
+                                        class="text-discord-danger flex-shrink-0"
+                                    />
+                                </div>
+                            {/if}
                         {:else}
                             <Avatar
                                 src={avatar}
