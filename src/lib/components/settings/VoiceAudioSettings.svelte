@@ -14,6 +14,8 @@
         setCallSoundsVolume,
         setRingEnabled,
         setRingVolume,
+        setMirrorCamera,
+        setShareSystemAudio,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -49,7 +51,10 @@
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
     } from "$lib/matrix/client";
-    import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import {
+        voiceCallState,
+        setCallVideoInputDevice,
+    } from "$lib/stores/voiceCall.svelte";
 
     let inputs = $state<DeviceOption[]>([]);
     let outputs = $state<DeviceOption[]>([]);
@@ -177,7 +182,9 @@
     }
 
     function pickCamera(id: string): void {
-        setVideoInputDeviceId(id === "" ? null : id);
+        const dev = id === "" ? null : id;
+        setVideoInputDeviceId(dev);
+        setCallVideoInputDevice(dev);
         if (cameraOn) {
             stopCamera();
             void toggleCamera();
@@ -411,6 +418,36 @@
                 <option value={d.id}>{d.label}</option>
             {/each}
         </select>
+        <div class="flex items-center justify-between py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    Mirror my camera
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    Flip your own preview. Others always see you un-mirrored.
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.mirrorCamera}
+                onChange={(v) => setMirrorCamera(v)}
+                label="Mirror my camera"
+            />
+        </div>
+        <div class="flex items-center justify-between py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    Share system audio
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    Include audio when you share your screen (where supported).
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.shareSystemAudio}
+                onChange={(v) => setShareSystemAudio(v)}
+                label="Share system audio"
+            />
+        </div>
         <button
             onclick={() => void toggleCamera()}
             class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
