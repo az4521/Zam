@@ -32,6 +32,7 @@
     } from "$lib/stores/interface.svelte";
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
+    import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
     import {
@@ -656,6 +657,7 @@
             }
         })();
         const unsubFavourites = initFavourites();
+        const unsubCustomization = initCustomizationSync();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
@@ -706,6 +708,7 @@
             unsubTimeline();
             unsubReceipts();
             unsubFavourites();
+            unsubCustomization();
             unsubIgnored();
             unsubPresence();
             unsubVoice();

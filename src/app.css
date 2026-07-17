@@ -368,3 +368,17 @@ body {
 .cap-native a {
     -webkit-touch-callout: none;
 }
+
+/* iOS Safari (and therefore installed PWAs) auto-zooms the viewport when a
+   focused field's text is under 16px, and never zooms back out. Enforce the
+   floor on touch devices, where our text-xs/text-sm fields would otherwise
+   trip it. `!important` is required: these are element selectors and would
+   lose to Tailwind's class-based text-* utilities on specificity alone. */
+@media (pointer: coarse) {
+    input,
+    textarea,
+    select,
+    [contenteditable]:not([contenteditable="false"]) {
+        font-size: 16px !important;
+    }
+}

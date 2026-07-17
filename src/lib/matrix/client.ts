@@ -18,6 +18,7 @@ import {
     Direction,
     EventType,
     MatrixEventEvent,
+    Method,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -48,6 +49,10 @@ import {
 } from "$lib/utils/participantAudio";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    sanitizeCustomization,
+    type ClientCustomization,
+} from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
 import {
     supportsPasswordUia,
@@ -111,6 +116,7 @@ export type {
 declare module "matrix-js-sdk" {
     interface AccountDataEvents {
         "m.favourite_gifs": { gifs: FavouriteGif[] };
+        "moe.crafty.matrix.customization": ClientCustomization;
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
@@ -404,6 +410,7 @@ export interface FavouriteGif {
     url: string;
     previewUrl: string;
     addedAt: number;
+    tags?: string[];
 }
 
 export function loadFavouriteGifs(): FavouriteGif[] {
@@ -412,11 +419,58 @@ export function loadFavouriteGifs(): FavouriteGif[] {
     return (event?.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
 }
 
+/**
+ * The favourites list as the homeserver currently has it, fetched over the
+ * wire. Throws if the request fails, so callers can tell "the server says
+ * there are none" (empty array) from "we couldn't ask" (throw).
+ *
+ * Deliberately NOT client.getAccountDataFromServer(): despite the name, that
+ * short-circuits to the local sync store once the initial sync has completed,
+ * which returns exactly the possibly-stale data we are trying to look past.
+ */
+export async function fetchFavouriteGifsFromServer(): Promise<FavouriteGif[]> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const userId = matrixClient.getUserId();
+    if (!userId) throw new Error("Not logged in");
+    const path = `/user/${encodeURIComponent(userId)}/account_data/${FAV_GIFS_KEY}`;
+    try {
+        const content = await matrixClient.http.authedRequest<{
+            gifs?: FavouriteGif[];
+        }>(Method.Get, path);
+        return content?.gifs ?? [];
+    } catch (err) {
+        // Never set for this account: an authoritative "empty", not a failure.
+        if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return [];
+        throw err;
+    }
+}
+
 export async function persistFavouriteGifs(
     gifs: FavouriteGif[],
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
+}
+
+// Namespaced under the app's own reverse-DNS id (the Android applicationId /
+// Electron appId) so it cannot collide with another client's account data.
+// Note the neighbouring `m.favourite_gifs` does NOT follow this rule — `m.*`
+// is reserved for the spec, and that key predates this one.
+const CUSTOMIZATION_KEY = "moe.crafty.matrix.customization";
+
+/** Raw customization account data, or null when absent / not logged in. */
+export function loadCustomization(): ClientCustomization | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(CUSTOMIZATION_KEY);
+    if (!event) return null;
+    return sanitizeCustomization(event.getContent());
+}
+
+export async function persistCustomization(
+    value: ClientCustomization,
+): Promise<void> {
+    if (!matrixClient) return;
+    await matrixClient.setAccountData(CUSTOMIZATION_KEY, value);
 }
 
 export function onAccountData(callback: (type: string) => void): () => void {

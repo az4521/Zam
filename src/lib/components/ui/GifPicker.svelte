@@ -4,6 +4,8 @@
         addFavouriteGif,
         removeFavouriteGif,
         isFavouriteGif,
+        setFavouriteGifTags,
+        type FavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -60,14 +62,51 @@
         }
     }
 
-    // Favourites tab: today's local text filter.
+    // Favourites tab: local text filter over the URL and the user's tags.
     const favourites = $derived(favouritesState.gifs);
-    const visibleFavourites = $derived(
-        search
-            ? favourites.filter((g) =>
-                  g.url.toLowerCase().includes(search.toLowerCase()),
-              )
-            : favourites,
+    const visibleFavourites = $derived.by(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return favourites;
+        return favourites.filter(
+            (g) =>
+                g.url.toLowerCase().includes(q) ||
+                (g.tags ?? []).some((t) => t.includes(q)),
+        );
+    });
+
+    // Tag editor: the URL of the favourite currently being edited, plus its
+    // draft (comma-separated) tag text.
+    let editingUrl = $state<string | null>(null);
+    let tagDraft = $state("");
+    let tagInputEl: HTMLInputElement | undefined = $state();
+
+    function startEditing(gif: FavouriteGif) {
+        editingUrl = gif.url;
+        tagDraft = (gif.tags ?? []).join(", ");
+        // Focus once the input has been rendered.
+        queueMicrotask(() => tagInputEl?.select());
+    }
+
+    async function saveTags() {
+        const url = editingUrl;
+        if (!url) return;
+        editingUrl = null;
+        await setFavouriteGifTags(url, tagDraft.split(","));
+    }
+
+    function onTagKeydown(e: KeyboardEvent) {
+        // The picker closes on Escape; while editing, Escape only cancels.
+        e.stopPropagation();
+        if (e.key === "Enter") saveTags();
+        else if (e.key === "Escape") editingUrl = null;
+    }
+
+    // Tap targets need to be finger-sized on touch; on desktop the smaller
+    // hover buttons keep the thumbnail visible.
+    const favBtnClass = $derived(
+        interfaceState.isTouchscreen
+            ? "p-1.5 rounded-full bg-black/60 transition-colors"
+            : "p-0.5 rounded-full bg-black/60 hover:bg-black/80 transition-colors",
     );
 
     function pickUrl(url: string) {
@@ -218,7 +257,9 @@
                         <div class="relative group/gif mb-1 break-inside-avoid">
                             <button
                                 onclick={() => pickUrl(gif.url)}
-                                title={gif.url}
+                                title={(gif.tags ?? []).length
+                                    ? `${gif.url}\n${(gif.tags ?? []).join(", ")}`
+                                    : gif.url}
                                 class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
                                 <img
@@ -228,24 +269,78 @@
                                     loading="lazy"
                                 />
                             </button>
-                            <button
-                                onclick={(e) => {
-                                    e.stopPropagation();
-                                    removeFavouriteGif(gif.url);
-                                }}
-                                title="Remove from favourites"
-                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 text-discord-warning opacity-0 group-hover/gif:opacity-100 transition-opacity hover:bg-black/80"
+                            <!-- Touchscreens have no hover, so the controls stay
+                                 visible there instead of revealing on hover. -->
+                            <div
+                                class="absolute top-1 right-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen
+                                    ? 'opacity-100'
+                                    : 'opacity-0 group-hover/gif:opacity-100'}"
                             >
-                                <svg
-                                    class="w-3.5 h-3.5"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
+                                <button
+                                    onclick={(e) => {
+                                        e.stopPropagation();
+                                        startEditing(gif);
+                                    }}
+                                    title="Edit tags"
+                                    class="text-white {favBtnClass}"
                                 >
-                                    <path
-                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                    <svg
+                                        class="w-3.5 h-3.5"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                        />
+                                    </svg>
+                                </button>
+                                <button
+                                    onclick={(e) => {
+                                        e.stopPropagation();
+                                        removeFavouriteGif(gif.url);
+                                    }}
+                                    title="Remove from favourites"
+                                    class="text-discord-warning {favBtnClass}"
+                                >
+                                    <svg
+                                        class="w-3.5 h-3.5"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                        />
+                                    </svg>
+                                </button>
+                            </div>
+                            {#if (gif.tags ?? []).length && editingUrl !== gif.url}
+                                <div
+                                    class="absolute bottom-0 inset-x-0 px-1 py-0.5 rounded-b bg-black/60 text-[10px] text-white truncate pointer-events-none"
+                                >
+                                    {(gif.tags ?? []).join(", ")}
+                                </div>
+                            {/if}
+                            {#if editingUrl === gif.url}
+                                <div
+                                    class="absolute inset-0 rounded bg-black/80 flex flex-col justify-center gap-1 p-1.5"
+                                >
+                                    <!-- svelte-ignore a11y_autofocus -->
+                                    <input
+                                        bind:this={tagInputEl}
+                                        bind:value={tagDraft}
+                                        onkeydown={onTagKeydown}
+                                        onblur={saveTags}
+                                        autofocus
+                                        placeholder="cat, funny"
+                                        class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
                                     />
-                                </svg>
-                            </button>
+                                    <p
+                                        class="text-[10px] text-discord-textMuted"
+                                    >
+                                        Comma-separated · Enter to save
+                                    </p>
+                                </div>
+                            {/if}
                         </div>
                     {/each}
                 </div>
