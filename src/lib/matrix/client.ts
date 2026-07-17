@@ -848,7 +848,19 @@ async function captureVideoThumbnail(file: File): Promise<{
     });
 }
 
-export async function sendFile(roomId: string, file: File): Promise<void> {
+export interface MediaCaption {
+    /** Plain-text caption (becomes the event body, per MSC2530). */
+    body: string;
+    /** Optional HTML caption (org.matrix.custom.html formatted_body). */
+    formattedBody?: string;
+    mentions?: { user_ids?: string[]; room?: boolean };
+}
+
+export async function sendFile(
+    roomId: string,
+    file: File,
+    caption?: MediaCaption,
+): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const { content_uri } = await matrixClient.uploadContent(file, {
         name: file.name,
@@ -891,12 +903,31 @@ export async function sendFile(roomId: string, file: File): Promise<void> {
         }
     }
 
-    await matrixClient.sendMessage(roomId, {
+    // MSC2530 media captions: when a caption is supplied, `filename` carries the
+    // original file name and `body` (plus optional formatted_body) carries the
+    // caption text — rendered as a message alongside the media. Without a
+    // caption, `body` is just the file name and no `filename` is sent.
+    const content: Record<string, unknown> = {
         msgtype,
-        body: file.name,
+        body: caption ? caption.body : file.name,
         url: content_uri,
         info,
-    } as never);
+    };
+    if (caption) {
+        content.filename = file.name;
+        if (caption.formattedBody) {
+            content.format = "org.matrix.custom.html";
+            content.formatted_body = caption.formattedBody;
+        }
+        if (
+            caption.mentions &&
+            (caption.mentions.user_ids?.length || caption.mentions.room)
+        ) {
+            content["m.mentions"] = caption.mentions;
+        }
+    }
+
+    await matrixClient.sendMessage(roomId, content as never);
 }
 
 export async function sendTextMessage(
@@ -1102,7 +1133,8 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
             videoWidth: parseDim(data["og:video:width"]),
             videoHeight: parseDim(data["og:video:height"]),
             siteName: data["og:site_name"] as string | undefined,
-            canonicalUrl: (data["og:url"] as string | undefined) ?? url,
+            // Some previews return an empty og:url — fall back to the source URL.
+            canonicalUrl: (data["og:url"] as string | undefined) || url,
             contentType: data["og:type"] as string | undefined,
         };
     } catch {

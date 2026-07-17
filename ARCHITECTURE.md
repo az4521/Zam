@@ -23,7 +23,7 @@ src/
     +page.svelte                       -- login screen
     app/+page.svelte                   -- THE main 3-pane app + global keyboard/back handling
   lib/
-    config.ts                          -- DEFAULT_HOMESERVER, INLINE_MEDIA_HOSTNAMES, FLASH_HOSTNAMES, IG_PROXY
+    config.ts                          -- DEFAULT_HOMESERVER
     push.ts                            -- Capacitor/FCM push (no-op on web)
     matrix/
       client.ts                        -- the matrix wrapper (~2200 lines, ~150 exports)
@@ -80,7 +80,7 @@ The single module that imports `matrix-js-sdk`. Everything else calls these wrap
 - **Room admin**: `setRoomName`, `setRoomTopic`, `setRoomAvatar`, `getJoinRule`, `setJoinRule`, `getHistoryVisibility`, `setHistoryVisibility`, `pinMessage`, `unpinMessage`, `getPinnedEventIds`
 - **Custom emoji/stickers**: `getCustomEmojis`, `getCustomEmojiPacks`, `getCustomStickerPacks`
 - **Space layout** (custom account-data, folders + ordering): `SpaceLayout`, `getSpaceLayout`, `setSpaceLayout`, `getSpaceOrder`, `setSpaceOrder`
-- **Media**: `mxcToHttp`, `fetchAttachmentBlob`, `getContentType`, `uploadContent`, `getRawUrlPreview`, `getUrlPreview` (Instagram via `IG_PROXY`)
+- **Media**: `mxcToHttp`, `fetchAttachmentBlob`, `getContentType`, `uploadContent`, `getRawUrlPreview`, `getUrlPreview`
 - **Subscriptions** (each returns an unsubscribe fn): `onTimelineEvent`, `onLocalEchoUpdated`, `onEditEvent`, `onReactionEvent`, `onRedactionEvent`, `onReceiptEvent`, `onAnyReceiptEvent`, `onRoomUpdate`, `onAccountData`, `onSyncPrepared`, `onTypingEvent`
 - **Service worker** for media auth: `initServiceWorker`, `updateServiceWorkerAuth`
 

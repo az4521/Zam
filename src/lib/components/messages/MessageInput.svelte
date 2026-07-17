@@ -638,8 +638,14 @@
             renderComposer(0);
         }
 
+        // When files are queued alongside text (and we're not replying), attach
+        // the text to the first file as a caption (MSC2530) rather than sending
+        // it as a separate message.
+        const useCaption =
+            !!trimmed && !!formatted && filesToSend.length > 0 && !replyToEvent;
+
         try {
-            if (trimmed && formatted) {
+            if (trimmed && formatted && !useCaption) {
                 const { html, mentionedUserIds } = formatted;
                 const mentions =
                     mentionedUserIds.length > 0
@@ -660,8 +666,21 @@
                     await sendTextMessage(roomId, trimmed);
                 }
             }
-            for (const item of filesToSend) {
-                await sendFile(roomId, item.file);
+            for (let i = 0; i < filesToSend.length; i++) {
+                const item = filesToSend[i];
+                if (useCaption && i === 0 && formatted) {
+                    const { html, mentionedUserIds } = formatted;
+                    await sendFile(roomId, item.file, {
+                        body: trimmed,
+                        formattedBody: html ?? undefined,
+                        mentions:
+                            mentionedUserIds.length > 0
+                                ? { user_ids: mentionedUserIds }
+                                : undefined,
+                    });
+                } else {
+                    await sendFile(roomId, item.file);
+                }
             }
             // Files sent: revoke object URLs and clear the queue.
             for (const item of filesToSend) {

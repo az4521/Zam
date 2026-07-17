@@ -67,27 +67,3 @@ if you wanna serve this, run `npm run build` and copy the files in build/ into a
 ### DEFAULT_HOMESERVER
 
 this is fairly obvious, it's the default homeserver url for the login page
-
-### INLINE_MEDIA_HOSTNAMES
-
-this is an array of "safe" hostnames that the client can fetch media from directly without going through the matrix homeserver url preview endpoint
-
-### IG_PROXY
-
-this is a simple proxy that removes CORS headers from vxinstagram. you can set one up with the following nginx config
-
-```
-location /igproxy/ {
-    proxy_pass https://vxinstagram.com/;
-    proxy_set_header Host vxinstagram.com;
-    proxy_set_header Referer https://vxinstagram.com/;
-    proxy_ssl_server_name on;
-
-    add_header Access-Control-Allow-Origin "*";
-    add_header Access-Control-Allow-Methods "GET";
-
-    # Strip cookies/auth from the proxied response
-    proxy_hide_header Set-Cookie;
-    proxy_hide_header Authorization;
-}
-```

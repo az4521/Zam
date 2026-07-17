@@ -365,6 +365,23 @@
         return raw;
     });
 
+    // The original file name of an uploaded media event. Per MSC2530, when a
+    // caption is present the file name lives in `filename` and `body` holds the
+    // caption; otherwise `body` is the file name.
+    const mediaFilename = $derived(
+        (content?.filename as string | undefined) ??
+            (content?.body as string | undefined) ??
+            "",
+    );
+    // A media caption exists when `filename` is present and differs from `body`
+    // (i.e. `body` is real caption text, not just the file name). We render it as
+    // a normal message above the media rather than as a label on the media.
+    const hasCaption = $derived(() => {
+        const fn = content?.filename as string | undefined;
+        const raw = content?.body as string | undefined;
+        return !!(fn && raw && fn !== raw);
+    });
+
     // Strip <mx-reply>...</mx-reply> from formatted_body so we don't double-render the quote
     const formattedBody = $derived(() => {
         const raw = content?.formatted_body as string | undefined;
@@ -436,7 +453,7 @@
         msgtype === "m.image" &&
             ((content?.info as { mimetype?: string } | undefined)?.mimetype ===
                 "image/gif" ||
-                body().toLowerCase().endsWith(".gif")),
+                mediaFilename.toLowerCase().endsWith(".gif")),
     );
 
     // Image conversion.
@@ -926,6 +943,30 @@
             </div>
         {/if}
 
+        <!-- Media caption (MSC2530): rendered as a normal message above the
+             media, so an image/video/etc. with a caption reads like a message
+             followed by the attachment. -->
+        {#snippet mediaCaption()}
+            {#if hasCaption()}
+                <div
+                    use:spoilers
+                    use:matrixLinks
+                    class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                >
+                    {#if formattedBody()}
+                        {@html withTwemoji(sanitize(formattedBody()!))}
+                    {:else}
+                        {@html withTwemoji(plainToHtml(body()))}
+                    {/if}
+                    {#if isEdited}
+                        <span class="text-xs text-discord-textMuted ml-1"
+                            >(edited)</span
+                        >
+                    {/if}
+                </div>
+            {/if}
+        {/snippet}
+
         <!-- Message body -->
         {#if isPoll}
             <PollBody {event} {room} />
@@ -952,14 +993,7 @@
                 />
             {/if}
         {:else if msgtype === "m.image"}
-            {#if body()}
-                <div
-                    use:matrixLinks
-                    class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
-                >
-                    {@html withTwemoji(plainToHtml(body()))}
-                </div>
-            {/if}
+            {@render mediaCaption()}
             {@const thumb = imageThumbUrl()}
             {@const full = imageFullUrl()}
             {#if thumb}
@@ -975,7 +1009,7 @@
                     >
                         <img
                             src={thumb}
-                            alt={body()}
+                            alt={mediaFilename}
                             class="max-w-sm w-full max-h-72 rounded-lg object-contain cursor-pointer block"
                             loading="lazy"
                         />
@@ -1019,7 +1053,7 @@
                 {#if imageLightboxOpen && full}
                     <Lightbox
                         src={full}
-                        alt={body()}
+                        alt={mediaFilename}
                         favourite={isGif
                             ? { url: full, previewUrl: thumb ?? full }
                             : undefined}
@@ -1032,6 +1066,7 @@
                 >
             {/if}
         {:else if msgtype === "m.video"}
+            {@render mediaCaption()}
             {#if videoBlobUrl}
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
@@ -1080,7 +1115,7 @@
                             <p
                                 class="mt-2 text-xs text-white font-medium drop-shadow px-2 py-1 text-center line-clamp-1 rounded-full bg-black/60"
                             >
-                                {content?.body ?? ""}
+                                {mediaFilename}
                             </p>
                         </div>
                     {:else}
@@ -1107,7 +1142,7 @@
                                 <p
                                     class="text-sm font-medium text-discord-textPrimary truncate"
                                 >
-                                    {content?.body ?? "Video"}
+                                    {mediaFilename || "Video"}
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
                                     {videoLoading
@@ -1120,6 +1155,7 @@
                 </div>
             {/if}
         {:else if msgtype === "m.audio"}
+            {@render mediaCaption()}
             <div
                 class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
             >
@@ -1156,7 +1192,7 @@
                     <p
                         class="text-discord-textPrimary text-xs font-medium truncate mb-1"
                     >
-                        {content?.body ?? "Audio"}
+                        {mediaFilename || "Audio"}
                     </p>
                     {#if audioBlobUrl}
                         <!-- svelte-ignore a11y_media_has_caption -->
@@ -1176,8 +1212,9 @@
         {:else if msgtype === "m.file"}
             {@const fileUrl = mxcToHttp(content?.url as string)}
             {@const fileSize = (content?.info as any)?.size}
-            {@const fileName = body()}
+            {@const fileName = mediaFilename}
             {@const isSwf = fileName.toLowerCase().endsWith(".swf")}
+            {@render mediaCaption()}
             {#if isSwf && fileUrl}
                 <SwfEmbed getSrc={() => fetchAttachmentBlob(fileUrl)} />
             {/if}
