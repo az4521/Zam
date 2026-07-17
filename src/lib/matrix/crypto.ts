@@ -13,7 +13,14 @@
  */
 
 import { MatrixEventEvent } from "matrix-js-sdk";
-import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
+import type {
+    AuthDict,
+    MatrixClient,
+    MatrixError,
+    MatrixEvent,
+    Room,
+    UIAuthCallback,
+} from "matrix-js-sdk";
 import {
     CryptoEvent,
     VerificationPhase,
@@ -25,11 +32,14 @@ import type {
     Verifier,
     ShowSasCallbacks,
     EmojiMapping,
+    CryptoCallbacks,
 } from "matrix-js-sdk/lib/crypto-api";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
+import { bumpSecurityTick } from "$lib/stores/security.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
@@ -71,6 +81,7 @@ export async function initCrypto(
         });
         cryptoAvailable = true;
         attachDecryptionListener(client);
+        attachSecurityListeners(client);
     } catch (err) {
         console.warn(
             "[matrix] rust-crypto init failed; encrypted rooms will show " +
@@ -106,6 +117,43 @@ function detachDecryptionListener(): void {
     }
     decryptionListenerClient = null;
     decryptionHandler = null;
+}
+
+// Crypto events that change the Security & Encryption view-model (Layer 2):
+// cross-signing keys appearing/changing, and key-backup state flipping (the
+// backup is minted as part of recovery setup). Any of them bumps `securityTick`
+// so the settings section re-reads `getSecurityStatus()`.
+const SECURITY_EVENTS = [
+    CryptoEvent.KeysChanged,
+    CryptoEvent.KeyBackupStatus,
+    CryptoEvent.KeyBackupDecryptionKeyCached,
+] as const;
+
+let securityListenerClient: MatrixClient | null = null;
+let securityHandler: (() => void) | null = null;
+
+function attachSecurityListeners(client: MatrixClient): void {
+    if (securityListenerClient === client) return;
+    detachSecurityListeners();
+    const handler = (): void => bumpSecurityTick();
+    for (const event of SECURITY_EVENTS) {
+        client.on(event as never, handler as never);
+    }
+    securityListenerClient = client;
+    securityHandler = handler;
+}
+
+function detachSecurityListeners(): void {
+    if (securityListenerClient && securityHandler) {
+        for (const event of SECURITY_EVENTS) {
+            securityListenerClient.off(
+                event as never,
+                securityHandler as never,
+            );
+        }
+    }
+    securityListenerClient = null;
+    securityHandler = null;
 }
 
 /**
@@ -424,5 +472,204 @@ export async function getUserTrust(userId: string): Promise<{
         };
     } catch {
         return null;
+    }
+}
+
+// ─── Layer 2: cross-signing + secret storage (4S) ────────────────────────────
+//
+// Establishes the user's cross-signing identity and a secret-storage (4S/SSSS)
+// store protected by a recovery key, and mints the key backup in the same pass.
+// The recovery key is shown to the user exactly once and never persisted by us.
+
+// In-memory 4S key cache backing the `cryptoCallbacks` the SDK invokes when it
+// needs to read/write secret storage (during setup, and when a new secret
+// arrives). Keyed by secret-storage key id → raw private key. Never persisted;
+// dropped when the tab/module tears down. Layer 3's unlock flow will populate
+// this from a user-entered recovery key.
+const secretStorageKeys = new Map<string, Uint8Array<ArrayBuffer>>();
+
+/**
+ * The application `cryptoCallbacks` passed to `createClient` (the Layer 0 seam).
+ * The SDK calls these whenever it needs the secret-storage key — e.g. inside
+ * `bootstrapSecretStorage`, or when it receives a secret from another session.
+ * Backing them with a short-lived in-memory cache avoids prompting the user
+ * repeatedly for the same key. We never persist the key or log it.
+ */
+export function getCryptoCallbacks(): CryptoCallbacks {
+    return {
+        getSecretStorageKey: async ({ keys }) => {
+            for (const keyId of Object.keys(keys)) {
+                const cached = secretStorageKeys.get(keyId);
+                if (cached) return [keyId, cached];
+            }
+            return null;
+        },
+        cacheSecretStorageKey: (keyId, _keyInfo, key) => {
+            secretStorageKeys.set(keyId, key);
+        },
+    };
+}
+
+/**
+ * Build the `authUploadDeviceSigningKeys` callback that `bootstrapCrossSigning`
+ * runs to upload the new signing keys. Servers guard that upload behind
+ * User-Interactive Auth: probe once with no auth, expect the 401 challenge, then
+ * complete the single `m.login.password` stage. Mirrors `deleteOwnDevice` /
+ * `completeWithPasswordUia` in client.ts. Throws "Incorrect password" on a
+ * rejected retry; a non-password-only flow (SSO, multi-stage) is surfaced as an
+ * actionable error.
+ */
+function makeUiaPasswordCallback(
+    userId: string,
+    password: string,
+): UIAuthCallback<void> {
+    return async (makeRequest) => {
+        try {
+            // Probe with no auth to trigger the server's UIA challenge.
+            return await makeRequest(null);
+        } catch (e) {
+            const uia = e as MatrixError;
+            const data = (uia.data ?? {}) as {
+                session?: string;
+                flows?: { stages: string[] }[];
+            };
+            if (uia.httpStatus !== 401 || !data.flows) throw e;
+            if (!supportsPasswordUia(data.flows)) {
+                throw new Error(
+                    "This server can't confirm encryption setup with a password — use its account page instead.",
+                );
+            }
+            const auth: AuthDict = {
+                type: "m.login.password",
+                identifier: { type: "m.id.user", user: userId },
+                password,
+                session: data.session,
+            };
+            try {
+                return await makeRequest(auth);
+            } catch (retryError) {
+                if ((retryError as MatrixError).httpStatus === 401) {
+                    throw new Error("Incorrect password");
+                }
+                throw retryError;
+            }
+        }
+    };
+}
+
+/** Result of a successful `setupRecovery` run. */
+export interface RecoverySetupResult {
+    /** The encoded recovery key (`EsT…`), to display to the user exactly once. */
+    recoveryKey: string;
+}
+
+/**
+ * Set up recovery for this account: establish cross-signing, mint a random
+ * recovery key, create secret storage (4S) with that key as the default, and
+ * create a new key backup — all in one pass. Requires the account password for
+ * the UIA-guarded signing-key upload.
+ *
+ * Returns the encoded recovery key so the UI can show it once (we never persist
+ * it). Throws with an actionable message on UIA failure or if crypto isn't ready.
+ */
+export async function setupRecovery(
+    password: string,
+): Promise<RecoverySetupResult> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    const userId = client?.getUserId();
+    if (!crypto || !userId) {
+        throw new Error("Encryption is not ready on this session");
+    }
+
+    // 1. Establish (or confirm) the cross-signing identity. Uploading the new
+    //    signing keys is UIA-guarded → drive the password dance.
+    await crypto.bootstrapCrossSigning({
+        authUploadDeviceSigningKeys: makeUiaPasswordCallback(userId, password),
+    });
+
+    // 2. Mint a fresh random recovery key — no passphrase (v1 decision: a
+    //    passphrase adds a weaker PBKDF2-derived path and more UI).
+    const generated = await crypto.createRecoveryKeyFromPassphrase();
+    const encoded = generated.encodedPrivateKey;
+    if (!encoded) {
+        throw new Error("Failed to generate a recovery key");
+    }
+
+    // 3. Create secret storage with that key as the default and mint a new key
+    //    backup in the same pass. bootstrapSecretStorage calls back into our
+    //    cacheSecretStorageKey (via cryptoCallbacks) so the follow-up secret
+    //    writes resolve without prompting.
+    await crypto.bootstrapSecretStorage({
+        createSecretStorageKey: async () => generated,
+        setupNewKeyBackup: true,
+    });
+
+    bumpSecurityTick();
+    return { recoveryKey: encoded };
+}
+
+/** Plain view-model of the account's crypto/security posture, for the UI. */
+export interface SecurityStatus {
+    /** rust-crypto initialised on this session. */
+    available: boolean;
+    /** Cross-signing identity is set up and usable. */
+    crossSigningReady: boolean;
+    /** Cross-signing private keys are stored (encrypted) in secret storage. */
+    privateKeysInSecretStorage: boolean;
+    /** Secret storage (4S) is fully set up — i.e. "recovery is set up". */
+    secretStorageReady: boolean;
+    /** The default secret-storage key id, if any. */
+    defaultKeyId: string | null;
+    /** This device is verified via cross-signing. */
+    thisDeviceVerified: boolean;
+}
+
+const EMPTY_SECURITY_STATUS: SecurityStatus = {
+    available: false,
+    crossSigningReady: false,
+    privateKeysInSecretStorage: false,
+    secretStorageReady: false,
+    defaultKeyId: null,
+    thisDeviceVerified: false,
+};
+
+/**
+ * Read the account's cross-signing + secret-storage posture as a plain
+ * view-model. Re-read whenever `securityState.securityTick` bumps. Never throws:
+ * degrades to the empty status when crypto isn't ready or a read fails.
+ */
+export async function getSecurityStatus(): Promise<SecurityStatus> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!crypto) return { ...EMPTY_SECURITY_STATUS };
+    try {
+        const [crossSigningReady, crossStatus, secretStorageReady, ssStatus] =
+            await Promise.all([
+                crypto.isCrossSigningReady(),
+                crypto.getCrossSigningStatus(),
+                crypto.isSecretStorageReady(),
+                crypto.getSecretStorageStatus(),
+            ]);
+        let thisDeviceVerified = false;
+        const userId = client?.getUserId();
+        const deviceId = client?.getDeviceId();
+        if (userId && deviceId) {
+            const dev = await crypto.getDeviceVerificationStatus(
+                userId,
+                deviceId,
+            );
+            thisDeviceVerified = dev?.crossSigningVerified ?? false;
+        }
+        return {
+            available: true,
+            crossSigningReady,
+            privateKeysInSecretStorage: crossStatus.privateKeysInSecretStorage,
+            secretStorageReady,
+            defaultKeyId: ssStatus.defaultKeyId,
+            thisDeviceVerified,
+        };
+    } catch {
+        return { ...EMPTY_SECURITY_STATUS, available: true };
     }
 }

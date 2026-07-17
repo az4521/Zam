@@ -90,7 +90,7 @@ import {
     fetchServerNotificationsForClient,
     type ServerNotificationResult,
 } from "$lib/matrix/notifications";
-import { initCrypto } from "$lib/matrix/crypto";
+import { initCrypto, getCryptoCallbacks } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -170,10 +170,13 @@ async function createAuthenticatedClient(opts: {
     // Offer SAS (emoji) verification. Set at createClient time so the crypto
     // layer advertises it from the first key upload (Layer 1). Emoji only — no
     // QR — for v1; both self- and cross-user verification use it.
+    // cryptoCallbacks back secret storage (4S) so cross-signing/backup secrets
+    // resolve without re-prompting during setup and when secrets arrive (Layer 2).
     const commonOpts = {
         ...opts,
         timelineSupport: true,
         verificationMethods: [VerificationMethod.Sas],
+        cryptoCallbacks: getCryptoCallbacks(),
     };
 
     let client = createClient({
