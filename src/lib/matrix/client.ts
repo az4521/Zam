@@ -28,6 +28,7 @@ import type {
     User,
     ReceiptType,
 } from "matrix-js-sdk";
+import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import {
     Room as LivekitRoom,
     RoomEvent as LivekitRoomEvent,
@@ -166,10 +167,18 @@ async function createAuthenticatedClient(opts: {
           })
         : null;
 
-    let client = createClient({
+    // Offer SAS (emoji) verification. Set at createClient time so the crypto
+    // layer advertises it from the first key upload (Layer 1). Emoji only — no
+    // QR — for v1; both self- and cross-user verification use it.
+    const commonOpts = {
         ...opts,
-        store: store ?? undefined,
         timelineSupport: true,
+        verificationMethods: [VerificationMethod.Sas],
+    };
+
+    let client = createClient({
+        ...commonOpts,
+        store: store ?? undefined,
     });
 
     if (store) {
@@ -181,10 +190,7 @@ async function createAuthenticatedClient(opts: {
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
                 err,
             );
-            client = createClient({
-                ...opts,
-                timelineSupport: true,
-            });
+            client = createClient(commonOpts);
         }
     }
 
