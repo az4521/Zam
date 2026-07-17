@@ -41,7 +41,11 @@ import {
     type LocalParticipant,
     type TrackPublication,
 } from "livekit-client";
-import { pickLivekitTransport, sfuJwtUrl } from "$lib/utils/voiceCall";
+import {
+    pickLivekitTransport,
+    sfuJwtUrl,
+    screenShareCaptureResolution,
+} from "$lib/utils/voiceCall";
 import {
     buildVideoTiles,
     type VideoPublicationInput,
@@ -5351,6 +5355,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     try {
         await call.lkRoom.localParticipant.setScreenShareEnabled(on, {
             audio: settingsState.shareSystemAudio,
+            resolution: screenShareCaptureResolution(
+                settingsState.screenShareResolution,
+                Number(settingsState.screenShareFps),
+            ),
         });
         return on;
     } catch (err) {

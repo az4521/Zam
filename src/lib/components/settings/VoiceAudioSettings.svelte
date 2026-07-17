@@ -16,6 +16,8 @@
         setRingVolume,
         setMirrorCamera,
         setShareSystemAudio,
+        setScreenShareResolution,
+        setScreenShareFps,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -23,6 +25,10 @@
         outputPickerMode,
         type DeviceOption,
     } from "$lib/utils/audioDevices";
+    import {
+        SCREEN_RESOLUTIONS,
+        SCREEN_FPS_OPTIONS,
+    } from "$lib/utils/voiceCall";
     import {
         listMediaDevices,
         onDevicesChanged,
@@ -447,6 +453,35 @@
                 onChange={(v) => setShareSystemAudio(v)}
                 label="Share system audio"
             />
+        </div>
+        <div class="mt-3">
+            <div class="text-sm font-medium text-discord-textPrimary mb-1">
+                Screen share quality
+            </div>
+            <div class="text-xs text-discord-textMuted mb-2">
+                Applies the next time you start sharing.
+            </div>
+            <div class="flex gap-2">
+                <select
+                    class={selectClass}
+                    value={settingsState.screenShareResolution}
+                    onchange={(e) =>
+                        setScreenShareResolution(e.currentTarget.value)}
+                >
+                    {#each SCREEN_RESOLUTIONS as r (r.key)}
+                        <option value={r.key}>{r.label}</option>
+                    {/each}
+                </select>
+                <select
+                    class={selectClass}
+                    value={settingsState.screenShareFps}
+                    onchange={(e) => setScreenShareFps(e.currentTarget.value)}
+                >
+                    {#each SCREEN_FPS_OPTIONS as f (f)}
+                        <option value={String(f)}>{f} FPS</option>
+                    {/each}
+                </select>
+            </div>
         </div>
         <button
             onclick={() => void toggleCamera()}

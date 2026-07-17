@@ -114,3 +114,36 @@ export function pickLivekitTransport(
     }
     return null;
 }
+
+export interface ScreenResolutionOption {
+    key: string;
+    label: string;
+    width: number;
+    height: number;
+}
+
+/** Screen-share capture resolutions offered in settings. A target/cap — the
+ *  browser yields at most the source's native resolution. */
+export const SCREEN_RESOLUTIONS: ScreenResolutionOption[] = [
+    { key: "720", label: "720p", width: 1280, height: 720 },
+    { key: "1080", label: "1080p", width: 1920, height: 1080 },
+    { key: "1440", label: "1440p", width: 2560, height: 1440 },
+    { key: "2160", label: "4K", width: 3840, height: 2160 },
+];
+
+export const SCREEN_FPS_OPTIONS = [15, 30, 60] as const;
+
+/** Map a stored resolution key + frame rate to a LiveKit VideoResolution.
+ *  Unknown key → 1080p (LiveKit's own default); non-preset fps → 30. */
+export function screenShareCaptureResolution(
+    resKey: string,
+    fps: number,
+): { width: number; height: number; frameRate: number } {
+    const res =
+        SCREEN_RESOLUTIONS.find((o) => o.key === resKey) ??
+        SCREEN_RESOLUTIONS[1];
+    const frameRate = (SCREEN_FPS_OPTIONS as readonly number[]).includes(fps)
+        ? fps
+        : 30;
+    return { width: res.width, height: res.height, frameRate };
+}
