@@ -439,6 +439,35 @@
                 label="Mirror my camera"
             />
         </div>
+        <button
+            onclick={() => void toggleCamera()}
+            class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
+                ? 'bg-discord-accent text-white'
+                : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
+        >
+            {cameraOn ? "Stop preview" : "Preview"}
+        </button>
+        {#if cameraError}
+            <p class="text-xs text-discord-danger mt-2">{cameraError}</p>
+        {/if}
+        <!-- svelte-ignore a11y_media_has_caption -->
+        <video
+            bind:this={videoEl}
+            autoplay
+            playsinline
+            muted
+            class="mt-3 w-full max-w-sm rounded bg-black {cameraOn
+                ? ''
+                : 'hidden'}"
+        ></video>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            Screen share
+        </p>
         <div class="flex items-center justify-between py-2">
             <div>
                 <div class="text-sm font-medium text-discord-textPrimary">
@@ -456,7 +485,7 @@
         </div>
         <div class="mt-3">
             <div class="text-sm font-medium text-discord-textPrimary mb-1">
-                Screen share quality
+                Quality
             </div>
             <div class="text-xs text-discord-textMuted mb-2">
                 Applies the next time you start sharing.
@@ -483,31 +512,6 @@
                 </select>
             </div>
         </div>
-        <button
-            onclick={() => void toggleCamera()}
-            class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
-                ? 'bg-discord-accent text-white'
-                : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
-        >
-            {cameraOn ? "Stop preview" : "Preview"}
-        </button>
-        {#if cameraError}
-            <p class="text-xs text-discord-danger mt-2">{cameraError}</p>
-        {/if}
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <video
-            bind:this={videoEl}
-            autoplay
-            playsinline
-            muted
-            class="mt-3 w-full max-w-sm rounded bg-black {cameraOn
-                ? ''
-                : 'hidden'}"
-        ></video>
-        <p class="text-xs text-discord-textMuted mt-2">
-            Video calls aren't available yet — this picks the camera for when
-            they are.
-        </p>
     </section>
 
     <section>
