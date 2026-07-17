@@ -74,7 +74,8 @@
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
-    import { Phone, Volume2 } from "lucide-svelte";
+    import { Phone, Volume2, Lock } from "lucide-svelte";
+    import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
 
@@ -483,6 +484,11 @@
     // (late-seeded federated joins, renames) — same reference, new name.
     const roomName = $derived(
         (void roomsState.roomsTick, getRoomDisplayName(room)),
+    );
+    // Re-reads the live Room's state; depends on roomsTick to refresh when the
+    // m.room.encryption state event lands (the Room mutates in place).
+    const roomEncrypted = $derived(
+        (void roomsState.roomsTick, isRoomEncrypted(room)),
     );
     const topic = $derived((void roomsState.roomsTick, getRoomTopic(room)));
     // Header "show call" button gate. Computed here rather than as an {@const}
@@ -980,6 +986,15 @@
                 >#</span
             >
             <h2 class="font-semibold text-discord-textPrimary">{roomName}</h2>
+            {#if roomEncrypted}
+                <span
+                    class="flex-shrink-0 text-discord-textMuted"
+                    title="Encryption enabled"
+                    aria-label="Encryption enabled"
+                >
+                    <Lock class="w-4 h-4" />
+                </span>
+            {/if}
             {#if topic}
                 <div class="w-px h-5 bg-discord-divider"></div>
                 <p class="text-sm text-discord-textMuted truncate flex-1">

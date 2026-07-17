@@ -17,6 +17,12 @@ export function bumpReactionTick(): void {
     messagesState.reactionTick++;
 }
 
+// Bumped when an encrypted event decrypts late (keys arrived after render), so
+// derived timelines re-run and swap the UTD placeholder for real content.
+export function bumpTimelineTick(): void {
+    messagesState.timelineTick++;
+}
+
 export function getMessages(roomId: string): MatrixEvent[] {
     return messagesState.byRoom[roomId]?.events ?? [];
 }

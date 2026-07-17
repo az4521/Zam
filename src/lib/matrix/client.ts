@@ -89,6 +89,8 @@ import {
     fetchServerNotificationsForClient,
     type ServerNotificationResult,
 } from "$lib/matrix/notifications";
+import { initCrypto } from "$lib/matrix/crypto";
+import { getCryptoDbName } from "$lib/utils/cryptoStore";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -182,6 +184,13 @@ async function createAuthenticatedClient(opts: {
     }
 
     matrixClient = client;
+
+    // Initialise E2EE before the caller starts sync, so crypto is ready when
+    // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
+    // failure degrades gracefully (unencrypted rooms keep working; encrypted
+    // rooms render UTD placeholders).
+    await initCrypto(client, opts.userId, opts.deviceId);
+
     return client;
 }
 
@@ -420,10 +429,24 @@ export async function logout(): Promise<void> {
         } catch {
             // ignore errors on logout
         }
-        // Wipe the persisted sync store so the next user on this device can't
-        // recover the previous account's cached rooms/messages from IndexedDB.
+        // Wipe the persisted sync store AND the per-account rust-crypto store
+        // so the next user on this device can't recover the previous account's
+        // cached rooms/messages or its key material from IndexedDB. The crypto
+        // store is keyed by cryptoDatabasePrefix (see initCrypto); pass the
+        // same prefix so clearStores() finds and deletes it.
         try {
-            await client.clearStores();
+            const userId = client.getUserId();
+            const deviceId = client.getDeviceId();
+            await client.clearStores(
+                userId && deviceId
+                    ? {
+                          cryptoDatabasePrefix: getCryptoDbName(
+                              userId,
+                              deviceId,
+                          ),
+                      }
+                    : undefined,
+            );
         } catch {
             // ignore
         }
@@ -598,6 +621,10 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
         if (
             e.getType() !== "m.room.message" &&
             e.getType() !== "m.sticker" &&
+            // Keep still-encrypted (undecryptable) events visible as UTD
+            // placeholders instead of silently dropping them. A *decrypted*
+            // event already reports its cleartext type and passes above.
+            e.getType() !== "m.room.encrypted" &&
             !isPollStartEventType(e.getType())
         )
             return false;
@@ -1431,11 +1458,7 @@ export function getRoomUnreadInfo(room: Room): {
 }
 
 export function onTimelineEvent(
-    callback: (
-        event: MatrixEvent,
-        room: Room,
-        isLiveAppend: boolean,
-    ) => void,
+    callback: (event: MatrixEvent, room: Room, isLiveAppend: boolean) => void,
 ): () => void {
     if (!matrixClient) return () => {};
     const handler = (

@@ -6,7 +6,7 @@
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
-    import { Forward } from "lucide-svelte";
+    import { Forward, Lock } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -41,6 +41,7 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
 
     import {
@@ -919,6 +920,18 @@
         <!-- Message body -->
         {#if isPoll}
             <PollBody {event} {room} />
+        {:else if eventType === "m.room.encrypted"}
+            <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
+                 (avatar / sender / timestamp) is cleartext; only the body is
+                 unavailable. When keys arrive mid-session the decryption tick
+                 re-runs this derived timeline and the row swaps to real
+                 content automatically. -->
+            <div
+                class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
+            >
+                <Lock class="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{UTD_PLACEHOLDER_TEXT}</span>
+            </div>
         {:else if eventType === "m.sticker"}
             {@const src = stickerHttpUrl()}
             {#if src}

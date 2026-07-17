@@ -79,6 +79,7 @@
     } from "$lib/matrix/client";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
+    import { previewForEvent } from "$lib/utils/encryptionState";
     import { playPing } from "$lib/audio/soundEffects";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
@@ -580,12 +581,17 @@
             const content = event.getContent() as any;
             // Extensible events (e.g. polls) carry their text fallback in the
             // MSC1767 key instead of body.
-            const body =
+            const rawBody =
                 typeof content?.body === "string"
                     ? content.body
                     : typeof content?.["org.matrix.msc1767.text"] === "string"
                       ? content["org.matrix.msc1767.text"]
                       : "";
+            // A still-encrypted (undecryptable) event has no cleartext body →
+            // show a generic "🔒 Encrypted message" line instead of an empty
+            // notification. Decrypted events report their cleartext type and
+            // keep rawBody.
+            const body = previewForEvent(event.getType(), rawBody);
 
             // Alerts (sound + desktop popup) fire only for events that arrive
             // live, never for the backlog replayed during the initial sync on

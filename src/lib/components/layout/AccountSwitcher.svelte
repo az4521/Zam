@@ -10,6 +10,7 @@
     import { auth } from "$lib/stores/auth.svelte";
     import { interfaceState, closeModal } from "$lib/stores/interface.svelte";
     import { leaveVoiceCall } from "$lib/matrix/client";
+    import { deleteCryptoStore } from "$lib/matrix/crypto";
 
     interface Props {
         onClose: () => void;
@@ -83,6 +84,10 @@
         } catch {
             // ignore — server unreachable; token stays valid server-side
         }
+        // Wipe this account's rust-crypto store on its way off the device — it
+        // has no live client, so we delete the IndexedDB directly (keyed to
+        // this account, so it can't touch the active session's keys).
+        await deleteCryptoStore(account.userId, account.deviceId);
         removeAccountById(userId);
     }
 </script>
