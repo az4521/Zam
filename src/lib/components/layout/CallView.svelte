@@ -9,6 +9,9 @@
         PhoneOff,
         Phone,
         Volume2,
+        Video,
+        VideoOff,
+        MonitorUp,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -27,8 +30,11 @@
         leaveCall,
         toggleCallMute,
         toggleCallDeafen,
+        toggleCamera,
+        toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { canScreenShare } from "$lib/utils/videoTiles";
     import {
         showChatView,
         openModal,
@@ -43,6 +49,15 @@
         onMenuOpen?: () => void;
     }
     let { room, isMobile = false, onMenuOpen }: Props = $props();
+
+    // Capture support is fixed for the session (no runtime change), so a plain
+    // const is enough — used to hide the share-screen button where unsupported.
+    const screenShareSupported = canScreenShare({
+        getDisplayMedia:
+            typeof navigator !== "undefined"
+                ? navigator.mediaDevices?.getDisplayMedia
+                : undefined,
+    });
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
@@ -234,6 +249,38 @@
                             size={20}
                         />{:else}<Headphones size={20} />{/if}
                 </button>
+                <button
+                    onclick={() => void toggleCamera()}
+                    class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.cameraOn
+                        ? 'text-discord-accent'
+                        : 'text-discord-textPrimary'}"
+                    title={voiceCallState.cameraOn
+                        ? "Turn off camera"
+                        : "Turn on camera"}
+                    aria-label={voiceCallState.cameraOn
+                        ? "Turn off camera"
+                        : "Turn on camera"}
+                >
+                    {#if voiceCallState.cameraOn}<Video
+                            size={20}
+                        />{:else}<VideoOff size={20} />{/if}
+                </button>
+                {#if screenShareSupported}
+                    <button
+                        onclick={() => void toggleScreenShare()}
+                        class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.screenSharing
+                            ? 'text-discord-accent'
+                            : 'text-discord-textPrimary'}"
+                        title={voiceCallState.screenSharing
+                            ? "Stop sharing"
+                            : "Share your screen"}
+                        aria-label={voiceCallState.screenSharing
+                            ? "Stop sharing"
+                            : "Share your screen"}
+                    >
+                        <MonitorUp size={20} />
+                    </button>
+                {/if}
                 <button
                     onclick={leaveCall}
                     class="p-3 rounded-full bg-discord-danger hover:bg-discord-dangerHover text-white transition-colors"
