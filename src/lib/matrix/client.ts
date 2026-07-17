@@ -4891,6 +4891,10 @@ function currentVideoInputs(lkRoom: LivekitRoom): VideoPublicationInput[] {
         for (const pub of p.videoTrackPublications.values()) {
             const track = (pub as TrackPublication).track;
             if (!track) continue; // remote: not subscribed yet
+            // Turning a camera off MUTES its track (LiveKit unpublishes only
+            // screenshares), leaving the publication in place showing a black
+            // frame. Skip muted video so the tile drops back to the avatar.
+            if ((pub as TrackPublication).isMuted) continue;
             let source: VideoSource | null = null;
             if (pub.source === LivekitTrack.Source.Camera) source = "camera";
             else if (pub.source === LivekitTrack.Source.ScreenShare)
@@ -5166,6 +5170,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, notifyVideo);
         lkRoom.on(LivekitRoomEvent.LocalTrackPublished, notifyVideo);
         lkRoom.on(LivekitRoomEvent.LocalTrackUnpublished, notifyVideo);
+        // Camera off = track.mute(), not unpublish — recompute on mute/unmute
+        // too, so the tile drops to the avatar (and returns) as it toggles.
+        lkRoom.on(LivekitRoomEvent.TrackMuted, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.TrackUnmuted, notifyVideo);
         lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyVideo);
         lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
