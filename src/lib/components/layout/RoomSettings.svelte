@@ -40,6 +40,7 @@
         removeRoomEmoji,
         removeRoomSticker,
         validateEmojiShortcode,
+        enableRoomEncryption,
         mxcToHttp,
         type CustomImagePack,
         type CustomPackImage,
@@ -51,6 +52,13 @@
         type SpaceChildEntry,
     } from "$lib/matrix/client";
 
+    import { isRoomEncrypted } from "$lib/matrix/crypto";
+    import {
+        getEnableEncryptionState,
+        matchesEnableEncryptionConfirmation,
+        ENABLE_ENCRYPTION_CONFIRM_PHRASE,
+        ENABLE_ENCRYPTION_WARNING,
+    } from "$lib/utils/roomEncryption";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
@@ -70,6 +78,7 @@
     type Tab =
         | "general"
         | "access"
+        | "security"
         | "permissions"
         | "members"
         | "rooms"
@@ -95,6 +104,41 @@
     const canInvite = $derived(
         (void roomsState.roomsTick, canInviteToRoom(room.roomId)),
     );
+
+    // ── Security tab: encryption ───────────────────────────────────────────────
+    // Depend on roomsTick: the Room mutates in place when the m.room.encryption
+    // state event lands, so the status flips without reopening the modal.
+    const encrypted = $derived(
+        (void roomsState.roomsTick, isRoomEncrypted(room)),
+    );
+    const encState = $derived(
+        getEnableEncryptionState({
+            alreadyEncrypted: encrypted,
+            myPowerLevel,
+            powerLevels: pl,
+        }),
+    );
+    let encShowConfirm = $state(false);
+    let encConfirmInput = $state("");
+    let encEnabling = $state(false);
+    let encError = $state("");
+
+    async function doEnableEncryption() {
+        if (!matchesEnableEncryptionConfirmation(encConfirmInput)) return;
+        encEnabling = true;
+        encError = "";
+        try {
+            await enableRoomEncryption(room.roomId);
+            roomsState.roomsTick++;
+            encShowConfirm = false;
+            encConfirmInput = "";
+        } catch (e: any) {
+            encError =
+                e?.data?.error ?? e?.message ?? "Failed to enable encryption";
+        } finally {
+            encEnabling = false;
+        }
+    }
 
     // ── General tab ────────────────────────────────────────────────────────────
     let nameInput = $state(untrack(() => room.name ?? ""));
@@ -1048,6 +1092,10 @@
     const tabs: { id: Tab; label: string }[] = [
         { id: "general", label: "General" },
         { id: "access", label: "Access" },
+        // Encryption is a room concept, not a space one — hide Security on spaces.
+        ...(untrack(() => isSpace)
+            ? []
+            : [{ id: "security" as Tab, label: "Security" }]),
         { id: "permissions", label: "Permissions" },
         { id: "members", label: "Members" },
         { id: "emotes", label: "Emotes" },
@@ -1323,6 +1371,94 @@
                                       ? "Saved!"
                                       : "Save Changes"}</button
                             >
+                        {/if}
+                    </div>
+
+                    <!-- ── Security ────────────────────────────────────────── -->
+                {:else if activeTab === "security"}
+                    <div class="space-y-5">
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Encryption
+                            </p>
+                            <span
+                                class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {encrypted
+                                    ? 'bg-discord-accent/20 text-discord-accent'
+                                    : 'bg-discord-messageHover text-discord-textMuted'}"
+                                >{encrypted
+                                    ? "Encrypted"
+                                    : "Not encrypted"}</span
+                            >
+                            <p class="text-xs text-discord-textMuted mt-2">
+                                {#if encrypted}
+                                    Messages in this room are end-to-end
+                                    encrypted. This can't be turned off.
+                                {:else}
+                                    {ENABLE_ENCRYPTION_WARNING}
+                                {/if}
+                            </p>
+                        </div>
+
+                        {#if !encrypted}
+                            {#if !encState.canEnable}
+                                <p class="text-sm text-discord-textMuted">
+                                    {encState.reason}
+                                </p>
+                            {:else if !encShowConfirm}
+                                <button
+                                    onclick={() => {
+                                        encShowConfirm = true;
+                                        encConfirmInput = "";
+                                        encError = "";
+                                    }}
+                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
+                                    >Enable encryption</button
+                                >
+                            {:else}
+                                <div class="space-y-2">
+                                    <!-- svelte-ignore a11y_label_has_associated_control -->
+                                    <label
+                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                        >Type {ENABLE_ENCRYPTION_CONFIRM_PHRASE} to
+                                        confirm</label
+                                    >
+                                    <input
+                                        bind:value={encConfirmInput}
+                                        placeholder={ENABLE_ENCRYPTION_CONFIRM_PHRASE}
+                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                    />
+                                    {#if encError}<p
+                                            class="text-sm text-discord-danger"
+                                        >
+                                            {encError}
+                                        </p>{/if}
+                                    <div class="flex gap-2">
+                                        <button
+                                            onclick={doEnableEncryption}
+                                            disabled={encEnabling ||
+                                                !matchesEnableEncryptionConfirmation(
+                                                    encConfirmInput,
+                                                )}
+                                            class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                            >{encEnabling
+                                                ? "Enabling…"
+                                                : "Enable encryption"}</button
+                                        >
+                                        <button
+                                            onclick={() => {
+                                                encShowConfirm = false;
+                                                encConfirmInput = "";
+                                                encError = "";
+                                            }}
+                                            disabled={encEnabling}
+                                            class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                            >Cancel</button
+                                        >
+                                    </div>
+                                </div>
+                            {/if}
                         {/if}
                     </div>
 
