@@ -1,11 +1,17 @@
-// Local-only client settings (never synced to the homeserver). Persisted to
-// localStorage so they survive reloads. Add debug/dev toggles here.
+// Client settings, persisted to localStorage so they survive reloads.
+//
+// Most are local-only (debug/dev toggles, voice device picks). The settings
+// behind the Customization panel are additionally mirrored to the homeserver
+// as account data so they follow the account across devices — localStorage
+// stays the synchronous boot cache, the server is the source of truth once a
+// sync lands. See stores/customizationSync.svelte for the transport.
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import { applyTheme, normalizeTheme, type Theme } from "$lib/utils/theme";
 import {
     normalizeTimeClock,
     normalizeDateStyle,
+    previewDatePattern,
     type TimeClock,
     type DateStyle,
 } from "$lib/utils/timeFormat";
@@ -21,6 +27,7 @@ import {
 } from "$lib/utils/participantAudio";
 import { auth } from "$lib/stores/auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
+import type { ClientCustomization } from "$lib/utils/customization";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -166,6 +173,118 @@ export const settingsState = $state({
 
 applyTheme(settingsState.theme);
 
+// ── Customization sync ──────────────────────────────────────────────────
+// The transport registers a listener here at app mount. Inverting the
+// dependency this way is deliberate: matrix/client already imports this
+// store, so importing the client from here would close a module cycle.
+// Until a listener is registered (e.g. before login) changes stay local.
+
+let customizationListener: (() => void) | null = null;
+
+export function setCustomizationListener(cb: (() => void) | null): void {
+    customizationListener = cb;
+}
+
+function customizationChanged(): void {
+    customizationListener?.();
+}
+
+/** The Customization panel's settings, in account-data wire form. */
+export function customizationSnapshot(): ClientCustomization {
+    return {
+        theme: settingsState.theme,
+        timeClock: settingsState.timeClock,
+        dateStyle: settingsState.dateStyle,
+        customDatePattern: settingsState.customDatePattern,
+        alwaysAbsolute: settingsState.alwaysAbsolute,
+        gifDefaultTab: settingsState.gifDefaultTab,
+        keepSidebarOpen: settingsState.keepSidebarOpen,
+        ownDoubleTapAction: settingsState.ownDoubleTapAction,
+        otherDoubleTapAction: settingsState.otherDoubleTapAction,
+        doubleTapReaction: settingsState.doubleTapReaction,
+        doubleTapReactionBySpace: { ...settingsState.doubleTapReactionBySpace },
+    };
+}
+
+/**
+ * Adopt customization settings from account data, normalizing each field the
+ * same way a local read would. Writes state and the localStorage cache
+ * directly rather than calling the setters, so applying a remote update does
+ * not notify the transport and bounce straight back to the server. Omitted
+ * fields keep their current value.
+ */
+export function applyCustomization(c: ClientCustomization): void {
+    if (c.theme !== undefined) {
+        settingsState.theme = normalizeTheme(c.theme);
+        writeString("theme", settingsState.theme);
+        applyTheme(settingsState.theme);
+    }
+    if (c.timeClock !== undefined) {
+        settingsState.timeClock = normalizeTimeClock(c.timeClock);
+        writeString("timeClock", settingsState.timeClock);
+    }
+    if (c.dateStyle !== undefined) {
+        settingsState.dateStyle = normalizeDateStyle(c.dateStyle);
+        writeString("dateStyle", settingsState.dateStyle);
+    }
+    // Mirrors the guard in the settings UI: a pattern date-fns rejects would
+    // blank every timestamp in the app, so never adopt one off the wire.
+    if (
+        c.customDatePattern &&
+        previewDatePattern(c.customDatePattern) !== null
+    ) {
+        settingsState.customDatePattern = c.customDatePattern;
+        writeString("customDatePattern", c.customDatePattern);
+    }
+    if (c.alwaysAbsolute !== undefined) {
+        settingsState.alwaysAbsolute = c.alwaysAbsolute;
+        writeBool("alwaysAbsolute", c.alwaysAbsolute);
+    }
+    if (c.gifDefaultTab !== undefined) {
+        settingsState.gifDefaultTab = normalizeGifTab(c.gifDefaultTab);
+        writeString("gifDefaultTab", settingsState.gifDefaultTab);
+    }
+    if (c.keepSidebarOpen !== undefined) {
+        settingsState.keepSidebarOpen = c.keepSidebarOpen;
+        writeBool("keepSidebarOpen", c.keepSidebarOpen);
+    }
+    if (c.ownDoubleTapAction !== undefined) {
+        settingsState.ownDoubleTapAction = normalizeDoubleTapAction(
+            c.ownDoubleTapAction,
+            "none",
+            true,
+        );
+        writeAccountString(
+            "ownDoubleTapAction",
+            settingsState.ownDoubleTapAction,
+        );
+    }
+    if (c.otherDoubleTapAction !== undefined) {
+        settingsState.otherDoubleTapAction = normalizeDoubleTapAction(
+            c.otherDoubleTapAction,
+            "none",
+            false,
+        );
+        writeAccountString(
+            "otherDoubleTapAction",
+            settingsState.otherDoubleTapAction,
+        );
+    }
+    if (c.doubleTapReaction) {
+        settingsState.doubleTapReaction = c.doubleTapReaction;
+        writeAccountString("doubleTapReaction", c.doubleTapReaction);
+    }
+    if (c.doubleTapReactionBySpace !== undefined) {
+        settingsState.doubleTapReactionBySpace = {
+            ...c.doubleTapReactionBySpace,
+        };
+        writeAccountString(
+            "doubleTapReactionBySpace",
+            JSON.stringify(settingsState.doubleTapReactionBySpace),
+        );
+    }
+}
+
 /** Reload settings whose meaning belongs to the active Matrix account. */
 export function reloadAccountSettings(): void {
     settingsState.ownDoubleTapAction = normalizeDoubleTapAction(
@@ -213,31 +332,37 @@ export function setTheme(value: Theme): void {
     settingsState.theme = value;
     writeString("theme", value);
     applyTheme(value);
+    customizationChanged();
 }
 
 export function setTimeClock(value: TimeClock): void {
     settingsState.timeClock = value;
     writeString("timeClock", value);
+    customizationChanged();
 }
 
 export function setDateStyle(value: DateStyle): void {
     settingsState.dateStyle = value;
     writeString("dateStyle", value);
+    customizationChanged();
 }
 
 export function setGifDefaultTab(value: GifTab): void {
     settingsState.gifDefaultTab = value;
     writeString("gifDefaultTab", value);
+    customizationChanged();
 }
 
 export function setCustomDatePattern(value: string): void {
     settingsState.customDatePattern = value;
     writeString("customDatePattern", value);
+    customizationChanged();
 }
 
 export function setAlwaysAbsolute(value: boolean): void {
     settingsState.alwaysAbsolute = value;
     writeBool("alwaysAbsolute", value);
+    customizationChanged();
 }
 
 export function setOwnDoubleTapAction(value: DoubleTapAction): void {
@@ -247,6 +372,7 @@ export function setOwnDoubleTapAction(value: DoubleTapAction): void {
         true,
     );
     writeAccountString("ownDoubleTapAction", settingsState.ownDoubleTapAction);
+    customizationChanged();
 }
 
 export function setOtherDoubleTapAction(value: DoubleTapAction): void {
@@ -259,12 +385,14 @@ export function setOtherDoubleTapAction(value: DoubleTapAction): void {
         "otherDoubleTapAction",
         settingsState.otherDoubleTapAction,
     );
+    customizationChanged();
 }
 
 export function setDoubleTapReaction(value: string): void {
     if (!value) return;
     settingsState.doubleTapReaction = value;
     writeAccountString("doubleTapReaction", value);
+    customizationChanged();
 }
 
 export function setSpaceDoubleTapReaction(
@@ -276,6 +404,7 @@ export function setSpaceDoubleTapReaction(
     else delete next[spaceId];
     settingsState.doubleTapReactionBySpace = next;
     writeAccountString("doubleTapReactionBySpace", JSON.stringify(next));
+    customizationChanged();
 }
 
 export function getDoubleTapReaction(spaceId: string | null): string {
@@ -293,6 +422,7 @@ export function setShowAllEvents(value: boolean): void {
 export function setKeepSidebarOpen(value: boolean): void {
     settingsState.keepSidebarOpen = value;
     writeBool("keepSidebarOpen", value);
+    customizationChanged();
 }
 
 export function setPrivateReadReceipts(value: boolean): void {
