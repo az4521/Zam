@@ -2,10 +2,24 @@
     import {
         getSecurityStatus,
         setupRecovery,
+        getBackupStatus,
+        unlockWithRecoveryKey,
         type SecurityStatus,
+        type BackupStatus,
+        type UnlockResult,
     } from "$lib/matrix/crypto";
     import { securityState } from "$lib/stores/security.svelte";
-    import { formatRecoveryKey } from "$lib/utils/recoveryKey";
+    import {
+        formatRecoveryKey,
+        isLikelyRecoveryKey,
+    } from "$lib/utils/recoveryKey";
+    import {
+        backupBadge,
+        backupSummaryLabel,
+        restoreProgressView,
+        restoreResultLabel,
+        type RestoreProgress,
+    } from "$lib/utils/keyBackup";
 
     // The Set-up-recovery wizard is a small linear state machine:
     //   idle → password (collect account password for the UIA-guarded upload)
@@ -24,8 +38,55 @@
     const recoveryDone = $derived(status?.secretStorageReady ?? false);
     const canSetUp = $derived((status?.available ?? false) && !recoveryDone);
 
+    // ── Layer 3: enter-recovery-key → verify this session & restore history ──
+    //   idle → entry (paste key) → working (restoring, with progress) → done.
+    type UnlockStep = "idle" | "entry" | "working" | "done";
+
+    let backup = $state<BackupStatus | null>(null);
+    let unlockStep = $state<UnlockStep>("idle");
+    let unlockKey = $state("");
+    let unlockError = $state("");
+    let progress = $state<RestoreProgress | null>(null);
+    let unlockResult = $state<UnlockResult | null>(null);
+
+    // Plain badge model from the backup status (undefined until first load).
+    const backupModel = $derived(
+        backup
+            ? {
+                  exists: backup.exists,
+                  active: backup.active,
+                  trusted: backup.trusted,
+                  version: backup.version,
+              }
+            : null,
+    );
+    const badge = $derived(backupModel ? backupBadge(backupModel) : null);
+    const summary = $derived(
+        backupModel ? backupSummaryLabel(backupModel) : null,
+    );
+    const progressView = $derived(restoreProgressView(progress));
+
+    // Recovery is set up on the account (a 4S default key exists), so this
+    // session can be unlocked with the recovery key.
+    const recoverySetUp = $derived(
+        (status?.secretStorageReady ?? false) ||
+            (status?.defaultKeyId ?? null) !== null,
+    );
+    // Show the "verify this session & restore" call-to-action when recovery
+    // exists but this session isn't trusted yet, or a backup exists that this
+    // session isn't connected to. Not shown on the session that just set up.
+    const needsUnlock = $derived(
+        (status?.available ?? false) &&
+            recoverySetUp &&
+            (!(status?.thisDeviceVerified ?? false) ||
+                ((backup?.exists ?? false) && !(backup?.active ?? false))),
+    );
+
     async function loadStatus() {
-        status = await getSecurityStatus();
+        [status, backup] = await Promise.all([
+            getSecurityStatus(),
+            getBackupStatus(),
+        ]);
     }
 
     // Initial load + refresh whenever crypto state changes (securityTick bumps
@@ -91,6 +152,49 @@
         saved = false;
         error = "";
         step = "idle";
+    }
+
+    function beginUnlock() {
+        unlockError = "";
+        unlockKey = "";
+        unlockResult = null;
+        progress = null;
+        unlockStep = "entry";
+    }
+
+    async function runUnlock() {
+        if (!isLikelyRecoveryKey(unlockKey) || unlockStep === "working") return;
+        unlockError = "";
+        progress = null;
+        unlockStep = "working";
+        try {
+            const result = await unlockWithRecoveryKey(unlockKey, (p) => {
+                progress = p;
+            });
+            unlockKey = "";
+            unlockResult = result;
+            unlockStep = "done";
+            loadStatus();
+        } catch (e) {
+            unlockError =
+                e instanceof Error
+                    ? e.message
+                    : "Could not verify this session";
+            // Stay on the entry step so the user can fix a typo and retry.
+            unlockStep = "entry";
+        }
+    }
+
+    function cancelUnlock() {
+        unlockKey = "";
+        unlockError = "";
+        progress = null;
+        unlockStep = "idle";
+    }
+
+    function finishUnlock() {
+        unlockResult = null;
+        unlockStep = "idle";
     }
 </script>
 
@@ -274,6 +378,112 @@
                 Your cross-signing keys and a key backup are stored securely on
                 the server, protected by your recovery key.
             </p>
+        </section>
+    {/if}
+
+    <!-- Message-history backup + restore-on-this-session (Layer 3) -->
+    {#if status?.available && backup}
+        <section
+            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
+        >
+            <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-medium text-discord-textPrimary">
+                    Message history backup
+                </p>
+                {#if badge}
+                    <span
+                        class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge.tone ===
+                        'active'
+                            ? 'bg-discord-online/20 text-discord-online'
+                            : badge.tone === 'warning'
+                              ? 'bg-discord-warning/20 text-discord-warning'
+                              : 'bg-discord-messageHover text-discord-textMuted'}"
+                        >{badge.label}</span
+                    >
+                {/if}
+            </div>
+            {#if summary}
+                <p class="text-xs text-discord-textMuted">{summary}</p>
+            {/if}
+
+            {#if needsUnlock}
+                {#if unlockStep === "idle"}
+                    <button
+                        onclick={beginUnlock}
+                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                        >Verify this session &amp; restore history</button
+                    >
+                {:else if unlockStep === "entry"}
+                    <div class="space-y-2">
+                        <p class="text-xs text-discord-textMuted">
+                            Enter your <strong>recovery key</strong> to verify this
+                            session and restore your encrypted message history.
+                        </p>
+                        <input
+                            type="text"
+                            bind:value={unlockKey}
+                            placeholder="Recovery key"
+                            autocomplete="off"
+                            autocapitalize="none"
+                            spellcheck="false"
+                            onkeydown={(e) =>
+                                e.key === "Enter" &&
+                                isLikelyRecoveryKey(unlockKey) &&
+                                runUnlock()}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
+                        />
+                        <div class="flex gap-2">
+                            <button
+                                onclick={runUnlock}
+                                disabled={!isLikelyRecoveryKey(unlockKey)}
+                                class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                                >Continue</button
+                            >
+                            <button
+                                onclick={cancelUnlock}
+                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                                >Cancel</button
+                            >
+                        </div>
+                    </div>
+                {:else if unlockStep === "working"}
+                    <div class="space-y-2">
+                        <p class="text-sm text-discord-textPrimary">
+                            {progressView.label}
+                        </p>
+                        <div
+                            class="h-1.5 w-full rounded bg-discord-backgroundDark overflow-hidden"
+                        >
+                            <div
+                                class="h-full bg-discord-accent transition-all"
+                                style="width: {progressView.percent ?? 15}%"
+                            ></div>
+                        </div>
+                    </div>
+                {/if}
+            {/if}
+
+            {#if unlockStep === "done" && unlockResult}
+                <div class="space-y-2">
+                    <p class="text-sm font-medium text-discord-online">
+                        {unlockResult.sessionVerified
+                            ? "This session is now verified"
+                            : "Encrypted history restored"}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {restoreResultLabel(unlockResult)}.
+                    </p>
+                    <button
+                        onclick={finishUnlock}
+                        class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                        >Done</button
+                    >
+                </div>
+            {/if}
+
+            {#if unlockError}
+                <p class="text-sm text-discord-danger">{unlockError}</p>
+            {/if}
         </section>
     {/if}
 </div>
