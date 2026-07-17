@@ -38,8 +38,16 @@ import {
     type RemoteTrack,
     type RemoteTrackPublication,
     type RemoteParticipant,
+    type LocalParticipant,
+    type TrackPublication,
 } from "livekit-client";
 import { pickLivekitTransport, sfuJwtUrl } from "$lib/utils/voiceCall";
+import {
+    buildVideoTiles,
+    type VideoPublicationInput,
+    type VideoTileDescriptor,
+    type VideoSource,
+} from "$lib/utils/videoTiles";
 import {
     effectiveVolume,
     withVolume,
@@ -4285,7 +4293,10 @@ export function onEventDecrypted(
     };
     matrixClient.on(MatrixEventEvent.Decrypted as never, handler as never);
     return () =>
-        matrixClient?.off(MatrixEventEvent.Decrypted as never, handler as never);
+        matrixClient?.off(
+            MatrixEventEvent.Decrypted as never,
+            handler as never,
+        );
 }
 
 // ── Polls (MSC3381) ────────────────────────────────────────────────────────
@@ -4855,6 +4866,50 @@ export function onParticipantMuteChanged(
     return () => participantMuteSubscribers.delete(cb);
 }
 
+const videoTracksSubscribers = new Set<
+    (tiles: VideoTileDescriptor[]) => void
+>();
+
+/** Fires with the current renderable video tiles (remote + local camera and
+ *  screenshare) whenever any video track is added or removed. Emits [] on
+ *  teardown. Only meaningful for the call we are connected to. */
+export function onVideoTracksChanged(
+    cb: (tiles: VideoTileDescriptor[]) => void,
+): () => void {
+    videoTracksSubscribers.add(cb);
+    return () => videoTracksSubscribers.delete(cb);
+}
+
+/** Walk a LiveKit room's participants and collect subscribed video tracks as
+ *  normalized inputs for buildVideoTiles(). */
+function currentVideoInputs(lkRoom: LivekitRoom): VideoPublicationInput[] {
+    const out: VideoPublicationInput[] = [];
+    const addFrom = (
+        p: RemoteParticipant | LocalParticipant,
+        isLocal: boolean,
+    ): void => {
+        for (const pub of p.videoTrackPublications.values()) {
+            const track = (pub as TrackPublication).track;
+            if (!track) continue; // remote: not subscribed yet
+            let source: VideoSource | null = null;
+            if (pub.source === LivekitTrack.Source.Camera) source = "camera";
+            else if (pub.source === LivekitTrack.Source.ScreenShare)
+                source = "screenshare";
+            if (!source) continue;
+            out.push({
+                userId: userIdFromIdentity(p.identity),
+                identity: p.identity,
+                source,
+                isLocal,
+                track,
+            });
+        }
+    };
+    for (const p of lkRoom.remoteParticipants.values()) addFrom(p, false);
+    addFrom(lkRoom.localParticipant, true);
+    return out;
+}
+
 const voiceErrorSubscribers = new Set<(message: string) => void>();
 
 /** Fires when an established/joining call fails fatally (e.g. the server
@@ -5102,6 +5157,16 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // from the TrackSubscribed handler above so each stays focused.
         lkRoom.on(LivekitRoomEvent.TrackSubscribed, notifyMutes);
         lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyMutes);
+        const notifyVideo = () => {
+            if (activeVoice !== call) return;
+            const tiles = buildVideoTiles(currentVideoInputs(lkRoom));
+            for (const cb of videoTracksSubscribers) cb(tiles);
+        };
+        lkRoom.on(LivekitRoomEvent.TrackSubscribed, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.LocalTrackPublished, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.LocalTrackUnpublished, notifyVideo);
+        lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyVideo);
         lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("reconnecting");
@@ -5186,6 +5251,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // instantly; the join seq guard protects a racing join.
         for (const cb of activeSpeakerSubscribers) cb([]);
         for (const cb of participantMuteSubscribers) cb([]);
+        for (const cb of videoTracksSubscribers) cb([]);
         notifyVoiceConnState(null);
         setVoicePlaybackBlocked(false);
         call.session.off(
@@ -5255,6 +5321,63 @@ export async function setVoiceInputDevice(
     if (!activeVoice || !deviceId) return;
     await activeVoice.lkRoom
         .switchActiveDevice("audioinput", deviceId)
+        .catch(() => {});
+}
+
+/** getDisplayMedia rejects with NotAllowedError/AbortError when the user
+ *  dismisses the OS picker — that is a choice, not a failure, so it must not
+ *  toast. */
+function isUserCancel(err: unknown): boolean {
+    return (
+        err instanceof DOMException &&
+        (err.name === "NotAllowedError" || err.name === "AbortError")
+    );
+}
+
+/** Start/stop publishing a screen share (with system audio per settings).
+ *  Returns whether a share is now being published. The store drives its UI
+ *  state from LocalTrackPublished/Unpublished, so this return is advisory. */
+export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
+    const call = activeVoice;
+    if (!call) return false;
+    try {
+        await call.lkRoom.localParticipant.setScreenShareEnabled(on, {
+            audio: settingsState.shareSystemAudio,
+        });
+        return on;
+    } catch (err) {
+        if (isUserCancel(err)) return false;
+        console.error("Screen share failed:", err);
+        notifyVoiceNotice("Could not start screen share");
+        return false;
+    }
+}
+
+/** Start/stop publishing the camera, using the configured input device. */
+export async function setCameraEnabled(on: boolean): Promise<boolean> {
+    const call = activeVoice;
+    if (!call) return false;
+    try {
+        await call.lkRoom.localParticipant.setCameraEnabled(on, {
+            deviceId: settingsState.videoInputDeviceId ?? undefined,
+        });
+        return on;
+    } catch (err) {
+        if (isUserCancel(err)) return false;
+        console.error("Camera enable failed:", err);
+        notifyVoiceNotice("Could not start the camera — check permissions");
+        return false;
+    }
+}
+
+/** Switch the live call's camera. Null (system default) takes effect on the
+ *  next enable. No-op when not sharing camera. */
+export async function setVideoInputDevice(
+    deviceId: string | null,
+): Promise<void> {
+    if (!activeVoice || !deviceId) return;
+    await activeVoice.lkRoom
+        .switchActiveDevice("videoinput", deviceId)
         .catch(() => {});
 }
 
