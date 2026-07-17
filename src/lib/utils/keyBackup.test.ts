@@ -1,0 +1,163 @@
+import { describe, it, expect } from "vitest";
+import {
+    restoreProgressView,
+    restoreResultLabel,
+    backupBadge,
+    backupSummaryLabel,
+    type BackupStatusModel,
+} from "./keyBackup";
+
+describe("restoreProgressView", () => {
+    it("returns an indeterminate 'preparing' view for null progress", () => {
+        expect(restoreProgressView(null)).toEqual({
+            label: "Preparing…",
+            percent: null,
+        });
+    });
+
+    it("is indeterminate during the fetch stage", () => {
+        const view = restoreProgressView({ stage: "fetch" });
+        expect(view.percent).toBeNull();
+        expect(view.label).toMatch(/fetch/i);
+    });
+
+    it("reports percent and a count label during load_keys", () => {
+        const view = restoreProgressView({
+            stage: "load_keys",
+            successes: 30,
+            failures: 0,
+            total: 120,
+        });
+        expect(view.percent).toBe(25);
+        expect(view.label).toContain("30");
+        expect(view.label).toContain("120");
+    });
+
+    it("bases percent on processed keys (successes + failures), rounded", () => {
+        // 33 of 100 processed → 33%.
+        const view = restoreProgressView({
+            stage: "load_keys",
+            successes: 30,
+            failures: 3,
+            total: 100,
+        });
+        expect(view.percent).toBe(33);
+        // The count label surfaces the successfully-restored keys.
+        expect(view.label).toContain("30");
+    });
+
+    it("clamps percent to 0–100 and never divides by zero", () => {
+        expect(
+            restoreProgressView({
+                stage: "load_keys",
+                successes: 0,
+                failures: 0,
+                total: 0,
+            }).percent,
+        ).toBeNull();
+        expect(
+            restoreProgressView({
+                stage: "load_keys",
+                successes: 150,
+                failures: 0,
+                total: 100,
+            }).percent,
+        ).toBe(100);
+    });
+});
+
+describe("restoreResultLabel", () => {
+    it("reports nothing to restore when the backup is empty", () => {
+        expect(restoreResultLabel({ total: 0, imported: 0 })).toMatch(/no/i);
+    });
+
+    it("reports a full restore with a pluralised key count", () => {
+        expect(restoreResultLabel({ total: 340, imported: 340 })).toBe(
+            "340 keys restored",
+        );
+    });
+
+    it("uses the singular for exactly one key", () => {
+        expect(restoreResultLabel({ total: 1, imported: 1 })).toBe(
+            "1 key restored",
+        );
+    });
+
+    it("surfaces a partial restore as 'imported of total'", () => {
+        expect(restoreResultLabel({ total: 340, imported: 12 })).toBe(
+            "12 of 340 keys restored",
+        );
+    });
+});
+
+describe("backupBadge", () => {
+    const base: BackupStatusModel = {
+        exists: true,
+        active: true,
+        trusted: true,
+        version: "3",
+    };
+
+    it("is inactive when no backup exists", () => {
+        expect(backupBadge({ ...base, exists: false })).toEqual({
+            label: "Not set up",
+            tone: "inactive",
+        });
+    });
+
+    it("warns when a backup exists but is not trusted", () => {
+        expect(backupBadge({ ...base, trusted: false })).toEqual({
+            label: "Not trusted",
+            tone: "warning",
+        });
+    });
+
+    it("is active when the backup exists, is trusted, and this session is connected", () => {
+        expect(backupBadge(base)).toEqual({ label: "On", tone: "active" });
+    });
+
+    it("warns when trusted but this session is not connected to the backup", () => {
+        expect(backupBadge({ ...base, active: false })).toEqual({
+            label: "Not connected",
+            tone: "warning",
+        });
+    });
+});
+
+describe("backupSummaryLabel", () => {
+    const base: BackupStatusModel = {
+        exists: true,
+        active: true,
+        trusted: true,
+        version: "3",
+    };
+
+    it("prompts to set up when there is no backup", () => {
+        expect(backupSummaryLabel({ ...base, exists: false })).toMatch(
+            /set up recovery/i,
+        );
+    });
+
+    it("includes the version when actively backing up", () => {
+        expect(backupSummaryLabel(base)).toContain("v3");
+        expect(backupSummaryLabel(base)).toMatch(/backed up/i);
+    });
+
+    it("omits the version gracefully when unknown", () => {
+        const label = backupSummaryLabel({ ...base, version: null });
+        expect(label).toMatch(/backed up/i);
+        expect(label).not.toContain("v");
+    });
+
+    it("explains an untrusted backup", () => {
+        expect(backupSummaryLabel({ ...base, trusted: false })).toMatch(
+            /not trusted|isn't trusted/i,
+        );
+    });
+
+    it("prompts to enter the recovery key when trusted but disconnected", () => {
+        expect(backupSummaryLabel({ ...base, active: false })).toMatch(
+            /recovery key/i,
+        );
+    });
+});
