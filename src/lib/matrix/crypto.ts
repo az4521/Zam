@@ -200,6 +200,8 @@ export interface VerificationView {
     otherDeviceId: string | null;
     /** True when the other party is one of our own devices. */
     isSelfVerification: boolean;
+    /** True if we started this request (vs received it from the other side). */
+    initiatedByMe: boolean;
     /** Raw `VerificationPhase` number (map via utils/verification). */
     phase: number;
     /** The 7 SAS emoji `[symbol, name]` tuples, or null before they're ready. */
@@ -289,6 +291,7 @@ function createVerificationController(
             otherUserId: request.otherUserId,
             otherDeviceId: request.otherDeviceId ?? null,
             isSelfVerification: request.isSelfVerification,
+            initiatedByMe: request.initiatedByMe,
             phase: request.phase,
             sasEmoji: sasCallbacks?.sas.emoji ?? null,
         }),
