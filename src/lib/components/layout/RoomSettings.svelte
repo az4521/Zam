@@ -6,6 +6,7 @@
     import {
         canInviteToRoom,
         getMyPowerLevel,
+        getUserPowerLevel,
         getRoomPowerLevels,
         setRoomPowerLevels,
         setUserPowerLevel,
@@ -310,7 +311,9 @@
             )
             .sort(
                 (a, b) =>
-                    b.powerLevel - a.powerLevel || a.name.localeCompare(b.name),
+                    getUserPowerLevel(room, b.userId) -
+                        getUserPowerLevel(room, a.userId) ||
+                    a.name.localeCompare(b.name),
             ),
     );
 
@@ -1620,9 +1623,12 @@
                                     {#each filteredMembers as member (member.userId)}
                                         {@const isSelf =
                                             member.userId === auth.userId}
+                                        {@const memberPl = getUserPowerLevel(
+                                            room,
+                                            member.userId,
+                                        )}
                                         {@const canActOnMember =
-                                            !isSelf &&
-                                            myPowerLevel > member.powerLevel}
+                                            !isSelf && myPowerLevel > memberPl}
                                         <div
                                             class="rounded bg-discord-backgroundTertiary overflow-hidden"
                                         >
@@ -1653,9 +1659,7 @@
                                                 </div>
                                                 <span
                                                     class="text-xs text-discord-textMuted flex-shrink-0"
-                                                    >{plLabel(
-                                                        member.powerLevel,
-                                                    )} ({member.powerLevel})</span
+                                                    >{plLabel(memberPl)} ({memberPl})</span
                                                 >
                                                 {#if !isSelf}
                                                     <button
@@ -1698,7 +1702,7 @@
                                                     <div
                                                         class="flex flex-wrap gap-2"
                                                     >
-                                                        {#if myPowerLevel >= 100 || myPowerLevel > member.powerLevel}
+                                                        {#if myPowerLevel >= 100 || myPowerLevel > memberPl}
                                                             <select
                                                                 onchange={(e) =>
                                                                     doSetPowerLevel(

@@ -4,6 +4,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
         getRoomMembers,
+        getUserPowerLevel,
         loadRoomMembersIfNeeded,
         mxcToHttp,
     } from "$lib/matrix/client";
@@ -41,17 +42,20 @@
 
     const admins = $derived(
         members
-            .filter((m) => m.powerLevel >= 100)
+            .filter((m) => getUserPowerLevel(room, m.userId) >= 100)
             .sort((a, b) => a.name.localeCompare(b.name)),
     );
     const moderators = $derived(
         members
-            .filter((m) => m.powerLevel >= 50 && m.powerLevel < 100)
+            .filter((m) => {
+                const l = getUserPowerLevel(room, m.userId);
+                return l >= 50 && l < 100;
+            })
             .sort((a, b) => a.name.localeCompare(b.name)),
     );
     const regularMembers = $derived(
         members
-            .filter((m) => m.powerLevel < 50)
+            .filter((m) => getUserPowerLevel(room, m.userId) < 50)
             .sort((a, b) => a.name.localeCompare(b.name)),
     );
 

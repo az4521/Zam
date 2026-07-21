@@ -18,6 +18,7 @@
         getMemberAvatar,
         getMutualRoomsWith,
         getMyPowerLevel,
+        getUserPowerLevel,
         getRoomPowerLevels,
         createDirectMessage,
         kickUser,
@@ -82,7 +83,9 @@
     );
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
     const canActOnTarget = $derived(
-        !isSelf && !!member && myPowerLevel > (member?.powerLevel ?? 0),
+        !isSelf &&
+            !!member &&
+            myPowerLevel > getUserPowerLevel(room, member.userId),
     );
     const canKickTarget = $derived(canActOnTarget && myPowerLevel >= pl.kick);
     const canBanTarget = $derived(canActOnTarget && myPowerLevel >= pl.ban);

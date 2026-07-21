@@ -5,6 +5,7 @@
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         getMyPowerLevel,
+        getUserPowerLevel,
         getRoomPowerLevels,
         getMemberName,
         kickUser,
@@ -56,7 +57,7 @@
         return menuGates({
             isSelf,
             myLevel: getMyPowerLevel(room),
-            targetLevel: member.powerLevel,
+            targetLevel: getUserPowerLevel(room, userId),
             kickLevel: pl.kick,
             banLevel: pl.ban,
         });
