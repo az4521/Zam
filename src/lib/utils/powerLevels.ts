@@ -38,10 +38,16 @@ export interface EffectivePowerLevelInput {
  * immutable-creator room is lifted to at least `CREATOR_POWER_LEVEL`. `max`
  * keeps a genuinely-higher raw level and makes the lift a no-op if the SDK ever
  * starts reporting creator power itself.
+ *
+ * A non-finite raw level is treated as 0. matrix-js-sdk 41 reports a v12
+ * creator's `RoomMember.powerLevel` as `NaN` (no users entry to compute from);
+ * `NaN` slips past a `?? 0` guard and poisons `Math.max` (→ `NaN`), which then
+ * fails every `>= required` gate. Normalizing here is the single choke point.
  */
 export function effectivePowerLevel(input: EffectivePowerLevelInput): number {
+    const raw = Number.isFinite(input.rawPowerLevel) ? input.rawPowerLevel : 0;
     if (input.immutableCreators && input.isCreator) {
-        return Math.max(input.rawPowerLevel, CREATOR_POWER_LEVEL);
+        return Math.max(raw, CREATOR_POWER_LEVEL);
     }
-    return input.rawPowerLevel;
+    return raw;
 }

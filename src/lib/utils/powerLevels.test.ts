@@ -62,4 +62,27 @@ describe("effectivePowerLevel", () => {
             }),
         ).toBe(50);
     });
+
+    // matrix-js-sdk 41 reports a v12 creator's RoomMember.powerLevel as NaN.
+    // NaN is not caught by `?? 0` and Math.max(NaN, 100) === NaN, which would
+    // fail every gate — the exact bug live testing surfaced.
+    it("lifts a creator whose raw level is NaN (the live SDK case)", () => {
+        expect(
+            effectivePowerLevel({
+                rawPowerLevel: NaN,
+                isCreator: true,
+                immutableCreators: true,
+            }),
+        ).toBe(100);
+    });
+
+    it("treats a non-finite raw level as 0 for a non-creator", () => {
+        expect(
+            effectivePowerLevel({
+                rawPowerLevel: NaN,
+                isCreator: false,
+                immutableCreators: true,
+            }),
+        ).toBe(0);
+    });
 });
