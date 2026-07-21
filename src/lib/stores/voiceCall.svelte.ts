@@ -30,6 +30,7 @@ import {
 import {
     toggleMute,
     toggleDeafen,
+    usersFromIdentities,
     type MuteState,
     type VoiceConnState,
 } from "$lib/utils/voiceCall";
@@ -70,6 +71,11 @@ class VoiceCallState {
     /** Remote identities ("@user:server:DEVICE") whose mic is muted. Only
      *  populated for the call we are connected to. */
     mutedIdentities = $state<string[]>([]);
+    /** Speaking users, aggregated across all their devices — the roster is
+     *  per-user (earliest device) but LiveKit speaking/mute is per user:device,
+     *  so a second-device speak/mute must still light the single row. */
+    speakingUserIds = $derived(usersFromIdentities(this.speakingMemberIds));
+    mutedUserIds = $derived(usersFromIdentities(this.mutedIdentities));
     /** When the current call first connected — held across reconnects so a
      *  blip doesn't reset the timer. Null when not in a call. */
     connectedAt = $state<number | null>(null);

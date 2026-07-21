@@ -28,7 +28,7 @@
         dedupeParticipants(getRoomCallMemberships(room))),
     );
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
-    const speaking = $derived(new Set(voiceCallState.speakingMemberIds));
+    const speaking = $derived(voiceCallState.speakingUserIds);
     // m.direct is account data: it lands on a sync, never on a matrixRTC
     // session event, so this hangs off roomsTick (onRoomUpdate bumps it on
     // every sync) and NOT voiceTick — see CallView.svelte:44. Ringing is
@@ -68,9 +68,7 @@
             <div class="flex -space-x-1.5">
                 {#each participants as p (p.userId)}
                     <div
-                        class="rounded-full ring-2 {speaking.has(
-                            `${p.userId}:${p.deviceId}`,
-                        )
+                        class="rounded-full ring-2 {speaking.has(p.userId)
                             ? 'ring-discord-accent'
                             : 'ring-transparent'}"
                         title={getMemberName(room, p.userId)}

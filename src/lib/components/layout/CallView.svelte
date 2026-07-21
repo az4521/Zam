@@ -70,9 +70,9 @@
         dedupeParticipants(getRoomCallMemberships(room))),
     );
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
-    const speaking = $derived(new Set(voiceCallState.speakingMemberIds));
-    // Contract: an identity absent from this set is unmuted, never "unknown".
-    const muted = $derived(new Set(voiceCallState.mutedIdentities));
+    const speaking = $derived(voiceCallState.speakingUserIds);
+    // Contract: a user absent from this set is unmuted, never "unknown".
+    const muted = $derived(voiceCallState.mutedUserIds);
 
     // Video tiles for THIS call (empty unless we are connected here). Split so
     // a camera can replace a participant's avatar while their screenshare gets
@@ -254,7 +254,7 @@
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
                         class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center cursor-pointer border-2 {speaking.has(
-                            identity,
+                            p.userId,
                         ) ||
                         (cam && cam.key === voiceCallState.focusedTileKey)
                             ? 'border-discord-accent'
@@ -329,7 +329,7 @@
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
                         class="relative aspect-video rounded-lg overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center border-2 {speaking.has(
-                            identity,
+                            p.userId,
                         ) ||
                         (cam && cam.key === voiceCallState.focusedTileKey)
                             ? 'border-discord-accent'
@@ -358,7 +358,7 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
-                            {#if muted.has(identity)}
+                            {#if muted.has(p.userId)}
                                 <div
                                     class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
                                 >
@@ -378,7 +378,7 @@
                             <div
                                 class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
                             >
-                                {#if muted.has(identity)}
+                                {#if muted.has(p.userId)}
                                     <MicOff
                                         size={12}
                                         class="text-discord-danger flex-shrink-0"

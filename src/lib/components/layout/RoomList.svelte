@@ -548,11 +548,10 @@
                 (void voiceCallState.voiceTick,
                 dedupeParticipants(getRoomCallMemberships(room)))}
             {#if participants.length > 0}
-                {@const speaking = new Set(voiceCallState.speakingMemberIds)}
-                {@const muted = new Set(voiceCallState.mutedIdentities)}
+                {@const speaking = voiceCallState.speakingUserIds}
+                {@const muted = voiceCallState.mutedUserIds}
                 <div class="mb-0.5">
                     {#each participants as p (p.userId)}
-                        {@const identity = `${p.userId}:${p.deviceId}`}
                         {@const name =
                             (void roomsState.roomsTick,
                             getMemberName(room, p.userId))}
@@ -590,7 +589,7 @@
                         >
                             <div
                                 class="rounded-full flex-shrink-0 ring-2 {speaking.has(
-                                    identity,
+                                    p.userId,
                                 )
                                     ? 'ring-discord-accent'
                                     : 'ring-transparent'}"
@@ -607,7 +606,7 @@
                             >
                                 {name}
                             </span>
-                            {#if muted.has(identity)}
+                            {#if muted.has(p.userId)}
                                 <MicOff
                                     size={12}
                                     class="flex-shrink-0 text-discord-danger"
