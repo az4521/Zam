@@ -968,6 +968,31 @@ export async function sendFormattedMessage(
     } as never);
 }
 
+/**
+ * Send an `m.emote` ("/me") message. Mirrors sendFormattedMessage but with the
+ * emote msgtype; formatted_body + m.mentions ride along when present so markdown
+ * and mentions still work inside an emote.
+ */
+export async function sendEmote(
+    roomId: string,
+    body: string,
+    formattedBody?: string,
+    mentions?: { user_ids?: string[]; room?: boolean },
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.sendMessage(roomId, {
+        msgtype: "m.emote",
+        body,
+        ...(formattedBody
+            ? {
+                  format: "org.matrix.custom.html",
+                  formatted_body: formattedBody,
+              }
+            : {}),
+        ...(mentions ? { "m.mentions": mentions } : {}),
+    } as never);
+}
+
 /** Forward a message or sticker as a fresh event in another joined room. */
 export async function forwardMessage(
     roomId: string,
