@@ -4843,6 +4843,13 @@ export function getRoomCallMemberships(room: Room): VoiceMembership[] {
 const voiceSessionSubscribers = new Set<() => void>();
 const subscribedVoiceSessions = new WeakSet<object>();
 
+// The manager-level session listeners are bound once for the first subscriber
+// and unbound when the last leaves, instead of once per subscriber.
+let voiceSessionsBound = false;
+let onVoiceSessionStarted: ((roomId: string, session: object) => void) | null =
+    null;
+let onVoiceSessionEnded: (() => void) | null = null;
+
 function notifyVoiceSessions(): void {
     for (const cb of voiceSessionSubscribers) cb();
 }
@@ -4861,25 +4868,41 @@ function watchVoiceSession(session: {
  */
 export function onVoiceSessionsChanged(cb: () => void): () => void {
     if (!matrixClient) return () => {};
-    voiceSessionSubscribers.add(cb);
     const manager = matrixClient.matrixRTC;
-    const onStarted = (_roomId: string, session: object) => {
-        watchVoiceSession(session as never);
-        notifyVoiceSessions();
-    };
-    const onEnded = () => notifyVoiceSessions();
-    manager.on("session_started" as never, onStarted as never);
-    manager.on("session_ended" as never, onEnded as never);
-    // Sessions that were already active before this subscription (e.g. a
-    // call in progress at boot) never fire "session_started" again — watch
-    // them now so participant changes still notify.
-    for (const room of matrixClient.getRooms()) {
-        watchVoiceSession(manager.getRoomSession(room) as never);
+    voiceSessionSubscribers.add(cb);
+    if (!voiceSessionsBound) {
+        voiceSessionsBound = true;
+        onVoiceSessionStarted = (_roomId: string, session: object) => {
+            watchVoiceSession(session as never);
+            notifyVoiceSessions();
+        };
+        onVoiceSessionEnded = () => notifyVoiceSessions();
+        manager.on("session_started" as never, onVoiceSessionStarted as never);
+        manager.on("session_ended" as never, onVoiceSessionEnded as never);
+        // Sessions already active before the first subscription never fire
+        // "session_started" again — watch them now (idempotent via the
+        // subscribedVoiceSessions WeakSet).
+        for (const room of matrixClient.getRooms()) {
+            watchVoiceSession(manager.getRoomSession(room) as never);
+        }
     }
     return () => {
         voiceSessionSubscribers.delete(cb);
-        manager.off("session_started" as never, onStarted as never);
-        manager.off("session_ended" as never, onEnded as never);
+        if (voiceSessionSubscribers.size === 0 && voiceSessionsBound) {
+            if (onVoiceSessionStarted)
+                manager.off(
+                    "session_started" as never,
+                    onVoiceSessionStarted as never,
+                );
+            if (onVoiceSessionEnded)
+                manager.off(
+                    "session_ended" as never,
+                    onVoiceSessionEnded as never,
+                );
+            onVoiceSessionStarted = null;
+            onVoiceSessionEnded = null;
+            voiceSessionsBound = false;
+        }
     };
 }
 
