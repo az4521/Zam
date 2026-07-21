@@ -4879,12 +4879,14 @@ export function onVoiceSessionsChanged(cb: () => void): () => void {
         onVoiceSessionEnded = () => notifyVoiceSessions();
         manager.on("session_started" as never, onVoiceSessionStarted as never);
         manager.on("session_ended" as never, onVoiceSessionEnded as never);
-        // Sessions already active before the first subscription never fire
-        // "session_started" again — watch them now (idempotent via the
-        // subscribedVoiceSessions WeakSet).
-        for (const room of matrixClient.getRooms()) {
-            watchVoiceSession(manager.getRoomSession(room) as never);
-        }
+    }
+    // Re-scan on EVERY subscribe (not just the first): the app-shell subscribers
+    // bind at different sync phases (initVoiceCall pre-sync, initIncomingCalls
+    // post-sync), and a call already in progress when a subscriber arrives may
+    // have emitted `session_started` before that subscriber's phase. Idempotent
+    // via the subscribedVoiceSessions WeakSet, so per-subscribe is cheap.
+    for (const room of matrixClient.getRooms()) {
+        watchVoiceSession(manager.getRoomSession(room) as never);
     }
     return () => {
         voiceSessionSubscribers.delete(cb);
