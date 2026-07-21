@@ -42,6 +42,7 @@ import {
     type TrackPublication,
 } from "livekit-client";
 import {
+    callEndedMembershipMessage,
     pickLivekitTransport,
     sfuJwtUrl,
     screenShareCaptureResolution,
@@ -4891,6 +4892,7 @@ interface ActiveVoiceCall {
      *  per-user volume can be applied without disturbing anyone else. */
     elsByIdentity: Map<string, Set<HTMLAudioElement>>;
     onMmError: (err: unknown) => void;
+    onMyMembership: (room: Room, membership: string) => void;
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
@@ -5222,6 +5224,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             cb(`Call membership failed: ${detail}`);
         void leaveVoiceCall();
     };
+    const onMyMembership = (room: Room, membership: string) => {
+        // Someone removed me (kick/ban) or I left elsewhere while in this
+        // call: the SFU connection + mic would otherwise stay live in a room
+        // I'm no longer in. Tear down and say why.
+        if (activeVoice !== call || room.roomId !== call.roomId) return;
+        const me = matrixClient!.getUserId();
+        const sender = room.getMember(me!)?.events?.member?.getSender();
+        const msg = callEndedMembershipMessage(membership, sender === me);
+        if (!msg) return;
+        for (const cb of voiceErrorSubscribers) cb(msg);
+        void leaveVoiceCall();
+    };
     const call: ActiveVoiceCall = {
         roomId,
         session,
@@ -5229,12 +5243,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         audioEls: new Set(),
         elsByIdentity: new Map(),
         onMmError,
+        onMyMembership,
     };
     activeVoice = call;
     ensureVoiceDeviceWatch();
     desiredMicMuted = false;
     notifyVoiceConnState("connecting");
     session.on("membership_manager_error" as never, onMmError as never);
+    matrixClient.on("Room.myMembership" as never, onMyMembership as never);
 
     try {
         session.joinRTCSession(
@@ -5444,6 +5460,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
         call.session.off(
             "membership_manager_error" as never,
             call.onMmError as never,
+        );
+        matrixClient?.off(
+            "Room.myMembership" as never,
+            call.onMyMembership as never,
         );
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
