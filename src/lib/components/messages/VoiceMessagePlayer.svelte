@@ -19,6 +19,7 @@
     let playing = $state(false);
     let currentMs = $state(0);
     let mediaDurationMs = $state(0);
+    let raf = 0;
 
     // Prefer the media's real duration once known — but MediaRecorder webm blobs
     // often report Infinity/NaN until fully buffered, so fall back to the
@@ -71,7 +72,21 @@
         if (audioEl && blobUrl) audioEl.currentTime = currentMs / 1000;
     }
 
+    // Drive progress at animation-frame rate while playing — the audio
+    // element's `timeupdate` only fires ~4×/s, which makes the fill jump.
+    function startProgressLoop() {
+        cancelAnimationFrame(raf);
+        const step = () => {
+            if (audioEl && !audioEl.paused) {
+                currentMs = audioEl.currentTime * 1000;
+                raf = requestAnimationFrame(step);
+            }
+        };
+        raf = requestAnimationFrame(step);
+    }
+
     onDestroy(() => {
+        cancelAnimationFrame(raf);
         if (blobUrl) URL.revokeObjectURL(blobUrl);
     });
 </script>
@@ -113,7 +128,7 @@
                 aria-valuemin="0"
                 aria-valuemax="100"
                 aria-valuenow={Math.round(progress * 100)}
-                class="flex items-center gap-[2px] h-6 min-w-0 overflow-hidden cursor-pointer"
+                class="relative h-6 w-full cursor-pointer"
                 onclick={(e) => seekFromEvent(e, e.currentTarget)}
                 onkeydown={(e) => {
                     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -129,15 +144,30 @@
                     }
                 }}
             >
-                {#each waveform as bar, i}
-                    {@const played = (i + 0.5) / waveform.length <= progress}
-                    <div
-                        class="flex-1 min-w-[2px] rounded-full {played
-                            ? 'bg-discord-accent'
-                            : 'bg-discord-textMuted'}"
-                        style="height: {Math.max(8, (bar / 1024) * 100)}%"
-                    ></div>
-                {/each}
+                <!-- Base (unplayed) bars -->
+                <div
+                    class="absolute inset-0 flex items-center gap-[2px] pointer-events-none"
+                >
+                    {#each waveform as bar}
+                        <div
+                            class="flex-1 min-w-[2px] rounded-full bg-discord-textMuted"
+                            style="height: {Math.max(8, (bar / 1024) * 100)}%"
+                        ></div>
+                    {/each}
+                </div>
+                <!-- Played bars, revealed by a continuous left-to-right clip so
+                     the fill edge moves smoothly (sub-bar), not bar-by-bar. -->
+                <div
+                    class="absolute inset-0 flex items-center gap-[2px] pointer-events-none"
+                    style="clip-path: inset(0 {(1 - progress) * 100}% 0 0)"
+                >
+                    {#each waveform as bar}
+                        <div
+                            class="flex-1 min-w-[2px] rounded-full bg-discord-accent"
+                            style="height: {Math.max(8, (bar / 1024) * 100)}%"
+                        ></div>
+                    {/each}
+                </div>
             </div>
         {:else}
             <p class="text-discord-textPrimary text-xs font-medium truncate">
@@ -158,14 +188,19 @@
             bind:this={audioEl}
             src={blobUrl}
             class="hidden"
-            onplay={() => (playing = true)}
-            onpause={() => (playing = false)}
+            onplay={() => {
+                playing = true;
+                startProgressLoop();
+            }}
+            onpause={() => {
+                playing = false;
+                cancelAnimationFrame(raf);
+                if (audioEl) currentMs = audioEl.currentTime * 1000;
+            }}
             onended={() => {
                 playing = false;
+                cancelAnimationFrame(raf);
                 currentMs = 0;
-            }}
-            ontimeupdate={() => {
-                if (audioEl) currentMs = audioEl.currentTime * 1000;
             }}
             onloadedmetadata={() => {
                 if (audioEl && Number.isFinite(audioEl.duration))
