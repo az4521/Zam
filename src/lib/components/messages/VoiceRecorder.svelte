@@ -35,6 +35,7 @@
     let startTs = 0;
     let elapsedTimer: ReturnType<typeof setInterval> | null = null;
     let autoStop: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
     async function start() {
         mimeType = pickAudioMimeType();
@@ -54,6 +55,11 @@
             if (e.data.size > 0) chunks.push(e.data);
         };
         recorder.onstop = onStopped;
+        recorder.onerror = () => {
+            showErrorToast("Recording failed.");
+            cleanup();
+            onClose();
+        };
         // Live meter (own analyser on the recording stream).
         ctx = new AudioContext();
         const source = ctx.createMediaStreamSource(stream);
@@ -98,6 +104,7 @@
     }
 
     async function onStopped() {
+        if (disposed) return;
         previewDurationMs = performance.now() - startTs;
         teardownCapture();
         recordedBlob = new Blob(chunks, {
@@ -120,6 +127,11 @@
 
     async function send() {
         if (!recordedBlob || phase === "sending") return;
+        if (recordedBlob.size === 0) {
+            showErrorToast("Nothing was recorded.");
+            discard();
+            return;
+        }
         phase = "sending";
         try {
             await sendVoiceMessage(
@@ -146,6 +158,22 @@
     }
 
     function cleanup() {
+        disposed = true;
+        // Stop + unwire the recorder before releasing the stream, so a discard
+        // or unmount mid-recording doesn't fire a late onstop that rebuilds a
+        // blob + object URL nothing would revoke.
+        if (recorder) {
+            recorder.onstop = null;
+            recorder.onerror = null;
+            if (recorder.state !== "inactive") {
+                try {
+                    recorder.stop();
+                } catch {
+                    /* already inactive */
+                }
+            }
+            recorder = null;
+        }
         teardownCapture();
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = null;

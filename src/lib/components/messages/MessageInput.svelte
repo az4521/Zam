@@ -657,6 +657,10 @@
     // `text` or the drafts store — so it never reloads what the user is typing.
     $effect(() => {
         const id = roomId;
+        // Close any open voice recorder when the room changes — this component
+        // stays mounted across room switches, so an open recorder would otherwise
+        // persist and send its audio to the newly-selected room.
+        voiceRecorderOpen = false;
         untrack(() => {
             const draft = getDraft(id);
             text = draft?.text ?? "";
