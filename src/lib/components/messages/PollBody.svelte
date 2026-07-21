@@ -4,6 +4,7 @@
         getPollView,
         fetchPollRelations,
         sendPollResponse,
+        sendPollEnd,
     } from "$lib/matrix/client";
     import {
         messagesState,
@@ -101,6 +102,24 @@
 
     function pct(count: number, total: number): number {
         return total === 0 ? 0 : Math.round((count / total) * 100);
+    }
+
+    let confirmingEnd = $state(false);
+    let endingPoll = $state(false);
+    async function endPoll() {
+        if (endingPoll) return;
+        endingPoll = true;
+        try {
+            await sendPollEnd(room.roomId, event);
+            bumpReactionTick();
+            confirmingEnd = false;
+        } catch (err) {
+            showErrorToast(
+                err instanceof Error ? err.message : "Failed to close poll",
+            );
+        } finally {
+            endingPoll = false;
+        }
     }
 </script>
 
@@ -213,6 +232,36 @@
             {#if !view.ended && isVoting}
                 · saving vote…{/if}
         </p>
+
+        {#if view.canEnd}
+            {#if confirmingEnd}
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="text-xs text-discord-textMuted"
+                        >Close this poll?</span
+                    >
+                    <button
+                        type="button"
+                        onclick={endPoll}
+                        disabled={endingPoll}
+                        class="px-2.5 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                        >{endingPoll ? "Closing…" : "Close poll"}</button
+                    >
+                    <button
+                        type="button"
+                        onclick={() => (confirmingEnd = false)}
+                        class="px-2.5 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                        >Cancel</button
+                    >
+                </div>
+            {:else}
+                <button
+                    type="button"
+                    onclick={() => (confirmingEnd = true)}
+                    class="mt-2 text-xs text-discord-textMuted hover:text-discord-textPrimary underline"
+                    >Close poll</button
+                >
+            {/if}
+        {/if}
     </div>
 {:else}
     <p class="text-xs text-discord-textMuted italic">
