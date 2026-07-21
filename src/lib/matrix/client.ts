@@ -118,6 +118,10 @@ import {
     ENCRYPTION_ALGORITHM,
     encryptionInitialState,
 } from "$lib/utils/roomEncryption";
+import {
+    effectivePowerLevel,
+    roomVersionHasImmutableCreators,
+} from "$lib/utils/powerLevels";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -2972,9 +2976,8 @@ export function getRoomMemberIds(
 
 /**
  * Whether the current user may invite to this room. Normal path: power level ≥
- * the room's `invite` PL. Room-v12 (MSC4289) creators have implicit power the
- * SDK may not surface as a PL number, so the room creator (and additional
- * creators) always pass — we never hide a capability the server grants.
+ * the room's `invite` PL. Room-v12 (MSC4289) creators are handled by
+ * getUserPowerLevel's shared effective-level rule.
  */
 export function canInviteToRoom(roomId: string): boolean {
     const room = matrixClient?.getRoom(roomId);
@@ -2987,15 +2990,12 @@ export function canInviteToRoom(roomId: string): boolean {
     const inviteReq = state
         ?.getStateEvents("m.room.power_levels", "")
         ?.getContent()?.invite;
-    if (
-        getMyPowerLevel(room) >= (typeof inviteReq === "number" ? inviteReq : 0)
-    )
-        return true;
-    const create = state?.getStateEvents("m.room.create", "");
-    const creator = create?.getSender();
-    const additional =
-        (create?.getContent()?.additional_creators as string[]) ?? [];
-    return creator === me || additional.includes(me);
+    // getUserPowerLevel already lifts a v12 creator (its bespoke creator branch
+    // is now the shared, version-gated rule).
+    return (
+        getUserPowerLevel(room, me) >=
+        (typeof inviteReq === "number" ? inviteReq : 0)
+    );
 }
 
 export function getInvitedRooms(): Room[] {
@@ -4044,10 +4044,39 @@ export function getCustomEmojis(
 
 // ── Admin / moderation helpers ────────────────────────────────────────────────
 
+/**
+ * Whether `userId` is the room creator or an additional creator (MSC4289). Reads
+ * `m.room.create` — the source of truth even when the SDK doesn't surface a
+ * v12 creator's implicit power in the power-levels map.
+ */
+export function isRoomCreator(room: Room, userId: string): boolean {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    const create = state?.getStateEvents("m.room.create", "");
+    if (!create) return false;
+    if (create.getSender() === userId) return true;
+    const additional =
+        (create.getContent()?.additional_creators as string[]) ?? [];
+    return additional.includes(userId);
+}
+
+/**
+ * A user's *effective* power level in the room. Normally the SDK's raw level,
+ * but a room-v12 (MSC4289) creator — whose implicit power the SDK reports as 0 —
+ * is lifted to at least `CREATOR_POWER_LEVEL`. See `effectivePowerLevel`.
+ */
+export function getUserPowerLevel(room: Room, userId: string): number {
+    const raw = room.getMember(userId)?.powerLevel ?? 0;
+    return effectivePowerLevel({
+        rawPowerLevel: raw,
+        isCreator: isRoomCreator(room, userId),
+        immutableCreators: roomVersionHasImmutableCreators(room.getVersion()),
+    });
+}
+
 export function getMyPowerLevel(room: Room): number {
     const me = matrixClient?.getUserId();
     if (!me) return 0;
-    return room.getMember(me)?.powerLevel ?? 0;
+    return getUserPowerLevel(room, me);
 }
 
 export interface PowerLevels {
