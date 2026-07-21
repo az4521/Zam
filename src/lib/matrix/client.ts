@@ -944,6 +944,41 @@ export async function sendFile(
     await matrixClient.sendMessage(roomId, content as never);
 }
 
+/**
+ * Send a recorded voice message as `m.audio` with the MSC3245 voice marker and
+ * MSC1767 audio (duration + waveform) so Element renders it as a voice note.
+ * Mirrors sendFile's upload-then-send shape.
+ */
+export async function sendVoiceMessage(
+    roomId: string,
+    blob: Blob,
+    durationMs: number,
+    waveform: number[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const ext = blob.type.includes("ogg")
+        ? "ogg"
+        : blob.type.includes("mp4")
+          ? "mp4"
+          : "webm";
+    const file = new File([blob], `voice-message.${ext}`, {
+        type: blob.type || "audio/webm",
+    });
+    const { content_uri } = await matrixClient.uploadContent(file, {
+        name: file.name,
+    });
+    const duration = Math.round(durationMs);
+    await matrixClient.sendMessage(roomId, {
+        msgtype: "m.audio",
+        body: "Voice message",
+        url: content_uri,
+        info: { mimetype: file.type, size: blob.size, duration },
+        "org.matrix.msc3245.voice": {},
+        "org.matrix.msc1767.audio": { duration, waveform },
+        "org.matrix.msc1767.text": "Voice message",
+    } as never);
+}
+
 export async function sendTextMessage(
     roomId: string,
     text: string,
