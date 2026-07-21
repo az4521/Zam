@@ -134,7 +134,7 @@
                     <div
                         class="flex-1 min-w-[2px] rounded-full {played
                             ? 'bg-discord-accent'
-                            : 'bg-discord-textMuted/50'}"
+                            : 'bg-discord-textMuted'}"
                         style="height: {Math.max(8, (bar / 1024) * 100)}%"
                     ></div>
                 {/each}
