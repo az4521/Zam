@@ -9,8 +9,13 @@ import {
     canEndPoll,
     pickPollEndTs,
     buildPollResponse,
+    validatePollDraft,
+    draftToPollData,
+    buildPollStart,
+    buildPollEnd,
     type PollStartData,
     type PollResponse,
+    type PollDraft,
 } from "./pollContent";
 
 describe("buildPollResponse — stable and unstable payloads", () => {
@@ -443,5 +448,72 @@ describe("pickPollEndTs — earliest authorized end event wins", () => {
         expect(
             pickPollEndTs([{ sender: "@troll:hs", ts: 1 }], () => false),
         ).toBeNull();
+    });
+});
+
+// ── validatePollDraft / draftToPollData / buildPollStart / buildPollEnd ───────
+
+describe("validatePollDraft", () => {
+    const base: PollDraft = {
+        question: "Lunch?",
+        answers: ["Pizza", "Tacos"],
+        kind: "disclosed",
+        maxSelections: 1,
+    };
+    it("accepts a well-formed draft", () => {
+        expect(validatePollDraft(base)).toEqual({ ok: true });
+    });
+    it("rejects an empty question", () => {
+        expect(validatePollDraft({ ...base, question: "   " }).ok).toBe(false);
+    });
+    it("rejects fewer than two non-empty answers", () => {
+        expect(
+            validatePollDraft({ ...base, answers: ["Pizza", "   "] }).ok,
+        ).toBe(false);
+    });
+    it("rejects more than 20 answers", () => {
+        expect(
+            validatePollDraft({
+                ...base,
+                answers: Array.from({ length: 21 }, (_, i) => `a${i}`),
+            }).ok,
+        ).toBe(false);
+    });
+    it("rejects maxSelections below 1 or above the answer count", () => {
+        expect(validatePollDraft({ ...base, maxSelections: 0 }).ok).toBe(false);
+        expect(validatePollDraft({ ...base, maxSelections: 3 }).ok).toBe(false);
+    });
+});
+
+describe("buildPollStart / draftToPollData", () => {
+    const draft: PollDraft = {
+        question: "Lunch?",
+        answers: ["Pizza", "  Tacos  ", "  "],
+        kind: "undisclosed",
+        maxSelections: 2,
+    };
+    it("round-trips through parsePollStart", () => {
+        const data = draftToPollData(draft);
+        const { content } = buildPollStart(data);
+        const parsed = parsePollStart(content);
+        expect(parsed?.question).toBe("Lunch?");
+        expect(parsed?.answers.map((a) => a.text)).toEqual(["Pizza", "Tacos"]);
+        expect(parsed?.kind).toBe("undisclosed");
+        expect(parsed?.maxSelections).toBe(2);
+    });
+    it("uses the unstable poll.start event type", () => {
+        const { eventType } = buildPollStart(draftToPollData(draft));
+        expect(eventType).toBe("org.matrix.msc3381.poll.start");
+    });
+});
+
+describe("buildPollEnd", () => {
+    it("references the poll start via m.reference", () => {
+        const { eventType, content } = buildPollEnd("$poll1");
+        expect(eventType).toBe("org.matrix.msc3381.poll.end");
+        expect((content as any)["m.relates_to"]).toEqual({
+            rel_type: "m.reference",
+            event_id: "$poll1",
+        });
     });
 });

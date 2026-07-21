@@ -267,3 +267,95 @@ export function pickPollEndTs(
     }
     return earliest;
 }
+
+export interface PollDraft {
+    question: string;
+    answers: string[];
+    kind: "disclosed" | "undisclosed";
+    maxSelections: number;
+}
+
+/** Trimmed, non-empty answers in order. */
+function nonEmptyAnswers(answers: string[]): string[] {
+    return answers.map((a) => a.trim()).filter((a) => a.length > 0);
+}
+
+export function validatePollDraft(
+    draft: PollDraft,
+): { ok: true } | { ok: false; reason: string } {
+    if (!draft.question.trim()) return { ok: false, reason: "Add a question." };
+    const answers = nonEmptyAnswers(draft.answers);
+    if (answers.length < 2)
+        return { ok: false, reason: "Add at least two options." };
+    if (answers.length > MAX_ANSWERS)
+        return { ok: false, reason: `At most ${MAX_ANSWERS} options.` };
+    if (
+        !Number.isInteger(draft.maxSelections) ||
+        draft.maxSelections < 1 ||
+        draft.maxSelections > answers.length
+    )
+        return { ok: false, reason: "Invalid number of selections." };
+    return { ok: true };
+}
+
+export function draftToPollData(draft: PollDraft): PollStartData {
+    const answers: PollAnswer[] = nonEmptyAnswers(draft.answers).map(
+        (text, i) => ({ id: String(i + 1), text }),
+    );
+    const maxSelections = Math.min(
+        Math.max(1, Math.trunc(draft.maxSelections)),
+        answers.length || 1,
+    );
+    return {
+        question: draft.question.trim(),
+        answers,
+        kind: draft.kind,
+        maxSelections,
+    };
+}
+
+export function buildPollStart(data: PollStartData): {
+    eventType: string;
+    content: Record<string, unknown>;
+} {
+    const kindKey =
+        data.kind === "disclosed"
+            ? "org.matrix.msc3381.poll.disclosed"
+            : "org.matrix.msc3381.poll.undisclosed";
+    const fallback = [
+        data.question,
+        ...data.answers.map((a, i) => `${i + 1}. ${a.text}`),
+    ].join("\n");
+    return {
+        eventType: "org.matrix.msc3381.poll.start",
+        content: {
+            "org.matrix.msc3381.poll.start": {
+                question: { "org.matrix.msc1767.text": data.question },
+                kind: kindKey,
+                max_selections: data.maxSelections,
+                answers: data.answers.map((a) => ({
+                    id: a.id,
+                    "org.matrix.msc1767.text": a.text,
+                })),
+            },
+            "org.matrix.msc1767.text": fallback,
+        },
+    };
+}
+
+export function buildPollEnd(
+    pollStartId: string,
+    text = "The poll has ended.",
+): { eventType: string; content: Record<string, unknown> } {
+    return {
+        eventType: "org.matrix.msc3381.poll.end",
+        content: {
+            "org.matrix.msc3381.poll.end": {},
+            "org.matrix.msc1767.text": text,
+            "m.relates_to": {
+                rel_type: "m.reference",
+                event_id: pollStartId,
+            },
+        },
+    };
+}
