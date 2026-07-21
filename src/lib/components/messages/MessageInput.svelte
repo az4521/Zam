@@ -42,6 +42,7 @@
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
     import { pickAudioMimeType } from "$lib/utils/voiceMessage";
     import { openCreatePollDialog } from "$lib/stores/pollDialog.svelte";
+    import { openShareLocationDialog } from "$lib/stores/locationDialog.svelte";
     import {
         getDraft,
         setDraft,
@@ -753,6 +754,8 @@
             clearDraft(roomId);
             renderComposer(0);
             if (command.name === "poll") openCreatePollDialog(roomId);
+            else if (command.name === "location")
+                openShareLocationDialog(roomId);
             textareaEl?.focus();
             return;
         }
@@ -1472,6 +1475,8 @@
                                           voiceRecorderOpen = true;
                                       }
                                     : undefined}
+                                onShareLocation={() =>
+                                    openShareLocationDialog(roomId)}
                             />
                         </div>
                     {:else}
@@ -1487,6 +1492,8 @@
                                           voiceRecorderOpen = true;
                                       }
                                     : undefined}
+                                onShareLocation={() =>
+                                    openShareLocationDialog(roomId)}
                             />
                         </div>
                     {/if}

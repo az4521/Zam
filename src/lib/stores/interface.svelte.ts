@@ -28,6 +28,7 @@ export type ModalId =
     | "composer-picker"
     | "composer-actions"
     | "create-poll"
+    | "share-location"
     | "profile-card"
     | "lightbox"
     // Shared by two call sites (RoomList roster rows, CallView tiles), and

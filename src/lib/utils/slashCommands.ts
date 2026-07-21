@@ -113,6 +113,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         kind: "dialog",
     },
     {
+        name: "location",
+        description: "Share your location",
+        argKind: "none",
+        kind: "dialog",
+    },
+    {
         name: "join",
         description: "Join a room by address",
         argHint: "<#room:server>",
@@ -164,8 +170,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 function findCommand(name: string): SlashCommand | undefined {
     const lower = name.toLowerCase();
     return SLASH_COMMANDS.find(
-        (c) =>
-            c.name === lower || (c.aliases ?? []).some((a) => a === lower),
+        (c) => c.name === lower || (c.aliases ?? []).some((a) => a === lower),
     );
 }
 
