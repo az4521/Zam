@@ -107,6 +107,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         plain: true,
     },
     {
+        name: "poll",
+        description: "Create a poll",
+        argKind: "none",
+        kind: "dialog",
+    },
+    {
         name: "join",
         description: "Join a room by address",
         argHint: "<#room:server>",

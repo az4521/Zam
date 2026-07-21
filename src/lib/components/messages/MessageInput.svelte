@@ -734,6 +734,18 @@
             return;
         }
 
+        // Dialog commands open a modal instead of sending anything; clear the
+        // "/poll" text out of the composer first.
+        if (command.kind === "dialog") {
+            text = "";
+            slashQuery = null;
+            clearDraft(roomId);
+            renderComposer(0);
+            if (command.name === "poll") openCreatePollDialog(roomId);
+            textareaEl?.focus();
+            return;
+        }
+
         // emote + text-transform both produce a message body sent like a normal
         // message (markdown + mentions), except /plain which bypasses markdown.
         const body = command.kind === "emote" ? arg : command.transform!(arg);

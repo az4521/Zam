@@ -8,6 +8,7 @@
     import CallView from "$lib/components/layout/CallView.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
+    import CreatePollDialog from "$lib/components/messages/CreatePollDialog.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
@@ -31,6 +32,7 @@
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
+    import { pollDialogState } from "$lib/stores/pollDialog.svelte";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -972,6 +974,10 @@
 
 {#if interfaceState.modal === "invite" && inviteDialogState.roomId}
     <InviteModal roomId={inviteDialogState.roomId} />
+{/if}
+
+{#if interfaceState.modal === "create-poll" && pollDialogState.roomId}
+    <CreatePollDialog />
 {/if}
 
 {#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}
