@@ -42,6 +42,8 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { parseVoiceContent } from "$lib/utils/voiceMessage";
+    import { formatCallDuration } from "$lib/utils/callDuration";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
 
@@ -512,6 +514,11 @@
     let audioClicked = $state(false);
     let audioBlobUrl = $state<string | null>(null);
     let audioLoading = $state(false);
+    // Voice message (MSC3245): render a waveform + length instead of a bare
+    // audio row. Null for ordinary uploaded audio files.
+    const voiceMsg = $derived(
+        msgtype === "m.audio" ? parseVoiceContent(content) : null,
+    );
 
     $effect(() => {
         if (!audioClicked || msgtype !== "m.audio") return;
@@ -1190,11 +1197,6 @@
                     {/if}
                 </button>
                 <div class="flex-1 min-w-0">
-                    <p
-                        class="text-discord-textPrimary text-xs font-medium truncate mb-1"
-                    >
-                        {mediaFilename || "Audio"}
-                    </p>
                     {#if audioBlobUrl}
                         <!-- svelte-ignore a11y_media_has_caption -->
                         <audio
@@ -1203,7 +1205,43 @@
                             src={audioBlobUrl}
                             class="w-full h-8"
                         ></audio>
+                    {:else if voiceMsg}
+                        <div class="flex items-center gap-2">
+                            {#if voiceMsg.waveform.length > 0}
+                                <div
+                                    class="flex flex-1 items-center gap-[2px] h-6 min-w-0 overflow-hidden"
+                                >
+                                    {#each voiceMsg.waveform as bar}
+                                        <div
+                                            class="flex-1 min-w-[2px] rounded-full bg-discord-accent/70"
+                                            style="height: {Math.max(
+                                                8,
+                                                (bar / 1024) * 100,
+                                            )}%"
+                                        ></div>
+                                    {/each}
+                                </div>
+                            {:else}
+                                <span
+                                    class="flex-1 text-discord-textPrimary text-xs font-medium truncate"
+                                    >Voice message</span
+                                >
+                            {/if}
+                            <span
+                                class="text-discord-textMuted text-xs tabular-nums flex-shrink-0"
+                                >{audioLoading
+                                    ? "…"
+                                    : formatCallDuration(
+                                          voiceMsg.durationMs,
+                                      )}</span
+                            >
+                        </div>
                     {:else}
+                        <p
+                            class="text-discord-textPrimary text-xs font-medium truncate mb-1"
+                        >
+                            {mediaFilename || "Audio"}
+                        </p>
                         <p class="text-discord-textMuted text-xs">
                             {audioLoading ? "Loading…" : "Click to play"}
                         </p>

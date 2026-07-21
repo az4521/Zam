@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { computeWaveform, pickAudioMimeType } from "./voiceMessage";
+import {
+    computeWaveform,
+    pickAudioMimeType,
+    parseVoiceContent,
+} from "./voiceMessage";
 
 describe("computeWaveform", () => {
     it("returns [] for non-positive bars", () => {
@@ -50,5 +54,60 @@ describe("pickAudioMimeType", () => {
             isTypeSupported: (t: string) => t === "audio/ogg;codecs=opus",
         };
         expect(pickAudioMimeType()).toBe("audio/ogg;codecs=opus");
+    });
+});
+
+describe("parseVoiceContent", () => {
+    const base = {
+        msgtype: "m.audio",
+        "org.matrix.msc3245.voice": {},
+        "org.matrix.msc1767.audio": {
+            duration: 4200,
+            waveform: [0, 512, 1024, 700],
+        },
+        info: { duration: 4200 },
+    };
+
+    it("returns null when it is not a voice message", () => {
+        expect(
+            parseVoiceContent({ msgtype: "m.audio", info: { duration: 1000 } }),
+        ).toBeNull();
+        expect(parseVoiceContent(null)).toBeNull();
+        expect(parseVoiceContent("nope")).toBeNull();
+    });
+
+    it("extracts the waveform and duration", () => {
+        const v = parseVoiceContent(base);
+        expect(v).not.toBeNull();
+        expect(v?.durationMs).toBe(4200);
+        expect(v?.waveform).toEqual([0, 512, 1024, 700]);
+    });
+
+    it("clamps waveform values to 0..1024 and drops non-numbers", () => {
+        const v = parseVoiceContent({
+            ...base,
+            "org.matrix.msc1767.audio": {
+                duration: 1,
+                waveform: [-5, 2000, "x", 500, NaN],
+            },
+        });
+        expect(v?.waveform).toEqual([0, 1024, 500]);
+    });
+
+    it("falls back to info.duration when the audio block lacks one", () => {
+        const v = parseVoiceContent({
+            ...base,
+            "org.matrix.msc1767.audio": { waveform: [1] },
+        });
+        expect(v?.durationMs).toBe(4200);
+    });
+
+    it("tolerates a missing waveform (empty) and missing duration (0)", () => {
+        expect(
+            parseVoiceContent({
+                msgtype: "m.audio",
+                "org.matrix.msc3245.voice": {},
+            }),
+        ).toEqual({ waveform: [], durationMs: 0 });
     });
 });

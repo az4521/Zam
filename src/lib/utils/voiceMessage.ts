@@ -52,3 +52,46 @@ export function pickAudioMimeType(): string {
     }
     return "";
 }
+
+export interface VoiceContent {
+    /** Amplitude bars (0..1024). Empty when the sender stored none. */
+    waveform: number[];
+    /** Clip length in milliseconds (0 when unknown). */
+    durationMs: number;
+}
+
+/**
+ * Extract the voice-message metadata (waveform + duration) from an m.audio
+ * event's content, or null when it isn't a voice message (MSC3245). Fed
+ * untrusted content, so every field is defensively parsed — a malformed
+ * waveform/duration degrades to [] / 0 rather than throwing.
+ */
+export function parseVoiceContent(content: unknown): VoiceContent | null {
+    if (typeof content !== "object" || content === null) return null;
+    const c = content as Record<string, unknown>;
+    const isVoice = "org.matrix.msc3245.voice" in c || "m.voice" in c;
+    if (!isVoice) return null;
+
+    const audio = (c["org.matrix.msc1767.audio"] ?? c["m.audio"]) as
+        | Record<string, unknown>
+        | undefined;
+
+    let waveform: number[] = [];
+    const rawWave = audio?.waveform;
+    if (Array.isArray(rawWave)) {
+        waveform = rawWave
+            .filter(
+                (n): n is number => typeof n === "number" && Number.isFinite(n),
+            )
+            .map((n) => Math.max(0, Math.min(1024, Math.round(n))));
+    }
+
+    const info = c.info as Record<string, unknown> | undefined;
+    const durRaw = audio?.duration ?? info?.duration;
+    const durationMs =
+        typeof durRaw === "number" && Number.isFinite(durRaw) && durRaw >= 0
+            ? durRaw
+            : 0;
+
+    return { waveform, durationMs };
+}
