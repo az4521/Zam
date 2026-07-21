@@ -96,6 +96,8 @@ import {
     POLL_END_TYPES,
     type PollStartData,
     buildPollResponse,
+    buildPollStart,
+    buildPollEnd,
 } from "$lib/utils/pollContent";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import {
@@ -4372,6 +4374,8 @@ export interface PollView {
     ended: boolean;
     /** Whether tallies may be shown: disclosed poll, or the poll has closed. */
     showResults: boolean;
+    /** The current user may close this open poll. */
+    canEnd: boolean;
 }
 
 /** All response/end events the SDK has aggregated for this poll locally. */
@@ -4441,6 +4445,7 @@ export function getPollView(
         myAnswers: (me && tally.votesBySender[me]) || [],
         ended: endTs !== null,
         showResults: poll.kind === "disclosed" || endTs !== null,
+        canEnd: endTs === null && !!me && canEndPoll(me, creator, powerLevels),
     };
 }
 
@@ -4464,6 +4469,34 @@ export async function sendPollResponse(
         pollStartId,
         selected,
     );
+    await matrixClient.sendEvent(roomId, eventType as never, content as never);
+}
+
+export async function sendPollStart(
+    roomId: string,
+    data: PollStartData,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { eventType, content } = buildPollStart(data);
+    await matrixClient.sendEvent(roomId, eventType as never, content as never);
+}
+
+export async function sendPollEnd(
+    roomId: string,
+    pollStartEvent: MatrixEvent,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const pollStartId = pollStartEvent.getId();
+    if (!pollStartId) throw new Error("Poll has no event id");
+    // Defence in depth — the server also enforces via the redact PL.
+    const room = matrixClient.getRoom(roomId);
+    const me = matrixClient.getUserId() ?? "";
+    if (room) {
+        const creator = pollStartEvent.getSender() ?? "";
+        if (!canEndPoll(me, creator, getRoomPowerLevels(room)))
+            throw new Error("You can't close this poll");
+    }
+    const { eventType, content } = buildPollEnd(pollStartId);
     await matrixClient.sendEvent(roomId, eventType as never, content as never);
 }
 
