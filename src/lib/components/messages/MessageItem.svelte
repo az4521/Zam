@@ -5,6 +5,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
+    import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import { Forward, Lock } from "lucide-svelte";
@@ -43,7 +44,6 @@
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
-    import { formatCallDuration } from "$lib/utils/callDuration";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
 
@@ -231,6 +231,27 @@
         } else {
             previousTap = current;
         }
+    }
+
+    // Mouse equivalent of the touch double-tap. A desktop dblclick would
+    // normally select a word; when a double-tap action is configured we run it
+    // instead (clearing the incidental selection). "none" leaves word-select.
+    function onMessageDblClick(e: MouseEvent) {
+        if (interfaceState.isTouchscreen) return;
+        const action = isOwnMessage
+            ? settingsState.ownDoubleTapAction
+            : settingsState.otherDoubleTapAction;
+        if (action === "none") return;
+        const target = e.target as Element | null;
+        if (
+            target?.closest(
+                "button, a, input, textarea, select, video, audio, [role='button'], [contenteditable='true'], .cursor-pointer",
+            )
+        )
+            return;
+        e.preventDefault();
+        window.getSelection()?.removeAllRanges();
+        runDoubleTapAction();
     }
 
     let showReportDialog = $state(false);
@@ -838,6 +859,7 @@
             interfaceState.selectedMessageId = mobileSelected ? null : eventId;
     }}
     ontouchend={onMessageTouchEnd}
+    ondblclick={onMessageDblClick}
     data-event-id={eventId}
 >
     <!-- Avatar column -->
@@ -1164,90 +1186,68 @@
             {/if}
         {:else if msgtype === "m.audio"}
             {@render mediaCaption()}
-            <div
-                class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
-            >
-                <!-- svelte-ignore a11y_consider_explicit_label -->
-                <button
-                    onclick={() => {
-                        if (!audioBlobUrl) audioClicked = true;
-                    }}
-                    class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
-                    disabled={audioLoading}
+            {#if voiceMsg}
+                <VoiceMessagePlayer
+                    mxcUrl={content?.url as string}
+                    waveform={voiceMsg.waveform}
+                    durationMs={voiceMsg.durationMs}
+                />
+            {:else}
+                <div
+                    class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
                 >
-                    {#if audioLoading}
-                        <div
-                            class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                        ></div>
-                    {:else if !audioBlobUrl}
-                        <svg
-                            class="w-4 h-4 text-white ml-0.5"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
-                        >
-                    {:else}
-                        <svg
-                            class="w-4 h-4 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                            ><path
-                                d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
-                            /></svg
-                        >
-                    {/if}
-                </button>
-                <div class="flex-1 min-w-0">
-                    {#if audioBlobUrl}
-                        <!-- svelte-ignore a11y_media_has_caption -->
-                        <audio
-                            controls
-                            autoplay
-                            src={audioBlobUrl}
-                            class="w-full h-8"
-                        ></audio>
-                    {:else if voiceMsg}
-                        <div class="flex items-center gap-2">
-                            {#if voiceMsg.waveform.length > 0}
-                                <div
-                                    class="flex flex-1 items-center gap-[2px] h-6 min-w-0 overflow-hidden"
-                                >
-                                    {#each voiceMsg.waveform as bar}
-                                        <div
-                                            class="flex-1 min-w-[2px] rounded-full bg-discord-accent/70"
-                                            style="height: {Math.max(
-                                                8,
-                                                (bar / 1024) * 100,
-                                            )}%"
-                                        ></div>
-                                    {/each}
-                                </div>
-                            {:else}
-                                <span
-                                    class="flex-1 text-discord-textPrimary text-xs font-medium truncate"
-                                    >Voice message</span
-                                >
-                            {/if}
-                            <span
-                                class="text-discord-textMuted text-xs tabular-nums flex-shrink-0"
-                                >{audioLoading
-                                    ? "…"
-                                    : formatCallDuration(
-                                          voiceMsg.durationMs,
-                                      )}</span
+                    <!-- svelte-ignore a11y_consider_explicit_label -->
+                    <button
+                        onclick={() => {
+                            if (!audioBlobUrl) audioClicked = true;
+                        }}
+                        class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                        disabled={audioLoading}
+                    >
+                        {#if audioLoading}
+                            <div
+                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                            ></div>
+                        {:else if !audioBlobUrl}
+                            <svg
+                                class="w-4 h-4 text-white ml-0.5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path d="M8 5v14l11-7z" /></svg
                             >
-                        </div>
-                    {:else}
+                        {:else}
+                            <svg
+                                class="w-4 h-4 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path
+                                    d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
+                                /></svg
+                            >
+                        {/if}
+                    </button>
+                    <div class="flex-1 min-w-0">
                         <p
                             class="text-discord-textPrimary text-xs font-medium truncate mb-1"
                         >
                             {mediaFilename || "Audio"}
                         </p>
-                        <p class="text-discord-textMuted text-xs">
-                            {audioLoading ? "Loading…" : "Click to play"}
-                        </p>
-                    {/if}
+                        {#if audioBlobUrl}
+                            <!-- svelte-ignore a11y_media_has_caption -->
+                            <audio
+                                controls
+                                autoplay
+                                src={audioBlobUrl}
+                                class="w-full h-8"
+                            ></audio>
+                        {:else}
+                            <p class="text-discord-textMuted text-xs">
+                                {audioLoading ? "Loading…" : "Click to play"}
+                            </p>
+                        {/if}
+                    </div>
                 </div>
-            </div>
+            {/if}
         {:else if msgtype === "m.location"}
             <LocationBody {content} />
         {:else if msgtype === "m.file"}
