@@ -15,6 +15,13 @@
         sendTyping,
         onTypingEvent,
         getOwnUserId,
+        sendEmote,
+        joinRoomByAlias,
+        leaveRoom,
+        inviteUser,
+        setRoomTopic,
+        kickUser,
+        banUser,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
@@ -35,6 +42,14 @@
         setDraft,
         clearDraft,
     } from "$lib/stores/composerDrafts.svelte";
+    import {
+        parseSlashCommand,
+        matchSlashCommands,
+        usageFor,
+        type SlashCommand,
+    } from "$lib/utils/slashCommands";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { matrixErrorMessage } from "$lib/utils/knock";
 
     interface Props {
         roomId: string;
@@ -303,6 +318,36 @@
     $effect(() => {
         if (emojiSelectedIdx >= emojiCandidates.length) emojiSelectedIdx = 0;
     });
+
+    // Slash-command autocomplete
+    let slashQuery = $state<string | null>(null); // null = popup closed
+    let slashSelectedIdx = $state(0);
+
+    const slashCandidates = $derived.by((): SlashCommand[] =>
+        slashQuery === null ? [] : matchSlashCommands(slashQuery),
+    );
+
+    $effect(() => {
+        if (slashSelectedIdx >= slashCandidates.length) slashSelectedIdx = 0;
+    });
+
+    function detectSlashQuery() {
+        // The popup shows only while the whole composer is one "/word" token (the
+        // command name, no space yet) and nothing is queued — never for a
+        // mid-message slash or a pending caption.
+        if (fileQueue.length > 0) {
+            slashQuery = null;
+            return;
+        }
+        const match = text.match(/^\/(\w*)$/);
+        slashQuery = match ? match[1] : null;
+    }
+
+    function commitSlashCommand(command: SlashCommand) {
+        setComposerText(`/${command.name} `);
+        slashQuery = null;
+        textareaEl?.focus();
+    }
 
     function detectEmojiQuery() {
         const pos = getCaretOffset();
@@ -608,7 +653,147 @@
         return () => setDraft(id, text, pendingMentions);
     });
 
+    function splitUserAndReason(arg: string): {
+        user: string;
+        reason?: string;
+    } {
+        const trimmed = arg.trim();
+        const idx = trimmed.search(/\s/);
+        if (idx === -1) return { user: trimmed };
+        return {
+            user: trimmed.slice(0, idx),
+            reason: trimmed.slice(idx + 1).trim() || undefined,
+        };
+    }
+
+    async function runSlashAction(command: SlashCommand, arg: string) {
+        switch (command.name) {
+            case "join":
+                await joinRoomByAlias(arg.trim());
+                break;
+            case "part":
+                await leaveRoom(roomId);
+                break;
+            case "invite":
+                await inviteUser(roomId, arg.trim());
+                break;
+            case "topic":
+                await setRoomTopic(roomId, arg);
+                break;
+            case "kick": {
+                const { user, reason } = splitUserAndReason(arg);
+                await kickUser(roomId, user, reason);
+                break;
+            }
+            case "ban": {
+                const { user, reason } = splitUserAndReason(arg);
+                await banUser(roomId, user, reason);
+                break;
+            }
+            default:
+                throw new Error(`Unhandled command: /${command.name}`);
+        }
+    }
+
+    async function dispatchSlashCommand(command: SlashCommand, arg: string) {
+        if (command.requiresArg && !arg) {
+            showErrorToast(usageFor(command));
+            return;
+        }
+
+        // Action commands call a client.ts wrapper; they aren't messages, so no
+        // local echo. Clear the composer only on success.
+        if (command.kind === "action") {
+            isSending = true;
+            try {
+                await runSlashAction(command, arg);
+                text = "";
+                slashQuery = null;
+                clearDraft(roomId);
+                renderComposer(0);
+            } catch (err) {
+                showErrorToast(matrixErrorMessage(err, "Command failed"));
+            } finally {
+                isSending = false;
+                textareaEl?.focus();
+            }
+            return;
+        }
+
+        // emote + text-transform both produce a message body sent like a normal
+        // message (markdown + mentions), except /plain which bypasses markdown.
+        const body = command.kind === "emote" ? arg : command.transform!(arg);
+        const usePlain = command.kind === "text-transform" && !!command.plain;
+        // Resolve formatting before clearing the composer (buildFormattedBody
+        // reads pendingMentions, reset below).
+        const formatted = usePlain ? null : buildFormattedBody(body);
+        const replyTarget = replyToEvent;
+
+        isSending = true;
+        text = "";
+        mentionQuery = null;
+        emojiQuery = null;
+        slashQuery = null;
+        pendingMentions = new Map();
+        clearDraft(roomId);
+        renderComposer(0);
+
+        try {
+            const mentions =
+                formatted && formatted.mentionedUserIds.length > 0
+                    ? { user_ids: formatted.mentionedUserIds }
+                    : undefined;
+            if (command.kind === "emote") {
+                await sendEmote(
+                    roomId,
+                    body,
+                    formatted?.html ?? undefined,
+                    mentions,
+                );
+                if (replyTarget) onCancelReply?.();
+            } else if (usePlain) {
+                await sendTextMessage(roomId, body);
+            } else if (formatted?.html) {
+                await sendFormattedMessage(
+                    roomId,
+                    body,
+                    formatted.html,
+                    mentions,
+                );
+            } else {
+                await sendTextMessage(roomId, body);
+            }
+            await tick();
+            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+        } catch (err) {
+            console.error("Slash command failed:", err);
+            showErrorToast(matrixErrorMessage(err, "Failed to send"));
+        } finally {
+            isSending = false;
+            textareaEl?.focus();
+        }
+    }
+
     async function send() {
+        // Slash-command dispatch — only when no files are queued (with files the
+        // text is a caption, not a command).
+        if (!isSending && !disabled && fileQueue.length === 0) {
+            const parsed = parseSlashCommand(text);
+            if (parsed && "unknown" in parsed) {
+                showErrorToast(`Unknown command: /${parsed.unknown}`);
+                return;
+            }
+            if (parsed && "command" in parsed) {
+                await dispatchSlashCommand(parsed.command, parsed.arg);
+                return;
+            }
+            // "//text" escape → strip one leading slash and send as a literal
+            // message that starts with a single slash.
+            if (/^\s*\/\//.test(text)) {
+                text = text.replace("/", "");
+            }
+        }
+
         const trimmed = text.trim();
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
             return;
@@ -708,6 +893,33 @@
                         : scrollEl.clientHeight * 0.85,
                 behavior: "smooth",
             });
+        }
+
+        // Slash-command picker navigation
+        if (slashQuery !== null && slashCandidates.length > 0) {
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                slashSelectedIdx =
+                    (slashSelectedIdx - 1 + slashCandidates.length) %
+                    slashCandidates.length;
+                return;
+            }
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                slashSelectedIdx =
+                    (slashSelectedIdx + 1) % slashCandidates.length;
+                return;
+            }
+            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                e.preventDefault();
+                const command = slashCandidates[slashSelectedIdx];
+                if (command) commitSlashCommand(command);
+                return;
+            }
+            if (e.key === "Escape") {
+                slashQuery = null;
+                return;
+            }
         }
 
         // Mention picker navigation
@@ -932,6 +1144,7 @@
         renderComposer(caret);
         detectMentionQuery();
         detectEmojiQuery();
+        detectSlashQuery();
 
         if (room) {
             const now = Date.now();
@@ -1137,6 +1350,40 @@
         </div>
     {/if}
 
+    <!-- Slash-command autocomplete picker -->
+    {#if slashQuery !== null && slashCandidates.length > 0}
+        <div
+            class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg"
+        >
+            {#each slashCandidates as command, i}
+                <button
+                    onpointerdown={(e) => {
+                        e.preventDefault();
+                        commitSlashCommand(command);
+                    }}
+                    onpointerenter={() => (slashSelectedIdx = i)}
+                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+                    class:bg-discord-messageHover={i === slashSelectedIdx}
+                >
+                    <span
+                        class="text-sm font-mono text-discord-textPrimary flex-shrink-0"
+                        >/{command.name}</span
+                    >
+                    {#if command.argHint}
+                        <span
+                            class="text-xs text-discord-textMuted font-mono flex-shrink-0"
+                            >{command.argHint}</span
+                        >
+                    {/if}
+                    <span
+                        class="text-xs text-discord-textMuted truncate ml-auto"
+                        >{command.description}</span
+                    >
+                </button>
+            {/each}
+        </div>
+    {/if}
+
     <div
         class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
         class:rounded-tl-none={!!replyToEvent}
@@ -1165,6 +1412,7 @@
             onclick={() => {
                 detectMentionQuery();
                 detectEmojiQuery();
+                detectSlashQuery();
             }}
             placeholder={composerPlaceholder}
             contenteditable={!disabled}
