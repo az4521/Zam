@@ -34,9 +34,12 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
+        openModal,
         closeModal,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
+    import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
+    import { openCreatePollDialog } from "$lib/stores/pollDialog.svelte";
     import {
         getDraft,
         setDraft,
@@ -419,6 +422,9 @@
     // slot; pickerKind says which one is shown.
     const composerPickerOpen = $derived(
         interfaceState.modal === "composer-picker",
+    );
+    const showActionsMenu = $derived(
+        interfaceState.modal === "composer-actions",
     );
     const showEmojiPicker = $derived(
         composerPickerOpen && interfaceState.composerPicker === "emoji",
@@ -1401,17 +1407,47 @@
         class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
         class:rounded-tl-none={!!replyToEvent}
     >
-        <!-- Attach file button -->
-        <button
-            onclick={() => fileInputEl?.click()}
-            {disabled}
-            class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Attach file"
-        >
-            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6v-2z" />
-            </svg>
-        </button>
+        <!-- "+" actions menu -->
+        <div class="flex-shrink-0 relative">
+            <button
+                onclick={() =>
+                    showActionsMenu
+                        ? closeModal()
+                        : openModal("composer-actions", () => {})}
+                {disabled}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Add"
+            >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+            </button>
+            {#if showActionsMenu}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
+                {#if interfaceState.isTouchscreen}
+                    <div
+                        class="fixed left-2 z-50"
+                        style="bottom: {keyboardOffset + 8}px;"
+                    >
+                        <ComposerActionsMenu
+                            onClose={closeModal}
+                            onUpload={() => fileInputEl?.click()}
+                            onCreatePoll={() => openCreatePollDialog(roomId)}
+                        />
+                    </div>
+                {:else}
+                    <div class="absolute bottom-full left-0 mb-2 z-50">
+                        <ComposerActionsMenu
+                            onClose={closeModal}
+                            onUpload={() => fileInputEl?.click()}
+                            onCreatePoll={() => openCreatePollDialog(roomId)}
+                        />
+                    </div>
+                {/if}
+            {/if}
+        </div>
 
         <div
             bind:this={textareaEl}
