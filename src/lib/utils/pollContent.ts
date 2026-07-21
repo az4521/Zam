@@ -299,9 +299,9 @@ export function validatePollDraft(
 }
 
 export function draftToPollData(draft: PollDraft): PollStartData {
-    const answers: PollAnswer[] = nonEmptyAnswers(draft.answers).map(
-        (text, i) => ({ id: String(i + 1), text }),
-    );
+    const answers: PollAnswer[] = nonEmptyAnswers(draft.answers)
+        .slice(0, MAX_ANSWERS)
+        .map((text, i) => ({ id: String(i + 1), text }));
     const maxSelections = Math.min(
         Math.max(1, Math.trunc(draft.maxSelections)),
         answers.length || 1,

@@ -21,8 +21,11 @@
         },
     ];
     function choose(run: () => void) {
-        run();
+        // Close this menu FIRST — it shares the single modal slot, so if `run`
+        // opens another modal (e.g. the create-poll dialog), closing afterwards
+        // would tear that freshly-opened modal right back down.
         onClose();
+        run();
     }
 </script>
 
