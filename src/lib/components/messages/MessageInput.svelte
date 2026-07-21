@@ -701,6 +701,14 @@
             return;
         }
 
+        // Stop our typing indicator — send() does this too, but command dispatch
+        // returns before reaching that point.
+        if (typingStopTimer) {
+            clearTimeout(typingStopTimer);
+            typingStopTimer = null;
+        }
+        if (room) sendTyping(room.roomId, false);
+
         // Action commands call a client.ts wrapper; they aren't messages, so no
         // local echo. Clear the composer only on success.
         if (command.kind === "action") {
@@ -750,7 +758,6 @@
                     formatted?.html ?? undefined,
                     mentions,
                 );
-                if (replyTarget) onCancelReply?.();
             } else if (usePlain) {
                 await sendTextMessage(roomId, body);
             } else if (formatted?.html) {
@@ -763,6 +770,9 @@
             } else {
                 await sendTextMessage(roomId, body);
             }
+            // A slash message-command is not a reply — clear any in-progress
+            // reply so the banner doesn't leak onto the user's next message.
+            if (replyTarget) onCancelReply?.();
             await tick();
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } catch (err) {
@@ -787,6 +797,9 @@
                 await dispatchSlashCommand(parsed.command, parsed.arg);
                 return;
             }
+            // A bare "/" (popup dismissed, no command name typed) is not a
+            // message — don't post a literal slash via the send button.
+            if (/^\s*\/\s*$/.test(text)) return;
             // "//text" escape → strip one leading slash and send as a literal
             // message that starts with a single slash.
             if (/^\s*\/\//.test(text)) {
