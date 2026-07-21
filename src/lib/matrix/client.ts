@@ -100,6 +100,7 @@ import {
     buildPollEnd,
 } from "$lib/utils/pollContent";
 import { buildForwardContent } from "$lib/utils/forwardContent";
+import { buildLocationContent } from "$lib/utils/location";
 import {
     getRoomNotificationSettingForClient,
     setRoomNotificationSettingForClient,
@@ -977,6 +978,15 @@ export async function sendVoiceMessage(
         "org.matrix.msc1767.audio": { duration, waveform },
         "org.matrix.msc1767.text": "Voice message",
     } as never);
+}
+
+/** Share a static location as an m.location event (MSC3488). */
+export async function sendLocation(
+    roomId: string,
+    loc: { lat: number; lon: number; description?: string },
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.sendMessage(roomId, buildLocationContent(loc) as never);
 }
 
 export async function sendTextMessage(
