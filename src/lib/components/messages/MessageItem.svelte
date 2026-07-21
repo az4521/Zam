@@ -4,6 +4,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
+    import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import { Forward, Lock } from "lucide-svelte";
@@ -1209,6 +1210,8 @@
                     {/if}
                 </div>
             </div>
+        {:else if msgtype === "m.location"}
+            <LocationBody {content} />
         {:else if msgtype === "m.file"}
             {@const fileUrl = mxcToHttp(content?.url as string)}
             {@const fileSize = (content?.info as any)?.size}
