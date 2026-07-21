@@ -8,8 +8,13 @@ export interface LocationInput {
     description?: string;
 }
 
-/** Parse a `geo:LAT,LON[,ALT][;u=…]` URI. Returns null when malformed. */
-export function parseGeoUri(uri: string): { lat: number; lon: number } | null {
+/**
+ * Parse a `geo:LAT,LON[,ALT][;u=…]` URI. Returns null when malformed. Accepts
+ * `unknown` because it's fed untrusted event content — a non-string uri must
+ * return null, never throw during render.
+ */
+export function parseGeoUri(uri: unknown): { lat: number; lon: number } | null {
+    if (typeof uri !== "string") return null;
     const m = uri.match(/^geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i);
     if (!m) return null;
     const lat = Number(m[1]);

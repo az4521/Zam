@@ -13,13 +13,17 @@
         } | null,
     );
     const geoUri = $derived(
-        loc?.uri ??
-            (typeof content.geo_uri === "string" ? content.geo_uri : ""),
+        typeof loc?.uri === "string"
+            ? loc.uri
+            : typeof content.geo_uri === "string"
+              ? content.geo_uri
+              : "",
     );
     const coords = $derived(geoUri ? parseGeoUri(geoUri) : null);
+    // Only a real MSC3488 description goes on the card — the interop `body`
+    // fallback ("Location (geo:…)") would just echo the coords line below.
     const description = $derived(
-        (typeof loc?.description === "string" && loc.description) ||
-            (typeof content.body === "string" ? content.body : ""),
+        typeof loc?.description === "string" ? loc.description : "",
     );
 </script>
 

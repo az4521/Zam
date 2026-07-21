@@ -30,6 +30,13 @@ describe("parseGeoUri", () => {
         expect(parseGeoUri("51.5,-0.12")).toBeNull();
         expect(parseGeoUri("")).toBeNull();
     });
+    it("returns null (not throw) for non-string input", () => {
+        // A hostile/malformed m.location can carry a non-string uri; the parser
+        // must never throw during timeline render.
+        expect(parseGeoUri(42 as unknown)).toBeNull();
+        expect(parseGeoUri(null as unknown)).toBeNull();
+        expect(parseGeoUri({} as unknown)).toBeNull();
+    });
 });
 
 describe("formatCoords", () => {
