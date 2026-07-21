@@ -3,10 +3,11 @@
         onClose: () => void;
         onUpload: () => void;
         onCreatePoll: () => void;
+        onRecordVoice?: () => void;
     }
-    let { onClose, onUpload, onCreatePoll }: Props = $props();
+    let { onClose, onUpload, onCreatePoll, onRecordVoice }: Props = $props();
 
-    const items = [
+    const items = $derived([
         {
             key: "upload",
             label: "Upload a file",
@@ -19,7 +20,17 @@
             run: () => onCreatePoll(),
             icon: "M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z",
         },
-    ];
+        ...(onRecordVoice
+            ? [
+                  {
+                      key: "voice",
+                      label: "Record voice message",
+                      run: () => onRecordVoice?.(),
+                      icon: "M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z",
+                  },
+              ]
+            : []),
+    ]);
     function choose(run: () => void) {
         // Close this menu FIRST — it shares the single modal slot, so if `run`
         // opens another modal (e.g. the create-poll dialog), closing afterwards

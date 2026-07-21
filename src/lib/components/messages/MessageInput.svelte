@@ -39,6 +39,8 @@
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
+    import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
+    import { pickAudioMimeType } from "$lib/utils/voiceMessage";
     import { openCreatePollDialog } from "$lib/stores/pollDialog.svelte";
     import {
         getDraft,
@@ -87,6 +89,11 @@
     let fileQueue = $state<QueuedFile[]>([]);
     let textareaEl: HTMLDivElement | undefined = $state();
     let renderingComposer = false;
+
+    // Voice messages: only offer the recorder when the browser can actually
+    // record audio (feature-detected once — codec support doesn't change).
+    const voiceSupported = pickAudioMimeType() !== "";
+    let voiceRecorderOpen = $state(false);
 
     // Expose a focus hook so the global "type to focus" shortcut (+page) can
     // focus this composer.
@@ -1415,239 +1422,277 @@
         </div>
     {/if}
 
-    <div
-        class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
-        class:rounded-tl-none={!!replyToEvent}
-    >
-        <!-- "+" actions menu -->
-        <div class="flex-shrink-0 relative">
-            <button
-                onclick={() =>
-                    showActionsMenu
-                        ? closeModal()
-                        : openModal("composer-actions", () => {})}
-                {disabled}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Add"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-            </button>
-            {#if showActionsMenu}
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
-                {#if interfaceState.isTouchscreen}
-                    <div
-                        class="fixed left-2 z-50"
-                        style="bottom: {keyboardOffset + 8}px;"
-                    >
-                        <ComposerActionsMenu
-                            onClose={closeModal}
-                            onUpload={() => fileInputEl?.click()}
-                            onCreatePoll={() => openCreatePollDialog(roomId)}
-                        />
-                    </div>
-                {:else}
-                    <div class="absolute bottom-full left-0 mb-2 z-50">
-                        <ComposerActionsMenu
-                            onClose={closeModal}
-                            onUpload={() => fileInputEl?.click()}
-                            onCreatePoll={() => openCreatePollDialog(roomId)}
-                        />
-                    </div>
-                {/if}
-            {/if}
-        </div>
-
+    {#if voiceRecorderOpen}
+        <VoiceRecorder {roomId} onClose={() => (voiceRecorderOpen = false)} />
+    {:else}
         <div
-            bind:this={textareaEl}
-            role="textbox"
-            aria-multiline="true"
-            aria-label={composerPlaceholder}
-            onkeydown={onKeydown}
-            oninput={onInput}
-            onbeforeinput={onBeforeInput}
-            onpaste={onPaste}
-            onclick={() => {
-                detectMentionQuery();
-                detectEmojiQuery();
-                detectSlashQuery();
-            }}
-            placeholder={composerPlaceholder}
-            contenteditable={!disabled}
-            tabindex={disabled ? -1 : 0}
-            class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
-        ></div>
-
-        <!-- GIF picker button -->
-        <div class="flex-shrink-0">
-            <button
-                onclick={() => openPicker("gif")}
-                {disabled}
-                class="{interfaceState.isTouchscreen
-                    ? 'hidden'
-                    : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Favourite GIFs"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5.5v9l6-4.5-6-4.5z"
-                    />
-                </svg>
-            </button>
-            {#if showGifPicker}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                <div
-                    class="fixed inset-0 z-40"
-                    onclick={closeModal}
-                    onkeydown={closeModal}
-                ></div>
-                {#if interfaceState.isTouchscreen}
-                    <div
-                        class="fixed left-0 right-0 z-50"
-                        style="bottom: {keyboardOffset}px;"
-                    >
-                        <GifPicker
-                            onSelect={insertGif}
-                            onClose={() => closePicker("gif", true)}
-                            onSwitchToEmoji={() => openPicker("emoji")}
-                            onSwitchToSticker={() => openPicker("sticker")}
-                        />
-                    </div>
-                {:else}
-                    <div class="absolute bottom-full right-0 mb-2 z-50">
-                        <GifPicker
-                            onSelect={insertGif}
-                            onClose={() => closePicker("gif", true)}
-                            onSwitchToEmoji={() => openPicker("emoji")}
-                            onSwitchToSticker={() => openPicker("sticker")}
-                        />
-                    </div>
-                {/if}
-            {/if}
-        </div>
-
-        <!-- Sticker button -->
-        <div class="flex-shrink-0">
-            <button
-                onclick={() => openPicker("sticker")}
-                class="{interfaceState.isTouchscreen
-                    ? 'hidden'
-                    : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                title="Stickers"
-                {disabled}
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 3h18v12l-4 4H3V3z" opacity=".87" /><path
-                        d="M17 15v4l4-4h-4z"
-                    />
-                </svg>
-            </button>
-            {#if showStickerPicker}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                <div
-                    class="fixed inset-0 z-40"
-                    onclick={closeModal}
-                    onkeydown={closeModal}
-                ></div>
-                {#if interfaceState.isTouchscreen}
-                    <div
-                        class="fixed left-0 right-0 z-50"
-                        style="bottom: {keyboardOffset}px;"
-                    >
-                        <StickerPicker
-                            {room}
-                            onSelect={sendStickerMessage}
-                            onClose={() => closePicker("sticker", true)}
-                            onSwitchToEmoji={() => openPicker("emoji")}
-                            onSwitchToGif={() => openPicker("gif")}
-                        />
-                    </div>
-                {:else}
-                    <div class="absolute bottom-full right-0 mb-2 z-50">
-                        <StickerPicker
-                            {room}
-                            onSelect={sendStickerMessage}
-                            onClose={() => closePicker("sticker", true)}
-                            onSwitchToEmoji={() => openPicker("emoji")}
-                            onSwitchToGif={() => openPicker("gif")}
-                        />
-                    </div>
-                {/if}
-            {/if}
-        </div>
-
-        <!-- Emoji button -->
-        <div class="flex-shrink-0">
-            <button
-                onclick={() => openPicker("emoji")}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                title="Emoji"
-                {disabled}
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        fill-rule="evenodd"
-                        d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
-                    />
-                </svg>
-            </button>
-            {#if showEmojiPicker}
-                <!-- Backdrop to close picker on outside click -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
-                {#if interfaceState.isTouchscreen}
-                    <div
-                        class="fixed left-0 right-0 z-50"
-                        style="bottom: {keyboardOffset}px;"
-                    >
-                        <EmojiPicker
-                            {room}
-                            onSelect={insertEmoji}
-                            onSelectCustom={insertCustomEmoji}
-                            onClose={() => closePicker("emoji", true)}
-                            onSwitchToSticker={() => openPicker("sticker")}
-                            onSwitchToGif={() => openPicker("gif")}
-                        />
-                    </div>
-                {:else}
-                    <div class="absolute bottom-full right-0 mb-2 z-50">
-                        <EmojiPicker
-                            {room}
-                            onSelect={insertEmoji}
-                            onSelectCustom={insertCustomEmoji}
-                            onClose={() => closePicker("emoji", true)}
-                            onSwitchToSticker={() => openPicker("sticker")}
-                            onSwitchToGif={() => openPicker("gif")}
-                        />
-                    </div>
-                {/if}
-            {/if}
-        </div>
-
-        <button
-            onclick={send}
-            onpointerdown={(e) => e.preventDefault()}
-            disabled={(!text.trim() && fileQueue.length === 0) ||
-                isSending ||
-                disabled}
-            class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            title="Send message"
+            class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
+            class:rounded-tl-none={!!replyToEvent}
         >
-            {#if isSending}
-                <div
-                    class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
-                ></div>
-            {:else}
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-            {/if}
-        </button>
-    </div>
+            <!-- "+" actions menu -->
+            <div class="flex-shrink-0 relative">
+                <button
+                    onclick={() =>
+                        showActionsMenu
+                            ? closeModal()
+                            : openModal("composer-actions", () => {})}
+                    {disabled}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Add"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+                {#if showActionsMenu}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div class="fixed inset-0 z-40" onclick={closeModal}></div>
+                    {#if interfaceState.isTouchscreen}
+                        <div
+                            class="fixed left-2 z-50"
+                            style="bottom: {keyboardOffset + 8}px;"
+                        >
+                            <ComposerActionsMenu
+                                onClose={closeModal}
+                                onUpload={() => fileInputEl?.click()}
+                                onCreatePoll={() =>
+                                    openCreatePollDialog(roomId)}
+                                onRecordVoice={voiceSupported
+                                    ? () => {
+                                          closeModal();
+                                          voiceRecorderOpen = true;
+                                      }
+                                    : undefined}
+                            />
+                        </div>
+                    {:else}
+                        <div class="absolute bottom-full left-0 mb-2 z-50">
+                            <ComposerActionsMenu
+                                onClose={closeModal}
+                                onUpload={() => fileInputEl?.click()}
+                                onCreatePoll={() =>
+                                    openCreatePollDialog(roomId)}
+                                onRecordVoice={voiceSupported
+                                    ? () => {
+                                          closeModal();
+                                          voiceRecorderOpen = true;
+                                      }
+                                    : undefined}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+            </div>
+
+            <div
+                bind:this={textareaEl}
+                role="textbox"
+                aria-multiline="true"
+                aria-label={composerPlaceholder}
+                onkeydown={onKeydown}
+                oninput={onInput}
+                onbeforeinput={onBeforeInput}
+                onpaste={onPaste}
+                onclick={() => {
+                    detectMentionQuery();
+                    detectEmojiQuery();
+                    detectSlashQuery();
+                }}
+                placeholder={composerPlaceholder}
+                contenteditable={!disabled}
+                tabindex={disabled ? -1 : 0}
+                class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+            ></div>
+
+            <!-- GIF picker button -->
+            <div class="flex-shrink-0">
+                <button
+                    onclick={() => openPicker("gif")}
+                    {disabled}
+                    class="{interfaceState.isTouchscreen
+                        ? 'hidden'
+                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Favourite GIFs"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5.5v9l6-4.5-6-4.5z"
+                        />
+                    </svg>
+                </button>
+                {#if showGifPicker}
+                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                    <div
+                        class="fixed inset-0 z-40"
+                        onclick={closeModal}
+                        onkeydown={closeModal}
+                    ></div>
+                    {#if interfaceState.isTouchscreen}
+                        <div
+                            class="fixed left-0 right-0 z-50"
+                            style="bottom: {keyboardOffset}px;"
+                        >
+                            <GifPicker
+                                onSelect={insertGif}
+                                onClose={() => closePicker("gif", true)}
+                                onSwitchToEmoji={() => openPicker("emoji")}
+                                onSwitchToSticker={() => openPicker("sticker")}
+                            />
+                        </div>
+                    {:else}
+                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                            <GifPicker
+                                onSelect={insertGif}
+                                onClose={() => closePicker("gif", true)}
+                                onSwitchToEmoji={() => openPicker("emoji")}
+                                onSwitchToSticker={() => openPicker("sticker")}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+            </div>
+
+            <!-- Sticker button -->
+            <div class="flex-shrink-0">
+                <button
+                    onclick={() => openPicker("sticker")}
+                    class="{interfaceState.isTouchscreen
+                        ? 'hidden'
+                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    title="Stickers"
+                    {disabled}
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path d="M3 3h18v12l-4 4H3V3z" opacity=".87" /><path
+                            d="M17 15v4l4-4h-4z"
+                        />
+                    </svg>
+                </button>
+                {#if showStickerPicker}
+                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                    <div
+                        class="fixed inset-0 z-40"
+                        onclick={closeModal}
+                        onkeydown={closeModal}
+                    ></div>
+                    {#if interfaceState.isTouchscreen}
+                        <div
+                            class="fixed left-0 right-0 z-50"
+                            style="bottom: {keyboardOffset}px;"
+                        >
+                            <StickerPicker
+                                {room}
+                                onSelect={sendStickerMessage}
+                                onClose={() => closePicker("sticker", true)}
+                                onSwitchToEmoji={() => openPicker("emoji")}
+                                onSwitchToGif={() => openPicker("gif")}
+                            />
+                        </div>
+                    {:else}
+                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                            <StickerPicker
+                                {room}
+                                onSelect={sendStickerMessage}
+                                onClose={() => closePicker("sticker", true)}
+                                onSwitchToEmoji={() => openPicker("emoji")}
+                                onSwitchToGif={() => openPicker("gif")}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+            </div>
+
+            <!-- Emoji button -->
+            <div class="flex-shrink-0">
+                <button
+                    onclick={() => openPicker("emoji")}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    title="Emoji"
+                    {disabled}
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            fill-rule="evenodd"
+                            d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
+                        />
+                    </svg>
+                </button>
+                {#if showEmojiPicker}
+                    <!-- Backdrop to close picker on outside click -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <div class="fixed inset-0 z-40" onclick={closeModal}></div>
+                    {#if interfaceState.isTouchscreen}
+                        <div
+                            class="fixed left-0 right-0 z-50"
+                            style="bottom: {keyboardOffset}px;"
+                        >
+                            <EmojiPicker
+                                {room}
+                                onSelect={insertEmoji}
+                                onSelectCustom={insertCustomEmoji}
+                                onClose={() => closePicker("emoji", true)}
+                                onSwitchToSticker={() => openPicker("sticker")}
+                                onSwitchToGif={() => openPicker("gif")}
+                            />
+                        </div>
+                    {:else}
+                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                            <EmojiPicker
+                                {room}
+                                onSelect={insertEmoji}
+                                onSelectCustom={insertCustomEmoji}
+                                onClose={() => closePicker("emoji", true)}
+                                onSwitchToSticker={() => openPicker("sticker")}
+                                onSwitchToGif={() => openPicker("gif")}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+            </div>
+
+            <button
+                onclick={send}
+                onpointerdown={(e) => e.preventDefault()}
+                disabled={(!text.trim() && fileQueue.length === 0) ||
+                    isSending ||
+                    disabled}
+                class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Send message"
+            >
+                {#if isSending}
+                    <div
+                        class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
+                    ></div>
+                {:else}
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                    </svg>
+                {/if}
+            </button>
+        </div>
+    {/if}
     <div class="relative mt-1 px-1 h-4">
         {#if typingUsers.length > 0}
             <p
