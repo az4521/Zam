@@ -10,13 +10,13 @@
         {
             key: "upload",
             label: "Upload a file",
-            run: onUpload,
+            run: () => onUpload(),
             icon: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
         },
         {
             key: "poll",
             label: "Create poll",
-            run: onCreatePoll,
+            run: () => onCreatePoll(),
             icon: "M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z",
         },
     ];
