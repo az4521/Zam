@@ -7,6 +7,9 @@ import {
     sfuJwtUrl,
     pickLivekitTransport,
     screenShareCaptureResolution,
+    callEndedMembershipMessage,
+    identityToUserId,
+    usersFromIdentities,
 } from "./voiceCall";
 
 describe("screenShareCaptureResolution", () => {
@@ -144,5 +147,49 @@ describe("pickLivekitTransport", () => {
                 "!r:s",
             ),
         ).toBeNull();
+    });
+});
+
+describe("callEndedMembershipMessage", () => {
+    it("names a ban", () => {
+        expect(callEndedMembershipMessage("ban", false)).toBe(
+            "You were banned from this room — call ended",
+        );
+    });
+    it("names a kick (removed by someone else)", () => {
+        expect(callEndedMembershipMessage("leave", false)).toBe(
+            "You were removed from this room — call ended",
+        );
+    });
+    it("names a self-leave", () => {
+        expect(callEndedMembershipMessage("leave", true)).toBe(
+            "You left this room — call ended",
+        );
+    });
+    it("returns null for a still-present membership", () => {
+        expect(callEndedMembershipMessage("join", false)).toBeNull();
+        expect(callEndedMembershipMessage("invite", false)).toBeNull();
+        expect(callEndedMembershipMessage("knock", true)).toBeNull();
+    });
+});
+
+describe("identityToUserId / usersFromIdentities", () => {
+    it("strips the device suffix from an identity", () => {
+        expect(identityToUserId("@alice:example.org:DEVABC")).toBe(
+            "@alice:example.org",
+        );
+    });
+    it("collapses multiple devices of one user to a single user id", () => {
+        const users = usersFromIdentities([
+            "@alice:example.org:DEV1",
+            "@alice:example.org:DEV2",
+            "@bob:example.org:DEV9",
+        ]);
+        expect(users).toEqual(
+            new Set(["@alice:example.org", "@bob:example.org"]),
+        );
+    });
+    it("is empty for no identities", () => {
+        expect(usersFromIdentities([])).toEqual(new Set());
     });
 });

@@ -147,3 +147,31 @@ export function screenShareCaptureResolution(
         : 30;
     return { width: res.width, height: res.height, frameRate };
 }
+
+/**
+ * Message to show when MY room membership changed during a call, or null when
+ * the change doesn't end the call. `removedBySelf` = the m.room.member event was
+ * sent by me (I left) vs by someone else (kick/ban).
+ */
+export function callEndedMembershipMessage(
+    membership: string,
+    removedBySelf: boolean,
+): string | null {
+    if (membership === "ban")
+        return "You were banned from this room — call ended";
+    if (membership === "leave")
+        return removedBySelf
+            ? "You left this room — call ended"
+            : "You were removed from this room — call ended";
+    return null; // join / invite / knock: no teardown
+}
+
+/** "@user:server:DEVICE" → "@user:server". Device ids never contain ":". */
+export function identityToUserId(identity: string): string {
+    return identity.slice(0, identity.lastIndexOf(":"));
+}
+
+/** The distinct user ids present in a list of "user:device" identities. */
+export function usersFromIdentities(identities: string[]): Set<string> {
+    return new Set(identities.map(identityToUserId));
+}
