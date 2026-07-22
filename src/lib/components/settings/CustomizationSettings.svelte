@@ -132,7 +132,14 @@
             });
         for (const space of getSpaces()) {
             if (!canAddRoomToSpace(space.roomId)) continue;
-            const rooms = getRoomsInSpace(space.roomId);
+            // Only the "normal" (untagged) children belong under Channels —
+            // favourited / low-priority children are shown in their own
+            // Favourites / Low Priority group above, exactly as the sidebar
+            // sections them. This keeps each room in a single group and makes a
+            // Channels reorder mirror what the sidebar actually shows.
+            const rooms = groupRoomsByTag(getRoomsInSpace(space.roomId), (r) =>
+                getRoomTags(r.roomId),
+            ).normal;
             if (!rooms.length) continue;
             groups.push({
                 key: `space:${space.roomId}`,
