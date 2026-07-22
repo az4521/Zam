@@ -75,6 +75,7 @@
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
+    import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
     import { Phone, Volume2, Lock } from "lucide-svelte";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
@@ -746,13 +747,15 @@
     $effect(() => {
         const currentRoomId = roomId;
         const currentRoom = room;
-        const unsub = onEventDecrypted((_event: MatrixEvent, eventRoom: Room) => {
-            if (eventRoom.roomId !== currentRoomId || isContextView) return;
-            setMessages(currentRoomId, getTimelineMessages(currentRoom));
-            if (isAtBottom) {
-                tick().then(() => scrollToBottom(false));
-            }
-        });
+        const unsub = onEventDecrypted(
+            (_event: MatrixEvent, eventRoom: Room) => {
+                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                setMessages(currentRoomId, getTimelineMessages(currentRoom));
+                if (isAtBottom) {
+                    tick().then(() => scrollToBottom(false));
+                }
+            },
+        );
         return unsub;
     });
 
@@ -1114,6 +1117,7 @@
         </div>
 
         <ActiveCallBanner {room} />
+        <LiveLocationBanner {room} />
 
         <!-- Messages scrollable area -->
         <div
