@@ -17,9 +17,7 @@ import {
     SetPresence,
     Direction,
     EventType,
-    Thread,
     ThreadEvent,
-    FeatureSupport,
     MatrixEventEvent,
     Method,
 } from "matrix-js-sdk";
@@ -908,19 +906,21 @@ export function getRoomThreads(room: Room): ThreadInfo[] {
     });
 }
 
-/**
- * Populate the room's thread list. Feature-detect server-side list support
- * (⚑5): with support, build the All/My thread timeline sets so getThreads() is
- * server-backed; without it, fall back to the already-known room.getThreads()
- * (no-op here) — the list may miss very old threads until the main timeline is
- * scrolled (accepted degradation on continuwuity/tuwunel).
- */
 export async function ensureThreadsLoaded(room: Room): Promise<void> {
-    if (Thread.hasServerSideListSupport === FeatureSupport.None) return;
+    // Populate room.getThreads(). fetchRoomThreads() is what actually fetches +
+    // builds the Thread objects; createThreadsTimelineSets() only creates the
+    // (initially empty) All/My sets the fetch writes into. Both are idempotent
+    // (fetchRoomThreads no-ops once threadsReady). fetchRoomThreads internally
+    // feature-detects Thread.hasServerSideListSupport (⚑5): with the MSC3856
+    // list endpoint it pages the server list; without it (continuwuity/tuwunel)
+    // it falls back to a client-side m.thread-relation scan. try/catch degrades
+    // to sync-known threads if the server rejects the fallback filter.
+    if (!matrixClient?.supportsThreads()) return;
     try {
         await room.createThreadsTimelineSets();
+        await room.fetchRoomThreads();
     } catch (err) {
-        console.error("Failed to load threads timeline sets:", err);
+        console.error("Failed to load room threads:", err);
     }
 }
 
