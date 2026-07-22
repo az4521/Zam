@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     CREATOR_POWER_LEVEL,
     effectivePowerLevel,
+    parsePowerLevelInput,
     roomVersionHasImmutableCreators,
 } from "./powerLevels";
 
@@ -84,5 +85,65 @@ describe("effectivePowerLevel", () => {
                 immutableCreators: true,
             }),
         ).toBe(0);
+    });
+});
+
+describe("parsePowerLevelInput", () => {
+    it("accepts a whole number at or below the ceiling", () => {
+        expect(parsePowerLevelInput("40", 100)).toEqual({
+            ok: true,
+            value: 40,
+            error: "",
+        });
+        expect(parsePowerLevelInput("0", 50)).toEqual({
+            ok: true,
+            value: 0,
+            error: "",
+        });
+    });
+    it("accepts the ceiling itself (inclusive)", () => {
+        expect(parsePowerLevelInput("100", 100)).toEqual({
+            ok: true,
+            value: 100,
+            error: "",
+        });
+    });
+    it("trims surrounding whitespace", () => {
+        expect(parsePowerLevelInput(" 40 ", 100)).toEqual({
+            ok: true,
+            value: 40,
+            error: "",
+        });
+    });
+    it("rejects a value above the ceiling, naming the ceiling", () => {
+        const r = parsePowerLevelInput("101", 100);
+        expect(r.ok).toBe(false);
+        expect(r.value).toBeNull();
+        expect(r.error).toContain("(100)");
+        const r2 = parsePowerLevelInput("75", 50);
+        expect(r2.ok).toBe(false);
+        expect(r2.error).toContain("(50)");
+    });
+    it("rejects negatives", () => {
+        const r = parsePowerLevelInput("-1", 100);
+        expect(r.ok).toBe(false);
+        expect(r.value).toBeNull();
+        expect(r.error).toBe("Must be 0 or higher");
+    });
+    it("rejects non-integers (float, hex, text)", () => {
+        for (const bad of ["3.5", "0x10", "abc"]) {
+            const r = parsePowerLevelInput(bad, 100);
+            expect(r.ok).toBe(false);
+            expect(r.value).toBeNull();
+            expect(r.error).toBe("Must be a whole number");
+        }
+    });
+    it("rejects blank input", () => {
+        for (const blank of ["", "   "]) {
+            const r = parsePowerLevelInput(blank, 100);
+            expect(r.ok).toBe(false);
+            expect(r.value).toBeNull();
+            expect(r.error).toBe("Enter a power level");
+        }
     });
 });
