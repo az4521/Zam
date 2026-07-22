@@ -123,7 +123,7 @@ describe("groupRoomsByTag — split rooms into favourites / normal / low priorit
         ]);
     });
 
-    it("coerces string orders (legacy clients) and treats junk as missing", () => {
+    it("coerces numeric string orders (legacy clients) and sorts a non-numeric order after numeric ones", () => {
         const rooms = [
             room("junk", { [TAG_FAVOURITE]: { order: "not a number" } }),
             room("legacy", { [TAG_FAVOURITE]: { order: "0.2" } }),

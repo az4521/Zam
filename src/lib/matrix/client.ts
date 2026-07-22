@@ -4493,21 +4493,32 @@ export async function reorderSpaceChild(
     if (!space) return;
     const children = getSpaceChildren(space);
 
-    const orderOf = (id: string | null) =>
-        id ? children.find((c) => c.roomId === id)?.order || "" : "";
+    const orderOf = (id: string) =>
+        children.find((c) => c.roomId === id)?.order ?? "";
     const viaOf = (id: string) =>
         children.find((c) => c.roomId === id)?.via ?? [];
 
-    // Fast path: a key that sorts strictly between the two neighbours.
-    try {
-        const key = keyBetween(
-            orderOf(beforeId) || null,
-            orderOf(afterId) || null,
-        );
-        await setSpaceChildOrder(spaceId, childId, key, viaOf(childId));
-        return;
-    } catch (e) {
-        if (!(e instanceof OrderRebalanceError)) throw e;
+    const beforeOrder = beforeId ? orderOf(beforeId) : "";
+    const afterOrder = afterId ? orderOf(afterId) : "";
+
+    // Fast path only when each present neighbour has a non-empty order string.
+    // A present-but-orderless neighbour is NOT an open end: a present order
+    // sorts before a missing one, so passing `null` there would let
+    // keyBetween(null, null) return "U" and jump the child to the top instead
+    // of the dropped slot. Force the rebalance path in that case.
+    const beforeOk = beforeId === null || beforeOrder !== "";
+    const afterOk = afterId === null || afterOrder !== "";
+    if (beforeOk && afterOk) {
+        try {
+            const key = keyBetween(
+                beforeId ? beforeOrder : null,
+                afterId ? afterOrder : null,
+            );
+            await setSpaceChildOrder(spaceId, childId, key, viaOf(childId));
+            return;
+        } catch (e) {
+            if (!(e instanceof OrderRebalanceError)) throw e;
+        }
     }
 
     // Rebalance: reassign evenly-spread keys across the whole section.
