@@ -11,6 +11,7 @@
         getMemberName,
         getMemberAvatar,
         findEventById,
+        markThreadRead,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -84,6 +85,16 @@
             if (eventRoom.roomId === room.roomId) bump();
         });
         return unsub;
+    });
+
+    // Mark the thread read when opened and whenever a new reply lands while it
+    // is open. Threaded receipt only (⚑6) — does not touch main-timeline unread.
+    // The SDK dedups repeat receipts to the same latest event, so re-running on
+    // every messages change is cheap.
+    $effect(() => {
+        void rootEventId;
+        void messages.length;
+        markThreadRead(room, rootEventId).catch(() => {});
     });
 
     // Scroll to bottom when messages change
