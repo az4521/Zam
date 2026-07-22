@@ -30,6 +30,9 @@
         getRoomsInSpace,
         reorderRoomTag,
         reorderSpaceChild,
+        setRoomTagOrderRaw,
+        setSpaceChildOrder,
+        getSpaceChildren,
         getOwnAvatarUrl,
         getDMPartnerId,
         getRoomCallMemberships,
@@ -52,6 +55,8 @@
         groupRoomsByTag,
         sortRoomsByTag,
         roomTagKind,
+        TAG_FAVOURITE,
+        TAG_LOWPRIORITY,
     } from "$lib/utils/roomOrdering";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import {
@@ -563,6 +568,53 @@
     function onRowPointerCancel() {
         drag = null;
     }
+
+    // Preserve a space child's `via` when writing its order.
+    function viaOf(roomId: string): string[] {
+        if (!activeSpaceRoom) return [];
+        return (
+            getSpaceChildren(activeSpaceRoom).find((c) => c.roomId === roomId)
+                ?.via ?? []
+        );
+    }
+
+    // The raw order value shown in a row's edit-mode field.
+    function rawOrderOf(room: Room, section: Section): string {
+        if (section === "channels") {
+            if (!activeSpaceRoom) return "";
+            const child = getSpaceChildren(activeSpaceRoom).find(
+                (c) => c.roomId === room.roomId,
+            );
+            return child?.order ?? "";
+        }
+        const t = getRoomTags(room.roomId);
+        const raw =
+            t[section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY]?.order;
+        return raw == null ? "" : String(raw);
+    }
+
+    async function commitRawOrder(room: Room, section: Section, raw: string) {
+        try {
+            if (section === "channels") {
+                if (!roomsState.activeSpaceId) return;
+                await setSpaceChildOrder(
+                    roomsState.activeSpaceId,
+                    room.roomId,
+                    raw,
+                    viaOf(room.roomId),
+                );
+            } else {
+                await setRoomTagOrderRaw(
+                    room.roomId,
+                    section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY,
+                    raw,
+                );
+            }
+            applyReorderReactivity(section);
+        } catch (err) {
+            console.error("Failed to set order value:", err);
+        }
+    }
 </script>
 
 <div class="w-60 bg-discord-backgroundSecondary flex flex-col flex-shrink-0">
@@ -859,6 +911,23 @@
                         </span>
                     {/if}
                 </button>
+                {#if draggable}
+                    <input
+                        value={rawOrderOf(room, section!)}
+                        title="Order value"
+                        class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                        onpointerdown={(e) => e.stopPropagation()}
+                        onclick={(e) => e.stopPropagation()}
+                        onkeydown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                        onblur={(e) => {
+                            const v = e.currentTarget.value;
+                            if (v !== rawOrderOf(room, section!))
+                                commitRawOrder(room, section!, v);
+                        }}
+                    />
+                {/if}
                 <!-- svelte-ignore a11y_consider_explicit_label -->
                 <button
                     onpointerdown={(e) => e.stopPropagation()}
@@ -1206,6 +1275,24 @@
                                     </span>
                                 {/if}
                             </button>
+                            {#if dmDraggable}
+                                <input
+                                    value={rawOrderOf(room, dmSection!)}
+                                    title="Order value"
+                                    class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                                    onpointerdown={(e) => e.stopPropagation()}
+                                    onclick={(e) => e.stopPropagation()}
+                                    onkeydown={(e) => {
+                                        if (e.key === "Enter")
+                                            e.currentTarget.blur();
+                                    }}
+                                    onblur={(e) => {
+                                        const v = e.currentTarget.value;
+                                        if (v !== rawOrderOf(room, dmSection!))
+                                            commitRawOrder(room, dmSection!, v);
+                                    }}
+                                />
+                            {/if}
                         </div>
                         {#if dmDraggable && drag?.overId === room.roomId && !drag.before}
                             <div
