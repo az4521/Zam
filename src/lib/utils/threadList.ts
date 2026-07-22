@@ -14,6 +14,8 @@ export interface ThreadInfo {
     latestTs: number;
     latestPreview: string;
     participated: boolean;
+    unreadTotal: number;
+    unreadHighlight: number;
 }
 
 /** Display-ready list item (previews shaped/truncated/fallback-filled). */
@@ -25,6 +27,8 @@ export interface ThreadListItem {
     latestTs: number;
     latestPreview: string;
     participated: boolean;
+    unreadTotal: number;
+    unreadHighlight: number;
 }
 
 const MAX_PREVIEW_LEN = 120;
@@ -56,6 +60,8 @@ export function buildThreadListItems(threads: ThreadInfo[]): ThreadListItem[] {
                 latestTs: t.latestTs,
                 latestPreview: shapePreview(t.latestPreview),
                 participated: t.participated,
+                unreadTotal: t.unreadTotal,
+                unreadHighlight: t.unreadHighlight,
             }),
         )
         .sort((a, b) => {

@@ -11,6 +11,8 @@ function info(over: Partial<ThreadInfo> = {}): ThreadInfo {
         latestTs: 1000,
         latestPreview: "reply",
         participated: false,
+        unreadTotal: 0,
+        unreadHighlight: 0,
         ...over,
     };
 }
@@ -92,5 +94,23 @@ describe("buildThreadListItems", () => {
 
     it("returns an empty array for no threads", () => {
         expect(buildThreadListItems([])).toEqual([]);
+    });
+
+    it("carries per-thread unread counts through unchanged", () => {
+        const items = buildThreadListItems([
+            {
+                rootId: "$a",
+                rootSenderId: "@u:s",
+                rootPreview: "root",
+                replyCount: 2,
+                latestTs: 100,
+                latestPreview: "latest",
+                participated: true,
+                unreadTotal: 5,
+                unreadHighlight: 2,
+            },
+        ]);
+        expect(items[0].unreadTotal).toBe(5);
+        expect(items[0].unreadHighlight).toBe(2);
     });
 });
