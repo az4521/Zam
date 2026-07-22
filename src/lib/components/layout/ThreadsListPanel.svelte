@@ -8,7 +8,9 @@
         getMemberAvatar,
     } from "$lib/matrix/client";
     import { buildThreadListItems } from "$lib/utils/threadList";
+    import { threadBadgeState } from "$lib/utils/threadUnread";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { roomsState } from "$lib/stores/rooms.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { pinnedDate } from "$lib/utils/timeFormat";
 
@@ -41,6 +43,7 @@
 
     const items = $derived.by(() => {
         threadsTick;
+        void roomsState.unreadTick;
         return buildThreadListItems(getRoomThreads(room));
     });
 </script>
@@ -92,6 +95,10 @@
                     {@const avatarUrl = item.rootSenderId
                         ? getMemberAvatar(room, item.rootSenderId)
                         : null}
+                    {@const badge = threadBadgeState({
+                        total: item.unreadTotal,
+                        highlight: item.unreadHighlight,
+                    })}
                     <button
                         onclick={() => {
                             onOpenThread(item.rootId);
@@ -116,8 +123,25 @@
                                     title="You participated">•</span
                                 >
                             {/if}
+                            {#if badge === "mention"}
+                                <span
+                                    class="ml-auto flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                    title="Unread mentions"
+                                    >{item.unreadHighlight > 99
+                                        ? "99+"
+                                        : item.unreadHighlight}</span
+                                >
+                            {:else if badge === "unread"}
+                                <span
+                                    class="ml-auto flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                                    title="Unread replies"
+                                ></span>
+                            {/if}
                             <span
-                                class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
+                                class="text-xs text-discord-textMuted {badge ===
+                                'none'
+                                    ? 'ml-auto'
+                                    : 'ml-2'} flex-shrink-0"
                                 >{pinnedDate(item.latestTs)}</span
                             >
                         </div>
