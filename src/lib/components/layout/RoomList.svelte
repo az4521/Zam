@@ -434,6 +434,32 @@
         accountSwitcherOpen = true;
         openModal("account-switcher", () => (accountSwitcherOpen = false));
     }
+
+    // ── Reorder mode (edit-mode drag + raw-order field) ─────────────────────
+    type Section = "favourite" | "lowPriority" | "channels";
+    type DragState = {
+        roomId: string;
+        section: Section;
+        pointerId: number;
+        overId: string | null;
+        before: boolean;
+    };
+
+    let reorderMode = $state(false);
+    let drag = $state<DragState | null>(null);
+
+    function toggleReorderMode() {
+        reorderMode = !reorderMode;
+        drag = null;
+    }
+
+    // Leave reorder mode whenever the visible list changes out from under it
+    // (⚑4: auto-exit when the active space changes).
+    $effect(() => {
+        void roomsState.activeSpaceId;
+        reorderMode = false;
+        drag = null;
+    });
 </script>
 
 <div class="w-60 bg-discord-backgroundSecondary flex flex-col flex-shrink-0">
@@ -449,6 +475,28 @@
                 class="w-3.5 h-3.5 border-2 border-discord-textMuted border-t-transparent rounded-full animate-spin flex-shrink-0"
             ></div>
         {/if}
+        <!-- Reorder-mode toggle -->
+        <button
+            onclick={toggleReorderMode}
+            class="p-1 rounded transition-colors flex-shrink-0 hover:bg-discord-messageHover {reorderMode
+                ? 'text-discord-accent'
+                : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+            title={reorderMode ? "Done reordering" : "Reorder rooms"}
+        >
+            {#if reorderMode}
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                    />
+                </svg>
+            {:else}
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"
+                    />
+                </svg>
+            {/if}
+        </button>
         <!-- Dropdown trigger -->
         <div class="relative flex-shrink-0">
             <button
