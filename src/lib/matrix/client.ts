@@ -19,7 +19,6 @@ import {
     EventType,
     MatrixEventEvent,
     Method,
-    ThreadEvent,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -800,8 +799,10 @@ export function getThreadSummary(
 ): ThreadSummary {
     const thread = room.getThread(rootEventId);
     if (!thread) {
-        // No SDK Thread yet (zero replies, or replies not yet aggregated on a
-        // Conduit-family server): fall back to the live-timeline walk.
+        // No SDK Thread yet (a genuine zero-reply root, or replies not yet
+        // aggregated): getThreadMessages returns pending local echoes only
+        // (thread replies no longer live in the main timeline), so count is 0
+        // until the SDK builds the Thread and ThreadEvent/Timeline refires.
         const messages = getThreadMessages(room, rootEventId);
         const latest = messages[messages.length - 1] ?? null;
         return summarizeThread({
@@ -856,21 +857,24 @@ export async function paginateThreadBack(
     });
 }
 
-// Fires when a thread gains a reply, updates, or is deleted, so an open
-// ThreadPanel can re-read. Broad + room-agnostic by design (the panel
-// re-derives from its own root). SDK-native via ThreadEvent.* — replaces the
-// old RoomEvent.Timeline relation-walk.
+// Fires when a thread reply, an edit, or a redaction lands on a timeline, so an
+// open ThreadPanel can re-read. Broad + room-agnostic by design (the panel
+// re-derives from its own root). Subscribes at the CLIENT level on
+// RoomEvent.Timeline: a reply added to a Thread's timeline re-emits
+// RoomEvent.Timeline up through the Thread -> Room -> client, whereas
+// ThreadEvent.* is NOT bridged to the client re-emitter (so binding it here
+// would silently never fire).
 export function onThreadEvent(callback: () => void): () => void {
     if (!matrixClient) return () => {};
-    const handler = () => callback();
-    matrixClient.on(ThreadEvent.NewReply as never, handler as never);
-    matrixClient.on(ThreadEvent.Update as never, handler as never);
-    matrixClient.on(ThreadEvent.Delete as never, handler as never);
-    return () => {
-        matrixClient?.off(ThreadEvent.NewReply as never, handler as never);
-        matrixClient?.off(ThreadEvent.Update as never, handler as never);
-        matrixClient?.off(ThreadEvent.Delete as never, handler as never);
+    const handler = (event: MatrixEvent) => {
+        const isThread = eventThreadRoot(event) !== null;
+        const relType = event.getContent()?.["m.relates_to"]?.rel_type;
+        const isEdit = relType === "m.replace";
+        const isRedaction = event.getType() === "m.room.redaction";
+        if (isThread || isEdit || isRedaction) callback();
     };
+    matrixClient.on(RoomEvent.Timeline, handler as never);
+    return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
 }
 
 async function captureVideoThumbnail(file: File): Promise<{
