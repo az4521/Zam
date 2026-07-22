@@ -80,6 +80,24 @@ export function compareOrder(x: unknown, y: unknown): number {
     return sx < sy ? -1 : sx > sy ? 1 : 0;
 }
 
+/**
+ * Comparator for m.space.child `order`, which the Matrix spec sorts PURE
+ * lexicographically by Unicode code point (NOT numeric-aware — that is
+ * compareOrder, for m.tag). Missing (null/undefined/""/non-string) sorts LAST;
+ * two missings compare equal. Never throws. Matches keyBetween/rebalancedKeys
+ * generation and the homeserver sort.
+ */
+export function compareOrderLex(x: unknown, y: unknown): number {
+    const xMissing = typeof x !== "string" || x === "";
+    const yMissing = typeof y !== "string" || y === "";
+    if (xMissing && yMissing) return 0;
+    if (xMissing) return 1; // missing sorts after a present value
+    if (yMissing) return -1;
+
+    // Both present strings: compare raw by code point (no numeric parsing).
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
 // ---------------------------------------------------------------------------
 // keyBetween / rebalancedKeys (lexicographic string keys)
 // ---------------------------------------------------------------------------

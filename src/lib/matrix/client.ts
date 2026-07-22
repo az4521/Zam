@@ -85,6 +85,7 @@ import {
 } from "$lib/utils/roomOrdering";
 import {
     compareOrder,
+    compareOrderLex,
     keyBetween,
     numberBetween,
     rebalancedKeys,
@@ -602,7 +603,7 @@ export function getSpaceChildIds(spaceId: string): string[] {
         .sort((a, b) => {
             const ao: string | undefined = a.getContent()?.order;
             const bo: string | undefined = b.getContent()?.order;
-            const byOrder = compareOrder(ao, bo);
+            const byOrder = compareOrderLex(ao, bo);
             if (byOrder !== 0) return byOrder;
             // Equal/both-missing order: sort by room ID for stability
             return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
@@ -4442,7 +4443,7 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
             };
         })
         .sort((a, b) => {
-            const byOrder = compareOrder(a.order, b.order);
+            const byOrder = compareOrderLex(a.order, b.order);
             if (byOrder !== 0) return byOrder;
             return a.name.localeCompare(b.name);
         });

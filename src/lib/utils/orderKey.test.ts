@@ -7,6 +7,7 @@ import {
     keyBetween,
     rebalancedKeys,
     compareOrder,
+    compareOrderLex,
     numberBetween,
     rebalancedNumbers,
 } from "./orderKey";
@@ -135,6 +136,99 @@ describe("compareOrder — never-throwing, numeric-aware order comparison", () =
         expect(sorted.slice(3, 5)).toEqual(["aaa", "abc"]);
         // missing last (order among the two missings is stable/irrelevant)
         expect(new Set(sorted.slice(5))).toEqual(new Set([null, ""]));
+    });
+});
+
+describe("compareOrderLex — pure code-point order comparison (m.space.child)", () => {
+    it("compares numeric-looking strings by CODE POINT, not numerically", () => {
+        // The whole point: opposite of compareOrder. '1' < '2' by code point,
+        // so "10" sorts BEFORE "2" even though 10 > 2 numerically.
+        expect(sign(compareOrderLex("10", "2"))).toBe(-1);
+        expect(sign(compareOrderLex("2", "10"))).toBe(1);
+        // sanity: compareOrder disagrees (numeric-aware) — proves they differ.
+        expect(sign(compareOrder("10", "2"))).toBe(1);
+    });
+
+    it("compares mixed alnum strings by code point", () => {
+        expect(sign(compareOrderLex("2O", "3"))).toBe(-1); // '2' < '3'
+        expect(sign(compareOrderLex("a", "b"))).toBe(-1);
+        expect(sign(compareOrderLex("b", "a"))).toBe(1);
+        expect(sign(compareOrderLex(" ", "~"))).toBe(-1); // 0x20 < 0x7e
+        expect(compareOrderLex("abc", "abc")).toBe(0);
+    });
+
+    it("sorts missing (null/undefined/empty/non-string) LAST", () => {
+        for (const missing of [null, undefined, "", {}, [], true, 5, NaN]) {
+            expect(sign(compareOrderLex("a", missing))).toBe(-1); // present first
+            expect(sign(compareOrderLex(missing, "a"))).toBe(1); // missing last
+        }
+    });
+
+    it("treats a numeric value (a number) as missing — it is not a string", () => {
+        // Unlike compareOrder, a raw number is NOT a valid m.space.child order.
+        expect(sign(compareOrderLex(5, "a"))).toBe(1); // 5 missing → sorts after "a"
+        expect(sign(compareOrderLex("a", 5))).toBe(-1); // "a" present → sorts first
+    });
+
+    it("returns 0 when both values are missing", () => {
+        expect(compareOrderLex(null, undefined)).toBe(0);
+        expect(compareOrderLex("", null)).toBe(0);
+        expect(compareOrderLex({}, [])).toBe(0);
+        expect(compareOrderLex(undefined, undefined)).toBe(0);
+    });
+
+    it("regression: rebalancedKeys(n) stays STRICTLY increasing under compareOrderLex", () => {
+        // The exact bug: rebalancedKeys produces code-point-monotonic keys, but
+        // compareOrder (numeric-aware) re-sorted digit-char keys out of order,
+        // scrambling the space section after a first-drag rebalance. Under the
+        // correct code-point comparator every adjacent pair must be ascending.
+        for (const n of [2, 7, 12, 40, 60]) {
+            const keys = rebalancedKeys(n);
+            expect(keys.length).toBe(n);
+            for (let i = 0; i < keys.length - 1; i++) {
+                expect(sign(compareOrderLex(keys[i], keys[i + 1]))).toBe(-1);
+            }
+        }
+    });
+
+    it("drives a correct pure-lexicographic sort", () => {
+        const arr: unknown[] = ["10", "2", "a", "", "B", null, " "];
+        const sorted = [...arr].sort(compareOrderLex);
+        // present values by code point: ' '(0x20) < '1' < '2' < 'B' < 'a'
+        expect(sorted.slice(0, 5)).toEqual([" ", "10", "2", "B", "a"]);
+        // missing last (order among the two missings is irrelevant)
+        expect(new Set(sorted.slice(5))).toEqual(new Set([null, ""]));
+    });
+
+    it("never throws on hostile inputs and always returns a finite number", () => {
+        const hostile: unknown[] = [
+            "😀",
+            "a".repeat(10000),
+            "!@#$%^&*()",
+            NaN,
+            Infinity,
+            -Infinity,
+            [],
+            {},
+            true,
+            Symbol("x"),
+            () => 1,
+            null,
+            undefined,
+            "",
+            "0x10",
+            "1e3",
+        ];
+        for (const x of hostile) {
+            for (const y of hostile) {
+                let r: number = 0;
+                expect(() => {
+                    r = compareOrderLex(x, y);
+                }).not.toThrow();
+                expect(typeof r).toBe("number");
+                expect(Number.isFinite(r)).toBe(true);
+            }
+        }
     });
 });
 
