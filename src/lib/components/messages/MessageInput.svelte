@@ -22,6 +22,11 @@
         setRoomTopic,
         kickUser,
         banUser,
+        setOwnDisplayName,
+        setUserPowerLevel,
+        getOwnServerName,
+        getMyPowerLevel,
+        getRoomPowerLevels,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
@@ -52,8 +57,12 @@
         parseSlashCommand,
         matchSlashCommands,
         usageFor,
+        parseNickArg,
+        parseOpArg,
+        parseDeopArg,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
+    import { resolveUserToken } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
 
@@ -684,6 +693,21 @@
         };
     }
 
+    async function applyPowerLevel(token: string, level: number) {
+        if (!room) throw new Error("No room selected");
+        const userId = resolveUserToken(token, getOwnServerName());
+        if (!userId) throw new Error(`"${token}" is not a valid user`);
+        if (!room.getMember(userId))
+            throw new Error(`${userId} is not in this room`);
+        const pl = getRoomPowerLevels(room);
+        const required = pl.events["m.room.power_levels"] ?? pl.state_default;
+        if (getMyPowerLevel(room) < required)
+            throw new Error(
+                "You don't have permission to change power levels in this room",
+            );
+        await setUserPowerLevel(room, userId, level);
+    }
+
     async function runSlashAction(command: SlashCommand, arg: string) {
         switch (command.name) {
             case "join":
@@ -706,6 +730,24 @@
             case "ban": {
                 const { user, reason } = splitUserAndReason(arg);
                 await banUser(roomId, user, reason);
+                break;
+            }
+            case "nick": {
+                const r = parseNickArg(arg);
+                if ("error" in r) throw new Error(r.error);
+                await setOwnDisplayName(r.name);
+                break;
+            }
+            case "op": {
+                const r = parseOpArg(arg);
+                if ("error" in r) throw new Error(r.error);
+                await applyPowerLevel(r.user, r.level);
+                break;
+            }
+            case "deop": {
+                const r = parseDeopArg(arg);
+                if ("error" in r) throw new Error(r.error);
+                await applyPowerLevel(r.user, 0);
                 break;
             }
             default:
