@@ -94,10 +94,11 @@ function clampCode(code: number): number {
  * A key that sorts strictly between `a` and `b` by code point, drawn from the
  * printable-ASCII digit range. `null` = open end (head when `a`, tail when `b`).
  *
- * Throws `OrderRebalanceError` only when neighbours collide / are out of order
- * (code-point compare) or when the required key would exceed `ORDER_MAX_LEN`.
- * Robust to arbitrary neighbour strings otherwise — out-of-range chars are
- * clamped into the digit range for the walk.
+ * Throws `OrderRebalanceError` when neighbours collide / are out of order
+ * (code-point compare), when no key sorts strictly between them (e.g. `b` is the
+ * floor-valued successor of `a`, or out-of-range chars clamp to the same bound),
+ * or when the required key would exceed `ORDER_MAX_LEN`. Robust to arbitrary
+ * neighbour strings otherwise — out-of-range chars are clamped for the walk.
  */
 export function keyBetween(a: string | null, b: string | null): string {
     if (a === null && b === null) return "U";
@@ -109,6 +110,7 @@ export function keyBetween(a: string | null, b: string | null): string {
     }
 
     let prefix = "";
+    let key = "";
     let i = 0;
     for (;;) {
         if (prefix.length >= ORDER_MAX_LEN) {
@@ -125,12 +127,25 @@ export function keyBetween(a: string | null, b: string | null): string {
 
         if (cb - ca > 1) {
             const mid = Math.floor((ca + cb) / 2);
-            return prefix + String.fromCharCode(mid);
+            key = prefix + String.fromCharCode(mid);
+            break;
         }
         // Adjacent or equal at this position: fix the floor digit and descend.
         prefix += String.fromCharCode(ca);
         i += 1;
     }
+
+    // Mandatory post-condition backstop: the produced key MUST be strictly
+    // between `a` and `b` by CODE POINT. When `a` is exhausted/floored against a
+    // floor-valued `b`, or when out-of-range chars clamp to the same bound, the
+    // walk can fabricate a key past the boundary (raw vs clamped disagree). Turn
+    // every "no representable key exists" case into a rebalance signal rather
+    // than silently corrupting the order.
+    if ((a !== null && !(a < key)) || (b !== null && !(key < b))) {
+        throw new OrderRebalanceError("no order key fits between neighbours");
+    }
+
+    return key;
 }
 
 /**
@@ -182,14 +197,24 @@ export function rebalancedKeys(n: number): string[] {
  * A numeric `m.tag` order strictly between `before` and `after`, both in [0,1].
  * `null` = open end (head → `(0, after)`, tail → `(before, 1)`).
  *
- * Throws `OrderRebalanceError` when `before >= after` or when double precision
- * is exhausted (the midpoint is not strictly between the bounds).
+ * Throws `OrderRebalanceError` when a bound is non-finite (`NaN`/`±Infinity`),
+ * when `before >= after`, or when double precision is exhausted (the midpoint is
+ * not strictly between the bounds).
  */
 export function numberBetween(
     before: number | null,
     after: number | null,
 ): number {
     if (before === null && after === null) return 0.5;
+
+    // A non-finite bound (NaN/±Infinity) can never bracket a meaningful midpoint
+    // — reject it up front rather than propagate NaN through the arithmetic.
+    if (
+        (before !== null && !Number.isFinite(before)) ||
+        (after !== null && !Number.isFinite(after))
+    ) {
+        throw new OrderRebalanceError("numeric order bounds must be finite");
+    }
 
     if (before === null) {
         const mid = after! / 2;

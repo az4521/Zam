@@ -266,6 +266,65 @@ describe("keyBetween — code-point strictly-between key generation", () => {
         }
         expect(threw).toBe(true);
     });
+
+    it("throws when no key exists strictly below the range floor (null, ' ')", () => {
+        // 0x20 (' ') is the smallest legal char, so nothing sorts strictly below
+        // it — the walk must NOT fabricate a longer " O" > " ".
+        expect(() => keyBetween(null, " ")).toThrow(OrderRebalanceError);
+    });
+
+    it("throws when b is a's floor-descendant with no gap ('a', 'a ')", () => {
+        // "a " is the immediate successor of "a" by appending the floor char, so
+        // there is no key k with "a" < k < "a ".
+        expect(() => keyBetween("a", "a ")).toThrow(OrderRebalanceError);
+    });
+
+    it("throws for two floor-adjacent whitespace neighbours (' ', '  ')", () => {
+        expect(() => keyBetween(" ", "  ")).toThrow(OrderRebalanceError);
+    });
+
+    it("throws when out-of-range neighbours clamp-collapse ('\\x80', '\\x81')", () => {
+        // Both chars are above the 0x7e ceiling and clamp to '~'; the raw pair is
+        // ordered but no in-range key sits between the clamped bounds.
+        expect(() => keyBetween("\x80", "\x81")).toThrow(OrderRebalanceError);
+    });
+
+    it("range-extreme fuzz: every pair throws OrderRebalanceError or returns a strictly-between key", () => {
+        // Deterministic (no Math.random). Includes the 0x20 floor and 0x7e
+        // ceiling as neighbours plus a fixed nested sequence tightening toward
+        // the floor. The invariant under test: keyBetween NEVER returns a key
+        // outside (a, b) by code point.
+        const pairs: [string | null, string | null][] = [
+            [null, " "],
+            [" ", "!"],
+            ["}", "~"],
+            ["~", null],
+            ["a", "a "],
+            [" ~", "!"],
+            // fixed nested sequence
+            [null, "!"],
+            [" ", "  "],
+            ["  ", "   "],
+            ["!", '"'],
+            ["A", "B"],
+            ["AA", "AB"],
+            ["~", "~ "],
+            [null, null],
+        ];
+        for (const [a, b] of pairs) {
+            let k: string;
+            try {
+                k = keyBetween(a, b);
+            } catch (e) {
+                expect(e).toBeInstanceOf(OrderRebalanceError);
+                continue;
+            }
+            // Returned → MUST be strictly between by code point and in range.
+            expect(a === null || a < k).toBe(true);
+            expect(b === null || k < b).toBe(true);
+            expect(inRange(k)).toBe(true);
+        }
+    });
 });
 
 describe("rebalancedKeys — evenly spread spec-legal keys", () => {
@@ -329,6 +388,17 @@ describe("numberBetween — m.tag numeric midpoint", () => {
     it("throws on equal or out-of-order bounds", () => {
         expect(() => numberBetween(0.5, 0.5)).toThrow(OrderRebalanceError);
         expect(() => numberBetween(0.75, 0.25)).toThrow(OrderRebalanceError);
+    });
+
+    it("throws on a non-finite bound (NaN / Infinity) instead of returning NaN", () => {
+        expect(() => numberBetween(NaN, 0.5)).toThrow(OrderRebalanceError);
+        expect(() => numberBetween(0.5, NaN)).toThrow(OrderRebalanceError);
+        expect(() => numberBetween(Infinity, null)).toThrow(
+            OrderRebalanceError,
+        );
+        expect(() => numberBetween(null, -Infinity)).toThrow(
+            OrderRebalanceError,
+        );
     });
 
     it("throws when precision is exhausted between two adjacent doubles", () => {
