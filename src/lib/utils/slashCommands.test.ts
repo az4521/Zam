@@ -3,6 +3,10 @@ import {
     parseSlashCommand,
     matchSlashCommands,
     SLASH_COMMANDS,
+    parseNickArg,
+    parseOpArg,
+    parseDeopArg,
+    DEFAULT_OP_LEVEL,
 } from "./slashCommands";
 
 describe("parseSlashCommand", () => {
@@ -112,5 +116,83 @@ describe("matchSlashCommands", () => {
 
     it("tolerates a leading slash in the query", () => {
         expect(matchSlashCommands("/sh").map((c) => c.name)).toContain("shrug");
+    });
+});
+
+describe("parseNickArg", () => {
+    it("returns the trimmed name", () => {
+        expect(parseNickArg("Alice")).toEqual({ name: "Alice" });
+        expect(parseNickArg("  Alice  ")).toEqual({ name: "Alice" });
+    });
+    it("preserves internal spaces", () => {
+        expect(parseNickArg("Dr. Alice Smith")).toEqual({
+            name: "Dr. Alice Smith",
+        });
+    });
+    it("errors on empty / whitespace-only", () => {
+        expect("error" in parseNickArg("")).toBe(true);
+        expect("error" in parseNickArg("   ")).toBe(true);
+    });
+});
+
+describe("parseOpArg", () => {
+    it("defaults the level to DEFAULT_OP_LEVEL (50)", () => {
+        expect(parseOpArg("@bob:hs")).toEqual({
+            user: "@bob:hs",
+            level: DEFAULT_OP_LEVEL,
+        });
+        expect(DEFAULT_OP_LEVEL).toBe(50);
+    });
+    it("accepts an explicit level", () => {
+        expect(parseOpArg("@bob:hs 100")).toEqual({
+            user: "@bob:hs",
+            level: 100,
+        });
+        expect(parseOpArg("bob 0")).toEqual({ user: "bob", level: 0 });
+    });
+    it("errors on a missing user", () => {
+        expect("error" in parseOpArg("")).toBe(true);
+        expect("error" in parseOpArg("   ")).toBe(true);
+    });
+    it("errors on a non-integer / negative level", () => {
+        expect("error" in parseOpArg("@bob:hs 5.5")).toBe(true);
+        expect("error" in parseOpArg("@bob:hs fifty")).toBe(true);
+        expect("error" in parseOpArg("@bob:hs 50x")).toBe(true);
+        expect("error" in parseOpArg("@bob:hs -3")).toBe(true);
+    });
+    it("errors on too many arguments", () => {
+        expect("error" in parseOpArg("@bob:hs 50 please")).toBe(true);
+    });
+});
+
+describe("parseDeopArg", () => {
+    it("returns the user token", () => {
+        expect(parseDeopArg("@bob:hs")).toEqual({ user: "@bob:hs" });
+        expect(parseDeopArg("bob")).toEqual({ user: "bob" });
+    });
+    it("errors on a missing user", () => {
+        expect("error" in parseDeopArg("")).toBe(true);
+    });
+    it("errors on too many arguments", () => {
+        expect("error" in parseDeopArg("@bob:hs x")).toBe(true);
+    });
+});
+
+describe("admin command registry", () => {
+    it("registers /nick, /op, /deop as action commands", () => {
+        for (const name of ["nick", "op", "deop"]) {
+            const cmd = SLASH_COMMANDS.find((c) => c.name === name);
+            expect(cmd?.kind).toBe("action");
+            expect(cmd?.requiresArg).toBe(true);
+        }
+    });
+    it("matchSlashCommands('op') includes op", () => {
+        expect(matchSlashCommands("op").map((c) => c.name)).toContain("op");
+    });
+    it("parseSlashCommand recognizes the new commands", () => {
+        for (const name of ["nick", "op", "deop"]) {
+            const r = parseSlashCommand(`/${name} x`);
+            expect(r && "command" in r ? r.command.name : null).toBe(name);
+        }
     });
 });

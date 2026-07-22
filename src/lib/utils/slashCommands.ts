@@ -165,6 +165,30 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         kind: "action",
         requiresArg: true,
     },
+    {
+        name: "nick",
+        description: "Set your display name",
+        argHint: "<display name>",
+        argKind: "text",
+        kind: "action",
+        requiresArg: true,
+    },
+    {
+        name: "op",
+        description: "Set a user's power level",
+        argHint: "<@user:server> [level]",
+        argKind: "user",
+        kind: "action",
+        requiresArg: true,
+    },
+    {
+        name: "deop",
+        description: "Reset a user's power level to default",
+        argHint: "<@user:server>",
+        argKind: "user",
+        kind: "action",
+        requiresArg: true,
+    },
 ];
 
 function findCommand(name: string): SlashCommand | undefined {
@@ -217,4 +241,40 @@ export function usageFor(command: SlashCommand): string {
     return command.argHint
         ? `Usage: /${command.name} ${command.argHint}`
         : `Usage: /${command.name}`;
+}
+
+/** Default power level `/op` grants when no explicit level is given (Moderator). */
+export const DEFAULT_OP_LEVEL = 50;
+
+export type NickArg = { name: string } | { error: string };
+export type OpArg = { user: string; level: number } | { error: string };
+export type DeopArg = { user: string } | { error: string };
+
+/** Parse `/nick <display name>`. Internal spaces are preserved. */
+export function parseNickArg(arg: string): NickArg {
+    const name = arg.trim();
+    if (!name) return { error: "/nick: a display name is required" };
+    return { name };
+}
+
+/** Parse `/op <user> [level]`. Level defaults to DEFAULT_OP_LEVEL; must be a
+ *  non-negative integer when given. User tokens never contain whitespace. */
+export function parseOpArg(arg: string): OpArg {
+    const parts = arg.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { error: "/op: a user is required" };
+    if (parts.length === 1) return { user: parts[0], level: DEFAULT_OP_LEVEL };
+    if (parts.length === 2) {
+        if (!/^\d+$/.test(parts[1]))
+            return { error: "/op: level must be a whole number" };
+        return { user: parts[0], level: Number(parts[1]) };
+    }
+    return { error: "/op: too many arguments" };
+}
+
+/** Parse `/deop <user>`. */
+export function parseDeopArg(arg: string): DeopArg {
+    const parts = arg.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return { error: "/deop: a user is required" };
+    if (parts.length > 1) return { error: "/deop: too many arguments" };
+    return { user: parts[0] };
 }
