@@ -20,6 +20,9 @@
         uploadContent,
         getJoinRule,
         setJoinRule,
+        getDirectParentSpaceIds,
+        setRestrictedJoinRule,
+        getRoom,
         getHistoryVisibility,
         setHistoryVisibility,
         getRoomDirectoryVisibility,
@@ -52,6 +55,10 @@
         type ImageUsage,
         type SpaceChildEntry,
     } from "$lib/matrix/client";
+    import {
+        getRestrictedJoinState,
+        RESTRICTED_JOIN_RULE,
+    } from "$lib/utils/joinRules";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -195,13 +202,35 @@
     let accessError = $state("");
     let accessSuccess = $state(false);
 
+    const parentSpaceIds = $derived(
+        (void roomsState.roomsTick, getDirectParentSpaceIds(room.roomId)),
+    );
+    const restrictedJoin = $derived(
+        getRestrictedJoinState({
+            roomVersion: room.getVersion(),
+            parentSpaceIds,
+            canEditState,
+        }),
+    );
+    const parentSpaceNames = $derived(
+        parentSpaceIds
+            .map((id) => getRoom(id)?.name)
+            .filter((n): n is string => !!n)
+            .join(", "),
+    );
+
     async function saveAccess() {
         accessError = "";
         accessSaving = true;
         try {
             const promises: Promise<void>[] = [];
-            if (joinRule !== getJoinRule(room))
+            if (joinRule === RESTRICTED_JOIN_RULE) {
+                promises.push(
+                    setRestrictedJoinRule(room.roomId, parentSpaceIds),
+                );
+            } else if (joinRule !== getJoinRule(room)) {
                 promises.push(setJoinRule(room.roomId, joinRule));
+            }
             if (historyVisibility !== getHistoryVisibility(room))
                 promises.push(
                     setHistoryVisibility(room.roomId, historyVisibility),
@@ -1286,6 +1315,32 @@
                                         >
                                     </label>
                                 {/each}
+                                <label
+                                    class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
+                                        ? 'opacity-50 pointer-events-none'
+                                        : ''}"
+                                >
+                                    <input
+                                        type="radio"
+                                        bind:group={joinRule}
+                                        value={RESTRICTED_JOIN_RULE}
+                                        disabled={!restrictedJoin.available}
+                                        class="accent-discord-accent"
+                                    />
+                                    <span
+                                        class="text-sm text-discord-textPrimary"
+                                        >{parentSpaceNames
+                                            ? `Space members — anyone in ${parentSpaceNames} can join`
+                                            : "Space members — anyone in the parent space can join"}</span
+                                    >
+                                </label>
+                                {#if restrictedJoin.reason}
+                                    <p
+                                        class="text-xs text-discord-textMuted ml-6"
+                                    >
+                                        {restrictedJoin.reason}
+                                    </p>
+                                {/if}
                             </div>
                         </div>
 
