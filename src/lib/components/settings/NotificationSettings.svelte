@@ -21,7 +21,6 @@
         type PushRuleLevel,
         type RoomNotificationSetting,
         type KeywordBehavior,
-        type KeywordRuleView,
     } from "$lib/matrix/client";
     import { validateKeyword } from "$lib/utils/keywordRules";
     import {
@@ -182,8 +181,11 @@
 
     async function changeBehavior(ruleId: string, behavior: KeywordBehavior) {
         rowPending = ruleId;
+        keywordError = "";
         try {
             await setKeywordRuleBehavior(ruleId, behavior);
+        } catch (e) {
+            keywordError = (e as Error)?.message ?? "Failed to update keyword";
         } finally {
             rowPending = null;
         }
@@ -191,8 +193,11 @@
 
     async function toggleEnabled(ruleId: string, enabled: boolean) {
         rowPending = ruleId;
+        keywordError = "";
         try {
             await setKeywordRuleEnabled(ruleId, enabled);
+        } catch (e) {
+            keywordError = (e as Error)?.message ?? "Failed to update keyword";
         } finally {
             rowPending = null;
         }
@@ -200,8 +205,11 @@
 
     async function removeKeyword(ruleId: string) {
         rowPending = ruleId;
+        keywordError = "";
         try {
             await deleteKeywordRule(ruleId);
+        } catch (e) {
+            keywordError = (e as Error)?.message ?? "Failed to delete keyword";
         } finally {
             rowPending = null;
         }
