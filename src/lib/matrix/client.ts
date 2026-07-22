@@ -123,6 +123,7 @@ import {
     effectivePowerLevel,
     roomVersionHasImmutableCreators,
 } from "$lib/utils/powerLevels";
+import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -613,6 +614,18 @@ export function findSpaceForRoom(roomId: string): string | null {
         }
     }
     return null;
+}
+
+/** Joined spaces whose m.space.child list includes this room (DIRECT parents only). */
+export function getDirectParentSpaceIds(roomId: string): string[] {
+    const result: string[] = [];
+    for (const space of getSpaces()) {
+        if (space.getMyMembership() !== "join") continue;
+        if (getSpaceChildIds(space.roomId).includes(roomId)) {
+            result.push(space.roomId);
+        }
+    }
+    return result;
 }
 
 export function getRoomsInSpace(spaceId: string): Room[] {
@@ -4265,6 +4278,23 @@ export async function setJoinRule(roomId: string, rule: string): Promise<void> {
     await (matrixClient as any).sendStateEvent(roomId, "m.room.join_rules", {
         join_rule: rule,
     });
+}
+
+/** Set a restricted join rule allowing members of the given parent spaces to join. */
+export async function setRestrictedJoinRule(
+    roomId: string,
+    parentSpaceIds: string[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const content = buildRestrictedJoinRuleContent(parentSpaceIds);
+    if (content.allow.length === 0) {
+        throw new Error("Restricted join requires at least one parent space");
+    }
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "m.room.join_rules",
+        content,
+    );
 }
 
 export function getHistoryVisibility(room: Room): string {
