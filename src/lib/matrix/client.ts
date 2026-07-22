@@ -77,6 +77,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
+import { belongsToMainTimeline } from "$lib/utils/threadModel";
 import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
@@ -202,6 +203,7 @@ async function createAuthenticatedClient(opts: {
     const commonOpts = {
         ...opts,
         timelineSupport: true,
+        threadSupport: true,
         verificationMethods: [VerificationMethod.Sas],
         cryptoCallbacks: getCryptoCallbacks(),
     };
@@ -719,6 +721,17 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
             return false;
         const rel = e.getContent()?.["m.relates_to"];
         if (rel?.rel_type === "m.replace") return false;
+        // Divert thread replies out of the main timeline (Element behaviour).
+        // With threadSupport on the SDK already does this; the clause is the ⚑4
+        // backstop against out-of-order Conduit delivery. Read the ORIGINAL
+        // content so an edited reply is still recognised as a thread reply.
+        if (
+            !belongsToMainTimeline({
+                relatesTo: e.getOriginalContent()?.["m.relates_to"],
+                eventId: e.getId() ?? "",
+            })
+        )
+            return false;
         return true;
     };
     const timeline = room.getLiveTimeline().getEvents().filter(filter);
@@ -1676,10 +1689,15 @@ export function onTimelineEvent(
         const isLiveAppend = data?.liveEvent === true;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+        const isMainTimeline = belongsToMainTimeline({
+            relatesTo: event.getOriginalContent()?.["m.relates_to"],
+            eventId: event.getId() ?? "",
+        });
         if (
             room &&
             (settingsState.showAllEvents ||
                 (!isReplacement &&
+                    isMainTimeline &&
                     (event.getType() === "m.room.message" ||
                         event.getType() === "m.sticker" ||
                         isPollStartEventType(event.getType())) &&
