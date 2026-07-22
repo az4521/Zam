@@ -1088,6 +1088,37 @@ export function onBeaconUpdate(callback: () => void): () => void {
     };
 }
 
+/** Our own currently-live beacons across all joined rooms (for share auto-resume after reload). */
+export function getOwnLiveBeacons(): {
+    roomId: string;
+    beaconInfoEventId: string;
+    expiresAt: number;
+}[] {
+    if (!matrixClient) return [];
+    const me = matrixClient.getUserId();
+    if (!me) return [];
+    const out: {
+        roomId: string;
+        beaconInfoEventId: string;
+        expiresAt: number;
+    }[] = [];
+    for (const room of matrixClient.getRooms()) {
+        for (const b of room.currentState.beacons.values()) {
+            if (b.beaconInfoOwner === me && b.isLive) {
+                const info = b.beaconInfo;
+                const timeout = info?.timeout ?? 0;
+                const startTs = info?.timestamp ?? Date.now();
+                out.push({
+                    roomId: room.roomId,
+                    beaconInfoEventId: b.beaconInfoId,
+                    expiresAt: startTs + timeout,
+                });
+            }
+        }
+    }
+    return out;
+}
+
 export async function sendTextMessage(
     roomId: string,
     text: string,

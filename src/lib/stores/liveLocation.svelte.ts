@@ -1,0 +1,177 @@
+import {
+    startLiveBeacon,
+    stopLiveBeacon,
+    sendLiveBeaconLocation,
+    canShareLiveBeacon,
+    getRoom,
+    getOwnLiveBeacons,
+    onBeaconUpdate,
+    onSyncPrepared,
+} from "$lib/matrix/client";
+import { shouldSendUpdate } from "$lib/utils/liveLocation";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
+
+export interface ShareState {
+    beaconInfoEventId: string;
+    expiresAt: number;
+    lastSentTs: number | null;
+    error?: string;
+}
+
+export const liveLocationState = $state<{
+    beaconTick: number;
+    shares: Map<string, ShareState>;
+}>({ beaconTick: 0, shares: new Map() });
+
+const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let watchId: number | null = null;
+
+function bump() {
+    liveLocationState.beaconTick++;
+}
+
+export function isSharingLive(roomId: string): boolean {
+    void liveLocationState.beaconTick;
+    return liveLocationState.shares.has(roomId);
+}
+
+export function shareStateFor(roomId: string): ShareState | null {
+    void liveLocationState.beaconTick;
+    return liveLocationState.shares.get(roomId) ?? null;
+}
+
+function ensureWatch() {
+    if (watchId !== null) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 30000,
+    });
+}
+
+function clearWatchIfIdle() {
+    if (watchId !== null && liveLocationState.shares.size === 0) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+}
+
+function onPosition(pos: GeolocationPosition) {
+    const now = Date.now();
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    for (const [roomId, share] of liveLocationState.shares) {
+        if (!shouldSendUpdate(share.lastSentTs, now)) continue;
+        share.lastSentTs = now;
+        sendLiveBeaconLocation(roomId, share.beaconInfoEventId, lat, lon).catch(
+            () => {
+                // Offline blip: keep watching, retry on the next fix.
+                share.lastSentTs = null;
+            },
+        );
+    }
+    bump();
+}
+
+function onGeoError(err: GeolocationPositionError) {
+    const msg =
+        err.code === err.PERMISSION_DENIED
+            ? "Location permission was denied."
+            : "Couldn't get your location.";
+    for (const roomId of Array.from(liveLocationState.shares.keys())) {
+        void stopShare(roomId);
+    }
+    showErrorToast(msg);
+}
+
+/** Begin sharing our live location into `roomId` for `durationMs`. */
+export async function startShare(
+    roomId: string,
+    durationMs: number,
+): Promise<void> {
+    if (liveLocationState.shares.has(roomId)) return;
+    const room = getRoom(roomId);
+    if (!room || !canShareLiveBeacon(room)) {
+        showErrorToast("You can't share live location in this room.");
+        return;
+    }
+    let beaconInfoEventId: string;
+    try {
+        ({ beaconInfoEventId } = await startLiveBeacon(roomId, durationMs));
+    } catch (err) {
+        showErrorToast(
+            err instanceof Error ? err.message : "Couldn't start live location",
+        );
+        return;
+    }
+    liveLocationState.shares.set(roomId, {
+        beaconInfoEventId,
+        expiresAt: Date.now() + durationMs,
+        lastSentTs: null,
+    });
+    expiryTimers.set(
+        roomId,
+        setTimeout(() => void stopShare(roomId), durationMs),
+    );
+    ensureWatch();
+    bump();
+}
+
+/** Stop our live share in `roomId` (rewrites beacon_info live:false). */
+export async function stopShare(roomId: string): Promise<void> {
+    const timer = expiryTimers.get(roomId);
+    if (timer) {
+        clearTimeout(timer);
+        expiryTimers.delete(roomId);
+    }
+    const had = liveLocationState.shares.delete(roomId);
+    bump();
+    clearWatchIfIdle();
+    if (had) {
+        try {
+            await stopLiveBeacon(roomId);
+        } catch {
+            // best effort — server-side beacon still expires by timeout
+        }
+    }
+}
+
+/** Best-effort stop of every active share (logout / account switch). */
+export async function stopAllShares(): Promise<void> {
+    await Promise.allSettled(
+        Array.from(liveLocationState.shares.keys()).map((r) => stopShare(r)),
+    );
+}
+
+let unsubs: (() => void)[] = [];
+
+function resumeOwnShares() {
+    for (const b of getOwnLiveBeacons()) {
+        if (liveLocationState.shares.has(b.roomId)) continue;
+        liveLocationState.shares.set(b.roomId, {
+            beaconInfoEventId: b.beaconInfoEventId,
+            expiresAt: b.expiresAt,
+            lastSentTs: null,
+        });
+        const ms = Math.max(0, b.expiresAt - Date.now());
+        expiryTimers.set(
+            b.roomId,
+            setTimeout(() => void stopShare(b.roomId), ms),
+        );
+    }
+    if (liveLocationState.shares.size > 0) ensureWatch();
+    bump();
+}
+
+/** Wire beacon reactivity + auto-resume. Call once after login; returns cleanup. */
+export function initLiveLocation(): () => void {
+    unsubs.push(onBeaconUpdate(() => bump()));
+    unsubs.push(onSyncPrepared(() => resumeOwnShares()));
+    resumeOwnShares();
+    return () => {
+        unsubs.forEach((u) => u());
+        unsubs = [];
+        void stopAllShares();
+    };
+}
