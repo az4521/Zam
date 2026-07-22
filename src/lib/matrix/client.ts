@@ -902,6 +902,16 @@ export function getRoomThreads(room: Room): ThreadInfo[] {
             latestTs: latest?.getTs() ?? root?.getTs() ?? 0,
             latestPreview: eventBodyText(latest),
             participated: thread.hasCurrentUserParticipated,
+            unreadTotal:
+                room.getThreadUnreadNotificationCount(
+                    thread.id,
+                    NotificationCountType.Total,
+                ) ?? 0,
+            unreadHighlight:
+                room.getThreadUnreadNotificationCount(
+                    thread.id,
+                    NotificationCountType.Highlight,
+                ) ?? 0,
         };
     });
 }
@@ -940,6 +950,41 @@ export function onThreadsUpdated(room: Room, callback: () => void): () => void {
         room.off(ThreadEvent.Update, handler);
         room.off(ThreadEvent.Delete, handler);
     };
+}
+
+/** Per-thread unread notification count (default: total, use Highlight for mentions). */
+export function getThreadUnread(
+    room: Room,
+    threadId: string,
+    type?: NotificationCountType,
+): number {
+    return room.getThreadUnreadNotificationCount(threadId, type) ?? 0;
+}
+
+/** Whether the room has ANY unread thread notification (SDK aggregate). */
+export function roomHasThreadUnread(room: Room): boolean {
+    return room.hasThreadUnreadNotification();
+}
+
+/**
+ * Send a THREADED read receipt for a thread, clearing only that thread's unread
+ * (⚑6). The SDK reads the thread id from the event and scopes the receipt to it
+ * (unthreaded defaults false; threadSupport is on). Deliberately does NOT call
+ * setRoomReadMarkers — main-timeline unread stays independent of thread unread.
+ */
+export async function markThreadRead(
+    room: Room,
+    threadId: string,
+): Promise<void> {
+    if (!matrixClient) return;
+    const thread = room.getThread(threadId);
+    if (!thread) return;
+    const latest = thread.replyToEvent ?? thread.rootEvent;
+    if (!latest) return;
+    const receiptType = receiptTypeForSetting(
+        settingsState.privateReadReceipts,
+    ) as ReceiptType;
+    await matrixClient.sendReadReceipt(latest, receiptType);
 }
 
 async function captureVideoThumbnail(file: File): Promise<{
