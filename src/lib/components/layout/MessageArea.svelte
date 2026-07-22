@@ -58,6 +58,7 @@
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
     import MessageSearchPanel from "$lib/components/layout/MessageSearchPanel.svelte";
+    import ThreadsListPanel from "$lib/components/layout/ThreadsListPanel.svelte";
     import { searchState } from "$lib/stores/search.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import {
@@ -184,12 +185,16 @@
         interfaceState.sidebar === "notifications",
     );
     const showSearchPanel = $derived(interfaceState.sidebar === "search");
+    const showThreadsPanel = $derived(interfaceState.sidebar === "threads");
     const showRightPanel = $derived(
-        showPinnedPanel || showNotificationsPanel || showSearchPanel,
+        showPinnedPanel ||
+            showNotificationsPanel ||
+            showSearchPanel ||
+            showThreadsPanel,
     );
 
     function toggleSidebar(
-        id: "members" | "pinned" | "notifications" | "search",
+        id: "members" | "pinned" | "notifications" | "search" | "threads",
     ) {
         if (interfaceState.sidebar === id) closeSidebar();
         else openSidebar(id, () => {});
@@ -746,13 +751,15 @@
     $effect(() => {
         const currentRoomId = roomId;
         const currentRoom = room;
-        const unsub = onEventDecrypted((_event: MatrixEvent, eventRoom: Room) => {
-            if (eventRoom.roomId !== currentRoomId || isContextView) return;
-            setMessages(currentRoomId, getTimelineMessages(currentRoom));
-            if (isAtBottom) {
-                tick().then(() => scrollToBottom(false));
-            }
-        });
+        const unsub = onEventDecrypted(
+            (_event: MatrixEvent, eventRoom: Room) => {
+                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                setMessages(currentRoomId, getTimelineMessages(currentRoom));
+                if (isAtBottom) {
+                    tick().then(() => scrollToBottom(false));
+                }
+            },
+        );
         return unsub;
     });
 
@@ -1067,6 +1074,21 @@
                     >
                 </button>
             {/if}
+            <!-- Threads list button -->
+            <button
+                onclick={() => toggleSidebar("threads")}
+                class="p-1.5 rounded transition-colors {showThreadsPanel
+                    ? 'text-discord-accent bg-discord-messageHover'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                title="Threads"
+                aria-label="Toggle threads list"
+            >
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
+                    ><path
+                        d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z"
+                    /></svg
+                >
+            </button>
             <!-- Pinned messages button -->
             <button
                 onclick={() => toggleSidebar("pinned")}
@@ -1406,6 +1428,12 @@
                     onClose={closeSidebar}
                     onJumpTo={scrollToMessage}
                 />
+            {:else if showThreadsPanel}
+                <ThreadsListPanel
+                    {room}
+                    onClose={closeSidebar}
+                    onOpenThread={openThread}
+                />
             {:else}
                 <PinnedMessagesPanel
                     {room}
@@ -1424,6 +1452,12 @@
             {room}
             onClose={closeSidebar}
             onJumpTo={scrollToMessage}
+        />
+    {:else if showThreadsPanel}
+        <ThreadsListPanel
+            {room}
+            onClose={closeSidebar}
+            onOpenThread={openThread}
         />
     {:else if showPinnedPanel}
         <PinnedMessagesPanel

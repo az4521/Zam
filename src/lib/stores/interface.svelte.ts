@@ -38,7 +38,12 @@ export type ModalId =
     // call sites will strand each other's state.
     | "call-participant-menu";
 
-export type SidebarId = "members" | "pinned" | "notifications" | "search";
+export type SidebarId =
+    | "members"
+    | "pinned"
+    | "notifications"
+    | "search"
+    | "threads";
 
 export const interfaceState = $state({
     isMobile: false,
