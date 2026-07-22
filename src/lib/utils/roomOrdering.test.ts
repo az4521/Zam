@@ -141,6 +141,36 @@ describe("groupRoomsByTag — split rooms into favourites / normal / low priorit
         const groups = groupRoomsByTag(rooms, getTags);
         expect(ids(groups.lowPriority)).toEqual(["l1", "l2"]);
     });
+
+    // compareOrder-based sort: non-numeric strings now sort lexicographically
+    // by code point instead of collapsing to "last" (the old numeric-only
+    // comparator treated every non-parseable order as Infinity).
+    it("sorts two non-numeric string orders lexicographically by code point", () => {
+        const rooms = [
+            room("z", { [TAG_FAVOURITE]: { order: "zzz" } }),
+            room("a", { [TAG_FAVOURITE]: { order: "aaa" } }),
+        ];
+        const groups = groupRoomsByTag(rooms, getTags);
+        expect(ids(groups.favourites)).toEqual(["a", "z"]);
+    });
+
+    it("still sorts a missing order LAST, even after a non-numeric present one", () => {
+        const rooms = [
+            room("missing", { [TAG_FAVOURITE]: {} }),
+            room("present", { [TAG_FAVOURITE]: { order: "mmm" } }),
+        ];
+        const groups = groupRoomsByTag(rooms, getTags);
+        expect(ids(groups.favourites)).toEqual(["present", "missing"]);
+    });
+
+    it("sorts numeric string orders numerically, not lexicographically (10 after 2)", () => {
+        const rooms = [
+            room("ten", { [TAG_FAVOURITE]: { order: "10" } }),
+            room("two", { [TAG_FAVOURITE]: { order: "2" } }),
+        ];
+        const groups = groupRoomsByTag(rooms, getTags);
+        expect(ids(groups.favourites)).toEqual(["two", "ten"]);
+    });
 });
 
 describe("sortRoomsByTag — flat ordering for single-section lists (DMs)", () => {

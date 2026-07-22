@@ -1,3 +1,5 @@
+import { compareOrder } from "./orderKey";
+
 export const TAG_FAVOURITE = "m.favourite";
 export const TAG_LOWPRIORITY = "m.lowpriority";
 
@@ -12,13 +14,6 @@ export function roomTagKind(tags: RoomTagMap): RoomTagKind {
     if (TAG_FAVOURITE in tags) return "favourite";
     if (TAG_LOWPRIORITY in tags) return "lowPriority";
     return "normal";
-}
-
-function tagOrder(tags: RoomTagMap, tag: string): number {
-    const raw = tags[tag]?.order;
-    if (raw == null) return Infinity;
-    const n = typeof raw === "number" ? raw : Number(raw);
-    return Number.isFinite(n) ? n : Infinity;
 }
 
 export interface RoomTagGroups<T> {
@@ -52,7 +47,7 @@ export function groupRoomsByTag<T>(
         }
     }
     const byOrder = (tag: string) => (a: T, b: T) =>
-        tagOrder(getTags(a), tag) - tagOrder(getTags(b), tag);
+        compareOrder(getTags(a)[tag]?.order, getTags(b)[tag]?.order);
     favourites.sort(byOrder(TAG_FAVOURITE));
     lowPriority.sort(byOrder(TAG_LOWPRIORITY));
     return { favourites, normal, lowPriority };

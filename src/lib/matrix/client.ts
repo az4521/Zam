@@ -77,7 +77,20 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
-import { tagUpdatesForToggle, type RoomTagMap } from "$lib/utils/roomOrdering";
+import {
+    tagUpdatesForToggle,
+    TAG_FAVOURITE,
+    TAG_LOWPRIORITY,
+    type RoomTagMap,
+} from "$lib/utils/roomOrdering";
+import {
+    compareOrder,
+    keyBetween,
+    numberBetween,
+    rebalancedKeys,
+    rebalancedNumbers,
+    OrderRebalanceError,
+} from "$lib/utils/orderKey";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
@@ -589,11 +602,9 @@ export function getSpaceChildIds(spaceId: string): string[] {
         .sort((a, b) => {
             const ao: string | undefined = a.getContent()?.order;
             const bo: string | undefined = b.getContent()?.order;
-            if (ao !== undefined && bo !== undefined)
-                return ao < bo ? -1 : ao > bo ? 1 : 0;
-            if (ao !== undefined) return -1;
-            if (bo !== undefined) return 1;
-            // Both lack order: sort by room ID for stability
+            const byOrder = compareOrder(ao, bo);
+            if (byOrder !== 0) return byOrder;
+            // Equal/both-missing order: sort by room ID for stability
             return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
         })
         .map((e) => e.getStateKey()!)
@@ -670,14 +681,38 @@ export function getRoomTags(roomId: string): RoomTagMap {
 export async function setRoomTag(
     roomId: string,
     tag: string,
-    order?: number,
+    order?: number | string,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.setRoomTag(
+    // The SDK types `order` as number, but foreign non-numeric orders must
+    // round-trip verbatim — cast at the boundary like the rest of this module.
+    await (matrixClient as any).setRoomTag(
         roomId,
         tag,
         order === undefined ? {} : { order },
     );
+}
+
+/**
+ * Write a raw, user-supplied `m.tag` order value (⚑2):
+ *  - blank → clear the order (keep the tag);
+ *  - numeric-parseable → coerce to a number;
+ *  - otherwise → store the string verbatim (round-trips foreign non-numeric
+ *    orders without crashing).
+ */
+export async function setRoomTagOrderRaw(
+    roomId: string,
+    tag: string,
+    raw: string,
+): Promise<void> {
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+        await setRoomTag(roomId, tag);
+    } else if (Number.isFinite(Number(raw))) {
+        await setRoomTag(roomId, tag, Number(raw));
+    } else {
+        await setRoomTag(roomId, tag, raw);
+    }
 }
 
 export async function deleteRoomTag(
@@ -698,6 +733,77 @@ export async function toggleRoomTag(
     const { add, remove } = tagUpdatesForToggle(getRoomTags(roomId), toggle);
     for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
     if (add) await matrixClient.setRoomTag(roomId, add, {});
+}
+
+/**
+ * Move a favourite / low-priority room to sit between two neighbours (identified
+ * by their room ids; `null` = open head/tail). Only the tag's `order` is
+ * touched — membership of the tag is never added or removed.
+ *
+ * Fast path: a numeric midpoint (⚑2) when both bracketing neighbours have a
+ * numeric (or open-ended) order. Falls back to renumbering the whole tagged
+ * section with evenly-spread orders when the neighbours can't bracket a value
+ * (non-numeric/missing order, or numeric precision exhausted).
+ */
+export async function reorderRoomTag(
+    section: "favourite" | "lowPriority",
+    roomId: string,
+    beforeId: string | null,
+    afterId: string | null,
+): Promise<void> {
+    const tag = section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY;
+
+    // Numeric-parse a raw order value the same way compareOrder does.
+    const asNum = (v: unknown): number | null => {
+        if (typeof v === "number") return Number.isFinite(v) ? v : null;
+        if (typeof v === "string" && v.trim() !== "") {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        }
+        return null;
+    };
+
+    const beforeRaw = beforeId ? getRoomTags(beforeId)?.[tag]?.order : null;
+    const afterRaw = afterId ? getRoomTags(afterId)?.[tag]?.order : null;
+    const bn = asNum(beforeRaw);
+    const an = asNum(afterRaw);
+
+    // Fast path only when each present neighbour has a numeric order; a present
+    // neighbour with a non-numeric/missing order forces a rebalance.
+    const beforeOk = beforeId === null || bn !== null;
+    const afterOk = afterId === null || an !== null;
+    if (beforeOk && afterOk) {
+        try {
+            const o = numberBetween(beforeId ? bn : null, afterId ? an : null);
+            await setRoomTag(roomId, tag, o);
+            return;
+        } catch (e) {
+            if (!(e instanceof OrderRebalanceError)) throw e;
+        }
+    }
+
+    // Rebalance: renumber the whole tagged section in display order.
+    const tagged = getRooms().filter((r) => tag in getRoomTags(r.roomId));
+    tagged.sort((a, b) =>
+        compareOrder(
+            getRoomTags(a.roomId)[tag]?.order,
+            getRoomTags(b.roomId)[tag]?.order,
+        ),
+    );
+    const list = tagged.map((r) => r.roomId).filter((id) => id !== roomId);
+    let insertAt: number;
+    if (beforeId === null) insertAt = 0;
+    else if (afterId === null) insertAt = list.length;
+    else {
+        const idx = list.indexOf(beforeId);
+        insertAt = idx === -1 ? list.length : idx + 1;
+    }
+    list.splice(insertAt, 0, roomId);
+
+    const orders = rebalancedNumbers(list.length);
+    for (let i = 0; i < list.length; i++) {
+        await setRoomTag(list[i], tag, orders[i]);
+    }
 }
 
 export function getTimelineMessages(room: Room): MatrixEvent[] {
@@ -4336,9 +4442,8 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
             };
         })
         .sort((a, b) => {
-            if (a.order && b.order) return a.order.localeCompare(b.order);
-            if (a.order) return -1;
-            if (b.order) return 1;
+            const byOrder = compareOrder(a.order, b.order);
+            if (byOrder !== 0) return byOrder;
             return a.name.localeCompare(b.name);
         });
 }
@@ -4367,6 +4472,59 @@ export async function setSpaceChildOrder(
         },
         childRoomId,
     );
+}
+
+/**
+ * Move a space child to sit between two neighbours (identified by room id;
+ * `null` = open head/tail), writing a lexicographic `m.space.child` `order`.
+ * Each child's existing `via` is preserved.
+ *
+ * Fast path: a single key strictly between the neighbours' orders. Falls back
+ * to reassigning evenly-spread keys across the whole section when no key fits
+ * (adjacent/colliding neighbours, or the key would exceed the length cap).
+ */
+export async function reorderSpaceChild(
+    spaceId: string,
+    childId: string,
+    beforeId: string | null,
+    afterId: string | null,
+): Promise<void> {
+    const space = matrixClient?.getRoom(spaceId);
+    if (!space) return;
+    const children = getSpaceChildren(space);
+
+    const orderOf = (id: string | null) =>
+        id ? children.find((c) => c.roomId === id)?.order || "" : "";
+    const viaOf = (id: string) =>
+        children.find((c) => c.roomId === id)?.via ?? [];
+
+    // Fast path: a key that sorts strictly between the two neighbours.
+    try {
+        const key = keyBetween(
+            orderOf(beforeId) || null,
+            orderOf(afterId) || null,
+        );
+        await setSpaceChildOrder(spaceId, childId, key, viaOf(childId));
+        return;
+    } catch (e) {
+        if (!(e instanceof OrderRebalanceError)) throw e;
+    }
+
+    // Rebalance: reassign evenly-spread keys across the whole section.
+    const list = children.map((c) => c.roomId).filter((id) => id !== childId);
+    let insertAt: number;
+    if (beforeId === null) insertAt = 0;
+    else if (afterId === null) insertAt = list.length;
+    else {
+        const idx = list.indexOf(beforeId);
+        insertAt = idx === -1 ? list.length : idx + 1;
+    }
+    list.splice(insertAt, 0, childId);
+
+    const keys = rebalancedKeys(list.length);
+    for (let i = 0; i < list.length; i++) {
+        await setSpaceChildOrder(spaceId, list[i], keys[i], viaOf(list[i]));
+    }
 }
 
 export async function removeSpaceChild(
