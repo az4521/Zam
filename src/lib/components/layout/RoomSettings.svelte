@@ -59,6 +59,7 @@
         getRestrictedJoinState,
         RESTRICTED_JOIN_RULE,
     } from "$lib/utils/joinRules";
+    import { parsePowerLevelInput } from "$lib/utils/powerLevels";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -317,6 +318,7 @@
     let showBanned = $state(false);
     let memberActionPending = $state<string | null>(null);
     let memberError = $state("");
+    let plDrafts = $state<Record<string, string>>({});
     let reasonInputs = $state<Record<string, string>>({});
     let showReasonFor = $state<string | null>(null);
 
@@ -1684,6 +1686,11 @@
                                         )}
                                         {@const canActOnMember =
                                             !isSelf && myPowerLevel > memberPl}
+                                        {@const plResult = parsePowerLevelInput(
+                                            plDrafts[member.userId] ??
+                                                String(memberPl),
+                                            myPowerLevel,
+                                        )}
                                         <div
                                             class="rounded bg-discord-backgroundTertiary overflow-hidden"
                                         >
@@ -1791,6 +1798,45 @@
                                                                     >Member (0)</option
                                                                 >
                                                             </select>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max={myPowerLevel}
+                                                                value={plDrafts[
+                                                                    member
+                                                                        .userId
+                                                                ] ??
+                                                                    String(
+                                                                        memberPl,
+                                                                    )}
+                                                                oninput={(e) =>
+                                                                    (plDrafts[
+                                                                        member.userId
+                                                                    ] =
+                                                                        e.currentTarget.value)}
+                                                                disabled={memberActionPending ===
+                                                                    member.userId}
+                                                                class="w-16 px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                            />
+                                                            <button
+                                                                onclick={() =>
+                                                                    doSetPowerLevel(
+                                                                        member,
+                                                                        plResult.value!,
+                                                                    )}
+                                                                disabled={!plResult.ok ||
+                                                                    memberActionPending ===
+                                                                        member.userId}
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                >Set</button
+                                                            >
+                                                            {#if !plResult.ok}
+                                                                <p
+                                                                    class="text-xs text-discord-danger w-full"
+                                                                >
+                                                                    {plResult.error}
+                                                                </p>
+                                                            {/if}
                                                         {/if}
                                                         {#if canActOnMember && canKick}
                                                             <button
