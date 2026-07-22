@@ -19,6 +19,10 @@ import {
     EventType,
     MatrixEventEvent,
     Method,
+    BeaconEvent,
+    M_BEACON,
+    M_BEACON_INFO,
+    ContentHelpers,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -29,6 +33,7 @@ import type {
     RoomMember,
     User,
     ReceiptType,
+    Beacon,
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import {
@@ -992,6 +997,95 @@ export async function sendLocation(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.sendMessage(roomId, buildLocationContent(loc) as never);
+}
+
+// ── Live location (beacons, MSC3672) ─────────────────────────────────────────
+
+/** Start a live-location beacon (m.beacon_info state event, live:true). One per user per room. */
+export async function startLiveBeacon(
+    roomId: string,
+    timeoutMs: number,
+    description?: string,
+): Promise<{ beaconInfoEventId: string }> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.unstable_createLiveBeacon(
+        roomId,
+        ContentHelpers.makeBeaconInfoContent(timeoutMs, true, description),
+    );
+    return { beaconInfoEventId: res.event_id };
+}
+
+/** Stop our own live share by rewriting the beacon_info with live:false,
+ *  preserving the original timeout/description. No-op if we have no live beacon here. */
+export async function stopLiveBeacon(roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    const me = matrixClient.getUserId();
+    if (!room || !me) return;
+    const own = Array.from(room.currentState.beacons.values()).find(
+        (b) => b.beaconInfoOwner === me,
+    );
+    const timeout = own?.beaconInfo?.timeout ?? 3600000;
+    const description = own?.beaconInfo?.description;
+    await matrixClient.unstable_setLiveBeacon(
+        roomId,
+        ContentHelpers.makeBeaconInfoContent(timeout, false, description),
+    );
+}
+
+/** Post one m.beacon position update (m.reference to the beacon_info event). */
+export async function sendLiveBeaconLocation(
+    roomId: string,
+    beaconInfoEventId: string,
+    lat: number,
+    lon: number,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const geoUri = `geo:${lat},${lon}`;
+    await matrixClient.sendEvent(
+        roomId,
+        M_BEACON.name as never,
+        ContentHelpers.makeBeaconContent(
+            geoUri,
+            Date.now(),
+            beaconInfoEventId,
+        ) as never,
+    );
+}
+
+/** All Beacon models currently tracked in the room's state. */
+export function getRoomBeacons(room: Room): Beacon[] {
+    return Array.from(room.currentState.beacons.values());
+}
+
+/** PL gate: may the current user send a beacon_info state event here? */
+export function canShareLiveBeacon(room: Room): boolean {
+    const me = matrixClient?.getUserId();
+    if (!me) return false;
+    return room.currentState.maySendStateEvent(M_BEACON_INFO.name, me);
+}
+
+/** Subscribe to beacon lifecycle changes across all rooms. Calls monitorLiveness()
+ *  on newly-seen beacons so expiry drives LivenessChange. Returns an unsubscribe. */
+export function onBeaconUpdate(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const onNew = (_event: MatrixEvent, beacon: Beacon) => {
+        beacon.monitorLiveness();
+        callback();
+    };
+    const onAny = () => callback();
+    matrixClient.on(BeaconEvent.New as never, onNew as never);
+    matrixClient.on(BeaconEvent.Update as never, onAny as never);
+    matrixClient.on(BeaconEvent.LivenessChange as never, onAny as never);
+    matrixClient.on(BeaconEvent.LocationUpdate as never, onAny as never);
+    matrixClient.on(BeaconEvent.Destroy as never, onAny as never);
+    return () => {
+        matrixClient?.off(BeaconEvent.New as never, onNew as never);
+        matrixClient?.off(BeaconEvent.Update as never, onAny as never);
+        matrixClient?.off(BeaconEvent.LivenessChange as never, onAny as never);
+        matrixClient?.off(BeaconEvent.LocationUpdate as never, onAny as never);
+        matrixClient?.off(BeaconEvent.Destroy as never, onAny as never);
+    };
 }
 
 export async function sendTextMessage(
