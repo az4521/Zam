@@ -18,6 +18,22 @@ export function isValidUserId(input: string): boolean {
     return /^@[^\s:@]+:[^\s:@]+(:\d+)?$/.test(input);
 }
 
+/**
+ * Resolve a raw token to a full user id: pass through a valid `@id:server`,
+ * synthesize a bare localpart onto `ownDomain`, else `null`. Lifted from
+ * `UserPicker.toCandidate` so the slash-command wiring shares one rule.
+ */
+export function resolveUserToken(
+    raw: string,
+    ownDomain: string,
+): string | null {
+    const t = raw.trim();
+    if (!t) return null;
+    if (isValidUserId(t)) return t;
+    if (ownDomain && /^[^\s:@]+$/.test(t)) return `@${t}:${ownDomain}`;
+    return null;
+}
+
 /** The server-name portion of a Matrix user id (everything after the first colon). */
 export function userDomain(userId: string): string {
     const i = userId.indexOf(":");

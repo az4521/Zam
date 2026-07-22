@@ -4,6 +4,7 @@ import {
     mapUserSearchResults,
     debounce,
     userDomain,
+    resolveUserToken,
 } from "./userSearch";
 
 describe("isValidUserId — full @localpart:server shape", () => {
@@ -255,5 +256,23 @@ describe("debounce — trailing-edge debounce with cancel", () => {
         d.cancel();
         vi.advanceTimersByTime(1000);
         expect(fn).not.toHaveBeenCalled();
+    });
+});
+
+describe("resolveUserToken", () => {
+    it("passes through a valid full user id", () => {
+        expect(resolveUserToken("@bob:hs.tld", "me.tld")).toBe("@bob:hs.tld");
+    });
+    it("synthesizes a bare localpart onto ownDomain", () => {
+        expect(resolveUserToken("bob", "me.tld")).toBe("@bob:me.tld");
+        expect(resolveUserToken("  bob  ", "me.tld")).toBe("@bob:me.tld");
+    });
+    it("returns null when there is no domain to synthesize onto", () => {
+        expect(resolveUserToken("bob", "")).toBeNull();
+    });
+    it("returns null for empty / invalid tokens", () => {
+        expect(resolveUserToken("  ", "me.tld")).toBeNull();
+        expect(resolveUserToken("na@me", "me.tld")).toBeNull();
+        expect(resolveUserToken("has:colon", "me.tld")).toBeNull();
     });
 });
