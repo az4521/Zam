@@ -34,6 +34,7 @@
         joinRoom,
         seedRoomStateIfMissing,
         getRoomIdForAlias,
+        getThreadSummary,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
@@ -592,6 +593,13 @@
             ? ((content?.["m.relates_to"]?.event_id as string) ?? eventId)
             : eventId,
     );
+    // Root summary: this message is a thread ROOT iff other events reply to it.
+    // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
+    // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
+    const threadSummary = $derived(
+        (void roomsState.roomsTick, getThreadSummary(room, eventId)),
+    );
+    const isThreadRoot = $derived(!isThreadReply && threadSummary.count > 0);
 
     // Extract http/https URLs from the plain body for link previews
     const linkedUrls = $derived.by(() => {
@@ -1364,10 +1372,10 @@
             {/each}
         {/if}
 
-        <!-- Thread badge -->
-        {#if isThreadReply}
+        <!-- Thread summary chip (root only, once replies are diverted) -->
+        {#if isThreadRoot}
             <button
-                onclick={() => onOpenThread?.(threadRootId)}
+                onclick={() => onOpenThread?.(eventId)}
                 class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
                 title="Open thread"
             >
@@ -1380,7 +1388,13 @@
                         d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
                     />
                 </svg>
-                Thread
+                {threadSummary.count}
+                {threadSummary.count === 1 ? "reply" : "replies"}
+                {#if threadSummary.latestTs > 0}
+                    <span class="text-discord-textMuted"
+                        >&middot; {timeOnly(threadSummary.latestTs)}</span
+                    >
+                {/if}
             </button>
         {/if}
 
