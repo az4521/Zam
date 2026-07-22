@@ -5255,8 +5255,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // I'm no longer in. Tear down and say why.
         if (activeVoice !== call || room.roomId !== call.roomId) return;
         const me = matrixClient!.getUserId();
-        const sender = room.getMember(me!)?.events?.member?.getSender();
-        const msg = callEndedMembershipMessage(membership, sender === me);
+        if (!me) return;
+        // Prefer the member object's cached event, but fall back to the live
+        // state event — either can be missing after I leave from another device.
+        const sender =
+            room.getMember(me)?.events?.member?.getSender() ??
+            room.currentState.getStateEvents("m.room.member", me)?.getSender();
+        const msg = callEndedMembershipMessage(membership, sender, me);
         if (!msg) return;
         for (const cb of voiceErrorSubscribers) cb(msg);
         void leaveVoiceCall();

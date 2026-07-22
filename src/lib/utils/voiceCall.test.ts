@@ -151,25 +151,34 @@ describe("pickLivekitTransport", () => {
 });
 
 describe("callEndedMembershipMessage", () => {
-    it("names a ban", () => {
-        expect(callEndedMembershipMessage("ban", false)).toBe(
+    const me = "@me:server";
+    const other = "@mod:server";
+    it("names a ban regardless of who acted", () => {
+        expect(callEndedMembershipMessage("ban", other, me)).toBe(
             "You were banned from this room — call ended",
         );
     });
     it("names a kick (removed by someone else)", () => {
-        expect(callEndedMembershipMessage("leave", false)).toBe(
+        expect(callEndedMembershipMessage("leave", other, me)).toBe(
             "You were removed from this room — call ended",
         );
     });
     it("names a self-leave", () => {
-        expect(callEndedMembershipMessage("leave", true)).toBe(
+        expect(callEndedMembershipMessage("leave", me, me)).toBe(
+            "You left this room — call ended",
+        );
+    });
+    it("treats an unknown sender as a self-leave (member already pruned)", () => {
+        // Leaving from another device can drop my member object before this
+        // fires; an absent sender must read as "You left", not "You were removed".
+        expect(callEndedMembershipMessage("leave", undefined, me)).toBe(
             "You left this room — call ended",
         );
     });
     it("returns null for a still-present membership", () => {
-        expect(callEndedMembershipMessage("join", false)).toBeNull();
-        expect(callEndedMembershipMessage("invite", false)).toBeNull();
-        expect(callEndedMembershipMessage("knock", true)).toBeNull();
+        expect(callEndedMembershipMessage("join", other, me)).toBeNull();
+        expect(callEndedMembershipMessage("invite", undefined, me)).toBeNull();
+        expect(callEndedMembershipMessage("knock", me, me)).toBeNull();
     });
 });
 

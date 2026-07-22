@@ -150,19 +150,25 @@ export function screenShareCaptureResolution(
 
 /**
  * Message to show when MY room membership changed during a call, or null when
- * the change doesn't end the call. `removedBySelf` = the m.room.member event was
- * sent by me (I left) vs by someone else (kick/ban).
+ * the change doesn't end the call. `sender` is who sent the m.room.member event
+ * that removed me; `me` is my own user id. An absent/unknown sender is treated
+ * as a self-leave: leaving from another device can prune my member object
+ * before this fires, so a missing sender would otherwise misread as "You were
+ * removed". A genuine kick carries its actor in the fresh state event.
  */
 export function callEndedMembershipMessage(
     membership: string,
-    removedBySelf: boolean,
+    sender: string | undefined,
+    me: string,
 ): string | null {
     if (membership === "ban")
         return "You were banned from this room — call ended";
-    if (membership === "leave")
+    if (membership === "leave") {
+        const removedBySelf = !sender || sender === me;
         return removedBySelf
             ? "You left this room — call ended"
             : "You were removed from this room — call ended";
+    }
     return null; // join / invite / knock: no teardown
 }
 
