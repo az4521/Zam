@@ -448,6 +448,12 @@
     type DragState = {
         roomId: string;
         section: Section;
+        // Which on-screen cluster the dragged row lives in. In Home view a
+        // `m.favourite`/`m.lowpriority` room appears BOTH as an orphan
+        // channelRow (list "main") and as a DM row (list "dm") — both carry
+        // the same data-section, so this discriminator keeps a drag confined
+        // to its own visual list.
+        list: "main" | "dm";
         pointerId: number;
         overId: string | null;
         before: boolean;
@@ -487,10 +493,12 @@
     }
 
     function onRowPointerDown(e: PointerEvent, room: Room, section: Section) {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        const el = e.currentTarget as HTMLElement;
+        el.setPointerCapture(e.pointerId);
         drag = {
             roomId: room.roomId,
             section,
+            list: el.dataset.list === "dm" ? "dm" : "main",
             pointerId: e.pointerId,
             overId: null,
             before: false,
@@ -503,8 +511,15 @@
         const row = el?.closest(
             "[data-room-id][data-section]",
         ) as HTMLElement | null;
-        // Only accept a sibling row within the same section.
-        if (!row || row.dataset.section !== drag.section) return;
+        // Only accept a sibling row within the same section AND the same
+        // on-screen cluster (data-list) — otherwise a Home-view favourite DM
+        // row could become a drop target for a favourite channel row.
+        if (
+            !row ||
+            row.dataset.section !== drag.section ||
+            row.dataset.list !== drag.list
+        )
+            return;
         const overId = row.dataset.roomId ?? null;
         if (!overId || overId === drag.roomId) return;
         const rect = row.getBoundingClientRect();
@@ -524,7 +539,7 @@
         // in visual order.
         const rows = Array.from(
             document.querySelectorAll<HTMLElement>(
-                `[data-room-id][data-section="${d.section}"]`,
+                `[data-room-id][data-section="${d.section}"][data-list="${d.list}"]`,
             ),
         )
             .map((el) => el.dataset.roomId ?? "")
@@ -842,6 +857,7 @@
                     : ""}
                 data-room-id={draggable ? room.roomId : undefined}
                 data-section={draggable ? section : undefined}
+                data-list={draggable ? "main" : undefined}
                 onpointerdown={draggable
                     ? (e) => onRowPointerDown(e, room, section!)
                     : undefined}
@@ -912,8 +928,10 @@
                     {/if}
                 </button>
                 {#if draggable}
+                    {@const rawOrder =
+                        (void roomsState.roomsTick, rawOrderOf(room, section!))}
                     <input
-                        value={rawOrderOf(room, section!)}
+                        value={rawOrder}
                         title="Order value"
                         class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
                         onpointerdown={(e) => e.stopPropagation()}
@@ -1178,6 +1196,7 @@
                         class:cursor-grab={dmDraggable}
                         data-room-id={dmDraggable ? room.roomId : undefined}
                         data-section={dmDraggable ? dmSection : undefined}
+                        data-list={dmDraggable ? "dm" : undefined}
                         onpointerdown={dmDraggable
                             ? (e) => onRowPointerDown(e, room, dmSection!)
                             : undefined}
@@ -1276,8 +1295,11 @@
                                 {/if}
                             </button>
                             {#if dmDraggable}
+                                {@const dmRawOrder =
+                                    (void roomsState.roomsTick,
+                                    rawOrderOf(room, dmSection!))}
                                 <input
-                                    value={rawOrderOf(room, dmSection!)}
+                                    value={dmRawOrder}
                                     title="Order value"
                                     class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
                                     onpointerdown={(e) => e.stopPropagation()}
