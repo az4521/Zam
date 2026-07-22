@@ -2,7 +2,27 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
-    import { getRoomDisplayName, mxcToHttp } from "$lib/matrix/client";
+    import {
+        getRoomDisplayName,
+        mxcToHttp,
+        getRoom,
+        getRooms,
+        getSpaces,
+        getRoomTags,
+        getSpaceChildren,
+        getRoomsInSpace,
+        canAddRoomToSpace,
+        reorderRoomTag,
+        reorderSpaceChild,
+        setRoomTagOrderRaw,
+        setSpaceChildOrder,
+    } from "$lib/matrix/client";
+    import {
+        groupRoomsByTag,
+        TAG_FAVOURITE,
+        TAG_LOWPRIORITY,
+    } from "$lib/utils/roomOrdering";
+    import { moveNeighbours, type MoveDirection } from "$lib/utils/reorderMove";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
         getDoubleTapReaction,
@@ -76,6 +96,129 @@
         if (pickerTarget === "default") setDoubleTapReaction(value);
         else setSpaceDoubleTapReaction(pickerTarget, value);
         pickerTarget = null;
+    }
+
+    type Room = ReturnType<typeof getRooms>[number];
+    type OrderSection = "favourite" | "lowPriority" | "channels";
+    interface OrderGroup {
+        key: string; // stable #each key
+        label: string;
+        section: OrderSection;
+        spaceId: string | null; // set only for channels
+        rooms: Room[];
+    }
+
+    const orderGroups = $derived.by<OrderGroup[]>(() => {
+        void roomsState.roomsTick;
+        const groups: OrderGroup[] = [];
+        const tagged = groupRoomsByTag(getRooms(), (r) =>
+            getRoomTags(r.roomId),
+        );
+        if (tagged.favourites.length)
+            groups.push({
+                key: "favourite",
+                label: "Favourites",
+                section: "favourite",
+                spaceId: null,
+                rooms: tagged.favourites,
+            });
+        if (tagged.lowPriority.length)
+            groups.push({
+                key: "lowPriority",
+                label: "Low Priority",
+                section: "lowPriority",
+                spaceId: null,
+                rooms: tagged.lowPriority,
+            });
+        for (const space of getSpaces()) {
+            if (!canAddRoomToSpace(space.roomId)) continue;
+            const rooms = getRoomsInSpace(space.roomId);
+            if (!rooms.length) continue;
+            groups.push({
+                key: `space:${space.roomId}`,
+                label: getRoomDisplayName(space),
+                section: "channels",
+                spaceId: space.roomId,
+                rooms,
+            });
+        }
+        return groups;
+    });
+
+    function rawOrderOf(group: OrderGroup, room: Room): string {
+        if (group.section === "channels" && group.spaceId) {
+            const space = getRoom(group.spaceId);
+            if (!space) return "";
+            const child = getSpaceChildren(space).find(
+                (c) => c.roomId === room.roomId,
+            );
+            return child?.order ?? "";
+        }
+        const t = getRoomTags(room.roomId);
+        const raw =
+            t[group.section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY]
+                ?.order;
+        return raw == null ? "" : String(raw);
+    }
+
+    async function moveRoom(
+        group: OrderGroup,
+        index: number,
+        direction: MoveDirection,
+    ): Promise<void> {
+        const ids = group.rooms.map((r) => r.roomId);
+        const neighbours = moveNeighbours(ids, index, direction);
+        if (!neighbours) return;
+        try {
+            if (group.section === "channels" && group.spaceId) {
+                await reorderSpaceChild(
+                    group.spaceId,
+                    ids[index],
+                    neighbours.beforeId,
+                    neighbours.afterId,
+                );
+            } else {
+                await reorderRoomTag(
+                    group.section === "favourite" ? "favourite" : "lowPriority",
+                    ids[index],
+                    neighbours.beforeId,
+                    neighbours.afterId,
+                );
+            }
+            roomsState.roomsTick++;
+        } catch (err) {
+            console.error("Failed to reorder room:", err);
+        }
+    }
+
+    async function commitRawOrder(
+        group: OrderGroup,
+        room: Room,
+        raw: string,
+    ): Promise<void> {
+        try {
+            if (group.section === "channels" && group.spaceId) {
+                const space = getRoom(group.spaceId);
+                const via =
+                    (space &&
+                        getSpaceChildren(space).find(
+                            (c) => c.roomId === room.roomId,
+                        )?.via) ||
+                    [];
+                await setSpaceChildOrder(group.spaceId, room.roomId, raw, via);
+            } else {
+                await setRoomTagOrderRaw(
+                    room.roomId,
+                    group.section === "favourite"
+                        ? TAG_FAVOURITE
+                        : TAG_LOWPRIORITY,
+                    raw,
+                );
+            }
+            roomsState.roomsTick++;
+        } catch (err) {
+            console.error("Failed to set order value:", err);
+        }
     }
 </script>
 
@@ -353,6 +496,114 @@
                 </div>
             {/if}
         </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            Room order
+        </p>
+        <p class="text-xs text-discord-textMuted mb-3">
+            Reorder rooms within a list. Foreign or custom order values are
+            shown and editable verbatim.
+        </p>
+
+        {#if orderGroups.length === 0}
+            <p class="text-sm text-discord-textMuted py-2">
+                No reorderable rooms. Favourite or low-priority a room, or join
+                a space you can manage, to arrange its order here.
+            </p>
+        {:else}
+            <div class="space-y-4">
+                {#each orderGroups as group (group.key)}
+                    <div>
+                        <p
+                            class="text-xs font-semibold text-discord-textSecondary mb-1 truncate"
+                        >
+                            {group.label}
+                        </p>
+                        <div class="divide-y divide-discord-divider">
+                            {#each group.rooms as room, i (room.roomId)}
+                                {@const rawOrder =
+                                    (void roomsState.roomsTick,
+                                    rawOrderOf(group, room))}
+                                <div class="flex items-center gap-2 py-1.5">
+                                    <span
+                                        class="min-w-0 flex-1 truncate text-sm text-discord-textPrimary"
+                                        >{getRoomDisplayName(room)}</span
+                                    >
+                                    <input
+                                        type="text"
+                                        class="w-20 px-1.5 py-1 rounded bg-discord-backgroundTertiary text-xs text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
+                                        value={rawOrder}
+                                        spellcheck="false"
+                                        autocomplete="off"
+                                        aria-label="Order value for {getRoomDisplayName(
+                                            room,
+                                        )}"
+                                        onkeydown={(e) => {
+                                            if (e.key === "Enter")
+                                                e.currentTarget.blur();
+                                        }}
+                                        onblur={(e) => {
+                                            const v = e.currentTarget.value;
+                                            if (v !== rawOrderOf(group, room))
+                                                commitRawOrder(group, room, v);
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        title="Move up"
+                                        aria-label="Move {getRoomDisplayName(
+                                            room,
+                                        )} up"
+                                        disabled={i === 0}
+                                        onclick={() => moveRoom(group, i, "up")}
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M18 15l-6-6-6 6" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                        title="Move down"
+                                        aria-label="Move {getRoomDisplayName(
+                                            room,
+                                        )} down"
+                                        disabled={i === group.rooms.length - 1}
+                                        onclick={() =>
+                                            moveRoom(group, i, "down")}
+                                    >
+                                        <svg
+                                            class="w-4 h-4"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M6 9l6 6 6-6" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        {/if}
     </section>
 </div>
 
