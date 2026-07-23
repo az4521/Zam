@@ -15,7 +15,8 @@
         "electron:dev": "npm run build && electron .",
         "electron:build": "npm run build && electron-builder",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "dev:https": "vite dev --mode https --port 5443 --strictPort"
     },
     "build": {
         "appId": "moe.crafty.matrix",
@@ -57,6 +58,7 @@
         "@types/leaflet": "^1.9.21",
         "@typescript-eslint/eslint-plugin": "^8.29.0",
         "@typescript-eslint/parser": "^8.29.0",
+        "@vitejs/plugin-basic-ssl": "^2.3.0",
         "autoprefixer": "^10.4.21",
         "electron": "^42.3.0",
         "electron-builder": "^26.8.1",

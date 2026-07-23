@@ -1,4 +1,5 @@
 import { sveltekit } from "@sveltejs/kit/vite";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { defineConfig } from "vite";
 import { readFileSync } from "node:fs";
 
@@ -6,8 +7,13 @@ const pkg = JSON.parse(
     readFileSync(new URL("./package.json", import.meta.url), "utf-8"),
 );
 
-export default defineConfig({
-    plugins: [sveltekit()],
+export default defineConfig(({ mode }) => ({
+    // `npm run dev:https` (--mode https) serves over TLS with a generated
+    // self-signed cert. Needed for phone/LAN testing of secure-context APIs
+    // (geolocation for live location, clipboard, …) — plain-http origins
+    // other than localhost block them. Accept the browser's cert warning
+    // once on the device.
+    plugins: [...(mode === "https" ? [basicSsl()] : []), sveltekit()],
     define: {
         // App version (from package.json) exposed to the client bundle.
         __APP_VERSION__: JSON.stringify(pkg.version),
@@ -27,4 +33,4 @@ export default defineConfig({
         host: "0.0.0.0",
         port: 5173,
     },
-});
+}));
