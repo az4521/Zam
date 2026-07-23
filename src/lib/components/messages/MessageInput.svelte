@@ -1028,6 +1028,7 @@
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } catch (err) {
             console.error("Failed to send:", err);
+            showErrorToast(matrixErrorMessage(err, "Failed to send"));
         } finally {
             isSending = false;
             textareaEl?.focus();

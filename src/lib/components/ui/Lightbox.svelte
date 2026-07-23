@@ -18,6 +18,7 @@
         addFavouriteGif,
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
+    import { fetchAttachmentBlob } from "$lib/matrix/client";
     import { onMount } from "svelte";
 
     let { src, alt = "", onClose, favourite }: Props = $props();
@@ -54,25 +55,29 @@
     async function download(e: MouseEvent) {
         e.stopPropagation();
         const name = filenameFromSrc();
+        let objectUrl: string | null = null;
         try {
-            const res = await fetch(src, { mode: "cors" });
-            const blob = await res.blob();
-            const objectUrl = URL.createObjectURL(blob);
+            // Homeserver media uses authenticated media endpoints — the token
+            // must be attached, and fetchAttachmentBlob refuses to send it
+            // anywhere but the homeserver (throws on foreign URLs).
+            objectUrl = await fetchAttachmentBlob(src);
             const a = document.createElement("a");
             a.href = objectUrl;
             a.download = name;
             document.body.appendChild(a);
             a.click();
             a.remove();
-            URL.revokeObjectURL(objectUrl);
         } catch {
-            // CORS or network failure — fall back to opening in a new tab.
+            // Non-homeserver media (e.g. an embedded tweet photo) or a transient
+            // failure — open it directly, with no auth attached.
             const a = document.createElement("a");
             a.href = src;
             a.download = name;
             a.target = "_blank";
             a.rel = "noopener noreferrer";
             a.click();
+        } finally {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
         }
     }
 
@@ -122,7 +127,10 @@
     function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
         return Math.hypot(a.x - b.x, a.y - b.y);
     }
-    function midpoint(a: { x: number; y: number }, b: { x: number; y: number }) {
+    function midpoint(
+        a: { x: number; y: number },
+        b: { x: number; y: number },
+    ) {
         return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     }
 

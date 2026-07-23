@@ -79,6 +79,8 @@ import {
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { parseMxc } from "$lib/utils/mxcUri";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -1195,12 +1197,47 @@ export interface MediaCaption {
     mentions?: { user_ids?: string[]; room?: boolean };
 }
 
+// Cached `m.upload.size` from the server's media config, fetched once per
+// session. `undefined` = not yet fetched; a stored promise dedupes concurrent
+// callers; a null resolution means the server didn't advertise a limit (or the
+// request failed) — in which case we skip the precheck rather than block uploads.
+let mediaUploadSizePromise: Promise<number | null> | null = null;
+
+async function getMediaUploadSizeLimit(): Promise<number | null> {
+    if (!matrixClient) return null;
+    if (!mediaUploadSizePromise) {
+        const client = matrixClient;
+        mediaUploadSizePromise = (async () => {
+            try {
+                const config = await client.getMediaConfig(true);
+                const size = config["m.upload.size"];
+                return typeof size === "number" ? size : null;
+            } catch {
+                mediaUploadSizePromise = null; // allow a retry next upload
+                return null;
+            }
+        })();
+    }
+    return mediaUploadSizePromise;
+}
+
 export async function sendFile(
     roomId: string,
     file: File,
     caption?: MediaCaption,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Precheck the size against the server's advertised upload limit so an
+    // over-limit file fails fast with a clear toast instead of a 413 mid-upload.
+    const maxUploadSize = await getMediaUploadSizeLimit();
+    if (maxUploadSize !== null && file.size > maxUploadSize) {
+        showErrorToast(
+            `File exceeds the server's ${Math.round(
+                maxUploadSize / 1024 / 1024,
+            )} MB upload limit`,
+        );
+        return;
+    }
     const { content_uri } = await matrixClient.uploadContent(file, {
         name: file.name,
     });
@@ -1531,10 +1568,14 @@ export function mxcToHttp(
     height: number | undefined = undefined,
     method = "crop",
 ): string | null {
-    if (!matrixClient || !mxcUrl?.startsWith("mxc://")) return null;
-    const match = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
-    if (!match) return null;
-    const [, serverName, mediaId] = match;
+    if (!matrixClient) return null;
+    // Validate against the spec grammar, then URL-encode each segment so a
+    // crafted server/media id can't smuggle path traversal or a query/fragment
+    // into the media URL. parseMxc rejects non-mxc input (returns null).
+    const parsed = parseMxc(mxcUrl ?? "");
+    if (!parsed) return null;
+    const serverName = encodeURIComponent(parsed.serverName);
+    const mediaId = encodeURIComponent(parsed.mediaId);
     const baseUrl = matrixClient.getHomeserverUrl();
     if (width > 0) {
         height = height ?? width;
@@ -1545,11 +1586,19 @@ export function mxcToHttp(
 
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
 export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
-    const token = matrixClient?.getAccessToken();
+    if (!matrixClient) throw new Error("Not logged in");
+    const baseUrl = matrixClient.getHomeserverUrl();
+    // The access token must NEVER leave the homeserver. Refuse to attach it (or
+    // even fetch) any URL that isn't on our homeserver — mirrors getContentType's
+    // guard. Callers that need foreign media must fetch it themselves, unauthed.
+    if (!httpUrl.startsWith(baseUrl)) {
+        throw new Error("Refusing to fetch a non-homeserver URL with auth");
+    }
+    const token = matrixClient.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers });
-    if (!resp.ok) throw new Error(`Failed to fetch video: ${resp.status}`);
+    if (!resp.ok) throw new Error(`Failed to fetch attachment: ${resp.status}`);
     const blob = await resp.blob();
     return URL.createObjectURL(blob);
 }
