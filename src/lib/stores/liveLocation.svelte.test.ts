@@ -157,6 +157,49 @@ describe("live-location own-share engine", () => {
         expect(h.showErrorToast).toHaveBeenCalledTimes(1);
     });
 
+    it("keeps the share alive on a transient watch error (timeout/no fix)", async () => {
+        await startShare(ROOM, 900000);
+
+        geoError?.({ code: 3, PERMISSION_DENIED: 1 }); // TIMEOUT
+
+        expect(isSharingLive(ROOM)).toBe(true);
+        expect(h.stopLiveBeacon).not.toHaveBeenCalled();
+        expect(liveLocationState.shares.get(ROOM)?.error).toBeTruthy();
+        expect(h.showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("stops all shares only on PERMISSION_DENIED", async () => {
+        await startShare(ROOM, 900000);
+
+        geoError?.({ code: 1, PERMISSION_DENIED: 1 });
+
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM);
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears the transient error on the next successful fix", async () => {
+        await startShare(ROOM, 900000);
+
+        geoError?.({ code: 2, PERMISSION_DENIED: 1 }); // POSITION_UNAVAILABLE
+        expect(liveLocationState.shares.get(ROOM)?.error).toBeTruthy();
+
+        vi.advanceTimersByTime(6000); // past the 5s send throttle
+        driveFix(3, 4);
+
+        expect(liveLocationState.shares.get(ROOM)?.error).toBeUndefined();
+        expect(h.sendLiveBeaconLocation).toHaveBeenCalledTimes(2);
+    });
+
+    it("registers the watch without a timeout option (a static position must not error out a share)", async () => {
+        await startShare(ROOM, 900000);
+
+        const opts = (watchPosition.mock.calls[0] as unknown[])?.[2] as
+            | PositionOptions
+            | undefined;
+        expect(opts?.timeout).toBeUndefined();
+    });
+
     it("throttles subsequent fixes to >=5s apart", async () => {
         await startShare(ROOM, 900000);
 

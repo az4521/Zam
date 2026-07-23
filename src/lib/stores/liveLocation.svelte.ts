@@ -64,10 +64,14 @@ function ensureWatch() {
         showErrorToast(geolocationUnavailableMessage(isSecureContext()));
         return;
     }
+    // NO `timeout` here: a watch with a timeout fires TIMEOUT (code 3)
+    // whenever the position simply hasn't changed (standing still, GPS
+    // shadow) — a long-running share must wait indefinitely for the next
+    // fix, not error out. The one-shot probe in acquirePosition keeps its
+    // timeout; that one exists to give the share dialog fast feedback.
     watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
         enableHighAccuracy: true,
         maximumAge: 10000,
-        timeout: 30000,
     });
 }
 
@@ -83,6 +87,8 @@ function onPosition(pos: GeolocationPosition) {
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
     for (const [roomId, share] of liveLocationState.shares) {
+        // Any successful fix ends a transient GPS outage.
+        share.error = undefined;
         if (!shouldSendUpdate(share.lastSentTs, now)) continue;
         share.lastSentTs = now;
         sendLiveBeaconLocation(roomId, share.beaconInfoEventId, lat, lon).catch(
@@ -96,11 +102,22 @@ function onPosition(pos: GeolocationPosition) {
 }
 
 function onGeoError(err: GeolocationPositionError) {
-    const msg = geoErrorMessage(err, isSecureContext());
-    for (const roomId of Array.from(liveLocationState.shares.keys())) {
-        void stopShare(roomId);
+    // Only a real permission revocation ends the share. Transient failures
+    // (no fix, timeout) are normal during a long share — GPS shadows, sitting
+    // still — so keep sharing, surface a "reconnecting" note on the share,
+    // and let the next fix resume updates. WhatsApp/Telegram do the same.
+    if (err?.code === 1) {
+        const msg = geoErrorMessage(err, isSecureContext());
+        for (const roomId of Array.from(liveLocationState.shares.keys())) {
+            void stopShare(roomId);
+        }
+        showErrorToast(msg);
+        return;
     }
-    showErrorToast(msg);
+    for (const share of liveLocationState.shares.values()) {
+        share.error = "GPS signal lost — waiting to reconnect";
+    }
+    bump();
 }
 
 /** One-shot position fix, promisified. Fires the permission prompt. */

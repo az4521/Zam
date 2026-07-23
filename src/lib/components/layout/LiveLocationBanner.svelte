@@ -61,7 +61,7 @@
             >Sharing live location · {remainingLabel(
                 ownShare.expiresAt,
                 now,
-            )}</button
+            )}{ownShare.error ? ` · ${ownShare.error}` : ""}</button
         >
         <button
             type="button"

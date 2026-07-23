@@ -128,6 +128,11 @@
                         now,
                     )}
                 </span>
+                {#if ownShare.error}
+                    <span class="text-xs text-discord-textMuted">
+                        {ownShare.error}
+                    </span>
+                {/if}
                 <button
                     type="button"
                     onclick={() => stopShare(room.roomId)}
