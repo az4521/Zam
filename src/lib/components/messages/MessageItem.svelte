@@ -613,17 +613,30 @@
         }
     }
 
-    // Whether this message is a thread reply
-    const isThreadReply = $derived(
-        content?.["m.relates_to"]?.rel_type === "m.thread",
+    // Relation shape is read from the ORIGINAL content — never the post-edit
+    // getContent(), which folds m.new_content and can misreport the relation on
+    // an edited event (mirrors client.ts eventThreadRoot). Tick-guarded like
+    // `content` so it re-reads when an encrypted event decrypts in place.
+    const originalRelatesTo = $derived(
+        (void messagesState.timelineTick,
+        event.getOriginalContent()?.["m.relates_to"]),
     );
+
+    // Whether this message is a thread reply
+    const isThreadReply = $derived(originalRelatesTo?.rel_type === "m.thread");
     // Root of the thread to open for this message: the reply's own thread root
     // if it's a thread reply, otherwise this message starts a new thread.
     const threadRootId = $derived(
         isThreadReply
-            ? ((content?.["m.relates_to"]?.event_id as string) ?? eventId)
+            ? ((originalRelatesTo?.event_id as string) ?? eventId)
             : eventId,
     );
+    // An event whose ORIGINAL content already carries any m.relates_to.rel_type
+    // (edit / annotation / thread) cannot legally become a NEW thread root — the
+    // server SHOULD-rejects the reply with an opaque 400. Used to suppress the
+    // "Reply in thread" offer on such events (Element greys it out likewise).
+    // Thread replies are exempt: for them the affordance reads "Open thread".
+    const isRelatedEvent = $derived(!!originalRelatesTo?.rel_type);
     // Root summary: this message is a thread ROOT iff other events reply to it.
     // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
     // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
@@ -1660,7 +1673,7 @@
                 />
             </svg>
         </button>
-        {#if onOpenThread}
+        {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
             <button
                 onclick={() => onOpenThread(threadRootId)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
