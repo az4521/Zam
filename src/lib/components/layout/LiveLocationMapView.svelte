@@ -15,6 +15,7 @@
     } from "$lib/stores/liveLocation.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { remainingLabel, updatedAgoLabel } from "$lib/utils/liveLocation";
+    import { timeOnly } from "$lib/utils/timeFormat";
     import { beaconMarkers } from "$lib/utils/liveLocationMap";
     import { mapLinkFor } from "$lib/utils/location";
 
@@ -128,9 +129,12 @@
                         now,
                     )}
                 </span>
-                {#if ownShare.error}
+                {#if ownShare.lastSentTs}
                     <span class="text-xs text-discord-textMuted">
-                        {ownShare.error}
+                        last updated at {timeOnly(ownShare.lastSentTs)} ({updatedAgoLabel(
+                            ownShare.lastSentTs,
+                            now,
+                        )})
                     </span>
                 {/if}
                 <button

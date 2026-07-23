@@ -157,15 +157,24 @@ describe("live-location own-share engine", () => {
         expect(h.showErrorToast).toHaveBeenCalledTimes(1);
     });
 
-    it("keeps the share alive on a transient watch error (timeout/no fix)", async () => {
+    it("ignores transient watch errors — the share keeps running untouched", async () => {
+        // Android Chrome emits sporadic POSITION_UNAVAILABLE/TIMEOUT blips
+        // even with GPS on; staleness is visible via the banner's "last
+        // updated at …" label, so errors other than a permission revocation
+        // must neither stop the share nor toast.
         await startShare(ROOM, 900000);
 
         geoError?.({ code: 3, PERMISSION_DENIED: 1 }); // TIMEOUT
+        geoError?.({ code: 2, PERMISSION_DENIED: 1 }); // POSITION_UNAVAILABLE
 
         expect(isSharingLive(ROOM)).toBe(true);
         expect(h.stopLiveBeacon).not.toHaveBeenCalled();
-        expect(liveLocationState.shares.get(ROOM)?.error).toBeTruthy();
         expect(h.showErrorToast).not.toHaveBeenCalled();
+
+        // Updates resume seamlessly on the next fix.
+        vi.advanceTimersByTime(6000);
+        driveFix(3, 4);
+        expect(h.sendLiveBeaconLocation).toHaveBeenCalledTimes(2);
     });
 
     it("stops all shares only on PERMISSION_DENIED", async () => {
@@ -178,17 +187,10 @@ describe("live-location own-share engine", () => {
         expect(h.showErrorToast).toHaveBeenCalledTimes(1);
     });
 
-    it("clears the transient error on the next successful fix", async () => {
+    it("records lastSentTs so the UI can show 'last updated at …'", async () => {
         await startShare(ROOM, 900000);
 
-        geoError?.({ code: 2, PERMISSION_DENIED: 1 }); // POSITION_UNAVAILABLE
-        expect(liveLocationState.shares.get(ROOM)?.error).toBeTruthy();
-
-        vi.advanceTimersByTime(6000); // past the 5s send throttle
-        driveFix(3, 4);
-
-        expect(liveLocationState.shares.get(ROOM)?.error).toBeUndefined();
-        expect(h.sendLiveBeaconLocation).toHaveBeenCalledTimes(2);
+        expect(liveLocationState.shares.get(ROOM)?.lastSentTs).toBe(Date.now());
     });
 
     it("registers the watch without a timeout option (a static position must not error out a share)", async () => {

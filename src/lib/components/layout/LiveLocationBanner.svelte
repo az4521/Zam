@@ -11,7 +11,8 @@
         stopShare,
     } from "$lib/stores/liveLocation.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { remainingLabel } from "$lib/utils/liveLocation";
+    import { remainingLabel, updatedAgoLabel } from "$lib/utils/liveLocation";
+    import { timeOnly } from "$lib/utils/timeFormat";
     import LiveLocationMapView from "$lib/components/layout/LiveLocationMapView.svelte";
 
     interface Props {
@@ -61,7 +62,9 @@
             >Sharing live location · {remainingLabel(
                 ownShare.expiresAt,
                 now,
-            )}{ownShare.error ? ` · ${ownShare.error}` : ""}</button
+            )}{ownShare.lastSentTs
+                ? ` · last updated at ${timeOnly(ownShare.lastSentTs)} (${updatedAgoLabel(ownShare.lastSentTs, now)})`
+                : ""}</button
         >
         <button
             type="button"
