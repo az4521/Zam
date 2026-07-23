@@ -99,7 +99,13 @@ export function initFavourites(): () => void {
         favouritesState.gifs = loadFavouriteGifs();
     });
     const unsubAccount = onAccountData((type) => {
-        if (type === "m.favourite_gifs") {
+        // React to the namespaced key (our own writes) and the legacy key (a
+        // pre-migration device may still write it — loadFavouriteGifs falls
+        // back to it when the new key is absent).
+        if (
+            type === "moe.crafty.matrix.favourite_gifs" ||
+            type === "m.favourite_gifs"
+        ) {
             favouritesState.gifs = loadFavouriteGifs();
         }
     });

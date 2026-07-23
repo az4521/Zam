@@ -54,6 +54,12 @@ describe("buildReplyContent — v1.13 fallback-free replies", () => {
         expect(c.msgtype).toBe("m.text");
     });
 
+    it("always emits an m.mentions key, defaulting to empty when none given", () => {
+        const c = buildReplyContent({ ...base, text: "ok" });
+        expect("m.mentions" in c).toBe(true);
+        expect(c["m.mentions"]).toEqual({});
+    });
+
     it("sets format only when a formatted body is supplied", () => {
         const c = buildReplyContent({
             ...base,

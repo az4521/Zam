@@ -89,6 +89,11 @@ import {
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
+import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
+import {
+    countReactions,
+    type ReactionAnnotation,
+} from "$lib/utils/reactionCounts";
 import {
     buildThreadReplyContent,
     isThreadReplyContent,
@@ -175,6 +180,7 @@ export type {
 // event types we read/write so `getAccountData`/`setAccountData` accept them.
 declare module "matrix-js-sdk" {
     interface AccountDataEvents {
+        "moe.crafty.matrix.favourite_gifs": { gifs: FavouriteGif[] };
         "m.favourite_gifs": { gifs: FavouriteGif[] };
         "moe.crafty.matrix.customization": ClientCustomization;
         "im.client.space_layout": SpaceLayout;
@@ -517,7 +523,11 @@ export function deleteFailedMessage(event: MatrixEvent): void {
     matrixClient.cancelPendingEvent(event);
 }
 
-const FAV_GIFS_KEY = "m.favourite_gifs";
+// Namespaced under the app's own reverse-DNS id so it no longer squats the
+// reserved `m.*` spec namespace. The old key is still READ (migration fallback)
+// but never written again — see loadFavouriteGifs / persistFavouriteGifs.
+const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
+const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
 
 export interface FavouriteGif {
     url: string;
@@ -526,10 +536,22 @@ export interface FavouriteGif {
     tags?: string[];
 }
 
+function gifsFromEvent(
+    event: MatrixEvent | null | undefined,
+): FavouriteGif[] | null {
+    if (!event) return null;
+    return (event.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
+}
+
 export function loadFavouriteGifs(): FavouriteGif[] {
     if (!matrixClient) return [];
-    const event = matrixClient.getAccountData(FAV_GIFS_KEY);
-    return (event?.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
+    // Prefer the new key; fall back to the legacy key only when the new one was
+    // never written (pickFavouriteGifs treats a present-but-empty new key as
+    // authoritative, so a cleared list is never resurrected from the legacy blob).
+    return pickFavouriteGifs(
+        gifsFromEvent(matrixClient.getAccountData(FAV_GIFS_KEY)),
+        gifsFromEvent(matrixClient.getAccountData(LEGACY_FAV_GIFS_KEY)),
+    );
 }
 
 /**
@@ -545,17 +567,26 @@ export async function fetchFavouriteGifsFromServer(): Promise<FavouriteGif[]> {
     if (!matrixClient) throw new Error("Not logged in");
     const userId = matrixClient.getUserId();
     if (!userId) throw new Error("Not logged in");
-    const path = `/user/${encodeURIComponent(userId)}/account_data/${FAV_GIFS_KEY}`;
-    try {
-        const content = await matrixClient.http.authedRequest<{
-            gifs?: FavouriteGif[];
-        }>(Method.Get, path);
-        return content?.gifs ?? [];
-    } catch (err) {
-        // Never set for this account: an authoritative "empty", not a failure.
-        if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return [];
-        throw err;
-    }
+    // Returns null when the key has never been set for this account (404), so
+    // the new key falling back to the legacy key is distinguishable from a key
+    // that is set to an empty list.
+    const fetchKey = async (key: string): Promise<FavouriteGif[] | null> => {
+        const path = `/user/${encodeURIComponent(userId)}/account_data/${key}`;
+        try {
+            const content = await matrixClient!.http.authedRequest<{
+                gifs?: FavouriteGif[];
+            }>(Method.Get, path);
+            return content?.gifs ?? [];
+        } catch (err) {
+            if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return null;
+            throw err;
+        }
+    };
+    // Prefer the new key; fall back to the legacy key only when the new one is
+    // absent (the first write after migration copies the legacy list forward).
+    const current = await fetchKey(FAV_GIFS_KEY);
+    if (current !== null) return current;
+    return pickFavouriteGifs(current, await fetchKey(LEGACY_FAV_GIFS_KEY));
 }
 
 export async function persistFavouriteGifs(
@@ -566,9 +597,8 @@ export async function persistFavouriteGifs(
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
-// Electron appId) so it cannot collide with another client's account data.
-// Note the neighbouring `m.favourite_gifs` does NOT follow this rule — `m.*`
-// is reserved for the spec, and that key predates this one.
+// Electron appId) so it cannot collide with another client's account data —
+// same convention as FAV_GIFS_KEY above.
 const CUSTOMIZATION_KEY = "moe.crafty.matrix.customization";
 
 /** Raw customization account data, or null when absent / not logged in. */
@@ -1336,18 +1366,15 @@ export async function sendFile(
         body: caption ? caption.body : file.name,
         url: content_uri,
         info,
+        // Always present (spec recommendation): an m.mentions key — even empty —
+        // disables the legacy body-scan push rules on the receiving server.
+        "m.mentions": caption?.mentions ?? {},
     };
     if (caption) {
         content.filename = file.name;
         if (caption.formattedBody) {
             content.format = "org.matrix.custom.html";
             content.formatted_body = caption.formattedBody;
-        }
-        if (
-            caption.mentions &&
-            (caption.mentions.user_ids?.length || caption.mentions.room)
-        ) {
-            content["m.mentions"] = caption.mentions;
         }
     }
 
@@ -1545,9 +1572,15 @@ export async function sendTextMessage(
     text: string,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
-    // Pass null threadId explicitly — the SDK's overload shim treats any string
-    // starting with "$" as a thread ID, which would mangle messages like "$foo".
-    const res = await matrixClient.sendTextMessage(roomId, null, text);
+    // Build the content directly (2-arg sendMessage) so an m.mentions key rides
+    // along unconditionally — its presence disables the legacy body-scan push
+    // rules on the receiver. A plain text send never carries intentional
+    // mentions (those route through sendFormattedMessage), so it is always {}.
+    const res = await matrixClient.sendMessage(roomId, {
+        msgtype: "m.text",
+        body: text,
+        "m.mentions": {},
+    } as never);
     return res.event_id;
 }
 
@@ -1563,7 +1596,7 @@ export async function sendFormattedMessage(
         body,
         format: "org.matrix.custom.html",
         formatted_body: formattedBody,
-        ...(mentions ? { "m.mentions": mentions } : {}),
+        "m.mentions": mentions ?? {},
     } as never);
     return res.event_id;
 }
@@ -1589,7 +1622,7 @@ export async function sendEmote(
                   formatted_body: formattedBody,
               }
             : {}),
-        ...(mentions ? { "m.mentions": mentions } : {}),
+        "m.mentions": mentions ?? {},
     } as never);
 }
 
@@ -3832,39 +3865,17 @@ export function getReactions(room: Room, eventId: string): ReactionGroup[] {
         if (!relations) return [];
 
         const ownUserId = matrixClient.getUserId();
-        const groups: Map<
-            string,
-            { count: number; isMine: boolean; myEventId: string | null }
-        > = new Map();
-
-        for (const e of relations.getRelations()) {
-            if (e.isRedacted()) continue;
-            const key: string = e.getContent()?.["m.relates_to"]?.key ?? "";
-            if (!key) continue;
-            const existing = groups.get(key) ?? {
-                count: 0,
-                isMine: false,
-                myEventId: null,
-            };
-            const isOwn = e.getSender() === ownUserId;
-            groups.set(key, {
-                count: existing.count + 1,
-                isMine: existing.isMine || isOwn,
-                myEventId:
-                    isOwn && !e.status
-                        ? (e.getId() ?? null)
-                        : existing.myEventId,
-            });
-        }
-
-        return Array.from(groups.entries()).map(
-            ([key, { count, isMine, myEventId }]) => ({
-                key,
-                count,
-                isMine,
-                myEventId,
-            }),
-        );
+        // Dedupe + own-reaction counting lives in a pure, unit-tested helper.
+        const annotations: ReactionAnnotation[] = relations
+            .getRelations()
+            .map((e) => ({
+                sender: e.getSender() ?? null,
+                key: e.getContent()?.["m.relates_to"]?.key ?? "",
+                id: e.getId() ?? null,
+                status: e.status,
+                isRedacted: e.isRedacted(),
+            }));
+        return countReactions(annotations, ownUserId);
     } catch {
         return [];
     }
@@ -3929,6 +3940,11 @@ export interface CustomEmoji {
     shortcode: string;
     mxcUrl: string; // mxc:// url (used in formatted_body so other clients can proxy it)
     url: string; // http url (used for display in our own picker)
+    // MSC2545 image-pack metadata, carried through so a sticker send can echo
+    // the pack's declared info (w/h/mimetype/size) and body. Absent for packs
+    // that don't declare them (and unused for emoticon rendering).
+    info?: Record<string, unknown>;
+    body?: string;
 }
 
 export interface CustomEmojiPack {
@@ -4015,6 +4031,25 @@ function effectiveUsage(
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
 }
 
+// MSC2545 per-image metadata (info/body), forwarded onto CustomEmoji so a
+// sticker send can echo it. Only present when the pack declares them, so packs
+// without info degrade to today's behaviour.
+function packImageMeta(data: {
+    info?: unknown;
+    body?: unknown;
+    [key: string]: unknown;
+}): {
+    info?: Record<string, unknown>;
+    body?: string;
+} {
+    const meta: { info?: Record<string, unknown>; body?: string } = {};
+    if (data.info && typeof data.info === "object") {
+        meta.info = data.info as Record<string, unknown>;
+    }
+    if (typeof data.body === "string") meta.body = data.body;
+    return meta;
+}
+
 function roomEmoteContentToPackImages(
     content: RoomEmoteContent,
 ): CustomPackImage[] {
@@ -4053,7 +4088,16 @@ function roomEmoteContentToImages(
         )
         .flatMap(([shortcode, data]) => {
             const http = mxcToHttp(data.url!);
-            return http ? [{ shortcode, mxcUrl: data.url!, url: http }] : [];
+            return http
+                ? [
+                      {
+                          shortcode,
+                          mxcUrl: data.url!,
+                          url: http,
+                          ...packImageMeta(data),
+                      },
+                  ]
+                : [];
         });
 }
 
@@ -4501,7 +4545,15 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
         if (!accountData) return [];
         const content = accountData.getContent();
         const images = content?.images as
-            | Record<string, { url?: string; usage?: string[] }>
+            | Record<
+                  string,
+                  {
+                      url?: string;
+                      usage?: string[];
+                      info?: unknown;
+                      body?: unknown;
+                  }
+              >
             | undefined;
         if (!images) return [];
         const packUsage = (content?.pack as { usage?: string[] } | undefined)
@@ -4515,7 +4567,14 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
             .flatMap(([shortcode, data]) => {
                 const http = mxcToHttp(data.url!);
                 return http
-                    ? [{ shortcode, mxcUrl: data.url!, url: http }]
+                    ? [
+                          {
+                              shortcode,
+                              mxcUrl: data.url!,
+                              url: http,
+                              ...packImageMeta(data),
+                          },
+                      ]
                     : [];
             });
     } catch {
@@ -5235,9 +5294,12 @@ export async function sendSticker(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not connected");
     await matrixClient.sendEvent(roomId, "m.sticker" as any, {
-        body: sticker.shortcode,
+        body: sticker.body || sticker.shortcode,
         url: sticker.mxcUrl,
-        info: {},
+        info: sticker.info ?? {},
+        // Always present (spec recommendation) so the receiver skips legacy
+        // body-scan push rules; a sticker never carries intentional mentions.
+        "m.mentions": {},
     });
 }
 
