@@ -24,7 +24,7 @@
     let features = $state<FeatureRow[]>([]);
     let roomVersion = $state("");
     let unstableLabels = $state<string[]>([]);
-    let callingSupport = $state<Support>("unknown");
+    let callingFeatures = $state<FeatureRow[]>([]);
 
     function badge(support: Support): { text: string; cls: string } {
         if (support === "yes") {
@@ -81,12 +81,17 @@
                 .filter(([, enabled]) => enabled)
                 .map(([name]) => labelUnstableFeature(name))
                 .sort((a, b) => a.localeCompare(b));
-            callingSupport =
-                calling === "available"
-                    ? "yes"
-                    : calling === "unavailable"
-                      ? "no"
-                      : "unknown";
+            const asSupport = (ok: boolean): Support => (ok ? "yes" : "no");
+            callingFeatures = [
+                {
+                    label: "SFU discovery (rtc_foci)",
+                    support: asSupport(calling.rtcFoci),
+                },
+                {
+                    label: "Delayed events (call cleanup)",
+                    support: asSupport(calling.delayedEvents),
+                },
+            ];
         } catch (loadError) {
             error =
                 (loadError as Error)?.message ??
@@ -143,24 +148,21 @@
 
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
             >
-                Not in this client yet
+                Voice / video calling (MatrixRTC)
             </p>
-            <p class="text-xs text-discord-textMuted mb-3">
-                Server-side availability shown; the client doesn’t implement
-                these.
-            </p>
-            <div
-                class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
-            >
-                <span class="text-discord-textSecondary"
-                    >Voice / video calling (TURN)</span
+            {#each callingFeatures as feature}
+                {@const status = badge(feature.support)}
+                <div
+                    class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
                 >
-                <span class="text-xs {badge(callingSupport).cls}"
-                    >{badge(callingSupport).text}</span
-                >
-            </div>
+                    <span class="text-discord-textSecondary"
+                        >{feature.label}</span
+                    >
+                    <span class="text-xs {status.cls}">{status.text}</span>
+                </div>
+            {/each}
         </section>
 
         <section>

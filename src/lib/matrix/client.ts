@@ -82,6 +82,7 @@ import { parseMarkdown } from "$lib/utils/markdown";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
+import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -1944,28 +1945,34 @@ export async function getServerCapabilities(): Promise<
 }
 
 /**
- * Probe whether the homeserver exposes VoIP TURN config — a rough proxy for
- * "calling could work here". Calling is not advertised in /capabilities, so
- * this is an attempt-and-interpret probe, not a capability lookup.
+ * Probe the homeserver's readiness for MatrixRTC group calling (the stack the
+ * client actually uses). The legacy `/voip/turnServer` endpoint is NOT probed:
+ * MatrixRTC never consults it, and its 404 is ambiguous (a conforming server
+ * returns 200 with empty `uris` when TURN is simply unconfigured).
+ *
+ * - `rtcFoci`: the homeserver advertises at least one SFU focus via the
+ *   `org.matrix.msc4143.rtc_foci` key in `.well-known/matrix/client` (reuses
+ *   the same well-known fetch the voice-join path uses).
+ * - `delayedEvents`: `/versions` `unstable_features` advertises
+ *   `org.matrix.msc4140` — delayed events, which let a crashed call's
+ *   membership self-expire in ~8s instead of lingering up to ~4h.
  */
-export async function probeCallingSupport(): Promise<
-    "available" | "unavailable" | "unknown"
-> {
-    if (!matrixClient) return "unknown";
-    const token = matrixClient.getAccessToken();
-    const base = matrixClient.getHomeserverUrl();
-    if (!token || !base) return "unknown";
-    try {
-        const res = await fetch(
-            `${base.replace(/\/$/, "")}/_matrix/client/v3/voip/turnServer`,
-            { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (res.status === 404 || res.status === 400) return "unavailable";
-        if (res.ok) return "available";
-        return "unknown";
-    } catch {
-        return "unknown";
-    }
+export async function probeCallingSupport(): Promise<{
+    rtcFoci: boolean;
+    delayedEvents: boolean;
+}> {
+    if (!matrixClient) return { rtcFoci: false, delayedEvents: false };
+    const [rtcFoci, delayedEvents] = await Promise.all([
+        configuredRtcFoci()
+            .then((foci) => foci.length > 0)
+            .catch(() => false),
+        getServerVersions()
+            .then(({ unstableFeatures }) =>
+                hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
+            )
+            .catch(() => false),
+    ]);
+    return { rtcFoci, delayedEvents };
 }
 
 // ── Device / session management ─────────────────────────────────────────────
