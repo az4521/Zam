@@ -5288,13 +5288,8 @@ export async function sendReply(
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
 
-    const replyContent = replyToEvent.getContent();
     const content = buildReplyContent({
-        roomId: replyToEvent.getRoomId() ?? roomId,
         replyEventId: replyToEvent.getId()!,
-        replySender: replyToEvent.getSender() ?? "",
-        replyBody: replyContent?.body ?? "",
-        replyFormattedBody: replyContent?.formatted_body,
         text,
         formattedText,
         mentions,

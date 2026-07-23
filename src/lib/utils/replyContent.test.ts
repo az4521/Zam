@@ -2,54 +2,45 @@ import { describe, it, expect } from "vitest";
 import { buildReplyContent } from "./replyContent";
 
 const base = {
-    roomId: "!room:hs",
     replyEventId: "$evt",
-    replySender: "@alice:hs",
-    replyBody: "hello",
 };
 
-describe("buildReplyContent — outgoing HTML safety", () => {
-    it("escapes plain-text replies that contain HTML", () => {
-        const c = buildReplyContent({ ...base, text: "<b>hi</b>" });
-        expect(c.formatted_body).not.toContain("<b>hi</b>");
-        expect(c.formatted_body).toContain("&lt;b&gt;hi&lt;/b&gt;");
+describe("buildReplyContent — v1.13 fallback-free replies", () => {
+    it("emits the plain text as-is with no '> ' quote prefix", () => {
+        const c = buildReplyContent({ ...base, text: "hello" });
+        expect(c.body).toBe("hello");
+        expect(c.body.startsWith("> ")).toBe(false);
     });
 
-    it("uses the pre-rendered formattedText verbatim when provided", () => {
+    it("never emits an <mx-reply> block in formatted_body", () => {
         const c = buildReplyContent({
             ...base,
-            text: "**hi**",
+            text: "hi",
             formattedText: "<strong>hi</strong>",
         });
-        expect(c.formatted_body).toContain("<strong>hi</strong>");
+        expect(c.formatted_body).toBe("<strong>hi</strong>");
+        expect(c.formatted_body ?? "").not.toContain("<mx-reply");
     });
 
-    it("escapes the quoted body when the replied-to message has no formatted_body", () => {
-        const c = buildReplyContent({
-            ...base,
-            replyBody: "<img src=x onerror=alert(1)>",
-            text: "ok",
-        });
-        expect(c.formatted_body).not.toContain("<img src=x onerror");
-        expect(c.formatted_body).toContain("&lt;img");
+    it("omits format/formatted_body entirely for a plain-text reply", () => {
+        const c = buildReplyContent({ ...base, text: "<b>hi</b>" });
+        expect(c.format).toBeUndefined();
+        expect(c.formatted_body).toBeUndefined();
+        // The plain text is carried verbatim in body; no HTML re-serialization.
+        expect(c.body).toBe("<b>hi</b>");
     });
 
-    it("prefers the replied-to formatted_body when present (already spec HTML)", () => {
+    it("carries no foreign HTML from the replied-to event (no such params exist)", () => {
+        // The old API accepted the parent's body/formatted_body and re-embedded
+        // them; the new one only takes our own text. Building a reply cannot
+        // leak another user's HTML because there is nowhere to pass it.
         const c = buildReplyContent({
             ...base,
-            replyFormattedBody: "<em>quoted</em>",
             text: "ok",
+            formattedText: "<em>ok</em>",
         });
-        expect(c.formatted_body).toContain("<em>quoted</em>");
-    });
-
-    it("escapes the sender in the mx-reply anchor", () => {
-        const c = buildReplyContent({
-            ...base,
-            replySender: '@x"><script>:hs',
-            text: "ok",
-        });
-        expect(c.formatted_body).not.toContain('"><script>');
+        expect(c.formatted_body).toBe("<em>ok</em>");
+        expect(JSON.stringify(c)).not.toContain("mx-reply");
     });
 
     it("sets the reply relation and passes mentions through", () => {
@@ -61,15 +52,15 @@ describe("buildReplyContent — outgoing HTML safety", () => {
         expect(c["m.relates_to"]["m.in_reply_to"].event_id).toBe("$evt");
         expect(c["m.mentions"]).toEqual({ user_ids: ["@bob:hs"] });
         expect(c.msgtype).toBe("m.text");
-        expect(c.format).toBe("org.matrix.custom.html");
     });
 
-    it("builds the plain-text fallback body with quoted lines", () => {
+    it("sets format only when a formatted body is supplied", () => {
         const c = buildReplyContent({
             ...base,
-            replyBody: "line1\nline2",
-            text: "reply",
+            text: "**hi**",
+            formattedText: "<strong>hi</strong>",
         });
-        expect(c.body).toBe("> <@alice:hs> > line1\n> line2\n\nreply");
+        expect(c.format).toBe("org.matrix.custom.html");
+        expect(c.formatted_body).toBe("<strong>hi</strong>");
     });
 });

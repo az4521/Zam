@@ -44,6 +44,10 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import {
+        stripBodyFallback,
+        stripFormattedFallback,
+    } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
@@ -377,17 +381,24 @@
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
 
-    // Strip the Matrix reply fallback prefix ("> quoted text\n\n") from body
+    // Whether the event's ORIGINAL content declared a reply relation. A rich-
+    // reply fallback ("> quoted…" body / <mx-reply> block) can only legally
+    // exist on a reply, so we strip it only when this is true. We read the
+    // ORIGINAL content (not the edited getContent()) because an edit drops the
+    // reply relation from getContent() while the fallback stays in the body.
+    const isReply = $derived(
+        (void messagesState.timelineTick,
+        !!event.getOriginalContent()?.["m.relates_to"]?.["m.in_reply_to"]),
+    );
+
+    // Strip the Matrix rich-reply fallback ("> quoted…\n\n") from body via the
+    // shared spec-v1.19 algorithm. Spec v1.13 removed the fallback; legacy
+    // senders may still include it. We render the quote from the referenced
+    // event, so the fallback is always redundant here.
     const body = $derived(() => {
         const raw: string = content?.body ?? "";
-        const inReplyTo = content?.["m.relates_to"]?.["m.in_reply_to"];
-        if (!inReplyTo) return raw;
-        // Fallback quote lines start with "> ", followed by a blank line before the real reply
-        const parts = raw.split("\n\n");
-        if (parts.length >= 2 && parts[0].startsWith(">")) {
-            return parts.slice(1).join("\n\n");
-        }
-        return raw;
+        if (!isReply) return raw;
+        return stripBodyFallback(raw);
     });
 
     // The original file name of an uploaded media event. Per MSC2530, when a
@@ -407,25 +418,42 @@
         return !!(fn && raw && fn !== raw);
     });
 
-    // Strip <mx-reply>...</mx-reply> from formatted_body so we don't double-render the quote
+    // Strip a leading <mx-reply> fallback from formatted_body so we don't
+    // double-render the quote (we render it from the referenced event). Uses the
+    // shared DOM-based strip — the old regex was evadable via mx-reply attrs.
     const formattedBody = $derived(() => {
         const raw = content?.formatted_body as string | undefined;
         if (!raw) return undefined;
         // Spec: formatted_body is only meaningful when the sender declared the
         // custom-HTML format. Otherwise fall through to the plain-body path.
         if (content?.format !== "org.matrix.custom.html") return undefined;
-        return raw.replace(/<mx-reply>[\s\S]*?<\/mx-reply>/i, "").trim();
+        return (isReply ? stripFormattedFallback(raw) : raw).trim();
     });
 
     // Replied-to event, if this is a reply
     const inReplyToId = $derived.by(() => {
+        // Thread replies carry an m.in_reply_to that is only a DISPLAY fallback
+        // (is_falling_back: true) pointing at the previous thread message, not a
+        // genuine reply. Rendering it as a quote duplicates what the thread view
+        // already shows, so suppress it. Genuine replies-within-a-thread
+        // (is_falling_back false/absent) still get their quote.
+        const original = event.getOriginalContent();
+        const originalRel = original?.["m.relates_to"];
+        const originalInReplyTo = originalRel?.["m.in_reply_to"] as
+            | { event_id?: string; is_falling_back?: boolean }
+            | undefined;
+        if (
+            originalRel?.rel_type === "m.thread" &&
+            originalInReplyTo?.is_falling_back === true
+        )
+            return undefined;
+
         const fromContent =
             content?.["m.relates_to"]?.["m.in_reply_to"]?.event_id;
         if (fromContent) return fromContent as string;
         // Edits send m.new_content without m.relates_to, so after an m.replace
         // getContent() drops the reply relation. Fall back to the original
         // event content so edited replies still render their quoted message.
-        const original = event.getOriginalContent();
         return original?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
             | string
             | undefined;
