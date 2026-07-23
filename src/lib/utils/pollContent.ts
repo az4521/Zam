@@ -182,8 +182,10 @@ export interface PollTally {
  * Aggregate poll responses per MSC3381:
  * - only each user's latest response counts (ties broken by event id);
  * - responses after `endTs` are ignored entirely (earlier ones still count);
- * - unknown answer ids are dropped, duplicates collapsed, and the selection
- *   truncated to `max_selections`; a response with nothing valid left is a
+ * - the selection is truncated to `max_selections` FIRST, then any unknown
+ *   answer id remaining spoils the ENTIRE vote (the voter counts as having
+ *   made no selection, not a vote for the valid ids they also picked);
+ *   surviving duplicates are collapsed. A response with nothing left is a
  *   spoiled vote that retracts the user's earlier vote.
  */
 export function aggregatePollVotes(
@@ -212,10 +214,14 @@ export function aggregatePollVotes(
     const votesBySender: Record<string, string[]> = {};
 
     for (const [sender, r] of latest) {
-        const selection = [...new Set(r.answers ?? [])]
-            .filter((id) => validIds.has(id))
-            .slice(0, start.maxSelections);
-        if (selection.length === 0) continue; // spoiled — no vote
+        // MSC3381: truncate to max_selections FIRST, before any dedupe...
+        const truncated = (r.answers ?? []).slice(0, start.maxSelections);
+        // ...then any unknown id in what survives spoils the ENTIRE vote — the
+        // voter counts as having made no selection, not a vote for the valid
+        // ids they also picked.
+        if (truncated.some((id) => !validIds.has(id))) continue; // spoiled
+        const selection = [...new Set(truncated)]; // collapse surviving dupes
+        if (selection.length === 0) continue; // empty/retracted — no vote
         votesBySender[sender] = selection;
         for (const id of selection) counts[id]++;
     }
