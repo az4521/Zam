@@ -67,7 +67,15 @@
         return getThreadMessages(room, rootEventId);
     });
 
-    const rootEvent = $derived(findEventById(room, rootEventId));
+    // threadTick dependency is load-bearing for the "Create thread" flow: the
+    // panel opens on a root whose remote echo hasn't landed in the timeline
+    // yet, so the first lookup is null — without the tick this derived never
+    // re-runs (stable room + id) and the header stays blank forever. The
+    // localEchoUpdated subscription bumps the tick when the echo reconciles.
+    const rootEvent = $derived.by(() => {
+        threadTick;
+        return findEventById(room, rootEventId);
+    });
     const rootSender = $derived(
         rootEvent ? getMemberName(room, rootEvent.getSender() ?? "") : "",
     );
