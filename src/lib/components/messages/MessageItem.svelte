@@ -1390,7 +1390,18 @@
                 use:matrixLinks
                 class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 class:emoji-only={emojiOnly}
+                class:italic={msgtype === "m.emote"}
+                class:opacity-70={msgtype === "m.notice"}
             >
+                {#if msgtype === "m.emote"}
+                    <!-- m.emote: prefix the action with the sender's name so it
+                         reads "* Name does something" even in grouped messages
+                         where the header is hidden. Uses the same member-name
+                         helper as the header (displayName). Rendered as its own
+                         span, NEVER concatenated into the {@html} body (that
+                         would corrupt the sanitized/escaped output). -->
+                    <span>* {displayName}{" "}</span>
+                {/if}
                 {#if formattedBody()}
                     {@html withTwemoji(sanitize(formattedBody()!))}
                 {:else}
