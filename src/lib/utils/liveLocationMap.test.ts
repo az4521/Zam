@@ -1,12 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { beaconMarkers, type BeaconMarkerSource } from "./liveLocationMap";
 
+function locEvent(sender: string): { getSender(): string } {
+    return { getSender: () => sender };
+}
+
 function beacon(over: Partial<BeaconMarkerSource> = {}): BeaconMarkerSource {
+    const owner = over.beaconInfoOwner ?? "@alice:hs";
     return {
         beaconInfoId: "$b1",
-        beaconInfoOwner: "@alice:hs",
+        beaconInfoOwner: owner,
         isLive: true,
         latestLocationState: { uri: "geo:50.36,7.59", timestamp: 1000 },
+        // By default the latest fix is sent by the beacon's own owner (a
+        // legitimate update); forgery tests override latestLocationEvent.
+        latestLocationEvent: locEvent(owner),
         ...over,
     };
 }
@@ -74,6 +82,26 @@ describe("beaconMarkers — beacons → map marker view models", () => {
             description: "on my way",
             updatedTs: null,
         });
+    });
+
+    it("hides a beacon whose latest fix was forged by a non-owner", () => {
+        // beacon_info is owned by alice, but the newest m.beacon location was
+        // sent by mallory — a spoof. The SDK caches only the newest fix, so the
+        // fail-safe is to drop the marker rather than show a spoofed position.
+        const forged = beacon({
+            beaconInfoOwner: "@alice:hs",
+            latestLocationEvent: locEvent("@mallory:hs"),
+        });
+        expect(beaconMarkers([forged], "@me:hs")).toEqual([]);
+    });
+
+    it("keeps the owner's own legitimate fix", () => {
+        // Explicit sanity check: an owner-sent latest fix still yields a marker.
+        const legit = beacon({
+            beaconInfoOwner: "@alice:hs",
+            latestLocationEvent: locEvent("@alice:hs"),
+        });
+        expect(beaconMarkers([legit], "@me:hs")).toHaveLength(1);
     });
 
     it("keeps distinct owners as distinct markers", () => {

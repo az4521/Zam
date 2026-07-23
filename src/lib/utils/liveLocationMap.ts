@@ -1,4 +1,4 @@
-import { beaconGeo } from "./liveLocation";
+import { beaconGeo, ownedLatestLocation } from "./liveLocation";
 
 /** The subset of an SDK `Beacon` the marker mapper reads. */
 export interface BeaconMarkerSource {
@@ -10,6 +10,9 @@ export interface BeaconMarkerSource {
         timestamp?: number | null;
         description?: string | null;
     };
+    /** The MatrixEvent carrying the latest fix — used to verify the sender is
+     *  the beacon's owner (matches the SDK `Beacon.latestLocationEvent`). */
+    latestLocationEvent?: { getSender(): string | undefined };
 }
 
 /** One map marker: a sharer's freshest live fix. */
@@ -35,6 +38,17 @@ export function beaconMarkers(
     const byOwner = new Map<string, BeaconMarker>();
     for (const b of beacons) {
         if (!b.isLive) continue;
+        // MSC3489: only trust the latest fix if the beacon's owner sent it — a
+        // forged newest update must hide the marker, not spoof its position.
+        // (Normalize the SDK's `string | undefined` sender to `string | null`.)
+        const ev = b.latestLocationEvent;
+        const owned = ownedLatestLocation({
+            beaconInfoOwner: b.beaconInfoOwner,
+            latestLocationEvent: ev
+                ? { getSender: () => ev.getSender() ?? null }
+                : undefined,
+        });
+        if (!owned) continue;
         const geo = beaconGeo(b.latestLocationState ?? null);
         if (!geo) continue;
         const marker: BeaconMarker = {

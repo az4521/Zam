@@ -1336,10 +1336,13 @@ export async function stopLiveBeacon(roomId: string): Promise<void> {
     const me = matrixClient.getUserId();
     if (!room || !me) return;
     const own = Array.from(room.currentState.beacons.values()).find(
-        (b) => b.beaconInfoOwner === me,
+        (b) => b.beaconInfoOwner === me && b.isLive,
     );
-    const timeout = own?.beaconInfo?.timeout ?? 3600000;
-    const description = own?.beaconInfo?.description;
+    // No own live beacon here → nothing to stop. Returning avoids fabricating a
+    // fresh live:false beacon_info state event for a share we never had.
+    if (!own) return;
+    const timeout = own.beaconInfo?.timeout ?? 3600000;
+    const description = own.beaconInfo?.description;
     await matrixClient.unstable_setLiveBeacon(
         roomId,
         ContentHelpers.makeBeaconInfoContent(timeout, false, description),
@@ -1392,6 +1395,14 @@ export function onBeaconUpdate(callback: () => void): () => void {
     matrixClient.on(BeaconEvent.LivenessChange as never, onAny as never);
     matrixClient.on(BeaconEvent.LocationUpdate as never, onAny as never);
     matrixClient.on(BeaconEvent.Destroy as never, onAny as never);
+    // BeaconEvent.New only fires for beacons seen AFTER subscribing. Sweep the
+    // beacons already in room state (from initial sync) so their expiry drives
+    // LivenessChange too — otherwise a pre-subscription share never expires.
+    for (const room of matrixClient.getRooms()) {
+        for (const beacon of room.currentState.beacons.values()) {
+            beacon.monitorLiveness();
+        }
+    }
     return () => {
         matrixClient?.off(BeaconEvent.New as never, onNew as never);
         matrixClient?.off(BeaconEvent.Update as never, onAny as never);

@@ -89,6 +89,17 @@ export function beaconGeo(
     return parseGeoUri(uri);
 }
 
+/** MSC3489: location updates are sent by the sharer. The beacon_info state is
+ * auth-protected but m.beacon updates are plain timeline events — accept a
+ * location only from the beacon's owner, else treat the beacon as location-less. */
+export function ownedLatestLocation(beacon: {
+    beaconInfoOwner: string;
+    latestLocationEvent?: { getSender(): string | null } | undefined;
+}): typeof beacon.latestLocationEvent | undefined {
+    const ev = beacon.latestLocationEvent;
+    return ev && ev.getSender() === beacon.beaconInfoOwner ? ev : undefined;
+}
+
 /** Human "time left" for a live share, given its expiry and the current time. */
 export function remainingLabel(expiresAt: number, now: number): string {
     const ms = expiresAt - now;
