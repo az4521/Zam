@@ -132,6 +132,7 @@ import {
 } from "$lib/utils/pollContent";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
+import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import {
     actionsForLevel,
     getRoomNotificationSettingForClient,
@@ -1329,8 +1330,15 @@ export async function startLiveBeacon(
 }
 
 /** Stop our own live share by rewriting the beacon_info with live:false,
- *  preserving the original timeout/description. No-op if we have no live beacon here. */
-export async function stopLiveBeacon(roomId: string): Promise<void> {
+ *  preserving the original timeout/description. No-op ONLY when we neither have
+ *  an own live beacon in room state NOR a `knownBeaconInfoId` from an active
+ *  share (see below). `unstable_setLiveBeacon` targets the state_key = our
+ *  user id, so it stops our beacon whether or not the `Beacon` model exists in
+ *  currentState yet. */
+export async function stopLiveBeacon(
+    roomId: string,
+    knownBeaconInfoId?: string | null,
+): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
     const me = matrixClient.getUserId();
@@ -1338,11 +1346,15 @@ export async function stopLiveBeacon(roomId: string): Promise<void> {
     const own = Array.from(room.currentState.beacons.values()).find(
         (b) => b.beaconInfoOwner === me && b.isLive,
     );
-    // No own live beacon here → nothing to stop. Returning avoids fabricating a
-    // fresh live:false beacon_info state event for a share we never had.
-    if (!own) return;
-    const timeout = own.beaconInfo?.timeout ?? 3600000;
-    const description = own.beaconInfo?.description;
+    // Distinguish "genuinely never shared here" (no-op is correct — don't
+    // fabricate a spurious live:false) from "we DID start a share whose
+    // beacon_info hasn't synced into currentState yet" (the race right after
+    // startLiveBeacon resolves — we MUST still write live:false or the server
+    // keeps broadcasting our last position until the beacon times out). A
+    // known beacon_info id from the store proves the latter.
+    if (!shouldWriteStopBeacon(!!own, knownBeaconInfoId)) return;
+    const timeout = own?.beaconInfo?.timeout ?? 3600000;
+    const description = own?.beaconInfo?.description;
     await matrixClient.unstable_setLiveBeacon(
         roomId,
         ContentHelpers.makeBeaconInfoContent(timeout, false, description),

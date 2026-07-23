@@ -7,6 +7,7 @@ import {
     remainingLabel,
     updatedAgoLabel,
     shouldSendUpdate,
+    shouldWriteStopBeacon,
     LIVE_SHARE_DURATIONS,
     type ParsedBeaconInfo,
 } from "./liveLocation";
@@ -213,6 +214,26 @@ describe("shouldSendUpdate", () => {
     it("honours a custom interval", () => {
         expect(shouldSendUpdate(0, 999, 1000)).toBe(false);
         expect(shouldSendUpdate(0, 1000, 1000)).toBe(true);
+    });
+});
+
+describe("shouldWriteStopBeacon", () => {
+    it("writes when an own live beacon is present in room state", () => {
+        expect(shouldWriteStopBeacon(true, null)).toBe(true);
+        expect(shouldWriteStopBeacon(true, undefined)).toBe(true);
+        expect(shouldWriteStopBeacon(true, "$beacon")).toBe(true);
+    });
+    it("still writes when state has no own beacon but a share id is known (sync race)", () => {
+        // The share was just started; its beacon_info has not landed in
+        // currentState yet. We must still stop it or it broadcasts to timeout.
+        expect(shouldWriteStopBeacon(false, "$beacon")).toBe(true);
+    });
+    it("is a no-op when we neither have an own live beacon nor a known share id", () => {
+        expect(shouldWriteStopBeacon(false, null)).toBe(false);
+        expect(shouldWriteStopBeacon(false, undefined)).toBe(false);
+    });
+    it("treats an empty-string id as no known share (no-op)", () => {
+        expect(shouldWriteStopBeacon(false, "")).toBe(false);
     });
 });
 

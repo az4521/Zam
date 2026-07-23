@@ -122,6 +122,25 @@ export function updatedAgoLabel(ts: number, now: number): string {
 }
 
 /**
+ * Decide whether `stopLiveBeacon` should write a `live:false` beacon_info.
+ *
+ * - An own live beacon exists in room state → yes (the normal stop).
+ * - No own live beacon in state, but the caller knows a beacon_info id from an
+ *   active share → yes: the share was just started and its beacon_info has not
+ *   synced into `currentState` yet (the race right after `startLiveBeacon`
+ *   resolves). We must still write `live:false`, or the server keeps
+ *   broadcasting the last position until the beacon times out.
+ * - Neither → no: we genuinely never shared here, so writing would fabricate a
+ *   spurious `live:false` state event (the case the no-op guard removes).
+ */
+export function shouldWriteStopBeacon(
+    hasOwnLiveBeacon: boolean,
+    knownBeaconInfoId: string | null | undefined,
+): boolean {
+    return hasOwnLiveBeacon || !!knownBeaconInfoId;
+}
+
+/**
  * Rate-limit outgoing location updates: send if nothing has been sent yet, or
  * if at least `minIntervalMs` has elapsed since the last send.
  */
