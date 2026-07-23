@@ -9,6 +9,10 @@
         getRoom,
     } from "$lib/matrix/client";
     import { formatCoords } from "$lib/utils/location";
+    import {
+        geoErrorMessage,
+        geolocationUnavailableMessage,
+    } from "$lib/utils/geoErrors";
     import { LIVE_SHARE_DURATIONS } from "$lib/utils/liveLocation";
     import { startShare } from "$lib/stores/liveLocation.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -28,7 +32,7 @@
 
     function locate() {
         if (!("geolocation" in navigator)) {
-            error = "Location isn't available in this browser.";
+            error = geolocationUnavailableMessage(window.isSecureContext);
             return;
         }
         locating = true;
@@ -42,10 +46,7 @@
                 locating = false;
             },
             (err) => {
-                error =
-                    err.code === err.PERMISSION_DENIED
-                        ? "Location permission was denied."
-                        : "Couldn't get your location.";
+                error = geoErrorMessage(err, window.isSecureContext);
                 locating = false;
             },
             { enableHighAccuracy: true, timeout: 10000 },

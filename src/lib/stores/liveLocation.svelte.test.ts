@@ -66,10 +66,17 @@ const watchPosition = vi.fn((s: any, e: any) => {
     geoError = e;
     return 7;
 });
-
-vi.stubGlobal("navigator", {
-    geolocation: { watchPosition, clearWatch },
+// startShare probes getCurrentPosition BEFORE publishing the beacon (this is
+// what fires the permission prompt); succeed immediately by default.
+const getCurrentPosition = vi.fn((s: any, _e?: any) => {
+    s({ coords: { latitude: 1.5, longitude: -2.5 } });
 });
+
+const geolocation = { watchPosition, clearWatch, getCurrentPosition };
+const stubNavigator: { geolocation: typeof geolocation | undefined } = {
+    geolocation,
+};
+vi.stubGlobal("navigator", stubNavigator);
 
 /** Drive one GPS fix through the engine's watch callback. */
 function driveFix(lat = 1.5, lon = -2.5) {
@@ -87,6 +94,7 @@ beforeEach(() => {
     h.getOwnLiveBeacons.mockReturnValue([]);
     geoSuccess = null;
     geoError = null;
+    stubNavigator.geolocation = geolocation;
     liveLocationState.shares = new Map();
     liveLocationState.beaconTick = 0;
 });
@@ -99,9 +107,8 @@ afterEach(async () => {
 });
 
 describe("live-location own-share engine", () => {
-    it("sends the first fix immediately", async () => {
+    it("sends the probe fix immediately without waiting for the watch", async () => {
         await startShare(ROOM, 900000);
-        driveFix();
 
         expect(h.sendLiveBeaconLocation).toHaveBeenCalledTimes(1);
         expect(h.sendLiveBeaconLocation).toHaveBeenCalledWith(
@@ -112,11 +119,51 @@ describe("live-location own-share engine", () => {
         );
     });
 
+    it("acquires a position before publishing the beacon", async () => {
+        const order: string[] = [];
+        getCurrentPosition.mockImplementationOnce((s: any) => {
+            order.push("probe");
+            s({ coords: { latitude: 1.5, longitude: -2.5 } });
+        });
+        h.startLiveBeacon.mockImplementationOnce((..._a) => {
+            order.push("beacon");
+            return Promise.resolve({ beaconInfoEventId: "$b1" });
+        });
+
+        await startShare(ROOM, 900000);
+
+        expect(order).toEqual(["probe", "beacon"]);
+    });
+
+    it("does not publish a beacon when the position probe fails", async () => {
+        getCurrentPosition.mockImplementationOnce((_s: any, e: any) => {
+            e({ code: 1 }); // PERMISSION_DENIED
+        });
+
+        await startShare(ROOM, 900000);
+
+        expect(h.startLiveBeacon).not.toHaveBeenCalled();
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+    });
+
+    it("toasts and registers nothing when geolocation is unavailable", async () => {
+        stubNavigator.geolocation = undefined;
+
+        await startShare(ROOM, 900000);
+
+        expect(h.startLiveBeacon).not.toHaveBeenCalled();
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+    });
+
     it("throttles subsequent fixes to >=5s apart", async () => {
         await startShare(ROOM, 900000);
 
-        driveFix(); // first fix — immediate
-        driveFix(); // second fix, same instant — throttled out
+        // The probe fix already sent at t0; watch fixes at the same instant
+        // are throttled out.
+        driveFix();
+        driveFix();
         expect(h.sendLiveBeaconLocation).toHaveBeenCalledTimes(1);
 
         vi.advanceTimersByTime(5000);

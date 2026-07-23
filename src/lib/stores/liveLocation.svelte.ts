@@ -9,6 +9,10 @@ import {
     onSyncPrepared,
 } from "$lib/matrix/client";
 import { shouldSendUpdate } from "$lib/utils/liveLocation";
+import {
+    geoErrorMessage,
+    geolocationUnavailableMessage,
+} from "$lib/utils/geoErrors";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
 export interface ShareState {
@@ -40,9 +44,26 @@ export function shareStateFor(roomId: string): ShareState | null {
     return liveLocationState.shares.get(roomId) ?? null;
 }
 
+function isSecureContext(): boolean {
+    return typeof window !== "undefined" && window.isSecureContext;
+}
+
+function hasGeolocation(): boolean {
+    return typeof navigator !== "undefined" && !!navigator.geolocation;
+}
+
 function ensureWatch() {
     if (watchId !== null) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    if (!hasGeolocation()) {
+        // No geolocation at all (or resumed on a platform without it):
+        // don't leave phantom "active" shares idling forever — stop them
+        // and tell the user why, same as a watch error would.
+        for (const roomId of Array.from(liveLocationState.shares.keys())) {
+            void stopShare(roomId);
+        }
+        showErrorToast(geolocationUnavailableMessage(isSecureContext()));
+        return;
+    }
     watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
         enableHighAccuracy: true,
         maximumAge: 10000,
@@ -75,14 +96,22 @@ function onPosition(pos: GeolocationPosition) {
 }
 
 function onGeoError(err: GeolocationPositionError) {
-    const msg =
-        err.code === err.PERMISSION_DENIED
-            ? "Location permission was denied."
-            : "Couldn't get your location.";
+    const msg = geoErrorMessage(err, isSecureContext());
     for (const roomId of Array.from(liveLocationState.shares.keys())) {
         void stopShare(roomId);
     }
     showErrorToast(msg);
+}
+
+/** One-shot position fix, promisified. Fires the permission prompt. */
+function acquirePosition(): Promise<GeolocationPosition> {
+    return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            maximumAge: 10000,
+            timeout: 30000,
+        });
+    });
 }
 
 /** Begin sharing our live location into `roomId` for `durationMs`. */
@@ -94,6 +123,25 @@ export async function startShare(
     const room = getRoom(roomId);
     if (!room || !canShareLiveBeacon(room)) {
         showErrorToast("You can't share live location in this room.");
+        return;
+    }
+    if (!hasGeolocation()) {
+        showErrorToast(geolocationUnavailableMessage(isSecureContext()));
+        return;
+    }
+    // Acquire a first fix BEFORE publishing m.beacon_info: the permission
+    // prompt fires while the dialog is still open, and a denial leaves no
+    // stray beacon start/stop pair behind.
+    let firstFix: GeolocationPosition;
+    try {
+        firstFix = await acquirePosition();
+    } catch (err) {
+        showErrorToast(
+            geoErrorMessage(
+                err as GeolocationPositionError | null,
+                isSecureContext(),
+            ),
+        );
         return;
     }
     let beaconInfoEventId: string;
@@ -115,6 +163,9 @@ export async function startShare(
         setTimeout(() => void stopShare(roomId), durationMs),
     );
     ensureWatch();
+    // Send the fix we already have instead of waiting for the watch's
+    // first callback (keeps the first-fix-immediate behavior).
+    onPosition(firstFix);
     bump();
 }
 
