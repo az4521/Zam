@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from "svelte";
+    import { tick, untrack } from "svelte";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import {
@@ -11,6 +11,7 @@
         getMemberName,
         getMemberAvatar,
         findEventById,
+        markThreadRead,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -84,6 +85,19 @@
             if (eventRoom.roomId === room.roomId) bump();
         });
         return unsub;
+    });
+
+    // Mark the thread read when opened and whenever a new reply lands while it
+    // is open. Threaded receipt only (⚑6) — does not touch main-timeline unread.
+    // untrack() is load-bearing: sendReadReceipt fires every receipt listener
+    // SYNCHRONOUSLY (bumpUnreadTick etc.), so any reactive read inside that
+    // cascade would become a dependency of this effect while the cascade's
+    // writes retrigger it — an infinite loop (effect_update_depth_exceeded)
+    // that froze the whole panel. Track only the open thread + latest reply.
+    $effect(() => {
+        void rootEventId;
+        void messages.length;
+        untrack(() => markThreadRead(room, rootEventId).catch(() => {}));
     });
 
     // Scroll to bottom when messages change

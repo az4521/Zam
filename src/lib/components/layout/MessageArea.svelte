@@ -34,6 +34,7 @@
         getReceiptsForEvent,
         onReceiptEvent,
         getRoomCallMemberships,
+        getRoomThreads,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -73,6 +74,7 @@
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
     import { daySeparator } from "$lib/utils/timeFormat";
+    import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
@@ -192,6 +194,18 @@
             showSearchPanel ||
             showThreadsPanel,
     );
+
+    // Room-level thread unread rollup for the threads-toggle badge. Keyed off
+    // unreadTick so it refreshes on sync/receipts (live Room mutates in place).
+    const threadRollup = $derived.by(() => {
+        void roomsState.unreadTick;
+        return rollupRoomThreadUnread(
+            getRoomThreads(room).map((t) => ({
+                total: t.unreadTotal,
+                highlight: t.unreadHighlight,
+            })),
+        );
+    });
 
     function toggleSidebar(
         id: "members" | "pinned" | "notifications" | "search" | "threads",
@@ -1077,7 +1091,7 @@
             <!-- Threads list button -->
             <button
                 onclick={() => toggleSidebar("threads")}
-                class="p-1.5 rounded transition-colors {showThreadsPanel
+                class="relative p-1.5 rounded transition-colors {showThreadsPanel
                     ? 'text-discord-accent bg-discord-messageHover'
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
                 title="Threads"
@@ -1088,6 +1102,20 @@
                         d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z"
                     /></svg
                 >
+                {#if threadRollup.mentions > 0}
+                    <span
+                        class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                        title="Unread thread mentions"
+                        >{threadRollup.mentions > 99
+                            ? "99+"
+                            : threadRollup.mentions}</span
+                    >
+                {:else if threadRollup.anyUnread}
+                    <span
+                        class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                        title="Unread threads"
+                    ></span>
+                {/if}
             </button>
             <!-- Pinned messages button -->
             <button

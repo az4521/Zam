@@ -6,6 +6,7 @@
         getRoomDisplayName,
         getHighlightCount,
         getRoomUnreadInfo,
+        roomHasThreadUnread,
         joinRoom,
         knockRoom,
         cancelKnock,
@@ -431,7 +432,13 @@
         roomsState.unreadTick; // track read receipt / new message changes
         const { unread, highlight } = getRoomUnreadInfo(room);
         const loud = hasLoudInRoom(room.roomId);
-        return { isActive, unread: unread || loud, highlight, loud };
+        const threadUnread = roomHasThreadUnread(room);
+        return {
+            isActive,
+            unread: unread || loud || threadUnread,
+            highlight,
+            loud,
+        };
     }
 
     // Account switcher popout (shared modal slot: one popup at a time,
