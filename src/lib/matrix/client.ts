@@ -158,6 +158,7 @@ import {
     roomVersionHasImmutableCreators,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
+import { addToMDirect } from "$lib/utils/mDirect";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -3617,7 +3618,28 @@ export function getInvitedRooms(): Room[] {
 
 export async function acceptInvite(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Read whether this invite is a direct (1:1) chat and who sent it BEFORE
+    // joining — once we join, the invite membership we inspect is superseded.
+    const inviteRoom = matrixClient.getRoom(roomId);
+    const me = inviteRoom?.getMember(matrixClient.getUserId()!);
+    const isDirect = me?.events.member?.getContent().is_direct === true;
+    const inviter = inviteRoom ? getInviteSender(inviteRoom) : null;
     await matrixClient.joinRoom(roomId);
+    // Record peer-initiated DMs in m.direct so they surface in the DM section,
+    // mirroring what createDirectMessage does for self-initiated DMs. Best-effort:
+    // a failed account-data write must not strand the user after a joined room.
+    if (isDirect && inviter) {
+        const cur =
+            (matrixClient.getAccountData(EventType.Direct)?.getContent() as
+                | Record<string, string[]>
+                | undefined) ?? {};
+        await matrixClient
+            .setAccountData(
+                EventType.Direct,
+                addToMDirect(cur, inviter, roomId),
+            )
+            .catch(() => {});
+    }
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     scheduleJoinedRoomsReconcile();
