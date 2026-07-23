@@ -24,6 +24,7 @@
     } from "$lib/utils/roomOrdering";
     import { moveNeighbours, type MoveDirection } from "$lib/utils/reorderMove";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         getDoubleTapReaction,
         setDoubleTapReaction,
@@ -225,6 +226,9 @@
             roomsState.roomsTick++;
         } catch (err) {
             console.error("Failed to set order value:", err);
+            showErrorToast(
+                err instanceof Error ? err.message : "Failed to set order",
+            );
         }
     }
 </script>

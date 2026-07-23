@@ -1573,10 +1573,20 @@
         {/if}
         {#if canPin}
             <button
-                onclick={() =>
-                    isPinned
-                        ? unpinMessage(room, eventId)
-                        : pinMessage(room, eventId)}
+                onclick={async () => {
+                    const wasPinned = isPinned;
+                    try {
+                        if (wasPinned) await unpinMessage(room, eventId);
+                        else await pinMessage(room, eventId);
+                    } catch (e) {
+                        console.error("Failed to update pinned messages", e);
+                        showErrorToast(
+                            wasPinned
+                                ? "Failed to unpin message"
+                                : "Failed to pin message",
+                        );
+                    }
+                }}
                 class="p-1.5 rounded hover:bg-discord-messageHover transition-colors {isPinned
                     ? 'text-discord-accent'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"

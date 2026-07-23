@@ -12,6 +12,7 @@
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { pinnedDate } from "$lib/utils/timeFormat";
 
@@ -136,8 +137,22 @@
                                     >·</span
                                 >
                                 <button
-                                    onclick={() =>
-                                        unpinMessage(room, event.getId()!)}
+                                    onclick={async () => {
+                                        try {
+                                            await unpinMessage(
+                                                room,
+                                                event.getId()!,
+                                            );
+                                        } catch (e) {
+                                            console.error(
+                                                "Failed to unpin message",
+                                                e,
+                                            );
+                                            showErrorToast(
+                                                "Failed to unpin message",
+                                            );
+                                        }
+                                    }}
                                     class="text-xs text-discord-textMuted hover:text-discord-danger transition-colors"
                                     >Unpin</button
                                 >

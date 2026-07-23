@@ -115,6 +115,8 @@ import {
     rebalancedKeys,
     rebalancedNumbers,
     OrderRebalanceError,
+    isValidTagOrder,
+    isValidChildOrder,
 } from "$lib/utils/orderKey";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
@@ -714,7 +716,11 @@ export function getSpaceChildIds(spaceId: string): string[] {
             const bo: string | undefined = b.getContent()?.order;
             const byOrder = compareOrderLex(ao, bo);
             if (byOrder !== 0) return byOrder;
-            // Equal/both-missing order: sort by room ID for stability
+            // Equal/both-missing order: the spec's primary no-order tie-break is
+            // the child event's origin_server_ts ascending, then room ID for
+            // full stability.
+            const byTs = a.getTs() - b.getTs();
+            if (byTs !== 0) return byTs;
             return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
         })
         .map((e) => e.getStateKey()!)
@@ -816,11 +822,11 @@ export async function setRoomTag(
 }
 
 /**
- * Write a raw, user-supplied `m.tag` order value (⚑2):
+ * Write a raw, user-supplied `m.tag` order value:
  *  - blank → clear the order (keep the tag);
- *  - numeric-parseable → coerce to a number;
- *  - otherwise → store the string verbatim (round-trips foreign non-numeric
- *    orders without crashing).
+ *  - a finite number → clamped into the spec's `[0, 1]` range;
+ *  - anything non-numeric → throw (the `m.tag` order is spec'd as a number, so
+ *    a non-numeric raw value is a user error the caller surfaces).
  */
 export async function setRoomTagOrderRaw(
     roomId: string,
@@ -830,11 +836,14 @@ export async function setRoomTagOrderRaw(
     const trimmed = raw.trim();
     if (trimmed === "") {
         await setRoomTag(roomId, tag);
-    } else if (Number.isFinite(Number(raw))) {
-        await setRoomTag(roomId, tag, Number(raw));
-    } else {
-        await setRoomTag(roomId, tag, raw);
+        return;
     }
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) {
+        throw new Error("Tag order must be a number between 0 and 1");
+    }
+    const clamped = isValidTagOrder(n) ? n : Math.min(1, Math.max(0, n));
+    await setRoomTag(roomId, tag, clamped);
 }
 
 export async function deleteRoomTag(
@@ -3292,12 +3301,44 @@ export async function fetchSpaceHierarchy(
 ): Promise<SpaceChildInfo[]> {
     if (!matrixClient) return [];
 
-    const getHierarchy = (id: string, depth: number) =>
-        (matrixClient as unknown as Record<string, Function>)[
+    // Follow `next_batch` across pages so spaces with more than 200 rooms
+    // populate fully (the SDK caps a single /hierarchy response at the given
+    // limit). Cap at 10 pages (~2000 rooms) as a runaway guard and dedupe by
+    // room_id — a page boundary can re-list a room already seen.
+    const getHierarchy = async (
+        id: string,
+        depth: number,
+    ): Promise<{ rooms: Array<Record<string, unknown>> }> => {
+        const call = (matrixClient as unknown as Record<string, Function>)[
             "getRoomHierarchy"
-        ](id, 200, depth) as Promise<{
-            rooms: Array<Record<string, unknown>>;
-        }>;
+        ];
+        const merged: Array<Record<string, unknown>> = [];
+        const seen = new Set<string>();
+        let nextBatch: string | undefined = undefined;
+        for (let page = 0; page < 10; page++) {
+            const result = (await call(
+                id,
+                200,
+                depth,
+                undefined,
+                nextBatch,
+            )) as {
+                rooms: Array<Record<string, unknown>>;
+                next_batch?: string;
+            };
+            for (const r of result.rooms ?? []) {
+                const rid = r["room_id"] as string | undefined;
+                if (rid) {
+                    if (seen.has(rid)) continue;
+                    seen.add(rid);
+                }
+                merged.push(r);
+            }
+            nextBatch = result.next_batch;
+            if (!nextBatch) break;
+        }
+        return { rooms: merged };
+    };
 
     let rooms: Array<Record<string, unknown>>;
     const viaMap = new Map<string, string[]>();
@@ -3468,6 +3509,10 @@ export async function leaveRoom(roomId: string): Promise<void> {
 export interface RoomTombstone {
     body: string;
     replacementRoomId: string;
+    // The server-name of the tombstone's sender — a good `via` candidate for
+    // joining the (often federated) replacement room, which may not be
+    // resolvable from its room id alone.
+    senderServer?: string;
 }
 
 export function getTombstone(room: Room): RoomTombstone | null {
@@ -3481,6 +3526,7 @@ export function getTombstone(room: Room): RoomTombstone | null {
     return {
         body: content.body ?? "This room has been replaced.",
         replacementRoomId: content.replacement_room,
+        senderServer: event.getSender()?.split(":").slice(1).join(":"),
     };
 }
 
@@ -4938,8 +4984,15 @@ async function fetchPinnedEventIds(roomId: string): Promise<string[]> {
             "",
         );
         return (state?.pinned as string[]) ?? [];
-    } catch {
-        return [];
+    } catch (e: any) {
+        // A MISSING pinned_events state event (404 / M_NOT_FOUND) is a
+        // genuinely empty pin list, not a fetch failure — return [] so the
+        // first pin can still be written. Any OTHER error (network / 5xx /
+        // rate-limit) MUST propagate: swallowing it to [] here would let a
+        // read-modify-write pin/unpin overwrite the real list with a
+        // truncated one. Callers surface the failure with a toast.
+        if (e?.errcode === "M_NOT_FOUND" || e?.httpStatus === 404) return [];
+        throw e;
     }
 }
 
@@ -5155,6 +5208,9 @@ export interface SpaceChildEntry {
     via: string[];
     avatarUrl: string | null;
     isJoined: boolean;
+    // origin_server_ts of the m.space.child event — the spec's primary
+    // tie-break when two children share (or both lack) an `order`.
+    originTs: number;
 }
 
 export function getSpaceChildren(room: Room): SpaceChildEntry[] {
@@ -5174,11 +5230,16 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
                 via: (ev.getContent()?.via as string[]) ?? [],
                 avatarUrl: child ? getRoomAvatar(child) : null,
                 isJoined: joined.has(childId),
+                originTs: ev.getTs(),
             };
         })
         .sort((a, b) => {
             const byOrder = compareOrderLex(a.order, b.order);
             if (byOrder !== 0) return byOrder;
+            // Equal/both-missing order: spec sorts by origin_server_ts
+            // ascending first, then name for stability.
+            const byTs = a.originTs - b.originTs;
+            if (byTs !== 0) return byTs;
             return a.name.localeCompare(b.name);
         });
 }
@@ -5190,6 +5251,16 @@ export async function setSpaceChildOrder(
     via: string[],
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // An m.space.child `order` must be ≤50 printable-ASCII chars (\x20–\x7E).
+    // Generated fractional-index keys always satisfy this; a raw, user-typed
+    // value may not — reject it rather than write a spec-invalid order the
+    // homeserver would sort inconsistently. (An empty string is valid: it
+    // clears the order below.)
+    if (!isValidChildOrder(order)) {
+        throw new Error(
+            "Order must be at most 50 printable-ASCII characters (space to ~)",
+        );
+    }
     const existing =
         matrixClient
             .getRoom(spaceId)

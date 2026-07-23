@@ -10,6 +10,8 @@ import {
     compareOrderLex,
     numberBetween,
     rebalancedNumbers,
+    isValidTagOrder,
+    isValidChildOrder,
 } from "./orderKey";
 
 // Every char of a spec-legal key must sit in the printable-ASCII digit range.
@@ -525,5 +527,54 @@ describe("rebalancedNumbers — evenly spread m.tag orders in (0,1)", () => {
         for (let i = 0; i < o.length; i++) {
             expect(o[i] + o[o.length - 1 - i]).toBe(1);
         }
+    });
+});
+
+describe("isValidTagOrder — raw m.tag order validation", () => {
+    it("accepts the [0,1] boundaries", () => {
+        expect(isValidTagOrder(0)).toBe(true);
+        expect(isValidTagOrder(1)).toBe(true);
+        expect(isValidTagOrder(0.5)).toBe(true);
+    });
+
+    it("rejects out-of-range values", () => {
+        expect(isValidTagOrder(1.5)).toBe(false);
+        expect(isValidTagOrder(-0.1)).toBe(false);
+        expect(isValidTagOrder(2)).toBe(false);
+        expect(isValidTagOrder(-1)).toBe(false);
+    });
+
+    it("rejects non-finite values", () => {
+        expect(isValidTagOrder(NaN)).toBe(false);
+        expect(isValidTagOrder(Infinity)).toBe(false);
+        expect(isValidTagOrder(-Infinity)).toBe(false);
+    });
+});
+
+describe("isValidChildOrder — raw m.space.child order validation", () => {
+    it("accepts a printable-ASCII string at the 50-char boundary", () => {
+        expect(isValidChildOrder("a".repeat(50))).toBe(true);
+        expect(isValidChildOrder("a".repeat(1))).toBe(true);
+        // Empty string is valid (used to clear the order).
+        expect(isValidChildOrder("")).toBe(true);
+    });
+
+    it("rejects a string over the 50-char cap", () => {
+        expect(isValidChildOrder("a".repeat(51))).toBe(false);
+    });
+
+    it("accepts the printable-ASCII code-point boundaries \\x20 and \\x7e", () => {
+        expect(isValidChildOrder(" ")).toBe(true); // 0x20
+        expect(isValidChildOrder("~")).toBe(true); // 0x7e
+        expect(isValidChildOrder(" ~m.abc~ ")).toBe(true);
+    });
+
+    it("rejects control chars just below \\x20 (\\x1f) and above \\x7e (\\x7f)", () => {
+        expect(isValidChildOrder("\x1f")).toBe(false);
+        expect(isValidChildOrder("\x7f")).toBe(false);
+        expect(isValidChildOrder("ok\x1fmid")).toBe(false);
+        expect(isValidChildOrder("ok\x7fmid")).toBe(false);
+        expect(isValidChildOrder("\x00")).toBe(false);
+        expect(isValidChildOrder("😀")).toBe(false); // multi-byte, out of range
     });
 });

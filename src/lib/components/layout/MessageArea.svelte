@@ -284,7 +284,10 @@
         }
         joiningUpgrade = true;
         try {
-            await joinRoom(tombstone.replacementRoomId);
+            await joinRoom(
+                tombstone.replacementRoomId,
+                tombstone.senderServer ? [tombstone.senderServer] : undefined,
+            );
             setActiveRoom(tombstone.replacementRoomId);
         } catch (e) {
             console.error("Failed to join replacement room", e);
