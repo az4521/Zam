@@ -116,3 +116,77 @@ describe("sanitizeMatrixHtml — preserves legitimate formatting", () => {
         expect(out).not.toMatch(/src="mxc/);
     });
 });
+
+describe("per-tag enforcement (spec v1.19 HTML subset)", () => {
+    const resolveMxc = (mxc: string) => `https://hs/media/${mxc.slice(6)}`;
+
+    it("drops non-mxc img src (http tracking pixel)", () => {
+        const out = sanitizeMatrixHtml(
+            `<img src="https://evil.example/px.png" alt="x">`,
+            { resolveMxc },
+        );
+        expect(out).not.toContain("evil.example");
+    });
+    it("keeps and rewrites mxc img src", () => {
+        const out = sanitizeMatrixHtml(`<img src="mxc://hs/abc" alt="x">`, {
+            resolveMxc,
+        });
+        expect(out).toContain(`src="https://hs/media/hs/abc"`);
+    });
+    it("strips class everywhere except code.language-*", () => {
+        expect(
+            sanitizeMatrixHtml(`<span class="fixed inset-0">x</span>`),
+        ).not.toContain("class");
+        expect(
+            sanitizeMatrixHtml(`<span class="revealed">x</span>`),
+        ).not.toContain("revealed");
+        expect(
+            sanitizeMatrixHtml(`<code class="language-js hljs">x</code>`),
+        ).toContain(`class="language-js"`);
+        expect(
+            sanitizeMatrixHtml(`<code class="notlang">x</code>`),
+        ).not.toContain("notlang");
+    });
+    it("strips unknown data-* but keeps the spec set and data-mx-emoticon", () => {
+        expect(
+            sanitizeMatrixHtml(`<span data-event-id="$evil">x</span>`),
+        ).not.toContain("data-event-id");
+        expect(
+            sanitizeMatrixHtml(`<span data-spoiler-ready="1">x</span>`),
+        ).not.toContain("data-spoiler-ready");
+        expect(
+            sanitizeMatrixHtml(`<span data-mx-spoiler="reason">x</span>`),
+        ).toContain("data-mx-spoiler");
+        const emote = sanitizeMatrixHtml(
+            `<img data-mx-emoticon src="mxc://hs/e" height="32">`,
+            { resolveMxc },
+        );
+        expect(emote).toContain("data-mx-emoticon");
+    });
+    it("strips per-tag-inapplicable attrs (width on span, start on p, name anywhere)", () => {
+        expect(sanitizeMatrixHtml(`<span width="9999">x</span>`)).not.toContain(
+            "width",
+        );
+        expect(sanitizeMatrixHtml(`<p start="5">x</p>`)).not.toContain("start");
+        expect(
+            sanitizeMatrixHtml(`<a name="anchor" href="https://a.b">x</a>`),
+        ).not.toContain("name=");
+        expect(sanitizeMatrixHtml(`<ol start="3"><li>x</li></ol>`)).toContain(
+            `start="3"`,
+        );
+    });
+    it("drops relative and unlisted-scheme hrefs, keeps spec schemes + matrix:", () => {
+        expect(sanitizeMatrixHtml(`<a href="/local/path">x</a>`)).not.toContain(
+            "href",
+        );
+        expect(sanitizeMatrixHtml(`<a href="https://x.y">x</a>`)).toContain(
+            "href",
+        );
+        expect(sanitizeMatrixHtml(`<a href="matrix:u/me:hs">x</a>`)).toContain(
+            "href",
+        );
+        expect(
+            sanitizeMatrixHtml(`<a href="magnet:?xt=urn:x">x</a>`),
+        ).toContain("href");
+    });
+});

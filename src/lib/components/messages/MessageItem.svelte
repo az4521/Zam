@@ -411,6 +411,9 @@
     const formattedBody = $derived(() => {
         const raw = content?.formatted_body as string | undefined;
         if (!raw) return undefined;
+        // Spec: formatted_body is only meaningful when the sender declared the
+        // custom-HTML format. Otherwise fall through to the plain-body path.
+        if (content?.format !== "org.matrix.custom.html") return undefined;
         return raw.replace(/<mx-reply>[\s\S]*?<\/mx-reply>/i, "").trim();
     });
 
