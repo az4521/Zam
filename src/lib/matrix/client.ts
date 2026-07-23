@@ -204,7 +204,6 @@ async function createAuthenticatedClient(opts: {
     const commonOpts = {
         ...opts,
         timelineSupport: true,
-        threadSupport: true,
         verificationMethods: [VerificationMethod.Sas],
         cryptoCallbacks: getCryptoCallbacks(),
     };
@@ -410,6 +409,12 @@ export async function startSync(
         initialSyncLimit: 8,
         lazyLoadMembers: true,
         pendingEventOrdering: PendingEventOrdering.Detached,
+        // threadSupport is an IStartClientOpts option — supportsThreads()
+        // reads the opts passed HERE, not createClient's (which silently
+        // ignores the key). With it off, the SDK never builds Thread objects
+        // and every m.thread reply stays in the main timeline, where the
+        // thread filter in getTimelineMessages hides it from view entirely.
+        threadSupport: true,
     });
 }
 
