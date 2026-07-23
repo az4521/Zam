@@ -11,27 +11,29 @@
         stopShare,
     } from "$lib/stores/liveLocation.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import {
-        beaconGeo,
-        remainingLabel,
-        updatedAgoLabel,
-    } from "$lib/utils/liveLocation";
-    import { formatCoords, mapLinkFor } from "$lib/utils/location";
+    import { remainingLabel } from "$lib/utils/liveLocation";
+    import LiveLocationMapView from "$lib/components/layout/LiveLocationMapView.svelte";
 
     interface Props {
         room: Room;
     }
     let { room }: Props = $props();
 
-    // A slow clock so the "43 min left" / "12 s ago" labels refresh while mounted.
+    // A slow clock so the "43 min left" label refreshes while mounted.
     let now = $state(Date.now());
     $effect(() => {
         const id = setInterval(() => (now = Date.now()), 15000);
         return () => clearInterval(id);
     });
 
-    let expanded = $state(false);
+    let mapOpen = $state(false);
     const me = getOwnUserId();
+
+    // Close the map when switching rooms — the view is per-room.
+    $effect(() => {
+        void room.roomId;
+        mapOpen = false;
+    });
 
     const ownShare = $derived(
         (void liveLocationState.beaconTick, shareStateFor(room.roomId)),
@@ -51,16 +53,27 @@
     >
         <span class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-danger"
         ></span>
-        <span class="text-discord-textPrimary"
+        <button
+            type="button"
+            onclick={() => (mapOpen = true)}
+            class="text-left text-discord-textPrimary hover:underline"
+            title="Open map"
             >Sharing live location · {remainingLabel(
                 ownShare.expiresAt,
                 now,
-            )}</span
+            )}</button
         >
         <button
             type="button"
+            onclick={() => (mapOpen = true)}
+            class="ml-auto rounded bg-discord-backgroundSecondary px-3 py-1 text-xs font-semibold text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
+        >
+            Map
+        </button>
+        <button
+            type="button"
             onclick={() => stopShare(room.roomId)}
-            class="ml-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            class="rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90"
         >
             Stop
         </button>
@@ -69,7 +82,7 @@
     <div class="border-b border-discord-divider bg-discord-backgroundSecondary">
         <button
             type="button"
-            onclick={() => (expanded = !expanded)}
+            onclick={() => (mapOpen = true)}
             class="flex w-full items-center gap-2 px-4 py-2 text-sm text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
         >
             <span class="text-discord-accent">⦿</span>
@@ -81,54 +94,11 @@
             {:else}
                 <span>{others.length} people sharing live location</span>
             {/if}
-            <span class="ml-auto text-xs text-discord-textMuted"
-                >{expanded ? "▲" : "▼"}</span
-            >
+            <span class="ml-auto text-xs text-discord-accent">View map ›</span>
         </button>
-        {#if expanded}
-            <div class="flex flex-col gap-2 px-4 pb-3">
-                {#each others as b (b.beaconInfoId)}
-                    {@const geo = beaconGeo(b.latestLocationState)}
-                    <div
-                        class="rounded border border-discord-divider bg-discord-backgroundTertiary px-3 py-2"
-                    >
-                        <p class="text-sm font-medium text-discord-textPrimary">
-                            {getMemberName(room, b.beaconInfoOwner)}
-                        </p>
-                        {#if b.latestLocationState?.description}
-                            <p
-                                class="break-words text-xs text-discord-textSecondary"
-                            >
-                                {b.latestLocationState.description}
-                            </p>
-                        {/if}
-                        {#if geo}
-                            <p class="text-xs text-discord-textMuted">
-                                {formatCoords(geo.lat, geo.lon)}
-                            </p>
-                            <a
-                                href={mapLinkFor(geo.lat, geo.lon)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-xs text-discord-accent hover:underline"
-                                >Open in OpenStreetMap ↗</a
-                            >
-                        {:else}
-                            <p class="text-xs text-discord-textMuted">
-                                Waiting for location…
-                            </p>
-                        {/if}
-                        {#if b.latestLocationState?.timestamp}
-                            <p class="text-xs text-discord-textMuted">
-                                {updatedAgoLabel(
-                                    b.latestLocationState.timestamp,
-                                    now,
-                                )}
-                            </p>
-                        {/if}
-                    </div>
-                {/each}
-            </div>
-        {/if}
     </div>
+{/if}
+
+{#if mapOpen}
+    <LiveLocationMapView {room} onClose={() => (mapOpen = false)} />
 {/if}
