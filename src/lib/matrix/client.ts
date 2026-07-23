@@ -3008,10 +3008,11 @@ export function getReceiptsForEvent(
 export async function sendTyping(
     roomId: string,
     isTyping: boolean,
+    timeout: number = 25_000,
 ): Promise<void> {
     if (!matrixClient) return;
     try {
-        await matrixClient.sendTyping(roomId, isTyping, 5000);
+        await matrixClient.sendTyping(roomId, isTyping, timeout);
     } catch {
         // ignore typing errors
     }
