@@ -133,7 +133,9 @@ import {
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import {
+    actionsForLevel,
     getRoomNotificationSettingForClient,
+    isHighlightAction,
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
 } from "$lib/matrix/pushRules";
@@ -1678,7 +1680,10 @@ export function isLoudEvent(event: MatrixEvent): boolean {
     if (event.getSender() === matrixClient.getUserId()) return false;
     try {
         const actions = matrixClient.getPushActionsForEvent(event);
-        return !!(actions?.notify && (actions.tweaks as any)?.sound);
+        // Union of the highlight and sound tweaks (see isHighlightAction):
+        // sound keeps everything styled today; the highlight tweak adds styling
+        // for spec-correct highlight-only rules (@room, keyword "Highlight").
+        return !!(actions?.notify && isHighlightAction(actions));
     } catch {
         return false;
     }
@@ -2171,9 +2176,30 @@ export interface DefaultPushRule {
     /** Conditions for override/underride rules, or pattern for content rules. Used when creating server-side. */
     conditions?: object[];
     pattern?: string | "USERNAME_LOCALPART";
+    /** Spec-default actions for this rule at "loud" level, used to derive the
+     *  loud/silent/off action sets (see actionsForLevel). Mention rules include
+     *  a highlight tweak; message rules do not. */
+    defaultActions: any[];
+    /** Legacy/alternate rule ids to fall back to when the primary ruleId is not
+     *  present in the account's rules (e.g. .m.rule.roomnotif for @room). The
+     *  reader/setter picks whichever id actually exists. */
+    fallbackRuleIds?: string[];
 }
 
 export type PushRuleLevel = "loud" | "silent" | "off";
+
+// Spec-default action templates. Mention rules highlight; message rules don't.
+// The highlight tweak is a bare `{ set_tweak: "highlight" }` (never value:false)
+// so silencing sound never strips the highlight (see actionsForLevel).
+const MENTION_DEFAULT_ACTIONS: any[] = [
+    PushRuleActionName.Notify,
+    { set_tweak: "sound", value: "default" },
+    { set_tweak: "highlight" },
+];
+const MESSAGE_DEFAULT_ACTIONS: any[] = [
+    PushRuleActionName.Notify,
+    { set_tweak: "sound", value: "default" },
+];
 
 export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
@@ -2185,6 +2211,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
             { kind: "room_member_count", is: "2" },
             { kind: "event_match", key: "type", pattern: "m.room.message" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.Message,
@@ -2194,6 +2221,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         conditions: [
             { kind: "event_match", key: "type", pattern: "m.room.message" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.IsUserMention,
@@ -2201,6 +2229,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Full Matrix ID mentions",
         description: "Messages using your full @user:homeserver ID",
         conditions: [{ kind: "is_user_mention" }],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsDisplayName,
@@ -2208,6 +2237,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Display name mentions",
         description: "Messages containing your display name",
         conditions: [{ kind: "contains_display_name" }],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsUserName,
@@ -2215,15 +2245,20 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Username mentions",
         description: "Messages containing your username (without server)",
         pattern: "USERNAME_LOCALPART",
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
-        ruleId: RuleId.AtRoomNotification,
+        // Modern intentional-mentions rule; older servers only ship the legacy
+        // .m.rule.roomnotif, so it is kept as an ordered fallback id.
+        ruleId: RuleId.IsRoomMention,
+        fallbackRuleIds: [RuleId.AtRoomNotification],
         kind: PushRuleKind.Override,
         label: "@room mentions",
         description: "Messages using @room to notify everyone",
         conditions: [
             { kind: "event_match", key: "content.body", pattern: "@room" },
         ],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.InviteToSelf,
@@ -2239,6 +2274,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
             },
             { kind: "event_match", key: "state_key", pattern: "SELF_USER_ID" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
 ];
 
@@ -2258,6 +2294,22 @@ function findRule(ruleId: string): any | undefined {
     return undefined;
 }
 
+/** Candidate rule ids for a default rule: primary first, then any fallbacks
+ *  (e.g. @room = [.m.rule.is_room_mention, .m.rule.roomnotif]). */
+function candidateRuleIds(ruleId: string): string[] {
+    const def = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+    return [ruleId, ...(def?.fallbackRuleIds ?? [])];
+}
+
+/** The first candidate rule (primary or fallback) that exists in the account. */
+function findRuleWithFallback(ruleId: string): any | undefined {
+    for (const id of candidateRuleIds(ruleId)) {
+        const rule = findRule(id);
+        if (rule) return rule;
+    }
+    return undefined;
+}
+
 /** Returns whether a rule's actions include a sound tweak. */
 function ruleHasSound(rule: any): boolean {
     return (
@@ -2268,7 +2320,8 @@ function ruleHasSound(rule: any): boolean {
 }
 
 export function getDefaultPushRuleLevel(ruleId: string): PushRuleLevel {
-    const rule = findRule(ruleId);
+    // Read whichever id actually exists (primary, then legacy fallback).
+    const rule = findRuleWithFallback(ruleId);
     if (!rule || rule.enabled === false) return "off";
     const notifies =
         (rule.actions as any[])?.some(
@@ -2292,7 +2345,7 @@ export interface PushRuleSummary {
 
 export function getPushRuleSummary(): PushRuleSummary[] {
     return DEFAULT_PUSH_RULES.map((def) => {
-        const rule = findRule(def.ruleId);
+        const rule = findRuleWithFallback(def.ruleId);
         return {
             ruleId: def.ruleId,
             label: def.label,
@@ -2309,12 +2362,22 @@ export async function setDefaultPushRuleLevel(
 ): Promise<void> {
     if (!matrixClient) return;
 
+    const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+    const defaultActions = ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
+
+    // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
+    // .m.rule.roomnotif fallback): write to whichever id actually exists in this
+    // account's rules. If NEITHER exists, surface the error rather than silently
+    // pretending the change stuck.
+    const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
+    const hasFallbacks = (ruleDef?.fallbackRuleIds?.length ?? 0) > 0;
+    const targetId = existingId ?? ruleId;
+
     // Server-default rules (dotted IDs) cannot be created — only enabled/actions updated.
     // Custom rules that don't exist yet must be created with addPushRule.
-    const isServerDefault = ruleId.startsWith(".");
+    const isServerDefault = targetId.startsWith(".");
 
     const createRule = async (actions: any[]) => {
-        const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
         const userId = matrixClient!.getUserId() ?? "";
         const localpart = userId.startsWith("@")
             ? userId.slice(1).split(":")[0]
@@ -2326,7 +2389,7 @@ export async function setDefaultPushRuleLevel(
             ruleDef?.pattern === "USERNAME_LOCALPART"
                 ? localpart
                 : ruleDef?.pattern;
-        await matrixClient!.addPushRule("global", kind, ruleId, {
+        await matrixClient!.addPushRule("global", kind, targetId, {
             actions,
             conditions,
             pattern,
@@ -2338,55 +2401,54 @@ export async function setDefaultPushRuleLevel(
             await matrixClient.setPushRuleEnabled(
                 "global",
                 kind,
-                ruleId,
+                targetId,
                 false,
             );
-        } catch {
+        } catch (err) {
             if (!isServerDefault) {
-                const silentActions = [
-                    PushRuleActionName.Notify,
-                    { set_tweak: "highlight", value: false },
-                ];
-                await createRule(silentActions);
+                await createRule(actionsForLevel(defaultActions, "silent"));
                 await matrixClient.setPushRuleEnabled(
                     "global",
                     kind,
-                    ruleId,
+                    targetId,
                     false,
                 );
+            } else if (hasFallbacks && !existingId) {
+                // Neither the primary nor the legacy @room id exists — surface
+                // the failure instead of faking success.
+                throw err;
             }
-            // For server-default rules we fall through and update local state optimistically
+            // Other server-default rules: fall through, update local state optimistically.
         }
-        const rule = findRule(ruleId);
+        const rule = findRule(targetId);
         if (rule) rule.enabled = false;
     } else {
-        const actions: any[] =
-            level === "loud"
-                ? [
-                      PushRuleActionName.Notify,
-                      { set_tweak: "sound", value: "default" },
-                      { set_tweak: "highlight", value: false },
-                  ]
-                : [
-                      PushRuleActionName.Notify,
-                      { set_tweak: "highlight", value: false },
-                  ];
+        const actions: any[] = actionsForLevel(defaultActions, level);
         try {
             await matrixClient.setPushRuleActions(
                 "global",
                 kind,
-                ruleId,
+                targetId,
                 actions,
             );
-            await matrixClient.setPushRuleEnabled("global", kind, ruleId, true);
-        } catch {
+            await matrixClient.setPushRuleEnabled(
+                "global",
+                kind,
+                targetId,
+                true,
+            );
+        } catch (err) {
             if (isServerDefault) {
-                // Can't create server-default rules — update local state optimistically only
+                if (hasFallbacks && !existingId) {
+                    // Neither @room id exists — surface, don't fake success.
+                    throw err;
+                }
+                // Other server-default rules: update local state optimistically only.
             } else {
                 await createRule(actions);
             }
         }
-        const rule = findRule(ruleId);
+        const rule = findRule(targetId);
         if (rule) {
             rule.enabled = true;
             rule.actions = actions;
@@ -2447,6 +2509,12 @@ export async function addKeywordRule(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
+    // Dotted ids are reserved for server-default rules; a content rule whose
+    // rule_id/pattern starts with "." would collide with them. Reject up front
+    // so the error surfaces through the caller's catch (see NotificationSettings).
+    if (pattern.startsWith(".")) {
+        throw new Error("Keyword cannot start with '.'");
+    }
     try {
         await matrixClient.addPushRule(
             "global",

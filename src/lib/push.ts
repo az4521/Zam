@@ -37,6 +37,11 @@ const PUSH_ENABLED = !PUSH_GATEWAY_URL.includes("sygnal.example.com");
 
 let pushInitialised = false;
 
+// The pushkey (FCM token) we actually registered this run. Kept so unregister
+// can delete the RIGHT pusher — deleting with an empty pushkey is a no-op (or,
+// worse, matches nothing) and leaves a stale pusher pointing at the gateway.
+let registeredPushkey: string | null = null;
+
 // ── Diagnostics ────────────────────────────────────────────────────────────
 // Live snapshot of what push setup did this session, surfaced in Settings →
 // Debug Info so push can be diagnosed on devices with no dev console.
@@ -161,9 +166,10 @@ async function registerPusher(
                 url: PUSH_GATEWAY_URL,
                 format: "event_id_only",
             },
-            // Replace any existing pusher for this device
-            append: false,
+            // multi-account: false would delete other users' pushers for this token
+            append: true,
         });
+        registeredPushkey = fcmToken;
         pushDebug.pusherRegistered = true;
         console.log("[push] Pusher registered");
     } catch (err) {
@@ -180,19 +186,23 @@ export async function unregisterPush(
     const deviceId = matrixClient.getDeviceId();
     if (!deviceId) return;
 
-    try {
-        // Delete the pusher by setting kind to null
-        await (matrixClient as any).setPusher({
-            kind: null,
-            app_id: APP_ID,
-            pushkey: "",
-            app_display_name: "",
-            device_display_name: "",
-            lang: "en",
-            data: {},
-        });
-    } catch {
-        /* ignore */
+    if (registeredPushkey) {
+        try {
+            // Delete the pusher by setting kind to null. Must use the REAL
+            // pushkey we registered — an empty one deletes nothing.
+            await (matrixClient as any).setPusher({
+                kind: null,
+                app_id: APP_ID,
+                pushkey: registeredPushkey,
+                app_display_name: "",
+                device_display_name: "",
+                lang: "en",
+                data: {},
+            });
+            registeredPushkey = null;
+        } catch {
+            /* ignore */
+        }
     }
 
     pushInitialised = false;
@@ -250,7 +260,11 @@ export async function checkGatewayHealth(): Promise<GatewayHealth> {
         const u = new URL(PUSH_GATEWAY_URL);
         healthUrl = `${u.origin}/health`;
     } catch {
-        return { reachable: false, status: null, detail: "Invalid gateway URL" };
+        return {
+            reachable: false,
+            status: null,
+            detail: "Invalid gateway URL",
+        };
     }
     try {
         const res = await fetch(healthUrl, { method: "GET" });

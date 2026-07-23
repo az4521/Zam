@@ -68,10 +68,6 @@ describe("behaviorFromActions", () => {
             ] as unknown as PushRuleAction[]),
         ).toBe("highlight_sound");
     });
-    it("undefined / [] -> notify", () => {
-        expect(behaviorFromActions(undefined)).toBe("notify");
-        expect(behaviorFromActions([])).toBe("notify");
-    });
     it("highlight value:false -> notify", () => {
         expect(
             behaviorFromActions([
@@ -79,6 +75,17 @@ describe("behaviorFromActions", () => {
                 { set_tweak: "highlight", value: false },
             ] as unknown as PushRuleAction[]),
         ).toBe("notify");
+    });
+    // Spec "Historical Actions": ["dont_notify"] and [] both mean "no
+    // notification" — a muted keyword, not a notifying one.
+    it("undefined / [] -> mute", () => {
+        expect(behaviorFromActions(undefined)).toBe("mute");
+        expect(behaviorFromActions([])).toBe("mute");
+    });
+    it("['dont_notify'] -> mute", () => {
+        expect(
+            behaviorFromActions(["dont_notify"] as unknown as PushRuleAction[]),
+        ).toBe("mute");
     });
 });
 
@@ -173,6 +180,16 @@ describe("normalizeKeyword / validateKeyword", () => {
         expect(validateKeyword("foo*", [])).toEqual({
             ok: true,
             pattern: "foo*",
+        });
+    });
+    it("leading dot -> error (reserved for server rule ids)", () => {
+        expect(validateKeyword(".foo", [])).toEqual({
+            ok: false,
+            error: "Keyword cannot start with '.'",
+        });
+        expect(validateKeyword("  .bar", [])).toEqual({
+            ok: false,
+            error: "Keyword cannot start with '.'",
         });
     });
     it("fresh keyword against non-empty list -> ok", () => {

@@ -1,6 +1,10 @@
 import type { IPushRule, PushRuleAction } from "matrix-js-sdk";
 
-export type KeywordBehavior = "highlight_sound" | "highlight" | "notify";
+export type KeywordBehavior =
+    | "highlight_sound"
+    | "highlight"
+    | "notify"
+    | "mute";
 
 export interface KeywordRuleView {
     ruleId: string; // == pattern (Element/spec convention)
@@ -30,6 +34,9 @@ export function keywordActions(behavior: KeywordBehavior): PushRuleAction[] {
             return [NOTIFY, HIGHLIGHT];
         case "notify":
             return [NOTIFY, HIGHLIGHT_OFF];
+        case "mute":
+            // Spec "Historical Actions": [] is the canonical no-notification set.
+            return [];
     }
 }
 
@@ -52,7 +59,14 @@ function hasSound(actions: PushRuleAction[] | undefined): boolean {
     );
 }
 
-/** Inverse of keywordActions: read a rule's actions back into a behavior. */
+/** Whether the actions actually notify (a "notify" action is present). */
+function hasNotify(actions: PushRuleAction[] | undefined): boolean {
+    return (actions ?? []).some((a) => a === "notify");
+}
+
+/** Inverse of keywordActions: read a rule's actions back into a behavior.
+ *  Per spec "Historical Actions", `[]` and `["dont_notify"]` are equivalent —
+ *  a muted keyword that does not notify at all. */
 export function behaviorFromActions(
     actions: PushRuleAction[] | undefined,
 ): KeywordBehavior {
@@ -60,7 +74,8 @@ export function behaviorFromActions(
     const sound = hasSound(actions);
     if (highlight && sound) return "highlight_sound";
     if (highlight) return "highlight";
-    return "notify";
+    if (hasNotify(actions)) return "notify";
+    return "mute";
 }
 
 /** One raw content push-rule -> view, or null if it is NOT a user keyword rule
@@ -104,6 +119,11 @@ export function validateKeyword(
     const pattern = normalizeKeyword(input);
     if (pattern.length === 0) {
         return { ok: false, error: "Keyword cannot be empty" };
+    }
+    // Dotted ids are reserved for server-default push rules; a content rule
+    // whose pattern/rule_id starts with "." would collide/confuse.
+    if (pattern.startsWith(".")) {
+        return { ok: false, error: "Keyword cannot start with '.'" };
     }
     const lower = pattern.toLocaleLowerCase();
     if (existingPatterns.some((p) => p.toLocaleLowerCase() === lower)) {
