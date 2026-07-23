@@ -27,6 +27,12 @@
         setRoomNotificationSetting,
         getRoomTags,
         toggleRoomTag,
+        getRoomsInSpace,
+        reorderRoomTag,
+        reorderSpaceChild,
+        setRoomTagOrderRaw,
+        setSpaceChildOrder,
+        getSpaceChildren,
         getOwnAvatarUrl,
         getDMPartnerId,
         getRoomCallMemberships,
@@ -37,7 +43,7 @@
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { MicOff } from "lucide-svelte";
+    import { MicOff, GripVertical } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -49,6 +55,8 @@
         groupRoomsByTag,
         sortRoomsByTag,
         roomTagKind,
+        TAG_FAVOURITE,
+        TAG_LOWPRIORITY,
     } from "$lib/utils/roomOrdering";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import {
@@ -434,6 +442,194 @@
         accountSwitcherOpen = true;
         openModal("account-switcher", () => (accountSwitcherOpen = false));
     }
+
+    // ── Reorder mode (edit-mode drag + raw-order field) ─────────────────────
+    type Section = "favourite" | "lowPriority" | "channels";
+    type DragState = {
+        roomId: string;
+        section: Section;
+        // Which on-screen cluster the dragged row lives in. In Home view a
+        // `m.favourite`/`m.lowpriority` room appears BOTH as an orphan
+        // channelRow (list "main") and as a DM row (list "dm") — both carry
+        // the same data-section, so this discriminator keeps a drag confined
+        // to its own visual list.
+        list: "main" | "dm";
+        pointerId: number;
+        overId: string | null;
+        before: boolean;
+    };
+
+    let reorderMode = $state(false);
+    let drag = $state<DragState | null>(null);
+
+    function toggleReorderMode() {
+        reorderMode = !reorderMode;
+        drag = null;
+    }
+
+    // Leave reorder mode whenever the visible list changes out from under it
+    // (⚑4: auto-exit when the active space changes).
+    $effect(() => {
+        void roomsState.activeSpaceId;
+        reorderMode = false;
+        drag = null;
+    });
+
+    // Space channels are only reorderable when we can write the space's
+    // m.space.child state (same power-level gate as adding a room to a space).
+    const canReorderChannels = $derived(
+        (void roomsState.roomsTick,
+        roomsState.activeSpaceId
+            ? canAddRoomToSpace(roomsState.activeSpaceId)
+            : false),
+    );
+
+    // Refresh the view after a successful order write (drag or raw commit).
+    function applyReorderReactivity(section: Section) {
+        roomsState.roomsTick++;
+        if (section === "channels" && roomsState.activeSpaceId) {
+            roomsState.roomsInSpace = getRoomsInSpace(roomsState.activeSpaceId);
+        }
+    }
+
+    function onRowPointerDown(e: PointerEvent, room: Room, section: Section) {
+        const el = e.currentTarget as HTMLElement;
+        el.setPointerCapture(e.pointerId);
+        drag = {
+            roomId: room.roomId,
+            section,
+            list: el.dataset.list === "dm" ? "dm" : "main",
+            pointerId: e.pointerId,
+            overId: null,
+            before: false,
+        };
+    }
+
+    function onRowPointerMove(e: PointerEvent) {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const row = el?.closest(
+            "[data-room-id][data-section]",
+        ) as HTMLElement | null;
+        // Only accept a sibling row within the same section AND the same
+        // on-screen cluster (data-list) — otherwise a Home-view favourite DM
+        // row could become a drop target for a favourite channel row.
+        if (
+            !row ||
+            row.dataset.section !== drag.section ||
+            row.dataset.list !== drag.list
+        )
+            return;
+        const overId = row.dataset.roomId ?? null;
+        if (!overId || overId === drag.roomId) return;
+        const rect = row.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        if (drag.overId !== overId || drag.before !== before)
+            drag = { ...drag, overId, before };
+    }
+
+    async function onRowPointerUp(e: PointerEvent) {
+        if (!drag || e.pointerId !== drag.pointerId) return;
+        const d = drag;
+        drag = null;
+        if (!d.overId || d.overId === d.roomId) return;
+
+        // Reconstruct the section's visible order straight from the DOM: those
+        // are exactly the rows currently rendered as draggable for the section,
+        // in visual order.
+        const rows = Array.from(
+            document.querySelectorAll<HTMLElement>(
+                `[data-room-id][data-section="${d.section}"][data-list="${d.list}"]`,
+            ),
+        )
+            .map((el) => el.dataset.roomId ?? "")
+            .filter((id) => id !== "");
+        const origIdx = rows.indexOf(d.roomId);
+        const origBefore = origIdx > 0 ? rows[origIdx - 1] : null;
+        const origAfter =
+            origIdx >= 0 && origIdx < rows.length - 1
+                ? rows[origIdx + 1]
+                : null;
+
+        const list = rows.filter((id) => id !== d.roomId);
+        const overIdx = list.indexOf(d.overId);
+        if (overIdx === -1) return;
+        list.splice(d.before ? overIdx : overIdx + 1, 0, d.roomId);
+        const pos = list.indexOf(d.roomId);
+        const beforeId = pos > 0 ? list[pos - 1] : null;
+        const afterId = pos < list.length - 1 ? list[pos + 1] : null;
+
+        // Skip the write when the slot didn't actually change.
+        if (beforeId === origBefore && afterId === origAfter) return;
+
+        try {
+            if (d.section === "channels") {
+                if (!roomsState.activeSpaceId) return;
+                await reorderSpaceChild(
+                    roomsState.activeSpaceId,
+                    d.roomId,
+                    beforeId,
+                    afterId,
+                );
+            } else {
+                await reorderRoomTag(d.section, d.roomId, beforeId, afterId);
+            }
+            applyReorderReactivity(d.section);
+        } catch (err) {
+            console.error("Failed to reorder room:", err);
+        }
+    }
+
+    function onRowPointerCancel() {
+        drag = null;
+    }
+
+    // Preserve a space child's `via` when writing its order.
+    function viaOf(roomId: string): string[] {
+        if (!activeSpaceRoom) return [];
+        return (
+            getSpaceChildren(activeSpaceRoom).find((c) => c.roomId === roomId)
+                ?.via ?? []
+        );
+    }
+
+    // The raw order value shown in a row's edit-mode field.
+    function rawOrderOf(room: Room, section: Section): string {
+        if (section === "channels") {
+            if (!activeSpaceRoom) return "";
+            const child = getSpaceChildren(activeSpaceRoom).find(
+                (c) => c.roomId === room.roomId,
+            );
+            return child?.order ?? "";
+        }
+        const t = getRoomTags(room.roomId);
+        const raw =
+            t[section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY]?.order;
+        return raw == null ? "" : String(raw);
+    }
+
+    async function commitRawOrder(room: Room, section: Section, raw: string) {
+        try {
+            if (section === "channels") {
+                if (!roomsState.activeSpaceId) return;
+                await setSpaceChildOrder(
+                    roomsState.activeSpaceId,
+                    room.roomId,
+                    raw,
+                    viaOf(room.roomId),
+                );
+            } else {
+                await setRoomTagOrderRaw(
+                    room.roomId,
+                    section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY,
+                    raw,
+                );
+            }
+            applyReorderReactivity(section);
+        } catch (err) {
+            console.error("Failed to set order value:", err);
+        }
+    }
 </script>
 
 <div class="w-60 bg-discord-backgroundSecondary flex flex-col flex-shrink-0">
@@ -449,6 +645,28 @@
                 class="w-3.5 h-3.5 border-2 border-discord-textMuted border-t-transparent rounded-full animate-spin flex-shrink-0"
             ></div>
         {/if}
+        <!-- Reorder-mode toggle -->
+        <button
+            onclick={toggleReorderMode}
+            class="p-1 rounded transition-colors flex-shrink-0 hover:bg-discord-messageHover {reorderMode
+                ? 'text-discord-accent'
+                : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+            title={reorderMode ? "Done reordering" : "Reorder rooms"}
+        >
+            {#if reorderMode}
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                    />
+                </svg>
+            {:else}
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"
+                    />
+                </svg>
+            {/if}
+        </button>
         <!-- Dropdown trigger -->
         <div class="relative flex-shrink-0">
             <button
@@ -619,26 +837,57 @@
         {/snippet}
 
         <!-- Joined rooms / channels -->
-        {#snippet channelRow(room: Room)}
+        {#snippet channelRow(room: Room, section: Section | null)}
             {@const { isActive, unread, highlight, loud } = roomButton(room)}
+            {@const draggable =
+                reorderMode &&
+                section !== null &&
+                (section !== "channels" || canReorderChannels)}
+            {#if draggable && drag?.overId === room.roomId && drag.before}
+                <div class="h-0.5 mx-2 rounded bg-discord-accent"></div>
+            {/if}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="group/room flex items-center transition-colors"
                 class:hover:bg-discord-messageHover={!isActive}
+                class:touch-none={draggable}
+                class:cursor-grab={draggable}
                 style={isActive
                     ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
                     : ""}
+                data-room-id={draggable ? room.roomId : undefined}
+                data-section={draggable ? section : undefined}
+                data-list={draggable ? "main" : undefined}
+                onpointerdown={draggable
+                    ? (e) => onRowPointerDown(e, room, section!)
+                    : undefined}
+                onpointermove={draggable ? onRowPointerMove : undefined}
+                onpointerup={draggable ? onRowPointerUp : undefined}
+                onpointercancel={draggable ? onRowPointerCancel : undefined}
                 oncontextmenu={(e) => {
                     e.preventDefault();
+                    if (reorderMode) return;
                     openContextMenu(room.roomId, e.clientX, e.clientY, false);
                 }}
                 use:longPress={{
-                    onTrigger: (x, y) =>
-                        openContextMenu(room.roomId, x, y, true),
+                    onTrigger: (x, y) => {
+                        if (reorderMode) return;
+                        openContextMenu(room.roomId, x, y, true);
+                    },
                 }}
             >
+                {#if draggable}
+                    <span
+                        class="flex-shrink-0 pl-1 text-discord-textMuted cursor-grab"
+                    >
+                        <GripVertical size={14} />
+                    </span>
+                {/if}
                 <button
-                    onclick={() => setActiveRoom(room.roomId)}
+                    onclick={() => {
+                        if (reorderMode) return;
+                        setActiveRoom(room.roomId);
+                    }}
                     class="flex-1 flex items-center py-1.5 min-w-0 text-left transition-colors"
                     class:text-discord-textPrimary={isActive || unread}
                     class:text-discord-textSecondary={!isActive && !unread}
@@ -678,8 +927,28 @@
                         </span>
                     {/if}
                 </button>
+                {#if draggable}
+                    {@const rawOrder =
+                        (void roomsState.roomsTick, rawOrderOf(room, section!))}
+                    <input
+                        value={rawOrder}
+                        title="Order value"
+                        class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                        onpointerdown={(e) => e.stopPropagation()}
+                        onclick={(e) => e.stopPropagation()}
+                        onkeydown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                        onblur={(e) => {
+                            const v = e.currentTarget.value;
+                            if (v !== rawOrderOf(room, section!))
+                                commitRawOrder(room, section!, v);
+                        }}
+                    />
+                {/if}
                 <!-- svelte-ignore a11y_consider_explicit_label -->
                 <button
+                    onpointerdown={(e) => e.stopPropagation()}
                     onclick={(e) => {
                         e.stopPropagation();
                         onOpenRoomSettings?.(room);
@@ -698,6 +967,9 @@
                     </svg>
                 </button>
             </div>
+            {#if draggable && drag?.overId === room.roomId && !drag.before}
+                <div class="h-0.5 mx-2 rounded bg-discord-accent"></div>
+            {/if}
             {@render callRoster(room)}
         {/snippet}
 
@@ -710,7 +982,7 @@
                         Favourites
                     </p>
                     {#each roomGroups.favourites as room (room.roomId)}
-                        {@render channelRow(room)}
+                        {@render channelRow(room, "favourite")}
                     {/each}
                 {/if}
                 {#if roomGroups.normal.length > 0}
@@ -720,7 +992,10 @@
                         {roomsState.activeSpaceId ? "Channels" : "Rooms"}
                     </p>
                     {#each roomGroups.normal as room (room.roomId)}
-                        {@render channelRow(room)}
+                        {@render channelRow(
+                            room,
+                            roomsState.activeSpaceId ? "channels" : null,
+                        )}
                     {/each}
                 {/if}
                 {#if roomGroups.lowPriority.length > 0}
@@ -730,7 +1005,7 @@
                         Low Priority
                     </p>
                     {#each roomGroups.lowPriority as room (room.roomId)}
-                        {@render channelRow(room)}
+                        {@render channelRow(room, "lowPriority")}
                     {/each}
                 {/if}
             </div>
@@ -903,70 +1178,149 @@
                     {@const { isActive, unread, highlight, loud } =
                         roomButton(room)}
                     {@const avatarSrc = getRoomAvatar(room)}
+                    {@const dmKind =
+                        (void roomsState.roomsTick,
+                        roomTagKind(getRoomTags(room.roomId)))}
+                    {@const dmSection =
+                        dmKind === "favourite"
+                            ? "favourite"
+                            : dmKind === "lowPriority"
+                              ? "lowPriority"
+                              : null}
+                    {@const dmDraggable = reorderMode && dmSection !== null}
                     <!-- The DM row is a <button>, so the roster can't nest
                          inside it — wrap both as siblings. -->
-                    <div>
-                        <button
-                            onclick={() => setActiveRoom(room.roomId)}
-                            oncontextmenu={(e) => {
-                                e.preventDefault();
-                                openContextMenu(
-                                    room.roomId,
-                                    e.clientX,
-                                    e.clientY,
-                                    false,
-                                );
-                            }}
-                            use:longPress={{
-                                onTrigger: (x, y) =>
-                                    openContextMenu(room.roomId, x, y, true),
-                            }}
-                            class="w-full flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
-                            class:text-discord-textPrimary={isActive || unread}
-                            class:text-discord-textSecondary={!isActive &&
-                                !unread}
-                            class:font-semibold={unread}
-                            class:hover:bg-discord-messageHover={!isActive}
-                            class:hover:text-discord-textPrimary={!isActive}
-                            style={isActive
-                                ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-left: calc(0.5rem - 3px);"
-                                : "padding-left: 0.5rem;"}
-                        >
-                            <div class="relative flex-shrink-0">
-                                <Avatar
-                                    src={avatarSrc}
-                                    name={getRoomDisplayName(room)}
-                                    size={32}
-                                />
-                                {#if unread && !isActive}
-                                    <span
-                                        class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
-                                        highlight
-                                            ? 'bg-discord-danger'
-                                            : 'bg-discord-textPrimary'}"
-                                    ></span>
-                                {:else}
-                                    {@const presence = dmPresence.get(
-                                        room.roomId,
-                                    )}
-                                    <span
-                                        title={presence?.label}
-                                        class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
-                                            'bg-discord-offline'}"
-                                    ></span>
-                                {/if}
-                            </div>
-                            <span class="flex-1 text-sm truncate"
-                                >{getRoomDisplayName(room)}</span
-                            >
-                            {#if highlight && !isActive}
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div
+                        class:touch-none={dmDraggable}
+                        class:cursor-grab={dmDraggable}
+                        data-room-id={dmDraggable ? room.roomId : undefined}
+                        data-section={dmDraggable ? dmSection : undefined}
+                        data-list={dmDraggable ? "dm" : undefined}
+                        onpointerdown={dmDraggable
+                            ? (e) => onRowPointerDown(e, room, dmSection!)
+                            : undefined}
+                        onpointermove={dmDraggable
+                            ? onRowPointerMove
+                            : undefined}
+                        onpointerup={dmDraggable ? onRowPointerUp : undefined}
+                        onpointercancel={dmDraggable
+                            ? onRowPointerCancel
+                            : undefined}
+                    >
+                        {#if dmDraggable && drag?.overId === room.roomId && drag.before}
+                            <div
+                                class="h-0.5 mx-2 rounded bg-discord-accent"
+                            ></div>
+                        {/if}
+                        <div class="flex items-center">
+                            {#if dmDraggable}
                                 <span
-                                    class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                    class="flex-shrink-0 pl-1 text-discord-textMuted cursor-grab"
                                 >
-                                    {highlight > 99 ? "99+" : highlight}
+                                    <GripVertical size={14} />
                                 </span>
                             {/if}
-                        </button>
+                            <button
+                                onclick={() => {
+                                    if (reorderMode) return;
+                                    setActiveRoom(room.roomId);
+                                }}
+                                oncontextmenu={(e) => {
+                                    e.preventDefault();
+                                    if (reorderMode) return;
+                                    openContextMenu(
+                                        room.roomId,
+                                        e.clientX,
+                                        e.clientY,
+                                        false,
+                                    );
+                                }}
+                                use:longPress={{
+                                    onTrigger: (x, y) => {
+                                        if (reorderMode) return;
+                                        openContextMenu(
+                                            room.roomId,
+                                            x,
+                                            y,
+                                            true,
+                                        );
+                                    },
+                                }}
+                                class="flex-1 min-w-0 flex items-center gap-2 pr-2 py-1.5 transition-colors text-left"
+                                class:text-discord-textPrimary={isActive ||
+                                    unread}
+                                class:text-discord-textSecondary={!isActive &&
+                                    !unread}
+                                class:font-semibold={unread}
+                                class:hover:bg-discord-messageHover={!isActive}
+                                class:hover:text-discord-textPrimary={!isActive}
+                                style={isActive
+                                    ? "border-left: 3px solid var(--discord-accent); background: linear-gradient(to right, var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-left: calc(0.5rem - 3px);"
+                                    : "padding-left: 0.5rem;"}
+                            >
+                                <div class="relative flex-shrink-0">
+                                    <Avatar
+                                        src={avatarSrc}
+                                        name={getRoomDisplayName(room)}
+                                        size={32}
+                                    />
+                                    {#if unread && !isActive}
+                                        <span
+                                            class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
+                                            highlight
+                                                ? 'bg-discord-danger'
+                                                : 'bg-discord-textPrimary'}"
+                                        ></span>
+                                    {:else}
+                                        {@const presence = dmPresence.get(
+                                            room.roomId,
+                                        )}
+                                        <span
+                                            title={presence?.label}
+                                            class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
+                                                'bg-discord-offline'}"
+                                        ></span>
+                                    {/if}
+                                </div>
+                                <span class="flex-1 text-sm truncate"
+                                    >{getRoomDisplayName(room)}</span
+                                >
+                                {#if highlight && !isActive}
+                                    <span
+                                        class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                    >
+                                        {highlight > 99 ? "99+" : highlight}
+                                    </span>
+                                {/if}
+                            </button>
+                            {#if dmDraggable}
+                                {@const dmRawOrder =
+                                    (void roomsState.roomsTick,
+                                    rawOrderOf(room, dmSection!))}
+                                <input
+                                    value={dmRawOrder}
+                                    title="Order value"
+                                    class="w-16 mr-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                                    onpointerdown={(e) => e.stopPropagation()}
+                                    onclick={(e) => e.stopPropagation()}
+                                    onkeydown={(e) => {
+                                        if (e.key === "Enter")
+                                            e.currentTarget.blur();
+                                    }}
+                                    onblur={(e) => {
+                                        const v = e.currentTarget.value;
+                                        if (v !== rawOrderOf(room, dmSection!))
+                                            commitRawOrder(room, dmSection!, v);
+                                    }}
+                                />
+                            {/if}
+                        </div>
+                        {#if dmDraggable && drag?.overId === room.roomId && !drag.before}
+                            <div
+                                class="h-0.5 mx-2 rounded bg-discord-accent"
+                            ></div>
+                        {/if}
                         {@render callRoster(room)}
                     </div>
                 {/each}
