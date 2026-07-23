@@ -20,6 +20,9 @@
         uploadContent,
         getJoinRule,
         setJoinRule,
+        getDirectParentSpaceIds,
+        setRestrictedJoinRule,
+        getRoom,
         getHistoryVisibility,
         setHistoryVisibility,
         getRoomDirectoryVisibility,
@@ -52,6 +55,11 @@
         type ImageUsage,
         type SpaceChildEntry,
     } from "$lib/matrix/client";
+    import {
+        getRestrictedJoinState,
+        RESTRICTED_JOIN_RULE,
+    } from "$lib/utils/joinRules";
+    import { parsePowerLevelInput } from "$lib/utils/powerLevels";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -195,13 +203,35 @@
     let accessError = $state("");
     let accessSuccess = $state(false);
 
+    const parentSpaceIds = $derived(
+        (void roomsState.roomsTick, getDirectParentSpaceIds(room.roomId)),
+    );
+    const restrictedJoin = $derived(
+        getRestrictedJoinState({
+            roomVersion: room.getVersion(),
+            parentSpaceIds,
+            canEditState,
+        }),
+    );
+    const parentSpaceNames = $derived(
+        parentSpaceIds
+            .map((id) => getRoom(id)?.name)
+            .filter((n): n is string => !!n)
+            .join(", "),
+    );
+
     async function saveAccess() {
         accessError = "";
         accessSaving = true;
         try {
             const promises: Promise<void>[] = [];
-            if (joinRule !== getJoinRule(room))
+            if (joinRule === RESTRICTED_JOIN_RULE) {
+                promises.push(
+                    setRestrictedJoinRule(room.roomId, parentSpaceIds),
+                );
+            } else if (joinRule !== getJoinRule(room)) {
                 promises.push(setJoinRule(room.roomId, joinRule));
+            }
             if (historyVisibility !== getHistoryVisibility(room))
                 promises.push(
                     setHistoryVisibility(room.roomId, historyVisibility),
@@ -288,6 +318,7 @@
     let showBanned = $state(false);
     let memberActionPending = $state<string | null>(null);
     let memberError = $state("");
+    let plDrafts = $state<Record<string, string>>({});
     let reasonInputs = $state<Record<string, string>>({});
     let showReasonFor = $state<string | null>(null);
 
@@ -1286,6 +1317,32 @@
                                         >
                                     </label>
                                 {/each}
+                                <label
+                                    class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
+                                        ? 'opacity-50 pointer-events-none'
+                                        : ''}"
+                                >
+                                    <input
+                                        type="radio"
+                                        bind:group={joinRule}
+                                        value={RESTRICTED_JOIN_RULE}
+                                        disabled={!restrictedJoin.available}
+                                        class="accent-discord-accent"
+                                    />
+                                    <span
+                                        class="text-sm text-discord-textPrimary"
+                                        >{parentSpaceNames
+                                            ? `Space members — anyone in ${parentSpaceNames} can join`
+                                            : "Space members — anyone in the parent space can join"}</span
+                                    >
+                                </label>
+                                {#if restrictedJoin.reason}
+                                    <p
+                                        class="text-xs text-discord-textMuted ml-6"
+                                    >
+                                        {restrictedJoin.reason}
+                                    </p>
+                                {/if}
                             </div>
                         </div>
 
@@ -1629,6 +1686,11 @@
                                         )}
                                         {@const canActOnMember =
                                             !isSelf && myPowerLevel > memberPl}
+                                        {@const plResult = parsePowerLevelInput(
+                                            plDrafts[member.userId] ??
+                                                String(memberPl),
+                                            myPowerLevel,
+                                        )}
                                         <div
                                             class="rounded bg-discord-backgroundTertiary overflow-hidden"
                                         >
@@ -1736,6 +1798,45 @@
                                                                     >Member (0)</option
                                                                 >
                                                             </select>
+                                                            <input
+                                                                type="number"
+                                                                min="0"
+                                                                max={myPowerLevel}
+                                                                value={plDrafts[
+                                                                    member
+                                                                        .userId
+                                                                ] ??
+                                                                    String(
+                                                                        memberPl,
+                                                                    )}
+                                                                oninput={(e) =>
+                                                                    (plDrafts[
+                                                                        member.userId
+                                                                    ] =
+                                                                        e.currentTarget.value)}
+                                                                disabled={memberActionPending ===
+                                                                    member.userId}
+                                                                class="w-16 px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                            />
+                                                            <button
+                                                                onclick={() =>
+                                                                    doSetPowerLevel(
+                                                                        member,
+                                                                        plResult.value!,
+                                                                    )}
+                                                                disabled={!plResult.ok ||
+                                                                    memberActionPending ===
+                                                                        member.userId}
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                >Set</button
+                                                            >
+                                                            {#if !plResult.ok}
+                                                                <p
+                                                                    class="text-xs text-discord-danger w-full"
+                                                                >
+                                                                    {plResult.error}
+                                                                </p>
+                                                            {/if}
                                                         {/if}
                                                         {#if canActOnMember && canKick}
                                                             <button

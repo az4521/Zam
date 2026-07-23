@@ -51,3 +51,41 @@ export function effectivePowerLevel(input: EffectivePowerLevelInput): number {
     }
     return raw;
 }
+
+export interface ParsePowerLevelResult {
+    ok: boolean;
+    /** The parsed level when ok; null otherwise. */
+    value: number | null;
+    /** Empty when ok; else a user-facing reason. */
+    error: string;
+}
+
+/**
+ * Validate a hand-typed power level against the actor's ceiling. Accepts only a
+ * whole, non-negative integer in [0, ceiling]. Regex-then-Number so "3.5"/"0x10"
+ * can't slip through. Distinct message per rejection.
+ */
+export function parsePowerLevelInput(
+    raw: string,
+    ceiling: number,
+): ParsePowerLevelResult {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+        return { ok: false, value: null, error: "Enter a power level" };
+    }
+    if (!/^-?\d+$/.test(trimmed)) {
+        return { ok: false, value: null, error: "Must be a whole number" };
+    }
+    const value = Number(trimmed);
+    if (value < 0) {
+        return { ok: false, value: null, error: "Must be 0 or higher" };
+    }
+    if (value > ceiling) {
+        return {
+            ok: false,
+            value: null,
+            error: `You can't set a level above your own (${ceiling})`,
+        };
+    }
+    return { ok: true, value, error: "" };
+}
