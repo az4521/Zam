@@ -83,6 +83,8 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
+import { belongsToMainTimeline, summarizeThread } from "$lib/utils/threadModel";
+import type { ThreadSummary } from "$lib/utils/threadModel";
 import {
     tagUpdatesForToggle,
     TAG_FAVOURITE,
@@ -428,6 +430,12 @@ export async function startSync(
         initialSyncLimit: 8,
         lazyLoadMembers: true,
         pendingEventOrdering: PendingEventOrdering.Detached,
+        // threadSupport is an IStartClientOpts option — supportsThreads()
+        // reads the opts passed HERE, not createClient's (which silently
+        // ignores the key). With it off, the SDK never builds Thread objects
+        // and every m.thread reply stays in the main timeline, where the
+        // thread filter in getTimelineMessages hides it from view entirely.
+        threadSupport: true,
     });
 }
 
@@ -845,6 +853,17 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
             return false;
         const rel = e.getContent()?.["m.relates_to"];
         if (rel?.rel_type === "m.replace") return false;
+        // Divert thread replies out of the main timeline (Element behaviour).
+        // With threadSupport on the SDK already does this; the clause is the ⚑4
+        // backstop against out-of-order Conduit delivery. Read the ORIGINAL
+        // content so an edited reply is still recognised as a thread reply.
+        if (
+            !belongsToMainTimeline({
+                relatesTo: e.getOriginalContent()?.["m.relates_to"],
+                eventId: e.getId() ?? "",
+            })
+        )
+            return false;
         return true;
     };
     const timeline = room.getLiveTimeline().getEvents().filter(filter);
@@ -862,11 +881,12 @@ export function getLatestTimelineEvent(room: Room): MatrixEvent {
     return timeline[timeline.length - 1];
 }
 
-// ── Threads (lightweight) ──────────────────────────────────────────────────
-// Thread replies (m.thread relations) are read directly from the room's live
-// timeline rather than the SDK's Thread model, so they also stay visible
-// inline in the main timeline. The relation is read from each event's original
-// content, since an edit moves the top-level relation to m.replace.
+// ── Threads (SDK-native) ──
+// Thread replies (m.thread relations) are routed by matrix-js-sdk into per-thread
+// Thread timelines (threadSupport is on) and no longer appear inline in the main
+// timeline. These wrappers read room.getThread(rootId) and keep their original
+// {count,latestEventId,latestTs} / () => void shapes so ThreadPanel and
+// MessageItem are unaffected.
 
 function eventThreadRoot(event: MatrixEvent): string | null {
     const rel = event.getOriginalContent()?.["m.relates_to"];
@@ -884,30 +904,50 @@ export function getThreadMessages(
             relatesTo: e.getOriginalContent()?.["m.relates_to"],
             rootEventId,
         });
-    const timeline = room.getLiveTimeline().getEvents().filter(belongs);
+    // SDK-native: the per-thread timeline. Thread.events includes the root as
+    // its first element; `belongs` (isThreadReplyContent) filters it out along
+    // with redacted/non-message events, so the shape matches the old walk
+    // (replies only; the root is rendered separately in ThreadPanel's header).
+    const thread = room.getThread(rootEventId);
+    const threadEvents = (thread?.events ?? []).filter(belongs);
+    const seen = new Set(threadEvents.map((e) => e.getId()));
+    // Local echoes may live on room.getPendingEvents() rather than Thread.events
+    // depending on pending-event ordering; union them in, de-duped by id.
     const pending = room
         .getPendingEvents()
-        .filter((e) => belongs(e) && e.status !== EventStatus.CANCELLED);
-    return [...timeline, ...pending];
-}
-
-export interface ThreadSummary {
-    count: number;
-    latestEventId: string | null;
-    latestTs: number;
+        .filter(
+            (e) =>
+                belongs(e) &&
+                e.status !== EventStatus.CANCELLED &&
+                !seen.has(e.getId()),
+        );
+    return [...threadEvents, ...pending];
 }
 
 export function getThreadSummary(
     room: Room,
     rootEventId: string,
 ): ThreadSummary {
-    const messages = getThreadMessages(room, rootEventId);
-    const latest = messages[messages.length - 1] ?? null;
-    return {
-        count: messages.length,
+    const thread = room.getThread(rootEventId);
+    if (!thread) {
+        // No SDK Thread yet (a genuine zero-reply root, or replies not yet
+        // aggregated): getThreadMessages returns pending local echoes only
+        // (thread replies no longer live in the main timeline), so count is 0
+        // until the SDK builds the Thread and ThreadEvent/Timeline refires.
+        const messages = getThreadMessages(room, rootEventId);
+        const latest = messages[messages.length - 1] ?? null;
+        return summarizeThread({
+            length: messages.length,
+            latestEventId: latest?.getId() ?? null,
+            latestTs: latest?.getTs() ?? 0,
+        });
+    }
+    const latest = thread.replyToEvent ?? null;
+    return summarizeThread({
+        length: thread.length,
         latestEventId: latest?.getId() ?? null,
         latestTs: latest?.getTs() ?? 0,
-    };
+    });
 }
 
 export async function sendThreadReply(
@@ -929,11 +969,32 @@ export async function sendThreadReply(
         formattedText: hasFormatting ? formattedBody : undefined,
         mentions,
     });
+    // 2-arg form only (⚑2 — the threadId overload mangles $-prefixed strings).
     await matrixClient.sendMessage(roomId, content as never);
 }
 
-// Fires when a thread reply, an edit, or a redaction lands on the timeline, so
-// an open ThreadPanel can re-read. Broad by design — the panel re-derives.
+/** Paginate older replies in a thread's own timeline. Returns whether more
+ * events were fetched. No-op (false) if the SDK Thread isn't built yet. */
+export async function paginateThreadBack(
+    room: Room,
+    rootEventId: string,
+): Promise<boolean> {
+    if (!matrixClient) return false;
+    const thread = room.getThread(rootEventId);
+    if (!thread) return false;
+    return matrixClient.paginateEventTimeline(thread.liveTimeline, {
+        backwards: true,
+        limit: 30,
+    });
+}
+
+// Fires when a thread reply, an edit, or a redaction lands on a timeline, so an
+// open ThreadPanel can re-read. Broad + room-agnostic by design (the panel
+// re-derives from its own root). Subscribes at the CLIENT level on
+// RoomEvent.Timeline: a reply added to a Thread's timeline re-emits
+// RoomEvent.Timeline up through the Thread -> Room -> client, whereas
+// ThreadEvent.* is NOT bridged to the client re-emitter (so binding it here
+// would silently never fire).
 export function onThreadEvent(callback: () => void): () => void {
     if (!matrixClient) return () => {};
     const handler = (event: MatrixEvent) => {
@@ -1802,10 +1863,15 @@ export function onTimelineEvent(
         const isLiveAppend = data?.liveEvent === true;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+        const isMainTimeline = belongsToMainTimeline({
+            relatesTo: event.getOriginalContent()?.["m.relates_to"],
+            eventId: event.getId() ?? "",
+        });
         if (
             room &&
             (settingsState.showAllEvents ||
                 (!isReplacement &&
+                    isMainTimeline &&
                     (event.getType() === "m.room.message" ||
                         event.getType() === "m.sticker" ||
                         isPollStartEventType(event.getType())) &&

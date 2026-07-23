@@ -5,6 +5,7 @@
     import {
         getThreadMessages,
         sendThreadReply,
+        paginateThreadBack,
         onThreadEvent,
         onLocalEchoUpdated,
         getMemberName,
@@ -28,9 +29,25 @@
     let isSending = $state(false);
     let textareaEl: HTMLTextAreaElement | undefined = $state();
     let threadTick = $state(0);
+    let loadingOlder = $state(false);
+    let noMoreOlder = $state(false);
 
     function bump() {
         threadTick++;
+    }
+
+    async function loadOlder() {
+        if (loadingOlder || noMoreOlder) return;
+        loadingOlder = true;
+        try {
+            const more = await paginateThreadBack(room, rootEventId);
+            if (!more) noMoreOlder = true;
+            bump();
+        } catch (err) {
+            console.error("Failed to paginate thread:", err);
+        } finally {
+            loadingOlder = false;
+        }
     }
 
     // Re-read thread messages whenever tick changes
@@ -171,6 +188,17 @@
             <p class="text-xs text-discord-textMuted text-center mt-4 px-4">
                 No replies yet. Start the thread below.
             </p>
+        {/if}
+        {#if messages.length > 0 && !noMoreOlder}
+            <div class="px-4 pb-2 text-center">
+                <button
+                    onclick={loadOlder}
+                    disabled={loadingOlder}
+                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 transition-colors"
+                >
+                    {loadingOlder ? "Loading…" : "Load older replies"}
+                </button>
+            </div>
         {/if}
         {#each messages as event, i (event.getId())}
             <MessageItem
