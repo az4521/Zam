@@ -79,7 +79,7 @@ import {
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
-import { parseMxc } from "$lib/utils/mxcUri";
+import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
     supportsPasswordUia,
@@ -223,6 +223,10 @@ async function createAuthenticatedClient(opts: {
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
     matrixStore = null;
+    // Drop the previous server's cached media-config upload limit — this funnel
+    // runs on every login, session restore, and account switch, so a switch to
+    // a different homeserver must not keep the old server's `m.upload.size`.
+    mediaUploadSizePromise = null;
 
     const indexedDB = getIndexedDBFactory();
     const store = indexedDB
@@ -1590,8 +1594,11 @@ export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
     const baseUrl = matrixClient.getHomeserverUrl();
     // The access token must NEVER leave the homeserver. Refuse to attach it (or
     // even fetch) any URL that isn't on our homeserver — mirrors getContentType's
-    // guard. Callers that need foreign media must fetch it themselves, unauthed.
-    if (!httpUrl.startsWith(baseUrl)) {
+    // guard. Compare parsed ORIGIN, not a string prefix: a prefix test would
+    // pass `https://host@evil.com/…` (userinfo) or `https://host.evil.com/…`
+    // (host-suffix) and leak the token to a foreign host. Callers that need
+    // foreign media must fetch it themselves, unauthed.
+    if (!isSameOrigin(httpUrl, baseUrl)) {
         throw new Error("Refusing to fetch a non-homeserver URL with auth");
     }
     const token = matrixClient.getAccessToken();
@@ -1609,7 +1616,10 @@ export async function getContentType(url: string): Promise<string | null> {
     const accessToken = matrixClient.getAccessToken();
     const baseUrl = matrixClient.getHomeserverUrl();
     const headers: Record<string, string> = {};
-    if (accessToken && url.startsWith(baseUrl)) {
+    // Attach auth only for same-ORIGIN homeserver URLs. A string prefix check
+    // is bypassable (userinfo / host-suffix) and would leak the token; see
+    // isSameOrigin. Foreign URLs are HEAD-requested without credentials.
+    if (accessToken && isSameOrigin(url, baseUrl)) {
         headers.Authorization = `Bearer ${accessToken}`;
     }
     try {
