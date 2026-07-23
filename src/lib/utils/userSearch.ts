@@ -34,6 +34,40 @@ export function resolveUserToken(
     return null;
 }
 
+/** The subset of a room member the slash-command user-arg resolver needs. */
+export interface MemberNameEntry {
+    userId: string;
+    rawDisplayName?: string;
+}
+
+/**
+ * Resolve a slash-command user argument to a full user id. Accepts, in
+ * order: a full `@id:server`; the display name of exactly ONE room member
+ * (the shape a mention pill takes — an ambiguous name resolves to null so a
+ * power command never guesses between two people); a bare or `@`-prefixed
+ * localpart synthesized onto `ownDomain`.
+ */
+export function resolveUserArg(
+    raw: string,
+    ownDomain: string,
+    members: readonly MemberNameEntry[] = [],
+): string | null {
+    const t = raw.trim();
+    if (!t) return null;
+    if (isValidUserId(t)) return t;
+    if (t.startsWith("@")) {
+        const name = t.slice(1).trim().toLowerCase();
+        if (name) {
+            const matches = members.filter(
+                (m) => (m.rawDisplayName ?? "").trim().toLowerCase() === name,
+            );
+            if (matches.length === 1) return matches[0].userId;
+            if (matches.length > 1) return null;
+        }
+    }
+    return resolveUserToken(t.replace(/^@/, ""), ownDomain);
+}
+
 /** The server-name portion of a Matrix user id (everything after the first colon). */
 export function userDomain(userId: string): string {
     const i = userId.indexOf(":");

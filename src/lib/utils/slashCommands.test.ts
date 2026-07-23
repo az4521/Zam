@@ -6,6 +6,7 @@ import {
     parseNickArg,
     parseOpArg,
     parseDeopArg,
+    resolveMentionTokens,
     DEFAULT_OP_LEVEL,
 } from "./slashCommands";
 
@@ -175,6 +176,66 @@ describe("parseDeopArg", () => {
     });
     it("errors on too many arguments", () => {
         expect("error" in parseDeopArg("@bob:hs x")).toBe(true);
+    });
+});
+
+describe("resolveMentionTokens", () => {
+    const m = (entries: [string, string][]) => new Map(entries);
+
+    it("replaces a mention pill with its user id", () => {
+        expect(
+            resolveMentionTokens("@dev 50", m([["@dev", "@dev:hs.tld"]])),
+        ).toBe("@dev:hs.tld 50");
+    });
+
+    it("leaves text without pills unchanged (and tolerates an empty map)", () => {
+        expect(resolveMentionTokens("@bob:hs.tld 50", m([]))).toBe(
+            "@bob:hs.tld 50",
+        );
+        expect(
+            resolveMentionTokens("plain text", m([["@dev", "@dev:hs.tld"]])),
+        ).toBe("plain text");
+    });
+
+    it("does not match inside a longer token or a typed mxid", () => {
+        const map = m([["@dev", "@dev:hs.tld"]]);
+        expect(resolveMentionTokens("@devil", map)).toBe("@devil");
+        expect(resolveMentionTokens("@dev:other.tld", map)).toBe(
+            "@dev:other.tld",
+        );
+    });
+
+    it("replaces a multi-word display-name pill as one token", () => {
+        expect(
+            resolveMentionTokens(
+                "@Ann Example 100",
+                m([["@Ann Example", "@ann:hs.tld"]]),
+            ),
+        ).toBe("@ann:hs.tld 100");
+    });
+
+    it("prefers the longest pill when one is a prefix of another", () => {
+        const map = m([
+            ["@Ann", "@a:hs.tld"],
+            ["@Ann Example", "@ae:hs.tld"],
+        ]);
+        expect(resolveMentionTokens("@Ann Example", map)).toBe("@ae:hs.tld");
+    });
+
+    it("escapes regex metacharacters in display names", () => {
+        expect(
+            resolveMentionTokens("@a.b(c) 1", m([["@a.b(c)", "@abc:hs.tld"]])),
+        ).toBe("@abc:hs.tld 1");
+    });
+
+    it("replaces multiple pills in one argument", () => {
+        const map = m([
+            ["@dev", "@dev:hs.tld"],
+            ["@ops", "@ops:hs.tld"],
+        ]);
+        expect(resolveMentionTokens("@dev spam by @ops", map)).toBe(
+            "@dev:hs.tld spam by @ops:hs.tld",
+        );
     });
 });
 

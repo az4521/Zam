@@ -60,9 +60,10 @@
         parseNickArg,
         parseOpArg,
         parseDeopArg,
+        resolveMentionTokens,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
-    import { resolveUserToken } from "$lib/utils/userSearch";
+    import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
 
@@ -693,10 +694,21 @@
         };
     }
 
+    // A user token from a slash command: a full mxid, a mention pill's
+    // display name (unique members only), or a localpart for our homeserver.
+    function resolveUserOrThrow(token: string): string {
+        const userId = resolveUserArg(
+            token,
+            getOwnServerName(),
+            room ? getRoomMembers(room) : [],
+        );
+        if (!userId) throw new Error(`"${token}" is not a valid user`);
+        return userId;
+    }
+
     async function applyPowerLevel(token: string, level: number) {
         if (!room) throw new Error("No room selected");
-        const userId = resolveUserToken(token, getOwnServerName());
-        if (!userId) throw new Error(`"${token}" is not a valid user`);
+        const userId = resolveUserOrThrow(token);
         if (!room.getMember(userId))
             throw new Error(`${userId} is not in this room`);
         const pl = getRoomPowerLevels(room);
@@ -717,19 +729,19 @@
                 await leaveRoom(roomId);
                 break;
             case "invite":
-                await inviteUser(roomId, arg.trim());
+                await inviteUser(roomId, resolveUserOrThrow(arg.trim()));
                 break;
             case "topic":
                 await setRoomTopic(roomId, arg);
                 break;
             case "kick": {
                 const { user, reason } = splitUserAndReason(arg);
-                await kickUser(roomId, user, reason);
+                await kickUser(roomId, resolveUserOrThrow(user), reason);
                 break;
             }
             case "ban": {
                 const { user, reason } = splitUserAndReason(arg);
-                await banUser(roomId, user, reason);
+                await banUser(roomId, resolveUserOrThrow(user), reason);
                 break;
             }
             case "nick": {
@@ -761,6 +773,11 @@
             return;
         }
 
+        // Mention pills put display names in the text ("@Ann"), not mxids —
+        // swap them back before a user-arg command parses its argument.
+        if (command.argKind === "user")
+            arg = resolveMentionTokens(arg, pendingMentions);
+
         // Stop our typing indicator — send() does this too, but command dispatch
         // returns before reaching that point.
         if (typingStopTimer) {
@@ -777,6 +794,8 @@
                 await runSlashAction(command, arg);
                 text = "";
                 slashQuery = null;
+                mentionQuery = null;
+                pendingMentions = new Map();
                 clearDraft(roomId);
                 renderComposer(0);
             } catch (err) {

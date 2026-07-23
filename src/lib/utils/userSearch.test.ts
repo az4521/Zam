@@ -5,6 +5,7 @@ import {
     debounce,
     userDomain,
     resolveUserToken,
+    resolveUserArg,
 } from "./userSearch";
 
 describe("isValidUserId — full @localpart:server shape", () => {
@@ -274,5 +275,54 @@ describe("resolveUserToken", () => {
         expect(resolveUserToken("  ", "me.tld")).toBeNull();
         expect(resolveUserToken("na@me", "me.tld")).toBeNull();
         expect(resolveUserToken("has:colon", "me.tld")).toBeNull();
+    });
+});
+
+describe("resolveUserArg — slash-command user tokens", () => {
+    const members = [
+        { userId: "@alice:hs.tld", rawDisplayName: "Ann" },
+        { userId: "@bob:hs.tld", rawDisplayName: "Bob" },
+        { userId: "@carol:other.tld", rawDisplayName: "bob" },
+        { userId: "@nameless:hs.tld" },
+    ];
+
+    it("passes through a full user id", () => {
+        expect(resolveUserArg("@x:hs.tld", "me.tld", members)).toBe(
+            "@x:hs.tld",
+        );
+    });
+
+    it("resolves the display name of exactly one member, case-insensitively", () => {
+        expect(resolveUserArg("@Ann", "me.tld", members)).toBe("@alice:hs.tld");
+        expect(resolveUserArg("@ann", "me.tld", members)).toBe("@alice:hs.tld");
+    });
+
+    it("refuses an ambiguous display name instead of guessing", () => {
+        expect(resolveUserArg("@Bob", "me.tld", members)).toBeNull();
+    });
+
+    it("does not name-match a bare '@' against nameless members", () => {
+        expect(resolveUserArg("@", "me.tld", members)).toBeNull();
+    });
+
+    it("synthesizes a bare or @-prefixed localpart onto ownDomain", () => {
+        expect(resolveUserArg("dev", "me.tld", members)).toBe("@dev:me.tld");
+        expect(resolveUserArg("@dev", "me.tld", members)).toBe("@dev:me.tld");
+    });
+
+    it("a member whose display name looks like an mxid cannot hijack it", () => {
+        const spoof = [{ userId: "@evil:hs.tld", rawDisplayName: "@x:hs.tld" }];
+        expect(resolveUserArg("@x:hs.tld", "me.tld", spoof)).toBe("@x:hs.tld");
+    });
+
+    it("returns null for junk and for empty input", () => {
+        expect(resolveUserArg("", "me.tld", members)).toBeNull();
+        expect(resolveUserArg("  ", "me.tld", members)).toBeNull();
+        expect(resolveUserArg("na@me", "me.tld", members)).toBeNull();
+        expect(resolveUserArg("has:colon", "me.tld", members)).toBeNull();
+    });
+
+    it("returns null for a localpart with no domain to synthesize onto", () => {
+        expect(resolveUserArg("dev", "", [])).toBeNull();
     });
 });

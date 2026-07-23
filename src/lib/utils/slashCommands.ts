@@ -243,6 +243,26 @@ export function usageFor(command: SlashCommand): string {
         : `Usage: /${command.name}`;
 }
 
+/**
+ * Replace composer mention pills (display-name tokens like "@Alice") in a
+ * user-arg command line with the Matrix IDs they were inserted for. Longest
+ * pill first so "@Ann Example" isn't shadowed by "@Ann"; the lookahead keeps
+ * a pill from matching inside a longer token or an already-substituted mxid
+ * (same boundary rule as the composer's formatted-body mention pass).
+ */
+export function resolveMentionTokens(
+    arg: string,
+    mentions: ReadonlyMap<string, string>,
+): string {
+    let out = arg;
+    const entries = [...mentions].sort((a, b) => b[0].length - a[0].length);
+    for (const [token, userId] of entries) {
+        const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        out = out.replace(new RegExp(`${escaped}(?![\\w:.-])`, "g"), userId);
+    }
+    return out;
+}
+
 /** Default power level `/op` grants when no explicit level is given (Moderator). */
 export const DEFAULT_OP_LEVEL = 50;
 
