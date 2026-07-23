@@ -981,6 +981,16 @@ export async function markThreadRead(
     if (!thread) return;
     const latest = thread.replyToEvent ?? thread.rootEvent;
     if (!latest) return;
+    // Idempotence guard: sendReadReceipt SYNCHRONOUSLY synthesizes a local
+    // receipt and fires every receipt listener (bumpUnreadTick + notification
+    // clearing) before the HTTP call. Re-sending for an already-read latest
+    // event turns any reactive caller into an infinite receipt loop
+    // (effect_update_depth_exceeded, froze the whole ThreadPanel) and spams
+    // the server. The synthesized receipt counts here, so this trips right
+    // after the first send.
+    const ownUserId = matrixClient.getUserId();
+    if (ownUserId && thread.getEventReadUpTo(ownUserId) === latest.getId())
+        return;
     const receiptType = receiptTypeForSetting(
         settingsState.privateReadReceipts,
     ) as ReceiptType;
