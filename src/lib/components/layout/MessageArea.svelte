@@ -101,6 +101,10 @@
     let replyToEvent = $state<MatrixEvent | null>(null);
     let editRequestedEventId = $state<string | null>(null);
     let threadRootId = $state<string | null>(null);
+    // Desktop: thread replaces the timeline instead of docking as a side
+    // panel. Sticky for the session so an expanded reader stays expanded
+    // across threads; reset on room switch. Mobile always renders fullscreen.
+    let threadFullscreen = $state(false);
 
     function openThread(rootEventId: string) {
         threadRootId = rootEventId;
@@ -116,6 +120,7 @@
     $effect(() => {
         void room.roomId;
         threadRootId = null;
+        threadFullscreen = false;
         revealedBlockedIds = {};
     });
     let isDragOver = $state(false);
@@ -1414,6 +1419,7 @@
                 replyToEvent = null;
             }}
             onRequestEditLast={requestEditLastMessage}
+            onThreadCreated={openThread}
         />
     </div>
 
@@ -1523,19 +1529,28 @@
         <MemberList {room} />
     {/if}
 
-    <!-- Thread panel (inline on desktop, overlay on mobile) -->
+    <!-- Thread panel. Mobile: always fullscreen over the timeline (the w-80
+         side sheet was unusably cramped). Desktop: side panel by default,
+         with an expand toggle that swaps it to fullscreen. -->
     {#if threadRootId}
         {#if isMobile}
-            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-            <div
-                class="absolute inset-0 z-30 bg-black/50"
-                onclick={closeThread}
-            ></div>
-            <div class="absolute inset-y-0 right-0 z-40 h-full">
+            <div class="absolute inset-0 z-40">
                 <ThreadPanel
                     {room}
                     rootEventId={threadRootId}
                     onClose={closeThread}
+                    fullscreen
+                />
+            </div>
+        {:else if threadFullscreen}
+            <div class="absolute inset-0 z-30">
+                <ThreadPanel
+                    {room}
+                    rootEventId={threadRootId}
+                    onClose={closeThread}
+                    fullscreen
+                    onToggleFullscreen={() =>
+                        (threadFullscreen = !threadFullscreen)}
                 />
             </div>
         {:else}
@@ -1543,6 +1558,8 @@
                 {room}
                 rootEventId={threadRootId}
                 onClose={closeThread}
+                onToggleFullscreen={() =>
+                    (threadFullscreen = !threadFullscreen)}
             />
         {/if}
     {/if}
