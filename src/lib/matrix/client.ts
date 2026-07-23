@@ -150,7 +150,9 @@ import {
     encryptionInitialState,
 } from "$lib/utils/roomEncryption";
 import {
+    coercePl,
     effectivePowerLevel,
+    normalizePowerLevels,
     roomVersionHasImmutableCreators,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
@@ -3395,7 +3397,9 @@ export function canAddRoomToSpace(spaceId: string): boolean {
     if (!space) return false;
     const myLevel = getMyPowerLevel(space);
     const pl = getRoomPowerLevels(space);
-    const required = pl.events["m.space.child"] ?? pl.state_default ?? 50;
+    // Tolerate a pre-v10 numeric-string level in the events map; fall back to
+    // the already-defaulted state_default when the key is absent.
+    const required = coercePl(pl.events["m.space.child"], pl.state_default);
     return myLevel >= required;
 }
 
@@ -3529,19 +3533,10 @@ export function canInviteToRoom(roomId: string): boolean {
     const room = matrixClient?.getRoom(roomId);
     const me = matrixClient?.getUserId();
     if (!room || !me) return false;
-    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    // The spec default for `invite` is 0 — getRoomPowerLevels() normalizes it to
-    // 50, which would wrongly hide Invite from ordinary members of rooms that
-    // never set an explicit invite PL. Read the raw value with the correct default.
-    const inviteReq = state
-        ?.getStateEvents("m.room.power_levels", "")
-        ?.getContent()?.invite;
-    // getUserPowerLevel already lifts a v12 creator (its bespoke creator branch
-    // is now the shared, version-gated rule).
-    return (
-        getUserPowerLevel(room, me) >=
-        (typeof inviteReq === "number" ? inviteReq : 0)
-    );
+    // getRoomPowerLevels now applies the spec `invite` default of 0 (v1.4) and
+    // coerces pre-v10 numeric-string levels; getUserPowerLevel already lifts a
+    // v12 creator (its bespoke creator branch is the shared, version-gated rule).
+    return getUserPowerLevel(room, me) >= getRoomPowerLevels(room).invite;
 }
 
 export function getInvitedRooms(): Room[] {
@@ -4639,19 +4634,16 @@ export interface PowerLevels {
 
 export function getRoomPowerLevels(room: Room): PowerLevels {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    const content =
-        state?.getStateEvents("m.room.power_levels", "")?.getContent() ?? {};
-    return {
-        ban: (content.ban as number) ?? 50,
-        kick: (content.kick as number) ?? 50,
-        redact: (content.redact as number) ?? 50,
-        invite: (content.invite as number) ?? 50,
-        events_default: (content.events_default as number) ?? 0,
-        state_default: (content.state_default as number) ?? 50,
-        users_default: (content.users_default as number) ?? 0,
-        events: (content.events as Record<string, number>) ?? {},
-        users: (content.users as Record<string, number>) ?? {},
-    };
+    // Distinguish "no m.room.power_levels event at all" (content undefined) from
+    // "event present but a field omitted" ({}): the two carry different spec
+    // defaults. normalizePowerLevels applies the correct set and coerces pre-v10
+    // numeric-string levels.
+    const content = state
+        ?.getStateEvents("m.room.power_levels", "")
+        ?.getContent() as Record<string, unknown> | undefined;
+    const creatorId =
+        state?.getStateEvents("m.room.create", "")?.getSender() ?? null;
+    return normalizePowerLevels(content ?? null, creatorId);
 }
 
 export function getPinnedEventIds(room: Room): string[] {
@@ -4720,6 +4712,17 @@ export async function setUserPowerLevel(
     level: number,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // A room-v12 (MSC4289) creator's power is immutable and NOT stored in the
+    // users map — writing it there is a guaranteed server 403. Surface a clear
+    // error instead of the raw federation rejection.
+    if (
+        isRoomCreator(room, userId) &&
+        roomVersionHasImmutableCreators(room.getVersion())
+    ) {
+        throw new Error(
+            "Room creators' power level cannot be set in v12 rooms",
+        );
+    }
     const pl = getRoomPowerLevels(room);
     await setRoomPowerLevels(room, { users: { ...pl.users, [userId]: level } });
 }

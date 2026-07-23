@@ -267,12 +267,40 @@
     let plEventsDefault = $state(untrack(() => pl.events_default));
     let plStateDefault = $state(untrack(() => pl.state_default));
     let plUsersDefault = $state(untrack(() => pl.users_default));
+    // Frozen snapshot of the levels the editor was seeded with, so a Save can
+    // tell whether the user actually changed anything. Without this guard,
+    // saving in a room that has NO m.room.power_levels event would materialize a
+    // full PL event out of the defaults even on a no-op save.
+    const permInitial = untrack(() => ({
+        ban: pl.ban,
+        kick: pl.kick,
+        redact: pl.redact,
+        invite: pl.invite,
+        events_default: pl.events_default,
+        state_default: pl.state_default,
+        users_default: pl.users_default,
+    }));
     let permSaving = $state(false);
     let permError = $state("");
     let permSuccess = $state(false);
 
     async function savePermissions() {
         permError = "";
+        // No-op save guard: if nothing changed, don't write a PL event (which,
+        // in a room with none, would create one from the defaults).
+        const changed =
+            plBan !== permInitial.ban ||
+            plKick !== permInitial.kick ||
+            plRedact !== permInitial.redact ||
+            plInvite !== permInitial.invite ||
+            plEventsDefault !== permInitial.events_default ||
+            plStateDefault !== permInitial.state_default ||
+            plUsersDefault !== permInitial.users_default;
+        if (!changed) {
+            permSuccess = true;
+            setTimeout(() => (permSuccess = false), 2000);
+            return;
+        }
         permSaving = true;
         try {
             await setRoomPowerLevels(room, {

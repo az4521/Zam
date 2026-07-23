@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
     CREATOR_POWER_LEVEL,
+    coercePl,
     effectivePowerLevel,
+    normalizePowerLevels,
     parsePowerLevelInput,
     roomVersionHasImmutableCreators,
 } from "./powerLevels";
@@ -85,6 +87,97 @@ describe("effectivePowerLevel", () => {
                 immutableCreators: true,
             }),
         ).toBe(0);
+    });
+});
+
+describe("coercePl — spec-tolerant power-level read", () => {
+    it("coerces numeric strings (pre-v10 rooms), rejects junk to default", () => {
+        expect(coercePl(50, 0)).toBe(50);
+        expect(coercePl("75", 0)).toBe(75);
+        expect(coercePl("abc", 25)).toBe(25);
+        expect(coercePl(undefined, 0)).toBe(0);
+        expect(coercePl(null, 50)).toBe(50);
+    });
+
+    it("passes finite numbers (including 0 and negatives) through", () => {
+        expect(coercePl(0, 50)).toBe(0);
+        expect(coercePl(-1, 50)).toBe(-1);
+        expect(coercePl(100, 0)).toBe(100);
+    });
+
+    it("rejects non-finite numbers and blank/whitespace strings to the default", () => {
+        expect(coercePl(NaN, 42)).toBe(42);
+        expect(coercePl(Infinity, 42)).toBe(42);
+        expect(coercePl("", 42)).toBe(42);
+        expect(coercePl("   ", 42)).toBe(42);
+        expect(coercePl({}, 42)).toBe(42);
+        expect(coercePl([], 42)).toBe(42);
+    });
+});
+
+describe("normalizePowerLevels", () => {
+    it("returns the no-event defaults when content is absent: creator 100, everyone else 0, all action levels 0", () => {
+        expect(normalizePowerLevels(null, "@creator:hs")).toEqual({
+            ban: 0,
+            kick: 0,
+            redact: 0,
+            invite: 0,
+            events_default: 0,
+            state_default: 0,
+            users_default: 0,
+            events: {},
+            users: { "@creator:hs": 100 },
+        });
+    });
+
+    it("omits the creator entry when there is no creator id and no event", () => {
+        expect(normalizePowerLevels(null, null).users).toEqual({});
+    });
+
+    it("applies the per-field spec defaults for an empty-but-present event", () => {
+        // An event that exists but sets no fields: spec per-field defaults apply
+        // (ban/kick/redact/state_default 50, events_default/users_default/invite 0).
+        expect(normalizePowerLevels({}, "@creator:hs")).toEqual({
+            ban: 50,
+            kick: 50,
+            redact: 50,
+            invite: 0,
+            events_default: 0,
+            state_default: 50,
+            users_default: 0,
+            events: {},
+            users: {},
+        });
+    });
+
+    it("defaults invite to 0 (spec v1.4), not 50, when the event omits it", () => {
+        expect(normalizePowerLevels({ ban: 60 }, null).invite).toBe(0);
+    });
+
+    it("coerces pre-v10 numeric-string scalar levels", () => {
+        const pl = normalizePowerLevels(
+            { ban: "60", kick: "40", invite: "10" },
+            null,
+        );
+        expect(pl.ban).toBe(60);
+        expect(pl.kick).toBe(40);
+        expect(pl.invite).toBe(10);
+    });
+
+    it("passes through explicit numeric levels and preserves the users/events maps", () => {
+        const pl = normalizePowerLevels(
+            {
+                ban: 70,
+                events_default: 5,
+                users: { "@admin:hs": 100 },
+                events: { "m.room.name": 50 },
+            },
+            "@creator:hs",
+        );
+        expect(pl.ban).toBe(70);
+        expect(pl.events_default).toBe(5);
+        expect(pl.users).toEqual({ "@admin:hs": 100 });
+        expect(pl.events).toEqual({ "m.room.name": 50 });
     });
 });
 
