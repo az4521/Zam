@@ -81,6 +81,7 @@ import {
 import { parseMarkdown } from "$lib/utils/markdown";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { classifyWellKnown } from "$lib/utils/wellKnown";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -283,18 +284,61 @@ async function resolveHomeserver(input: string): Promise<string> {
     const withProtocol = normalized.startsWith("http")
         ? normalized
         : `https://${normalized}`;
+
+    // Fetch the well-known descriptor. A request that never lands leaves
+    // status === null; invalid JSON on a 2xx leaves data === undefined —
+    // classifyWellKnown treats both as FAIL_PROMPT.
+    let status: number | null = null;
+    let data: unknown = undefined;
     try {
         const res = await fetch(`${withProtocol}/.well-known/matrix/client`);
+        status = res.status;
         if (res.ok) {
-            const data = await res.json();
-            const baseUrl: string | undefined =
-                data?.["m.homeserver"]?.["base_url"];
-            if (baseUrl) return baseUrl.replace(/\/$/, "");
+            try {
+                data = await res.json();
+            } catch {
+                data = undefined;
+            }
         }
     } catch {
-        // .well-known not available, use input as-is
+        status = null;
     }
-    return withProtocol;
+
+    const outcome = classifyWellKnown(status, data);
+    if (outcome.action === "ignore") {
+        // 404 → no delegation; use the typed address silently.
+        return withProtocol;
+    }
+    if (outcome.action === "prompt") {
+        // Auto-discovery failed but the typed address may still work — use it,
+        // and inform the user (spec FAIL_PROMPT).
+        showErrorToast(
+            "Server auto-discovery failed — using the address as typed",
+        );
+        return withProtocol;
+    }
+
+    // A base_url was discovered — validate it against /versions before we
+    // trust the redirect target, so we never log in against an unvalidated
+    // homeserver. Plain fetch with a 3s timeout.
+    const base = outcome.baseUrl;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    let versionsOk = false;
+    try {
+        const versionsRes = await fetch(`${base}/_matrix/client/versions`, {
+            signal: controller.signal,
+        });
+        versionsOk = versionsRes.ok;
+    } catch {
+        versionsOk = false;
+    } finally {
+        clearTimeout(timer);
+    }
+    if (!versionsOk) {
+        throw new Error("Discovered homeserver failed validation");
+    }
+    return base;
 }
 
 export async function login(
@@ -311,7 +355,7 @@ export async function login(
     const tempClient = createClient({ baseUrl: resolvedBase });
 
     const response = await tempClient.login("m.login.password", {
-        user: username,
+        identifier: { type: "m.id.user", user: username },
         password: password,
         initial_device_display_name: "Matrix Svelte Client",
     });
