@@ -1304,11 +1304,12 @@ export async function sendLocation(
 export async function sendTextMessage(
     roomId: string,
     text: string,
-): Promise<void> {
+): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Pass null threadId explicitly — the SDK's overload shim treats any string
     // starting with "$" as a thread ID, which would mangle messages like "$foo".
-    await matrixClient.sendTextMessage(roomId, null, text);
+    const res = await matrixClient.sendTextMessage(roomId, null, text);
+    return res.event_id;
 }
 
 export async function sendFormattedMessage(
@@ -1316,15 +1317,16 @@ export async function sendFormattedMessage(
     body: string,
     formattedBody: string,
     mentions?: { user_ids?: string[]; room?: boolean },
-): Promise<void> {
+): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.sendMessage(roomId, {
+    const res = await matrixClient.sendMessage(roomId, {
         msgtype: "m.text",
         body,
         format: "org.matrix.custom.html",
         formatted_body: formattedBody,
         ...(mentions ? { "m.mentions": mentions } : {}),
     } as never);
+    return res.event_id;
 }
 
 /**
@@ -5158,7 +5160,7 @@ export async function sendReply(
     replyToEvent: MatrixEvent,
     formattedText?: string,
     mentions?: { user_ids?: string[]; room?: boolean },
-): Promise<void> {
+): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
 
     const replyContent = replyToEvent.getContent();
@@ -5173,7 +5175,8 @@ export async function sendReply(
         mentions,
     });
 
-    await matrixClient.sendMessage(roomId, content as never);
+    const res = await matrixClient.sendMessage(roomId, content as never);
+    return res.event_id;
 }
 
 // ── Presence ──────────────────────────────────────────────────────────────────

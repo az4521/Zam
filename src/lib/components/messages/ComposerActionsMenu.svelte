@@ -5,6 +5,7 @@
         onCreatePoll: () => void;
         onRecordVoice?: () => void;
         onShareLocation?: () => void;
+        onCreateThread?: () => void;
     }
     let {
         onClose,
@@ -12,6 +13,7 @@
         onCreatePoll,
         onRecordVoice,
         onShareLocation,
+        onCreateThread,
     }: Props = $props();
 
     const items = $derived([
@@ -44,6 +46,16 @@
                       label: "Share location",
                       run: () => onShareLocation?.(),
                       icon: "M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z",
+                  },
+              ]
+            : []),
+        ...(onCreateThread
+            ? [
+                  {
+                      key: "thread",
+                      label: "Create thread",
+                      run: () => onCreateThread?.(),
+                      icon: "M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z",
                   },
               ]
             : []),

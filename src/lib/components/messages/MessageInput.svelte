@@ -75,6 +75,9 @@
         replyToEvent?: MatrixEvent | null;
         onCancelReply?: () => void;
         onRequestEditLast?: () => void;
+        /** "Create thread" (+ menu): the next sent message becomes a thread
+         *  root and this fires with its event id so the caller can open it. */
+        onThreadCreated?: (rootEventId: string) => void;
         scrollEl?: HTMLElement;
     }
 
@@ -86,6 +89,7 @@
         replyToEvent = null,
         onCancelReply,
         onRequestEditLast,
+        onThreadCreated,
         scrollEl,
     }: Props = $props();
 
@@ -105,6 +109,11 @@
     // record audio (feature-detected once — codec support doesn't change).
     const voiceSupported = pickAudioMimeType() !== "";
     let voiceRecorderOpen = $state(false);
+
+    // "+ → Create thread": armed until the next plain message is sent, which
+    // becomes the thread root (a Matrix thread needs a root event, so
+    // "create" means "start a thread on what I'm about to say").
+    let createThreadArmed = $state(false);
 
     // Expose a focus hook so the global "type to focus" shortcut (+page) can
     // focus this composer.
@@ -672,6 +681,8 @@
         // stays mounted across room switches, so an open recorder would otherwise
         // persist and send its audio to the newly-selected room.
         voiceRecorderOpen = false;
+        // An armed "create thread" must not carry over to another room either.
+        createThreadArmed = false;
         untrack(() => {
             const draft = getDraft(id);
             text = draft?.text ?? "";
@@ -942,8 +953,9 @@
                     mentionedUserIds.length > 0
                         ? { user_ids: mentionedUserIds }
                         : undefined;
+                let sentEventId: string;
                 if (replyToEvent) {
-                    await sendReply(
+                    sentEventId = await sendReply(
                         roomId,
                         trimmed,
                         replyToEvent,
@@ -952,9 +964,18 @@
                     );
                     onCancelReply?.();
                 } else if (html) {
-                    await sendFormattedMessage(roomId, trimmed, html, mentions);
+                    sentEventId = await sendFormattedMessage(
+                        roomId,
+                        trimmed,
+                        html,
+                        mentions,
+                    );
                 } else {
-                    await sendTextMessage(roomId, trimmed);
+                    sentEventId = await sendTextMessage(roomId, trimmed);
+                }
+                if (createThreadArmed) {
+                    createThreadArmed = false;
+                    onThreadCreated?.(sentEventId);
                 }
             }
             for (let i = 0; i < filesToSend.length; i++) {
@@ -1490,6 +1511,30 @@
         </div>
     {/if}
 
+    <!-- Armed "create thread" banner: mirrors the reply banner pattern -->
+    {#if createThreadArmed}
+        <div
+            class="flex items-center justify-between gap-2 px-3 py-1.5 bg-discord-backgroundSecondary rounded-t-lg text-xs text-discord-textMuted"
+        >
+            <span>Your next message will start a <b>thread</b></span>
+            <button
+                onclick={() => (createThreadArmed = false)}
+                class="p-0.5 rounded hover:text-discord-textPrimary transition-colors"
+                title="Cancel thread creation"
+            >
+                <svg
+                    class="w-3.5 h-3.5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                    />
+                </svg>
+            </button>
+        </div>
+    {/if}
+
     {#if voiceRecorderOpen}
         <VoiceRecorder {roomId} onClose={() => (voiceRecorderOpen = false)} />
     {:else}
@@ -1538,6 +1583,9 @@
                                     : undefined}
                                 onShareLocation={() =>
                                     openShareLocationDialog(roomId)}
+                                onCreateThread={onThreadCreated
+                                    ? () => (createThreadArmed = true)
+                                    : undefined}
                             />
                         </div>
                     {:else}
@@ -1555,6 +1603,9 @@
                                     : undefined}
                                 onShareLocation={() =>
                                     openShareLocationDialog(roomId)}
+                                onCreateThread={onThreadCreated
+                                    ? () => (createThreadArmed = true)
+                                    : undefined}
                             />
                         </div>
                     {/if}

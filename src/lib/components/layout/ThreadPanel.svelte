@@ -21,9 +21,19 @@
         room: Room;
         rootEventId: string;
         onClose: () => void;
+        /** Fill the container (thread replaces the timeline) instead of the w-80 side panel. */
+        fullscreen?: boolean;
+        /** Desktop only: show an expand/collapse toggle that flips fullscreen. */
+        onToggleFullscreen?: () => void;
     }
 
-    let { room, rootEventId, onClose }: Props = $props();
+    let {
+        room,
+        rootEventId,
+        onClose,
+        fullscreen = false,
+        onToggleFullscreen,
+    }: Props = $props();
 
     let scrollEl: HTMLDivElement | undefined = $state();
     let text = $state("");
@@ -57,7 +67,15 @@
         return getThreadMessages(room, rootEventId);
     });
 
-    const rootEvent = $derived(findEventById(room, rootEventId));
+    // threadTick dependency is load-bearing for the "Create thread" flow: the
+    // panel opens on a root whose remote echo hasn't landed in the timeline
+    // yet, so the first lookup is null — without the tick this derived never
+    // re-runs (stable room + id) and the header stays blank forever. The
+    // localEchoUpdated subscription bumps the tick when the echo reconciles.
+    const rootEvent = $derived.by(() => {
+        threadTick;
+        return findEventById(room, rootEventId);
+    });
     const rootSender = $derived(
         rootEvent ? getMemberName(room, rootEvent.getSender() ?? "") : "",
     );
@@ -147,7 +165,9 @@
 </script>
 
 <div
-    class="w-80 flex-shrink-0 flex flex-col border-l border-discord-divider bg-discord-background overflow-hidden"
+    class="{fullscreen
+        ? 'w-full'
+        : 'w-80 border-l'} h-full flex-shrink-0 flex flex-col border-discord-divider bg-discord-background overflow-hidden"
 >
     <!-- Header -->
     <div
@@ -156,17 +176,48 @@
         <span class="font-semibold text-discord-textPrimary text-sm"
             >Thread</span
         >
-        <button
-            onclick={onClose}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            title="Close thread"
-        >
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path
-                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                />
-            </svg>
-        </button>
+        <div class="flex items-center gap-1">
+            {#if onToggleFullscreen}
+                <button
+                    onclick={onToggleFullscreen}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={fullscreen ? "Collapse thread" : "Expand thread"}
+                >
+                    {#if fullscreen}
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M22 3.41 16.71 8.7 20 12h-8V4l3.29 3.29L20.59 2 22 3.41zM3.41 22l5.29-5.29L12 20v-8H4l3.29 3.29L2 20.59 3.41 22z"
+                            />
+                        </svg>
+                    {:else}
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"
+                            />
+                        </svg>
+                    {/if}
+                </button>
+            {/if}
+            <button
+                onclick={onClose}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title="Close thread"
+            >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                    />
+                </svg>
+            </button>
+        </div>
     </div>
 
     <!-- Thread root message -->
