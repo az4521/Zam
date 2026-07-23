@@ -17,6 +17,7 @@ import {
     SetPresence,
     Direction,
     EventType,
+    ThreadEvent,
     MatrixEventEvent,
     Method,
 } from "matrix-js-sdk";
@@ -85,6 +86,7 @@ import {
 } from "$lib/utils/threadContent";
 import { belongsToMainTimeline, summarizeThread } from "$lib/utils/threadModel";
 import type { ThreadSummary } from "$lib/utils/threadModel";
+import type { ThreadInfo } from "$lib/utils/threadList";
 import {
     tagUpdatesForToggle,
     TAG_FAVOURITE,
@@ -1006,6 +1008,69 @@ export function onThreadEvent(callback: () => void): () => void {
     };
     matrixClient.on(RoomEvent.Timeline, handler as never);
     return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
+}
+
+/** Plain body text of an event's content, or "" when absent/non-string. */
+function eventBodyText(e: MatrixEvent | null | undefined): string {
+    const body = e?.getContent()?.body;
+    return typeof body === "string" ? body : "";
+}
+
+/**
+ * Map the room's SDK `Thread` objects to a plain view model so components never
+ * touch `Thread` directly. Previews are the raw bodies; `buildThreadListItems`
+ * shapes + sorts them.
+ */
+export function getRoomThreads(room: Room): ThreadInfo[] {
+    return room.getThreads().map((thread): ThreadInfo => {
+        const root = thread.rootEvent;
+        const latest = thread.replyToEvent;
+        return {
+            rootId: thread.id,
+            rootSenderId: root?.getSender() ?? null,
+            rootPreview: eventBodyText(root),
+            replyCount: thread.length,
+            latestTs: latest?.getTs() ?? root?.getTs() ?? 0,
+            latestPreview: eventBodyText(latest),
+            participated: thread.hasCurrentUserParticipated,
+        };
+    });
+}
+
+export async function ensureThreadsLoaded(room: Room): Promise<void> {
+    // Populate room.getThreads(). fetchRoomThreads() is what actually fetches +
+    // builds the Thread objects; createThreadsTimelineSets() only creates the
+    // (initially empty) All/My sets the fetch writes into. Both are idempotent
+    // (fetchRoomThreads no-ops once threadsReady). fetchRoomThreads internally
+    // feature-detects Thread.hasServerSideListSupport (⚑5): with the MSC3856
+    // list endpoint it pages the server list; without it (continuwuity/tuwunel)
+    // it falls back to a client-side m.thread-relation scan. try/catch degrades
+    // to sync-known threads if the server rejects the fallback filter.
+    if (!matrixClient?.supportsThreads()) return;
+    try {
+        await room.createThreadsTimelineSets();
+        await room.fetchRoomThreads();
+    } catch (err) {
+        console.error("Failed to load room threads:", err);
+    }
+}
+
+/**
+ * Subscribe to thread lifecycle changes for a room so the threads list can
+ * re-read. ThreadEvent.* is emitted on the Room instance (but NOT bridged to
+ * the MatrixClient re-emitter — see onThreadEvent), so we bind on the room,
+ * scoped to it. Returns a () => void unsubscribe.
+ */
+export function onThreadsUpdated(room: Room, callback: () => void): () => void {
+    const handler = () => callback();
+    room.on(ThreadEvent.New, handler);
+    room.on(ThreadEvent.Update, handler);
+    room.on(ThreadEvent.Delete, handler);
+    return () => {
+        room.off(ThreadEvent.New, handler);
+        room.off(ThreadEvent.Update, handler);
+        room.off(ThreadEvent.Delete, handler);
+    };
 }
 
 async function captureVideoThumbnail(file: File): Promise<{
