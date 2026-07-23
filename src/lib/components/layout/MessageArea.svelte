@@ -78,6 +78,7 @@
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
+    import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
     import { Phone, Volume2, Lock } from "lucide-svelte";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
@@ -1169,6 +1170,7 @@
         </div>
 
         <ActiveCallBanner {room} />
+        <LiveLocationBanner {room} />
 
         <!-- Messages scrollable area -->
         <div

@@ -39,6 +39,7 @@
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
+    import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import {
         initVoiceCall,
         leaveCall,
@@ -666,6 +667,7 @@
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
         const unsubIncoming = initIncomingCalls();
+        const unsubLiveLocation = initLiveLocation();
         const unsubVerification = initVerification();
         const unsubAccountData = onAccountData((type) => {
             if (
@@ -717,6 +719,7 @@
             unsubPresence();
             unsubVoice();
             unsubIncoming();
+            unsubLiveLocation();
             unsubVerification();
             unsubAccountData();
             mq.removeEventListener("change", onMqChange);
