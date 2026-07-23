@@ -84,6 +84,7 @@ import {
     type DeviceInfo,
 } from "$lib/utils/deviceSessions";
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
+import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
     buildThreadReplyContent,
@@ -2519,11 +2520,25 @@ export async function sendEdit(
     eventId: string,
     newText: string,
     formattedBody?: string,
+    originalMentions?: Mentions,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // v1.7 mentions module: split m.mentions across the replacement halves —
+    // top-level carries only the mentions NEWLY introduced by this revision;
+    // m.new_content carries the resolved final set. Conservative: original
+    // mentions are never dropped (see computeEditMentions).
+    // ⚑ deferred: pill anchors in the ORIGINAL formatted_body are lost on edit
+    // because the edit UI is a plain-text box — so a mention that existed only
+    // as a formatted_body pill (no bare mxid retyped) survives as an
+    // m.mentions user_id but loses its inline highlight in the new body.
+    const { topLevel, resolved } = computeEditMentions(
+        originalMentions,
+        newText,
+    );
     const newContent: Record<string, unknown> = {
         msgtype: "m.text",
         body: newText,
+        "m.mentions": resolved,
     };
     if (formattedBody) {
         newContent.format = "org.matrix.custom.html";
@@ -2541,6 +2556,7 @@ export async function sendEdit(
                       formatted_body: `* ${formattedBody}`,
                   }
                 : {}),
+            "m.mentions": topLevel,
             "m.new_content": newContent,
             "m.relates_to": { rel_type: "m.replace", event_id: eventId },
         } as never,

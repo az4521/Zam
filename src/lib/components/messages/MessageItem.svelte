@@ -702,11 +702,15 @@
         isSavingEdit = true;
         try {
             const { formattedBody, hasFormatting } = parseMarkdown(trimmed);
+            // Latest resolved mentions live on the post-replacement content
+            // (the SDK folds m.new_content in), so this carries them forward
+            // through the edit per the v1.7 mentions module.
             await sendEdit(
                 room.roomId,
                 realEventId,
                 trimmed,
                 hasFormatting ? formattedBody : undefined,
+                event.getContent()["m.mentions"],
             );
             isEditing = false;
             editText = "";
