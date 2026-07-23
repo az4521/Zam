@@ -19,7 +19,6 @@ export interface ShareState {
     beaconInfoEventId: string;
     expiresAt: number;
     lastSentTs: number | null;
-    error?: string;
 }
 
 export const liveLocationState = $state<{
@@ -64,10 +63,14 @@ function ensureWatch() {
         showErrorToast(geolocationUnavailableMessage(isSecureContext()));
         return;
     }
+    // NO `timeout` here: a watch with a timeout fires TIMEOUT (code 3)
+    // whenever the position simply hasn't changed (standing still, GPS
+    // shadow) — a long-running share must wait indefinitely for the next
+    // fix, not error out. The one-shot probe in acquirePosition keeps its
+    // timeout; that one exists to give the share dialog fast feedback.
     watchId = navigator.geolocation.watchPosition(onPosition, onGeoError, {
         enableHighAccuracy: true,
         maximumAge: 10000,
-        timeout: 30000,
     });
 }
 
@@ -96,6 +99,13 @@ function onPosition(pos: GeolocationPosition) {
 }
 
 function onGeoError(err: GeolocationPositionError) {
+    // Only a real permission revocation ends the share. Transient errors
+    // (no fix / timeout) are routine — Android Chrome emits sporadic
+    // POSITION_UNAVAILABLE blips even with GPS on, and a stationary device
+    // may not re-fire the watch for a long time. The banner's "last updated
+    // at …" label makes staleness visible without a scary error state, so
+    // transient errors are deliberately ignored here.
+    if (err?.code !== 1) return;
     const msg = geoErrorMessage(err, isSecureContext());
     for (const roomId of Array.from(liveLocationState.shares.keys())) {
         void stopShare(roomId);

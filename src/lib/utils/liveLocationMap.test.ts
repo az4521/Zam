@@ -1,0 +1,88 @@
+import { describe, it, expect } from "vitest";
+import { beaconMarkers, type BeaconMarkerSource } from "./liveLocationMap";
+
+function beacon(over: Partial<BeaconMarkerSource> = {}): BeaconMarkerSource {
+    return {
+        beaconInfoId: "$b1",
+        beaconInfoOwner: "@alice:hs",
+        isLive: true,
+        latestLocationState: { uri: "geo:50.36,7.59", timestamp: 1000 },
+        ...over,
+    };
+}
+
+describe("beaconMarkers — beacons → map marker view models", () => {
+    it("maps a live beacon with a fix to a marker", () => {
+        expect(beaconMarkers([beacon()], "@me:hs")).toEqual([
+            {
+                id: "$b1",
+                owner: "@alice:hs",
+                isSelf: false,
+                lat: 50.36,
+                lon: 7.59,
+                updatedTs: 1000,
+                description: null,
+            },
+        ]);
+    });
+
+    it("drops non-live beacons and beacons without a parseable fix", () => {
+        const dead = beacon({ beaconInfoId: "$dead", isLive: false });
+        const noFix = beacon({
+            beaconInfoId: "$nofix",
+            latestLocationState: undefined,
+        });
+        const junk = beacon({
+            beaconInfoId: "$junk",
+            latestLocationState: { uri: "geo:junk" },
+        });
+        expect(beaconMarkers([dead, noFix, junk], "@me:hs")).toEqual([]);
+    });
+
+    it("flags the own beacon and sorts it first", () => {
+        const other = beacon();
+        const mine = beacon({
+            beaconInfoId: "$mine",
+            beaconInfoOwner: "@me:hs",
+        });
+        const out = beaconMarkers([other, mine], "@me:hs");
+        expect(out.map((m) => m.id)).toEqual(["$mine", "$b1"]);
+        expect(out[0].isSelf).toBe(true);
+        expect(out[1].isSelf).toBe(false);
+    });
+
+    it("dedupes multiple live beacons per owner, keeping the freshest fix", () => {
+        const stale = beacon({
+            beaconInfoId: "$old",
+            latestLocationState: { uri: "geo:1,1", timestamp: 500 },
+        });
+        const fresh = beacon({
+            beaconInfoId: "$new",
+            latestLocationState: { uri: "geo:2,2", timestamp: 2000 },
+        });
+        const out = beaconMarkers([stale, fresh], "@me:hs");
+        expect(out).toHaveLength(1);
+        expect(out[0].id).toBe("$new");
+        expect(out[0].lat).toBe(2);
+    });
+
+    it("passes through description and tolerates a missing timestamp", () => {
+        const b = beacon({
+            latestLocationState: { uri: "geo:3,4", description: "on my way" },
+        });
+        expect(beaconMarkers([b], "@me:hs")[0]).toMatchObject({
+            description: "on my way",
+            updatedTs: null,
+        });
+    });
+
+    it("keeps distinct owners as distinct markers", () => {
+        const a = beacon();
+        const b = beacon({
+            beaconInfoId: "$b2",
+            beaconInfoOwner: "@bob:hs",
+            latestLocationState: { uri: "geo:9,9", timestamp: 900 },
+        });
+        expect(beaconMarkers([a, b], "@me:hs")).toHaveLength(2);
+    });
+});
