@@ -358,7 +358,7 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
-                            {#if muted.has(p.userId)}
+                            {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                 <div
                                     class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
                                 >
@@ -378,7 +378,7 @@
                             <div
                                 class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
                             >
-                                {#if muted.has(p.userId)}
+                                {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                     <MicOff
                                         size={12}
                                         class="text-discord-danger flex-shrink-0"

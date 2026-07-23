@@ -831,7 +831,7 @@
                             >
                                 {name}
                             </span>
-                            {#if muted.has(p.userId)}
+                            {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                 <MicOff
                                     size={12}
                                     class="flex-shrink-0 text-discord-danger"
