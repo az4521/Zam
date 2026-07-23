@@ -60,6 +60,12 @@ import {
     DEFAULT_PARTICIPANT_AUDIO,
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
+import {
+    keywordActions,
+    keywordRulesFromContent,
+    type KeywordBehavior,
+    type KeywordRuleView,
+} from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import {
@@ -1974,6 +1980,96 @@ export async function setRoomNotificationSetting(
             setting,
         );
     } finally {
+        pushRulesState.revision++;
+    }
+}
+
+// ── Keyword highlight rules (content-kind push rules) ─────────────────────
+
+export type { KeywordBehavior, KeywordRuleView } from "$lib/utils/keywordRules";
+
+/** Re-pull the canonical push-rule set into the SDK cache; never throws. */
+async function refreshPushRulesCache(): Promise<void> {
+    try {
+        await matrixClient?.getPushRules();
+    } catch (error) {
+        console.warn("Failed to refresh push rules cache", error);
+    }
+}
+
+/** Reactive read: user keyword rules from the cached global.content set. */
+export function getKeywordRules(): KeywordRuleView[] {
+    void pushRulesState.revision;
+    if (!matrixClient) return [];
+    return keywordRulesFromContent(
+        getGlobalPushRules()?.content as any[] | undefined,
+    );
+}
+
+export async function addKeywordRule(
+    pattern: string,
+    behavior: KeywordBehavior,
+): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        await matrixClient.addPushRule(
+            "global",
+            PushRuleKind.ContentSpecific,
+            pattern, // rule_id == pattern (SDK URL-encodes it)
+            { actions: keywordActions(behavior), pattern },
+        );
+    } finally {
+        await refreshPushRulesCache();
+        pushRulesState.revision++;
+    }
+}
+
+export async function setKeywordRuleBehavior(
+    ruleId: string,
+    behavior: KeywordBehavior,
+): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        await matrixClient.setPushRuleActions(
+            "global",
+            PushRuleKind.ContentSpecific,
+            ruleId,
+            keywordActions(behavior),
+        );
+    } finally {
+        await refreshPushRulesCache();
+        pushRulesState.revision++;
+    }
+}
+
+export async function setKeywordRuleEnabled(
+    ruleId: string,
+    enabled: boolean,
+): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        await matrixClient.setPushRuleEnabled(
+            "global",
+            PushRuleKind.ContentSpecific,
+            ruleId,
+            enabled,
+        );
+    } finally {
+        await refreshPushRulesCache();
+        pushRulesState.revision++;
+    }
+}
+
+export async function deleteKeywordRule(ruleId: string): Promise<void> {
+    if (!matrixClient) return;
+    try {
+        await matrixClient.deletePushRule(
+            "global",
+            PushRuleKind.ContentSpecific,
+            ruleId,
+        );
+    } finally {
+        await refreshPushRulesCache();
         pushRulesState.revision++;
     }
 }
