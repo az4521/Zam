@@ -10,6 +10,7 @@
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     interface Props {
         onClose: () => void;
@@ -47,25 +48,33 @@
     ];
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-0 md:p-4"
-    onclick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-    }}
->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
+    <button
+        type="button"
+        aria-label="Close dialog"
+        class="absolute inset-0 bg-black/60"
+        onclick={onClose}
+    ></button>
     <div
-        class="bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="app-settings-title"
+        class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        use:focusTrap={{ onEscape: onClose }}
     >
         <!-- Header -->
         <div
             class="flex items-center justify-between px-6 py-4 border-b border-discord-divider flex-shrink-0"
         >
-            <h2 class="text-lg font-bold text-discord-textPrimary">Settings</h2>
-            <!-- svelte-ignore a11y_consider_explicit_label -->
+            <h2
+                id="app-settings-title"
+                class="text-lg font-bold text-discord-textPrimary"
+            >
+                Settings
+            </h2>
             <button
                 onclick={onClose}
+                aria-label="Close settings"
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">

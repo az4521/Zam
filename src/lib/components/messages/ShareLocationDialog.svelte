@@ -16,6 +16,7 @@
     import { LIVE_SHARE_DURATIONS } from "$lib/utils/liveLocation";
     import { startShare } from "$lib/stores/liveLocation.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     let coords = $state<{ lat: number; lon: number } | null>(null);
     let description = $state("");
@@ -86,26 +87,26 @@
             sending = false;
         }
     }
-
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") closeShareLocationDialog();
-    }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-    onclick={closeShareLocationDialog}
->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button
+        type="button"
+        aria-label="Close dialog"
+        class="absolute inset-0 bg-black/60"
+        onclick={closeShareLocationDialog}
+    ></button>
     <div
-        class="bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
-        onclick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-location-title"
+        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
+        use:focusTrap={{ onEscape: closeShareLocationDialog }}
     >
-        <h2 class="text-lg font-bold text-discord-textPrimary">
+        <h2
+            id="share-location-title"
+            class="text-lg font-bold text-discord-textPrimary"
+        >
             Share location
         </h2>
 

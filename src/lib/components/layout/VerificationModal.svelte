@@ -10,6 +10,7 @@
         formatSasEmojis,
         sasEmojiRows,
     } from "$lib/utils/verification";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     // The active controller mutates in place, so every read hangs off the tick.
     const view = $derived(
@@ -62,17 +63,24 @@
 </script>
 
 {#if view}
-    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div
-        class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-        onclick={closeActive}
-    >
-        <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <button
+            type="button"
+            aria-label="Close dialog"
+            class="absolute inset-0 bg-black/50"
+            onclick={closeActive}
+        ></button>
         <div
-            class="w-full max-w-sm rounded-lg bg-discord-backgroundSecondary border border-discord-divider shadow-xl p-5"
-            onclick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="verification-modal-title"
+            class="relative z-10 w-full max-w-sm rounded-lg bg-discord-backgroundSecondary border border-discord-divider shadow-xl p-5"
+            use:focusTrap={{ onEscape: closeActive }}
         >
-            <h2 class="text-base font-semibold text-discord-textPrimary">
+            <h2
+                id="verification-modal-title"
+                class="text-base font-semibold text-discord-textPrimary"
+            >
                 {title}
             </h2>
             {#if view.otherDeviceId}
