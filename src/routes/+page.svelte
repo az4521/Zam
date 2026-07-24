@@ -22,11 +22,13 @@
         loadLastHomeserver,
     } from "$lib/stores/auth.svelte";
     import { accountsState, switchActive } from "$lib/stores/accounts.svelte";
-    import { DEFAULT_HOMESERVER } from "$lib/config";
+    import { getDefaultHomeserver } from "$lib/config";
     import { requestWebPushPermission } from "$lib/webPush";
+    import { parseLoginUsername } from "$lib/utils/loginIdentity";
     import Avatar from "$lib/components/ui/Avatar.svelte";
 
-    let homeserverUrl = $state(loadLastHomeserver() ?? DEFAULT_HOMESERVER);
+    const defaultHomeserver = getDefaultHomeserver();
+    let homeserverUrl = $state(loadLastHomeserver() ?? defaultHomeserver);
     // "/?add": logging in an additional account — skip auto-restore and
     // offer a way back to the running session.
     let isAddAccountMode = $state(false);
@@ -182,12 +184,20 @@
         }
     }
 
+    function applyFullUserId(): string {
+        const parsed = parseLoginUsername(username);
+        username = parsed.username;
+        if (parsed.homeserver) homeserverUrl = parsed.homeserver;
+        return parsed.username;
+    }
+
     async function handleLogin() {
         error = "";
         statusMsg = "";
         isLoading = true;
 
         try {
+            const loginUsername = applyFullUserId();
             await requestWebPushPermission().catch(() => {});
 
             let url = homeserverUrl.trim();
@@ -195,7 +205,7 @@
             url = url.replace(/\/$/, "");
 
             statusMsg = "Logging in…";
-            const result = await login(url, username, password);
+            const result = await login(url, loginUsername, password);
             await afterAuth(result);
         } catch (err) {
             error =
@@ -213,6 +223,7 @@
         isLoading = true;
 
         try {
+            const registrationUsername = applyFullUserId();
             await requestWebPushPermission().catch(() => {});
 
             let url = homeserverUrl.trim();
@@ -222,7 +233,7 @@
             statusMsg = "Creating account…";
             const result = await register(
                 url,
-                username,
+                registrationUsername,
                 password,
                 registrationToken || undefined,
             );
@@ -313,7 +324,7 @@
                         id="server"
                         type="text"
                         bind:value={homeserverUrl}
-                        placeholder={DEFAULT_HOMESERVER}
+                        placeholder={defaultHomeserver}
                         disabled={isLoading}
                         class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
                         required
@@ -332,9 +343,8 @@
                         id="username"
                         type="text"
                         bind:value={username}
-                        placeholder={mode === "login"
-                            ? `@you:${new URL(DEFAULT_HOMESERVER).hostname}`
-                            : "yourusername"}
+                        onblur={applyFullUserId}
+                        placeholder="yourusername"
                         disabled={isLoading}
                         class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
                         required

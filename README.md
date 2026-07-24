@@ -66,4 +66,11 @@ if you wanna serve this, run `npm run build` and copy the files in build/ into a
 
 ### DEFAULT_HOMESERVER
 
-this is fairly obvious, it's the default homeserver url for the login page
+the default homeserver url for the login page when the app is opened as a
+regular website
+
+### INSTALLED_APP_DEFAULT_HOMESERVER
+
+the default homeserver url for the login page when the app is running as an
+APK, installed PWA, or Electron app. it defaults to `DEFAULT_HOMESERVER`, so
+set it to a different url only when installed apps should use another server
