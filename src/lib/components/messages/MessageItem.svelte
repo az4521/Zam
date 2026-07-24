@@ -438,13 +438,18 @@
         // already shows, so suppress it. Genuine replies-within-a-thread
         // (is_falling_back false/absent) still get their quote.
         const original = event.getOriginalContent();
-        const originalRel = original?.["m.relates_to"];
-        const originalInReplyTo = originalRel?.["m.in_reply_to"] as
-            | { event_id?: string; is_falling_back?: boolean }
+        // Per the threads spec, is_falling_back sits on m.relates_to itself
+        // (a sibling of m.in_reply_to), NOT inside m.in_reply_to.
+        const originalRel = original?.["m.relates_to"] as
+            | {
+                  rel_type?: string;
+                  is_falling_back?: boolean;
+                  "m.in_reply_to"?: { event_id?: string };
+              }
             | undefined;
         if (
             originalRel?.rel_type === "m.thread" &&
-            originalInReplyTo?.is_falling_back === true
+            originalRel?.is_falling_back === true
         )
             return undefined;
 
