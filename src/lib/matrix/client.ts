@@ -80,6 +80,7 @@ import {
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
@@ -284,6 +285,12 @@ async function createAuthenticatedClient(opts: {
     // failure degrades gracefully (unencrypted rooms keep working; encrypted
     // rooms render UTD placeholders).
     await initCrypto(client, opts.userId, opts.deviceId);
+
+    // Ask the browser not to evict our IndexedDB (crypto + sync stores).
+    // Fire-and-forget: never block boot, never throw. Idempotent — a no-op
+    // once the origin is already persisted, so re-running on every login /
+    // session restore / account switch is cheap and safe.
+    void requestPersistentStorage();
 
     return client;
 }
