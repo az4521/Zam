@@ -3,7 +3,7 @@
     "short_name": "Matrix",
     "description": "A Matrix chat client",
     "id": "moe.crafty.matrix",
-    "start_url": "/app",
+    "start_url": "/",
     "scope": "/",
     "display": "standalone",
     "background_color": "#313338",
