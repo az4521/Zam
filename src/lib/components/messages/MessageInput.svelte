@@ -30,7 +30,6 @@
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
-    import { parseMarkdown } from "$lib/utils/markdown";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
