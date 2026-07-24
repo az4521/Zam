@@ -3316,9 +3316,12 @@ export async function fetchSpaceHierarchy(
         id: string,
         depth: number,
     ): Promise<{ rooms: Array<Record<string, unknown>> }> => {
+        // Bind `this`: extracting the method into a bare variable would call it
+        // detached from matrixClient, so the SDK's `this.http` is undefined and
+        // /hierarchy throws at runtime (invisible to type-check/tests).
         const call = (matrixClient as unknown as Record<string, Function>)[
             "getRoomHierarchy"
-        ];
+        ].bind(matrixClient);
         const merged: Array<Record<string, unknown>> = [];
         const seen = new Set<string>();
         let nextBatch: string | undefined = undefined;
