@@ -3,6 +3,7 @@ import {
     specAtLeast,
     serverSupports,
     labelUnstableFeature,
+    hasUnstableFeature,
 } from "./serverCapabilities";
 
 describe("specAtLeast", () => {
@@ -54,5 +55,34 @@ describe("labelUnstableFeature", () => {
         expect(labelUnstableFeature("org.example.msc9999")).toBe(
             "org.example.msc9999",
         );
+    });
+});
+
+describe("hasUnstableFeature", () => {
+    it("reports an enabled unstable feature as present", () => {
+        expect(
+            hasUnstableFeature(
+                { "org.matrix.msc4140": true },
+                "org.matrix.msc4140",
+            ),
+        ).toBe(true);
+    });
+
+    it("returns false when the flag is absent, disabled, or the map is empty", () => {
+        expect(hasUnstableFeature({}, "org.matrix.msc4140")).toBe(false);
+        expect(
+            hasUnstableFeature(
+                { "org.matrix.msc4140": false },
+                "org.matrix.msc4140",
+            ),
+        ).toBe(false);
+        // An unrelated enabled flag must not satisfy the query.
+        expect(
+            hasUnstableFeature(
+                { "org.matrix.msc3952_intentional_mentions": true },
+                "org.matrix.msc4140",
+            ),
+        ).toBe(false);
+        expect(hasUnstableFeature(undefined, "org.matrix.msc4140")).toBe(false);
     });
 });

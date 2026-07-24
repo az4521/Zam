@@ -71,3 +71,16 @@ const UNSTABLE_LABELS: Record<string, string> = {
 export function labelUnstableFeature(key: string): string {
     return UNSTABLE_LABELS[key] ?? key;
 }
+
+/**
+ * Whether the server advertises an unstable-feature flag as enabled. A flag
+ * that is absent or explicitly `false` counts as unsupported — used to probe
+ * for MSC-gated behaviours (e.g. `org.matrix.msc4140` delayed events) that
+ * `/versions` exposes but `/capabilities` does not.
+ */
+export function hasUnstableFeature(
+    features: Record<string, boolean> | null | undefined,
+    key: string,
+): boolean {
+    return features?.[key] === true;
+}

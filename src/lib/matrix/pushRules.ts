@@ -8,6 +8,61 @@ import {
 
 export type RoomNotificationSetting = "default" | "all" | "mentions" | "mute";
 
+export type PushRuleLevel = "loud" | "silent" | "off";
+
+/** A single push-rule action: the "notify" string, "dont_notify", or a tweak. */
+type PushAction = string | { set_tweak?: string; value?: unknown };
+
+/**
+ * Build the actions array for a default push rule at a chosen level, derived
+ * from that rule's spec-default actions.
+ *   - loud   → the default actions verbatim (sound + any highlight tweak)
+ *   - silent → the default actions minus the sound tweak (highlight is KEPT)
+ *   - off    → []
+ *
+ * The highlight tweak is preserved verbatim and NEVER rewritten to
+ * `{ set_tweak: "highlight", value: false }`, so a mention rule keeps
+ * highlighting even when its sound is silenced.
+ */
+export function actionsForLevel(
+    defaultActions: PushAction[],
+    level: PushRuleLevel,
+): PushAction[] {
+    if (level === "off") return [];
+    if (level === "loud") return [...defaultActions];
+    // silent: drop only the sound tweak, keep everything else (incl. highlight).
+    return defaultActions.filter(
+        (a) =>
+            !(
+                typeof a === "object" &&
+                a !== null &&
+                (a as { set_tweak?: string }).set_tweak === "sound"
+            ),
+    );
+}
+
+/** The evaluated push actions for an event, as returned by
+ *  MatrixClient.getPushActionsForEvent (notify + resolved tweaks). */
+interface EvaluatedPushActions {
+    notify?: boolean;
+    tweaks?: { highlight?: boolean; sound?: unknown };
+}
+
+/**
+ * Should an event that matched a push rule be visually highlighted in the
+ * timeline? UNION of the two signals: the spec-correct `highlight` tweak OR the
+ * `sound` tweak. Keeping `sound` in the union means everything highlighted today
+ * (which keyed off sound) stays highlighted, while highlight-only rules (e.g.
+ * the keyword "Highlight" option, or @room) gain their intended styling.
+ */
+export function isHighlightAction(
+    actions: EvaluatedPushActions | null | undefined,
+): boolean {
+    const tweaks = actions?.tweaks;
+    if (!tweaks) return false;
+    return tweaks.highlight === true || !!tweaks.sound;
+}
+
 function globalRules(client: MatrixClient): Record<string, any[]> | undefined {
     return (client as any).pushRules?.global as
         | Record<string, any[]>

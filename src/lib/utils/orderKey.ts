@@ -24,6 +24,34 @@ export class OrderRebalanceError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// Raw-value validators (for user-typed order editors)
+// ---------------------------------------------------------------------------
+
+/**
+ * True when `v` is a spec-legal `m.tag` order: a finite number in `[0, 1]`.
+ * Used to gate raw, user-supplied tag-order input before it is written.
+ */
+export function isValidTagOrder(v: number): boolean {
+    return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
+}
+
+/**
+ * True when `s` is a spec-legal `m.space.child` `order`: at most
+ * `ORDER_MAX_LEN` characters, every one printable ASCII (`\x20`–`\x7E`).
+ * The empty string is valid (it clears the order). Used to gate raw,
+ * user-supplied child-order input before it is written.
+ */
+export function isValidChildOrder(s: string): boolean {
+    if (typeof s !== "string") return false;
+    if (s.length > ORDER_MAX_LEN) return false;
+    for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        if (c < ORDER_MIN_CHAR || c > ORDER_MAX_CHAR) return false;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // compareOrder
 // ---------------------------------------------------------------------------
 

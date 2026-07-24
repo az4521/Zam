@@ -109,7 +109,7 @@ The single module that imports `matrix-js-sdk`. Everything else calls these wrap
 ### messages/
 - **`MessageItem.svelte`** (~1100 lines) — one event: sender/avatar/timestamp, markdown body, media, reactions, reply quoting, edit/delete, pin, reaction emoji picker. Yellow highlight when `isLoudEvent(event)`. Mobile long-press action sheet.
 - **`MessageInput.svelte`** (~1000 lines) — composer: send, file queue, mention autocomplete, `:emoji:` autocomplete, reply/edit, emoji/sticker/gif pickers. Registers `interfaceState.focusComposer`.
-- **`Reactions.svelte`**, **`LinkPreview.svelte`**, **`MediaPreview.svelte`**.
+- **`Reactions.svelte`**, **`LinkPreview.svelte`**.
 
 ### ui/
 - **`Avatar.svelte`**, **`Portal.svelte`** (appends node to `document.body` to escape stacking contexts), **`EmojiPicker.svelte`** / **`GifPicker.svelte`** / **`StickerPicker.svelte`**, **`Lightbox.svelte`**, **`FlashEmbed.svelte`** / **`SwfEmbed.svelte`** (Ruffle).

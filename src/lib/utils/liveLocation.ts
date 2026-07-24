@@ -89,6 +89,17 @@ export function beaconGeo(
     return parseGeoUri(uri);
 }
 
+/** MSC3489: location updates are sent by the sharer. The beacon_info state is
+ * auth-protected but m.beacon updates are plain timeline events — accept a
+ * location only from the beacon's owner, else treat the beacon as location-less. */
+export function ownedLatestLocation(beacon: {
+    beaconInfoOwner: string;
+    latestLocationEvent?: { getSender(): string | null } | undefined;
+}): typeof beacon.latestLocationEvent | undefined {
+    const ev = beacon.latestLocationEvent;
+    return ev && ev.getSender() === beacon.beaconInfoOwner ? ev : undefined;
+}
+
 /** Human "time left" for a live share, given its expiry and the current time. */
 export function remainingLabel(expiresAt: number, now: number): string {
     const ms = expiresAt - now;
@@ -108,6 +119,25 @@ export function updatedAgoLabel(ts: number, now: number): string {
     if (diff < 60000) return `${Math.floor(diff / 1000)} s ago`;
     if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
     return `${Math.floor(diff / 3600000)} h ago`;
+}
+
+/**
+ * Decide whether `stopLiveBeacon` should write a `live:false` beacon_info.
+ *
+ * - An own live beacon exists in room state → yes (the normal stop).
+ * - No own live beacon in state, but the caller knows a beacon_info id from an
+ *   active share → yes: the share was just started and its beacon_info has not
+ *   synced into `currentState` yet (the race right after `startLiveBeacon`
+ *   resolves). We must still write `live:false`, or the server keeps
+ *   broadcasting the last position until the beacon times out.
+ * - Neither → no: we genuinely never shared here, so writing would fabricate a
+ *   spurious `live:false` state event (the case the no-op guard removes).
+ */
+export function shouldWriteStopBeacon(
+    hasOwnLiveBeacon: boolean,
+    knownBeaconInfoId: string | null | undefined,
+): boolean {
+    return hasOwnLiveBeacon || !!knownBeaconInfoId;
 }
 
 /**

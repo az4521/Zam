@@ -9,7 +9,11 @@
         initServiceWorker,
         clearServiceWorkerAuth,
         stopClient,
+        getClient,
     } from "$lib/matrix/client";
+    import { unregisterPush } from "$lib/push";
+    import { clearNativeSession } from "$lib/nativeSession";
+    import { deleteCryptoStore } from "$lib/matrix/crypto";
     import {
         auth,
         saveSession,
@@ -47,8 +51,36 @@
     // message goes through the global auth store so it survives the redirect
     // from /app (which unmounts and remounts this page).
     function handleSessionExpired() {
+        // Capture the expiring account's client + identity BEFORE teardown
+        // nulls them, so we can release its native/push/crypto resources the
+        // same way an explicit logout does (handleLogout in /app, and
+        // AccountSwitcher for the crypto store). Each call is guarded so a
+        // slow or throwing teardown can NEVER block the redirect to login.
+        const client = getClient();
+        const expiringUserId = auth.userId;
+        const expiringDeviceId = auth.deviceId;
+
         stopClient();
         clearServiceWorkerAuth();
+        try {
+            if (client) unregisterPush(client).catch(() => {});
+        } catch {
+            /* teardown must not block redirect */
+        }
+        try {
+            clearNativeSession().catch(() => {});
+        } catch {
+            /* teardown must not block redirect */
+        }
+        try {
+            if (expiringUserId && expiringDeviceId)
+                deleteCryptoStore(expiringUserId, expiringDeviceId).catch(
+                    () => {},
+                );
+        } catch {
+            /* teardown must not block redirect */
+        }
+
         expireActiveSession();
         auth.error = "Your session has expired. Please sign in again.";
         isLoading = false;

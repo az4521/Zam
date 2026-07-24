@@ -44,6 +44,10 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import {
+        stripBodyFallback,
+        stripFormattedFallback,
+    } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
@@ -377,17 +381,24 @@
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
 
-    // Strip the Matrix reply fallback prefix ("> quoted text\n\n") from body
+    // Whether the event's ORIGINAL content declared a reply relation. A rich-
+    // reply fallback ("> quoted…" body / <mx-reply> block) can only legally
+    // exist on a reply, so we strip it only when this is true. We read the
+    // ORIGINAL content (not the edited getContent()) because an edit drops the
+    // reply relation from getContent() while the fallback stays in the body.
+    const isReply = $derived(
+        (void messagesState.timelineTick,
+        !!event.getOriginalContent()?.["m.relates_to"]?.["m.in_reply_to"]),
+    );
+
+    // Strip the Matrix rich-reply fallback ("> quoted…\n\n") from body via the
+    // shared spec-v1.19 algorithm. Spec v1.13 removed the fallback; legacy
+    // senders may still include it. We render the quote from the referenced
+    // event, so the fallback is always redundant here.
     const body = $derived(() => {
         const raw: string = content?.body ?? "";
-        const inReplyTo = content?.["m.relates_to"]?.["m.in_reply_to"];
-        if (!inReplyTo) return raw;
-        // Fallback quote lines start with "> ", followed by a blank line before the real reply
-        const parts = raw.split("\n\n");
-        if (parts.length >= 2 && parts[0].startsWith(">")) {
-            return parts.slice(1).join("\n\n");
-        }
-        return raw;
+        if (!isReply) return raw;
+        return stripBodyFallback(raw);
     });
 
     // The original file name of an uploaded media event. Per MSC2530, when a
@@ -407,22 +418,47 @@
         return !!(fn && raw && fn !== raw);
     });
 
-    // Strip <mx-reply>...</mx-reply> from formatted_body so we don't double-render the quote
+    // Strip a leading <mx-reply> fallback from formatted_body so we don't
+    // double-render the quote (we render it from the referenced event). Uses the
+    // shared DOM-based strip — the old regex was evadable via mx-reply attrs.
     const formattedBody = $derived(() => {
         const raw = content?.formatted_body as string | undefined;
         if (!raw) return undefined;
-        return raw.replace(/<mx-reply>[\s\S]*?<\/mx-reply>/i, "").trim();
+        // Spec: formatted_body is only meaningful when the sender declared the
+        // custom-HTML format. Otherwise fall through to the plain-body path.
+        if (content?.format !== "org.matrix.custom.html") return undefined;
+        return (isReply ? stripFormattedFallback(raw) : raw).trim();
     });
 
     // Replied-to event, if this is a reply
     const inReplyToId = $derived.by(() => {
+        // Thread replies carry an m.in_reply_to that is only a DISPLAY fallback
+        // (is_falling_back: true) pointing at the previous thread message, not a
+        // genuine reply. Rendering it as a quote duplicates what the thread view
+        // already shows, so suppress it. Genuine replies-within-a-thread
+        // (is_falling_back false/absent) still get their quote.
+        const original = event.getOriginalContent();
+        // Per the threads spec, is_falling_back sits on m.relates_to itself
+        // (a sibling of m.in_reply_to), NOT inside m.in_reply_to.
+        const originalRel = original?.["m.relates_to"] as
+            | {
+                  rel_type?: string;
+                  is_falling_back?: boolean;
+                  "m.in_reply_to"?: { event_id?: string };
+              }
+            | undefined;
+        if (
+            originalRel?.rel_type === "m.thread" &&
+            originalRel?.is_falling_back === true
+        )
+            return undefined;
+
         const fromContent =
             content?.["m.relates_to"]?.["m.in_reply_to"]?.event_id;
         if (fromContent) return fromContent as string;
         // Edits send m.new_content without m.relates_to, so after an m.replace
         // getContent() drops the reply relation. Fall back to the original
         // event content so edited replies still render their quoted message.
-        const original = event.getOriginalContent();
         return original?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
             | string
             | undefined;
@@ -582,17 +618,30 @@
         }
     }
 
-    // Whether this message is a thread reply
-    const isThreadReply = $derived(
-        content?.["m.relates_to"]?.rel_type === "m.thread",
+    // Relation shape is read from the ORIGINAL content — never the post-edit
+    // getContent(), which folds m.new_content and can misreport the relation on
+    // an edited event (mirrors client.ts eventThreadRoot). Tick-guarded like
+    // `content` so it re-reads when an encrypted event decrypts in place.
+    const originalRelatesTo = $derived(
+        (void messagesState.timelineTick,
+        event.getOriginalContent()?.["m.relates_to"]),
     );
+
+    // Whether this message is a thread reply
+    const isThreadReply = $derived(originalRelatesTo?.rel_type === "m.thread");
     // Root of the thread to open for this message: the reply's own thread root
     // if it's a thread reply, otherwise this message starts a new thread.
     const threadRootId = $derived(
         isThreadReply
-            ? ((content?.["m.relates_to"]?.event_id as string) ?? eventId)
+            ? ((originalRelatesTo?.event_id as string) ?? eventId)
             : eventId,
     );
+    // An event whose ORIGINAL content already carries any m.relates_to.rel_type
+    // (edit / annotation / thread) cannot legally become a NEW thread root — the
+    // server SHOULD-rejects the reply with an opaque 400. Used to suppress the
+    // "Reply in thread" offer on such events (Element greys it out likewise).
+    // Thread replies are exempt: for them the affordance reads "Open thread".
+    const isRelatedEvent = $derived(!!originalRelatesTo?.rel_type);
     // Root summary: this message is a thread ROOT iff other events reply to it.
     // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
     // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
@@ -671,11 +720,15 @@
         isSavingEdit = true;
         try {
             const { formattedBody, hasFormatting } = parseMarkdown(trimmed);
+            // Latest resolved mentions live on the post-replacement content
+            // (the SDK folds m.new_content in), so this carries them forward
+            // through the edit per the v1.7 mentions module.
             await sendEdit(
                 room.roomId,
                 realEventId,
                 trimmed,
                 hasFormatting ? formattedBody : undefined,
+                event.getContent()["m.mentions"],
             );
             isEditing = false;
             editText = "";
@@ -1355,7 +1408,18 @@
                 use:matrixLinks
                 class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 class:emoji-only={emojiOnly}
+                class:italic={msgtype === "m.emote"}
+                class:opacity-70={msgtype === "m.notice"}
             >
+                {#if msgtype === "m.emote"}
+                    <!-- m.emote: prefix the action with the sender's name so it
+                         reads "* Name does something" even in grouped messages
+                         where the header is hidden. Uses the same member-name
+                         helper as the header (displayName). Rendered as its own
+                         span, NEVER concatenated into the {@html} body (that
+                         would corrupt the sanitized/escaped output). -->
+                    <span>* {displayName}{" "}</span>
+                {/if}
                 {#if formattedBody()}
                     {@html withTwemoji(sanitize(formattedBody()!))}
                 {:else}
@@ -1527,10 +1591,20 @@
         {/if}
         {#if canPin}
             <button
-                onclick={() =>
-                    isPinned
-                        ? unpinMessage(room, eventId)
-                        : pinMessage(room, eventId)}
+                onclick={async () => {
+                    const wasPinned = isPinned;
+                    try {
+                        if (wasPinned) await unpinMessage(room, eventId);
+                        else await pinMessage(room, eventId);
+                    } catch (e) {
+                        console.error("Failed to update pinned messages", e);
+                        showErrorToast(
+                            wasPinned
+                                ? "Failed to unpin message"
+                                : "Failed to pin message",
+                        );
+                    }
+                }}
                 class="p-1.5 rounded hover:bg-discord-messageHover transition-colors {isPinned
                     ? 'text-discord-accent'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
@@ -1604,7 +1678,7 @@
                 />
             </svg>
         </button>
-        {#if onOpenThread}
+        {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
             <button
                 onclick={() => onOpenThread(threadRootId)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"

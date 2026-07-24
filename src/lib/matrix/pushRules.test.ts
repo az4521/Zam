@@ -1,9 +1,94 @@
 import { describe, expect, it, vi } from "vitest";
 import { PushRuleKind } from "matrix-js-sdk";
 import {
+    actionsForLevel,
     getRoomNotificationSettingForClient,
+    isHighlightAction,
     setRoomNotificationSettingForClient,
 } from "./pushRules";
+
+// Spec-default action templates (as stored on each DEFAULT_PUSH_RULES entry).
+const MENTION_DEFAULT = [
+    "notify",
+    { set_tweak: "sound", value: "default" },
+    { set_tweak: "highlight" },
+];
+const MESSAGE_DEFAULT = ["notify", { set_tweak: "sound", value: "default" }];
+
+const hasSound = (a: unknown[]) =>
+    a.some((x) => typeof x === "object" && (x as any).set_tweak === "sound");
+const emitsHighlightFalse = (a: unknown[]) =>
+    a.some(
+        (x) =>
+            typeof x === "object" &&
+            (x as any).set_tweak === "highlight" &&
+            (x as any).value === false,
+    );
+
+describe("actionsForLevel", () => {
+    it("loud returns the default actions verbatim (mention)", () => {
+        expect(actionsForLevel(MENTION_DEFAULT, "loud")).toEqual(
+            MENTION_DEFAULT,
+        );
+    });
+    it("loud returns the default actions verbatim (message)", () => {
+        expect(actionsForLevel(MESSAGE_DEFAULT, "loud")).toEqual(
+            MESSAGE_DEFAULT,
+        );
+    });
+    it("silent drops the sound tweak but KEEPS highlight (mention)", () => {
+        const a = actionsForLevel(MENTION_DEFAULT, "silent");
+        expect(a).toEqual(["notify", { set_tweak: "highlight" }]);
+        expect(hasSound(a)).toBe(false);
+    });
+    it("silent drops the sound tweak (message -> notify only)", () => {
+        expect(actionsForLevel(MESSAGE_DEFAULT, "silent")).toEqual(["notify"]);
+    });
+    it("off returns [] for both", () => {
+        expect(actionsForLevel(MENTION_DEFAULT, "off")).toEqual([]);
+        expect(actionsForLevel(MESSAGE_DEFAULT, "off")).toEqual([]);
+    });
+    it("NEVER emits {set_tweak:'highlight', value:false} for a highlight-default rule", () => {
+        for (const level of ["loud", "silent", "off"] as const) {
+            expect(
+                emitsHighlightFalse(actionsForLevel(MENTION_DEFAULT, level)),
+            ).toBe(false);
+        }
+    });
+    it("does not mutate the input array", () => {
+        const input = [...MENTION_DEFAULT];
+        actionsForLevel(input, "silent");
+        expect(input).toEqual(MENTION_DEFAULT);
+    });
+});
+
+describe("isHighlightAction", () => {
+    it("sound-only -> true", () => {
+        expect(
+            isHighlightAction({ notify: true, tweaks: { sound: "default" } }),
+        ).toBe(true);
+    });
+    it("highlight-only -> true", () => {
+        expect(
+            isHighlightAction({ notify: true, tweaks: { highlight: true } }),
+        ).toBe(true);
+    });
+    it("notify-only (no tweaks) -> false", () => {
+        expect(isHighlightAction({ notify: true, tweaks: {} })).toBe(false);
+    });
+    it("highlight:false + sound -> true (union)", () => {
+        expect(
+            isHighlightAction({
+                notify: true,
+                tweaks: { highlight: false, sound: "default" },
+            }),
+        ).toBe(true);
+    });
+    it("null / undefined -> false", () => {
+        expect(isHighlightAction(null)).toBe(false);
+        expect(isHighlightAction(undefined)).toBe(false);
+    });
+});
 
 function clientWithRules(global: Record<string, unknown[]> = {}) {
     return {

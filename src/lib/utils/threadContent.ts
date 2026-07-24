@@ -72,6 +72,8 @@ export function buildThreadReplyContent(
         content.format = "org.matrix.custom.html";
         content.formatted_body = formattedText;
     }
-    if (mentions) content["m.mentions"] = mentions;
+    // Always present (spec recommendation): an m.mentions key — even empty —
+    // disables the legacy body-scan push rules on the receiving server.
+    content["m.mentions"] = mentions ?? {};
     return content;
 }

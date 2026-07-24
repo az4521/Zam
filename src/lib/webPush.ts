@@ -167,7 +167,8 @@ async function registerWebPusher(
                 auth,
                 default_payload: {},
             },
-            append: false,
+            // multi-account: false would delete other users' pushers for this token
+            append: true,
         });
         console.log("[webpush] Pusher registered");
     } catch (err) {

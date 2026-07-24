@@ -7,9 +7,9 @@ const h = vi.hoisted(() => ({
     startLiveBeacon: vi.fn<
         (roomId: string, ms: number) => Promise<{ beaconInfoEventId: string }>
     >(() => Promise.resolve({ beaconInfoEventId: "$b1" })),
-    stopLiveBeacon: vi.fn<(roomId: string) => Promise<void>>(() =>
-        Promise.resolve(),
-    ),
+    stopLiveBeacon: vi.fn<
+        (roomId: string, knownBeaconInfoId?: string | null) => Promise<void>
+    >(() => Promise.resolve()),
     sendLiveBeaconLocation: vi.fn<
         (
             roomId: string,
@@ -183,7 +183,9 @@ describe("live-location own-share engine", () => {
         geoError?.({ code: 1, PERMISSION_DENIED: 1 });
 
         expect(isSharingLive(ROOM)).toBe(false);
-        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM);
+        // The known beacon_info id is threaded through so a stop in the sync
+        // race (beacon_info not yet in currentState) still writes live:false.
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM, "$b1");
         expect(h.showErrorToast).toHaveBeenCalledTimes(1);
     });
 
@@ -220,9 +222,28 @@ describe("live-location own-share engine", () => {
         await startShare(ROOM, 900000);
         await stopShare(ROOM);
 
-        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM);
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM, "$b1");
         expect(clearWatch).toHaveBeenCalled();
         expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("threads the active share's own beacon_info id to stopLiveBeacon (sync-race stop)", async () => {
+        // A share resumed from state carries its own beacon_info id; stop must
+        // forward THAT id (not a constant) so client.ts can still write
+        // live:false in the race where the beacon_info isn't in currentState.
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: "!resumed:s",
+                beaconInfoEventId: "$resumed",
+                expiresAt: Date.now() + 600000,
+            },
+        ]);
+        initLiveLocation();
+        expect(isSharingLive("!resumed:s")).toBe(true);
+
+        await stopShare("!resumed:s");
+
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith("!resumed:s", "$resumed");
     });
 
     it("auto-stops the share when its duration elapses", async () => {
@@ -232,7 +253,7 @@ describe("live-location own-share engine", () => {
         await Promise.resolve(); // flush the timer's stopShare microtasks
 
         expect(isSharingLive(ROOM)).toBe(false);
-        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM);
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM, "$b1");
     });
 
     it("resumes our own live beacons on init", () => {
@@ -256,8 +277,8 @@ describe("live-location own-share engine", () => {
 
         await stopAllShares();
 
-        expect(h.stopLiveBeacon).toHaveBeenCalledWith("!a:s");
-        expect(h.stopLiveBeacon).toHaveBeenCalledWith("!b:s");
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith("!a:s", "$b1");
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith("!b:s", "$b1");
         expect(liveLocationState.shares.size).toBe(0);
     });
 });

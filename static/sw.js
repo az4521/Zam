@@ -105,8 +105,15 @@ self.addEventListener("fetch", (event) => {
 		event.request.destination !== "script" &&
 		event.request.destination !== "style";
 	const alreadyHasAuth = event.request.headers.has("Authorization");
+	// Only inject the token on the authenticated MEDIA endpoints — never on any
+	// other /_matrix/ path. This matches the URLs mxcToHttp builds (download +
+	// thumbnail under /_matrix/client/v1/media/) and the push-notification
+	// thumbnail below, so the access token can't leak onto other homeserver APIs.
+	// `includes` (not `startsWith`) so homeservers mounted under a base path
+	// (e.g. https://host/matrix/_matrix/client/v1/media/…) still match; the
+	// hostname + base-path checks below further constrain the destination.
 	if (
-		!parsedUrl.pathname.includes("/_matrix/") ||
+		!parsedUrl.pathname.includes("/_matrix/client/v1/media/") ||
 		!isElementRequest ||
 		alreadyHasAuth
 	)

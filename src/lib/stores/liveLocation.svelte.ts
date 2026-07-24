@@ -186,12 +186,18 @@ export async function stopShare(roomId: string): Promise<void> {
         clearTimeout(timer);
         expiryTimers.delete(roomId);
     }
+    // Capture the beacon_info id BEFORE the optimistic delete: if the user
+    // stopped in the sync race right after starting, the beacon_info isn't in
+    // currentState yet, so stopLiveBeacon can't find it there — pass the known
+    // id so it still writes live:false instead of no-op'ing (which would leave
+    // the server broadcasting our position until timeout).
+    const share = liveLocationState.shares.get(roomId);
     const had = liveLocationState.shares.delete(roomId);
     bump();
     clearWatchIfIdle();
     if (had) {
         try {
-            await stopLiveBeacon(roomId);
+            await stopLiveBeacon(roomId, share?.beaconInfoEventId ?? null);
         } catch {
             // best effort — server-side beacon still expires by timeout
         }

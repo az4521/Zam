@@ -16,6 +16,7 @@
     import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { timeOnly } from "$lib/utils/timeFormat";
+    import { stripBodyFallback } from "$lib/utils/replyFallback";
 
     interface Props {
         room: Room;
@@ -87,7 +88,13 @@
         if (!rootEvent) return "";
         const c = rootEvent.getContent();
         const raw: string = c?.body ?? "";
-        return raw;
+        // Strip the legacy rich-reply fallback ("> quoted…\n\n") when the root
+        // is itself a reply — otherwise the header preview leads with the quote.
+        const isReply =
+            !!rootEvent.getOriginalContent()?.["m.relates_to"]?.[
+                "m.in_reply_to"
+            ];
+        return isReply ? stripBodyFallback(raw) : raw;
     });
     const rootTs = $derived(rootEvent?.getTs() ?? 0);
 

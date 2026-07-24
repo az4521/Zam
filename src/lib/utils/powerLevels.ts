@@ -52,6 +52,79 @@ export function effectivePowerLevel(input: EffectivePowerLevelInput): number {
     return raw;
 }
 
+/**
+ * Spec-tolerant PL read: finite numbers pass, numeric strings coerce (pre-v10
+ * rooms legally carry them), anything else -> the spec default for that field.
+ */
+export function coercePl(v: unknown, def: number): number {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)))
+        return Number(v);
+    return def;
+}
+
+/** The materialized power-level view the SDK boundary hands to the app. */
+export interface RoomPowerLevels {
+    ban: number;
+    kick: number;
+    redact: number;
+    invite: number;
+    events_default: number;
+    state_default: number;
+    users_default: number;
+    events: Record<string, number>;
+    users: Record<string, number>;
+}
+
+function asNumberMap(v: unknown): Record<string, number> {
+    return v && typeof v === "object" && !Array.isArray(v)
+        ? (v as Record<string, number>)
+        : {};
+}
+
+/**
+ * Normalize an `m.room.power_levels` content object into a fully-defaulted
+ * `RoomPowerLevels`.
+ *
+ * Two distinct spec cases:
+ * - **No PL event at all** (`content == null`): the create-event sender holds
+ *   `CREATOR_POWER_LEVEL`, everyone else 0, and every action level defaults to
+ *   0 (Matrix auth rules for a room without a power-levels event).
+ * - **PL event present** (even if empty `{}`): each omitted field falls back to
+ *   its spec per-field default (ban/kick/redact/state_default 50;
+ *   events_default/users_default 0; invite 0 since spec v1.4). Scalar values are
+ *   read through `coercePl` so pre-v10 numeric-string levels are tolerated.
+ */
+export function normalizePowerLevels(
+    content: Record<string, unknown> | null | undefined,
+    creatorId: string | null,
+): RoomPowerLevels {
+    if (content == null) {
+        return {
+            ban: 0,
+            kick: 0,
+            redact: 0,
+            invite: 0,
+            events_default: 0,
+            state_default: 0,
+            users_default: 0,
+            events: {},
+            users: creatorId ? { [creatorId]: CREATOR_POWER_LEVEL } : {},
+        };
+    }
+    return {
+        ban: coercePl(content.ban, 50),
+        kick: coercePl(content.kick, 50),
+        redact: coercePl(content.redact, 50),
+        invite: coercePl(content.invite, 0),
+        events_default: coercePl(content.events_default, 0),
+        state_default: coercePl(content.state_default, 50),
+        users_default: coercePl(content.users_default, 0),
+        events: asNumberMap(content.events),
+        users: asNumberMap(content.users),
+    };
+}
+
 export interface ParsePowerLevelResult {
     ok: boolean;
     /** The parsed level when ok; null otherwise. */

@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick, untrack } from "svelte";
+    import { tick, untrack, onMount } from "svelte";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { auth } from "$lib/stores/auth.svelte";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
@@ -74,6 +74,7 @@
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
     import { daySeparator } from "$lib/utils/timeFormat";
+    import { canSendReceipt } from "$lib/utils/receiptGate";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
@@ -283,7 +284,10 @@
         }
         joiningUpgrade = true;
         try {
-            await joinRoom(tombstone.replacementRoomId);
+            await joinRoom(
+                tombstone.replacementRoomId,
+                tombstone.senderServer ? [tombstone.senderServer] : undefined,
+            );
             setActiveRoom(tombstone.replacementRoomId);
         } catch (e) {
             console.error("Failed to join replacement room", e);
@@ -570,7 +574,7 @@
             // If the scroll area isn't tall enough to scroll, onScroll never fires,
             // so markAsRead() is never called. Handle that here.
             if (scrollEl && scrollEl.scrollHeight <= scrollEl.clientHeight) {
-                markAsRead();
+                markAsReadIfDisplayable();
             }
             backfillFromTop();
         });
@@ -610,7 +614,7 @@
         const unsub = onSyncPrepared(() => {
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
             backfillFromTop();
-            if (isAtBottom) markAsRead();
+            if (isAtBottom) markAsReadIfDisplayable();
         });
         return unsub;
     });
@@ -628,7 +632,7 @@
             tick().then(() => {
                 if (isAtBottom) {
                     scrollToBottom(true);
-                    markAsRead();
+                    markAsReadIfDisplayable();
                 }
                 backfillFromTop();
             });
@@ -659,7 +663,7 @@
             tick().then(async () => {
                 if (isAtBottom) {
                     scrollToBottom(true);
-                    markAsRead();
+                    markAsReadIfDisplayable();
                 } else if (prevOldestId) {
                     await recoverScrollback(
                         currentRoom,
@@ -849,13 +853,54 @@
         unreadMarkerEventId = null;
     }
 
+    // A read receipt tells other clients the user has *seen* an event, so only
+    // send one when the app could actually display it: the window focused AND
+    // the tab visible. Every markAsRead() call site funnels through this gate
+    // (see canSendReceipt) so receipts never fire while the app is hidden or
+    // in the background. While gated out, local unread state deliberately
+    // persists — it clears when the user next focuses (onWindowFocusRegained).
+    function markAsReadIfDisplayable() {
+        if (
+            canSendReceipt({
+                hasFocus: document.hasFocus(),
+                visible: document.visibilityState === "visible",
+            })
+        ) {
+            markAsRead();
+        }
+    }
+
+    // When the app regains focus/visibility, clear unread the moment the user
+    // actually looks — preserving today's perceived behavior now that receipts
+    // wait for focus. This runs the existing "at bottom → mark read" path once.
+    // markAsRead() synchronously fires app-level listeners, so this MUST stay a
+    // plain DOM listener (registered in onMount below); calling it inside a
+    // tracked $effect would trip effect_update_depth_exceeded and freeze the
+    // component. visibilitychange fires both ways — the canSendReceipt gate
+    // inside markAsReadIfDisplayable makes the hidden transition a no-op.
+    function onWindowFocusRegained() {
+        if (isAtBottom) markAsReadIfDisplayable();
+    }
+
+    onMount(() => {
+        window.addEventListener("focus", onWindowFocusRegained);
+        document.addEventListener("visibilitychange", onWindowFocusRegained);
+        return () => {
+            window.removeEventListener("focus", onWindowFocusRegained);
+            document.removeEventListener(
+                "visibilitychange",
+                onWindowFocusRegained,
+            );
+        };
+    });
+
     function scrollToBottom(instant: boolean) {
         if (!scrollEl) return;
         scrollEl.scrollTo({
             top: scrollEl.scrollHeight,
             behavior: instant ? "instant" : "smooth",
         });
-        markAsRead();
+        markAsReadIfDisplayable();
     }
 
     function onScroll() {
@@ -864,7 +909,7 @@
         const wasAtBottom = isAtBottom;
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
 
-        if (!wasAtBottom && isAtBottom) markAsRead();
+        if (!wasAtBottom && isAtBottom) markAsReadIfDisplayable();
         // Loading older messages near the top is driven by the IntersectionObserver
         // on topSentinelEl (see below) — more reliable than a scroll-position check.
     }

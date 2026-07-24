@@ -21,7 +21,7 @@ const csp = {
         "script-src": ["self", "wasm-unsafe-eval", "blob:"],
         "worker-src": ["self", "blob:"],
         "style-src": ["self", "unsafe-inline"],
-        "img-src": ["*", "data:", "blob:"],
+        "img-src": ["self", "https:", "data:", "blob:"],
         "media-src": ["*", "data:", "blob:"],
         "font-src": ["self", "data:"],
         "connect-src": ["*", "data:", "blob:"],

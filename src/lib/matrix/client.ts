@@ -79,12 +79,22 @@ import {
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { classifyWellKnown } from "$lib/utils/wellKnown";
+import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
 import {
     supportsPasswordUia,
     type DeviceInfo,
 } from "$lib/utils/deviceSessions";
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
+import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
+import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
+import {
+    countReactions,
+    type ReactionAnnotation,
+} from "$lib/utils/reactionCounts";
 import {
     buildThreadReplyContent,
     isThreadReplyContent,
@@ -106,6 +116,8 @@ import {
     rebalancedKeys,
     rebalancedNumbers,
     OrderRebalanceError,
+    isValidTagOrder,
+    isValidChildOrder,
 } from "$lib/utils/orderKey";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
@@ -131,8 +143,11 @@ import {
 } from "$lib/utils/pollContent";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
+import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import {
+    actionsForLevel,
     getRoomNotificationSettingForClient,
+    isHighlightAction,
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
 } from "$lib/matrix/pushRules";
@@ -149,10 +164,13 @@ import {
     encryptionInitialState,
 } from "$lib/utils/roomEncryption";
 import {
+    coercePl,
     effectivePowerLevel,
+    normalizePowerLevels,
     roomVersionHasImmutableCreators,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
+import { addToMDirect } from "$lib/utils/mDirect";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -165,6 +183,7 @@ export type {
 // event types we read/write so `getAccountData`/`setAccountData` accept them.
 declare module "matrix-js-sdk" {
     interface AccountDataEvents {
+        "moe.crafty.matrix.favourite_gifs": { gifs: FavouriteGif[] };
         "m.favourite_gifs": { gifs: FavouriteGif[] };
         "moe.crafty.matrix.customization": ClientCustomization;
         "im.client.space_layout": SpaceLayout;
@@ -214,6 +233,10 @@ async function createAuthenticatedClient(opts: {
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
     matrixStore = null;
+    // Drop the previous server's cached media-config upload limit — this funnel
+    // runs on every login, session restore, and account switch, so a switch to
+    // a different homeserver must not keep the old server's `m.upload.size`.
+    mediaUploadSizePromise = null;
 
     const indexedDB = getIndexedDBFactory();
     const store = indexedDB
@@ -270,18 +293,61 @@ async function resolveHomeserver(input: string): Promise<string> {
     const withProtocol = normalized.startsWith("http")
         ? normalized
         : `https://${normalized}`;
+
+    // Fetch the well-known descriptor. A request that never lands leaves
+    // status === null; invalid JSON on a 2xx leaves data === undefined —
+    // classifyWellKnown treats both as FAIL_PROMPT.
+    let status: number | null = null;
+    let data: unknown = undefined;
     try {
         const res = await fetch(`${withProtocol}/.well-known/matrix/client`);
+        status = res.status;
         if (res.ok) {
-            const data = await res.json();
-            const baseUrl: string | undefined =
-                data?.["m.homeserver"]?.["base_url"];
-            if (baseUrl) return baseUrl.replace(/\/$/, "");
+            try {
+                data = await res.json();
+            } catch {
+                data = undefined;
+            }
         }
     } catch {
-        // .well-known not available, use input as-is
+        status = null;
     }
-    return withProtocol;
+
+    const outcome = classifyWellKnown(status, data);
+    if (outcome.action === "ignore") {
+        // 404 → no delegation; use the typed address silently.
+        return withProtocol;
+    }
+    if (outcome.action === "prompt") {
+        // Auto-discovery failed but the typed address may still work — use it,
+        // and inform the user (spec FAIL_PROMPT).
+        showErrorToast(
+            "Server auto-discovery failed — using the address as typed",
+        );
+        return withProtocol;
+    }
+
+    // A base_url was discovered — validate it against /versions before we
+    // trust the redirect target, so we never log in against an unvalidated
+    // homeserver. Plain fetch with a 3s timeout.
+    const base = outcome.baseUrl;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    let versionsOk = false;
+    try {
+        const versionsRes = await fetch(`${base}/_matrix/client/versions`, {
+            signal: controller.signal,
+        });
+        versionsOk = versionsRes.ok;
+    } catch {
+        versionsOk = false;
+    } finally {
+        clearTimeout(timer);
+    }
+    if (!versionsOk) {
+        throw new Error("Discovered homeserver failed validation");
+    }
+    return base;
 }
 
 export async function login(
@@ -298,7 +364,7 @@ export async function login(
     const tempClient = createClient({ baseUrl: resolvedBase });
 
     const response = await tempClient.login("m.login.password", {
-        user: username,
+        identifier: { type: "m.id.user", user: username },
         password: password,
         initial_device_display_name: "Matrix Svelte Client",
     });
@@ -460,7 +526,11 @@ export function deleteFailedMessage(event: MatrixEvent): void {
     matrixClient.cancelPendingEvent(event);
 }
 
-const FAV_GIFS_KEY = "m.favourite_gifs";
+// Namespaced under the app's own reverse-DNS id so it no longer squats the
+// reserved `m.*` spec namespace. The old key is still READ (migration fallback)
+// but never written again — see loadFavouriteGifs / persistFavouriteGifs.
+const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
+const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
 
 export interface FavouriteGif {
     url: string;
@@ -469,10 +539,22 @@ export interface FavouriteGif {
     tags?: string[];
 }
 
+function gifsFromEvent(
+    event: MatrixEvent | null | undefined,
+): FavouriteGif[] | null {
+    if (!event) return null;
+    return (event.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
+}
+
 export function loadFavouriteGifs(): FavouriteGif[] {
     if (!matrixClient) return [];
-    const event = matrixClient.getAccountData(FAV_GIFS_KEY);
-    return (event?.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
+    // Prefer the new key; fall back to the legacy key only when the new one was
+    // never written (pickFavouriteGifs treats a present-but-empty new key as
+    // authoritative, so a cleared list is never resurrected from the legacy blob).
+    return pickFavouriteGifs(
+        gifsFromEvent(matrixClient.getAccountData(FAV_GIFS_KEY)),
+        gifsFromEvent(matrixClient.getAccountData(LEGACY_FAV_GIFS_KEY)),
+    );
 }
 
 /**
@@ -488,17 +570,26 @@ export async function fetchFavouriteGifsFromServer(): Promise<FavouriteGif[]> {
     if (!matrixClient) throw new Error("Not logged in");
     const userId = matrixClient.getUserId();
     if (!userId) throw new Error("Not logged in");
-    const path = `/user/${encodeURIComponent(userId)}/account_data/${FAV_GIFS_KEY}`;
-    try {
-        const content = await matrixClient.http.authedRequest<{
-            gifs?: FavouriteGif[];
-        }>(Method.Get, path);
-        return content?.gifs ?? [];
-    } catch (err) {
-        // Never set for this account: an authoritative "empty", not a failure.
-        if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return [];
-        throw err;
-    }
+    // Returns null when the key has never been set for this account (404), so
+    // the new key falling back to the legacy key is distinguishable from a key
+    // that is set to an empty list.
+    const fetchKey = async (key: string): Promise<FavouriteGif[] | null> => {
+        const path = `/user/${encodeURIComponent(userId)}/account_data/${key}`;
+        try {
+            const content = await matrixClient!.http.authedRequest<{
+                gifs?: FavouriteGif[];
+            }>(Method.Get, path);
+            return content?.gifs ?? [];
+        } catch (err) {
+            if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return null;
+            throw err;
+        }
+    };
+    // Prefer the new key; fall back to the legacy key only when the new one is
+    // absent (the first write after migration copies the legacy list forward).
+    const current = await fetchKey(FAV_GIFS_KEY);
+    if (current !== null) return current;
+    return pickFavouriteGifs(current, await fetchKey(LEGACY_FAV_GIFS_KEY));
 }
 
 export async function persistFavouriteGifs(
@@ -509,9 +600,8 @@ export async function persistFavouriteGifs(
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
-// Electron appId) so it cannot collide with another client's account data.
-// Note the neighbouring `m.favourite_gifs` does NOT follow this rule — `m.*`
-// is reserved for the spec, and that key predates this one.
+// Electron appId) so it cannot collide with another client's account data —
+// same convention as FAV_GIFS_KEY above.
 const CUSTOMIZATION_KEY = "moe.crafty.matrix.customization";
 
 /** Raw customization account data, or null when absent / not logged in. */
@@ -627,7 +717,11 @@ export function getSpaceChildIds(spaceId: string): string[] {
             const bo: string | undefined = b.getContent()?.order;
             const byOrder = compareOrderLex(ao, bo);
             if (byOrder !== 0) return byOrder;
-            // Equal/both-missing order: sort by room ID for stability
+            // Equal/both-missing order: the spec's primary no-order tie-break is
+            // the child event's origin_server_ts ascending, then room ID for
+            // full stability.
+            const byTs = a.getTs() - b.getTs();
+            if (byTs !== 0) return byTs;
             return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
         })
         .map((e) => e.getStateKey()!)
@@ -729,11 +823,11 @@ export async function setRoomTag(
 }
 
 /**
- * Write a raw, user-supplied `m.tag` order value (⚑2):
+ * Write a raw, user-supplied `m.tag` order value:
  *  - blank → clear the order (keep the tag);
- *  - numeric-parseable → coerce to a number;
- *  - otherwise → store the string verbatim (round-trips foreign non-numeric
- *    orders without crashing).
+ *  - a finite number → clamped into the spec's `[0, 1]` range;
+ *  - anything non-numeric → throw (the `m.tag` order is spec'd as a number, so
+ *    a non-numeric raw value is a user error the caller surfaces).
  */
 export async function setRoomTagOrderRaw(
     roomId: string,
@@ -743,11 +837,14 @@ export async function setRoomTagOrderRaw(
     const trimmed = raw.trim();
     if (trimmed === "") {
         await setRoomTag(roomId, tag);
-    } else if (Number.isFinite(Number(raw))) {
-        await setRoomTag(roomId, tag, Number(raw));
-    } else {
-        await setRoomTag(roomId, tag, raw);
+        return;
     }
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) {
+        throw new Error("Tag order must be a number between 0 and 1");
+    }
+    const clamped = isValidTagOrder(n) ? n : Math.min(1, Math.max(0, n));
+    await setRoomTag(roomId, tag, clamped);
 }
 
 export async function deleteRoomTag(
@@ -1188,12 +1285,47 @@ export interface MediaCaption {
     mentions?: { user_ids?: string[]; room?: boolean };
 }
 
+// Cached `m.upload.size` from the server's media config, fetched once per
+// session. `undefined` = not yet fetched; a stored promise dedupes concurrent
+// callers; a null resolution means the server didn't advertise a limit (or the
+// request failed) — in which case we skip the precheck rather than block uploads.
+let mediaUploadSizePromise: Promise<number | null> | null = null;
+
+async function getMediaUploadSizeLimit(): Promise<number | null> {
+    if (!matrixClient) return null;
+    if (!mediaUploadSizePromise) {
+        const client = matrixClient;
+        mediaUploadSizePromise = (async () => {
+            try {
+                const config = await client.getMediaConfig(true);
+                const size = config["m.upload.size"];
+                return typeof size === "number" ? size : null;
+            } catch {
+                mediaUploadSizePromise = null; // allow a retry next upload
+                return null;
+            }
+        })();
+    }
+    return mediaUploadSizePromise;
+}
+
 export async function sendFile(
     roomId: string,
     file: File,
     caption?: MediaCaption,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Precheck the size against the server's advertised upload limit so an
+    // over-limit file fails fast with a clear toast instead of a 413 mid-upload.
+    const maxUploadSize = await getMediaUploadSizeLimit();
+    if (maxUploadSize !== null && file.size > maxUploadSize) {
+        showErrorToast(
+            `File exceeds the server's ${Math.round(
+                maxUploadSize / 1024 / 1024,
+            )} MB upload limit`,
+        );
+        return;
+    }
     const { content_uri } = await matrixClient.uploadContent(file, {
         name: file.name,
     });
@@ -1244,18 +1376,15 @@ export async function sendFile(
         body: caption ? caption.body : file.name,
         url: content_uri,
         info,
+        // Always present (spec recommendation): an m.mentions key — even empty —
+        // disables the legacy body-scan push rules on the receiving server.
+        "m.mentions": caption?.mentions ?? {},
     };
     if (caption) {
         content.filename = file.name;
         if (caption.formattedBody) {
             content.format = "org.matrix.custom.html";
             content.formatted_body = caption.formattedBody;
-        }
-        if (
-            caption.mentions &&
-            (caption.mentions.user_ids?.length || caption.mentions.room)
-        ) {
-            content["m.mentions"] = caption.mentions;
         }
     }
 
@@ -1323,15 +1452,29 @@ export async function startLiveBeacon(
 }
 
 /** Stop our own live share by rewriting the beacon_info with live:false,
- *  preserving the original timeout/description. No-op if we have no live beacon here. */
-export async function stopLiveBeacon(roomId: string): Promise<void> {
+ *  preserving the original timeout/description. No-op ONLY when we neither have
+ *  an own live beacon in room state NOR a `knownBeaconInfoId` from an active
+ *  share (see below). `unstable_setLiveBeacon` targets the state_key = our
+ *  user id, so it stops our beacon whether or not the `Beacon` model exists in
+ *  currentState yet. */
+export async function stopLiveBeacon(
+    roomId: string,
+    knownBeaconInfoId?: string | null,
+): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
     const me = matrixClient.getUserId();
     if (!room || !me) return;
     const own = Array.from(room.currentState.beacons.values()).find(
-        (b) => b.beaconInfoOwner === me,
+        (b) => b.beaconInfoOwner === me && b.isLive,
     );
+    // Distinguish "genuinely never shared here" (no-op is correct — don't
+    // fabricate a spurious live:false) from "we DID start a share whose
+    // beacon_info hasn't synced into currentState yet" (the race right after
+    // startLiveBeacon resolves — we MUST still write live:false or the server
+    // keeps broadcasting our last position until the beacon times out). A
+    // known beacon_info id from the store proves the latter.
+    if (!shouldWriteStopBeacon(!!own, knownBeaconInfoId)) return;
     const timeout = own?.beaconInfo?.timeout ?? 3600000;
     const description = own?.beaconInfo?.description;
     await matrixClient.unstable_setLiveBeacon(
@@ -1386,6 +1529,14 @@ export function onBeaconUpdate(callback: () => void): () => void {
     matrixClient.on(BeaconEvent.LivenessChange as never, onAny as never);
     matrixClient.on(BeaconEvent.LocationUpdate as never, onAny as never);
     matrixClient.on(BeaconEvent.Destroy as never, onAny as never);
+    // BeaconEvent.New only fires for beacons seen AFTER subscribing. Sweep the
+    // beacons already in room state (from initial sync) so their expiry drives
+    // LivenessChange too — otherwise a pre-subscription share never expires.
+    for (const room of matrixClient.getRooms()) {
+        for (const beacon of room.currentState.beacons.values()) {
+            beacon.monitorLiveness();
+        }
+    }
     return () => {
         matrixClient?.off(BeaconEvent.New as never, onNew as never);
         matrixClient?.off(BeaconEvent.Update as never, onAny as never);
@@ -1431,9 +1582,15 @@ export async function sendTextMessage(
     text: string,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
-    // Pass null threadId explicitly — the SDK's overload shim treats any string
-    // starting with "$" as a thread ID, which would mangle messages like "$foo".
-    const res = await matrixClient.sendTextMessage(roomId, null, text);
+    // Build the content directly (2-arg sendMessage) so an m.mentions key rides
+    // along unconditionally — its presence disables the legacy body-scan push
+    // rules on the receiver. A plain text send never carries intentional
+    // mentions (those route through sendFormattedMessage), so it is always {}.
+    const res = await matrixClient.sendMessage(roomId, {
+        msgtype: "m.text",
+        body: text,
+        "m.mentions": {},
+    } as never);
     return res.event_id;
 }
 
@@ -1449,7 +1606,7 @@ export async function sendFormattedMessage(
         body,
         format: "org.matrix.custom.html",
         formatted_body: formattedBody,
-        ...(mentions ? { "m.mentions": mentions } : {}),
+        "m.mentions": mentions ?? {},
     } as never);
     return res.event_id;
 }
@@ -1475,7 +1632,7 @@ export async function sendEmote(
                   formatted_body: formattedBody,
               }
             : {}),
-        ...(mentions ? { "m.mentions": mentions } : {}),
+        "m.mentions": mentions ?? {},
     } as never);
 }
 
@@ -1502,10 +1659,14 @@ export function mxcToHttp(
     height: number | undefined = undefined,
     method = "crop",
 ): string | null {
-    if (!matrixClient || !mxcUrl?.startsWith("mxc://")) return null;
-    const match = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
-    if (!match) return null;
-    const [, serverName, mediaId] = match;
+    if (!matrixClient) return null;
+    // Validate against the spec grammar, then URL-encode each segment so a
+    // crafted server/media id can't smuggle path traversal or a query/fragment
+    // into the media URL. parseMxc rejects non-mxc input (returns null).
+    const parsed = parseMxc(mxcUrl ?? "");
+    if (!parsed) return null;
+    const serverName = encodeURIComponent(parsed.serverName);
+    const mediaId = encodeURIComponent(parsed.mediaId);
     const baseUrl = matrixClient.getHomeserverUrl();
     if (width > 0) {
         height = height ?? width;
@@ -1516,11 +1677,22 @@ export function mxcToHttp(
 
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
 export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
-    const token = matrixClient?.getAccessToken();
+    if (!matrixClient) throw new Error("Not logged in");
+    const baseUrl = matrixClient.getHomeserverUrl();
+    // The access token must NEVER leave the homeserver. Refuse to attach it (or
+    // even fetch) any URL that isn't on our homeserver — mirrors getContentType's
+    // guard. Compare parsed ORIGIN, not a string prefix: a prefix test would
+    // pass `https://host@evil.com/…` (userinfo) or `https://host.evil.com/…`
+    // (host-suffix) and leak the token to a foreign host. Callers that need
+    // foreign media must fetch it themselves, unauthed.
+    if (!isSameOrigin(httpUrl, baseUrl)) {
+        throw new Error("Refusing to fetch a non-homeserver URL with auth");
+    }
+    const token = matrixClient.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers });
-    if (!resp.ok) throw new Error(`Failed to fetch video: ${resp.status}`);
+    if (!resp.ok) throw new Error(`Failed to fetch attachment: ${resp.status}`);
     const blob = await resp.blob();
     return URL.createObjectURL(blob);
 }
@@ -1531,7 +1703,10 @@ export async function getContentType(url: string): Promise<string | null> {
     const accessToken = matrixClient.getAccessToken();
     const baseUrl = matrixClient.getHomeserverUrl();
     const headers: Record<string, string> = {};
-    if (accessToken && url.startsWith(baseUrl)) {
+    // Attach auth only for same-ORIGIN homeserver URLs. A string prefix check
+    // is bypassable (userinfo / host-suffix) and would leak the token; see
+    // isSameOrigin. Foreign URLs are HEAD-requested without credentials.
+    if (accessToken && isSameOrigin(url, baseUrl)) {
         headers.Authorization = `Bearer ${accessToken}`;
     }
     try {
@@ -1675,7 +1850,10 @@ export function isLoudEvent(event: MatrixEvent): boolean {
     if (event.getSender() === matrixClient.getUserId()) return false;
     try {
         const actions = matrixClient.getPushActionsForEvent(event);
-        return !!(actions?.notify && (actions.tweaks as any)?.sound);
+        // Union of the highlight and sound tweaks (see isHighlightAction):
+        // sound keeps everything styled today; the highlight tweak adds styling
+        // for spec-correct highlight-only rules (@room, keyword "Highlight").
+        return !!(actions?.notify && isHighlightAction(actions));
     } catch {
         return false;
     }
@@ -1767,28 +1945,34 @@ export async function getServerCapabilities(): Promise<
 }
 
 /**
- * Probe whether the homeserver exposes VoIP TURN config — a rough proxy for
- * "calling could work here". Calling is not advertised in /capabilities, so
- * this is an attempt-and-interpret probe, not a capability lookup.
+ * Probe the homeserver's readiness for MatrixRTC group calling (the stack the
+ * client actually uses). The legacy `/voip/turnServer` endpoint is NOT probed:
+ * MatrixRTC never consults it, and its 404 is ambiguous (a conforming server
+ * returns 200 with empty `uris` when TURN is simply unconfigured).
+ *
+ * - `rtcFoci`: the homeserver advertises at least one SFU focus via the
+ *   `org.matrix.msc4143.rtc_foci` key in `.well-known/matrix/client` (reuses
+ *   the same well-known fetch the voice-join path uses).
+ * - `delayedEvents`: `/versions` `unstable_features` advertises
+ *   `org.matrix.msc4140` — delayed events, which let a crashed call's
+ *   membership self-expire in ~8s instead of lingering up to ~4h.
  */
-export async function probeCallingSupport(): Promise<
-    "available" | "unavailable" | "unknown"
-> {
-    if (!matrixClient) return "unknown";
-    const token = matrixClient.getAccessToken();
-    const base = matrixClient.getHomeserverUrl();
-    if (!token || !base) return "unknown";
-    try {
-        const res = await fetch(
-            `${base.replace(/\/$/, "")}/_matrix/client/v3/voip/turnServer`,
-            { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (res.status === 404 || res.status === 400) return "unavailable";
-        if (res.ok) return "available";
-        return "unknown";
-    } catch {
-        return "unknown";
-    }
+export async function probeCallingSupport(): Promise<{
+    rtcFoci: boolean;
+    delayedEvents: boolean;
+}> {
+    if (!matrixClient) return { rtcFoci: false, delayedEvents: false };
+    const [rtcFoci, delayedEvents] = await Promise.all([
+        configuredRtcFoci()
+            .then((foci) => foci.length > 0)
+            .catch(() => false),
+        getServerVersions()
+            .then(({ unstableFeatures }) =>
+                hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
+            )
+            .catch(() => false),
+    ]);
+    return { rtcFoci, delayedEvents };
 }
 
 // ── Device / session management ─────────────────────────────────────────────
@@ -2168,9 +2352,30 @@ export interface DefaultPushRule {
     /** Conditions for override/underride rules, or pattern for content rules. Used when creating server-side. */
     conditions?: object[];
     pattern?: string | "USERNAME_LOCALPART";
+    /** Spec-default actions for this rule at "loud" level, used to derive the
+     *  loud/silent/off action sets (see actionsForLevel). Mention rules include
+     *  a highlight tweak; message rules do not. */
+    defaultActions: any[];
+    /** Legacy/alternate rule ids to fall back to when the primary ruleId is not
+     *  present in the account's rules (e.g. .m.rule.roomnotif for @room). The
+     *  reader/setter picks whichever id actually exists. */
+    fallbackRuleIds?: string[];
 }
 
 export type PushRuleLevel = "loud" | "silent" | "off";
+
+// Spec-default action templates. Mention rules highlight; message rules don't.
+// The highlight tweak is a bare `{ set_tweak: "highlight" }` (never value:false)
+// so silencing sound never strips the highlight (see actionsForLevel).
+const MENTION_DEFAULT_ACTIONS: any[] = [
+    PushRuleActionName.Notify,
+    { set_tweak: "sound", value: "default" },
+    { set_tweak: "highlight" },
+];
+const MESSAGE_DEFAULT_ACTIONS: any[] = [
+    PushRuleActionName.Notify,
+    { set_tweak: "sound", value: "default" },
+];
 
 export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
@@ -2182,6 +2387,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
             { kind: "room_member_count", is: "2" },
             { kind: "event_match", key: "type", pattern: "m.room.message" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.Message,
@@ -2191,6 +2397,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         conditions: [
             { kind: "event_match", key: "type", pattern: "m.room.message" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.IsUserMention,
@@ -2198,6 +2405,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Full Matrix ID mentions",
         description: "Messages using your full @user:homeserver ID",
         conditions: [{ kind: "is_user_mention" }],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsDisplayName,
@@ -2205,6 +2413,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Display name mentions",
         description: "Messages containing your display name",
         conditions: [{ kind: "contains_display_name" }],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsUserName,
@@ -2212,15 +2421,20 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         label: "Username mentions",
         description: "Messages containing your username (without server)",
         pattern: "USERNAME_LOCALPART",
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
-        ruleId: RuleId.AtRoomNotification,
+        // Modern intentional-mentions rule; older servers only ship the legacy
+        // .m.rule.roomnotif, so it is kept as an ordered fallback id.
+        ruleId: RuleId.IsRoomMention,
+        fallbackRuleIds: [RuleId.AtRoomNotification],
         kind: PushRuleKind.Override,
         label: "@room mentions",
         description: "Messages using @room to notify everyone",
         conditions: [
             { kind: "event_match", key: "content.body", pattern: "@room" },
         ],
+        defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.InviteToSelf,
@@ -2236,6 +2450,7 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
             },
             { kind: "event_match", key: "state_key", pattern: "SELF_USER_ID" },
         ],
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
     },
 ];
 
@@ -2255,6 +2470,22 @@ function findRule(ruleId: string): any | undefined {
     return undefined;
 }
 
+/** Candidate rule ids for a default rule: primary first, then any fallbacks
+ *  (e.g. @room = [.m.rule.is_room_mention, .m.rule.roomnotif]). */
+function candidateRuleIds(ruleId: string): string[] {
+    const def = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+    return [ruleId, ...(def?.fallbackRuleIds ?? [])];
+}
+
+/** The first candidate rule (primary or fallback) that exists in the account. */
+function findRuleWithFallback(ruleId: string): any | undefined {
+    for (const id of candidateRuleIds(ruleId)) {
+        const rule = findRule(id);
+        if (rule) return rule;
+    }
+    return undefined;
+}
+
 /** Returns whether a rule's actions include a sound tweak. */
 function ruleHasSound(rule: any): boolean {
     return (
@@ -2265,7 +2496,8 @@ function ruleHasSound(rule: any): boolean {
 }
 
 export function getDefaultPushRuleLevel(ruleId: string): PushRuleLevel {
-    const rule = findRule(ruleId);
+    // Read whichever id actually exists (primary, then legacy fallback).
+    const rule = findRuleWithFallback(ruleId);
     if (!rule || rule.enabled === false) return "off";
     const notifies =
         (rule.actions as any[])?.some(
@@ -2289,7 +2521,7 @@ export interface PushRuleSummary {
 
 export function getPushRuleSummary(): PushRuleSummary[] {
     return DEFAULT_PUSH_RULES.map((def) => {
-        const rule = findRule(def.ruleId);
+        const rule = findRuleWithFallback(def.ruleId);
         return {
             ruleId: def.ruleId,
             label: def.label,
@@ -2306,12 +2538,22 @@ export async function setDefaultPushRuleLevel(
 ): Promise<void> {
     if (!matrixClient) return;
 
+    const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+    const defaultActions = ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
+
+    // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
+    // .m.rule.roomnotif fallback): write to whichever id actually exists in this
+    // account's rules. If NEITHER exists, surface the error rather than silently
+    // pretending the change stuck.
+    const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
+    const hasFallbacks = (ruleDef?.fallbackRuleIds?.length ?? 0) > 0;
+    const targetId = existingId ?? ruleId;
+
     // Server-default rules (dotted IDs) cannot be created — only enabled/actions updated.
     // Custom rules that don't exist yet must be created with addPushRule.
-    const isServerDefault = ruleId.startsWith(".");
+    const isServerDefault = targetId.startsWith(".");
 
     const createRule = async (actions: any[]) => {
-        const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
         const userId = matrixClient!.getUserId() ?? "";
         const localpart = userId.startsWith("@")
             ? userId.slice(1).split(":")[0]
@@ -2323,7 +2565,7 @@ export async function setDefaultPushRuleLevel(
             ruleDef?.pattern === "USERNAME_LOCALPART"
                 ? localpart
                 : ruleDef?.pattern;
-        await matrixClient!.addPushRule("global", kind, ruleId, {
+        await matrixClient!.addPushRule("global", kind, targetId, {
             actions,
             conditions,
             pattern,
@@ -2335,55 +2577,54 @@ export async function setDefaultPushRuleLevel(
             await matrixClient.setPushRuleEnabled(
                 "global",
                 kind,
-                ruleId,
+                targetId,
                 false,
             );
-        } catch {
+        } catch (err) {
             if (!isServerDefault) {
-                const silentActions = [
-                    PushRuleActionName.Notify,
-                    { set_tweak: "highlight", value: false },
-                ];
-                await createRule(silentActions);
+                await createRule(actionsForLevel(defaultActions, "silent"));
                 await matrixClient.setPushRuleEnabled(
                     "global",
                     kind,
-                    ruleId,
+                    targetId,
                     false,
                 );
+            } else if (hasFallbacks && !existingId) {
+                // Neither the primary nor the legacy @room id exists — surface
+                // the failure instead of faking success.
+                throw err;
             }
-            // For server-default rules we fall through and update local state optimistically
+            // Other server-default rules: fall through, update local state optimistically.
         }
-        const rule = findRule(ruleId);
+        const rule = findRule(targetId);
         if (rule) rule.enabled = false;
     } else {
-        const actions: any[] =
-            level === "loud"
-                ? [
-                      PushRuleActionName.Notify,
-                      { set_tweak: "sound", value: "default" },
-                      { set_tweak: "highlight", value: false },
-                  ]
-                : [
-                      PushRuleActionName.Notify,
-                      { set_tweak: "highlight", value: false },
-                  ];
+        const actions: any[] = actionsForLevel(defaultActions, level);
         try {
             await matrixClient.setPushRuleActions(
                 "global",
                 kind,
-                ruleId,
+                targetId,
                 actions,
             );
-            await matrixClient.setPushRuleEnabled("global", kind, ruleId, true);
-        } catch {
+            await matrixClient.setPushRuleEnabled(
+                "global",
+                kind,
+                targetId,
+                true,
+            );
+        } catch (err) {
             if (isServerDefault) {
-                // Can't create server-default rules — update local state optimistically only
+                if (hasFallbacks && !existingId) {
+                    // Neither @room id exists — surface, don't fake success.
+                    throw err;
+                }
+                // Other server-default rules: update local state optimistically only.
             } else {
                 await createRule(actions);
             }
         }
-        const rule = findRule(ruleId);
+        const rule = findRule(targetId);
         if (rule) {
             rule.enabled = true;
             rule.actions = actions;
@@ -2444,6 +2685,12 @@ export async function addKeywordRule(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
+    // Dotted ids are reserved for server-default rules; a content rule whose
+    // rule_id/pattern starts with "." would collide with them. Reject up front
+    // so the error surfaces through the caller's catch (see NotificationSettings).
+    if (pattern.startsWith(".")) {
+        throw new Error("Keyword cannot start with '.'");
+    }
     try {
         await matrixClient.addPushRule(
             "global",
@@ -2519,11 +2766,25 @@ export async function sendEdit(
     eventId: string,
     newText: string,
     formattedBody?: string,
+    originalMentions?: Mentions,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // v1.7 mentions module: split m.mentions across the replacement halves —
+    // top-level carries only the mentions NEWLY introduced by this revision;
+    // m.new_content carries the resolved final set. Conservative: original
+    // mentions are never dropped (see computeEditMentions).
+    // ⚑ deferred: pill anchors in the ORIGINAL formatted_body are lost on edit
+    // because the edit UI is a plain-text box — so a mention that existed only
+    // as a formatted_body pill (no bare mxid retyped) survives as an
+    // m.mentions user_id but loses its inline highlight in the new body.
+    const { topLevel, resolved } = computeEditMentions(
+        originalMentions,
+        newText,
+    );
     const newContent: Record<string, unknown> = {
         msgtype: "m.text",
         body: newText,
+        "m.mentions": resolved,
     };
     if (formattedBody) {
         newContent.format = "org.matrix.custom.html";
@@ -2541,6 +2802,7 @@ export async function sendEdit(
                       formatted_body: `* ${formattedBody}`,
                   }
                 : {}),
+            "m.mentions": topLevel,
             "m.new_content": newContent,
             "m.relates_to": { rel_type: "m.replace", event_id: eventId },
         } as never,
@@ -2990,10 +3252,11 @@ export function getReceiptsForEvent(
 export async function sendTyping(
     roomId: string,
     isTyping: boolean,
+    timeout: number = 25_000,
 ): Promise<void> {
     if (!matrixClient) return;
     try {
-        await matrixClient.sendTyping(roomId, isTyping, 5000);
+        await matrixClient.sendTyping(roomId, isTyping, timeout);
     } catch {
         // ignore typing errors
     }
@@ -3045,12 +3308,47 @@ export async function fetchSpaceHierarchy(
 ): Promise<SpaceChildInfo[]> {
     if (!matrixClient) return [];
 
-    const getHierarchy = (id: string, depth: number) =>
-        (matrixClient as unknown as Record<string, Function>)[
+    // Follow `next_batch` across pages so spaces with more than 200 rooms
+    // populate fully (the SDK caps a single /hierarchy response at the given
+    // limit). Cap at 10 pages (~2000 rooms) as a runaway guard and dedupe by
+    // room_id — a page boundary can re-list a room already seen.
+    const getHierarchy = async (
+        id: string,
+        depth: number,
+    ): Promise<{ rooms: Array<Record<string, unknown>> }> => {
+        // Bind `this`: extracting the method into a bare variable would call it
+        // detached from matrixClient, so the SDK's `this.http` is undefined and
+        // /hierarchy throws at runtime (invisible to type-check/tests).
+        const call = (matrixClient as unknown as Record<string, Function>)[
             "getRoomHierarchy"
-        ](id, 200, depth) as Promise<{
-            rooms: Array<Record<string, unknown>>;
-        }>;
+        ].bind(matrixClient);
+        const merged: Array<Record<string, unknown>> = [];
+        const seen = new Set<string>();
+        let nextBatch: string | undefined = undefined;
+        for (let page = 0; page < 10; page++) {
+            const result = (await call(
+                id,
+                200,
+                depth,
+                undefined,
+                nextBatch,
+            )) as {
+                rooms: Array<Record<string, unknown>>;
+                next_batch?: string;
+            };
+            for (const r of result.rooms ?? []) {
+                const rid = r["room_id"] as string | undefined;
+                if (rid) {
+                    if (seen.has(rid)) continue;
+                    seen.add(rid);
+                }
+                merged.push(r);
+            }
+            nextBatch = result.next_batch;
+            if (!nextBatch) break;
+        }
+        return { rooms: merged };
+    };
 
     let rooms: Array<Record<string, unknown>>;
     const viaMap = new Map<string, string[]>();
@@ -3221,6 +3519,10 @@ export async function leaveRoom(roomId: string): Promise<void> {
 export interface RoomTombstone {
     body: string;
     replacementRoomId: string;
+    // The server-name of the tombstone's sender — a good `via` candidate for
+    // joining the (often federated) replacement room, which may not be
+    // resolvable from its room id alone.
+    senderServer?: string;
 }
 
 export function getTombstone(room: Room): RoomTombstone | null {
@@ -3234,6 +3536,7 @@ export function getTombstone(room: Room): RoomTombstone | null {
     return {
         body: content.body ?? "This room has been replaced.",
         replacementRoomId: content.replacement_room,
+        senderServer: event.getSender()?.split(":").slice(1).join(":"),
     };
 }
 
@@ -3379,7 +3682,9 @@ export function canAddRoomToSpace(spaceId: string): boolean {
     if (!space) return false;
     const myLevel = getMyPowerLevel(space);
     const pl = getRoomPowerLevels(space);
-    const required = pl.events["m.space.child"] ?? pl.state_default ?? 50;
+    // Tolerate a pre-v10 numeric-string level in the events map; fall back to
+    // the already-defaulted state_default when the key is absent.
+    const required = coercePl(pl.events["m.space.child"], pl.state_default);
     return myLevel >= required;
 }
 
@@ -3513,19 +3818,10 @@ export function canInviteToRoom(roomId: string): boolean {
     const room = matrixClient?.getRoom(roomId);
     const me = matrixClient?.getUserId();
     if (!room || !me) return false;
-    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    // The spec default for `invite` is 0 — getRoomPowerLevels() normalizes it to
-    // 50, which would wrongly hide Invite from ordinary members of rooms that
-    // never set an explicit invite PL. Read the raw value with the correct default.
-    const inviteReq = state
-        ?.getStateEvents("m.room.power_levels", "")
-        ?.getContent()?.invite;
-    // getUserPowerLevel already lifts a v12 creator (its bespoke creator branch
-    // is now the shared, version-gated rule).
-    return (
-        getUserPowerLevel(room, me) >=
-        (typeof inviteReq === "number" ? inviteReq : 0)
-    );
+    // getRoomPowerLevels now applies the spec `invite` default of 0 (v1.4) and
+    // coerces pre-v10 numeric-string levels; getUserPowerLevel already lifts a
+    // v12 creator (its bespoke creator branch is the shared, version-gated rule).
+    return getUserPowerLevel(room, me) >= getRoomPowerLevels(room).invite;
 }
 
 export function getInvitedRooms(): Room[] {
@@ -3537,7 +3833,28 @@ export function getInvitedRooms(): Room[] {
 
 export async function acceptInvite(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Read whether this invite is a direct (1:1) chat and who sent it BEFORE
+    // joining — once we join, the invite membership we inspect is superseded.
+    const inviteRoom = matrixClient.getRoom(roomId);
+    const me = inviteRoom?.getMember(matrixClient.getUserId()!);
+    const isDirect = me?.events.member?.getContent().is_direct === true;
+    const inviter = inviteRoom ? getInviteSender(inviteRoom) : null;
     await matrixClient.joinRoom(roomId);
+    // Record peer-initiated DMs in m.direct so they surface in the DM section,
+    // mirroring what createDirectMessage does for self-initiated DMs. Best-effort:
+    // a failed account-data write must not strand the user after a joined room.
+    if (isDirect && inviter) {
+        const cur =
+            (matrixClient.getAccountData(EventType.Direct)?.getContent() as
+                | Record<string, string[]>
+                | undefined) ?? {};
+        await matrixClient
+            .setAccountData(
+                EventType.Direct,
+                addToMDirect(cur, inviter, roomId),
+            )
+            .catch(() => {});
+    }
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     scheduleJoinedRoomsReconcile();
@@ -3604,39 +3921,17 @@ export function getReactions(room: Room, eventId: string): ReactionGroup[] {
         if (!relations) return [];
 
         const ownUserId = matrixClient.getUserId();
-        const groups: Map<
-            string,
-            { count: number; isMine: boolean; myEventId: string | null }
-        > = new Map();
-
-        for (const e of relations.getRelations()) {
-            if (e.isRedacted()) continue;
-            const key: string = e.getContent()?.["m.relates_to"]?.key ?? "";
-            if (!key) continue;
-            const existing = groups.get(key) ?? {
-                count: 0,
-                isMine: false,
-                myEventId: null,
-            };
-            const isOwn = e.getSender() === ownUserId;
-            groups.set(key, {
-                count: existing.count + 1,
-                isMine: existing.isMine || isOwn,
-                myEventId:
-                    isOwn && !e.status
-                        ? (e.getId() ?? null)
-                        : existing.myEventId,
-            });
-        }
-
-        return Array.from(groups.entries()).map(
-            ([key, { count, isMine, myEventId }]) => ({
-                key,
-                count,
-                isMine,
-                myEventId,
-            }),
-        );
+        // Dedupe + own-reaction counting lives in a pure, unit-tested helper.
+        const annotations: ReactionAnnotation[] = relations
+            .getRelations()
+            .map((e) => ({
+                sender: e.getSender() ?? null,
+                key: e.getContent()?.["m.relates_to"]?.key ?? "",
+                id: e.getId() ?? null,
+                status: e.status,
+                isRedacted: e.isRedacted(),
+            }));
+        return countReactions(annotations, ownUserId);
     } catch {
         return [];
     }
@@ -3701,6 +3996,11 @@ export interface CustomEmoji {
     shortcode: string;
     mxcUrl: string; // mxc:// url (used in formatted_body so other clients can proxy it)
     url: string; // http url (used for display in our own picker)
+    // MSC2545 image-pack metadata, carried through so a sticker send can echo
+    // the pack's declared info (w/h/mimetype/size) and body. Absent for packs
+    // that don't declare them (and unused for emoticon rendering).
+    info?: Record<string, unknown>;
+    body?: string;
 }
 
 export interface CustomEmojiPack {
@@ -3787,6 +4087,25 @@ function effectiveUsage(
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
 }
 
+// MSC2545 per-image metadata (info/body), forwarded onto CustomEmoji so a
+// sticker send can echo it. Only present when the pack declares them, so packs
+// without info degrade to today's behaviour.
+function packImageMeta(data: {
+    info?: unknown;
+    body?: unknown;
+    [key: string]: unknown;
+}): {
+    info?: Record<string, unknown>;
+    body?: string;
+} {
+    const meta: { info?: Record<string, unknown>; body?: string } = {};
+    if (data.info && typeof data.info === "object") {
+        meta.info = data.info as Record<string, unknown>;
+    }
+    if (typeof data.body === "string") meta.body = data.body;
+    return meta;
+}
+
 function roomEmoteContentToPackImages(
     content: RoomEmoteContent,
 ): CustomPackImage[] {
@@ -3825,7 +4144,16 @@ function roomEmoteContentToImages(
         )
         .flatMap(([shortcode, data]) => {
             const http = mxcToHttp(data.url!);
-            return http ? [{ shortcode, mxcUrl: data.url!, url: http }] : [];
+            return http
+                ? [
+                      {
+                          shortcode,
+                          mxcUrl: data.url!,
+                          url: http,
+                          ...packImageMeta(data),
+                      },
+                  ]
+                : [];
         });
 }
 
@@ -4273,7 +4601,15 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
         if (!accountData) return [];
         const content = accountData.getContent();
         const images = content?.images as
-            | Record<string, { url?: string; usage?: string[] }>
+            | Record<
+                  string,
+                  {
+                      url?: string;
+                      usage?: string[];
+                      info?: unknown;
+                      body?: unknown;
+                  }
+              >
             | undefined;
         if (!images) return [];
         const packUsage = (content?.pack as { usage?: string[] } | undefined)
@@ -4287,7 +4623,14 @@ function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
             .flatMap(([shortcode, data]) => {
                 const http = mxcToHttp(data.url!);
                 return http
-                    ? [{ shortcode, mxcUrl: data.url!, url: http }]
+                    ? [
+                          {
+                              shortcode,
+                              mxcUrl: data.url!,
+                              url: http,
+                              ...packImageMeta(data),
+                          },
+                      ]
                     : [];
             });
     } catch {
@@ -4623,19 +4966,16 @@ export interface PowerLevels {
 
 export function getRoomPowerLevels(room: Room): PowerLevels {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    const content =
-        state?.getStateEvents("m.room.power_levels", "")?.getContent() ?? {};
-    return {
-        ban: (content.ban as number) ?? 50,
-        kick: (content.kick as number) ?? 50,
-        redact: (content.redact as number) ?? 50,
-        invite: (content.invite as number) ?? 50,
-        events_default: (content.events_default as number) ?? 0,
-        state_default: (content.state_default as number) ?? 50,
-        users_default: (content.users_default as number) ?? 0,
-        events: (content.events as Record<string, number>) ?? {},
-        users: (content.users as Record<string, number>) ?? {},
-    };
+    // Distinguish "no m.room.power_levels event at all" (content undefined) from
+    // "event present but a field omitted" ({}): the two carry different spec
+    // defaults. normalizePowerLevels applies the correct set and coerces pre-v10
+    // numeric-string levels.
+    const content = state
+        ?.getStateEvents("m.room.power_levels", "")
+        ?.getContent() as Record<string, unknown> | undefined;
+    const creatorId =
+        state?.getStateEvents("m.room.create", "")?.getSender() ?? null;
+    return normalizePowerLevels(content ?? null, creatorId);
 }
 
 export function getPinnedEventIds(room: Room): string[] {
@@ -4654,8 +4994,15 @@ async function fetchPinnedEventIds(roomId: string): Promise<string[]> {
             "",
         );
         return (state?.pinned as string[]) ?? [];
-    } catch {
-        return [];
+    } catch (e: any) {
+        // A MISSING pinned_events state event (404 / M_NOT_FOUND) is a
+        // genuinely empty pin list, not a fetch failure — return [] so the
+        // first pin can still be written. Any OTHER error (network / 5xx /
+        // rate-limit) MUST propagate: swallowing it to [] here would let a
+        // read-modify-write pin/unpin overwrite the real list with a
+        // truncated one. Callers surface the failure with a toast.
+        if (e?.errcode === "M_NOT_FOUND" || e?.httpStatus === 404) return [];
+        throw e;
     }
 }
 
@@ -4704,6 +5051,17 @@ export async function setUserPowerLevel(
     level: number,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // A room-v12 (MSC4289) creator's power is immutable and NOT stored in the
+    // users map — writing it there is a guaranteed server 403. Surface a clear
+    // error instead of the raw federation rejection.
+    if (
+        isRoomCreator(room, userId) &&
+        roomVersionHasImmutableCreators(room.getVersion())
+    ) {
+        throw new Error(
+            "Room creators' power level cannot be set in v12 rooms",
+        );
+    }
     const pl = getRoomPowerLevels(room);
     await setRoomPowerLevels(room, { users: { ...pl.users, [userId]: level } });
 }
@@ -4860,6 +5218,9 @@ export interface SpaceChildEntry {
     via: string[];
     avatarUrl: string | null;
     isJoined: boolean;
+    // origin_server_ts of the m.space.child event — the spec's primary
+    // tie-break when two children share (or both lack) an `order`.
+    originTs: number;
 }
 
 export function getSpaceChildren(room: Room): SpaceChildEntry[] {
@@ -4879,11 +5240,16 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
                 via: (ev.getContent()?.via as string[]) ?? [],
                 avatarUrl: child ? getRoomAvatar(child) : null,
                 isJoined: joined.has(childId),
+                originTs: ev.getTs(),
             };
         })
         .sort((a, b) => {
             const byOrder = compareOrderLex(a.order, b.order);
             if (byOrder !== 0) return byOrder;
+            // Equal/both-missing order: spec sorts by origin_server_ts
+            // ascending first, then name for stability.
+            const byTs = a.originTs - b.originTs;
+            if (byTs !== 0) return byTs;
             return a.name.localeCompare(b.name);
         });
 }
@@ -4895,6 +5261,16 @@ export async function setSpaceChildOrder(
     via: string[],
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // An m.space.child `order` must be ≤50 printable-ASCII chars (\x20–\x7E).
+    // Generated fractional-index keys always satisfy this; a raw, user-typed
+    // value may not — reject it rather than write a spec-invalid order the
+    // homeserver would sort inconsistently. (An empty string is valid: it
+    // clears the order below.)
+    if (!isValidChildOrder(order)) {
+        throw new Error(
+            "Order must be at most 50 printable-ASCII characters (space to ~)",
+        );
+    }
     const existing =
         matrixClient
             .getRoom(spaceId)
@@ -4999,9 +5375,12 @@ export async function sendSticker(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not connected");
     await matrixClient.sendEvent(roomId, "m.sticker" as any, {
-        body: sticker.shortcode,
+        body: sticker.body || sticker.shortcode,
         url: sticker.mxcUrl,
-        info: {},
+        info: sticker.info ?? {},
+        // Always present (spec recommendation) so the receiver skips legacy
+        // body-scan push rules; a sticker never carries intentional mentions.
+        "m.mentions": {},
     });
 }
 
@@ -5288,13 +5667,8 @@ export async function sendReply(
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
 
-    const replyContent = replyToEvent.getContent();
     const content = buildReplyContent({
-        roomId: replyToEvent.getRoomId() ?? roomId,
         replyEventId: replyToEvent.getId()!,
-        replySender: replyToEvent.getSender() ?? "",
-        replyBody: replyContent?.body ?? "",
-        replyFormattedBody: replyContent?.formatted_body,
         text,
         formattedText,
         mentions,

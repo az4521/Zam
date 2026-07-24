@@ -425,6 +425,24 @@
         });
     });
 
+    // Stop broadcasting our own typing when the composer unmounts or the room
+    // switches. With the 25s server timeout a missed stop leaves a stale "…is
+    // typing" indicator lingering for other users, so this is required. The
+    // stop is sent from the effect teardown (untracked context), so it can't
+    // form a reactive loop.
+    $effect(() => {
+        const currentRoom = room;
+        if (!currentRoom) return;
+        return () => {
+            if (typingStopTimer) {
+                clearTimeout(typingStopTimer);
+                typingStopTimer = null;
+            }
+            lastTypingSentAt = 0;
+            sendTyping(currentRoom.roomId, false);
+        };
+    });
+
     function typingText(): string {
         if (!room || typingUsers.length === 0) return "";
         const names = typingUsers
@@ -549,7 +567,7 @@
             for (const shortcode of shortcodes) {
                 const mxcUrl = lookup.get(shortcode);
                 if (mxcUrl) {
-                    const tag = `<img data-mx-emoticon src="${mxcUrl}" alt=":${shortcode}:" title=":${shortcode}:" />`;
+                    const tag = `<img data-mx-emoticon src="${mxcUrl}" alt="${shortcode}" title="${shortcode}" height="32" />`;
                     html = html.replaceAll(`:${shortcode}:`, tag);
                     changed = true;
                 }
@@ -796,6 +814,9 @@
             typingStopTimer = null;
         }
         if (room) sendTyping(room.roomId, false);
+        // Reset the refresh gate so the next keystroke re-broadcasts typing
+        // immediately rather than waiting out the 20s window.
+        lastTypingSentAt = 0;
 
         // Action commands call a client.ts wrapper; they aren't messages, so no
         // local echo. Clear the composer only on success.
@@ -920,6 +941,9 @@
             typingStopTimer = null;
         }
         if (room) sendTyping(room.roomId, false);
+        // Reset the refresh gate so the next keystroke re-broadcasts typing
+        // immediately rather than waiting out the 20s window.
+        lastTypingSentAt = 0;
 
         isSending = true;
         const filesToSend = fileQueue.slice();
@@ -1004,6 +1028,7 @@
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } catch (err) {
             console.error("Failed to send:", err);
+            showErrorToast(matrixErrorMessage(err, "Failed to send"));
         } finally {
             isSending = false;
             textareaEl?.focus();
@@ -1275,10 +1300,15 @@
 
         if (room) {
             const now = Date.now();
-            if (now - lastTypingSentAt >= 5000) {
+            // Refresh the typing notification 5s before the 25s server timeout
+            // (see sendTyping in client.ts) so the indicator never flickers off
+            // between keystrokes.
+            if (now - lastTypingSentAt >= 20_000) {
                 lastTypingSentAt = now;
                 sendTyping(room.roomId, true);
             }
+            // Idle-stop timer (UX): stop showing typing ~5s after the user
+            // pauses. Separate from the wire timeout above.
             if (typingStopTimer) clearTimeout(typingStopTimer);
             typingStopTimer = setTimeout(() => {
                 if (room) sendTyping(room.roomId, false);

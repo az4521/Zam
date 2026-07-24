@@ -90,4 +90,10 @@ describe("buildThreadReplyContent — spec-compliant m.thread relation", () => {
         });
         expect(c["m.mentions"]).toEqual({ user_ids: ["@bob:hs"] });
     });
+
+    it("always emits an m.mentions key, defaulting to empty when none given", () => {
+        const c = buildThreadReplyContent({ rootEventId: "$r", text: "hi" });
+        expect("m.mentions" in c).toBe(true);
+        expect(c["m.mentions"]).toEqual({});
+    });
 });

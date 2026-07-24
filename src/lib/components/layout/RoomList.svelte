@@ -75,6 +75,7 @@
     } from "$lib/stores/interface.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import { auth } from "$lib/stores/auth.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
@@ -635,6 +636,9 @@
             applyReorderReactivity(section);
         } catch (err) {
             console.error("Failed to set order value:", err);
+            showErrorToast(
+                err instanceof Error ? err.message : "Failed to set order",
+            );
         }
     }
 </script>

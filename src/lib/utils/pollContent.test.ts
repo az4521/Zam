@@ -340,7 +340,37 @@ describe("aggregatePollVotes — MSC3381 vote aggregation", () => {
         expect(t.totalVotes).toBe(0);
     });
 
-    it("filters unknown ids, dedupes, and truncates to max_selections", () => {
+    it("spoils the whole vote when ANY supplied answer is unknown (MSC3381)", () => {
+        const multi = { ...START, maxSelections: 2 };
+        // Both "ghost" (unknown) and "cat" (valid) survive the truncation to
+        // max_selections, so the unknown id spoils the ENTIRE vote — the voter
+        // counts as having made no selection, NOT a vote for the "cat" they
+        // also picked.
+        const t = aggregatePollVotes(
+            multi,
+            [resp({ answers: ["ghost", "cat"] })],
+            null,
+        );
+        expect(t.votesBySender["@a:hs"]).toBeUndefined();
+        expect(t.counts).toEqual({ cat: 0, dog: 0, fish: 0 });
+        expect(t.totalVotes).toBe(0);
+    });
+
+    it("truncates to max_selections BEFORE deduping: ['cat','cat','dog'] max 2 → one vote for cat only", () => {
+        const multi = { ...START, maxSelections: 2 };
+        // Truncate first → ["cat","cat"], then dedupe → ["cat"]. Deduping
+        // first would wrongly yield ["cat","dog"] and count a vote for dog too.
+        const t = aggregatePollVotes(
+            multi,
+            [resp({ answers: ["cat", "cat", "dog"] })],
+            null,
+        );
+        expect(t.votesBySender["@a:hs"]).toEqual(["cat"]);
+        expect(t.counts).toEqual({ cat: 1, dog: 0, fish: 0 });
+        expect(t.totalVotes).toBe(1);
+    });
+
+    it("truncates to max_selections first, so an unknown id inside that window spoils the vote", () => {
         const multi = { ...START, maxSelections: 2 };
         const t = aggregatePollVotes(
             multi,
@@ -351,10 +381,11 @@ describe("aggregatePollVotes — MSC3381 vote aggregation", () => {
             ],
             null,
         );
-        // unknown dropped, dupes collapsed, then capped at 2 in response order
-        expect(t.votesBySender["@a:hs"]).toEqual(["cat", "dog"]);
-        expect(t.counts).toEqual({ cat: 1, dog: 1, fish: 0 });
-        expect(t.totalVotes).toBe(2);
+        // truncate first → ["hamster","cat"]; the surviving unknown "hamster"
+        // spoils the ENTIRE vote (dog/fish beyond the window never matter).
+        expect(t.votesBySender["@a:hs"]).toBeUndefined();
+        expect(t.counts).toEqual({ cat: 0, dog: 0, fish: 0 });
+        expect(t.totalVotes).toBe(0);
     });
 
     it("ignores votes cast after the poll ended, keeping earlier ones", () => {
