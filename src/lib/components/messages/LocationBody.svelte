@@ -1,10 +1,16 @@
 <script lang="ts">
     import { parseGeoUri, formatCoords, mapLinkFor } from "$lib/utils/location";
+    import LocationMap, {
+        type MapMarkerInput,
+    } from "$lib/components/ui/LocationMap.svelte";
 
     interface Props {
         content: Record<string, unknown>;
+        senderName?: string;
+        senderAvatarUrl?: string | null;
+        isSelf?: boolean;
     }
-    let { content }: Props = $props();
+    let { content, senderName, senderAvatarUrl, isSelf }: Props = $props();
 
     const loc = $derived(
         (content["org.matrix.msc3488.location"] ?? null) as {
@@ -25,12 +31,50 @@
     const description = $derived(
         typeof loc?.description === "string" ? loc.description : "",
     );
+
+    let el: HTMLDivElement | undefined = $state();
+    let mapVisible = $state(false);
+
+    // Render the map only once the card is (nearly) on screen, then keep it —
+    // bounds simultaneous Leaflet instances to roughly what's visible and defers
+    // the leaflet JS chunk until a location card is actually seen.
+    $effect(() => {
+        const node = el;
+        if (!node || mapVisible) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    mapVisible = true;
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: "200px" },
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+    });
 </script>
 
 {#if coords}
     <div
+        bind:this={el}
         class="mt-1 max-w-sm rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2.5"
     >
+        {#if mapVisible}
+            {@const markers = [
+                {
+                    id: "loc",
+                    lat: coords.lat,
+                    lon: coords.lon,
+                    label: senderName || description || "Location",
+                    avatarUrl: senderAvatarUrl,
+                    isSelf,
+                },
+            ] as MapMarkerInput[]}
+            <div class="mb-2 h-40 w-full overflow-hidden rounded-lg">
+                <LocationMap {markers} interactive={false} follow={false} />
+            </div>
+        {/if}
         <div class="flex items-start gap-2">
             <svg
                 class="w-5 h-5 mt-0.5 text-discord-accent flex-shrink-0"
