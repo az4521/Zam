@@ -88,11 +88,15 @@
         clearServiceWorkerAuth,
         fetchOwnProfile,
         mxcToHttp,
+        onThreadReplyEvent,
+        isThreadParticipant,
+        getEventThreadRootId,
     } from "$lib/matrix/client";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
     import { playPing } from "$lib/audio/soundEffects";
+    import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -393,6 +397,51 @@
         }
     }
 
+    // Shared notification emission for both the main-timeline and thread-reply
+    // paths (one rule set, not two). Assumes the caller already applied its
+    // own gate (push actions + own-event + participant/mention). `loud` drives
+    // the ping + red-dot badge; silent notifications still populate the inbox.
+    function emitNotification(event: MatrixEvent, room: Room, loud: boolean) {
+        const content = event.getContent() as any;
+        // Extensible events (e.g. polls) carry their text fallback in the
+        // MSC1767 key instead of body.
+        const rawBody =
+            typeof content?.body === "string"
+                ? content.body
+                : typeof content?.["org.matrix.msc1767.text"] === "string"
+                  ? content["org.matrix.msc1767.text"]
+                  : "";
+        // A still-encrypted (undecryptable) event has no cleartext body →
+        // show a generic "🔒 Encrypted message" line instead of an empty one.
+        const body = previewForEvent(event.getType(), rawBody);
+
+        // Alerts (sound + desktop popup) fire only for events that arrive live,
+        // never for the backlog replayed during the initial sync on page load.
+        const live = isInitialSyncComplete();
+
+        if (loud) {
+            const soundEnabled =
+                localStorage.getItem("notifSoundEnabled") !== "false";
+            if (live && soundEnabled) {
+                playPing();
+            }
+        }
+
+        // Record both loud and silent notifications so the inbox panel can show
+        // them when the server can't fetch past notifications.
+        markNotification({
+            roomId: room.roomId,
+            eventId: event.getId()!,
+            ts: event.getTs(),
+            sender: event.getSender() ?? "",
+            body,
+            loud,
+        });
+
+        // Any notifying event also pops a desktop notification.
+        if (live) showDesktopNotification(event, room, body);
+    }
+
     // Incoming DM calls get their own notification and suppression rule: the
     // message rule at showDesktopNotification() is about whether you are
     // reading that room, which is not the question here. The only reason to
@@ -586,55 +635,51 @@
             if (!isLiveAppend) return;
             if (event.getSender() === getOwnUserId()) return;
 
+            // Thread replies are surfaced by the dedicated onThreadReplyEvent
+            // path below (participant/mention-gated). onTimelineEvent forwards
+            // them here too when settingsState.showAllEvents is on — skip so we
+            // don't double-notify the same reply.
+            if (getEventThreadRootId(event)) return;
+
             const actions = getClient()?.getPushActionsForEvent(event);
             if (!actions?.notify) return;
 
             const loud = !!(actions.tweaks as any)?.sound;
-            const content = event.getContent() as any;
-            // Extensible events (e.g. polls) carry their text fallback in the
-            // MSC1767 key instead of body.
-            const rawBody =
-                typeof content?.body === "string"
-                    ? content.body
-                    : typeof content?.["org.matrix.msc1767.text"] === "string"
-                      ? content["org.matrix.msc1767.text"]
-                      : "";
-            // A still-encrypted (undecryptable) event has no cleartext body →
-            // show a generic "🔒 Encrypted message" line instead of an empty
-            // notification. Decrypted events report their cleartext type and
-            // keep rawBody.
-            const body = previewForEvent(event.getType(), rawBody);
-
-            // Alerts (sound + desktop popup) fire only for events that arrive
-            // live, never for the backlog replayed during the initial sync on
-            // page load. The red-dot / inbox is still fed below so unread state
-            // stays correct (already-read items are pruned via read receipts).
-            const live = isInitialSyncComplete();
-
-            // Loud notifications play the sound; only loud ones drive the
-            // red-dot badges (see markNotification / isLoud in the store).
-            if (loud) {
-                const soundEnabled =
-                    localStorage.getItem("notifSoundEnabled") !== "false";
-                if (live && soundEnabled) {
-                    playPing();
-                }
-            }
-
-            // Record both loud and silent notifications so the inbox panel can
-            // show them when the server can't fetch past notifications.
-            markNotification({
-                roomId: room.roomId,
-                eventId: event.getId()!,
-                ts: event.getTs(),
-                sender: event.getSender() ?? "",
-                body,
-                loud,
-            });
-
-            // Any notifying event also pops a desktop notification.
-            if (live) showDesktopNotification(event, room, body);
+            emitNotification(event, room, loud);
         });
+
+        // Thread replies are diverted off the main timeline (onTimelineEvent
+        // filters them), so they need their own path into the notification
+        // machinery. Gate: notify (push/mute rules) AND participant-or-mentioned
+        // — not every reply in the room. Reuses the shared emitNotification.
+        const unsubThreadNotify = onThreadReplyEvent(
+            (event, room, isLiveAppend) => {
+                if (!isLiveAppend) return;
+                if (event.getSender() === getOwnUserId()) return;
+
+                const actions = getClient()?.getPushActionsForEvent(event);
+                const notify = !!actions?.notify;
+                const loud = !!(actions?.tweaks as any)?.sound;
+                const isMentioned = !!(actions?.tweaks as any)?.highlight;
+
+                const rootId = getEventThreadRootId(event);
+                const isParticipant = rootId
+                    ? isThreadParticipant(room, rootId)
+                    : false;
+
+                if (
+                    !shouldNotifyThreadEvent({
+                        isOwnEvent: false,
+                        notify,
+                        isParticipant,
+                        isMentioned,
+                    })
+                )
+                    return;
+
+                emitNotification(event, room, loud);
+            },
+        );
         const unsubReceipts = onAnyReceiptEvent(() => {
             bumpUnreadTick();
             const userId = getOwnUserId();
@@ -712,6 +757,7 @@
         return () => {
             unsubRooms();
             unsubTimeline();
+            unsubThreadNotify();
             unsubReceipts();
             unsubFavourites();
             unsubCustomization();
