@@ -1059,18 +1059,23 @@ export async function sendThreadReply(
     rootEventId: string,
     text: string,
     mentions?: { user_ids?: string[]; room?: boolean },
+    formattedText?: string, // NEW: complete formatted_body (md + mentions + emoji), pre-built by caller
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
     const latestEventId =
         (room && getThreadSummary(room, rootEventId).latestEventId) ||
         rootEventId;
-    const { formattedBody, hasFormatting } = parseMarkdown(text);
+    let resolvedFormatted = formattedText;
+    if (resolvedFormatted === undefined) {
+        const { formattedBody, hasFormatting } = parseMarkdown(text);
+        resolvedFormatted = hasFormatting ? formattedBody : undefined;
+    }
     const content = buildThreadReplyContent({
         rootEventId,
         latestEventId,
         text,
-        formattedText: hasFormatting ? formattedBody : undefined,
+        formattedText: resolvedFormatted,
         mentions,
     });
     // 2-arg form only (⚑2 — the threadId overload mangles $-prefixed strings).
