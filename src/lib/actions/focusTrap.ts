@@ -47,6 +47,7 @@ function focusableWithin(node: HTMLElement): HTMLElement[] {
  */
 export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
     let p = params;
+    let focusRaf = 0;
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
     function focusFirst() {
@@ -77,14 +78,21 @@ export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
     }
 
     node.addEventListener("keydown", onKeydown);
-    // Defer initial focus one microtask so the node's children are laid out.
-    queueMicrotask(focusFirst);
+    // Defer initial focus to the next frame so the node is not only laid out
+    // but also revealed: some openers (e.g. the context-menu `positionMenu`
+    // action) mount hidden and un-hide inside their own rAF. Because Svelte
+    // runs `use:` directives in declaration order, an opener listed before
+    // `focusTrap` registers its reveal rAF first and it fires first, so
+    // `focusFirst` lands on a visible element. Focusing a `visibility:hidden`
+    // element (which a microtask-timed focus would hit) is a browser no-op.
+    focusRaf = requestAnimationFrame(focusFirst);
 
     return {
         update(next: FocusTrapParams) {
             p = next;
         },
         destroy() {
+            cancelAnimationFrame(focusRaf);
             node.removeEventListener("keydown", onKeydown);
             if (previouslyFocused && previouslyFocused.isConnected) {
                 previouslyFocused.focus();
