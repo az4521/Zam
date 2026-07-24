@@ -1310,7 +1310,12 @@
                 </div>
             {/if}
         {:else if msgtype === "m.location"}
-            <LocationBody {content} />
+            <LocationBody
+                {content}
+                senderName={displayName}
+                senderAvatarUrl={avatarSrc}
+                isSelf={isOwnMessage}
+            />
         {:else if msgtype === "m.file"}
             {@const fileUrl = mxcToHttp(content?.url as string)}
             {@const fileSize = (content?.info as any)?.size}
