@@ -17,8 +17,10 @@
         markers: MapMarkerInput[];
         /** Pan/zoom to keep markers in view until the user drags. */
         follow?: boolean;
+        /** When false, disable all pan/zoom interaction (inline card use). */
+        interactive?: boolean;
     }
-    let { markers, follow = true }: Props = $props();
+    let { markers, follow = true, interactive = true }: Props = $props();
 
     let el: HTMLDivElement | undefined = $state();
     let L: typeof Leaflet | null = $state.raw(null);
@@ -35,11 +37,17 @@
             if (cancelled || !el) return;
             const leaflet = (mod.default ?? mod) as typeof Leaflet;
             const m = leaflet.map(el, {
-                zoomControl: true,
-                attributionControl: true,
                 // A sane default before the first fix arrives.
                 center: [0, 0],
                 zoom: 2,
+                attributionControl: true, // always — OSM tile ToS requires visible attribution
+                zoomControl: interactive, // was hardcoded true
+                dragging: interactive,
+                scrollWheelZoom: interactive,
+                doubleClickZoom: interactive,
+                boxZoom: interactive,
+                touchZoom: interactive,
+                keyboard: interactive,
             });
             leaflet
                 .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
