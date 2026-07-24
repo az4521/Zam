@@ -36,6 +36,8 @@
         getRoomTopic,
         enableRoomEncryption,
         mxcToHttp,
+        upgradeRoomToVersion,
+        getRoomVersionCapability,
         type SpaceChildEntry,
     } from "$lib/matrix/client";
     import {
@@ -43,6 +45,7 @@
         RESTRICTED_JOIN_RULE,
     } from "$lib/utils/joinRules";
     import { parsePowerLevelInput } from "$lib/utils/powerLevels";
+    import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -52,7 +55,7 @@
         ENABLE_ENCRYPTION_WARNING,
     } from "$lib/utils/roomEncryption";
     import { auth } from "$lib/stores/auth.svelte";
-    import { roomsState } from "$lib/stores/rooms.svelte";
+    import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         blockUser,
         unblockUser,
@@ -173,6 +176,62 @@
             generalError = err?.message ?? "Upload failed";
         } finally {
             avatarUploading = false;
+        }
+    }
+
+    // ── General tab: Advanced → room upgrade ───────────────────────────────────
+    // The room-version capability is server-global; load it once when General
+    // opens (mirrors the Access-tab dirLoaded pattern). Skipped for spaces
+    // (upgrade is gated to non-space rooms in v1).
+    let roomVersionCap = $state<{
+        default: string;
+        available: string[];
+    } | null>(null);
+
+    $effect(() => {
+        if (activeTab !== "general" || roomVersionCap || isSpace) return;
+        untrack(() => {
+            getRoomVersionCapability()
+                .then((cap) => (roomVersionCap = cap))
+                .catch(() => (roomVersionCap = { default: "", available: [] }));
+        });
+    });
+
+    // Tick-dependent so power/version refresh on sync (the reactivity landmine).
+    const tombstoneLevel = $derived(
+        pl.events?.["m.room.tombstone"] ?? pl.state_default,
+    );
+    const upgradeState = $derived(
+        (void roomsState.roomsTick,
+        getRoomUpgradeState({
+            currentVersion: room.getVersion(),
+            defaultVersion: roomVersionCap?.default ?? "",
+            availableVersions: roomVersionCap?.available ?? [],
+            myPowerLevel,
+            tombstonePowerLevel: tombstoneLevel,
+        })),
+    );
+
+    let upgradeShowConfirm = $state(false);
+    let upgrading = $state(false);
+    let upgradeError = $state("");
+
+    async function doUpgradeRoom() {
+        upgrading = true;
+        upgradeError = "";
+        try {
+            const newRoomId = await upgradeRoomToVersion(
+                room.roomId,
+                upgradeState.recommendedVersion,
+            );
+            upgradeShowConfirm = false;
+            onClose();
+            setActiveRoom(newRoomId);
+        } catch (e: any) {
+            upgradeError =
+                e?.data?.error ?? e?.message ?? "Failed to upgrade room";
+        } finally {
+            upgrading = false;
         }
     }
 
@@ -676,6 +735,69 @@
                                       ? "Saved!"
                                       : "Save Changes"}</button
                             >
+                        {/if}
+
+                        {#if !isSpace && roomVersionCap}
+                            <div
+                                class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-2"
+                            >
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                >
+                                    Advanced
+                                </p>
+                                <p class="text-xs text-discord-textMuted">
+                                    Room version: v{room.getVersion()}
+                                </p>
+                                {#if upgradeState.isCurrentLatest || !upgradeState.available}
+                                    <p class="text-sm text-discord-textMuted">
+                                        {upgradeState.reason}
+                                    </p>
+                                {:else if !upgradeShowConfirm}
+                                    <button
+                                        onclick={() => {
+                                            upgradeShowConfirm = true;
+                                            upgradeError = "";
+                                        }}
+                                        class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
+                                        >Upgrade room…</button
+                                    >
+                                {:else}
+                                    <div class="space-y-2">
+                                        <p
+                                            class="text-sm text-discord-textPrimary"
+                                        >
+                                            This creates a new room on v{upgradeState.recommendedVersion}
+                                            and marks this one as replaced. Members
+                                            will be pointed to the new room.
+                                        </p>
+                                        {#if upgradeError}<p
+                                                class="text-sm text-discord-danger"
+                                            >
+                                                {upgradeError}
+                                            </p>{/if}
+                                        <div class="flex gap-2">
+                                            <button
+                                                onclick={doUpgradeRoom}
+                                                disabled={upgrading}
+                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                >{upgrading
+                                                    ? "Upgrading…"
+                                                    : "Upgrade room"}</button
+                                            >
+                                            <button
+                                                onclick={() => {
+                                                    upgradeShowConfirm = false;
+                                                    upgradeError = "";
+                                                }}
+                                                disabled={upgrading}
+                                                class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                >Cancel</button
+                                            >
+                                        </div>
+                                    </div>
+                                {/if}
+                            </div>
                         {/if}
                     </div>
 
