@@ -81,6 +81,7 @@
     import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import { longPress } from "$lib/actions/longPress";
+    import { focusTrap } from "$lib/actions/focusTrap";
     import Portal from "$lib/components/ui/Portal.svelte";
 
     interface Props {
@@ -693,9 +694,12 @@
                 </svg>
             </button>
             {#if interfaceState.modal === "room-header-menu"}
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div class="fixed inset-0 z-40" onclick={closeModal}></div>
+                <button
+                    type="button"
+                    aria-label="Close menu"
+                    class="fixed inset-0 z-40"
+                    onclick={closeModal}
+                ></button>
             {/if}
             <div
                 class="absolute right-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
@@ -1405,12 +1409,12 @@
     {#if contextMenu}
         {@const cm = contextMenu}
         {@const currentSetting = getRoomNotificationSetting(cm.roomId)}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
+        <button
+            type="button"
+            aria-label="Close menu"
             class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
             onclick={closeModal}
-        ></div>
+        ></button>
 
         {#snippet menuItems()}
             <button
@@ -1510,6 +1514,7 @@
 
         {#if cm.touch}
             <div
+                use:focusTrap={{ onEscape: closeModal }}
                 class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
             >
                 <div
@@ -1520,6 +1525,7 @@
         {:else}
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}
+                use:focusTrap={{ onEscape: closeModal }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-52 overflow-y-auto"
             >
                 {@render menuItems()}
