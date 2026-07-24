@@ -205,6 +205,12 @@
 
     function setCaretOffset(offset: number): void {
         if (!textareaEl) return;
+        // Creating a selection inside an unfocused contenteditable can make
+        // mobile browsers focus it and reopen the soft keyboard. An unfocused
+        // mobile composer does not need a programmatic caret; the user's next
+        // tap will place it naturally.
+        if (interfaceState.isMobile && document.activeElement !== textareaEl)
+            return;
         const target = Math.max(0, Math.min(offset, getComposerText().length));
         const walker = document.createTreeWalker(
             textareaEl,
@@ -695,6 +701,10 @@
     // `text` or the drafts store — so it never reloads what the user is typing.
     $effect(() => {
         const id = roomId;
+        // A channel switch should close the mobile keyboard. The same
+        // contenteditable stays mounted across rooms, so otherwise it can
+        // retain focus while the incoming room's draft is restored.
+        if (untrack(() => interfaceState.isMobile)) textareaEl?.blur();
         // Close any open voice recorder when the room changes — this component
         // stays mounted across room switches, so an open recorder would otherwise
         // persist and send its audio to the newly-selected room.
