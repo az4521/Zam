@@ -997,6 +997,11 @@ function eventThreadRoot(event: MatrixEvent): string | null {
     return rel?.rel_type === "m.thread" ? (rel.event_id ?? null) : null;
 }
 
+/** Root event id of a thread reply, or null when the event is not an m.thread reply. */
+export function getEventThreadRootId(event: MatrixEvent): string | null {
+    return eventThreadRoot(event);
+}
+
 export function getThreadMessages(
     room: Room,
     rootEventId: string,
@@ -1197,6 +1202,23 @@ export function getThreadUnread(
 /** Whether the room has ANY unread thread notification (SDK aggregate). */
 export function roomHasThreadUnread(room: Room): boolean {
     return room.hasThreadUnreadNotification();
+}
+
+/**
+ * Whether the current user participates in a thread — used to gate thread-reply
+ * notifications. `Thread.hasCurrentUserParticipated` is only populated from the
+ * server bundled relationship (absent on servers without server-side thread
+ * support, e.g. continuwuity/tuwunel), so also treat authoring the root or any
+ * loaded reply as participation.
+ */
+export function isThreadParticipant(room: Room, rootEventId: string): boolean {
+    const me = matrixClient?.getUserId();
+    if (!me) return false;
+    const thread = room.getThread(rootEventId);
+    if (!thread) return false;
+    if (thread.hasCurrentUserParticipated) return true;
+    if (thread.rootEvent?.getSender() === me) return true;
+    return (thread.events ?? []).some((e) => e.getSender() === me);
 }
 
 /**
@@ -2308,6 +2330,48 @@ export function onTimelineEvent(
                         isPollStartEventType(event.getType())) &&
                     !event.isRedacted()))
         ) {
+            callback(event, room, isLiveAppend);
+        }
+    };
+    matrixClient.on(RoomEvent.Timeline, handler as never);
+    return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
+}
+
+/**
+ * Live thread-REPLY events — the complement of `onTimelineEvent`, which filters
+ * m.thread replies out of the main timeline (that subscription also drives the
+ * main-timeline display, so it must not forward them). Fires for message /
+ * sticker / poll-start replies so the app-shell notification path can surface
+ * them; edits (m.replace), redactions and main-timeline events are skipped.
+ * `isLiveAppend` mirrors onTimelineEvent's semantics.
+ */
+export function onThreadReplyEvent(
+    callback: (event: MatrixEvent, room: Room, isLiveAppend: boolean) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        removed?: boolean,
+        data?: { liveEvent?: boolean },
+    ) => {
+        if (toStartOfTimeline || removed || !room) return;
+        const isLiveAppend = data?.liveEvent === true;
+        // Only diverted thread replies (exactly the events onTimelineEvent excludes).
+        const isMainTimeline = belongsToMainTimeline({
+            relatesTo: event.getOriginalContent()?.["m.relates_to"],
+            eventId: event.getId() ?? "",
+        });
+        if (isMainTimeline) return;
+        const isReplacement =
+            event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+        const type = event.getType();
+        const isMessage =
+            type === "m.room.message" ||
+            type === "m.sticker" ||
+            isPollStartEventType(type);
+        if (!isReplacement && isMessage && !event.isRedacted()) {
             callback(event, room, isLiveAppend);
         }
     };
