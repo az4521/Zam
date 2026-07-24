@@ -12,11 +12,16 @@
         getMemberAvatar,
         findEventById,
         markThreadRead,
+        getRoomMembers,
+        getOwnUserId,
+        getCustomEmojis,
     } from "$lib/matrix/client";
     import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { timeOnly } from "$lib/utils/timeFormat";
     import { stripBodyFallback } from "$lib/utils/replyFallback";
+    import { buildFormattedBody } from "$lib/utils/messageBody";
+    import { roomsState } from "$lib/stores/rooms.svelte";
 
     interface Props {
         room: Room;
@@ -43,6 +48,13 @@
     let threadTick = $state(0);
     let loadingOlder = $state(false);
     let noMoreOlder = $state(false);
+
+    // Mention autocomplete (textarea-flavoured; mirrors MessageInput)
+    let mentionQuery = $state<string | null>(null); // null = popup closed
+    let mentionStart = $state(0); // index of "@" in `text`
+    let mentionSelectedIdx = $state(0);
+    // Map of "@label" → userId for mentions inserted in the current reply
+    let pendingMentions = $state(new Map<string, string>());
 
     function bump() {
         threadTick++;
@@ -98,6 +110,26 @@
     });
     const rootTs = $derived(rootEvent?.getTs() ?? 0);
 
+    const mentionCandidates = $derived.by(() => {
+        if (mentionQuery === null || !room) return [];
+        const q = mentionQuery.toLowerCase();
+        const ownId = getOwnUserId();
+        return getRoomMembers(room)
+            .filter((m) => m.userId !== ownId)
+            .filter(
+                (m) =>
+                    m.userId.toLowerCase().includes(q) ||
+                    (m.rawDisplayName ?? "").toLowerCase().includes(q),
+            )
+            .slice(0, 8);
+    });
+
+    $effect(() => {
+        // Clamp selection when the candidate list changes
+        if (mentionSelectedIdx >= mentionCandidates.length)
+            mentionSelectedIdx = 0;
+    });
+
     // Subscribe to thread events
     $effect(() => {
         const unsub = onThreadEvent(bump);
@@ -141,13 +173,83 @@
         return curr.getTs() - prev.getTs() > 5 * 60 * 1000;
     }
 
+    function detectMentionQuery() {
+        const pos = textareaEl?.selectionStart ?? text.length;
+        const before = text.slice(0, pos);
+        const m = before.match(/@(\S*)$/);
+        if (m) {
+            mentionQuery = m[1];
+            mentionStart = pos - m[0].length;
+        } else {
+            mentionQuery = null;
+        }
+    }
+
+    // The text shown after "@": normally the display name, but if another member
+    // shares that display name it's ambiguous, so fall back to the full MXID.
+    function mentionLabelFor(member: {
+        userId: string;
+        rawDisplayName?: string;
+    }): string {
+        const name = member.rawDisplayName?.trim();
+        if (name && room) {
+            const sharing = getRoomMembers(room).filter(
+                (m) =>
+                    (m.rawDisplayName ?? "").trim().toLowerCase() ===
+                    name.toLowerCase(),
+            );
+            if (sharing.length <= 1) return name;
+        } else if (name) {
+            return name;
+        }
+        return member.userId.replace(/^@/, "");
+    }
+
+    function commitMention(member: {
+        userId: string;
+        rawDisplayName?: string;
+    }) {
+        const label = mentionLabelFor(member);
+        const after = text.slice(
+            mentionStart + 1 + (mentionQuery?.length ?? 0),
+        );
+        const before = text.slice(0, mentionStart);
+        text = before + "@" + label + " " + after.replace(/^\S*/, "");
+        pendingMentions = new Map([
+            ...pendingMentions,
+            ["@" + label, member.userId],
+        ]);
+        mentionQuery = null;
+        tick().then(() => {
+            const pos = mentionStart + 1 + label.length + 1;
+            textareaEl?.focus();
+            textareaEl?.setSelectionRange(pos, pos);
+        });
+    }
+
     async function send() {
         const trimmed = text.trim();
         if (!trimmed || isSending) return;
         isSending = true;
+        const formatted = buildFormattedBody(trimmed, {
+            mentions: pendingMentions,
+            customEmojis: getCustomEmojis(room, roomsState.activeSpaceId),
+        });
+        const mentions =
+            formatted.mentionedUserIds.length > 0
+                ? { user_ids: formatted.mentionedUserIds }
+                : undefined;
         try {
-            await sendThreadReply(room.roomId, rootEventId, trimmed);
+            await sendThreadReply(
+                room.roomId,
+                rootEventId,
+                trimmed,
+                mentions,
+                formatted.html ?? undefined,
+            );
             text = "";
+            pendingMentions = new Map();
+            mentionQuery = null;
             if (textareaEl) textareaEl.style.height = "auto";
         } catch (err) {
             console.error("Failed to send thread reply:", err);
@@ -158,6 +260,33 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
+        // Mention popup nav — MUST precede the Enter-to-send branch so
+        // Enter/Tab commits the highlighted mention instead of sending.
+        if (mentionQuery !== null && mentionCandidates.length > 0) {
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                mentionSelectedIdx =
+                    (mentionSelectedIdx - 1 + mentionCandidates.length) %
+                    mentionCandidates.length;
+                return;
+            }
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                mentionSelectedIdx =
+                    (mentionSelectedIdx + 1) % mentionCandidates.length;
+                return;
+            }
+            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                e.preventDefault();
+                const member = mentionCandidates[mentionSelectedIdx];
+                if (member) commitMention(member);
+                return;
+            }
+            if (e.key === "Escape") {
+                mentionQuery = null;
+                return;
+            }
+        }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             send();
@@ -168,6 +297,7 @@
         if (!textareaEl) return;
         textareaEl.style.height = "auto";
         textareaEl.style.height = Math.min(textareaEl.scrollHeight, 160) + "px";
+        detectMentionQuery();
     }
 </script>
 
@@ -285,6 +415,38 @@
 
     <!-- Reply input -->
     <div class="px-3 pb-4 pt-2 flex-shrink-0">
+        {#if mentionQuery !== null && mentionCandidates.length > 0}
+            <div
+                class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg max-h-48 overflow-y-auto"
+            >
+                {#each mentionCandidates as member, i}
+                    <button
+                        onpointerdown={(e) => {
+                            e.preventDefault();
+                            commitMention(member);
+                        }}
+                        onpointerenter={() => (mentionSelectedIdx = i)}
+                        class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+                        class:bg-discord-messageHover={i === mentionSelectedIdx}
+                    >
+                        <Avatar
+                            src={getMemberAvatar(room, member.userId)}
+                            name={member.rawDisplayName || member.userId}
+                            id={member.userId}
+                            size={24}
+                        />
+                        <span
+                            class="text-sm text-discord-textPrimary font-medium truncate"
+                        >
+                            {member.rawDisplayName || member.userId}
+                        </span>
+                        <span class="text-xs text-discord-textMuted truncate">
+                            {member.userId}
+                        </span>
+                    </button>
+                {/each}
+            </div>
+        {/if}
         <div
             class="flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-3 py-2 border border-transparent focus-within:border-discord-accent/30 transition-colors"
         >
