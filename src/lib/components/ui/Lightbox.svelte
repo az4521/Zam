@@ -204,6 +204,22 @@
         }
     }
 
+    // Lightbox is rendered INSIDE the message DOM subtree (MessageItem /
+    // LinkPreview); `fixed` positioning does not change DOM ancestry, so a tap
+    // on the backdrop or image would otherwise bubble to the message row's
+    // onclick (toggling mobile selection on touch). Contain every click within
+    // the viewer imperatively at the root — no inline handler, so no a11y
+    // warning; inner handlers (close, controls) still run before it stops.
+    function containClicks(node: HTMLElement) {
+        const stop = (e: Event) => e.stopPropagation();
+        node.addEventListener("click", stop);
+        return {
+            destroy() {
+                node.removeEventListener("click", stop);
+            },
+        };
+    }
+
     onMount(() => {
         interfaceState.lightboxOpen = true;
         // Register in the shared modal slot so Escape/back close it centrally.
@@ -215,7 +231,11 @@
     });
 </script>
 
-<div class="fixed inset-0 z-[9998] overflow-hidden" style="touch-action: none;">
+<div
+    class="fixed inset-0 z-[9998] overflow-hidden"
+    style="touch-action: none;"
+    use:containClicks
+>
     <!-- Backdrop: clicking outside the image closes the viewer. -->
     <button
         type="button"
@@ -301,8 +321,9 @@
         <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
              pointer events; it cannot be cleanly keyboard-operated within this
              a11y sweep, so a11y_no_noninteractive_element_interactions stays.
-             (The old onclick=stopPropagation shim is gone: the backdrop is now
-             a sibling button element, so image clicks no longer reach it.) -->
+             (The old onclick=stopPropagation shim is gone: the backdrop is a
+             sibling button, and root-level containClicks stops any image tap
+             from bubbling to the surrounding message row.) -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <img
             bind:this={imgEl}
