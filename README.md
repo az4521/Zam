@@ -1,24 +1,16 @@
-# Svelte Matrix Client
+# ZAM Matrix client
 
-this is my matrix client, it's pretty good and supports desktop, web, and mobile (apk and PWA). no encryption support yet because complicated
+this is the ZAM matrix client, it's pretty good and supports desktop, web, and mobile (apk and PWA)
 
-Taking suggestions for naming this app, lmk a good one. also open to a new icon/logo
+feel free to try it out :) a copy is hosted at https://matrix.crafty.moe/ which you can install as a progressive webapp (the recommended way to install this client on all platforms)
 
-name cant include "chat", "talk" or any simple synonyms of those two, cant contain the names matrix or discord in anyway, not even as a -cord or -trix suffix, and must be unique (no other social media or messaging app with that name)
+you can find other packaged versions on the [releases page](https://github.com/az4521/svelte_matrix_client/releases/latest)
 
 things left to do:
-
-Messaging
-
-- Collapsible thread UI (lightweight thread viewing and replies are supported)
-- Sending voice messages (m.audio recording)
-- Location sharing (m.location)
-- Slash commands (/me, /shrug, /join, /invite, /kick)
 
 Rooms
 
 - Initiating room upgrades
-- Moderation (kick/ban/deleting messages)
 - Server admin tools (Synapse admin API)
 
 User
@@ -27,17 +19,9 @@ User
 - Identity server / 3PID invites (invite by email)
 - Custom notification keyword rules UI
 
-Encryption
-
-- E2EE
-- Device verification
-- Key backup
-
 Media
 
-- Audio / video calling (WebRTC)
 - Image gallery / attachment browser
-- Better URL previews (Blocked by Tuwunel)
 
 UI / Polish
 
@@ -45,9 +29,9 @@ UI / Polish
 - First-run / onboarding flow
 - Accessibility audit (focus trapping, ARIA)
 
-feel free to try it out :) i host a copy at https://matrix.crafty.moe/ and you can find installable versions on the [releases page](https://github.com/az4521/svelte_matrix_client/releases/latest)
+App
 
-also installable as a progressive webapp, which is how i recommend iOS users use this app since i don't want to buy a macbook, iphone, and pay $100/yr to develop ios apps
+ - Working Auto-update for Electron and APK builds
 
 for devs, same install process as every other js app
 
@@ -66,11 +50,8 @@ if you wanna serve this, run `npm run build` and copy the files in build/ into a
 
 ### DEFAULT_HOMESERVER
 
-the default homeserver url for the login page when the app is opened as a
-regular website
+the default homeserver url for the login page when viewed as a webapp. currently set to https://matrix.crafty.moe
 
 ### INSTALLED_APP_DEFAULT_HOMESERVER
 
-the default homeserver url for the login page when the app is running as an
-APK, installed PWA, or Electron app. it defaults to `DEFAULT_HOMESERVER`, so
-set it to a different url only when installed apps should use another server
+the default homeserver url for the login page when installed as a pwa, electron app, or apk. currently set to https://matrix.org
