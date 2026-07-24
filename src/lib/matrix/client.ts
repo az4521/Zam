@@ -366,7 +366,7 @@ export async function login(
     const response = await tempClient.login("m.login.password", {
         identifier: { type: "m.id.user", user: username },
         password: password,
-        initial_device_display_name: "Matrix Svelte Client",
+        initial_device_display_name: "Zam",
     });
 
     const resolvedURL = tempClient.getHomeserverUrl();
@@ -405,7 +405,7 @@ export async function register(
     const body: Record<string, unknown> = {
         username,
         password,
-        initial_device_display_name: "Matrix Svelte Client",
+        initial_device_display_name: "Zam",
         inhibit_login: false,
     };
 

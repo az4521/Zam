@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Matrix Client</string>
-    <string name="title_activity_main">Matrix Client</string>
+    <string name="app_name">Zam</string>
+    <string name="title_activity_main">Zam</string>
     <string name="package_name">moe.crafty.matrix</string>
     <string name="custom_url_scheme">moe.crafty.matrix</string>
 </resources>

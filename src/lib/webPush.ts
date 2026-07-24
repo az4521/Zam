@@ -153,7 +153,7 @@ async function registerWebPusher(
         await (matrixClient as any).setPusher({
             kind: "http",
             app_id: APP_ID,
-            app_display_name: "Matrix Client (Web)",
+            app_display_name: "Zam (Web)",
             device_display_name: navigator.userAgent.slice(0, 80),
             // Sygnal's webpush pushkin treats pushkey as the p256dh key.
             pushkey: p256dh,

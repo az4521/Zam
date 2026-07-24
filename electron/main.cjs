@@ -165,7 +165,7 @@ async function createWindow() {
 function createTray() {
     const img = nativeImage.createFromPath(ICON_PATH);
     tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
-    tray.setToolTip("Matrix Client");
+    tray.setToolTip("Zam");
     tray.setContextMenu(
         Menu.buildFromTemplate([
             { label: "Show", click: showWindow },

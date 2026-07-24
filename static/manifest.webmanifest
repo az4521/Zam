@@ -1,7 +1,7 @@
 {
-    "name": "Matrix Client",
-    "short_name": "Matrix",
-    "description": "A Matrix chat client",
+    "name": "Zam",
+    "short_name": "Zam",
+    "description": "Zam is a Matrix chat client",
     "id": "moe.crafty.matrix",
     "start_url": "/app",
     "scope": "/",

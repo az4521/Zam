@@ -93,7 +93,7 @@ jobs:
         run: |
           mkdir -p release-files
           APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
-          cp "$APK" "release-files/matrix-client-${{ needs.check.outputs.version }}.apk"
+          cp "$APK" "release-files/zam-${{ needs.check.outputs.version }}.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: android

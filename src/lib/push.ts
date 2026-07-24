@@ -158,7 +158,7 @@ async function registerPusher(
         await (matrixClient as any).setPusher({
             kind: "http",
             app_id: APP_ID,
-            app_display_name: "Matrix Client",
+            app_display_name: "Zam",
             device_display_name: `Android (${deviceId})`,
             pushkey: fcmToken,
             lang: navigator.language || "en",

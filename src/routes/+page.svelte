@@ -247,7 +247,7 @@
 </script>
 
 <svelte:head>
-    <title>Matrix Client — {mode === "login" ? "Sign In" : "Register"}</title>
+    <title>Zam — {mode === "login" ? "Sign In" : "Register"}</title>
 </svelte:head>
 
 <div

@@ -811,8 +811,8 @@
 <svelte:head>
     <title
         >{notificationCount > 0
-            ? `(${notificationCount}) Matrix Client`
-            : "Matrix Client"}</title
+            ? `(${notificationCount}) Zam`
+            : "Zam"}</title
     >
 </svelte:head>
 

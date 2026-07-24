@@ -1,8 +1,10 @@
-# ZAM Matrix client
+# Zam Matrix Client
 
-this is the ZAM matrix client, it's pretty good and supports desktop, web, and mobile (apk and PWA)
+this is Zam, a Matrix client for desktop, web, and mobile (APK and PWA)
 
-feel free to try it out :) a copy is hosted at https://matrix.crafty.moe/ which you can install as a progressive webapp (the recommended way to install this client on all platforms)
+it's pretty good
+
+feel free to try it out :) a copy is hosted at https://matrix.crafty.moe/ which you can install as a progressive webapp (the recommended way to install this client on iOS)
 
 you can find other packaged versions on the [releases page](https://github.com/az4521/svelte_matrix_client/releases/latest)
 

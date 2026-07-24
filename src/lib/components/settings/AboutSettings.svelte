@@ -60,7 +60,7 @@
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">Matrix Client</p>
+                <p class="text-sm text-discord-textPrimary">Zam</p>
                 <p class="text-xs text-discord-textMuted">
                     Current version v{APP_VERSION}
                 </p>
