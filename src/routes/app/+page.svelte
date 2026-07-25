@@ -63,6 +63,8 @@
         isDesktopUpdater,
         desktopSetAutoDownload,
     } from "$lib/desktopUpdater";
+    import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
+    import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -587,6 +589,11 @@
         if (isDesktopUpdater())
             desktopSetAutoDownload(settingsState.autoUpdateEnabled);
 
+        // App-wide update watch: mirror the desktop launch-check status into the
+        // in-app banner, and run the Android launch check + download here
+        // (Android has no background process). No-op on web.
+        const unsubUpdateWatch = initUpdateWatch();
+
         refreshRooms();
         const client = getClient();
         if (client) initPush(client).catch(console.error);
@@ -782,6 +789,7 @@
             unsubLiveLocation();
             unsubVerification();
             unsubAccountData();
+            unsubUpdateWatch();
             mq.removeEventListener("change", onMqChange);
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
@@ -869,10 +877,7 @@
 </script>
 
 <svelte:head>
-    <title
-        >{notificationCount > 0
-            ? `(${notificationCount}) Zam`
-            : "Zam"}</title
+    <title>{notificationCount > 0 ? `(${notificationCount}) Zam` : "Zam"}</title
     >
 </svelte:head>
 
@@ -1067,3 +1072,5 @@
 <VerificationModal />
 
 <ErrorToasts />
+
+<UpdateBanner />
