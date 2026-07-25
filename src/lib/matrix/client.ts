@@ -157,7 +157,11 @@ import {
     fetchServerNotificationsForClient,
     type ServerNotificationResult,
 } from "$lib/matrix/notifications";
-import { initCrypto, getCryptoCallbacks } from "$lib/matrix/crypto";
+import {
+    initCrypto,
+    getCryptoCallbacks,
+    ensureRoomCryptoConfigured,
+} from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -2994,6 +2998,13 @@ export async function seedRoomStateIfMissing(roomId: string): Promise<boolean> {
         if (!state) return false;
         state.setStateEvents(events.map((e) => new MatrixEvent(e)));
         room.recalculate();
+        // State injected here never passed through the sync loop, which is the
+        // ONLY place the SDK configures a room's encryption. Without this, a
+        // healed encrypted room reads as encrypted everywhere in the UI while
+        // every send fails with "Cannot encrypt event in unconfigured room"
+        // (incoming messages still decrypt, so it looks one-way). Bit a
+        // cross-server DM 2026-07-25.
+        await ensureRoomCryptoConfigured(room);
         // The timeline suffers the same omission as the state — backfill so
         // the room doesn't open as an empty chat despite having history.
         await backfillStubTimeline(room).catch((err) =>

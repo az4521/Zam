@@ -12,7 +12,7 @@
  * enable-encryption UI are Layers 2–4.
  */
 
-import { MatrixEventEvent } from "matrix-js-sdk";
+import { EventTimeline, MatrixEventEvent } from "matrix-js-sdk";
 import type {
     AuthDict,
     MatrixClient,
@@ -40,6 +40,7 @@ import type {
 } from "matrix-js-sdk/lib/crypto-api";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
+import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
@@ -162,6 +163,59 @@ function detachSecurityListeners(): void {
     }
     securityListenerClient = null;
     securityHandler = null;
+}
+
+/**
+ * The internal SDK surface the sync loop uses to configure room encryption.
+ * `onCryptoEvent` is declared on `CryptoBackend`, not the public `CryptoApi`,
+ * and `roomEncryptors` is rust-crypto's in-memory map of configured rooms —
+ * read here only to skip redundant work, never mutated.
+ */
+interface CryptoSyncHooks {
+    onCryptoEvent?: (room: Room, event: MatrixEvent) => Promise<void>;
+    roomEncryptors?: Record<string, unknown>;
+}
+
+/**
+ * Teach the crypto layer about a room whose `m.room.encryption` state event
+ * reached the Room model WITHOUT passing through the sync loop.
+ *
+ * The SDK builds a room's `RoomEncryptor` in exactly one place: `onCryptoEvent`,
+ * called from the sync loop for encryption events in a /sync response. Our
+ * federated-stub heal (`seedRoomStateIfMissing`) injects state straight into the
+ * Room model for rooms the homeserver omits from sync, so a healed encrypted
+ * room ends up known-encrypted to the UI while crypto was never configured —
+ * and every send fails with "Cannot encrypt event in unconfigured room" even
+ * though incoming messages still decrypt (Megolm keys arrive over to-device,
+ * which doesn't need an encryptor). Replaying the event through the same hook is
+ * precisely what the sync loop would have done.
+ *
+ * The gate is the in-memory `roomEncryptors` map, NOT
+ * `isEncryptionEnabledInRoom()`: the room's algorithm is persisted in the crypto
+ * store, so that call answers "yes, encrypted" while the encryptor map — rebuilt
+ * from sync each session — is still empty. Never throws: a room we can't
+ * configure fails at send time exactly as it does today.
+ */
+export async function ensureRoomCryptoConfigured(room: Room): Promise<void> {
+    if (!cryptoAvailable) return;
+    const crypto = getClient()?.getCrypto() as
+        | (CryptoSyncHooks | undefined)
+        | undefined;
+    if (!crypto?.onCryptoEvent) return;
+    if (crypto.roomEncryptors?.[room.roomId]) return;
+    const event = room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents(ROOM_ENCRYPTION_EVENT_TYPE, "");
+    if (!event) return;
+    try {
+        await crypto.onCryptoEvent(room, event as MatrixEvent);
+    } catch (err) {
+        console.warn(
+            `[matrix] could not configure crypto for ${room.roomId}`,
+            err,
+        );
+    }
 }
 
 /**
