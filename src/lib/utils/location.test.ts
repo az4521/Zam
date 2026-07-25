@@ -3,6 +3,7 @@ import {
     parseGeoUri,
     formatCoords,
     mapLinkFor,
+    googleMapsLinkFor,
     buildLocationContent,
 } from "./location";
 
@@ -54,6 +55,17 @@ describe("mapLinkFor", () => {
         expect(link).toContain("openstreetmap.org");
         expect(link).toContain("mlat=51.5");
         expect(link).toContain("mlon=-0.12");
+    });
+});
+
+describe("googleMapsLinkFor", () => {
+    it("builds a Google Maps link with the coords", () => {
+        const link = googleMapsLinkFor(51.5, -0.12);
+        expect(link).toContain("google.com/maps");
+        expect(link).toContain("query=51.5,-0.12");
+    });
+    it("handles negative coords and integers", () => {
+        expect(googleMapsLinkFor(-33, 18)).toContain("query=-33,18");
     });
 });
 

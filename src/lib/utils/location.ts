@@ -34,6 +34,15 @@ export function mapLinkFor(lat: number, lon: number): string {
     return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
 }
 
+/**
+ * A Google Maps deep link for the coordinates, using the official Maps URL
+ * scheme (`?api=1`) so it opens the native app on mobile and the web map
+ * elsewhere. Offered alongside {@link mapLinkFor} for users who prefer Google.
+ */
+export function googleMapsLinkFor(lat: number, lon: number): string {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+}
+
 /** MSC3488 m.location content with a geo_uri + plain-text fallback body. */
 export function buildLocationContent(
     loc: LocationInput,
