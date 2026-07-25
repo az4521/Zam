@@ -9,6 +9,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Register custom plugins BEFORE the Capacitor bridge is created in
+        // super.onCreate — plugins added afterwards are not picked up.
+        registerPlugin(ApkUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
         handleRoomIntent(getIntent());
     }

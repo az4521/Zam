@@ -21,6 +21,13 @@
     "build": {
         "appId": "moe.crafty.matrix",
         "productName": "Zam",
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "az4521",
+                "repo": "Zam"
+            }
+        ],
         "directories": {
             "output": "dist-electron"
         },
@@ -89,6 +96,7 @@
         "@twemoji/api": "^17.0.2",
         "date-fns": "^4.1.0",
         "dompurify": "^3.4.11",
+        "electron-updater": "^6.3.9",
         "highlight.js": "^11.11.1",
         "leaflet": "^1.9.4",
         "livekit-client": "^2.20.1",

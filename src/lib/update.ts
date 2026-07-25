@@ -7,6 +7,7 @@
 // the OS browser), where the user can grab the new installer/APK.
 
 import { Capacitor } from "@capacitor/core";
+import type { ReleaseAsset } from "$lib/utils/androidUpdate";
 
 /** Current build version (from package.json via the Vite `define`). */
 export const APP_VERSION: string =
@@ -24,7 +25,7 @@ export const CAN_INSTALL_UPDATE: boolean =
 
 // GitHub repo to check for releases. Change if the project moves.
 const GITHUB_OWNER = "az4521";
-const GITHUB_REPO = "svelte_matrix_client";
+const GITHUB_REPO = "Zam";
 
 const LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 
@@ -34,11 +35,17 @@ export interface UpdateInfo {
     updateAvailable: boolean;
     /** GitHub release page URL. */
     url: string;
+    /** Downloadable files attached to the release, for Android APK selection.
+     *  `[]` on releases with no attachments; web/electron callers ignore it. */
+    assets?: ReleaseAsset[];
 }
 
 /** Parse "v1.2.3" / "1.2.3-beta" → [1, 2, 3]; missing parts default to 0. */
 function parseVersion(v: string): number[] {
-    const m = v.trim().replace(/^v/i, "").match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+    const m = v
+        .trim()
+        .replace(/^v/i, "")
+        .match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
     if (!m) return [0, 0, 0];
     return [Number(m[1] || 0), Number(m[2] || 0), Number(m[3] || 0)];
 }
@@ -51,6 +58,33 @@ export function compareVersions(a: string, b: string): number {
         if (pa[i] !== pb[i]) return pa[i] - pb[i];
     }
     return 0;
+}
+
+/**
+ * Normalize the raw `assets` array from a GitHub release payload into our
+ * `ReleaseAsset` shape, dropping anything malformed. Pure so it can be tested
+ * without a network round-trip.
+ */
+export function parseReleaseAssets(raw: unknown): ReleaseAsset[] {
+    if (!Array.isArray(raw)) return [];
+    const out: ReleaseAsset[] = [];
+    for (const a of raw) {
+        if (
+            a &&
+            typeof a.name === "string" &&
+            typeof a.browser_download_url === "string"
+        ) {
+            out.push({
+                name: a.name,
+                browser_download_url: a.browser_download_url,
+                content_type:
+                    typeof a.content_type === "string"
+                        ? a.content_type
+                        : undefined,
+            });
+        }
+    }
+    return out;
 }
 
 /**
@@ -79,6 +113,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
         url:
             data.html_url ??
             `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+        assets: parseReleaseAssets(data.assets),
     };
 }
 

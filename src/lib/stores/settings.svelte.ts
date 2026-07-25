@@ -143,6 +143,9 @@ export const settingsState = $state({
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
+    /** Device-global: whether the packaged desktop/Android build auto-downloads
+     *  updates. Default ON; the escape hatch is this toggle. */
+    autoUpdateEnabled: readBool("autoUpdateEnabled", true),
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
@@ -441,6 +444,11 @@ export function getDoubleTapReaction(spaceId: string | null): string {
 export function setShowAllEvents(value: boolean): void {
     settingsState.showAllEvents = value;
     writeBool("showAllEvents", value);
+}
+
+export function setAutoUpdateEnabled(value: boolean): void {
+    settingsState.autoUpdateEnabled = value;
+    writeBool("autoUpdateEnabled", value);
 }
 
 export function setKeepSidebarOpen(value: boolean): void {

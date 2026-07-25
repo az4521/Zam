@@ -17,6 +17,17 @@ declare global {
          *  which `window.focus()` cannot do. */
         desktop?: {
             showWindow?: () => void;
+            updates?: {
+                check: () => void;
+                download: () => void;
+                restartToInstall: () => void;
+                setAutoDownload: (enabled: boolean) => void;
+                onStatus: (
+                    cb: (
+                        s: import("$lib/utils/updateStatus").UpdateStatusInput,
+                    ) => void,
+                ) => () => void;
+            };
         };
     }
 }

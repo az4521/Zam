@@ -55,7 +55,14 @@
         verificationState,
         initVerification,
     } from "$lib/stores/verification.svelte";
-    import { reloadAccountSettings } from "$lib/stores/settings.svelte";
+    import {
+        reloadAccountSettings,
+        settingsState,
+    } from "$lib/stores/settings.svelte";
+    import {
+        isDesktopUpdater,
+        desktopSetAutoDownload,
+    } from "$lib/desktopUpdater";
     import {
         markNotification,
         clearReadNotifications,
@@ -524,6 +531,13 @@
         }
 
         reloadAccountSettings();
+
+        // Desktop (Electron) auto-updater: tell the main process the persisted
+        // auto-update preference at boot, so the ~10s launch update-check
+        // honours a previously-set OFF before it fires. No-op off Electron.
+        if (isDesktopUpdater())
+            desktopSetAutoDownload(settingsState.autoUpdateEnabled);
+
         refreshRooms();
         const client = getClient();
         if (client) initPush(client).catch(console.error);

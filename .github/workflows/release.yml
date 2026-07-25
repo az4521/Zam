@@ -133,6 +133,8 @@ jobs:
             dist-electron/*.zip
             dist-electron/*.AppImage
             dist-electron/*.deb
+            dist-electron/*.yml
+            dist-electron/*.blockmap
 
   release:
     needs: [check, android, desktop]

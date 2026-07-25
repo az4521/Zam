@@ -17,6 +17,7 @@ const {
     shell,
     ipcMain,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -110,6 +111,110 @@ function showWindow() {
 // window is hidden in the tray.
 ipcMain.on("show-window", showWindow);
 
+// --- Auto-updater (packaged desktop app only) -----------------------------
+//
+// electron-updater is the single authority for check → download → install.
+// It is a complete no-op in dev (`app.isPackaged` is false) — every entry
+// point below returns early so running unpackaged never touches the updater
+// nor throws. The renderer drives it via `window.desktop.updates.*` and
+// observes streamed `updates:status` events shaped
+// `{ phase, percent?, version?, message? }`.
+
+// Post a status object to the current window (reassigned by createWindow).
+function sendUpdateStatus(payload) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("updates:status", payload);
+    }
+}
+
+// Best-effort classification: environments where updates simply can't run
+// (dev, portable/unsigned, missing app-update.yml) surface as "unsupported"
+// so the UI can hide the control rather than nag with an error.
+function mapUpdateError(err) {
+    const message = err?.message ?? String(err);
+    if (
+        /not supported|no such file|ENOENT|app-update\.yml|dev/i.test(message)
+    ) {
+        return { phase: "unsupported", message };
+    }
+    return { phase: "error", message };
+}
+
+// Kick off a check without ever letting a throw escape (sync throw or
+// rejected promise both become an error/unsupported status).
+function runUpdateCheck() {
+    if (!app.isPackaged) return;
+    try {
+        const p = autoUpdater.checkForUpdates();
+        if (p && typeof p.catch === "function") {
+            p.catch((err) => sendUpdateStatus(mapUpdateError(err)));
+        }
+    } catch (err) {
+        sendUpdateStatus(mapUpdateError(err));
+    }
+}
+
+// Wire the updater once, from whenReady (NOT createWindow, which re-runs on
+// `activate` and would double-register these listeners).
+function setupAutoUpdater() {
+    if (!app.isPackaged) return;
+
+    autoUpdater.autoInstallOnAppQuit = true;
+    // Fail-safe default: stay OFF until the renderer seeds the persisted preference at boot (see app shell onMount). Prevents a forced silent download when the user has turned auto-updates OFF but hasn't opened Settings before the launch check.
+    autoUpdater.autoDownload = false;
+
+    autoUpdater.on("checking-for-update", () => {
+        sendUpdateStatus({ phase: "checking" });
+    });
+    autoUpdater.on("update-available", (info) => {
+        sendUpdateStatus({ phase: "available", version: info?.version });
+    });
+    autoUpdater.on("update-not-available", (info) => {
+        sendUpdateStatus({ phase: "up-to-date", version: info?.version });
+    });
+    autoUpdater.on("download-progress", (p) => {
+        sendUpdateStatus({ phase: "downloading", percent: p?.percent });
+    });
+    autoUpdater.on("update-downloaded", (info) => {
+        sendUpdateStatus({ phase: "downloaded", version: info?.version });
+    });
+    autoUpdater.on("error", (err) => {
+        sendUpdateStatus(mapUpdateError(err));
+    });
+
+    // First check ~10s after launch so it never blocks or races startup.
+    setTimeout(runUpdateCheck, 10000);
+}
+
+// Renderer → main. Every handler is inert in dev (guarded on app.isPackaged).
+ipcMain.on("updates:check", runUpdateCheck);
+
+ipcMain.on("updates:download", () => {
+    if (!app.isPackaged) return;
+    try {
+        const p = autoUpdater.downloadUpdate();
+        if (p && typeof p.catch === "function") {
+            p.catch((err) => sendUpdateStatus(mapUpdateError(err)));
+        }
+    } catch (err) {
+        sendUpdateStatus(mapUpdateError(err));
+    }
+});
+
+ipcMain.on("updates:set-auto", (_e, enabled) => {
+    if (!app.isPackaged) return;
+    autoUpdater.autoDownload = !!enabled;
+});
+
+ipcMain.on("updates:quit-and-install", () => {
+    if (!app.isPackaged) return;
+    // The window's close handler hides to tray unless isQuitting is set, so
+    // set it first (mirrors the tray Quit item) or quitAndInstall would just
+    // minimise instead of restarting.
+    isQuitting = true;
+    autoUpdater.quitAndInstall();
+});
+
 async function createWindow() {
     const url = await startServer();
 
@@ -194,6 +299,7 @@ if (!app.requestSingleInstanceLock()) {
         app.setAppUserModelId("moe.crafty.matrix");
         createWindow();
         createTray();
+        setupAutoUpdater();
     });
 
     app.on("activate", () => {
