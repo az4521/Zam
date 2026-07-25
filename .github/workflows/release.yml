@@ -133,7 +133,7 @@ jobs:
             dist-electron/*.zip
             dist-electron/*.AppImage
             dist-electron/*.deb
-            dist-electron/*.yml
+            dist-electron/latest*.yml
             dist-electron/*.blockmap
 
   release:
