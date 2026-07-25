@@ -92,11 +92,39 @@ function startServer() {
                 res.end(data);
             });
         });
-        server.on("error", reject);
-        server.listen(0, "127.0.0.1", () => {
+        // localStorage — which holds the Matrix session — is keyed by origin
+        // (scheme://host:port). Listening on port 0 hands out a fresh random
+        // port every launch, so the origin changes and the session is wiped on
+        // EVERY restart (and every update). Persist the chosen port in userData
+        // and reuse it so the origin — and the login — survive restarts.
+        const portFile = path.join(app.getPath("userData"), ".server-port");
+        let preferred = 0;
+        try {
+            preferred = parseInt(fs.readFileSync(portFile, "utf8"), 10) || 0;
+        } catch {
+            /* first run — no saved port yet */
+        }
+        const onListening = () => {
             const { port } = server.address();
+            try {
+                fs.writeFileSync(portFile, String(port));
+            } catch {
+                /* best-effort — an unpersisted port still works this session */
+            }
             resolve(`http://127.0.0.1:${port}`);
+        };
+        server.on("error", (e) => {
+            // Saved port taken (rare) → let the OS assign one this time. Only
+            // then does the origin change (a one-off re-login); the steady
+            // state stays stable.
+            if (e.code === "EADDRINUSE" && preferred !== 0) {
+                preferred = 0;
+                server.listen(0, "127.0.0.1", onListening);
+            } else {
+                reject(e);
+            }
         });
+        server.listen(preferred, "127.0.0.1", onListening);
     });
 }
 
