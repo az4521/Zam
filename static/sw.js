@@ -297,8 +297,8 @@ self.addEventListener("notificationclick", (event) => {
 				}
 				return self.clients.openWindow(
 					roomId
-						? `/app#room=${encodeURIComponent(roomId)}`
-						: "/app",
+						? `/#room=${encodeURIComponent(roomId)}`
+						: "/",
 				);
 			}),
 	);

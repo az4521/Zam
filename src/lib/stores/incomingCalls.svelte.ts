@@ -110,8 +110,8 @@ export function initIncomingCalls(): () => void {
     };
 
     // Both the seed sweep and the subscription must wait for the initial sync:
-    // this runs from /app's onMount, and the login route calls goto("/app")
-    // BEFORE awaiting startSync, so getRooms() is still empty here. Sweeping now
+    // this runs from AppShell's onMount, which mounts the instant auth flips
+    // true — BEFORE the route's startSync resolves — so getRooms() is still
     // would iterate zero rooms, and onVoiceSessionsChanged watches the sessions
     // already in progress by iterating getRooms() at subscribe time — an empty
     // list means a call that was already running never notifies at all.
