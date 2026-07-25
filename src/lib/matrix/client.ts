@@ -126,6 +126,7 @@ import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
+import { needsStateSeed } from "$lib/utils/roomStateHealth";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -489,7 +490,15 @@ export async function startSync(
     // (covers joins from other devices too, not just this client's wrappers).
     matrixClient.on(
         "Room.myMembership" as never,
-        ((room: Room) => {
+        ((room: Room, membership: string, prevMembership?: string) => {
+            // invite → join: the room holds only the sparse set invite_state
+            // delivered (no m.space.child, no power levels) and the server
+            // won't re-send the rest, but it LOOKS stated — force the seed.
+            // Covers accepts from another device as well as our own.
+            if (membership === "join" && prevMembership === "invite") {
+                void seedRoomStateIfMissing(room.roomId, true);
+                return;
+            }
             if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
         }) as never,
     );
@@ -2952,13 +2961,15 @@ export function onRoomHealed(callback: (roomId: string) => void): () => void {
 }
 
 function roomLacksState(room: Room): boolean {
-    return (
-        room.getMyMembership() === "join" &&
-        !room
-            .getLiveTimeline()
-            .getState(EventTimeline.FORWARDS)
-            ?.getStateEvents("m.room.create", "")
-    );
+    const create = room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents("m.room.create", "");
+    return needsStateSeed({
+        membership: room.getMyMembership(),
+        hasCreateEvent: !!create,
+        createEventId: create?.getId(),
+    });
 }
 
 /**
@@ -2990,11 +3001,19 @@ async function backfillStubTimeline(room: Room): Promise<void> {
  * state-less stub. No-op (false) when the room already has state, isn't
  * known, or the fetch fails. Resolves true when state was seeded.
  */
-export async function seedRoomStateIfMissing(roomId: string): Promise<boolean> {
+export async function seedRoomStateIfMissing(
+    roomId: string,
+    force = false,
+): Promise<boolean> {
     if (!matrixClient) return false;
     const room = matrixClient.getRoom(roomId);
-    if (!room || !roomLacksState(room) || seedingRooms.has(roomId))
-        return false;
+    if (!room || seedingRooms.has(roomId)) return false;
+    // `force` is for callers that KNOW the state is partial rather than
+    // absent — accepting an invite, where the room carries only the handful
+    // of events invite_state shipped and the server never re-sends the rest.
+    // roomLacksState() can't see that: those events are real (ids and all),
+    // m.room.create among them.
+    if (!force && !roomLacksState(room)) return false;
     seedingRooms.add(roomId);
     try {
         const events = await matrixClient.roomState(roomId);
@@ -4001,6 +4020,14 @@ export async function acceptInvite(roomId: string): Promise<void> {
             )
             .catch(() => {});
     }
+    // Accepting an invite leaves the room holding only what invite_state
+    // shipped — create, name, join_rules, a couple of member events — and the
+    // server never re-delivers the rest for a room it already streamed to us.
+    // Force the seed: the usual "has no m.room.create" test can't detect this,
+    // since those events are perfectly real. Without it a bridged SPACE joined
+    // by invite has zero m.space.child edges, so it lists no channels and every
+    // room joined inside it is filed as an orphan into Home (2026-07-26).
+    await seedRoomStateIfMissing(roomId, true);
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     scheduleJoinedRoomsReconcile();
