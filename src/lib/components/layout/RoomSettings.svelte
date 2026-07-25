@@ -46,6 +46,7 @@
     } from "$lib/utils/joinRules";
     import { parsePowerLevelInput } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -588,27 +589,33 @@
     ];
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-0 md:p-4"
-    onclick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-    }}
->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
+    <button
+        type="button"
+        aria-label="Close settings"
+        class="absolute inset-0 bg-black/60"
+        onclick={onClose}
+    ></button>
     <div
-        class="bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="room-settings-title"
+        class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        use:focusTrap={{ onEscape: onClose }}
     >
         <!-- Header -->
         <div
             class="flex items-center justify-between px-6 py-4 border-b border-discord-divider flex-shrink-0"
         >
-            <h2 class="text-lg font-bold text-discord-textPrimary truncate">
+            <h2
+                id="room-settings-title"
+                class="text-lg font-bold text-discord-textPrimary truncate"
+            >
                 {room.name} — Settings
             </h2>
-            <!-- svelte-ignore a11y_consider_explicit_label -->
             <button
                 onclick={onClose}
+                aria-label="Close settings"
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
@@ -692,12 +699,13 @@
 
                         <!-- Name -->
                         <div>
-                            <!-- svelte-ignore a11y_label_has_associated_control -->
                             <label
+                                for="room-settings-name"
                                 class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                                 >Room Name</label
                             >
                             <input
+                                id="room-settings-name"
                                 bind:value={nameInput}
                                 disabled={!canEditState}
                                 class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
@@ -705,13 +713,14 @@
                         </div>
 
                         <!-- Topic -->
-                        <!-- svelte-ignore a11y_label_has_associated_control -->
                         <div>
                             <label
+                                for="room-settings-topic"
                                 class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                                 >Topic</label
                             >
                             <textarea
+                                id="room-settings-topic"
                                 bind:value={topicInput}
                                 disabled={!canEditState}
                                 rows="3"
@@ -990,13 +999,14 @@
                                 >
                             {:else}
                                 <div class="space-y-2">
-                                    <!-- svelte-ignore a11y_label_has_associated_control -->
                                     <label
+                                        for="room-settings-enc-confirm"
                                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                                         >Type {ENABLE_ENCRYPTION_CONFIRM_PHRASE} to
                                         confirm</label
                                     >
                                     <input
+                                        id="room-settings-enc-confirm"
                                         bind:value={encConfirmInput}
                                         placeholder={ENABLE_ENCRYPTION_CONFIRM_PHRASE}
                                         class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"

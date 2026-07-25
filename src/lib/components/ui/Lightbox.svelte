@@ -19,6 +19,7 @@
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { fetchAttachmentBlob } from "$lib/matrix/client";
+    import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount } from "svelte";
 
     let { src, alt = "", onClose, favourite }: Props = $props();
@@ -203,6 +204,22 @@
         }
     }
 
+    // Lightbox is rendered INSIDE the message DOM subtree (MessageItem /
+    // LinkPreview); `fixed` positioning does not change DOM ancestry, so a tap
+    // on the backdrop or image would otherwise bubble to the message row's
+    // onclick (toggling mobile selection on touch). Contain every click within
+    // the viewer imperatively at the root — no inline handler, so no a11y
+    // warning; inner handlers (close, controls) still run before it stops.
+    function containClicks(node: HTMLElement) {
+        const stop = (e: Event) => e.stopPropagation();
+        node.addEventListener("click", stop);
+        return {
+            destroy() {
+                node.removeEventListener("click", stop);
+            },
+        };
+    }
+
     onMount(() => {
         interfaceState.lightboxOpen = true;
         // Register in the shared modal slot so Escape/back close it centrally.
@@ -214,97 +231,118 @@
     });
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
-    class="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 overflow-hidden"
+    class="fixed inset-0 z-[9998] overflow-hidden"
     style="touch-action: none;"
-    onclick={(e) => {
-        e.stopPropagation();
-        onClose();
-    }}
+    use:containClicks
 >
-    <!-- Top-right action buttons -->
-    <div class="absolute top-3 right-3 z-10 flex items-center gap-2">
-        {#if favourite}
+    <!-- Backdrop: clicking outside the image closes the viewer. -->
+    <button
+        type="button"
+        aria-label="Close image viewer"
+        class="absolute inset-0 bg-black/80"
+        onclick={onClose}
+    ></button>
+
+    <!-- Dialog: full-screen flex-centered layer. pointer-events-none lets clicks
+         on the empty area fall through to the backdrop button; the image and the
+         controls re-enable pointer events. -->
+    <div
+        class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Image viewer"
+        use:focusTrap={{ onEscape: onClose }}
+    >
+        <!-- Top-right action buttons -->
+        <div
+            class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto"
+        >
+            {#if favourite}
+                <button
+                    onclick={toggleFavourite}
+                    title={favourited
+                        ? "Remove from favourites"
+                        : "Add to favourites"}
+                    aria-label={favourited
+                        ? "Remove from favourites"
+                        : "Add to favourites"}
+                    class="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                >
+                    {#if favourited}
+                        <svg
+                            class="w-5 h-5 text-discord-warning"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                            />
+                        </svg>
+                    {:else}
+                        <svg
+                            class="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                            />
+                        </svg>
+                    {/if}
+                </button>
+            {/if}
             <button
-                onclick={toggleFavourite}
-                title={favourited
-                    ? "Remove from favourites"
-                    : "Add to favourites"}
-                aria-label={favourited
-                    ? "Remove from favourites"
-                    : "Add to favourites"}
+                onclick={download}
+                title="Download"
+                aria-label="Download"
                 class="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
             >
-                {#if favourited}
-                    <svg
-                        class="w-5 h-5 text-discord-warning"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                        />
-                    </svg>
-                {:else}
-                    <svg
-                        class="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                        />
-                    </svg>
-                {/if}
+                <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                    />
+                </svg>
             </button>
-        {/if}
-        <button
-            onclick={download}
-            title="Download"
-            aria-label="Download"
-            class="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-        >
-            <svg
-                class="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
-                />
-            </svg>
-        </button>
-    </div>
+        </div>
 
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <img
-        bind:this={imgEl}
-        {src}
-        {alt}
-        onclick={(e) => e.stopPropagation()}
-        onpointerdown={onPointerDown}
-        onpointermove={onPointerMove}
-        onpointerup={onPointerUp}
-        onpointercancel={onPointerUp}
-        ondragstart={(e) => e.preventDefault()}
-        style="max-width: calc(100dvw - {interfaceState.isMobile
-            ? '6em'
-            : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
-            ? '6em'
-            : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
-        0
-            ? 'transform 0.2s ease'
-            : 'none'}; cursor: {scale > 1 ? 'grab' : 'zoom-in'};"
-    />
+        <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
+             pointer events; it cannot be cleanly keyboard-operated within this
+             a11y sweep, so a11y_no_noninteractive_element_interactions stays.
+             (The old onclick=stopPropagation shim is gone: the backdrop is a
+             sibling button, and root-level containClicks stops any image tap
+             from bubbling to the surrounding message row.) -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <img
+            bind:this={imgEl}
+            {src}
+            {alt}
+            class="pointer-events-auto"
+            onpointerdown={onPointerDown}
+            onpointermove={onPointerMove}
+            onpointerup={onPointerUp}
+            onpointercancel={onPointerUp}
+            ondragstart={(e) => e.preventDefault()}
+            style="max-width: calc(100dvw - {interfaceState.isMobile
+                ? '6em'
+                : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
+                ? '6em'
+                : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
+            0
+                ? 'transform 0.2s ease'
+                : 'none'}; cursor: {scale > 1 ? 'grab' : 'zoom-in'};"
+        />
+    </div>
 </div>

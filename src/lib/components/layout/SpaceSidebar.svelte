@@ -36,6 +36,7 @@
         hasLoudInSpace,
     } from "$lib/stores/notifications.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
     import { mapWithConcurrency } from "$lib/utils/async";
 
     function getSpaceNotifs(
@@ -1319,26 +1320,28 @@
                 </h2>
                 <div class="flex flex-col gap-3">
                     <div>
-                        <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
+                            for="create-room-name"
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                             >Room name</label
                         >
                         <input
+                            id="create-room-name"
                             bind:value={modalInput1}
                             placeholder="my-room"
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                         />
                     </div>
                     <div>
-                        <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
+                            for="create-room-topic"
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                             >Topic <span class="normal-case font-normal"
                                 >(optional)</span
                             ></label
                         >
                         <input
+                            id="create-room-topic"
                             bind:value={modalInput2}
                             placeholder="What's this room about?"
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
@@ -1459,12 +1462,12 @@
 <Portal>
     {#if contextMenu}
         {@const cm = contextMenu}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
+        <button
+            type="button"
+            aria-label="Close menu"
             class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
             onclick={closeModal}
-        ></div>
+        ></button>
         {#snippet menuContent()}
             {#if cm.kind === "space"}
                 <button
@@ -1570,6 +1573,7 @@
         {/snippet}
         {#if cm.touch}
             <div
+                use:focusTrap={{ onEscape: closeModal }}
                 class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
             >
                 <div
@@ -1580,6 +1584,7 @@
         {:else}
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}
+                use:focusTrap={{ onEscape: closeModal }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 overflow-y-auto"
             >
                 {@render menuContent()}

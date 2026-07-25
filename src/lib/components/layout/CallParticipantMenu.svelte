@@ -26,6 +26,7 @@
     } from "$lib/stores/ignoredUsers.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     interface Props {
         room: Room;
@@ -204,15 +205,16 @@
 {/snippet}
 
 <Portal>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
+    <button
+        type="button"
+        aria-label="Close menu"
         class="fixed inset-0 z-50 {touch ? 'bg-black/40' : ''}"
         onclick={onClose}
-    ></div>
+    ></button>
 
     {#if touch}
         <div
+            use:focusTrap={{ onEscape: onClose }}
             class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
         >
             <div
@@ -223,6 +225,7 @@
     {:else}
         <div
             use:positionMenu={{ x, y }}
+            use:focusTrap={{ onEscape: onClose }}
             class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-56 overflow-y-auto"
         >
             {@render menuItems()}

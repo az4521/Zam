@@ -10,6 +10,7 @@
         type PollDraft,
     } from "$lib/utils/pollContent";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     const MAX_OPTIONS = 20;
 
@@ -52,26 +53,28 @@
             submitting = false;
         }
     }
-
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") closeCreatePollDialog();
-    }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-    onclick={closeCreatePollDialog}
->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button
+        type="button"
+        aria-label="Close dialog"
+        class="absolute inset-0 bg-black/60"
+        onclick={closeCreatePollDialog}
+    ></button>
     <div
-        class="bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
-        onclick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-poll-title"
+        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
+        use:focusTrap={{ onEscape: closeCreatePollDialog }}
     >
-        <h2 class="text-lg font-bold text-discord-textPrimary">Create poll</h2>
+        <h2
+            id="create-poll-title"
+            class="text-lg font-bold text-discord-textPrimary"
+        >
+            Create poll
+        </h2>
 
         <!-- Question -->
         <div class="flex flex-col gap-1.5">
