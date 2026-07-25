@@ -3845,6 +3845,24 @@ export async function inviteUser(
     await matrixClient.invite(roomId, userId, reason);
 }
 
+/**
+ * Invite someone to a room by email (3PID). Requires the homeserver to have a
+ * configured identity server (see {@link getIdentityServer}); rejects with the
+ * server's error otherwise. Throws on failure (caller surfaces).
+ */
+export async function inviteEmailToRoom(
+    roomId: string,
+    address: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.inviteByThreePid(roomId, "email", address);
+}
+
+/** The client's configured identity-server base URL, or undefined if none is set. */
+export function getIdentityServer(): string | undefined {
+    return matrixClient?.getIdentityServerUrl();
+}
+
 /** User ids currently in the room with any of the given memberships (default join+invite). */
 export function getRoomMemberIds(
     roomId: string,
