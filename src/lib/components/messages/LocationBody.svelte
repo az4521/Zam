@@ -1,5 +1,10 @@
 <script lang="ts">
-    import { parseGeoUri, formatCoords, mapLinkFor } from "$lib/utils/location";
+    import {
+        parseGeoUri,
+        formatCoords,
+        mapLinkFor,
+        googleMapsLinkFor,
+    } from "$lib/utils/location";
     import LocationMap, {
         type MapMarkerInput,
     } from "$lib/components/ui/LocationMap.svelte";
@@ -94,13 +99,22 @@
                 <p class="text-xs text-discord-textMuted">
                     {formatCoords(coords.lat, coords.lon)}
                 </p>
-                <a
-                    href={mapLinkFor(coords.lat, coords.lon)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs text-discord-accent hover:underline"
-                    >Open in OpenStreetMap ↗</a
-                >
+                <div class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <a
+                        href={mapLinkFor(coords.lat, coords.lon)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-xs text-discord-accent hover:underline"
+                        >OpenStreetMap ↗</a
+                    >
+                    <a
+                        href={googleMapsLinkFor(coords.lat, coords.lon)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-xs text-discord-accent hover:underline"
+                        >Google Maps ↗</a
+                    >
+                </div>
             </div>
         </div>
     </div>
