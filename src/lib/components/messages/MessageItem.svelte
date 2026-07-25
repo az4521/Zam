@@ -5,6 +5,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
+    import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
@@ -44,6 +45,7 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
         stripBodyFallback,
         stripFormattedFallback,
@@ -105,7 +107,7 @@
         editRequested?: boolean;
         onEditDone?: () => void;
         receipts?: ReadReceiptInfo[];
-        loudHighlight?: boolean;
+        mentionHighlight?: boolean;
     }
 
     let {
@@ -118,7 +120,7 @@
         editRequested = false,
         onEditDone,
         receipts = [],
-        loudHighlight = false,
+        mentionHighlight = false,
     }: Props = $props();
 
     const canPin = $derived.by(() => {
@@ -380,6 +382,12 @@
     );
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
+    // In-room verification requests ride in as m.room.message; their plain-text
+    // body claims this client can't do in-chat verification (it can), so they
+    // get a card instead of the fallback text.
+    const isVerificationRequest = $derived(
+        isVerificationRequestMessage(eventType, msgtype),
+    );
 
     // Whether the event's ORIGINAL content declared a reply relation. A rich-
     // reply fallback ("> quoted…" body / <mx-reply> block) can only legally
@@ -907,7 +915,7 @@
     bind:this={rootEl}
     class="{interfaceState.isTouchscreen
         ? ''
-        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation {loudHighlight
+        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation {mentionHighlight
         ? 'bg-yellow-500/10 border-l-2 border-yellow-500'
         : ''}"
     class:pt-3={showHeader}
@@ -1309,6 +1317,12 @@
                     </div>
                 </div>
             {/if}
+        {:else if isVerificationRequest}
+            <VerificationRequestMessage
+                eventId={event.getId() ?? ""}
+                senderName={displayName}
+                isOwn={isOwnMessage}
+            />
         {:else if msgtype === "m.location"}
             <LocationBody
                 {content}

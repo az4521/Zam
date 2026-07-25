@@ -50,17 +50,19 @@ interface EvaluatedPushActions {
 
 /**
  * Should an event that matched a push rule be visually highlighted in the
- * timeline? UNION of the two signals: the spec-correct `highlight` tweak OR the
- * `sound` tweak. Keeping `sound` in the union means everything highlighted today
- * (which keyed off sound) stays highlighted, while highlight-only rules (e.g.
- * the keyword "Highlight" option, or @room) gain their intended styling.
+ * timeline? ONLY the spec's `highlight` tweak — that is the "this concerns you
+ * personally" signal, set by the mention, display-name, @room and keyword rules
+ * (a reply lands here too, via the sender's `m.mentions`).
+ *
+ * Deliberately NOT `sound`: sound means "make a noise", which plenty of
+ * non-mentions do. The default DM rule `.m.rule.room_one_to_one` sets sound with
+ * no highlight, so union-ing sound in painted EVERY incoming message in a DM
+ * with the mention styling. Reported 2026-07-25.
  */
 export function isHighlightAction(
     actions: EvaluatedPushActions | null | undefined,
 ): boolean {
-    const tweaks = actions?.tweaks;
-    if (!tweaks) return false;
-    return tweaks.highlight === true || !!tweaks.sound;
+    return actions?.tweaks?.highlight === true;
 }
 
 function globalRules(client: MatrixClient): Record<string, any[]> | undefined {

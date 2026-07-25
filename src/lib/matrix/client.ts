@@ -1882,15 +1882,19 @@ export function getOwnUserId(): string | null {
     return matrixClient?.getUserId() ?? null;
 }
 
-/** Returns true if this event matches a push rule that would play a sound. */
-export function isLoudEvent(event: MatrixEvent): boolean {
+/**
+ * Does this event personally concern the user — a mention, a reply to them,
+ * @room, or a keyword — and so warrant the timeline highlight?
+ *
+ * Named for the `highlight` push tweak it reads, NOT for sound: the previous
+ * name (`isLoudEvent`) invited exactly the conflation that highlighted every
+ * message in a DM, where the default rule sets sound but no highlight.
+ */
+export function isHighlightEvent(event: MatrixEvent): boolean {
     if (!matrixClient) return false;
     if (event.getSender() === matrixClient.getUserId()) return false;
     try {
         const actions = matrixClient.getPushActionsForEvent(event);
-        // Union of the highlight and sound tweaks (see isHighlightAction):
-        // sound keeps everything styled today; the highlight tweak adds styling
-        // for spec-correct highlight-only rules (@room, keyword "Highlight").
         return !!(actions?.notify && isHighlightAction(actions));
     } catch {
         return false;

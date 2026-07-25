@@ -65,7 +65,7 @@
     import {
         getPinnedEventIds,
         findEventById,
-        isLoudEvent,
+        isHighlightEvent,
     } from "$lib/matrix/client";
     import {
         shouldShowHeader,
@@ -1332,7 +1332,7 @@
                         editRequested={editRequestedEventId === event.getId()}
                         onEditDone={() => messageInputEl?.focus()}
                         {receipts}
-                        loudHighlight={isLoudEvent(event)}
+                        mentionHighlight={isHighlightEvent(event)}
                     />
                 {/if}
             {/each}

@@ -63,10 +63,14 @@ describe("actionsForLevel", () => {
 });
 
 describe("isHighlightAction", () => {
-    it("sound-only -> true", () => {
+    // A sound tweak means "make a noise", NOT "this mentions you". The default
+    // DM rule (.m.rule.room_one_to_one) sets sound with no highlight, so
+    // treating sound as a highlight painted EVERY incoming DM message with the
+    // mention styling. Reported 2026-07-25.
+    it("sound-only -> false (the DM rule; not a mention)", () => {
         expect(
             isHighlightAction({ notify: true, tweaks: { sound: "default" } }),
-        ).toBe(true);
+        ).toBe(false);
     });
     it("highlight-only -> true", () => {
         expect(
@@ -76,13 +80,21 @@ describe("isHighlightAction", () => {
     it("notify-only (no tweaks) -> false", () => {
         expect(isHighlightAction({ notify: true, tweaks: {} })).toBe(false);
     });
-    it("highlight:false + sound -> true (union)", () => {
+    it("a real mention keeps its highlight even alongside a sound", () => {
+        expect(
+            isHighlightAction({
+                notify: true,
+                tweaks: { highlight: true, sound: "default" },
+            }),
+        ).toBe(true);
+    });
+    it("highlight:false + sound -> false", () => {
         expect(
             isHighlightAction({
                 notify: true,
                 tweaks: { highlight: false, sound: "default" },
             }),
-        ).toBe(true);
+        ).toBe(false);
     });
     it("null / undefined -> false", () => {
         expect(isHighlightAction(null)).toBe(false);
