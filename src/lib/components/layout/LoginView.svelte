@@ -68,7 +68,10 @@
         isLoading = true;
         try {
             const loginUsername = applyFullUserId();
-            await requestWebPushPermission().catch(() => {});
+            // Fire-and-forget: the notification/web-push permission prompt must
+            // never block sign-in (awaiting it hangs login until the user
+            // answers the prompt — or forever if they don't).
+            void requestWebPushPermission().catch(() => {});
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
@@ -91,7 +94,7 @@
         isLoading = true;
         try {
             const registrationUsername = applyFullUserId();
-            await requestWebPushPermission().catch(() => {});
+            void requestWebPushPermission().catch(() => {});
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
@@ -112,7 +115,7 @@
 </script>
 
 <svelte:head>
-    <title>Matrix Client — {mode === "login" ? "Sign In" : "Register"}</title>
+    <title>Zam — {mode === "login" ? "Sign In" : "Register"}</title>
 </svelte:head>
 
 <div
