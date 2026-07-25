@@ -181,6 +181,13 @@
 <style>
     .ll-map {
         background: #1a1d24;
+        /* Leaflet's internal panes and controls use z-index 200–800. Without a
+           stacking context of its own, those leak into the page and paint the
+           map on top of modals, the mobile drawer, and other overlays. Isolate
+           them so the map stays within its own place in the timeline. */
+        position: relative;
+        isolation: isolate;
+        z-index: 0;
     }
     /* Dark map: invert the light OSM raster. Standard trick — labels invert
        too, which reads fine on the muted result. */
