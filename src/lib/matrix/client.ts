@@ -1945,6 +1945,43 @@ export async function getServerCapabilities(): Promise<
 }
 
 /**
+ * Upgrade a room to `version`. Creates a replacement room, tombstones this one,
+ * and auto-joins the caller to the successor. Returns the new room id.
+ * Thin wrapper over matrix-js-sdk `upgradeRoom` (2-arg form; additionalCreators
+ * intentionally omitted in v1).
+ */
+export async function upgradeRoomToVersion(
+    roomId: string,
+    version: string,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { replacement_room } = await matrixClient.upgradeRoom(
+        roomId,
+        version,
+    );
+    return replacement_room;
+}
+
+/**
+ * The homeserver's advertised room-version capability. `default` is the
+ * recommended version ("" when unadvertised); `available` is the list of version
+ * ids the server offers. Reuses getServerCapabilities (cached, try/catch → {}).
+ */
+export async function getRoomVersionCapability(): Promise<{
+    default: string;
+    available: string[];
+}> {
+    const caps = await getServerCapabilities();
+    const cap = caps["m.room_versions"] as
+        | { default?: string; available?: Record<string, unknown> }
+        | undefined;
+    return {
+        default: typeof cap?.default === "string" ? cap.default : "",
+        available: cap?.available ? Object.keys(cap.available) : [],
+    };
+}
+
+/**
  * Probe the homeserver's readiness for MatrixRTC group calling (the stack the
  * client actually uses). The legacy `/voip/turnServer` endpoint is NOT probed:
  * MatrixRTC never consults it, and its 404 is ambiguous (a conforming server
