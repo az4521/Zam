@@ -30,7 +30,7 @@
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
-    import { parseMarkdown } from "$lib/utils/markdown";
+    import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
@@ -558,45 +558,10 @@
         html: string | null;
         mentionedUserIds: string[];
     } {
-        // Apply markdown formatting
-        const { formattedBody, hasFormatting } = parseMarkdown(plain);
-        let html = formattedBody;
-        let changed = hasFormatting;
-
-        // Apply custom emoji shortcode substitution
-        const shortcodes = [...plain.matchAll(/:(\w+):/g)].map((m) => m[1]);
-        if (shortcodes.length > 0) {
-            const available = getCustomEmojis(room, roomsState.activeSpaceId);
-            const lookup = new Map(
-                available.map((e) => [e.shortcode, e.mxcUrl]),
-            );
-            for (const shortcode of shortcodes) {
-                const mxcUrl = lookup.get(shortcode);
-                if (mxcUrl) {
-                    const tag = `<img data-mx-emoticon src="${mxcUrl}" alt="${shortcode}" title="${shortcode}" height="32" />`;
-                    html = html.replaceAll(`:${shortcode}:`, tag);
-                    changed = true;
-                }
-            }
-        }
-
-        // Replace @-mention tokens with Matrix mention links. Keys already
-        // include the leading "@". The negative lookahead matches whole tokens
-        // only, so "@alice" doesn't match inside "@alice:hs" or "@alicia".
-        const mentionedUserIds: string[] = [];
-        for (const [token, userId] of pendingMentions) {
-            const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const pattern = `${escaped}(?![\\w:.-])`;
-            if (new RegExp(pattern).test(plain)) {
-                const link = `<a href="https://matrix.to/#/${userId}">${token}</a>`;
-                html = html.replace(new RegExp(pattern, "g"), link);
-                if (!mentionedUserIds.includes(userId))
-                    mentionedUserIds.push(userId);
-                changed = true;
-            }
-        }
-
-        return { html: changed ? html : null, mentionedUserIds };
+        return buildBody(plain, {
+            mentions: pendingMentions,
+            customEmojis: getCustomEmojis(room, roomsState.activeSpaceId),
+        });
     }
 
     function escapeHtml(plain: string): string {
