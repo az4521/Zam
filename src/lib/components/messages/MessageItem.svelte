@@ -41,7 +41,7 @@
     import {
         parseMatrixLink,
         mergeViaServers,
-        linkifyMatrixIdentifiers,
+        linkifyPlainText,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
@@ -770,8 +770,10 @@
             .replace(/>/g, "&gt;")
             .replace(/\|\|(.+?)\|\|/gs, "<span data-mx-spoiler>$1</span>");
         // Escaping above keeps this injection-safe; linkify before <br> so
-        // newlines still count as mention boundaries.
-        return linkifyMatrixIdentifiers(escaped).replace(/\n/g, "<br>");
+        // newlines still count as mention boundaries. linkifyPlainText covers
+        // http(s) URLs as well as bare mentions — a pasted matrix.to link needs
+        // to become an anchor for the matrixLinks action to open it in-app.
+        return linkifyPlainText(escaped).replace(/\n/g, "<br>");
     }
 
     // Svelte action: make [data-mx-spoiler] spans toggle-reveal on click

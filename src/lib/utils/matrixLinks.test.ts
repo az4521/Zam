@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     parseMatrixLink,
     linkifyMatrixIdentifiers,
+    linkifyPlainText,
     mergeViaServers,
     matrixToUrl,
 } from "./matrixLinks";
@@ -398,5 +399,86 @@ describe("matrixToUrl — build permalinks", () => {
         const via = ["a", "b", "c", "d", "e", "f", "g"];
         const url = matrixToUrl("!r:s.org", via);
         expect(url.match(/via=/g)?.length).toBe(5);
+    });
+});
+
+describe("linkifyPlainText — URLs in received plain-text bodies", () => {
+    // Reported 2026-07-25: a matrix.to room link pasted into a DM rendered as
+    // dead text. Only bare @user/#alias mentions were linkified, so plain URLs
+    // produced no anchor at all — and with no anchor, the in-app matrix.to
+    // click handler had nothing to intercept.
+    it("anchors a matrix.to room link so the click handler can join it", () => {
+        const html = linkifyPlainText(
+            "https://matrix.to/#/!piTs4GiwT9oGJ5hg8y:matrix.crafty.moe",
+        );
+        expect(html).toBe(
+            '<a href="https://matrix.to/#/!piTs4GiwT9oGJ5hg8y:matrix.crafty.moe">' +
+                "https://matrix.to/#/!piTs4GiwT9oGJ5hg8y:matrix.crafty.moe</a>",
+        );
+        // …and the href it produces must be one the app can route.
+        expect(
+            parseMatrixLink(
+                "https://matrix.to/#/!piTs4GiwT9oGJ5hg8y:matrix.crafty.moe",
+            ),
+        ).toEqual({
+            kind: "room",
+            roomId: "!piTs4GiwT9oGJ5hg8y:matrix.crafty.moe",
+            via: [],
+        });
+    });
+
+    it("keeps ?via= servers intact through HTML escaping", () => {
+        // The body arrives escaped, so & is already &amp; — the href must keep
+        // it (browsers decode it back) or the join loses its via servers.
+        const escaped =
+            "https://matrix.to/#/!r:crafty.moe?via=matrix.crafty.moe&amp;via=matrix.org";
+        const html = linkifyPlainText(escaped);
+        expect(html).toContain('href="' + escaped + '"');
+        expect(
+            parseMatrixLink(
+                "https://matrix.to/#/!r:crafty.moe?via=matrix.crafty.moe&via=matrix.org",
+            ),
+        ).toEqual({
+            kind: "room",
+            roomId: "!r:crafty.moe",
+            via: ["matrix.crafty.moe", "matrix.org"],
+        });
+    });
+
+    it("anchors ordinary web links too", () => {
+        expect(linkifyPlainText("see https://example.org/x for more")).toBe(
+            'see <a href="https://example.org/x">https://example.org/x</a> for more',
+        );
+    });
+
+    it("still linkifies bare mentions alongside URLs", () => {
+        const html = linkifyPlainText(
+            "ping @alice:example.org see https://a.io",
+        );
+        expect(html).toContain(
+            'href="https://matrix.to/#/%40alice%3Aexample.org"',
+        );
+        expect(html).toContain('href="https://a.io"');
+    });
+
+    it("does not linkify inside a URL that contains an alias", () => {
+        // A single anchor, not a mention anchor nested inside a URL anchor.
+        const html = linkifyPlainText("https://matrix.to/#/#dev:example.org");
+        expect(html.match(/<a /g)?.length).toBe(1);
+    });
+
+    it("leaves text with no links untouched", () => {
+        expect(linkifyPlainText("just talking about 1:30pm")).toBe(
+            "just talking about 1:30pm",
+        );
+    });
+
+    it("never introduces a tag from already-escaped markup", () => {
+        // Input is HTML-escaped; a would-be tag must stay inert.
+        const html = linkifyPlainText(
+            "&lt;img src=x onerror=1&gt; https://a.io",
+        );
+        expect(html).not.toContain("<img");
+        expect(html).toContain('<a href="https://a.io">');
     });
 });

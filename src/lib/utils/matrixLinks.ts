@@ -190,3 +190,37 @@ export function linkifyMatrixIdentifiers(html: string): string {
             `${pre}<a href="https://matrix.to/#/${encodeURIComponent(id)}">${id}</a>`,
     );
 }
+
+// Bare http(s) URLs in escaped plain text. `<` and `>` can't appear raw (they
+// are entities by this point) and a closing paren ends the match so
+// "(see https://x)" doesn't swallow the bracket. Mirrors the composer's
+// markdown linkifier so sent and received text behave the same.
+const URL_RE = /https?:\/\/[^\s<>)"']*/g;
+
+/**
+ * Linkify an HTML-ESCAPED plain-text body: http(s) URLs first, then bare
+ * `@user:server` / `#alias:server` mentions.
+ *
+ * Without the URL pass a pasted `https://matrix.to/#/!room:server` link stayed
+ * dead text — and since the in-app Matrix-link handler works by intercepting
+ * clicks on anchors, no anchor meant no way to open (or join) the target.
+ *
+ * URLs are stashed behind placeholders across the mention pass so a matrix.to
+ * link — which contains an alias-shaped `#dev:server` segment — can't grow a
+ * nested anchor inside itself.
+ *
+ * Input MUST already be HTML-escaped; this never runs over untrusted HTML.
+ * Escaped entities inside a URL (`&amp;` joining `?via=` params) are preserved
+ * verbatim in the href, which browsers decode back to `&` when it is read.
+ */
+export function linkifyPlainText(escapedHtml: string): string {
+    const anchors: string[] = [];
+    const stashed = escapedHtml.replace(URL_RE, (url) => {
+        anchors.push(`<a href="${url}">${url}</a>`);
+        return `\x02${anchors.length - 1}\x03`;
+    });
+    return linkifyMatrixIdentifiers(stashed).replace(
+        /\x02(\d+)\x03/g,
+        (_m, index: string) => anchors[Number(index)],
+    );
+}
