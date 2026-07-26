@@ -11,6 +11,7 @@
         getRoomNotificationSetting,
         getRoomsInSpace,
         getSpaces,
+        publishActiveSession,
         setDefaultPushRuleLevel,
         setRoomNotificationSetting,
         getKeywordRules,
@@ -22,8 +23,10 @@
         type RoomNotificationSetting,
         type KeywordBehavior,
     } from "$lib/matrix/client";
+    import { GRACE_OPTIONS, normalizeGraceMs } from "$lib/utils/activeSession";
     import { validateKeyword } from "$lib/utils/keywordRules";
     import {
+        setActiveSessionGraceMs,
         setPrivateReadReceipts,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -57,6 +60,27 @@
         soundEnabled = enabled;
         localStorage.setItem("notifSoundEnabled", String(enabled));
     }
+
+    let graceSaveError = $state(false);
+
+    async function pickActiveSessionGrace(raw: string) {
+        const grace = normalizeGraceMs(Number(raw));
+        setActiveSessionGraceMs(grace);
+        graceSaveError = false;
+        try {
+            // The account-data write is what carries the choice to the user's
+            // other devices, the service worker and the Android service — it
+            // runs for every value, "Off" (0) included. If it fails, a focused
+            // peer will republish the old grace and quietly undo the change,
+            // so surface the failure instead of swallowing it.
+            await publishActiveSession(grace);
+        } catch {
+            graceSaveError = true;
+        }
+    }
+
+    const selectClass =
+        "flex-shrink-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50";
 
     type NotifRoom = { roomId: string; name: string };
     type NotifGroup = { label: string; rooms: NotifRoom[] };
@@ -283,6 +307,46 @@
                 label="Notification sound"
             />
         </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            Multiple Devices
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Quiet on my other devices
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    While you're actively using one device, the others skip the
+                    notification sound and pop-up until that device has been
+                    idle this long. Applies to every device on your account;
+                    notifications still appear in your inbox and unread counts
+                    are unchanged.
+                </p>
+            </div>
+            <select
+                class={selectClass}
+                value={String(settingsState.activeSessionGraceMs)}
+                onchange={(e) => pickActiveSessionGrace(e.currentTarget.value)}
+                aria-label="Quiet on my other devices"
+            >
+                {#each GRACE_OPTIONS as opt (opt.value)}
+                    <option value={String(opt.value)}>{opt.label}</option>
+                {/each}
+            </select>
+        </div>
+        {#if graceSaveError}
+            <p class="text-sm text-discord-danger mt-2">
+                Couldn't save to your account — your other devices may keep the
+                old setting. Check your connection and try again.
+            </p>
+        {/if}
     </section>
 
     <section>
