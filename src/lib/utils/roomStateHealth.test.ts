@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { needsStateSeed } from "./roomStateHealth";
+import { needsStateSeed, shouldPrimePaginationToken } from "./roomStateHealth";
 
 // Regression cover for the bridged-space bug (2026-07-26): a space entered
 // through an INVITE keeps only stripped invite state — m.room.create present
@@ -63,5 +63,48 @@ describe("needsStateSeed", () => {
                 }),
             ).toBe(false);
         }
+    });
+});
+
+// Regression cover for the "room opens empty and stays empty" race (2026-07-26).
+// A healed room whose boot-time backfill threw keeps NO backward pagination
+// token, so scrollback() silently no-ops and the caller reported "no more
+// history" — latching pagination off for the whole session. Priming the token
+// fixes that, but priming must never happen once real history is loaded: at the
+// true start of a timeline the token is legitimately absent, and a fresh probe
+// there hands back a token pointing at the NEWEST events, so pagination would
+// never terminate.
+describe("shouldPrimePaginationToken", () => {
+    it("primes a timeline that was never given a token and holds nothing", () => {
+        expect(
+            shouldPrimePaginationToken({
+                hasBackwardToken: false,
+                timelineEventCount: 0,
+            }),
+        ).toBe(true);
+    });
+
+    it("does NOT prime a token-less timeline that already holds events — that is the real start of history", () => {
+        expect(
+            shouldPrimePaginationToken({
+                hasBackwardToken: false,
+                timelineEventCount: 42,
+            }),
+        ).toBe(false);
+    });
+
+    it("does not prime when a token is already present", () => {
+        expect(
+            shouldPrimePaginationToken({
+                hasBackwardToken: true,
+                timelineEventCount: 0,
+            }),
+        ).toBe(false);
+        expect(
+            shouldPrimePaginationToken({
+                hasBackwardToken: true,
+                timelineEventCount: 42,
+            }),
+        ).toBe(false);
     });
 });

@@ -126,7 +126,10 @@ import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
-import { needsStateSeed } from "$lib/utils/roomStateHealth";
+import {
+    needsStateSeed,
+    shouldPrimePaginationToken,
+} from "$lib/utils/roomStateHealth";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -2978,20 +2981,24 @@ function roomLacksState(room: Room): boolean {
  * and silently no-ops, and sync never supplies the token for the rooms it
  * omits. A token-less /messages probe yields a starting point to prime it.
  */
+async function primeBackwardToken(room: Room): Promise<void> {
+    if (!matrixClient) return;
+    const probe = await matrixClient.createMessagesRequest(
+        room.roomId,
+        null,
+        1,
+        Direction.Backward,
+    );
+    const token = probe.start ?? null;
+    room.getLiveTimeline().setPaginationToken(token, Direction.Backward);
+    // scrollback() reads the legacy oldState alias, not the timeline.
+    room.oldState.paginationToken = token;
+}
+
 async function backfillStubTimeline(room: Room): Promise<void> {
     if (!matrixClient) return;
-    const timeline = room.getLiveTimeline();
-    if (!timeline.getPaginationToken(Direction.Backward)) {
-        const probe = await matrixClient.createMessagesRequest(
-            room.roomId,
-            null,
-            1,
-            Direction.Backward,
-        );
-        const token = probe.start ?? null;
-        timeline.setPaginationToken(token, Direction.Backward);
-        // scrollback() reads the legacy oldState alias, not the timeline.
-        room.oldState.paginationToken = token;
+    if (!room.getLiveTimeline().getPaginationToken(Direction.Backward)) {
+        await primeBackwardToken(room);
     }
     await matrixClient.scrollback(room, 30);
 }
@@ -3224,6 +3231,22 @@ export function onRoomUpdate(callback: () => void): () => void {
  */
 export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
+    const timeline = room.getLiveTimeline();
+    if (
+        shouldPrimePaginationToken({
+            hasBackwardToken: !!timeline.getPaginationToken(Direction.Backward),
+            timelineEventCount: timeline.getEvents().length,
+        })
+    ) {
+        // A timeline that was never primed makes scrollback() a silent no-op,
+        // and the return below would then report "no more history" — which
+        // latches pagination off for the session and leaves the room
+        // permanently empty. Happens to a healed room whose boot-time backfill
+        // threw. Ask the server before concluding anything.
+        await primeBackwardToken(room).catch((err) =>
+            console.warn("Priming backward pagination token failed:", err),
+        );
+    }
     await matrixClient.scrollback(room, 30);
     return room.oldState.paginationToken !== null;
 }
