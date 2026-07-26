@@ -378,20 +378,37 @@ self.addEventListener("push", (event) => {
 	// was read (on this device or another). Take the room's notification down
 	// instead of merely declining to post a new one — leaving it up is exactly
 	// the "I already read that" complaint this handles.
+	//
+	// The price: Chrome checks userVisibleOnly AFTER waitUntil settles and is
+	// satisfied by any visible notification, so the stale popup used to pay
+	// that bill for us. Closing it can leave zero visible notifications, which
+	// drains the push budget and may eventually earn the browser's own generic
+	// "This site has been updated in the background" notice. There is no way to
+	// both dismiss the notification and satisfy userVisibleOnly, so this is the
+	// cost of the feature, not a bug: a popup for a message the user already
+	// read is the worse outcome. This path returned without showing anything
+	// before the change too — the precedent is already here.
 	if (data.counts && data.counts.unread === 0) {
 		// Scoped to the room the push names. A clear push without a room_id
 		// tells us nothing about WHICH notification is stale, and closing all
 		// of them would hide genuinely unread rooms.
 		const clearedRoomId = data.room_id;
 		if (clearedRoomId) {
-			event.waitUntil(
-				self.registration
-					.getNotifications({ tag: clearedRoomId })
-					.then((list) => {
-						for (const n of list) n.close();
-					})
-					.catch(() => {}),
-			);
+			// The .catch() below handles a rejected lookup; this try handles a
+			// synchronous throw (getNotifications absent), which would escape
+			// past the return and abort the whole push event.
+			try {
+				event.waitUntil(
+					self.registration
+						.getNotifications({ tag: clearedRoomId })
+						.then((list) => {
+							for (const n of list) n.close();
+						})
+						.catch(() => {}),
+				);
+			} catch {
+				// Nothing we can close; fall through to the return.
+			}
 		}
 		return;
 	}
