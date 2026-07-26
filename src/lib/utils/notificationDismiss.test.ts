@@ -94,6 +94,19 @@ describe("notificationsToClose", () => {
             }),
         ).toEqual(["!a"]);
     });
+
+    // A room may be listed more than once with different coverage. Only the
+    // entries that actually qualify may be deduped against, so a room that
+    // FAILS at one index and PASSES at a later one must still be emitted —
+    // marking it seen before the qualification check would swallow it.
+    it("emits a room that fails at one index and passes at a later one", () => {
+        expect(
+            notificationsToClose({
+                posted: [room("!a", ["$1", "$2"]), room("!a", ["$1"])],
+                readEventIds: new Set(["$1"]),
+            }),
+        ).toEqual(["!a"]);
+    });
 });
 
 describe("appendPostedEventId", () => {
@@ -121,6 +134,16 @@ describe("appendPostedEventId", () => {
             ids = appendPostedEventId(ids, `$e${i}`);
         expect(ids.length).toBe(POSTED_EVENT_CAP);
         expect(ids.includes("$e0")).toBe(false);
+    });
+
+    // The bound is a promise about the result, not just about the append path:
+    // an array that arrives over-cap must come back trimmed even when the id is
+    // one it already holds, or it would stay over-cap forever.
+    it("applies the cap even when the id is already held", () => {
+        expect(appendPostedEventId(["$1", "$2", "$3"], "$1", 2)).toEqual([
+            "$2",
+            "$3",
+        ]);
     });
 
     it("does not mutate the array it was given", () => {

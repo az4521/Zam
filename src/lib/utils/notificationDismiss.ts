@@ -33,7 +33,19 @@ export interface PostedNotificationEntry {
 
 export interface NotificationsToCloseInput {
     posted: readonly PostedNotificationEntry[];
-    /** Of the ids in `posted`, the ones the user has demonstrably read. */
+    /**
+     * Of the ids in `posted`, the ones the user has demonstrably read.
+     *
+     * Must be resolved POSITIONALLY — `Room.hasUserReadEvent` is the intended
+     * source, because a Matrix read receipt covers every event at or before
+     * the one it points at. `appendPostedEventId` drops the oldest ids past
+     * its cap and leans on exactly that: a positional answer for a surviving
+     * newer event vouches for the trimmed older ones too. Build this from a
+     * non-positional source instead — explicit per-event receipt ids, or a
+     * thread receipt that does not cover the main timeline — and a room whose
+     * newest events are read while its trimmed older ones are not will close a
+     * notification the user never saw.
+     */
     readEventIds: ReadonlySet<string>;
     /** The room now on screen here, if any — opening it counts as reading it. */
     openRoomId?: string | null;
@@ -62,13 +74,20 @@ export function notificationsToClose({
     return out;
 }
 
+/** The newest `cap` ids, always as a fresh array — never mutates its input. */
+function capNewest(ids: readonly string[], cap: number): string[] {
+    return ids.length > cap ? ids.slice(ids.length - cap) : [...ids];
+}
+
 /** Record one more event against a room's notification, oldest-first, capped. */
 export function appendPostedEventId(
     existing: readonly string[],
     eventId: string,
     cap: number = POSTED_EVENT_CAP,
 ): string[] {
-    if (existing.includes(eventId)) return [...existing];
-    const next = [...existing, eventId];
-    return next.length > cap ? next.slice(next.length - cap) : next;
+    // Already covered: nothing new to record, but still apply the cap. Returning
+    // an over-cap array untouched would let one that arrived too long (a lowered
+    // cap, older persisted state) stay too long forever.
+    if (existing.includes(eventId)) return capNewest(existing, cap);
+    return capNewest([...existing, eventId], cap);
 }
