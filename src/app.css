@@ -382,3 +382,13 @@ body {
         font-size: 16px !important;
     }
 }
+
+@layer utilities {
+    /* `pb-safe` was in use by two bottom sheets (CallParticipantMenu,
+       RoomList) but was never defined — tailwind.config.js has no plugins
+       and no padding extension, so those sheets silently got no inset.
+       Define it once here. */
+    .pb-safe {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}
