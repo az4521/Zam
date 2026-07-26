@@ -1,8 +1,10 @@
 /**
- * Mirrors the minimal Matrix session (homeserver URL + access token) into
- * native storage (Capacitor Preferences → Android SharedPreferences) so the
- * native push service (MatrixMessagingService.java) can call the homeserver to
- * enrich data-only notifications with sender / message / room info.
+ * Mirrors the minimal Matrix session (homeserver URL + access token + the
+ * account/device identity) into native storage (Capacitor Preferences →
+ * Android SharedPreferences) so the native push service
+ * (MatrixMessagingService.java) can call the homeserver to enrich data-only
+ * notifications with sender / message / room info, and can read the
+ * active-session heartbeat to tell whether ANOTHER device is currently in use.
  *
  * No-op off-native. Cleared on logout.
  */
@@ -13,11 +15,19 @@ import { Preferences } from "@capacitor/preferences";
 const KEY_HS = "matrix_hs_url";
 const KEY_TOKEN = "matrix_access_token";
 const KEY_USER = "matrix_user_id";
+const KEY_DEVICE = "matrix_device_id";
 
 export async function syncNativeSession(session: {
     homeserverUrl: string;
     accessToken: string;
     userId: string;
+    /**
+     * This device's Matrix device id — the native service compares it against
+     * the active-session blob. Nullable on purpose: a missing device id must
+     * not stop the other three fields being mirrored (the push service still
+     * enriches notifications without it, it just never suppresses).
+     */
+    deviceId?: string | null;
 }): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     try {
@@ -27,6 +37,17 @@ export async function syncNativeSession(session: {
             value: session.accessToken,
         });
         await Preferences.set({ key: KEY_USER, value: session.userId });
+        // Clear rather than leave a stale value behind: the native reader
+        // treats "no device id" as "notify", but a WRONG one would look like
+        // another device and could silence this one.
+        if (session.deviceId) {
+            await Preferences.set({
+                key: KEY_DEVICE,
+                value: session.deviceId,
+            });
+        } else {
+            await Preferences.remove({ key: KEY_DEVICE });
+        }
     } catch (err) {
         console.warn("[nativeSession] failed to sync session", err);
     }
@@ -38,6 +59,7 @@ export async function clearNativeSession(): Promise<void> {
         await Preferences.remove({ key: KEY_HS });
         await Preferences.remove({ key: KEY_TOKEN });
         await Preferences.remove({ key: KEY_USER });
+        await Preferences.remove({ key: KEY_DEVICE });
     } catch {
         /* ignore */
     }
@@ -47,6 +69,7 @@ export interface NativeSessionState {
     native: boolean;
     homeserverUrl: string | null;
     userId: string | null;
+    deviceId: string | null;
     /** Whether an access token is present (not the token itself). */
     hasToken: boolean;
     error?: string;
@@ -62,6 +85,7 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             native: false,
             homeserverUrl: null,
             userId: null,
+            deviceId: null,
             hasToken: false,
         };
     }
@@ -80,10 +104,13 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             .value;
         const user = (await withTimeout(Preferences.get({ key: KEY_USER })))
             .value;
+        const device = (await withTimeout(Preferences.get({ key: KEY_DEVICE })))
+            .value;
         return {
             native: true,
             homeserverUrl: hs ?? null,
             userId: user ?? null,
+            deviceId: device ?? null,
             hasToken: !!token,
         };
     } catch (err) {
@@ -91,6 +118,7 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             native: true,
             homeserverUrl: null,
             userId: null,
+            deviceId: null,
             hasToken: false,
             error: err instanceof Error ? err.message : String(err),
         };

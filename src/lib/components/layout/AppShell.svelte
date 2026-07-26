@@ -676,12 +676,16 @@
         if (client) initWebPush(client).catch(console.error);
 
         // Mirror the session natively so the push service can enrich
-        // notifications (off-native this is a no-op).
+        // notifications and read the active-session blob (off-native this is a
+        // no-op). The device id is passed but NOT part of the guard: without it
+        // the native service simply never suppresses, whereas dropping the
+        // whole mirror would also break notification enrichment.
         if (auth.homeserverUrl && auth.accessToken && auth.userId) {
             syncNativeSession({
                 homeserverUrl: auth.homeserverUrl,
                 accessToken: auth.accessToken,
                 userId: auth.userId,
+                deviceId: auth.deviceId,
             }).catch(() => {});
         }
 
