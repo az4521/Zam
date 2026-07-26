@@ -119,8 +119,9 @@
         openModal("app-settings", () => {});
     }
     function openRoomSettings(r: Room) {
-        settingsRoom = r;
+        // Claim first — a same-id handover runs the outgoing close, which nulls settingsRoom.
         openModal("room-settings", () => (settingsRoom = null));
+        settingsRoom = r;
     }
 
     // Animated drawer drag (mobile)

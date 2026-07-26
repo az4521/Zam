@@ -31,8 +31,9 @@ describe("modal slot ownership", () => {
         expect(interfaceState.modal).toBe("space-menu");
     });
 
-    // The bug: today openModal short-circuits on an unchanged id, so a second
-    // instance takes the slot and the first's close never runs.
+    // Regression guard: openModal used to short-circuit on an unchanged id, so
+    // a second instance took the slot while the first's close never ran,
+    // stranding the first instance's UI.
     it("runs the outgoing close exactly once when the SAME id supersedes", () => {
         const closeA = vi.fn();
         openModal("call-participant-menu", closeA);
@@ -81,7 +82,10 @@ describe("modal slot ownership", () => {
     });
 
     // The Lightbox teardown race: A's close unmounts A, whose destroy path then
-    // tries to release the slot B already owns.
+    // calls clearModalIfOwner(tokenA). Detach-first means B is not installed
+    // yet, so that release is rejected against an unowned slot; B's claim then
+    // installs intact. (The stale-token-vs-already-installed-B variant is
+    // covered by "ignores a stale token" above.)
     it("survives an outgoing close that clears by its own token", () => {
         let tokenA = 0;
         tokenA = openModal("lightbox", () => clearModalIfOwner(tokenA));
