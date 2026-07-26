@@ -145,6 +145,12 @@
     } | null>(null);
     // Plain let: read only from event handlers, never from markup or an effect.
     let participantMenuToken = 0;
+
+    // Release the shared modal slot if this row is destroyed while still
+    // owning it (e.g. the room changes under an open picker) — otherwise the
+    // slot strands and swallows the next Escape.
+    $effect(() => () => clearModalIfOwner(participantMenuToken));
+
     function openParticipantMenu(
         userId: string,
         x: number,

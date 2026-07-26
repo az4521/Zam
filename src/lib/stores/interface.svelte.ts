@@ -115,8 +115,10 @@ export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
  */
 export function openModal(id: ModalId, close: () => void): SlotToken {
     // Release the slot BEFORE running the outgoing close: it then executes
-    // against an empty slot and cannot clobber (or be clobbered by) the
-    // incoming owner, whatever it does — including re-entering this API.
+    // against an empty slot, so it cannot clobber the incoming owner, and a
+    // re-entrant closeModal() from it is a safe no-op. A close handler must
+    // NOT itself call openModal/openSidebar, though: the claim it makes is
+    // silently superseded below and its own close would never run.
     const prev = interfaceState.modalClose;
     modalToken = 0;
     interfaceState.modal = null;
@@ -169,6 +171,8 @@ export function showChatView(): void {
  *  and ordering rules as `openModal`. */
 export function openSidebar(id: SidebarId, close: () => void): SlotToken {
     // Release the slot BEFORE running the outgoing close — see `openModal`.
+    // It runs against an empty slot, so a re-entrant closeSidebar() is a safe
+    // no-op, but a close handler must not call openSidebar/openModal itself.
     const prev = interfaceState.sidebarClose;
     sidebarToken = 0;
     interfaceState.sidebar = null;

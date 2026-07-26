@@ -166,6 +166,14 @@ describe("lightboxOpen mirrors the modal slot", () => {
         expect(interfaceState.lightboxOpen).toBe(false);
     });
 
+    it("stays true when a stale token tries to release the slot", () => {
+        const tokenA = openModal("lightbox", () => {});
+        openModal("lightbox", () => {});
+        expect(clearModalIfOwner(tokenA)).toBe(false);
+        expect(interfaceState.lightboxOpen).toBe(true);
+        expect(interfaceState.modal).toBe("lightbox");
+    });
+
     it("goes false on closeModal", () => {
         openModal("lightbox", () => {});
         closeModal();
