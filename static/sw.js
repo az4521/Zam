@@ -374,8 +374,27 @@ self.addEventListener("push", (event) => {
 		data = {};
 	}
 
-	// counts.unread === 0 → a "clear" push; don't show anything.
-	if (data.counts && data.counts.unread === 0) return;
+	// counts.unread === 0 → a "clear" push: the server is telling us this room
+	// was read (on this device or another). Take the room's notification down
+	// instead of merely declining to post a new one — leaving it up is exactly
+	// the "I already read that" complaint this handles.
+	if (data.counts && data.counts.unread === 0) {
+		// Scoped to the room the push names. A clear push without a room_id
+		// tells us nothing about WHICH notification is stale, and closing all
+		// of them would hide genuinely unread rooms.
+		const clearedRoomId = data.room_id;
+		if (clearedRoomId) {
+			event.waitUntil(
+				self.registration
+					.getNotifications({ tag: clearedRoomId })
+					.then((list) => {
+						for (const n of list) n.close();
+					})
+					.catch(() => {}),
+			);
+		}
+		return;
+	}
 
 	// userVisibleOnly subscriptions REQUIRE a notification per push or the
 	// browser penalises/blocks the subscription — so always show something,
