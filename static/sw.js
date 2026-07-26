@@ -8,6 +8,13 @@ function openDb() {
 		req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
+		// A blocked upgrade (an older tab still holding the DB open) fires
+		// neither onsuccess nor onerror, so without this the promise never
+		// settles — and `authReady` hangs with it. The display path awaits
+		// authReady, so a hang there shows NOTHING at all: fail closed, the one
+		// outcome this module must never produce. Rejecting makes every caller
+		// take its existing catch/fallback path and notify.
+		req.onblocked = () => reject(new Error("blocked"));
 	});
 }
 
@@ -60,12 +67,25 @@ let deviceId = null;
 // here whenever the identity changes. Declared with the rest of the module
 // state so the `message` listener never references it before its `let`.
 let activeSessionCache = { fetchedAt: 0, value: null };
+// Set once the page has told us who we are (SET_AUTH) or that we are logged
+// out (CLEAR_AUTH). The IndexedDB restore below checks it so it can never
+// overwrite a fresher identity that arrived while its reads were in flight.
+// Declared here, with the rest of the module state, so neither the restore nor
+// the `message` listener can touch it before its `let`.
+let authFromMessage = false;
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
 	const storedHs = await dbGet("homeserverUrl");
 	const storedUser = await dbGet("userId");
 	const storedDevice = await dbGet("deviceId");
+	// A SET_AUTH / CLEAR_AUTH message can land while these reads are in flight;
+	// it is by definition fresher than what IndexedDB held, so it wins.
+	// Overwriting it would leave the worker on a stale deviceId, which then
+	// fails to match the blob's — and the worker would suppress a push meant
+	// for the device that is actually running it (or resurrect an identity a
+	// logout just cleared).
+	if (authFromMessage) return;
 	if (isValidHomeserverUrl(storedHs)) {
 		accessToken = storedToken;
 		homeserverUrl = storedHs;
@@ -82,6 +102,7 @@ self.addEventListener("message", async (event) => {
 		if (!isValidHomeserverUrl(hs)) return;
 		const user = asIdString(event.data.userId);
 		const device = asIdString(event.data.deviceId);
+		authFromMessage = true;
 		accessToken = token;
 		homeserverUrl = hs;
 		userId = user;
@@ -95,6 +116,7 @@ self.addEventListener("message", async (event) => {
 	} else if (event.data?.type === "CLEAR_AUTH") {
 		// Logout / session expiry — forget the token so we stop injecting it,
 		// and the identity so a stale device id can't silence this worker.
+		authFromMessage = true;
 		accessToken = null;
 		homeserverUrl = null;
 		userId = null;
