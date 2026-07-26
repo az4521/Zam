@@ -1813,6 +1813,10 @@ export async function initServiceWorker(): Promise<void> {
             type: "SET_AUTH",
             accessToken: token,
             homeserverUrl: hsUrl,
+            // The worker needs to know WHICH device it is before it can read the
+            // active-session heartbeat and decide whether to stay quiet.
+            userId: matrixClient.getUserId() ?? undefined,
+            deviceId: matrixClient.getDeviceId() ?? undefined,
         });
     } catch (e) {
         console.error("[SW] registration failed", e);
@@ -1831,6 +1835,8 @@ export function updateServiceWorkerAuth(): void {
                 type: "SET_AUTH",
                 accessToken: token,
                 homeserverUrl: hsUrl,
+                userId: matrixClient?.getUserId() ?? undefined,
+                deviceId: matrixClient?.getDeviceId() ?? undefined,
             });
         })
         .catch(() => {});

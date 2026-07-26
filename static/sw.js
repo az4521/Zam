@@ -40,15 +40,33 @@ function isValidHomeserverUrl(url) {
 	}
 }
 
+/**
+ * Only accept a non-empty string as an identity; anything else becomes null so
+ * every downstream check fails open (i.e. notifies) instead of building a
+ * garbage request path out of it.
+ */
+function asIdString(value) {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 let accessToken = null;
 let homeserverUrl = null;
+// Which account/device this worker belongs to. Needed only by the
+// active-session suppression check below — null means "we don't know", which
+// always resolves to "show the notification".
+let userId = null;
+let deviceId = null;
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
 	const storedHs = await dbGet("homeserverUrl");
+	const storedUser = await dbGet("userId");
+	const storedDevice = await dbGet("deviceId");
 	if (isValidHomeserverUrl(storedHs)) {
 		accessToken = storedToken;
 		homeserverUrl = storedHs;
+		userId = asIdString(storedUser);
+		deviceId = asIdString(storedDevice);
 	}
 })();
 
@@ -58,16 +76,33 @@ self.addEventListener("message", async (event) => {
 	if (event.data?.type === "SET_AUTH") {
 		const { accessToken: token, homeserverUrl: hs } = event.data;
 		if (!isValidHomeserverUrl(hs)) return;
+		const user = asIdString(event.data.userId);
+		const device = asIdString(event.data.deviceId);
 		accessToken = token;
 		homeserverUrl = hs;
+		userId = user;
+		deviceId = device;
+		// A new identity invalidates any cached heartbeat decision.
+		// (`activeSessionCache` is a module-scope `let` declared with the
+		// suppression block below — the script has fully evaluated long before
+		// any message can arrive.)
+		activeSessionCache = { fetchedAt: 0, value: null };
 		await dbSet("accessToken", token);
 		await dbSet("homeserverUrl", hs);
+		await dbSet("userId", user);
+		await dbSet("deviceId", device);
 	} else if (event.data?.type === "CLEAR_AUTH") {
-		// Logout / session expiry — forget the token so we stop injecting it.
+		// Logout / session expiry — forget the token so we stop injecting it,
+		// and the identity so a stale device id can't silence this worker.
 		accessToken = null;
 		homeserverUrl = null;
+		userId = null;
+		deviceId = null;
+		activeSessionCache = { fetchedAt: 0, value: null };
 		await dbSet("accessToken", null);
 		await dbSet("homeserverUrl", null);
+		await dbSet("userId", null);
+		await dbSet("deviceId", null);
 	}
 });
 
@@ -231,6 +266,59 @@ async function buildNotification(data) {
 	return { title, body, icon, roomId };
 }
 
+// ── Active-session suppression ────────────────────────────────────────────
+// Hand-written mirror of shouldSuppressForActiveDevice() (plus the strict
+// parse in parseActiveSession()) from src/lib/utils/activeSession.ts — the SW
+// cannot import TypeScript, so keep the two in step. Fails open in every
+// ambiguous case: a suppression bug must never eat a notification.
+const ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
+const MAX_FUTURE_SKEW_MS = 300000;
+// Mirrors MAX_GRACE_MS in activeSession.ts: a blob past this is a bug, and
+// honouring it would mute this device indefinitely.
+const MAX_GRACE_MS = 900000;
+const ACTIVE_SESSION_CACHE_MS = 10000;
+let activeSessionCache = { fetchedAt: 0, value: null };
+
+async function shouldStayQuiet() {
+	try {
+		// A push can wake a stopped worker while the IndexedDB restore is still
+		// in flight; without this the identity would read as null on every cold
+		// start and suppression would never apply. A rejected authReady is
+		// caught below → notify.
+		await authReady;
+		if (!userId || !deviceId) return false; // don't know who we are → notify
+		const now = Date.now();
+		let blob = activeSessionCache.value;
+		// Short cache: several pushes can land in one burst; one GET covers
+		// them. A negative age means the clock jumped back — refetch rather
+		// than trust an entry stamped in the future.
+		const age = now - activeSessionCache.fetchedAt;
+		if (age > ACTIVE_SESSION_CACHE_MS || age < 0) {
+			blob = await mxGet(
+				`/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/${ACTIVE_SESSION_KEY}`,
+			);
+			activeSessionCache = { fetchedAt: now, value: blob };
+		}
+		if (!blob || typeof blob !== "object") return false;
+		const otherDevice = blob.deviceId;
+		const ts = blob.ts;
+		const graceMs = blob.graceMs;
+		if (typeof otherDevice !== "string" || !otherDevice) return false;
+		if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+		if (
+			typeof graceMs !== "number" ||
+			!Number.isFinite(graceMs) ||
+			graceMs <= 0
+		)
+			return false;
+		if (otherDevice === deviceId) return false; // it's us
+		if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
+		return now - ts < Math.min(graceMs, MAX_GRACE_MS);
+	} catch {
+		return false; // anything unexpected (IndexedDB, network) → notify
+	}
+}
+
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
@@ -260,23 +348,27 @@ self.addEventListener("push", (event) => {
 	// browser penalises/blocks the subscription — so always show something,
 	// even if enrichment fails.
 	event.waitUntil(
-		buildNotification(data)
-			.catch(() => ({
+		(async () => {
+			// Another device is demonstrably in use → stay quiet. Checked first
+			// so none of the enrichment fetches below run when we won't show
+			// anything. Never throws; returns false on any doubt.
+			if (await shouldStayQuiet()) return;
+
+			const n = await buildNotification(data).catch(() => ({
 				title: "New message",
 				body: "You have a new message",
 				icon: "/favicon.png",
 				roomId: data.room_id,
-			}))
-			.then((n) =>
-				self.registration.showNotification(n.title, {
-					body: n.body,
-					icon: n.icon,
-					badge: "/favicon_foreground.png",
-					tag: n.roomId || undefined,
-					renotify: true,
-					data: { roomId: n.roomId },
-				}),
-			),
+			}));
+			return self.registration.showNotification(n.title, {
+				body: n.body,
+				icon: n.icon,
+				badge: "/favicon_foreground.png",
+				tag: n.roomId || undefined,
+				renotify: true,
+				data: { roomId: n.roomId },
+			});
+		})(),
 	);
 });
 
