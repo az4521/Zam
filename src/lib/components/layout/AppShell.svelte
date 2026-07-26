@@ -492,13 +492,18 @@
         const body = previewForEvent(event.getType(), rawBody);
 
         // Another device of this account is demonstrably in use right now →
-        // stay quiet here. The inbox row below is still recorded: the message
-        // IS unread on this device, we simply don't interrupt.
-        const quietForOtherDevice = shouldSuppressForActiveDevice({
-            heartbeat: activeSessionHeartbeat,
-            myDeviceId: getOwnDeviceId(),
-            now: Date.now(),
-        });
+        // stay quiet here. The local setting is checked FIRST and is
+        // authoritative: whatever the blob says, a user who turned this off
+        // on THIS device must never be silenced by it. The inbox row below
+        // is still recorded either way — the message IS unread here, we
+        // simply don't interrupt.
+        const quietForOtherDevice =
+            normalizeGraceMs(settingsState.activeSessionGraceMs) > 0 &&
+            shouldSuppressForActiveDevice({
+                heartbeat: activeSessionHeartbeat,
+                myDeviceId: getOwnDeviceId(),
+                now: Date.now(),
+            });
 
         if (loud) {
             const soundEnabled =
@@ -877,11 +882,17 @@
             if (type === ACTIVE_SESSION_KEY) {
                 activeSessionHeartbeat = getActiveSessionHeartbeat();
                 // The blob is the source of truth for the setting too, so a
-                // change made on another device lands here.
-                if (activeSessionHeartbeat)
-                    setActiveSessionGraceMs(
-                        normalizeGraceMs(activeSessionHeartbeat.graceMs),
+                // change made on another device lands here. Only write when
+                // the value actually differs: a focused peer republishes the
+                // same grace every 30s, and each of those would otherwise be
+                // a pointless localStorage write, forever.
+                if (activeSessionHeartbeat) {
+                    const remoteGrace = normalizeGraceMs(
+                        activeSessionHeartbeat.graceMs,
                     );
+                    if (remoteGrace !== settingsState.activeSessionGraceMs)
+                        setActiveSessionGraceMs(remoteGrace);
+                }
             }
         });
 
