@@ -91,10 +91,23 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         String eventId = data.get("event_id");
         String unreadStr = data.get("unread");
 
-        // unread == 0 is a "clear" push (read elsewhere) — don't notify.
+        // unread == 0 is a "clear" push: the room was read somewhere, so take
+        // its notification DOWN rather than merely declining to post a new one.
         if (unreadStr != null) {
             try {
-                if (Integer.parseInt(unreadStr) == 0) return;
+                if (Integer.parseInt(unreadStr) == 0) {
+                    // Must match showNotification()'s id scheme exactly, or we
+                    // cancel nothing. Scoped to the room the push names: a
+                    // clear push without a room_id says nothing about WHICH
+                    // notification is stale.
+                    if (roomId != null) {
+                        try {
+                            NotificationManagerCompat.from(this)
+                                .cancel(roomId.hashCode());
+                        } catch (Throwable ignored) {}
+                    }
+                    return;
+                }
             } catch (NumberFormatException ignored) {}
         }
 
