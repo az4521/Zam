@@ -5694,16 +5694,17 @@ export function onDecryptedTimelineEvent(
         // bypass — with that debug setting on, the ciphertext already went
         // through the normal path and the caller's already-notified check
         // suppresses this one).
-        const isReplacement =
-            event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+        // Relations are lifted OUT of the encrypted payload into the wire
+        // content (matrix-js-sdk models/event.js: "Relation info is lifted out
+        // of the encrypted content when sent to encrypted rooms"), so the
+        // cleartext accessors onTimelineEvent uses would miss an encrypted edit
+        // or thread reply. getRelation() reads wire content; fall back to the
+        // clear content for senders that also inline it.
+        const relatesTo =
+            event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
+        const isReplacement = relatesTo?.rel_type === "m.replace";
         if (isReplacement) return;
-        if (
-            !belongsToMainTimeline({
-                relatesTo: event.getOriginalContent()?.["m.relates_to"],
-                eventId,
-            })
-        )
-            return;
+        if (!belongsToMainTimeline({ relatesTo, eventId })) return;
         const type = event.getType();
         if (
             type !== "m.room.message" &&
