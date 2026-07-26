@@ -433,8 +433,11 @@
             return;
         lastHeartbeatWriteTs = Date.now();
         // Fire-and-forget: a failed heartbeat just means other devices keep
-        // notifying, which is the safe direction.
-        publishActiveSession(grace).catch(() => {});
+        // notifying, which is the safe direction. The `false` return (write
+        // skipped) is likewise nothing to act on here — the getOwnDeviceId()
+        // guard above already covers it, and Settings is where a skipped write
+        // actually needs reporting.
+        void publishActiveSession(grace).catch(() => {});
     }
 
     // Show an OS desktop notification via the Web Notification API. Works in the
@@ -516,8 +519,18 @@
         // on THIS device must never be silenced by it. The inbox row below
         // is still recorded either way — the message IS unread here, we
         // simply don't interrupt.
+        const localGrace = normalizeGraceMs(settingsState.activeSessionGraceMs);
+        // ...unless THIS device published its own heartbeat inside the same
+        // window. Whoever wrote last owns the blob, so with two devices in use
+        // the one you are typing on would otherwise go quiet until its next
+        // write — roughly half the time. "The device I'm using never goes
+        // quiet" should hold structurally, not by luck of timing.
+        const iAmAlsoActive =
+            lastHeartbeatWriteTs !== null &&
+            Date.now() - lastHeartbeatWriteTs < localGrace;
         const quietForOtherDevice =
-            normalizeGraceMs(settingsState.activeSessionGraceMs) > 0 &&
+            localGrace > 0 &&
+            !iAmAlsoActive &&
             shouldSuppressForActiveDevice({
                 heartbeat: activeSessionHeartbeat,
                 myDeviceId: getOwnDeviceId(),
