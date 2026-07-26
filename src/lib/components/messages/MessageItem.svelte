@@ -958,18 +958,19 @@
     <div class="flex-1 min-w-0">
         <!-- Sender + timestamp -->
         {#if showHeader}
-            <div class="flex items-baseline gap-2 mb-0.5">
+            <div class="flex items-baseline gap-2 mb-0.5 min-w-0">
                 <button
                     onclick={(e) => {
                         e.stopPropagation();
                         openProfileCard(senderId, e.currentTarget);
                     }}
-                    class="font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
+                    title={displayName}
+                    class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
                 >
                     {displayName}
                 </button>
                 <span
-                    class="text-xs text-discord-textMuted"
+                    class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
                     title={fullTimestamp(timestamp)}
                     >{messageTimestamp(timestamp)}</span
                 >
