@@ -28,6 +28,7 @@ import {
 import { auth } from "$lib/stores/auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
 import { DEFAULT_ENCRYPT_DMS } from "$lib/utils/roomEncryption";
+import { normalizeGraceMs } from "$lib/utils/activeSession";
 import type { ClientCustomization } from "$lib/utils/customization";
 
 const STORAGE_PREFIX = "settings:";
@@ -82,12 +83,18 @@ function writeAccountBool(key: string, value: boolean): void {
     writeAccountString(key, String(value));
 }
 
+function writeAccountNumber(key: string, value: number): void {
+    writeAccountString(key, String(value));
+}
+
 /** Device ids are stored as "" for "system default" → exposed as null. */
 function readAccountDeviceId(key: string): string | null {
     const v = readAccountString(key);
     return v ? v : null;
 }
 
+/** Volumes only: the value is CLAMPED to 0..1. A number setting with any
+ *  other range (e.g. a duration in ms) must not use this. */
 function readAccountNumber(key: string, fallback: number): number {
     const v = readAccountString(key);
     if (v === null) return fallback;
@@ -156,6 +163,15 @@ export const settingsState = $state({
      *  (see DEFAULT_ENCRYPT_DMS) — opt-in so new DMs don't silently become
      *  unreadable to contacts whose clients aren't set up for E2EE. */
     encryptNewDms: readAccountBool("encryptNewDms", DEFAULT_ENCRYPT_DMS),
+    /** How long (ms) this device stays quiet after ANOTHER device of this
+     *  account was last focused. 0 = off (always notify). Defaults to
+     *  DEFAULT_GRACE_MS via normalizeGraceMs. Account-scoped; localStorage is
+     *  only the boot cache — the authoritative copy rides in the
+     *  moe.crafty.matrix.active_session account-data blob, and a change made
+     *  on another device is adopted here when that blob syncs. */
+    activeSessionGraceMs: normalizeGraceMs(
+        readAccountString("activeSessionGraceMs"),
+    ),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
     /** Voice: preferred devices (null = system default). Preferences, not
@@ -326,6 +342,9 @@ export function reloadAccountSettings(): void {
         "encryptNewDms",
         DEFAULT_ENCRYPT_DMS,
     );
+    settingsState.activeSessionGraceMs = normalizeGraceMs(
+        readAccountString("activeSessionGraceMs"),
+    );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.audioInputDeviceId =
         readAccountDeviceId("audioInputDeviceId");
@@ -465,6 +484,15 @@ export function setPrivateReadReceipts(value: boolean): void {
 export function setEncryptNewDms(value: boolean): void {
     settingsState.encryptNewDms = value;
     writeAccountBool("encryptNewDms", value);
+}
+
+/** Persist the grace locally. Publishing it to account data (so other
+ *  devices and the SW/Android readers see it) is the caller's job — this
+ *  store deliberately holds no SDK dependency. */
+export function setActiveSessionGraceMs(value: number): void {
+    const grace = normalizeGraceMs(value);
+    settingsState.activeSessionGraceMs = grace;
+    writeAccountNumber("activeSessionGraceMs", grace);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {
