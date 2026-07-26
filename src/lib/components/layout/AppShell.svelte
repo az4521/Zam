@@ -510,10 +510,13 @@
                 // OS alerting on each replacement, which is what a per-event
                 // tag used to give for free. It is a persistent-notification
                 // option, so TypeScript's NotificationOptions omits it —
-                // browsers that don't honour it simply replace silently.
+                // browsers that don't honour it simply replace silently. The
+                // cast spells out the one extra key instead of asserting to
+                // the bare type, so what we are adding stays visible here
+                // rather than looking like an unexplained cast.
                 tag: `room:${room.roomId}`,
                 renotify: true,
-            } as NotificationOptions);
+            } as NotificationOptions & { renotify?: boolean });
             n.onclick = () => {
                 // window.focus() alone cannot un-hide a tray-hidden Electron
                 // window; restoreAppWindow() prefers the preload bridge.
@@ -688,12 +691,37 @@
     });
 
     // Opening a room is reading it: drop its notification without waiting for
-    // the read receipt to round-trip. Safe in a tracked effect — the only
-    // reactive read is activeRoomId, and closeRoomNotifications touches a
-    // plain Map and the Notification API, never the SDK.
+    // the read receipt to round-trip.
+    //
+    // This is the ONE branch that closes a notification with no read proof, so
+    // it has to be at least as strict as the branch that decides not to POST
+    // one (see showDesktopNotification) — closing an unread popup hides a
+    // message, while failing to close one is merely untidy. Hence the guards:
+    //
+    //   - activeRoomId is NOT "the room on screen". setActiveSpace() assigns it
+    //     from getLastRoom(spaceId), i.e. a value read back out of localStorage,
+    //     so merely clicking a space in the sidebar restores that space's
+    //     last-opened room id without ever rendering its timeline.
+    //   - showInbox renders InboxPanel *instead of* the active room, and
+    //     setActiveSpace() does not clear it — so the two can be true at once.
+    //   - callViewRoomId renders CallView over the same slot; the messages are
+    //     not on screen there either.
+    //
+    // Both guards mirror the {#if} chain in the markup below. Do not "simplify"
+    // them away: without them, a space switch from the Inbox silently dismisses
+    // a notification for a room the user never looked at.
+    //
+    // Deliberately NOT gated on document.hasFocus(): clicking a notification
+    // calls navigateToRoom, and this effect can run before focus lands.
+    //
+    // Safe in a tracked effect — every read is a plain reactive store field,
+    // and closeRoomNotifications touches a plain Map and the Notification API,
+    // never the SDK.
     $effect(() => {
         const openRoomId = roomsState.activeRoomId;
         if (!openRoomId) return;
+        if (roomsState.showInbox) return;
+        if (interfaceState.callViewRoomId === openRoomId) return;
         closeRoomNotifications(
             notificationsToClose({
                 posted: postedEntries(),
