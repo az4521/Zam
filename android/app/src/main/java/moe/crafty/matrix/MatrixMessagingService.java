@@ -202,6 +202,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             if (graceMs <= 0) return false; // feature off
 
             long now = System.currentTimeMillis();
+            // A negative ts is nonsense everywhere, but only this copy can be
+            // hurt by it: a JSON number like -1e300 parses as a Double and
+            // longValue() saturates to Long.MIN_VALUE, so `now - ts` OVERFLOWS
+            // to a large negative number, slips under the grace comparison and
+            // silently drops the notification. The TS and JS copies use IEEE
+            // doubles, cannot overflow, and would notify — match them.
+            if (ts < 0) return false;
             if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
             return now - ts < Math.min(graceMs, MAX_GRACE_MS);
         } catch (Exception e) {
