@@ -181,7 +181,14 @@ import {
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import { addToMDirect } from "$lib/utils/mDirect";
+import {
+    ACTIVE_SESSION_KEY,
+    buildHeartbeat,
+    parseActiveSession,
+    type ActiveSessionHeartbeat,
+} from "$lib/utils/activeSession";
 
+export type { ActiveSessionHeartbeat };
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
     ServerNotification,
@@ -199,6 +206,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
+        "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
     }
 }
 
@@ -648,6 +656,30 @@ export function onAccountData(callback: (type: string) => void): () => void {
     const handler = (event: MatrixEvent) => callback(event.getType());
     matrixClient.on(ClientEvent.AccountData, handler as never);
     return () => matrixClient?.off(ClientEvent.AccountData, handler as never);
+}
+
+/** The account's current active-session heartbeat, or null when absent or
+ *  malformed. Reads the synced copy — never a /account_data GET, which the
+ *  SDK caches poorly. */
+export function getActiveSessionHeartbeat(): ActiveSessionHeartbeat | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(ACTIVE_SESSION_KEY);
+    if (!event) return null;
+    return parseActiveSession(event.getContent());
+}
+
+/** Claim "this device is in active use" for the next `graceMs`. Also the
+ *  transport for the setting itself: `graceMs` rides in the blob so the
+ *  service worker and the Android service read threshold + heartbeat in one
+ *  request. */
+export async function publishActiveSession(graceMs: number): Promise<void> {
+    if (!matrixClient) return;
+    const deviceId = matrixClient.getDeviceId();
+    if (!deviceId) return;
+    await matrixClient.setAccountData(
+        ACTIVE_SESSION_KEY,
+        buildHeartbeat({ deviceId, now: Date.now(), graceMs }),
+    );
 }
 
 export function onSyncPrepared(callback: () => void): () => void {
