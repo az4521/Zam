@@ -1805,6 +1805,14 @@ export async function initServiceWorker(): Promise<void> {
     if (!("serviceWorker" in navigator) || !matrixClient) return;
     const token = matrixClient.getAccessToken();
     const hsUrl = matrixClient.getHomeserverUrl();
+    // The worker needs to know WHICH device it is before it can read the
+    // active-session heartbeat and decide whether to stay quiet. Captured here,
+    // alongside the token, rather than after the awaits below: a logout racing
+    // registration would null out `matrixClient` and the throw would be
+    // swallowed by the catch, leaving the worker with no auth at all. Reading
+    // both up front also guarantees the identity matches the token we send.
+    const uid = matrixClient.getUserId() ?? undefined;
+    const devId = matrixClient.getDeviceId() ?? undefined;
     if (!token || !hsUrl) return;
     try {
         await navigator.serviceWorker.register("/sw.js", { scope: "/" });
@@ -1813,10 +1821,8 @@ export async function initServiceWorker(): Promise<void> {
             type: "SET_AUTH",
             accessToken: token,
             homeserverUrl: hsUrl,
-            // The worker needs to know WHICH device it is before it can read the
-            // active-session heartbeat and decide whether to stay quiet.
-            userId: matrixClient.getUserId() ?? undefined,
-            deviceId: matrixClient.getDeviceId() ?? undefined,
+            userId: uid,
+            deviceId: devId,
         });
     } catch (e) {
         console.error("[SW] registration failed", e);

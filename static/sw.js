@@ -56,6 +56,10 @@ let homeserverUrl = null;
 // always resolves to "show the notification".
 let userId = null;
 let deviceId = null;
+// Cached active-session heartbeat, read by shouldStayQuiet() below and reset
+// here whenever the identity changes. Declared with the rest of the module
+// state so the `message` listener never references it before its `let`.
+let activeSessionCache = { fetchedAt: 0, value: null };
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
@@ -83,9 +87,6 @@ self.addEventListener("message", async (event) => {
 		userId = user;
 		deviceId = device;
 		// A new identity invalidates any cached heartbeat decision.
-		// (`activeSessionCache` is a module-scope `let` declared with the
-		// suppression block below — the script has fully evaluated long before
-		// any message can arrive.)
 		activeSessionCache = { fetchedAt: 0, value: null };
 		await dbSet("accessToken", token);
 		await dbSet("homeserverUrl", hs);
@@ -277,7 +278,8 @@ const MAX_FUTURE_SKEW_MS = 300000;
 // honouring it would mute this device indefinitely.
 const MAX_GRACE_MS = 900000;
 const ACTIVE_SESSION_CACHE_MS = 10000;
-let activeSessionCache = { fetchedAt: 0, value: null };
+// `activeSessionCache` is declared with the module auth state near the top of
+// this file, next to the `userId`/`deviceId` it is keyed to.
 
 async function shouldStayQuiet() {
 	try {
@@ -285,7 +287,16 @@ async function shouldStayQuiet() {
 		// in flight; without this the identity would read as null on every cold
 		// start and suppression would never apply. A rejected authReady is
 		// caught below → notify.
-		await authReady;
+		//
+		// Bounded: openDb() has no `onblocked` handler, so a blocked upgrade can
+		// leave authReady permanently pending. Waiting forever here would hang
+		// waitUntil and show NOTHING — fail closed, the one outcome this whole
+		// check must never produce. On timeout the identity reads below are
+		// null and we notify.
+		await Promise.race([
+			authReady,
+			new Promise((resolve) => setTimeout(resolve, 3000)),
+		]);
 		if (!userId || !deviceId) return false; // don't know who we are → notify
 		const now = Date.now();
 		let blob = activeSessionCache.value;
