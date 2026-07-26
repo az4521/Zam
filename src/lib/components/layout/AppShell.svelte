@@ -56,6 +56,7 @@
     } from "$lib/stores/verification.svelte";
     import {
         reloadAccountSettings,
+        setActiveSessionGraceMs,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
@@ -102,15 +103,19 @@
         getEventThreadRootId,
         getOwnDeviceId,
         publishActiveSession,
+        getActiveSessionHeartbeat,
+        type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
         shouldNotifyDecrypted,
         createBoundedIdSet,
     } from "$lib/utils/notifyDecrypted";
     import {
+        ACTIVE_SESSION_KEY,
         MIN_HEARTBEAT_INTERVAL_MS,
         heartbeatIntervalFor,
         normalizeGraceMs,
+        shouldSuppressForActiveDevice,
         shouldWriteHeartbeat,
     } from "$lib/utils/activeSession";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
@@ -379,12 +384,22 @@
     // writes inside tracked effects have deadlocked this app before.
     let lastHeartbeatWriteTs: number | null = null;
 
+    // The account's newest heartbeat, refreshed from sync. Plain `let`: it is
+    // read from notification callbacks, never from a tracked scope, and
+    // nothing in the markup renders it.
+    let activeSessionHeartbeat: ActiveSessionHeartbeat | null = null;
+
     function maybeWriteHeartbeat() {
         // publishActiveSession() silently no-ops before login (no client / no
         // device id). Bail here instead, so we don't stamp a write that never
         // happened and then sit out a whole interval.
         if (!getOwnDeviceId()) return;
         const grace = normalizeGraceMs(settingsState.activeSessionGraceMs);
+        // Off: nothing to claim, and the blob's own persisted graceMs: 0 is
+        // what tells the other devices the feature is off — so a periodic
+        // re-PUT buys nothing. Task 6 publishes explicitly when the setting
+        // changes, which is what actually propagates a change.
+        if (grace <= 0) return;
         if (
             !shouldWriteHeartbeat({
                 lastWriteTs: lastHeartbeatWriteTs,
@@ -476,10 +491,19 @@
         // show a generic "🔒 Encrypted message" line instead of an empty one.
         const body = previewForEvent(event.getType(), rawBody);
 
+        // Another device of this account is demonstrably in use right now →
+        // stay quiet here. The inbox row below is still recorded: the message
+        // IS unread on this device, we simply don't interrupt.
+        const quietForOtherDevice = shouldSuppressForActiveDevice({
+            heartbeat: activeSessionHeartbeat,
+            myDeviceId: getOwnDeviceId(),
+            now: Date.now(),
+        });
+
         if (loud) {
             const soundEnabled =
                 localStorage.getItem("notifSoundEnabled") !== "false";
-            if (live && soundEnabled) {
+            if (live && soundEnabled && !quietForOtherDevice) {
                 playPing();
             }
         }
@@ -498,7 +522,8 @@
         if (notifiedId) notifiedEventIds.add(notifiedId);
 
         // Any notifying event also pops a desktop notification.
-        if (live) showDesktopNotification(event, room, body);
+        if (live && !quietForOtherDevice)
+            showDesktopNotification(event, room, body);
     }
 
     // Incoming DM calls get their own notification and suppression rule: the
@@ -654,6 +679,17 @@
                 userId: auth.userId,
             }).catch(() => {});
         }
+
+        // Seed the reader from whatever already synced: the blob usually
+        // arrives before this shell mounts, and onAccountData only fires on
+        // the NEXT change — without this seed the first minutes of a session
+        // would notify loudly for a device that is plainly in use. Also
+        // adopts the grace, since the blob carries the account-wide setting.
+        activeSessionHeartbeat = getActiveSessionHeartbeat();
+        if (activeSessionHeartbeat)
+            setActiveSessionGraceMs(
+                normalizeGraceMs(activeSessionHeartbeat.graceMs),
+            );
 
         // Publish the heartbeat now (if focused), on every focus gain, and on
         // a cheap fixed tick. The TICK is deliberately shorter than any write
@@ -838,6 +874,15 @@
                 type === "im.client.space_order"
             )
                 refreshRooms();
+            if (type === ACTIVE_SESSION_KEY) {
+                activeSessionHeartbeat = getActiveSessionHeartbeat();
+                // The blob is the source of truth for the setting too, so a
+                // change made on another device lands here.
+                if (activeSessionHeartbeat)
+                    setActiveSessionGraceMs(
+                        normalizeGraceMs(activeSessionHeartbeat.graceMs),
+                    );
+            }
         });
 
         // ── Back button ───────────────────────────────────────────────────
