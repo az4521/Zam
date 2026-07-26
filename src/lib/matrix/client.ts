@@ -671,15 +671,22 @@ export function getActiveSessionHeartbeat(): ActiveSessionHeartbeat | null {
 /** Claim "this device is in active use" for the next `graceMs`. Also the
  *  transport for the setting itself: `graceMs` rides in the blob so the
  *  service worker and the Android service read threshold + heartbeat in one
- *  request. */
-export async function publishActiveSession(graceMs: number): Promise<void> {
-    if (!matrixClient) return;
+ *  request.
+ *
+ *  Resolves `true` only when the account data was actually written. The two
+ *  guards below are ordinary states (no client yet, no device id), not errors,
+ *  so they cannot throw — and Settings must not report a save that never
+ *  happened, least of all for "Off", which the service worker and the Android
+ *  service can learn no other way. */
+export async function publishActiveSession(graceMs: number): Promise<boolean> {
+    if (!matrixClient) return false;
     const deviceId = matrixClient.getDeviceId();
-    if (!deviceId) return;
+    if (!deviceId) return false;
     await matrixClient.setAccountData(
         ACTIVE_SESSION_KEY,
         buildHeartbeat({ deviceId, now: Date.now(), graceMs }),
     );
+    return true;
 }
 
 export function onSyncPrepared(callback: () => void): () => void {

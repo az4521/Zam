@@ -77,7 +77,12 @@
             // runs for every value, "Off" (0) included. If it fails, a focused
             // peer will republish the old grace and quietly undo the change,
             // so surface the failure instead of swallowing it.
-            await publishActiveSession(grace);
+            //
+            // `false` means the write was skipped (no client / no device id),
+            // which leaves the OLD grace in the blob just as surely as a thrown
+            // error does — so treat the two identically rather than reporting a
+            // save that never happened.
+            if (!(await publishActiveSession(grace))) graceSaveError = true;
         } catch {
             graceSaveError = true;
         } finally {
@@ -355,7 +360,10 @@
         </div>
         {#if graceSaveError}
             <div class="flex items-start gap-2 mt-2">
-                <p class="flex-1 min-w-0 text-sm text-discord-danger">
+                <p
+                    class="flex-1 min-w-0 text-sm text-discord-danger"
+                    aria-live="polite"
+                >
                     Couldn't save to your account — your other devices may keep
                     the old setting. Check your connection and try again.
                 </p>
