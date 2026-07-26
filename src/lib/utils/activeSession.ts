@@ -102,7 +102,42 @@ export function shouldSuppressForActiveDevice(args: {
     return now - heartbeat.ts < graceMs;
 }
 
-/** Rate-limit + focus gate for the writer. Never writes while hidden. */
+/**
+ * How long after the last real user input a focused window still counts as
+ * "in use". Focus alone is not enough: a focused window the user walked away
+ * from (or a locked screen that never blurred) would otherwise keep claiming
+ * the account and mute every other device indefinitely — the one failure this
+ * whole module exists to prevent.
+ */
+export const IDLE_LIMIT_MS = 180_000;
+
+/**
+ * Is this device actually in use right now? Focus AND recent input.
+ * `lastInputTs` null means "no input seen yet this session" — the caller
+ * seeds it at mount, since opening the app is itself an interaction.
+ */
+export function isDeviceInUse(args: {
+    hasFocus: boolean;
+    lastInputTs: number | null;
+    now: number;
+    idleLimitMs: number;
+}): boolean {
+    const { hasFocus, lastInputTs, now, idleLimitMs } = args;
+    if (!hasFocus) return false;
+    if (lastInputTs === null) return false;
+    if (lastInputTs > now) return true; // clock jumped back — treat as fresh
+    return now - lastInputTs < idleLimitMs;
+}
+
+/**
+ * Rate-limit + in-use gate for the writer.
+ *
+ * `hasFocus` is the CALLER'S "is this device in use" verdict, not the raw
+ * `document.hasFocus()` — see `isDeviceInUse`. A window keeps focus while its
+ * owner is away from the desk or the screen is locked, and publishing through
+ * that would silence every other device for as long as the tab stays open.
+ * The parameter keeps its old name only because callers and tests depend on it.
+ */
 export function shouldWriteHeartbeat(args: {
     lastWriteTs: number | null;
     now: number;
@@ -153,5 +188,11 @@ export function normalizeGraceMs(value: unknown): number {
     }
     if (typeof n !== "number" || !Number.isFinite(n) || n < 0)
         return DEFAULT_GRACE_MS;
-    return n;
+    // Clamp the top end too. This value is adopted from the account-data blob
+    // (which any device may have written) and then RE-PUBLISHED by this one,
+    // so an out-of-range grace would propagate itself forever: every reader
+    // clamps to MAX_GRACE_MS, so every device would fall silent for the full
+    // clamp window after each heartbeat, and the Settings <select> would show
+    // blank because no <option> matches. Clamping here makes it self-healing.
+    return Math.min(n, MAX_GRACE_MS);
 }

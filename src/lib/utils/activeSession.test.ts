@@ -4,11 +4,13 @@ import {
     DEFAULT_GRACE_MS,
     GRACE_OPTIONS,
     HEARTBEAT_INTERVAL_MS,
+    IDLE_LIMIT_MS,
     MAX_FUTURE_SKEW_MS,
     MAX_GRACE_MS,
     MIN_HEARTBEAT_INTERVAL_MS,
     buildHeartbeat,
     heartbeatIntervalFor,
+    isDeviceInUse,
     normalizeGraceMs,
     parseActiveSession,
     shouldSuppressForActiveDevice,
@@ -292,6 +294,63 @@ describe("shouldWriteHeartbeat", () => {
     });
 });
 
+describe("isDeviceInUse", () => {
+    const inUse = (over: Partial<Parameters<typeof isDeviceInUse>[0]> = {}) =>
+        isDeviceInUse({
+            hasFocus: true,
+            lastInputTs: NOW - 1_000,
+            now: NOW,
+            idleLimitMs: IDLE_LIMIT_MS,
+            ...over,
+        });
+
+    it("is in use when focused with input a second ago", () => {
+        expect(inUse()).toBe(true);
+    });
+
+    // The boundary is EXCLUSIVE: at exactly the limit the device is idle.
+    it("is idle at exactly the idle limit", () => {
+        expect(inUse({ lastInputTs: NOW - IDLE_LIMIT_MS })).toBe(false);
+    });
+
+    it("is still in use one millisecond inside the idle limit", () => {
+        expect(inUse({ lastInputTs: NOW - (IDLE_LIMIT_MS - 1) })).toBe(true);
+    });
+
+    it("is idle long past the limit even though the window kept focus", () => {
+        expect(inUse({ lastInputTs: NOW - IDLE_LIMIT_MS * 10 })).toBe(false);
+    });
+
+    it("is not in use while unfocused, however recent the input", () => {
+        expect(inUse({ hasFocus: false, lastInputTs: NOW })).toBe(false);
+    });
+
+    it("is not in use before any input has been seen", () => {
+        expect(inUse({ lastInputTs: null })).toBe(false);
+    });
+
+    // Clock jumped backwards: input stamped "in the future" is the freshest
+    // thing we have, so treat it as current rather than as ancient.
+    it("treats a future input timestamp as fresh", () => {
+        expect(inUse({ lastInputTs: NOW + 60_000 })).toBe(true);
+    });
+
+    it("honours a caller-supplied idle limit", () => {
+        expect(inUse({ lastInputTs: NOW - 5_000, idleLimitMs: 1_000 })).toBe(
+            false,
+        );
+        expect(inUse({ lastInputTs: NOW - 500, idleLimitMs: 1_000 })).toBe(
+            true,
+        );
+    });
+});
+
+describe("IDLE_LIMIT_MS", () => {
+    it("is three minutes", () => {
+        expect(IDLE_LIMIT_MS).toBe(180_000);
+    });
+});
+
 describe("buildHeartbeat", () => {
     it("produces exactly the three blob fields", () => {
         expect(
@@ -330,6 +389,27 @@ describe("normalizeGraceMs", () => {
             expect(normalizeGraceMs(input)).toBe(DEFAULT_GRACE_MS);
         },
     );
+
+    // An out-of-range grace adopted from a remote blob would otherwise be
+    // re-published verbatim by this device forever, and the readers all clamp
+    // it — so every device would go quiet for the clamp's full window after
+    // each heartbeat, with no way back except a human opening Settings.
+    it("clamps an absurd value to MAX_GRACE_MS", () => {
+        expect(normalizeGraceMs(86_400_000)).toBe(MAX_GRACE_MS);
+    });
+
+    it("clamps an absurd numeric string too", () => {
+        expect(normalizeGraceMs("86400000")).toBe(MAX_GRACE_MS);
+    });
+
+    it("keeps a value exactly at the cap", () => {
+        expect(normalizeGraceMs(MAX_GRACE_MS)).toBe(MAX_GRACE_MS);
+    });
+
+    it("leaves every offered option untouched", () => {
+        for (const option of GRACE_OPTIONS)
+            expect(normalizeGraceMs(option.value)).toBe(option.value);
+    });
 });
 
 describe("GRACE_OPTIONS", () => {

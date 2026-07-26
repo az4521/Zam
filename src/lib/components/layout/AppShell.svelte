@@ -112,8 +112,10 @@
     } from "$lib/utils/notifyDecrypted";
     import {
         ACTIVE_SESSION_KEY,
+        IDLE_LIMIT_MS,
         MIN_HEARTBEAT_INTERVAL_MS,
         heartbeatIntervalFor,
+        isDeviceInUse,
         normalizeGraceMs,
         shouldSuppressForActiveDevice,
         shouldWriteHeartbeat,
@@ -384,6 +386,13 @@
     // writes inside tracked effects have deadlocked this app before.
     let lastHeartbeatWriteTs: number | null = null;
 
+    // When the user last actually did something here. Plain `let`, like the
+    // write stamp above: it feeds an SDK write, and making an SDK call's
+    // inputs reactive is exactly the pattern that has deadlocked this app.
+    // Seeded at mount (opening the app is an interaction) and bumped by the
+    // passive input listeners registered there.
+    let lastInputTs: number | null = null;
+
     // The account's newest heartbeat, refreshed from sync. Plain `let`: it is
     // read from notification callbacks, never from a tracked scope, and
     // nothing in the markup renders it.
@@ -404,7 +413,17 @@
             !shouldWriteHeartbeat({
                 lastWriteTs: lastHeartbeatWriteTs,
                 now: Date.now(),
-                hasFocus: document.hasFocus(),
+                // Focus alone is not enough to claim the account: a focused
+                // window whose owner walked away (or whose screen locked
+                // without blurring, as on macOS and some Windows paths) would
+                // keep republishing for hours and silence the phone — which
+                // has no inbox to fall back on. Require recent input too.
+                hasFocus: isDeviceInUse({
+                    hasFocus: document.hasFocus(),
+                    lastInputTs,
+                    now: Date.now(),
+                    idleLimitMs: IDLE_LIMIT_MS,
+                }),
                 // NOT the bare HEARTBEAT_INTERVAL_MS constant: a 15s grace
                 // needs a faster refresh than 30s or the blob expires while
                 // the device is still in use and suppression flaps.
@@ -705,6 +724,24 @@
         // interval — maybeWriteHeartbeat() no-ops until the grace-derived
         // interval has actually elapsed, so the effective write rate follows
         // the user's current setting without re-creating the timer.
+        // Opening the app is itself an interaction — without this seed the
+        // first heartbeat could never be written (isDeviceInUse treats a null
+        // stamp as "idle").
+        lastInputTs = Date.now();
+        // Passive listeners: they only stamp a number, so they must never
+        // block scrolling or typing.
+        const onUserInput = () => {
+            lastInputTs = Date.now();
+        };
+        const inputEvents = [
+            "pointerdown",
+            "keydown",
+            "wheel",
+            "touchstart",
+        ] as const;
+        for (const type of inputEvents)
+            window.addEventListener(type, onUserInput, { passive: true });
+
         maybeWriteHeartbeat();
         const onWindowFocus = () => maybeWriteHeartbeat();
         window.addEventListener("focus", onWindowFocus);
@@ -952,6 +989,8 @@
             pq.removeEventListener("change", onPqHqChange);
             hq.removeEventListener("change", onPqHqChange);
             window.removeEventListener("focus", onWindowFocus);
+            for (const type of inputEvents)
+                window.removeEventListener(type, onUserInput);
             window.clearInterval(heartbeatTimer);
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
