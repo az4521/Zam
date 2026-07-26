@@ -70,7 +70,7 @@
         interfaceState,
         openModal,
         closeModal,
-        clearModal,
+        clearModalIfOwner,
         showCallView,
     } from "$lib/stores/interface.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
@@ -185,6 +185,8 @@
         y: number;
         touch: boolean;
     } | null>(null);
+    // Plain let: read only from event handlers, never from markup or an effect.
+    let participantMenuToken = 0;
 
     function openParticipantMenu(
         room: Room,
@@ -193,8 +195,11 @@
         y: number,
         touch: boolean,
     ) {
+        participantMenuToken = openModal(
+            "call-participant-menu",
+            () => (participantMenu = null),
+        );
         participantMenu = { room, userId, x, y, touch };
-        openModal("call-participant-menu", () => (participantMenu = null));
     }
 
     function handleOpenSettings(roomId: string) {
@@ -1544,7 +1549,7 @@
         touch={participantMenu.touch}
         onClose={() => {
             participantMenu = null;
-            clearModal("call-participant-menu");
+            clearModalIfOwner(participantMenuToken);
         }}
     />
 {/if}

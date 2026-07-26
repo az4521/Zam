@@ -1,0 +1,164 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import {
+    interfaceState,
+    openModal,
+    closeModal,
+    clearModalIfOwner,
+    openSidebar,
+    closeSidebar,
+    clearSidebarIfOwner,
+    openComposerPicker,
+} from "./interface.svelte";
+
+// Module-level slots persist across tests — release them before each.
+beforeEach(() => {
+    closeModal();
+    closeSidebar();
+});
+
+describe("modal slot ownership", () => {
+    it("hands back a distinct token per claim", () => {
+        const a = openModal("room-menu", () => {});
+        const b = openModal("room-menu", () => {});
+        expect(a).not.toBe(b);
+    });
+
+    it("runs the outgoing close exactly once when a different id supersedes", () => {
+        const closeA = vi.fn();
+        openModal("room-menu", closeA);
+        openModal("space-menu", () => {});
+        expect(closeA).toHaveBeenCalledTimes(1);
+        expect(interfaceState.modal).toBe("space-menu");
+    });
+
+    // The bug: today openModal short-circuits on an unchanged id, so a second
+    // instance takes the slot and the first's close never runs.
+    it("runs the outgoing close exactly once when the SAME id supersedes", () => {
+        const closeA = vi.fn();
+        openModal("call-participant-menu", closeA);
+        openModal("call-participant-menu", () => {});
+        expect(closeA).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not run the incoming close", () => {
+        const closeB = vi.fn();
+        openModal("room-menu", () => {});
+        openModal("room-menu", closeB);
+        expect(closeB).not.toHaveBeenCalled();
+    });
+
+    it("ignores a stale token so instance A cannot clear instance B's slot", () => {
+        const tokenA = openModal("call-participant-menu", () => {});
+        const closeB = vi.fn();
+        openModal("call-participant-menu", closeB);
+
+        expect(clearModalIfOwner(tokenA)).toBe(false);
+        expect(interfaceState.modal).toBe("call-participant-menu");
+        expect(interfaceState.modalClose).toBe(closeB);
+    });
+
+    it("releases the slot for the current owner without running its close", () => {
+        const closeA = vi.fn();
+        const tokenA = openModal("lightbox", closeA);
+        expect(clearModalIfOwner(tokenA)).toBe(true);
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.modalClose).toBeNull();
+        expect(closeA).not.toHaveBeenCalled();
+    });
+
+    it("treats a token that never owned the slot as a no-op", () => {
+        openModal("room-menu", () => {});
+        expect(clearModalIfOwner(0)).toBe(false);
+        expect(clearModalIfOwner(-1)).toBe(false);
+        expect(interfaceState.modal).toBe("room-menu");
+    });
+
+    it("makes a re-clear after closeModal a no-op", () => {
+        const token = openModal("room-menu", () => {});
+        closeModal();
+        expect(clearModalIfOwner(token)).toBe(false);
+        expect(interfaceState.modal).toBeNull();
+    });
+
+    // The Lightbox teardown race: A's close unmounts A, whose destroy path then
+    // tries to release the slot B already owns.
+    it("survives an outgoing close that clears by its own token", () => {
+        let tokenA = 0;
+        tokenA = openModal("lightbox", () => clearModalIfOwner(tokenA));
+        const closeB = vi.fn();
+        openModal("lightbox", closeB);
+
+        expect(interfaceState.modal).toBe("lightbox");
+        expect(interfaceState.modalClose).toBe(closeB);
+        expect(interfaceState.lightboxOpen).toBe(true);
+    });
+});
+
+describe("lightboxOpen mirrors the modal slot", () => {
+    it("is true while a lightbox holds the slot", () => {
+        openModal("lightbox", () => {});
+        expect(interfaceState.lightboxOpen).toBe(true);
+    });
+
+    it("goes false when another modal supersedes the lightbox", () => {
+        openModal("lightbox", () => {});
+        openModal("profile-card", () => {});
+        expect(interfaceState.lightboxOpen).toBe(false);
+    });
+
+    it("stays true across a lightbox-to-lightbox handover", () => {
+        openModal("lightbox", () => {});
+        openModal("lightbox", () => {});
+        expect(interfaceState.lightboxOpen).toBe(true);
+    });
+
+    it("goes false when the owning token releases the slot", () => {
+        const token = openModal("lightbox", () => {});
+        clearModalIfOwner(token);
+        expect(interfaceState.lightboxOpen).toBe(false);
+    });
+
+    it("goes false on closeModal", () => {
+        openModal("lightbox", () => {});
+        closeModal();
+        expect(interfaceState.lightboxOpen).toBe(false);
+    });
+});
+
+describe("sidebar slot ownership", () => {
+    it("runs the outgoing close when the SAME id supersedes", () => {
+        const closeA = vi.fn();
+        openSidebar("members", closeA);
+        openSidebar("members", () => {});
+        expect(closeA).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores a stale token", () => {
+        const tokenA = openSidebar("members", () => {});
+        openSidebar("members", () => {});
+        expect(clearSidebarIfOwner(tokenA)).toBe(false);
+        expect(interfaceState.sidebar).toBe("members");
+    });
+
+    it("releases the slot for the current owner", () => {
+        const token = openSidebar("pinned", () => {});
+        expect(clearSidebarIfOwner(token)).toBe(true);
+        expect(interfaceState.sidebar).toBeNull();
+    });
+});
+
+describe("openComposerPicker", () => {
+    it("switches kinds without the handover wiping the new kind", () => {
+        openComposerPicker("emoji");
+        openComposerPicker("sticker");
+        expect(interfaceState.modal).toBe("composer-picker");
+        expect(interfaceState.composerPicker).toBe("sticker");
+    });
+
+    it("toggles off when the same kind is requested again", () => {
+        openComposerPicker("emoji");
+        openComposerPicker("emoji");
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.composerPicker).toBeNull();
+    });
+});

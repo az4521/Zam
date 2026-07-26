@@ -11,7 +11,7 @@
     import {
         interfaceState,
         openModal,
-        clearModal,
+        clearModalIfOwner,
     } from "$lib/stores/interface.svelte";
     import {
         isFavouriteGif,
@@ -221,12 +221,13 @@
     }
 
     onMount(() => {
-        interfaceState.lightboxOpen = true;
         // Register in the shared modal slot so Escape/back close it centrally.
-        openModal("lightbox", onClose);
+        // The store mirrors `interfaceState.lightboxOpen` off this claim, and
+        // the token keeps a superseded viewer's teardown from stealing the slot
+        // back from the viewer that replaced it.
+        const token = openModal("lightbox", onClose);
         return () => {
-            interfaceState.lightboxOpen = false;
-            clearModal("lightbox");
+            clearModalIfOwner(token);
         };
     });
 </script>
