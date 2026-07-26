@@ -21,16 +21,29 @@ export const ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
 /** Default grace: 60s of "the other device is in use" before we go quiet. */
 export const DEFAULT_GRACE_MS = 60_000;
 
-/** How often the focused client refreshes the blob. */
+/** Slowest tick the focused client uses to refresh the blob (see
+ *  `heartbeatIntervalFor` — short graces need a faster one). */
 export const HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** Smallest tick the writer is allowed to use. */
+export const MIN_HEARTBEAT_INTERVAL_MS = 5_000;
 
 /**
  * `ts` comes from another device's clock and is compared against ours, so it
  * needs a sanity bound (project law: never trust a foreign clock unguarded).
  * A heartbeat claiming to be from further than this in the future is a broken
- * clock, not a real one → fail open. The 60s default absorbs ordinary skew.
+ * clock, not a real one → fail open. Five minutes is generous enough to
+ * absorb any ordinary skew between two correctly-set devices.
+ *
+ * The bound is INCLUSIVE: `ts === now + MAX_FUTURE_SKEW_MS` is still honoured,
+ * only strictly beyond it fails open. The sw.js/Java copies must match.
  */
 export const MAX_FUTURE_SKEW_MS = 300_000;
+
+/** Upper bound on a remote grace value. Well above the largest offered
+ *  option (5 min); a blob past this is a bug, and honouring it would mute
+ *  this device indefinitely. */
+export const MAX_GRACE_MS = 900_000;
 
 /** The choices offered in Settings. 0 = feature off. */
 export const GRACE_OPTIONS: readonly { value: number; label: string }[] = [
@@ -67,7 +80,13 @@ export function parseActiveSession(
     return { deviceId, ts, graceMs };
 }
 
-/** Should this device stay quiet because another one is in active use? */
+/**
+ * Should this device stay quiet because another one is in active use?
+ *
+ * The grace window is CLAMPED to `MAX_GRACE_MS` before use: the blob is
+ * written by another device and a bogus value there must not be able to mute
+ * this one indefinitely. The sw.js/Java copies must mirror the clamp.
+ */
 export function shouldSuppressForActiveDevice(args: {
     heartbeat: ActiveSessionHeartbeat | null;
     myDeviceId: string | null;
@@ -79,7 +98,8 @@ export function shouldSuppressForActiveDevice(args: {
     if (heartbeat.deviceId === myDeviceId) return false; // our own heartbeat
     if (heartbeat.graceMs <= 0) return false; // feature off
     if (heartbeat.ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
-    return now - heartbeat.ts < heartbeat.graceMs;
+    const graceMs = Math.min(heartbeat.graceMs, MAX_GRACE_MS);
+    return now - heartbeat.ts < graceMs;
 }
 
 /** Rate-limit + focus gate for the writer. Never writes while hidden. */
@@ -96,6 +116,23 @@ export function shouldWriteHeartbeat(args: {
     return now - lastWriteTs >= intervalMs;
 }
 
+/**
+ * How often the focused device should refresh the blob for a given grace.
+ * The blob must never be allowed to age past `graceMs` while the device is
+ * still in use, or suppression flaps on and off — so refresh at half the
+ * grace, capped at HEARTBEAT_INTERVAL_MS and floored at
+ * MIN_HEARTBEAT_INTERVAL_MS. `graceMs <= 0` (feature off) still returns the
+ * cap: the writer keeps publishing because the blob is also how the setting
+ * itself reaches the other devices.
+ */
+export function heartbeatIntervalFor(graceMs: number): number {
+    if (!Number.isFinite(graceMs) || graceMs <= 0) return HEARTBEAT_INTERVAL_MS;
+    return Math.max(
+        MIN_HEARTBEAT_INTERVAL_MS,
+        Math.min(HEARTBEAT_INTERVAL_MS, Math.floor(graceMs / 2)),
+    );
+}
+
 export function buildHeartbeat(args: {
     deviceId: string;
     now: number;
@@ -106,7 +143,14 @@ export function buildHeartbeat(args: {
 
 /** Coerce a stored/remote grace value onto a usable number of ms. */
 export function normalizeGraceMs(value: unknown): number {
-    const n = typeof value === "string" ? Number(value) : value;
+    let n: unknown = value;
+    if (typeof n === "string") {
+        const trimmed = n.trim();
+        // `Number("")` and `Number("   ")` are both 0, which would read as an
+        // explicit "Off". A blank stored value means "never set" → default.
+        if (trimmed.length === 0) return DEFAULT_GRACE_MS;
+        n = Number(trimmed);
+    }
     if (typeof n !== "number" || !Number.isFinite(n) || n < 0)
         return DEFAULT_GRACE_MS;
     return n;

@@ -2,8 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
     ACTIVE_SESSION_KEY,
     DEFAULT_GRACE_MS,
+    GRACE_OPTIONS,
+    HEARTBEAT_INTERVAL_MS,
     MAX_FUTURE_SKEW_MS,
+    MAX_GRACE_MS,
+    MIN_HEARTBEAT_INTERVAL_MS,
     buildHeartbeat,
+    heartbeatIntervalFor,
     normalizeGraceMs,
     parseActiveSession,
     shouldSuppressForActiveDevice,
@@ -130,6 +135,19 @@ describe("shouldSuppressForActiveDevice", () => {
         ).toBe(false);
     });
 
+    // The past-dated Off case above would still pass with the `graceMs <= 0`
+    // guard deleted (age 1_000 is not < 0). A FUTURE-dated one pins the guard:
+    // without it the age is negative and -1_000 < 0 would suppress.
+    it("does not suppress when Off even if the heartbeat is future-dated", () => {
+        expect(
+            shouldSuppressForActiveDevice({
+                heartbeat: hb({ ts: NOW + 1_000, graceMs: 0 }),
+                myDeviceId: "MYDEV",
+                now: NOW,
+            }),
+        ).toBe(false);
+    });
+
     it("fails open on a wildly future timestamp (clock skew)", () => {
         expect(
             shouldSuppressForActiveDevice({
@@ -140,6 +158,18 @@ describe("shouldSuppressForActiveDevice", () => {
         ).toBe(false);
     });
 
+    // Both sides of the skew boundary are pinned: the hand-written sw.js and
+    // Java copies have to land on the same inclusive/exclusive choice.
+    it("still suppresses exactly at the skew boundary (inclusive)", () => {
+        expect(
+            shouldSuppressForActiveDevice({
+                heartbeat: hb({ ts: NOW + MAX_FUTURE_SKEW_MS }),
+                myDeviceId: "MYDEV",
+                now: NOW,
+            }),
+        ).toBe(true);
+    });
+
     it("tolerates small clock skew inside the allowance", () => {
         expect(
             shouldSuppressForActiveDevice({
@@ -148,6 +178,60 @@ describe("shouldSuppressForActiveDevice", () => {
                 now: NOW,
             }),
         ).toBe(true);
+    });
+
+    // An absurd graceMs from a buggy/hostile writer must not mute this device
+    // forever — the reader clamps the window it is willing to honour.
+    it("clamps an absurd graceMs to MAX_GRACE_MS", () => {
+        expect(
+            shouldSuppressForActiveDevice({
+                heartbeat: hb({ ts: NOW - MAX_GRACE_MS, graceMs: 1e12 }),
+                myDeviceId: "MYDEV",
+                now: NOW,
+            }),
+        ).toBe(false);
+    });
+
+    it("still suppresses a fresh heartbeat carrying an absurd graceMs", () => {
+        expect(
+            shouldSuppressForActiveDevice({
+                heartbeat: hb({ ts: NOW - 1_000, graceMs: 1e12 }),
+                myDeviceId: "MYDEV",
+                now: NOW,
+            }),
+        ).toBe(true);
+    });
+});
+
+describe("heartbeatIntervalFor", () => {
+    it.each([
+        [15_000, 7_500],
+        [60_000, 30_000],
+        [300_000, 30_000],
+        [0, 30_000],
+        [NaN, 30_000],
+        [2_000, 5_000], // floor wins over half-the-grace
+    ])("maps a grace of %p to a %p tick", (grace, expected) => {
+        expect(heartbeatIntervalFor(grace)).toBe(expected);
+    });
+
+    it("never exceeds the cap or drops below the floor", () => {
+        for (const option of GRACE_OPTIONS) {
+            const interval = heartbeatIntervalFor(option.value);
+            expect(interval).toBeLessThanOrEqual(HEARTBEAT_INTERVAL_MS);
+            expect(interval).toBeGreaterThanOrEqual(MIN_HEARTBEAT_INTERVAL_MS);
+        }
+    });
+
+    // The property that actually matters: for every offered grace, the writer
+    // refreshes before the blob can expire, so suppression cannot flap.
+    it("refreshes faster than the grace expires for every offered option", () => {
+        for (const option of GRACE_OPTIONS) {
+            if (option.value <= 0) continue;
+            expect(heartbeatIntervalFor(option.value)).toBeLessThan(
+                option.value,
+            );
+        }
     });
 });
 
@@ -238,10 +322,36 @@ describe("normalizeGraceMs", () => {
         expect(normalizeGraceMs("30000")).toBe(30_000);
     });
 
-    it.each([[undefined], [null], ["abc"], [-5], [NaN]])(
+    // A blank stored string must NOT read as an explicit "Off" — Number("")
+    // is 0, which would silently disable the feature.
+    it.each([[undefined], [null], ["abc"], [-5], [NaN], [""], ["   "]])(
         "falls back to the default for %p",
         (input) => {
             expect(normalizeGraceMs(input)).toBe(DEFAULT_GRACE_MS);
         },
     );
+});
+
+describe("GRACE_OPTIONS", () => {
+    it("offers Off first", () => {
+        expect(GRACE_OPTIONS[0].value).toBe(0);
+    });
+
+    it("is strictly ascending", () => {
+        const values = GRACE_OPTIONS.map((o) => o.value);
+        expect(values).toEqual([...values].sort((a, b) => a - b));
+        expect(new Set(values).size).toBe(values.length);
+    });
+
+    it("labels every option", () => {
+        for (const option of GRACE_OPTIONS) {
+            expect(option.label.trim().length).toBeGreaterThan(0);
+        }
+    });
+
+    it("round-trips every offered value through normalizeGraceMs", () => {
+        for (const option of GRACE_OPTIONS) {
+            expect(normalizeGraceMs(option.value)).toBe(option.value);
+        }
+    });
 });
