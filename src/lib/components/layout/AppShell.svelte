@@ -97,9 +97,14 @@
         fetchOwnProfile,
         mxcToHttp,
         onThreadReplyEvent,
+        onDecryptedTimelineEvent,
         isThreadParticipant,
         getEventThreadRootId,
     } from "$lib/matrix/client";
+    import {
+        shouldNotifyDecrypted,
+        createBoundedIdSet,
+    } from "$lib/utils/notifyDecrypted";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
@@ -398,11 +403,27 @@
         }
     }
 
+    // Event ids this shell has already put through the notification path.
+    // Encrypted messages notify from a second subscription (on decryption), and
+    // this is what stops one message notifying twice when both paths see it —
+    // e.g. with the showAllEvents debug setting on, where the ciphertext is
+    // forwarded to the main path before it decrypts. Bounded so a long session
+    // cannot leak.
+    const notifiedEventIds = createBoundedIdSet();
+
     // Shared notification emission for both the main-timeline and thread-reply
     // paths (one rule set, not two). Assumes the caller already applied its
     // own gate (push actions + own-event + participant/mention). `loud` drives
     // the ping + red-dot badge; silent notifications still populate the inbox.
-    function emitNotification(event: MatrixEvent, room: Room, loud: boolean) {
+    // `live` drives the sound + desktop popup; it defaults to "the initial sync
+    // has finished", and the decrypted path overrides it because decryption of
+    // the page-load backlog routinely resolves *after* sync PREPARED.
+    function emitNotification(
+        event: MatrixEvent,
+        room: Room,
+        loud: boolean,
+        live: boolean = isInitialSyncComplete(),
+    ) {
         const content = event.getContent() as any;
         // Extensible events (e.g. polls) carry their text fallback in the
         // MSC1767 key instead of body.
@@ -415,10 +436,6 @@
         // A still-encrypted (undecryptable) event has no cleartext body →
         // show a generic "🔒 Encrypted message" line instead of an empty one.
         const body = previewForEvent(event.getType(), rawBody);
-
-        // Alerts (sound + desktop popup) fire only for events that arrive live,
-        // never for the backlog replayed during the initial sync on page load.
-        const live = isInitialSyncComplete();
 
         if (loud) {
             const soundEnabled =
@@ -438,6 +455,8 @@
             body,
             loud,
         });
+        const notifiedId = event.getId();
+        if (notifiedId) notifiedEventIds.add(notifiedId);
 
         // Any notifying event also pops a desktop notification.
         if (live) showDesktopNotification(event, room, body);
@@ -656,6 +675,45 @@
             emitNotification(event, room, loud);
         });
 
+        // Encrypted messages arrive as m.room.encrypted, which onTimelineEvent
+        // filters out — so they only become notifiable once they decrypt. Same
+        // gate chain as above, re-run at that point.
+        const unsubDecryptedNotify = onDecryptedTimelineEvent(
+            (event, room, meta) => {
+                bumpUnreadTick();
+                const eventId = event.getId();
+                // The SDK caches push actions against the ciphertext envelope
+                // during sync, so they MUST be recalculated now that the
+                // cleartext body and mentions are readable — otherwise a
+                // mention never highlights and the room's mute rule is applied
+                // to the wrong content.
+                const actions = getClient()?.getPushActionsForEvent(
+                    event,
+                    true,
+                );
+                if (
+                    !shouldNotifyDecrypted({
+                        eventId,
+                        alreadyNotified:
+                            !!eventId && notifiedEventIds.has(eventId),
+                        isLiveAppend: meta.isLiveAppend,
+                        isOwnEvent: event.getSender() === getOwnUserId(),
+                        threadRootId: getEventThreadRootId(event),
+                        pushNotify: !!actions?.notify,
+                    })
+                )
+                    return;
+
+                const loud = !!(actions?.tweaks as any)?.sound;
+                emitNotification(
+                    event,
+                    room,
+                    loud,
+                    !meta.arrivedDuringInitialSync,
+                );
+            },
+        );
+
         // Thread replies are diverted off the main timeline (onTimelineEvent
         // filters them), so they need their own path into the notification
         // machinery. Gate: notify (push/mute rules) AND participant-or-mentioned
@@ -765,6 +823,7 @@
         return () => {
             unsubRooms();
             unsubTimeline();
+            unsubDecryptedNotify();
             unsubThreadNotify();
             unsubReceipts();
             unsubFavourites();
