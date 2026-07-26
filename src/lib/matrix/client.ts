@@ -126,6 +126,7 @@ import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
+import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import {
     needsStateSeed,
     shouldPrimePaginationToken,
@@ -5619,6 +5620,111 @@ export function onEventDecrypted(
             MatrixEventEvent.Decrypted as never,
             handler as never,
         );
+}
+
+export interface DecryptedTimelineMeta {
+    /** The ciphertext arrived as a fresh tail append, not a mid-timeline insert. */
+    isLiveAppend: boolean;
+    /** The ciphertext arrived before sync PREPARED (page-load backlog replay). */
+    arrivedDuringInitialSync: boolean;
+}
+
+/**
+ * Live timeline events that only become notifiable once they decrypt.
+ *
+ * `onTimelineEvent` gates on the cleartext event type, but an incoming
+ * encrypted message reaches the timeline as `m.room.encrypted` (the SDK starts
+ * decryption without awaiting it, `lib/event-mapper.js`, then synchronously
+ * emits `RoomEvent.Timeline`). So encrypted messages never reached the
+ * notification path at all — no ping, no inbox entry, no OS popup.
+ *
+ * `MatrixEventEvent.Decrypted` carries no timeline context, so we remember the
+ * two facts that cannot be recovered at decryption time — whether the
+ * ciphertext was a fresh tail append, and whether it arrived before the initial
+ * sync finished (decryption of the page-load backlog routinely resolves *after*
+ * PREPARED, and reading the flag late would turn the whole replayed backlog
+ * into sound + popups). The map is bounded so a long session cannot leak.
+ *
+ * Decryption FAILURES are skipped and left pending: the SDK re-emits Decrypted
+ * when the key finally arrives, and notifying on the failure would strand a
+ * "🔒 Encrypted message" row in the inbox (markNotification dedupes by event id
+ * and never upserts).
+ */
+export function onDecryptedTimelineEvent(
+    callback: (
+        event: MatrixEvent,
+        room: Room,
+        meta: DecryptedTimelineMeta,
+    ) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const pending = createBoundedIdMap<DecryptedTimelineMeta>();
+
+    const onTimeline = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        removed?: boolean,
+        data?: { liveEvent?: boolean },
+    ) => {
+        // Scroll-up backfill and removals are never new messages.
+        if (toStartOfTimeline || removed || !room) return;
+        if (!event.isEncrypted()) return;
+        const eventId = event.getId();
+        if (!eventId) return;
+        pending.set(eventId, {
+            isLiveAppend: data?.liveEvent === true,
+            arrivedDuringInitialSync: !isInitialSyncComplete(),
+        });
+    };
+
+    const onDecrypted = (event: MatrixEvent) => {
+        const eventId = event.getId();
+        if (!eventId) return;
+        const meta = pending.get(eventId);
+        if (!meta) return;
+        // Keep it pending: the SDK retries and re-emits once the key arrives.
+        if (event.isDecryptionFailure()) return;
+        const roomId = event.getRoomId();
+        const room = roomId ? matrixClient?.getRoom(roomId) : undefined;
+        if (!room) return;
+        pending.delete(eventId);
+
+        // Same content filter as onTimelineEvent (minus its showAllEvents
+        // bypass — with that debug setting on, the ciphertext already went
+        // through the normal path and the caller's already-notified check
+        // suppresses this one).
+        const isReplacement =
+            event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
+        if (isReplacement) return;
+        if (
+            !belongsToMainTimeline({
+                relatesTo: event.getOriginalContent()?.["m.relates_to"],
+                eventId,
+            })
+        )
+            return;
+        const type = event.getType();
+        if (
+            type !== "m.room.message" &&
+            type !== "m.sticker" &&
+            !isPollStartEventType(type)
+        )
+            return;
+        if (event.isRedacted()) return;
+
+        callback(event, room, meta);
+    };
+
+    matrixClient.on(RoomEvent.Timeline, onTimeline as never);
+    matrixClient.on(MatrixEventEvent.Decrypted as never, onDecrypted as never);
+    return () => {
+        matrixClient?.off(RoomEvent.Timeline, onTimeline as never);
+        matrixClient?.off(
+            MatrixEventEvent.Decrypted as never,
+            onDecrypted as never,
+        );
+    };
 }
 
 // ── Polls (MSC3381) ────────────────────────────────────────────────────────
