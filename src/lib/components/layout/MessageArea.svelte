@@ -1086,8 +1086,11 @@
             <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
                 >#</span
             >
+            <!-- 5rem floor: the header's buttons cannot shrink, so without a floor
+                 the name and topic both get a proportional share of the deficit at
+                 412px and neither renders even an ellipsis. -->
             <h2
-                class="font-semibold text-discord-textPrimary min-w-0 truncate"
+                class="font-semibold text-discord-textPrimary min-w-[5rem] truncate"
                 title={roomName}
             >
                 {roomName}
