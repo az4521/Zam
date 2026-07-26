@@ -92,6 +92,50 @@ describe("modal slot ownership", () => {
         expect(interfaceState.modalClose).toBe(closeB);
         expect(interfaceState.lightboxOpen).toBe(true);
     });
+
+    // ---- Ordering invariant --------------------------------------------
+    // The three below pin detach-first: the outgoing close MUST run while the
+    // slot is empty. They fail against an install-first ordering, which is the
+    // point — the whole re-entrancy argument rests on this and nothing else
+    // in the suite discriminates between the two orderings.
+
+    it("runs the outgoing close against an empty slot", () => {
+        let observedModal: unknown = "unset";
+        let observedClose: unknown = "unset";
+        openModal("room-menu", () => {
+            observedModal = interfaceState.modal;
+            observedClose = interfaceState.modalClose;
+        });
+        const closeB = vi.fn();
+        openModal("space-menu", closeB);
+
+        expect(observedModal).toBeNull();
+        expect(observedClose).toBeNull();
+        expect(interfaceState.modal).toBe("space-menu");
+        expect(interfaceState.modalClose).toBe(closeB);
+    });
+
+    it("cannot be stranded by a re-entrant closeModal from the outgoing close", () => {
+        openModal("lightbox", () => closeModal());
+        const closeB = vi.fn();
+        const tokenB = openModal("room-menu", closeB);
+
+        expect(interfaceState.modal).toBe("room-menu");
+        expect(interfaceState.modalClose).toBe(closeB);
+        // The returned token must really own the slot, not a phantom.
+        expect(clearModalIfOwner(tokenB)).toBe(true);
+    });
+
+    it("leaves no phantom claim when the outgoing close throws", () => {
+        openModal("room-menu", () => {
+            throw new Error("teardown blew up");
+        });
+        expect(() => openModal("space-menu", () => {})).toThrow(
+            "teardown blew up",
+        );
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.modalClose).toBeNull();
+    });
 });
 
 describe("lightboxOpen mirrors the modal slot", () => {
@@ -144,6 +188,23 @@ describe("sidebar slot ownership", () => {
         const token = openSidebar("pinned", () => {});
         expect(clearSidebarIfOwner(token)).toBe(true);
         expect(interfaceState.sidebar).toBeNull();
+    });
+
+    // Same ordering invariant as the modal slot — see above.
+    it("runs the outgoing close against an empty slot", () => {
+        let observedSidebar: unknown = "unset";
+        let observedClose: unknown = "unset";
+        openSidebar("members", () => {
+            observedSidebar = interfaceState.sidebar;
+            observedClose = interfaceState.sidebarClose;
+        });
+        const closeB = vi.fn();
+        openSidebar("threads", closeB);
+
+        expect(observedSidebar).toBeNull();
+        expect(observedClose).toBeNull();
+        expect(interfaceState.sidebar).toBe("threads");
+        expect(interfaceState.sidebarClose).toBe(closeB);
     });
 });
 

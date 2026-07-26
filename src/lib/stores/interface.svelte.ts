@@ -107,23 +107,28 @@ export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
  * ORDERING CONTRACT: claim FIRST, then assign your local state. The outgoing
  * owner's `close()` runs synchronously inside this call, and on a same-id
  * handover that callback typically resets the very field you are about to set.
+ * That close runs while the slot is EMPTY, so a close handler must never
+ * assume the slot still names it.
  *
  * Keep the returned token and release with `clearModalIfOwner(token)` so a
  * stale instance can never null a slot someone else now owns.
  */
 export function openModal(id: ModalId, close: () => void): SlotToken {
+    // Release the slot BEFORE running the outgoing close: it then executes
+    // against an empty slot and cannot clobber (or be clobbered by) the
+    // incoming owner, whatever it does — including re-entering this API.
     const prev = interfaceState.modalClose;
-    // Detach the outgoing handler before invoking it so a re-entrant
-    // closeModal() cannot run it a second time.
+    modalToken = 0;
+    interfaceState.modal = null;
     interfaceState.modalClose = null;
+    interfaceState.lightboxOpen = false;
+    prev?.();
+
     const token = nextSlotToken++;
     modalToken = token;
     interfaceState.modal = id;
     interfaceState.modalClose = close;
     interfaceState.lightboxOpen = id === "lightbox";
-    // Runs last: the outgoing owner's teardown sees the new owner installed,
-    // so its clearModalIfOwner is a no-op instead of a clobber.
-    prev?.();
     return token;
 }
 
@@ -163,13 +168,17 @@ export function showChatView(): void {
 /** Claim the side-panel slot, returning this occupancy's token. Same ownership
  *  and ordering rules as `openModal`. */
 export function openSidebar(id: SidebarId, close: () => void): SlotToken {
+    // Release the slot BEFORE running the outgoing close — see `openModal`.
     const prev = interfaceState.sidebarClose;
+    sidebarToken = 0;
+    interfaceState.sidebar = null;
     interfaceState.sidebarClose = null;
+    prev?.();
+
     const token = nextSlotToken++;
     sidebarToken = token;
     interfaceState.sidebar = id;
     interfaceState.sidebarClose = close;
-    prev?.();
     return token;
 }
 
@@ -182,6 +191,9 @@ export function closeSidebar(): void {
     close?.();
 }
 
+// No call sites today — both openSidebar callers drop the token. Kept
+// deliberately for parity with the modal slot, so a panel that later needs to
+// self-release has the same safe primitive. NOT dead code to sweep.
 /** Release the sidebar slot if `token` still owns it, without re-running its
  *  close handler. Returns whether the slot was released. */
 export function clearSidebarIfOwner(token: SlotToken): boolean {
