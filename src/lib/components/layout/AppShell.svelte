@@ -125,6 +125,11 @@
     import { previewForEvent } from "$lib/utils/encryptionState";
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
+    import {
+        notificationsToClose,
+        appendPostedEventId,
+        type PostedNotificationEntry,
+    } from "$lib/utils/notificationDismiss";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -440,6 +445,38 @@
         void publishActiveSession(grace).catch(() => {});
     }
 
+    // roomId → the live OS notification for that room, plus the events it has
+    // covered. Message notifications are tagged per ROOM (not per event, as
+    // they were), so a room shows one collapsing notification and closing it
+    // when the user reads elsewhere is a single lookup. Same shape as
+    // `notifiedCalls` below. A plain Map on purpose: it is read from
+    // notification callbacks and from an $effect, and making it reactive
+    // would turn a close() into a dependency of the effect that triggers it.
+    const postedRoomNotifications = new Map<
+        string,
+        { notification: Notification; eventIds: string[] }
+    >();
+
+    /** Snapshot for the pure rule — the Map itself never leaves this file. */
+    function postedEntries(): PostedNotificationEntry[] {
+        return [...postedRoomNotifications.entries()].map(
+            ([roomId, entry]) => ({ roomId, eventIds: entry.eventIds }),
+        );
+    }
+
+    function closeRoomNotifications(roomIds: readonly string[]) {
+        for (const roomId of roomIds) {
+            const entry = postedRoomNotifications.get(roomId);
+            if (!entry) continue;
+            postedRoomNotifications.delete(roomId);
+            try {
+                entry.notification.close();
+            } catch {
+                /* already gone — nothing to do */
+            }
+        }
+    }
+
     // Show an OS desktop notification via the Web Notification API. Works in the
     // browser and in Electron (which maps it to a native notification) with no
     // push service. Suppressed when the user is already viewing that room in a
@@ -461,19 +498,43 @@
         )
             return;
         const sender = getMemberName(room, event.getSender() ?? "");
+        const eventId = event.getId();
         try {
             const n = new Notification(getRoomDisplayName(room), {
                 body: body ? `${sender}: ${body}` : `${sender} sent a message`,
                 icon: "/favicon.png",
                 badge: "/favicon_foreground.png",
-                tag: event.getId() ?? undefined,
-            });
+                // Per ROOM, not per event: a room shows one collapsing
+                // notification instead of a growing stack, and "close what
+                // they've now read" becomes one lookup. `renotify` keeps the
+                // OS alerting on each replacement, which is what a per-event
+                // tag used to give for free. It is a persistent-notification
+                // option, so TypeScript's NotificationOptions omits it —
+                // browsers that don't honour it simply replace silently.
+                tag: `room:${room.roomId}`,
+                renotify: true,
+            } as NotificationOptions);
             n.onclick = () => {
                 // window.focus() alone cannot un-hide a tray-hidden Electron
                 // window; restoreAppWindow() prefers the preload bridge.
                 restoreAppWindow();
                 navigateToRoom(room.roomId);
             };
+            // The user dismissing it themselves must drop it from the map, or
+            // a later close() would target a dead notification forever.
+            n.onclose = () => {
+                if (
+                    postedRoomNotifications.get(room.roomId)?.notification === n
+                )
+                    postedRoomNotifications.delete(room.roomId);
+            };
+            const previous = postedRoomNotifications.get(room.roomId);
+            postedRoomNotifications.set(room.roomId, {
+                notification: n,
+                eventIds: eventId
+                    ? appendPostedEventId(previous?.eventIds ?? [], eventId)
+                    : (previous?.eventIds ?? []),
+            });
         } catch {
             /* notifications unsupported / blocked — ignore */
         }
@@ -624,6 +685,22 @@
                 notifiedCalls.get(roomId)?.close();
                 notifiedCalls.delete(roomId);
             }
+    });
+
+    // Opening a room is reading it: drop its notification without waiting for
+    // the read receipt to round-trip. Safe in a tracked effect — the only
+    // reactive read is activeRoomId, and closeRoomNotifications touches a
+    // plain Map and the Notification API, never the SDK.
+    $effect(() => {
+        const openRoomId = roomsState.activeRoomId;
+        if (!openRoomId) return;
+        closeRoomNotifications(
+            notificationsToClose({
+                posted: postedEntries(),
+                readEventIds: new Set<string>(),
+                openRoomId,
+            }),
+        );
     });
 
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -901,6 +978,28 @@
             for (const room of client.getRooms()) {
                 clearReadNotifications(room, userId);
             }
+            // …and take the OS notifications down too. A receipt from ANY of
+            // the user's devices lands here, which is the whole point: read it
+            // on your phone, the desktop popup goes away.
+            const readEventIds = new Set<string>();
+            for (const [roomId, entry] of postedRoomNotifications) {
+                const room = getRoom(roomId);
+                if (!room) continue;
+                for (const id of entry.eventIds) {
+                    try {
+                        if (room.hasUserReadEvent(userId, id))
+                            readEventIds.add(id);
+                    } catch {
+                        /* event unknown to the room → treat as unread */
+                    }
+                }
+            }
+            closeRoomNotifications(
+                notificationsToClose({
+                    posted: postedEntries(),
+                    readEventIds,
+                }),
+            );
         });
         reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
