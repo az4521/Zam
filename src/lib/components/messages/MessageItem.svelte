@@ -141,11 +141,15 @@
     let emojiPickerEl: HTMLDivElement | undefined = $state();
 
     function openReactionPicker() {
-        showEmojiPicker = true;
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("reaction-picker", () => {
             showEmojiPicker = false;
-            interfaceState.selectedMessageId = null;
+            // Only release the selection if it is still ours: a handover to
+            // another message row must not clear that row's selection.
+            if (interfaceState.selectedMessageId === eventId)
+                interfaceState.selectedMessageId = null;
         });
+        showEmojiPicker = true;
     }
 
     $effect(() => {
@@ -167,11 +171,14 @@
     let previousTap: TapPoint | null = null;
 
     function openForwardDialog() {
-        showForwardDialog = true;
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("forward-message", () => {
             showForwardDialog = false;
-            interfaceState.selectedMessageId = null;
+            // Only release the selection if it is still ours.
+            if (interfaceState.selectedMessageId === eventId)
+                interfaceState.selectedMessageId = null;
         });
+        showForwardDialog = true;
     }
 
     async function runDoubleTapAction() {

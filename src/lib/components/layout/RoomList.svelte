@@ -172,8 +172,9 @@
         y: number,
         touch: boolean,
     ) {
-        contextMenu = { roomId, x, y, touch };
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("room-menu", () => (contextMenu = null));
+        contextMenu = { roomId, x, y, touch };
     }
 
     // Call-roster participant menu. Claims the shared modal slot so Escape /
@@ -453,8 +454,9 @@
     let accountSwitcherOpen = $state(false);
 
     function openAccountSwitcher() {
-        accountSwitcherOpen = true;
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("account-switcher", () => (accountSwitcherOpen = false));
+        accountSwitcherOpen = true;
     }
 
     // ── Reorder mode (edit-mode drag + raw-order field) ─────────────────────
