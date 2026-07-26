@@ -100,11 +100,19 @@
         onDecryptedTimelineEvent,
         isThreadParticipant,
         getEventThreadRootId,
+        getOwnDeviceId,
+        publishActiveSession,
     } from "$lib/matrix/client";
     import {
         shouldNotifyDecrypted,
         createBoundedIdSet,
     } from "$lib/utils/notifyDecrypted";
+    import {
+        MIN_HEARTBEAT_INTERVAL_MS,
+        heartbeatIntervalFor,
+        normalizeGraceMs,
+        shouldWriteHeartbeat,
+    } from "$lib/utils/activeSession";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
@@ -364,6 +372,37 @@
         return false;
     }
 
+    // ── Active-session heartbeat ──────────────────────────────────────────
+    // While this window is focused we publish "this device is in use" to
+    // account data; the user's OTHER devices read it and stay quiet for
+    // `graceMs`. Deliberately NOT an $effect — this is an SDK write, and SDK
+    // writes inside tracked effects have deadlocked this app before.
+    let lastHeartbeatWriteTs: number | null = null;
+
+    function maybeWriteHeartbeat() {
+        // publishActiveSession() silently no-ops before login (no client / no
+        // device id). Bail here instead, so we don't stamp a write that never
+        // happened and then sit out a whole interval.
+        if (!getOwnDeviceId()) return;
+        const grace = normalizeGraceMs(settingsState.activeSessionGraceMs);
+        if (
+            !shouldWriteHeartbeat({
+                lastWriteTs: lastHeartbeatWriteTs,
+                now: Date.now(),
+                hasFocus: document.hasFocus(),
+                // NOT the bare HEARTBEAT_INTERVAL_MS constant: a 15s grace
+                // needs a faster refresh than 30s or the blob expires while
+                // the device is still in use and suppression flaps.
+                intervalMs: heartbeatIntervalFor(grace),
+            })
+        )
+            return;
+        lastHeartbeatWriteTs = Date.now();
+        // Fire-and-forget: a failed heartbeat just means other devices keep
+        // notifying, which is the safe direction.
+        publishActiveSession(grace).catch(() => {});
+    }
+
     // Show an OS desktop notification via the Web Notification API. Works in the
     // browser and in Electron (which maps it to a native notification) with no
     // push service. Suppressed when the user is already viewing that room in a
@@ -616,6 +655,19 @@
             }).catch(() => {});
         }
 
+        // Publish the heartbeat now (if focused), on every focus gain, and on
+        // a cheap fixed tick. The TICK is deliberately shorter than any write
+        // interval — maybeWriteHeartbeat() no-ops until the grace-derived
+        // interval has actually elapsed, so the effective write rate follows
+        // the user's current setting without re-creating the timer.
+        maybeWriteHeartbeat();
+        const onWindowFocus = () => maybeWriteHeartbeat();
+        window.addEventListener("focus", onWindowFocus);
+        const heartbeatTimer = window.setInterval(
+            maybeWriteHeartbeat,
+            MIN_HEARTBEAT_INTERVAL_MS,
+        );
+
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
         (window as any).__matrixOpenRoom = (roomId: string) => {
@@ -839,6 +891,8 @@
             mq.removeEventListener("change", onMqChange);
             pq.removeEventListener("change", onPqHqChange);
             hq.removeEventListener("change", onPqHqChange);
+            window.removeEventListener("focus", onWindowFocus);
+            window.clearInterval(heartbeatTimer);
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
