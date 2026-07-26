@@ -62,11 +62,15 @@
     }
 
     let graceSaveError = $state(false);
+    let graceSavePending = $state(false);
 
-    async function pickActiveSessionGrace(raw: string) {
-        const grace = normalizeGraceMs(Number(raw));
-        setActiveSessionGraceMs(grace);
+    /** Shared by the picker and the retry button: re-picking the option that
+     *  is already selected fires no `change`, so a failed save needs its own
+     *  way back. That matters most for "Off" (0) — the heartbeat writer stops
+     *  republishing once the grace is 0, so nothing else would ever retry it. */
+    async function publishGrace(grace: number) {
         graceSaveError = false;
+        graceSavePending = true;
         try {
             // The account-data write is what carries the choice to the user's
             // other devices, the service worker and the Android service — it
@@ -76,7 +80,15 @@
             await publishActiveSession(grace);
         } catch {
             graceSaveError = true;
+        } finally {
+            graceSavePending = false;
         }
+    }
+
+    async function pickActiveSessionGrace(raw: string) {
+        const grace = normalizeGraceMs(Number(raw));
+        setActiveSessionGraceMs(grace);
+        await publishGrace(grace);
     }
 
     const selectClass =
@@ -342,10 +354,20 @@
             </select>
         </div>
         {#if graceSaveError}
-            <p class="text-sm text-discord-danger mt-2">
-                Couldn't save to your account — your other devices may keep the
-                old setting. Check your connection and try again.
-            </p>
+            <div class="flex items-start gap-2 mt-2">
+                <p class="flex-1 min-w-0 text-sm text-discord-danger">
+                    Couldn't save to your account — your other devices may keep
+                    the old setting. Check your connection and try again.
+                </p>
+                <button
+                    onclick={() =>
+                        publishGrace(settingsState.activeSessionGraceMs)}
+                    disabled={graceSavePending}
+                    aria-label="Retry saving the other-device quiet setting"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+                    >{graceSavePending ? "Retrying…" : "Retry"}</button
+                >
+            </div>
         {/if}
     </section>
 
