@@ -75,6 +75,7 @@
     } from "$lib/utils/timelineDisplay";
     import { daySeparator } from "$lib/utils/timeFormat";
     import { canSendReceipt } from "$lib/utils/receiptGate";
+    import { createBackfillGate } from "$lib/utils/backfillGate";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
@@ -99,7 +100,11 @@
     let messageInputEl: ReturnType<typeof MessageInput> | undefined = $state();
     let isAtBottom = $state(true);
     let loadingOlder = $state(false);
-    let backfilling = false;
+    // Shared by backfillFromTop and recoverScrollback. Not a plain boolean: a
+    // request that arrives while it's held must be remembered and re-run, or a
+    // room opened during another room's pagination renders empty forever (the
+    // sentinel observer won't re-fire without an intersection transition).
+    const backfillGate = createBackfillGate();
     let replyToEvent = $state<MatrixEvent | null>(null);
     let editRequestedEventId = $state<string | null>(null);
     let threadRootId = $state<string | null>(null);
@@ -706,8 +711,10 @@
         prevOldestId: string,
         anchor: { eventId: string; top: number } | null,
     ) {
-        if (backfilling) return;
-        backfilling = true; // keep the top-sentinel observer from interleaving
+        // Same gate as backfillFromTop, so the top-sentinel observer can't
+        // interleave — and so a fill request swallowed during this recovery is
+        // re-run once we're done instead of being lost.
+        if (!backfillGate.tryEnter()) return;
         try {
             for (let i = 0; i < RECOVERY_MAX_BATCHES; i++) {
                 if (
@@ -734,7 +741,7 @@
                     el.getBoundingClientRect().top - anchor.top;
             }
         } finally {
-            backfilling = false;
+            if (backfillGate.exit()) void backfillFromTop();
         }
     }
 
@@ -962,8 +969,8 @@
     // the viewport". Driven by the IntersectionObserver and the explicit fill
     // points (room open, sync prepared, timeline reset).
     async function backfillFromTop() {
-        if (backfilling || isContextView) return;
-        backfilling = true;
+        if (isContextView) return; // never queue a request the context view won't serve
+        if (!backfillGate.tryEnter()) return;
         try {
             await tick();
             let guard = 0;
@@ -977,7 +984,9 @@
                 await tick();
             }
         } finally {
-            backfilling = false;
+            // A request arrived while we held the gate (typically this room's
+            // own first fill, swallowed by the previous room's loop): serve it.
+            if (backfillGate.exit()) void backfillFromTop();
         }
     }
 
