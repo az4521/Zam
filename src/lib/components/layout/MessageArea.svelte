@@ -82,7 +82,7 @@
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
-    import { Phone, Volume2, Lock } from "lucide-svelte";
+    import { Phone, Volume2, Lock, Hash } from "lucide-svelte";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
@@ -1084,9 +1084,7 @@
                     {/if}
                 </button>
             {/if}
-            <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
-                >#</span
-            >
+            <Hash size={20} class="text-discord-textMuted flex-shrink-0" />
             <h2 class="font-semibold text-discord-textPrimary">
                 {@html renderPlainTextWithTwemoji(roomName)}
             </h2>

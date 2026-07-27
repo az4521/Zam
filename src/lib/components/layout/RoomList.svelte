@@ -44,7 +44,7 @@
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { MicOff, GripVertical } from "lucide-svelte";
+    import { MicOff, GripVertical, Hash, Circle } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -924,9 +924,10 @@
                             ></span>
                         {:else}
                             <span
-                                class="w-5 h-5 opacity-70 font-semibold flex items-center justify-center text-[0.8rem]"
-                                >#</span
+                                class="w-5 h-5 opacity-70 flex items-center justify-center"
                             >
+                                <Hash size={14} />
+                            </span>
                         {/if}
                     </div>
                     <!-- Tick dependency: names change by in-place Room
@@ -1097,9 +1098,10 @@
                     >
                         <!-- Channel icon -->
                         <span
-                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 font-semibold flex items-center justify-center"
-                            >#</span
+                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
                         >
+                            <Hash size={16} />
+                        </span>
 
                         <!-- Name + member count -->
                         <div class="flex-1 min-w-0">
@@ -1462,9 +1464,12 @@
                     class:text-discord-textSecondary={currentSetting !== val}
                     class:hover:bg-discord-messageHover={true}
                 >
-                    <span class="w-3 text-center text-xs"
-                        >{currentSetting === val ? "●" : ""}</span
-                    >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if currentSetting === val}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
                     {label}
                 </button>
             {/each}
@@ -1480,9 +1485,12 @@
                     class:text-discord-textSecondary={activeTagKind !== kind}
                     class:hover:bg-discord-messageHover={true}
                 >
-                    <span class="w-3 text-center text-xs"
-                        >{activeTagKind === kind ? "●" : ""}</span
-                    >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if activeTagKind === kind}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
                     {label}
                 </button>
             {/each}

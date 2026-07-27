@@ -13,6 +13,7 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { pinnedDate } from "$lib/utils/timeFormat";
+    import { Circle } from "lucide-svelte";
 
     interface Props {
         room: Room;
@@ -119,9 +120,11 @@
                             >
                             {#if item.participated}
                                 <span
-                                    class="text-xs text-discord-accent flex-shrink-0"
-                                    title="You participated">•</span
+                                    class="text-discord-accent flex-shrink-0 flex items-center"
+                                    title="You participated"
                                 >
+                                    <Circle size={8} fill="currentColor" />
+                                </span>
                             {/if}
                             {#if badge === "mention"}
                                 <span

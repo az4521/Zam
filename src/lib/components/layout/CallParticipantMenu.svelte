@@ -27,6 +27,7 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { Circle } from "lucide-svelte";
 
     interface Props {
         room: Room;
@@ -171,8 +172,9 @@
             aria-pressed={audio.muted}
             class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
-            <span class="w-3 text-center text-xs">{audio.muted ? "●" : ""}</span
-            >
+            <span class="w-3 flex items-center justify-center">
+                {#if audio.muted}<Circle size={8} fill="currentColor" />{/if}
+            </span>
             Mute
         </button>
 
