@@ -1459,6 +1459,7 @@
             {#each [["default", "Default"], ["all", "All Messages"], ["mentions", "Mentions Only"], ["mute", "Mute"]] as const as [val, label]}
                 <button
                     onclick={() => handleSetNotification(cm.roomId, val)}
+                    aria-pressed={currentSetting === val}
                     class="w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
                     class:text-discord-textPrimary={currentSetting === val}
                     class:text-discord-textSecondary={currentSetting !== val}
@@ -1480,6 +1481,7 @@
             {#each [["favourite", "Favourite"], ["lowPriority", "Low Priority"]] as const as [kind, label]}
                 <button
                     onclick={() => handleToggleTag(cm.roomId, kind)}
+                    aria-pressed={activeTagKind === kind}
                     class="w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
                     class:text-discord-textPrimary={activeTagKind === kind}
                     class:text-discord-textSecondary={activeTagKind !== kind}

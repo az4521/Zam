@@ -1507,6 +1507,7 @@
                                 cm.spaceId,
                                 val as RoomNotificationSetting,
                             )}
+                        aria-pressed={currentNotif === val}
                         class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
                     >
                         <span class="w-3 flex items-center justify-center">
