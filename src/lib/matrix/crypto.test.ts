@@ -155,7 +155,9 @@ describe("getEventShield", () => {
         h.getClient.mockReturnValue(client);
         await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
         mod.clearEventShieldCache();
-        return mod;
+        // The client comes back too so a test can fish the handler the module
+        // registered for a given crypto event out of `client.on.mock.calls`.
+        return { mod, client };
     }
 
     const evt = (id: string) => ({ getId: () => id }) as never;
@@ -169,7 +171,7 @@ describe("getEventShield", () => {
         const spy = vi.fn(() =>
             Promise.resolve({ shieldColour: 1, shieldReason: 2 }),
         );
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await expect(mod.getEventShield(evt("$a"))).resolves.toEqual({
             colour: 1,
             reason: 2,
@@ -178,13 +180,13 @@ describe("getEventShield", () => {
 
     it("returns null when the event is unencrypted or not yet decrypted", async () => {
         const spy = vi.fn(() => Promise.resolve(null));
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await expect(mod.getEventShield(evt("$b"))).resolves.toBeNull();
     });
 
     it("never throws when the crypto layer rejects", async () => {
         const spy = vi.fn(() => Promise.reject(new Error("boom")));
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await expect(mod.getEventShield(evt("$c"))).resolves.toBeNull();
     });
 
@@ -192,7 +194,7 @@ describe("getEventShield", () => {
         const spy = vi.fn(() =>
             Promise.resolve({ shieldColour: 2, shieldReason: 7 }),
         );
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await mod.getEventShield(evt("$d"));
         await mod.getEventShield(evt("$d"));
         expect(spy).toHaveBeenCalledTimes(1);
@@ -200,7 +202,7 @@ describe("getEventShield", () => {
 
     it("does NOT memoise null — an undecrypted event must be re-checked", async () => {
         const spy = vi.fn(() => Promise.resolve(null));
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await mod.getEventShield(evt("$e"));
         await mod.getEventShield(evt("$e"));
         expect(spy).toHaveBeenCalledTimes(2);
@@ -210,7 +212,7 @@ describe("getEventShield", () => {
         const spy = vi.fn(() =>
             Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
         );
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await mod.getEventShield(evt("$f"));
         mod.clearEventShieldCache();
         await mod.getEventShield(evt("$f"));
@@ -221,11 +223,112 @@ describe("getEventShield", () => {
         const spy = vi.fn(() =>
             Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
         );
-        const mod = await bootWithShield(spy);
+        const { mod } = await bootWithShield(spy);
         await expect(
             mod.getEventShield({ getId: () => undefined } as never),
         ).resolves.toBeNull();
         expect(spy).not.toHaveBeenCalled();
+    });
+
+    // The point of the feature: a shield must not survive the trust change that
+    // invalidates it. Asserting the events are merely *subscribed* would still
+    // pass if the handler stopped dropping the memo, so drive the real handler.
+    it("drops the memo when a trust event actually fires", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const { mod, client } = await bootWithShield(spy);
+        await mod.getEventShield(evt("$g"));
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        // The handler the module registered for a device verification.
+        const handler = client.on.mock.calls.find(
+            (c) => c[0] === "userTrustStatusChanged",
+        )?.[1] as (() => void) | undefined;
+        expect(handler).toBeTypeOf("function");
+        handler?.();
+
+        await mod.getEventShield(evt("$g"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it("also drops the memo on a device-list update", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const { mod, client } = await bootWithShield(spy);
+        await mod.getEventShield(evt("$g2"));
+
+        const handler = client.on.mock.calls.find(
+            (c) => c[0] === "crypto.devicesUpdated",
+        )?.[1] as (() => void) | undefined;
+        expect(handler).toBeTypeOf("function");
+        handler?.();
+
+        await mod.getEventShield(evt("$g2"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    // Mirrors EVENT_SHIELD_CACHE_MAX in crypto.ts (not exported on purpose —
+    // it's an implementation detail, but "bounded" is a hard requirement).
+    it("evicts the oldest entry once the cache is full", async () => {
+        const CAP = 1000;
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const { mod } = await bootWithShield(spy);
+        for (let i = 0; i <= CAP; i++) {
+            await mod.getEventShield(evt(`$cap-${i}`));
+        }
+        expect(spy).toHaveBeenCalledTimes(CAP + 1);
+
+        // The newest entry is still memoised...
+        await mod.getEventShield(evt(`$cap-${CAP}`));
+        expect(spy).toHaveBeenCalledTimes(CAP + 1);
+
+        // ...but the oldest was evicted to make room for it.
+        await mod.getEventShield(evt("$cap-0"));
+        expect(spy).toHaveBeenCalledTimes(CAP + 2);
+    });
+
+    it("returns null when crypto isn't ready", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const { mod } = await bootWithShield(spy);
+
+        // Crypto went away (account switch / rust-crypto never initialised).
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        await expect(mod.getEventShield(evt("$h"))).resolves.toBeNull();
+
+        // And with no client at all, the optional chain has to hold.
+        h.getClient.mockReturnValue(null);
+        await expect(mod.getEventShield(evt("$h2"))).resolves.toBeNull();
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("passes a null shieldReason straight through", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: null }),
+        );
+        const { mod } = await bootWithShield(spy);
+        await expect(mod.getEventShield(evt("$i"))).resolves.toEqual({
+            colour: 1,
+            reason: null,
+        });
+    });
+
+    // The `?? null` normalisation: `reason` is typed `number | null` for the
+    // pure view-model, so a missing/undefined reason must not leak through as
+    // `undefined`. (The SDK types it `| null`, so this is belt-and-braces.)
+    it("normalises a missing shieldReason to null", async () => {
+        const spy = vi.fn(() => Promise.resolve({ shieldColour: 2 }));
+        const { mod } = await bootWithShield(spy);
+        await expect(mod.getEventShield(evt("$j"))).resolves.toEqual({
+            colour: 2,
+            reason: null,
+        });
     });
 });
 
