@@ -24,6 +24,7 @@ import {
     M_BEACON,
     M_BEACON_INFO,
     ContentHelpers,
+    Filter,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -146,6 +147,11 @@ import {
     buildPollStart,
     buildPollEnd,
 } from "$lib/utils/pollContent";
+import {
+    mediaItemFromEvent,
+    mediaFilterDefinition,
+    type RoomMediaItem,
+} from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
@@ -165,6 +171,7 @@ import {
     initCrypto,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
+    isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
@@ -3360,6 +3367,66 @@ export async function searchRoomMessagesMore(
 ): Promise<ISearchResults | null> {
     if (!matrixClient) return null;
     return matrixClient.backPaginateRoomEventsSearch(results);
+}
+
+/** One page of a room's media, newest first. `nextToken` is null at the end. */
+export interface RoomMediaPage {
+    items: RoomMediaItem[];
+    nextToken: string | null;
+}
+
+/**
+ * Fetch one backwards page of a room's image/video/file/audio attachments.
+ *
+ * Paginated on purpose — a room's whole history is never loaded. In an
+ * encrypted room the page arrives as m.room.encrypted and has to be decrypted
+ * here before the pure mapper can see a msgtype, which is also why the server
+ * filter differs (see mediaFilterDefinition).
+ */
+export async function fetchRoomMediaPage(
+    roomId: string,
+    fromToken: string | null,
+    limit = 40,
+): Promise<RoomMediaPage> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
+
+    const filter = new Filter(matrixClient.getUserId());
+    filter.setDefinition(mediaFilterDefinition(encrypted, limit));
+
+    const res = await matrixClient.createMessagesRequest(
+        roomId,
+        fromToken,
+        limit,
+        Direction.Backward,
+        filter,
+    );
+
+    const items: RoomMediaItem[] = [];
+    for (const raw of res.chunk ?? []) {
+        const event = new MatrixEvent(raw);
+        if (event.getType() === "m.room.encrypted") {
+            try {
+                await matrixClient.decryptEventIfNeeded(event);
+            } catch {
+                // A key we never received: skip rather than fail the page.
+                continue;
+            }
+        }
+        const item = mediaItemFromEvent({
+            eventId: event.getId(),
+            sender: event.getSender(),
+            ts: event.getTs(),
+            type: event.getType(),
+            content: event.getContent() as Record<string, unknown>,
+        });
+        if (item) items.push(item);
+    }
+
+    // The server echoes `end` even when exhausted; an empty chunk is the real
+    // end-of-history signal.
+    const nextToken = (res.chunk ?? []).length === 0 ? null : (res.end ?? null);
+    return { items, nextToken };
 }
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
