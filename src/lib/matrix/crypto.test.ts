@@ -160,7 +160,10 @@ describe("getEventShield", () => {
         return { mod, client };
     }
 
-    const evt = (id: string) => ({ getId: () => id }) as never;
+    // A remote (already-sent) event. `status` is null on everything that came
+    // down /sync — only local echo carries an EventStatus, which the wrapper
+    // refuses to memoise.
+    const evt = (id: string) => ({ getId: () => id, status: null }) as never;
 
     beforeEach(() => {
         vi.resetModules();
@@ -329,6 +332,69 @@ describe("getEventShield", () => {
             colour: 2,
             reason: null,
         });
+    });
+
+    // The write happens after an await, so an invalidation can land mid-flight.
+    // A verdict fetched before a trust change must not be written back into the
+    // freshly-cleared map — that is exactly the identity-change case the shield
+    // exists to surface, and a poisoned entry hides it until some unrelated
+    // trust event fires.
+    it("does not re-poison the cache with a fetch that was in flight when it was cleared", async () => {
+        let settle: (info: unknown) => void = () => {};
+        const inFlight = new Promise((resolve) => {
+            settle = resolve;
+        });
+        const spy = vi.fn(() => inFlight);
+        const { mod } = await bootWithShield(spy);
+
+        const pending = mod.getEventShield(evt("$k"));
+        // Trust changed while the crypto round trip was still outstanding.
+        mod.clearEventShieldCache();
+        settle({ shieldColour: 1, shieldReason: 1 });
+
+        // The caller that asked still gets its answer...
+        await expect(pending).resolves.toEqual({ colour: 1, reason: 1 });
+
+        // ...but it must not have survived the invalidation boundary.
+        await mod.getEventShield(evt("$k"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    // Session expiry returns to the login view IN PLACE with no reload
+    // (+page.svelte), then re-inits crypto in the same JS context against a
+    // fresh crypto store — one that knows nothing about sender devices. A memo
+    // carried across that boundary serves pre-expiry verdicts and under-warns.
+    it("drops the memo when crypto re-initialises in the same JS context", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const { mod, client } = await bootWithShield(spy);
+        await mod.getEventShield(evt("$l"));
+        expect(spy).toHaveBeenCalledTimes(1);
+
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+
+        await mod.getEventShield(evt("$l"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    // Local echo: the SDK short-circuits outgoing events to a NONE shield
+    // without consulting the crypto store, and the id is a transaction id the
+    // remote echo replaces. Caching it is dead weight that evicts real verdicts.
+    it("does not memoise local echo, whose id is about to be replaced", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 0, shieldReason: null }),
+        );
+        const { mod } = await bootWithShield(spy);
+        const echo = {
+            getId: () => "~!room:example.org:txn1",
+            status: "sending",
+        } as never;
+
+        await mod.getEventShield(echo);
+        await mod.getEventShield(echo);
+
+        expect(spy).toHaveBeenCalledTimes(2);
     });
 });
 

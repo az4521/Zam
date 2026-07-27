@@ -82,6 +82,11 @@ export async function initCrypto(
     deviceId: string,
 ): Promise<void> {
     cryptoAvailable = false;
+    // Session expiry drops back to the login view in place (no reload), so a
+    // re-login re-enters here in the same JS context — against a fresh crypto
+    // store that knows nothing about sender devices. Verdicts memoised for the
+    // old session would be served for the same event ids and under-warn.
+    clearEventShieldCache();
     try {
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
@@ -547,13 +552,20 @@ export interface EventShieldInfo {
 const EVENT_SHIELD_CACHE_MAX = 1000;
 const eventShieldCache = new Map<string, EventShieldInfo>();
 
+// Bumped on every invalidation so a fetch that was already in flight can tell
+// that the world changed under it and decline to write its stale verdict back.
+let shieldCacheEpoch = 0;
+
 /**
  * Drop every memoised shield verdict. Called from the security-event handler
- * (a verification or device-list update invalidates every shield at once) and
+ * (a verification or device-list update invalidates every shield at once), from
+ * `initCrypto` (session expiry returns to login in place, with no reload, so a
+ * memo would otherwise outlive the crypto store it was computed against), and
  * available to tests.
  */
 export function clearEventShieldCache(): void {
     eventShieldCache.clear();
+    shieldCacheEpoch++;
 }
 
 /**
@@ -573,6 +585,13 @@ export async function getEventShield(
 
     const crypto = getClient()?.getCrypto();
     if (!crypto) return null;
+    // Snapshot the epoch BEFORE the round trip. If trust changes while we are
+    // in flight the map is cleared under us, and writing this now-stale verdict
+    // back would hide the very change the shield exists to surface (the rust
+    // callback fires after the store commit, so an identity change can easily
+    // land mid-fetch). The value is still right for the caller that asked, so
+    // it is returned either way — just not persisted across the boundary.
+    const epoch = shieldCacheEpoch;
     try {
         const info = await crypto.getEncryptionInfoForEvent(event);
         if (!info) return null;
@@ -580,11 +599,17 @@ export async function getEventShield(
             colour: info.shieldColour,
             reason: info.shieldReason ?? null,
         };
-        if (eventShieldCache.size >= EVENT_SHIELD_CACHE_MAX) {
-            const oldest = eventShieldCache.keys().next().value;
-            if (oldest !== undefined) eventShieldCache.delete(oldest);
+        // Local echo (`status !== null`) is skipped: the SDK short-circuits
+        // outgoing events to a NONE shield without consulting the crypto store,
+        // and the id is a transaction id that the remote echo replaces — so the
+        // entry is instantly orphaned and would evict a real verdict.
+        if (epoch === shieldCacheEpoch && event.status === null) {
+            if (eventShieldCache.size >= EVENT_SHIELD_CACHE_MAX) {
+                const oldest = eventShieldCache.keys().next().value;
+                if (oldest !== undefined) eventShieldCache.delete(oldest);
+            }
+            eventShieldCache.set(eventId, reduced);
         }
-        eventShieldCache.set(eventId, reduced);
         return reduced;
     } catch {
         return null;
