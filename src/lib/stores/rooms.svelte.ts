@@ -90,6 +90,14 @@ export function bumpUnreadTick(): void {
 }
 
 /**
+ * A surface choice we could not make yet because the room was not loaded.
+ * Deliberately a plain `let`, not part of `roomsState`: reading it must never
+ * make a tracked scope depend on it, or settling a boot choice would ripple
+ * through the whole app's reactivity for something no UI renders.
+ */
+let pendingSurfaceRoomId: string | null = null;
+
+/**
  * Pick the surface a room opens on. A video room's purpose IS the call, so it
  * lands on the call view — peeking, never auto-joining (`showCallView`'s own
  * contract) — while everything else lands on its timeline. Every navigation
@@ -97,14 +105,42 @@ export function bumpUnreadTick(): void {
  * reach it: sidebar click, space switch, inbox jump, boot restore, or account
  * switch.
  *
- * A room we do not have locally yet (`getRoom` null) falls back to the
- * timeline: the wrong surface for two frames is recoverable, and it keeps this
- * from depending on sync timing.
+ * Boot restore does NOT resolve here, and cannot: the app shell mounts as soon
+ * as the session is authenticated, and at that moment the SDK has no `Room`
+ * objects at all — the persisted sync is only turned into rooms once
+ * `startClient` runs its first sync pass. So an unknown room id is *remembered*
+ * rather than decided, the timeline stands in meanwhile (the pre-existing
+ * behaviour, never worse), and `resolvePendingSurface` settles it as soon as
+ * the room actually exists.
  */
 function applyDefaultSurface(roomId: string | null): void {
     const room = roomId ? getRoom(roomId) : null;
+    if (roomId && !room) {
+        pendingSurfaceRoomId = roomId;
+        interfaceState.callViewRoomId = null;
+        return;
+    }
+    pendingSurfaceRoomId = null;
     interfaceState.callViewRoomId =
         room && isVideoRoom(room) ? room.roomId : null;
+}
+
+/**
+ * Settle a surface choice that boot could not make. Cheap enough to call on
+ * every room-list rebuild, and guarded so it can only ever help: it does
+ * nothing unless the user is still sitting on the very room whose surface was
+ * deferred, so someone who flipped to the timeline or navigated away is never
+ * yanked into a call view after the fact. Resolving once clears the deferral;
+ * a room that still is not loaded stays pending for the next rebuild.
+ */
+export function resolvePendingSurface(): void {
+    if (pendingSurfaceRoomId === null) return;
+    if (pendingSurfaceRoomId !== roomsState.activeRoomId) {
+        pendingSurfaceRoomId = null;
+        return;
+    }
+    if (!getRoom(pendingSurfaceRoomId)) return;
+    applyDefaultSurface(pendingSurfaceRoomId);
 }
 
 export function setActiveSpace(

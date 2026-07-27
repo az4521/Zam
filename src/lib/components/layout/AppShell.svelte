@@ -23,6 +23,7 @@
         navigateToRoom,
         bumpUnreadTick,
         reloadLastLocationFromStorage,
+        resolvePendingSurface,
     } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -564,6 +565,9 @@
             roomsState.roomsInSpace = getRoomsInSpace(roomsState.activeSpaceId);
             scheduleHierarchyRefresh(roomsState.activeSpaceId);
         }
+        // The room list has just been rebuilt from the SDK, so this is the
+        // earliest honest moment to settle a surface choice boot had to defer.
+        resolvePendingSurface();
         roomsState.roomsTick++;
     }
 
