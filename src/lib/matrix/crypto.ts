@@ -5,12 +5,11 @@
  *
  * Layer 0: initialise crypto so incoming `m.room.encrypted` events decrypt and
  * outgoing messages auto-encrypt in already-encrypted rooms.
- * Layer 1 (this file too): device & user verification by emoji (SAS) or QR
- * code — request
- * wrappers, an incoming-request subscription, and trust-status reads. The raw
- * `VerificationRequest`/`Verifier` SDK objects never leave this module; callers
- * drive a plain `VerificationController`. Cross-signing, key backup, and
- * enable-encryption UI are Layers 2–4.
+ * Layer 1 (this file too): device & user verification by emoji (SAS) or QR code
+ * — request wrappers, an incoming-request subscription, and trust-status reads.
+ * The raw `VerificationRequest`/`Verifier` SDK objects never leave this module;
+ * callers drive a plain `VerificationController`. Cross-signing, key backup,
+ * and enable-encryption UI are Layers 2–4.
  */
 
 import { EventTimeline, MatrixEventEvent } from "matrix-js-sdk";
@@ -324,11 +323,21 @@ export interface VerificationView {
     sasEmoji: EmojiMapping[] | null;
     /** Which method affordances to offer right now (all false once settled). */
     methodOptions: QrMethodOptions;
+    /**
+     * A `.start` we sent is still in flight, so the method is being settled but
+     * `methodOptions` can't know that yet (the phase is still `Ready`). Disable
+     * the chooser while true — a second tap is swallowed by the start latch.
+     */
+    startPending: boolean;
     /** Our QR payload once generated, for display. Null until `showQrCode()` succeeds. */
     qrBytes: Uint8ClampedArray | null;
     /** The other side scanned our code and we must confirm it really was them. */
     awaitingReciprocateConfirm: boolean;
-    /** Last QR-specific failure, for the modal to surface. Null when fine. */
+    /**
+     * Last failure from ANY method action — showing/scanning a QR *or* starting
+     * the emoji check. Render it outside the QR pane so a `startVerification()`
+     * failure can't go invisible. Null when fine.
+     */
     qrError: string | null;
 }
 
@@ -369,10 +378,15 @@ function hasCameraApi(): boolean {
     );
 }
 
-/** Message for a failed QR action, falling back to a plain-language default. */
-function qrFailureText(error: unknown, fallback: string): string {
-    const message = error instanceof Error ? error.message : "";
-    return message || fallback;
+/**
+ * User-facing text for a failed verification action. The SDK's throws on these
+ * paths are developer strings ("generateQRCode(): other device is unknown",
+ * "Still no verifier after scanQrCode() call"), so the plain-language message
+ * is what we show and the raw error goes to the console for debugging.
+ */
+function verificationFailureText(error: unknown, fallback: string): string {
+    console.warn(`[matrix] verification action failed: ${fallback}`, error);
+    return fallback;
 }
 
 /**
@@ -394,6 +408,7 @@ function createVerificationController(
     let qrError: string | null = null;
     let startRequested = false;
     let verifierHooked = false;
+    let hookedVerifier: Verifier | null = null;
     const subscribers = new Set<() => void>();
     const emit = (): void => {
         for (const cb of subscribers) cb();
@@ -421,9 +436,31 @@ function createVerificationController(
         });
     };
 
+    // Pick up whatever the verifier already has pending. Both callback objects
+    // live on the verifier and are populated by its OWN rust change callback,
+    // which fires independently of the request's — so neither the `ShowSas` /
+    // `ShowReciprocateQr` events nor a single read at hook time can be trusted
+    // to have happened yet. These accessors are live state reads (they just
+    // return the verifier's current `callbacks`), so re-reading on every change
+    // makes us independent of which callback the SDK delivers first.
+    const syncVerifierCallbacks = (): void => {
+        if (!hookedVerifier) return;
+        sasCallbacks ??= hookedVerifier.getShowSasCallbacks();
+        reciprocateCallbacks ??= hookedVerifier.getReciprocateQrCodeCallbacks();
+    };
+
     const hookVerifier = (verifier: Verifier): void => {
+        // Idempotent, and deliberately keeps the FIRST verifier: `advance()`,
+        // `startSas()` and `submitScannedQr()` can all reach here, and both
+        // sides may `.start` at once. The rust SDK resolves that race itself
+        // and settles on one method, so hooking the first verifier we see (and
+        // dropping a later, different object) is safe.
         if (verifierHooked) return;
         verifierHooked = true;
+        hookedVerifier = verifier;
+        // A method is now settled, so any earlier failure (e.g. a premature
+        // "show my code") is stale — don't let it linger over the live flow.
+        qrError = null;
         verifier.on(VerifierEvent.ShowSas, (callbacks) => {
             sasCallbacks = callbacks;
             emit();
@@ -433,17 +470,22 @@ function createVerificationController(
             emit();
         });
         verifier.on(VerifierEvent.Cancel, () => emit());
-        // The reciprocate prompt can fire before we attach — the SDK builds the
-        // verifier straight from an inbound `m.reciprocate.v1` start — so pick
-        // up anything already pending before kicking off verify().
-        reciprocateCallbacks ??= verifier.getReciprocateQrCodeCallbacks();
+        // The prompt can fire before we attach — the SDK builds the verifier
+        // straight from an inbound `.start` — so read anything already pending
+        // before kicking off verify(). The Change handler covers the late half.
+        syncVerifierCallbacks();
         // verify() resolves when both sides confirm and rejects on cancel /
         // mismatch / timeout; either way the terminal state shows via `phase`.
         verifier.verify().catch(() => emit());
     };
 
     const startSas = async (): Promise<void> => {
-        if (startRequested || request.verifier) return;
+        // Re-render even when the latch swallows the call, so a chooser that is
+        // still on screen during the round-trip doesn't look simply dead.
+        if (startRequested || request.verifier) {
+            emit();
+            return;
+        }
         startRequested = true;
         try {
             hookVerifier(
@@ -452,7 +494,10 @@ function createVerificationController(
             qrError = null;
         } catch (e) {
             startRequested = false;
-            qrError = qrFailureText(e, "Could not start the emoji check");
+            qrError = verificationFailureText(
+                e,
+                "Could not start the emoji check",
+            );
         }
         emit();
     };
@@ -473,6 +518,12 @@ function createVerificationController(
 
     request.on(VerificationRequestEvent.Change, () => {
         advance();
+        // The verifier's own change callback re-emits Change onto the request,
+        // so by the time we get here its callbacks are set even when the
+        // request's callback was delivered first. Without this re-read, that
+        // ordering leaves `awaitingReciprocateConfirm` false forever and the
+        // "they scanned my code" confirm button never appears.
+        syncVerifierCallbacks();
         emit();
     });
     // The request may already be past `Requested` when we wrap it.
@@ -489,6 +540,7 @@ function createVerificationController(
             phase: request.phase,
             sasEmoji: sasCallbacks?.sas.emoji ?? null,
             methodOptions: currentOptions(),
+            startPending: startRequested,
             qrBytes,
             awaitingReciprocateConfirm: reciprocateCallbacks !== null,
             qrError,
@@ -507,6 +559,11 @@ function createVerificationController(
         },
         startSas,
         showQrCode: async () => {
+            // Past Ready the method is settled and generateQRCode() returns
+            // undefined for that reason, not because they can't scan — so bail
+            // out rather than show a misleading message. Nothing changed here,
+            // hence no emit.
+            if (verifierHooked || request.verifier) return;
             try {
                 const bytes = await request.generateQRCode();
                 qrBytes = bytes ?? null;
@@ -515,36 +572,48 @@ function createVerificationController(
                     : "No code available — the other side can't scan one.";
             } catch (e) {
                 qrBytes = null;
-                qrError = qrFailureText(e, "Could not generate a QR code");
+                qrError = verificationFailureText(
+                    e,
+                    "Could not generate a QR code",
+                );
             }
             emit();
         },
         submitScannedQr: async (bytes) => {
-            if (startRequested || request.verifier) return;
+            // Same as startSas: emit even when swallowed, so a chooser still on
+            // screen re-renders instead of the button appearing dead.
+            if (startRequested || request.verifier) {
+                emit();
+                return;
+            }
             startRequested = true;
             try {
                 hookVerifier(await request.scanQRCode(bytes));
                 qrError = null;
             } catch (e) {
                 startRequested = false;
-                qrError = qrFailureText(
+                qrError = verificationFailureText(
                     e,
                     "That code doesn't match this verification",
                 );
             }
             emit();
         },
+        // Both reciprocate handlers clear our reference and notify BEFORE
+        // calling into the SDK, so a throw from the callback can't leave the
+        // prompt stuck on screen with no re-render.
         confirmReciprocate: () => {
-            reciprocateCallbacks?.confirm();
+            const callbacks = reciprocateCallbacks;
             reciprocateCallbacks = null;
             emit();
+            callbacks?.confirm();
         },
         denyReciprocate: () => {
             const callbacks = reciprocateCallbacks;
             reciprocateCallbacks = null;
+            emit();
             if (callbacks) callbacks.cancel();
             else void request.cancel();
-            emit();
         },
     };
 }
