@@ -13,8 +13,9 @@ declare global {
 
     interface Window {
         /** Electron renderer bridge (electron/preload.cjs); absent in the
-         *  browser and on native. Currently just restores a tray-hidden window,
-         *  which `window.focus()` cannot do. */
+         *  browser and on native. Restores a tray-hidden window (which
+         *  `window.focus()` cannot do), drives the desktop auto-updater, and
+         *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
             updates?: {
@@ -27,6 +28,19 @@ declare global {
                         s: import("$lib/utils/updateStatus").UpdateStatusInput,
                     ) => void,
                 ) => () => void;
+            };
+            screenShare?: {
+                onRequest: (
+                    cb: (
+                        req: import("$lib/utils/displaySources").DisplaySourceRequest,
+                    ) => void,
+                ) => () => void;
+                onCancel: (cb: (requestId: number) => void) => () => void;
+                respond: (
+                    requestId: number,
+                    sourceId: string | null,
+                    sourceName?: string,
+                ) => void;
             };
         };
     }
