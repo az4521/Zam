@@ -11,7 +11,7 @@
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
-    import { untrack } from "svelte";
+    import { tick, untrack } from "svelte";
     import {
         interfaceState,
         openSubPage,
@@ -57,11 +57,42 @@
     // this effect while the write invalidates it → the teardown clears the slot,
     // the body re-claims it, forever: `effect_update_depth_exceeded` (verified,
     // not theoretical). `untrack` keeps the slot out of the dependency set, so
-    // the only tracked dependency is `view.mode`.
+    // the tracked dependencies are exactly what `view` reads — `isMobile` and
+    // `selectedTab` — neither of which `openSubPage` writes, so there is no loop.
     $effect(() => {
         if (view.mode !== "detail") return;
         untrack(() => openSubPage(goBackToList));
         return () => clearSubPageIfOwner(goBackToList);
+    });
+
+    // Plain `let`, not `$state`: these are transition bookkeeping, not view
+    // data. Reading them inside the effect below must register no dependency
+    // (and `bind:this` writing a `$state` ref would retrigger it). Nothing
+    // renders from them, so the non-reactivity the warning describes is the
+    // whole point.
+    // svelte-ignore non_reactive_update
+    let backButtonEl: HTMLButtonElement | null = null;
+    let categoryEls: HTMLButtonElement[] = [];
+    let lastMode: string | null = null;
+
+    // Drilling in and backing out destroy the element that had focus, dropping
+    // it to <body> — outside the focus trap, where the trap's node-level keydown
+    // never fires and Tab escapes to the app shell behind the modal. Re-anchor
+    // focus on every mode change (never on first mount: focusTrap's rAF owns
+    // that). Writes no reactive state, so it cannot retrigger itself.
+    $effect(() => {
+        const mode = view.mode;
+        if (lastMode === null || lastMode === mode) {
+            lastMode = mode;
+            return;
+        }
+        lastMode = mode;
+        if (mode === "desktop") return;
+        // After the DOM is patched — `bind:this` has not necessarily landed yet.
+        void tick().then(() => {
+            if (mode === "detail") backButtonEl?.focus();
+            else categoryEls[0]?.focus();
+        });
     });
 </script>
 
@@ -72,6 +103,10 @@
         class="absolute inset-0 bg-black/60"
         onclick={onClose}
     ></button>
+    <!-- No `onEscape` on purpose: focusTrap's node-level keydown fires BEFORE
+         <svelte:window onkeydown> reaches AppShell, so an onEscape here would
+         close the whole dialog on the first Escape and the mobile sub-page could
+         never be popped. Escape is owned by AppShell.dismissTopmost(). -->
     <div
         role="dialog"
         aria-modal="true"
@@ -86,6 +121,7 @@
         >
             {#if view.mode === "detail"}
                 <button
+                    bind:this={backButtonEl}
                     onclick={goBackToList}
                     aria-label="Back to settings"
                     class="-ml-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
@@ -117,14 +153,16 @@
         {#if view.mode === "list"}
             <!-- Mobile root: drill-down category list. -->
             <nav class="flex-1 overflow-y-auto py-2">
-                {#each SETTINGS_TABS as tab (tab.id)}
+                {#each SETTINGS_TABS as tab, i (tab.id)}
                     <button
+                        bind:this={categoryEls[i]}
                         onclick={() => (selectedTab = tab.id)}
                         class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
                     >
                         <span class="min-w-0 truncate">{tab.label}</span>
                         <ChevronRight
                             size={20}
+                            aria-hidden="true"
                             class="flex-shrink-0 text-discord-textMuted"
                         />
                     </button>

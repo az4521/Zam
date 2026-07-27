@@ -61,8 +61,11 @@ export type SettingsNavView =
  *
  * `selectedTab === null` means "the user has not drilled in yet" — on desktop
  * that is simply the default tab (the sidebar is always visible), on mobile it
- * is the root list. Selection survives a viewport change in both directions,
- * so rotating a phone or resizing a window never loses the user's place.
+ * is the root list. WHICH TAB is selected survives a viewport change in both
+ * directions, so rotating a phone or resizing a window keeps the same category
+ * open. The panel itself does NOT survive: crossing 768px swaps `{#if}`
+ * branches in AppSettings, remounting the panel subtree, so panel-local
+ * unsaved state is lost.
  */
 export function settingsNavView(args: {
     isMobile: boolean;
