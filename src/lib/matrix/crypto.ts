@@ -43,6 +43,7 @@ import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
+import { passphraseParams } from "$lib/utils/recoveryPassphrase";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
@@ -82,6 +83,7 @@ export async function initCrypto(
     deviceId: string,
 ): Promise<void> {
     cryptoAvailable = false;
+    backupSessionsRemaining = null;
     try {
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
@@ -138,6 +140,14 @@ const SECURITY_EVENTS = [
     CryptoEvent.KeyBackupFailed,
 ] as const;
 
+// Last `CryptoEvent.KeyBackupSessionsRemaining` payload — how many room keys
+// this session still has to upload to the backup. Null until the SDK reports
+// (it only emits while a backup is active), and reset per session because it
+// describes THIS client's upload queue, not account state.
+let backupSessionsRemaining: number | null = null;
+let sessionsRemainingClient: MatrixClient | null = null;
+let sessionsRemainingHandler: ((remaining: number) => void) | null = null;
+
 let securityListenerClient: MatrixClient | null = null;
 let securityHandler: (() => void) | null = null;
 
@@ -148,6 +158,18 @@ function attachSecurityListeners(client: MatrixClient): void {
     for (const event of SECURITY_EVENTS) {
         client.on(event as never, handler as never);
     }
+    // `KeyBackupSessionsRemaining` carries a `(remaining: number)` payload, so
+    // it can't ride the shared no-arg handler above — it gets its own pair.
+    const remainingHandler = (remaining: number): void => {
+        backupSessionsRemaining = remaining;
+        bumpSecurityTick();
+    };
+    client.on(
+        CryptoEvent.KeyBackupSessionsRemaining as never,
+        remainingHandler as never,
+    );
+    sessionsRemainingClient = client;
+    sessionsRemainingHandler = remainingHandler;
     securityListenerClient = client;
     securityHandler = handler;
 }
@@ -161,6 +183,14 @@ function detachSecurityListeners(): void {
             );
         }
     }
+    if (sessionsRemainingClient && sessionsRemainingHandler) {
+        sessionsRemainingClient.off(
+            CryptoEvent.KeyBackupSessionsRemaining as never,
+            sessionsRemainingHandler as never,
+        );
+    }
+    sessionsRemainingClient = null;
+    sessionsRemainingHandler = null;
     securityListenerClient = null;
     securityHandler = null;
 }
@@ -716,6 +746,8 @@ export interface SecurityStatus {
     secretStorageReady: boolean;
     /** The default secret-storage key id, if any. */
     defaultKeyId: string | null;
+    /** The account's default 4S key can also be unlocked with a passphrase. */
+    passphraseRecovery: boolean;
     /** This device is verified via cross-signing. */
     thisDeviceVerified: boolean;
 }
@@ -726,6 +758,7 @@ const EMPTY_SECURITY_STATUS: SecurityStatus = {
     privateKeysInSecretStorage: false,
     secretStorageReady: false,
     defaultKeyId: null,
+    passphraseRecovery: false,
     thisDeviceVerified: false,
 };
 
@@ -737,15 +770,23 @@ const EMPTY_SECURITY_STATUS: SecurityStatus = {
 export async function getSecurityStatus(): Promise<SecurityStatus> {
     const client = getClient();
     const crypto = client?.getCrypto();
-    if (!crypto) return { ...EMPTY_SECURITY_STATUS };
+    if (!crypto || !client) return { ...EMPTY_SECURITY_STATUS };
     try {
-        const [crossSigningReady, crossStatus, secretStorageReady, ssStatus] =
-            await Promise.all([
-                crypto.isCrossSigningReady(),
-                crypto.getCrossSigningStatus(),
-                crypto.isSecretStorageReady(),
-                crypto.getSecretStorageStatus(),
-            ]);
+        const [
+            crossSigningReady,
+            crossStatus,
+            secretStorageReady,
+            ssStatus,
+            keyTuple,
+        ] = await Promise.all([
+            crypto.isCrossSigningReady(),
+            crypto.getCrossSigningStatus(),
+            crypto.isSecretStorageReady(),
+            crypto.getSecretStorageStatus(),
+            // Reading the default 4S key description tells us whether the user
+            // can unlock by passphrase; `null` on an account with no recovery.
+            client.secretStorage.getKey().catch(() => null),
+        ]);
         let thisDeviceVerified = false;
         const userId = client?.getUserId();
         const deviceId = client?.getDeviceId();
@@ -762,6 +803,7 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             privateKeysInSecretStorage: crossStatus.privateKeysInSecretStorage,
             secretStorageReady,
             defaultKeyId: ssStatus.defaultKeyId,
+            passphraseRecovery: passphraseParams(keyTuple?.[1]) !== null,
             thisDeviceVerified,
         };
     } catch {
@@ -787,6 +829,10 @@ export interface BackupStatus {
     trusted: boolean;
     /** The loaded backup decryption key matches the server backup. */
     matchesDecryptionKey: boolean;
+    /** Sessions the server holds in the backup (`KeyBackupInfo.count`). */
+    count: number | null;
+    /** Sessions this client still has to upload, null until the SDK reports. */
+    sessionsRemaining: number | null;
     /** The active/known backup version, if any. */
     version: string | null;
 }
@@ -797,6 +843,8 @@ const EMPTY_BACKUP_STATUS: BackupStatus = {
     active: false,
     trusted: false,
     matchesDecryptionKey: false,
+    count: null,
+    sessionsRemaining: null,
     version: null,
 };
 
@@ -826,6 +874,8 @@ export async function getBackupStatus(): Promise<BackupStatus> {
             active: activeVersion != null,
             trusted,
             matchesDecryptionKey,
+            count: info?.count ?? null,
+            sessionsRemaining: backupSessionsRemaining,
             version: info?.version ?? activeVersion ?? null,
         };
     } catch {
