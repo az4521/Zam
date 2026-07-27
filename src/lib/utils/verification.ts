@@ -59,7 +59,9 @@ export function verificationPhaseLabel(
         case VerificationPhaseValue.Requested:
             return "Waiting for the other side to accept…";
         case VerificationPhaseValue.Ready:
-            return "Accepted — starting the emoji check…";
+            // Method-neutral on purpose: at `Ready` we may still be waiting for
+            // the user to pick between showing a QR, scanning one, and emoji.
+            return "Accepted — choosing how to verify…";
         case VerificationPhaseValue.Started:
             return "Compare the emoji below";
         case VerificationPhaseValue.Done:
