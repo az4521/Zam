@@ -11,6 +11,11 @@
     // correction "L" keeps the symbol small: the Matrix payload is ~100 bytes
     // and a denser symbol is harder to scan on a phone at arm's length.
     const symbol = $derived.by(() => {
+        // An empty payload does NOT throw: the encoder happily emits a valid
+        // 21x21 symbol with real finder patterns, so the catch below never fires
+        // and the user would stare at a code that can never verify. Refuse it
+        // here, symmetrically with `toQrPayloadBytes` on the scanning side.
+        if (bytes.length === 0) return null;
         try {
             const qr = QRCode.create([{ mode: "byte", data: bytes }], {
                 errorCorrectionLevel: "L",
@@ -18,7 +23,11 @@
             const box = qrViewBoxSize(qr.modules.size);
             const path = qrModulePath(qr.modules.size, qr.modules.data);
             return path && box ? { path, box } : null;
-        } catch {
+        } catch (e) {
+            // Log the raw encoder error the way crypto.ts's
+            // `verificationFailureText` does: the copy below is deliberately
+            // vague, so without this a bug report has nothing to go on.
+            console.warn("[matrix] could not encode the verification QR", e);
             return null;
         }
     });
@@ -37,7 +46,7 @@
         <path d={symbol.path} fill="#000000" />
     </svg>
 {:else}
-    <p class="text-xs text-discord-danger">
+    <p class="text-xs text-discord-danger" role="alert">
         Could not render the verification code.
     </p>
 {/if}
