@@ -1100,7 +1100,7 @@
                         <span
                             class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
                         >
-                            <Hash size={16} />
+                            <Hash size={14} />
                         </span>
 
                         <!-- Name + member count -->

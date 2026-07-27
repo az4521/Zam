@@ -120,6 +120,8 @@
                             >
                             {#if item.participated}
                                 <span
+                                    role="img"
+                                    aria-label="You participated"
                                     class="text-discord-accent flex-shrink-0 flex items-center"
                                     title="You participated"
                                 >
