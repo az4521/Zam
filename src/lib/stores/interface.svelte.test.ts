@@ -100,4 +100,13 @@ describe("sub-page slot", () => {
         expect(interfaceState.subPageClose).toBe(null);
         expect(sub).not.toHaveBeenCalled();
     });
+
+    it("openModal superseding a modal drops the sub-page layered inside it", () => {
+        const sub = vi.fn();
+        openModal("app-settings", () => {});
+        openSubPage(sub);
+        openModal("composer-picker", () => {});
+        expect(interfaceState.subPageClose).toBe(null);
+        expect(sub).not.toHaveBeenCalled();
+    });
 });

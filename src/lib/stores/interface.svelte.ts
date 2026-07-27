@@ -103,6 +103,9 @@ export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
  */
 export function openModal(id: ModalId, close: () => void): void {
     if (interfaceState.modal && interfaceState.modal !== id) {
+        // A sub-page dies with its modal, so drop the slot WITHOUT running its
+        // handler — "go back one level" is meaningless once the level is gone.
+        interfaceState.subPageClose = null;
         const prev = interfaceState.modalClose;
         interfaceState.modalClose = null;
         prev?.();
