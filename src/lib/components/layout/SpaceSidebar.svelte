@@ -2,6 +2,7 @@
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
+    import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
     import {
         getRoomAvatar,
@@ -1572,15 +1573,9 @@
             {/if}
         {/snippet}
         {#if cm.touch}
-            <div
-                use:focusTrap={{ onEscape: closeModal }}
-                class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
-            >
-                <div
-                    class="w-10 h-1 bg-discord-divider rounded-full mx-auto mb-2"
-                ></div>
+            <BottomSheet onClose={closeModal}>
                 {@render menuContent()}
-            </div>
+            </BottomSheet>
         {:else}
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}

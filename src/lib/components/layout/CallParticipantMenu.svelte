@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { Room } from "matrix-js-sdk";
     import Portal from "$lib/components/ui/Portal.svelte";
+    import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -213,15 +214,9 @@
     ></button>
 
     {#if touch}
-        <div
-            use:focusTrap={{ onEscape: onClose }}
-            class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
-        >
-            <div
-                class="w-10 h-1 bg-discord-divider rounded-full mx-auto mb-2"
-            ></div>
+        <BottomSheet {onClose}>
             {@render menuItems()}
-        </div>
+        </BottomSheet>
     {:else}
         <div
             use:positionMenu={{ x, y }}
