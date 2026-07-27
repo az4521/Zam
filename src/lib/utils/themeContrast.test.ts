@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { contrastRatio, meetsAA } from "./contrast";
+import { contrastRatio, relativeLuminance } from "./contrast";
 import { extractCssVariables, resolveTokenToHex } from "./themeTokens";
 
 const css = readFileSync(
@@ -26,14 +26,21 @@ const THEMES = [
     { name: "light", vars: lightVars },
 ] as const;
 
+/** Every pair must clear WCAG AA for normal text unless it declares otherwise. */
+const AA_NORMAL = 4.5;
+
 /**
  * fg/bg are either a token name (resolved per theme) or a literal hex.
- * `large: true` means the 3:1 threshold.
+ *
+ * `accept` is the ratio this pair is asserted at, defaulting to 4.5. Lowering
+ * it to 3 is an explicit, documented exception for a pair the palette cannot
+ * currently satisfy — it is NOT a WCAG "large text" claim, and every such
+ * entry must say in `why` what would have to change to reach 4.5.
  */
 const PAIRS: {
     fg: string;
     bg: string;
-    large?: boolean;
+    accept?: number;
     why?: string;
 }[] = [
     // The two text tokens this item exists to fix.
@@ -46,23 +53,45 @@ const PAIRS: {
     // Body text, already fine — pinned so a future palette edit cannot break it.
     { fg: "--discord-text-primary", bg: "--discord-bg" },
     { fg: "--discord-text-primary", bg: "--discord-bg-secondary" },
-    // White on the accent/danger fills. Asserted at the 3:1 (large/non-text)
-    // threshold, NOT 4.5:1: clearing 4.5 needs the brand blurple darkened to
-    // ~#5c6fb1 and the danger red darkened until `text-discord-danger` stops
-    // being legible on the dark background. Both are Zam identity changes and
-    // are out of scope here. Raise these to 4.5 only together with a
-    // deliberate brand decision.
+    // White on the accent/danger fills. Accepted at 3:1, NOT 4.5:1 — and NOT
+    // because the text is large (these render as `text-sm font-semibold`
+    // button captions, which WCAG counts as normal text). Clearing 4.5 needs
+    // the brand blurple darkened to ~#5c6fb1 and the danger red darkened until
+    // `text-discord-danger` stops being legible on the dark background. Both
+    // are Zam identity changes and are out of scope here. Raise these to 4.5
+    // only together with a deliberate brand decision.
     {
         fg: "#ffffff",
         bg: "--discord-accent-rgb",
-        large: true,
-        why: "brand blurple fill",
+        accept: 3,
+        why: "brand blurple fill; 4.5 needs the blurple darkened — brand decision",
     },
     {
         fg: "#ffffff",
         bg: "--discord-danger-rgb",
-        large: true,
-        why: "danger fill",
+        accept: 3,
+        why: "danger fill; 4.5 needs the red darkened — brand decision",
+    },
+    // `text-discord-danger` as a FOREGROUND (destructive labels, error text,
+    // "Leave room", failed-send notices). Accepted at 3:1 so the shortfall is
+    // declared rather than silent: 4.5:1 is unreachable for this token as it
+    // stands, because the very same `--discord-danger` is also a FILL under
+    // white text (asserted above). Darkening it far enough for 4.5:1 against
+    // the dark background is exactly the direction that breaks white-on-fill,
+    // and lightening it breaks the reverse. Reaching AA here needs a separate
+    // `--discord-danger-text` token — a palette decision for the repo owner,
+    // deliberately not taken on this branch.
+    {
+        fg: "--discord-danger",
+        bg: "--discord-bg",
+        accept: 3,
+        why: "danger as text; 4.5 unreachable — same token is a fill under white text, needs a separate dangerText token",
+    },
+    {
+        fg: "--discord-danger",
+        bg: "--discord-bg-secondary",
+        accept: 3,
+        why: "danger as text; 4.5 unreachable — same token is a fill under white text, needs a separate dangerText token",
     },
 ];
 
@@ -97,7 +126,7 @@ describe("app.css palette", () => {
     for (const theme of THEMES) {
         describe(`${theme.name} theme`, () => {
             for (const pair of PAIRS) {
-                const threshold = pair.large ? 3 : 4.5;
+                const threshold = pair.accept ?? AA_NORMAL;
                 const label = `${pair.fg} on ${pair.bg} clears ${threshold}:1${
                     pair.why ? ` (${pair.why})` : ""
                 }`;
@@ -106,11 +135,57 @@ describe("app.css palette", () => {
                     const bg = colourOf(theme.vars, pair.bg);
                     const ratio = contrastRatio(fg, bg);
                     expect(
-                        meetsAA({ ratio, large: pair.large }),
+                        ratio >= threshold,
                         `${pair.fg} (${fg}) on ${pair.bg} (${bg}) is ${ratio.toFixed(2)}:1, needs ${threshold}:1`,
                     ).toBe(true);
                 });
             }
+
+            // A ratio floor on its own cannot protect the design: setting
+            // --discord-text-muted to #ffffff would satisfy every PAIRS
+            // assertion above while flattening the three-step text ramp and
+            // destroying de-emphasis. Pin the ordering itself, not just the
+            // ratios — in the dark theme less important means darker, in the
+            // light theme it means lighter.
+            it("keeps the muted → secondary → primary brightness ramp", () => {
+                const mutedHex = colourOf(theme.vars, "--discord-text-muted");
+                const secondaryHex = colourOf(
+                    theme.vars,
+                    "--discord-text-secondary",
+                );
+                const primaryHex = colourOf(
+                    theme.vars,
+                    "--discord-text-primary",
+                );
+                const muted = relativeLuminance(mutedHex);
+                const secondary = relativeLuminance(secondaryHex);
+                const primary = relativeLuminance(primaryHex);
+
+                const ramp =
+                    `--discord-text-muted (${mutedHex}) L=${muted.toFixed(4)}, ` +
+                    `--discord-text-secondary (${secondaryHex}) L=${secondary.toFixed(4)}, ` +
+                    `--discord-text-primary (${primaryHex}) L=${primary.toFixed(4)}`;
+
+                if (theme.name === "dark") {
+                    expect(
+                        muted,
+                        `dark theme: muted must be DARKER than secondary — ${ramp}`,
+                    ).toBeLessThan(secondary);
+                    expect(
+                        secondary,
+                        `dark theme: secondary must be DARKER than primary — ${ramp}`,
+                    ).toBeLessThan(primary);
+                } else {
+                    expect(
+                        muted,
+                        `light theme: muted must be LIGHTER than secondary — ${ramp}`,
+                    ).toBeGreaterThan(secondary);
+                    expect(
+                        secondary,
+                        `light theme: secondary must be LIGHTER than primary — ${ramp}`,
+                    ).toBeGreaterThan(primary);
+                }
+            });
 
             for (const [hexToken, rgbToken] of RGB_TWINS) {
                 it(`${rgbToken} matches ${hexToken}`, () => {
