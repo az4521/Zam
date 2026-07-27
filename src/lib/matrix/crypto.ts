@@ -43,13 +43,13 @@ import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { readScoped } from "$lib/utils/scopedStorage";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
 import { passphraseParams } from "$lib/utils/recoveryPassphrase";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
-import { settingsState } from "$lib/stores/settings.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
@@ -107,13 +107,18 @@ export async function initCrypto(
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });
         cryptoAvailable = true;
-        // In-memory only on the crypto api — re-apply the persisted preference
-        // on every session. Uses the passed client: `getClient()` may not yet
-        // point at it this early in the login flow.
+        // `globalBlacklistUnverifiedDevices` is in-memory only on the crypto
+        // api, so the persisted preference has to be re-applied every session.
+        // Read straight from storage, scoped to the `userId` we were handed,
+        // rather than from the settings store: initCrypto runs during login
+        // (from `createAuthenticatedClient` in client.ts) but the store is
+        // only repointed at the new account by `reloadAccountSettings()`,
+        // which AppShell.svelte calls after mount — so on an account switch
+        // the store still holds the PREVIOUS account's preference right here.
         const cryptoApi = client.getCrypto();
         if (cryptoApi) {
             cryptoApi.globalBlacklistUnverifiedDevices =
-                settingsState.sendToVerifiedOnly;
+                readScoped("settings:sendToVerifiedOnly", userId) === "true";
         }
         attachDecryptionListener(client);
         attachSecurityListeners(client);
