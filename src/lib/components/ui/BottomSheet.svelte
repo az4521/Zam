@@ -16,8 +16,12 @@
   dismisses it. Callers own the Portal and the backdrop, because every host
   already renders both alongside a desktop-positioned variant.
 
-  `pb-safe` keeps the last row clear of the home indicator. It is currently a
-  no-op until the viewport meta opts into `viewport-fit=cover`.
+  `pb-safe` is intended to keep the last row clear of the home indicator, but
+  it is a no-op today because no such utility exists: `tailwind.config.js` has
+  no `padding` extend and no plugins, and no CSS layer defines the class. The
+  safe-area work (that utility plus `viewport-fit=cover` on the viewport meta)
+  is owned elsewhere; the class name is left here so it starts working the
+  moment that lands.
 -->
 <div
     use:focusTrap={{ onEscape: onClose }}

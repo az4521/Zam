@@ -45,10 +45,21 @@
             "M14 6.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM1 14.25C1 12.455 2.455 11 4.25 11h7.5C13.545 11 15 12.455 15 14.25v.25a.75.75 0 0 1-.75.75H1.75A.75.75 0 0 1 1 14.5v-.25Zm17.25-5.75a.75.75 0 0 1 .75.75v2h2a.75.75 0 0 1 0 1.5h-2v2a.75.75 0 0 1-1.5 0v-2h-2a.75.75 0 0 1 0-1.5h2v-2a.75.75 0 0 1 .75-.75Z",
     };
 
+    // What each row's badge is counting, for screen readers. The visible pill
+    // is a bare number, which on its own announces as "Threads, 3".
+    const BADGE_NOUNS: Record<RoomHeaderMenuKey, string> = {
+        threads: "unread mentions",
+        pinned: "pinned messages",
+        notifications: "unread notifications",
+        members: "members",
+    };
+
     function choose(key: RoomHeaderMenuKey) {
-        // Close this sheet FIRST, mirroring ComposerActionsMenu: it holds the
-        // single modal slot, and closing after `onChoose` would tear down
-        // anything the chosen action opened in that slot.
+        // Close this sheet FIRST, mirroring ComposerActionsMenu. Today every
+        // key opens a *sidebar*, which `closeModal` never touches, so the
+        // order is not load-bearing — it is kept as a defensive invariant for
+        // any future row that opens something in the single modal slot, which
+        // closing afterwards would immediately tear back down.
         onClose();
         onChoose(key);
     }
@@ -64,8 +75,14 @@
     <BottomSheet {onClose}>
         <div role="menu" aria-label="More room options" class="pb-1">
             {#each rows as row (row.key)}
+                <!--
+                  menuitemcheckbox, not menuitem: each row toggles a panel, and
+                  `aria-checked` is what carries "this one is open" to anything
+                  that cannot see the accent colour (WCAG 1.4.1).
+                -->
                 <button
-                    role="menuitem"
+                    role="menuitemcheckbox"
+                    aria-checked={row.active}
                     onclick={() => choose(row.key)}
                     class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover {row.active
                         ? 'text-discord-accent'
@@ -79,16 +96,28 @@
                         viewBox="0 0 24 24"><path d={ICONS[row.key]} /></svg
                     >
                     <span class="flex-1 truncate">{row.label}</span>
+                    <!--
+                      The pill and the dot are both hidden from assistive tech
+                      and re-announced by an adjacent sr-only span: `aria-label`
+                      is not valid on a generic-role span (it only ever worked
+                      here by accident), and an unlabelled "3" says nothing
+                      about what was counted.
+                    -->
                     {#if row.badge}
                         <span
+                            aria-hidden="true"
                             class="flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center"
                             >{row.badge}</span
                         >
+                        <span class="sr-only"
+                            >{row.badge} {BADGE_NOUNS[row.key]}</span
+                        >
                     {:else if row.dot}
                         <span
+                            aria-hidden="true"
                             class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
-                            aria-label="Unread"
                         ></span>
+                        <span class="sr-only">unread</span>
                     {/if}
                 </button>
             {/each}
