@@ -198,7 +198,9 @@ describe("backupDetailLines", () => {
     });
 
     it("omits the count line when the server didn't report one", () => {
-        expect(backupDetailLines({ ...base, count: null })).toEqual([]);
+        expect(
+            backupDetailLines({ ...base, count: null, sessionsRemaining: 2 }),
+        ).toEqual(["2 keys still to upload"]);
     });
 
     it("reports keys still queued for upload", () => {
@@ -219,25 +221,20 @@ describe("backupDetailLines", () => {
         ).toContain("Everything on this session is backed up");
     });
 
-    it("warns when this session's backup key doesn't match the server backup", () => {
-        expect(
-            backupDetailLines({ ...base, matchesDecryptionKey: false }),
-        ).toContain(
-            "This session's backup key doesn't match the backup on the server",
-        );
-    });
-
-    it("does not warn about a key mismatch when the session isn't backing up", () => {
+    it("omits the upload queue entirely when this session isn't backing up", () => {
+        // A stale zero must not claim "everything is backed up" under a summary
+        // line saying this session isn't connected to the backup.
         expect(
             backupDetailLines({
                 ...base,
                 active: false,
-                matchesDecryptionKey: false,
+                count: 5,
+                sessionsRemaining: 0,
             }),
-        ).toEqual([]);
+        ).toEqual(["5 keys backed up"]);
     });
 
-    it("orders count, then remaining, then the mismatch warning", () => {
+    it("orders count before remaining", () => {
         expect(
             backupDetailLines({
                 exists: true,
@@ -246,11 +243,7 @@ describe("backupDetailLines", () => {
                 count: 2,
                 sessionsRemaining: 4,
             }),
-        ).toEqual([
-            "2 keys backed up",
-            "4 keys still to upload",
-            "This session's backup key doesn't match the backup on the server",
-        ]);
+        ).toEqual(["2 keys backed up", "4 keys still to upload"]);
     });
 });
 

@@ -116,9 +116,15 @@ describe("passphraseIssue", () => {
         );
     });
 
-    it("counts leading/trailing spaces as part of the passphrase", () => {
-        // The passphrase is used verbatim for derivation, so it must not be
-        // trimmed — only the "is it blank" check ignores whitespace.
-        expect(passphraseIssue("  abcdef  ")).toBeNull();
+    it("ignores surrounding whitespace when measuring length", () => {
+        // Padding must not buy its way past the minimum. The value itself is
+        // still derived from verbatim — only the measurement is trimmed.
+        expect(passphraseIssue("  abcdef  ")).toBe(
+            `Use at least ${MIN_PASSPHRASE_LENGTH} characters.`,
+        );
+    });
+
+    it("accepts a padded passphrase that is long enough once trimmed", () => {
+        expect(passphraseIssue("  abcdefgh  ")).toBeNull();
     });
 });

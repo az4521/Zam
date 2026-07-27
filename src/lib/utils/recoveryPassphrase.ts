@@ -58,10 +58,14 @@ export const MIN_PASSPHRASE_LENGTH = 8;
  * Validate a user-typed passphrase, returning an actionable message or null
  * when it's acceptable. Deliberately NOT a strength meter — the recovery key
  * remains the primary path and is always shown.
+ *
+ * Length is measured on the TRIMMED value so that padding whitespace can't buy
+ * its way past the minimum, but the passphrase itself is never trimmed: the
+ * derivation uses the verbatim string the user typed, spaces and all.
  */
 export function passphraseIssue(passphrase: string): string | null {
     if (passphrase.trim().length === 0) return "Enter a passphrase.";
-    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
+    if (passphrase.trim().length < MIN_PASSPHRASE_LENGTH) {
         return `Use at least ${MIN_PASSPHRASE_LENGTH} characters.`;
     }
     return null;

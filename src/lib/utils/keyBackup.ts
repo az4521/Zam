@@ -144,7 +144,11 @@ export function backupDetailLines(detail: BackupDetail): string[] {
         if (count <= 0) lines.push("No keys backed up yet");
         else lines.push(`${count} ${count === 1 ? "key" : "keys"} backed up`);
     }
-    if (sessionsRemaining != null) {
+    // `sessionsRemaining` describes THIS session's upload queue, so it only
+    // means anything while this session is actually backing up. On an inactive
+    // session a stale zero would render "Everything on this session is backed
+    // up" directly beneath a summary line saying it isn't connected at all.
+    if (detail.active && sessionsRemaining != null) {
         if (sessionsRemaining > 0) {
             lines.push(
                 `${sessionsRemaining} ${
@@ -154,13 +158,6 @@ export function backupDetailLines(detail: BackupDetail): string[] {
         } else {
             lines.push("Everything on this session is backed up");
         }
-    }
-    // Only meaningful while this session is connected to the backup: an
-    // unconnected session has no loaded key to compare in the first place.
-    if (detail.active && !detail.matchesDecryptionKey) {
-        lines.push(
-            "This session's backup key doesn't match the backup on the server",
-        );
     }
     return lines;
 }
