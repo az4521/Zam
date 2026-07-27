@@ -258,21 +258,31 @@ ipcMain.on("updates:quit-and-install", () => {
 // including LiveKit's internals, which we do not control.
 
 const SHARE_PICK_TIMEOUT_MS = 120000;
-const pendingShareRequests = new Map(); // requestId -> {callback, timer, audioRequested}
+// requestId -> {callback, timer, audioRequested, sourceIds}
+const pendingShareRequests = new Map();
 let nextShareRequestId = 1;
 
 // Granting nothing makes getDisplayMedia() reject with NotAllowedError, which
 // the renderer already treats as "the user dismissed the picker" (no toast).
 function denyShareRequest(pending) {
     clearTimeout(pending.timer);
-    pending.callback({});
+    try {
+        pending.callback({});
+    } catch (err) {
+        // Reached from an ipcMain listener and from a setTimeout — in both a
+        // throw would be an UNCAUGHT main-process exception, i.e. the app dies.
+        console.error("screen-share denial failed:", err);
+    }
 }
 
 function resolveShareRequest(requestId, sourceId, sourceName) {
     const pending = pendingShareRequests.get(requestId);
     if (!pending) return; // already timed out or answered twice
     pendingShareRequests.delete(requestId);
-    if (!sourceId) {
+    // Grant only a source we actually enumerated for THIS request, so a
+    // compromised renderer cannot name an arbitrary capture target. Anything
+    // else — a cancellation, a stale id, a forged one — denies.
+    if (!sourceId || !pending.sourceIds.has(sourceId)) {
         denyShareRequest(pending);
         return;
     }
@@ -283,7 +293,11 @@ function resolveShareRequest(requestId, sourceId, sourceName) {
     if (pending.audioRequested && process.platform === "win32") {
         streams.audio = "loopback";
     }
-    pending.callback(streams);
+    try {
+        pending.callback(streams);
+    } catch (err) {
+        console.error("screen-share grant failed:", err);
+    }
 }
 
 function setupDisplayMediaHandler() {
@@ -319,19 +333,33 @@ function setupDisplayMediaHandler() {
                 callback,
                 timer,
                 audioRequested: !!request.audioRequested,
+                sourceIds: new Set(sources.map((s) => s.id)),
             });
-            mainWindow.webContents.send("screenshare:request", {
-                requestId,
-                audioRequested: !!request.audioRequested,
-                sources: sources.map((s) => ({
-                    id: s.id,
-                    name: s.name,
-                    displayId: s.display_id,
-                    thumbnailDataUrl: s.thumbnail.isEmpty()
-                        ? null
-                        : s.thumbnail.toDataURL(),
-                })),
-            });
+            // From here the pending entry (and its 120s timer) already exist,
+            // so a throw — a disposed thumbnail, a webContents torn down
+            // between the guard above and now — would leave getDisplayMedia()
+            // hanging with no picker until the timeout. Deny at once instead.
+            try {
+                mainWindow.webContents.send("screenshare:request", {
+                    requestId,
+                    audioRequested: !!request.audioRequested,
+                    sources: sources.map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                        displayId: s.display_id,
+                        thumbnailDataUrl: s.thumbnail.isEmpty()
+                            ? null
+                            : s.thumbnail.toDataURL(),
+                    })),
+                });
+            } catch (err) {
+                console.error("screen-share picker dispatch failed:", err);
+                const pending = pendingShareRequests.get(requestId);
+                if (pending) {
+                    pendingShareRequests.delete(requestId);
+                    denyShareRequest(pending); // also clears the timer
+                }
+            }
         },
         // macOS only (and Experimental there): when the OS picker is available
         // Electron uses it and never calls our handler.
@@ -339,9 +367,18 @@ function setupDisplayMediaHandler() {
     );
 }
 
+// The payload comes from the renderer and is therefore untrusted: validate
+// every field before it reaches a Map key or the capture callback. A throw in
+// an ipcMain listener is an uncaught main-process exception — it kills the app.
 ipcMain.on("screenshare:respond", (_e, payload) => {
     const { requestId, sourceId, sourceName } = payload || {};
-    resolveShareRequest(requestId, sourceId || null, sourceName);
+    const id = Number(requestId);
+    // Unknown/stale/garbage ids stay a silent no-op, as before.
+    if (!Number.isFinite(id) || !pendingShareRequests.has(id)) return;
+    // Only a non-empty string is a pick; anything else is a cancellation.
+    const picked = typeof sourceId === "string" && sourceId ? sourceId : null;
+    const name = typeof sourceName === "string" ? sourceName : "";
+    resolveShareRequest(id, picked, name);
 });
 
 async function createWindow() {
