@@ -180,6 +180,10 @@ import {
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import { addToMDirect } from "$lib/utils/mDirect";
+import {
+    isVideoRoomType,
+    videoRoomCreationContent,
+} from "$lib/utils/videoRoom";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
@@ -714,6 +718,15 @@ export function getRooms(): Room[] {
 
 export function getRoom(roomId: string): Room | null {
     return matrixClient?.getRoom(roomId) ?? null;
+}
+
+/**
+ * Whether a room's purpose is a call rather than a timeline. Reads the immutable
+ * `m.room.create` type through the SDK and delegates the string matching to the
+ * pure util, which also accepts the types other clients write.
+ */
+export function isVideoRoom(room: Room): boolean {
+    return isVideoRoomType(room.getType());
 }
 
 export function getSpaces(): Room[] {
@@ -3805,11 +3818,16 @@ export async function createRoom(
     topic: string,
     spaceId?: string,
     encrypt = false,
+    videoRoom = false,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
     const initialState = encryptionInitialState(encrypt);
+    // A video room is marked by its immutable m.room.create type. The
+    // call-friendly power levels below are already applied to every room this
+    // client creates, so a video room needs nothing extra there.
+    const creationContent = videoRoomCreationContent(videoRoom);
     const result = await matrixClient.createRoom({
         name: name || undefined,
         topic: topic || undefined,
@@ -3818,6 +3836,7 @@ export async function createRoom(
         power_level_content_override: {
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
+        ...(creationContent ? { creation_content: creationContent } : {}),
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
