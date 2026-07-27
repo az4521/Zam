@@ -5,6 +5,7 @@
         resetRecovery,
         getBackupStatus,
         unlockWithRecoveryKey,
+        unlockWithPassphrase,
         type SecurityStatus,
         type BackupStatus,
         type UnlockResult,
@@ -16,9 +17,11 @@
     } from "$lib/utils/recoveryKey";
     import {
         backupBadge,
+        backupDetailLines,
         backupSummaryLabel,
         restoreProgressView,
         restoreResultLabel,
+        secretStorageKeyLabel,
         type RestoreProgress,
     } from "$lib/utils/keyBackup";
     import {
@@ -77,6 +80,20 @@
     let progress = $state<RestoreProgress | null>(null);
     let unlockResult = $state<UnlockResult | null>(null);
 
+    // Which credential the user is entering. Defaults to the recovery key;
+    // the passphrase option only appears when the account's 4S key actually
+    // carries derivation params (status.passphraseRecovery).
+    type UnlockMode = "key" | "passphrase";
+    let unlockMode = $state<UnlockMode>("key");
+    let unlockPassphrase = $state("");
+
+    const canUnlockByPassphrase = $derived(status?.passphraseRecovery ?? false);
+    const unlockReady = $derived(
+        unlockMode === "key"
+            ? isLikelyRecoveryKey(unlockKey)
+            : unlockPassphrase.length > 0,
+    );
+
     // Plain badge model from the backup status (undefined until first load).
     const backupModel = $derived(
         backup
@@ -93,6 +110,21 @@
         backupModel ? backupSummaryLabel(backupModel) : null,
     );
     const progressView = $derived(restoreProgressView(progress));
+
+    // Additive detail the SDK already reports (server key count, this session's
+    // upload queue, key mismatch). Empty when there's no backup — the summary
+    // line above already says so.
+    const detailLines = $derived(
+        backup
+            ? backupDetailLines({
+                  exists: backup.exists,
+                  active: backup.active,
+                  matchesDecryptionKey: backup.matchesDecryptionKey,
+                  count: backup.count,
+                  sessionsRemaining: backup.sessionsRemaining,
+              })
+            : [],
+    );
 
     // Recovery is set up on the account (a 4S default key exists), so this
     // session can be unlocked with the recovery key.
@@ -236,21 +268,29 @@
     function beginUnlock() {
         unlockError = "";
         unlockKey = "";
+        unlockPassphrase = "";
+        // Always open on the recovery key: it's the path every account has.
+        unlockMode = "key";
         unlockResult = null;
         progress = null;
         unlockStep = "entry";
     }
 
     async function runUnlock() {
-        if (!isLikelyRecoveryKey(unlockKey) || unlockStep === "working") return;
+        if (!unlockReady || unlockStep === "working") return;
         unlockError = "";
         progress = null;
         unlockStep = "working";
         try {
-            const result = await unlockWithRecoveryKey(unlockKey, (p) => {
+            const onProgress = (p: RestoreProgress) => {
                 progress = p;
-            });
+            };
+            const result =
+                unlockMode === "key"
+                    ? await unlockWithRecoveryKey(unlockKey, onProgress)
+                    : await unlockWithPassphrase(unlockPassphrase, onProgress);
             unlockKey = "";
+            unlockPassphrase = "";
             unlockResult = result;
             unlockStep = "done";
             loadStatus();
@@ -266,6 +306,7 @@
 
     function cancelUnlock() {
         unlockKey = "";
+        unlockPassphrase = "";
         unlockError = "";
         progress = null;
         unlockStep = "idle";
@@ -327,6 +368,18 @@
                 "Not set up",
             )}
             {@render statusRow(
+                "Keys in secure storage",
+                status.privateKeysInSecretStorage,
+                "Stored",
+                "Not stored",
+            )}
+            {@render statusRow(
+                "Unlock with passphrase",
+                status.passphraseRecovery,
+                "Available",
+                "Key only",
+            )}
+            {@render statusRow(
                 "This session",
                 status.thisDeviceVerified,
                 "Verified",
@@ -335,6 +388,13 @@
         {:else}
             <p class="text-xs text-discord-textMuted py-1.5">
                 Loading encryption status…
+            </p>
+        {/if}
+        {#if status}
+            <p class="text-[11px] text-discord-textMuted pt-1 pb-1.5">
+                Recovery key ID: <span class="font-mono"
+                    >{secretStorageKeyLabel(status.defaultKeyId)}</span
+                >
             </p>
         {/if}
     </section>
@@ -631,6 +691,19 @@
             {#if summary}
                 <p class="text-xs text-discord-textMuted">{summary}</p>
             {/if}
+            {#if detailLines.length > 0}
+                <ul class="text-xs text-discord-textMuted space-y-0.5">
+                    {#each detailLines as line (line)}
+                        <li>{line}</li>
+                    {/each}
+                </ul>
+            {/if}
+            {@render statusRow(
+                "Backup key on this session",
+                backup.matchesDecryptionKey,
+                "Matches",
+                "Not matched",
+            )}
 
             {#if needsUnlock}
                 {#if unlockStep === "idle"}
@@ -641,27 +714,65 @@
                     >
                 {:else if unlockStep === "entry"}
                     <div class="space-y-2">
+                        {#if canUnlockByPassphrase}
+                            <div class="flex gap-2 text-xs">
+                                <button
+                                    onclick={() => (unlockMode = "key")}
+                                    class="px-2 py-1 rounded {unlockMode ===
+                                    'key'
+                                        ? 'bg-discord-accent text-white'
+                                        : 'bg-discord-messageHover text-discord-textPrimary'}"
+                                    >Recovery key</button
+                                >
+                                <button
+                                    onclick={() => (unlockMode = "passphrase")}
+                                    class="px-2 py-1 rounded {unlockMode ===
+                                    'passphrase'
+                                        ? 'bg-discord-accent text-white'
+                                        : 'bg-discord-messageHover text-discord-textPrimary'}"
+                                    >Passphrase</button
+                                >
+                            </div>
+                        {/if}
                         <p class="text-xs text-discord-textMuted">
-                            Enter your <strong>recovery key</strong> to verify this
-                            session and restore your encrypted message history.
+                            Enter your <strong
+                                >{unlockMode === "key"
+                                    ? "recovery key"
+                                    : "recovery passphrase"}</strong
+                            > to verify this session and restore your encrypted message
+                            history.
                         </p>
-                        <input
-                            type="text"
-                            bind:value={unlockKey}
-                            placeholder="Recovery key"
-                            autocomplete="off"
-                            autocapitalize="none"
-                            spellcheck="false"
-                            onkeydown={(e) =>
-                                e.key === "Enter" &&
-                                isLikelyRecoveryKey(unlockKey) &&
-                                runUnlock()}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
-                        />
+                        {#if unlockMode === "key"}
+                            <input
+                                type="text"
+                                bind:value={unlockKey}
+                                placeholder="Recovery key"
+                                autocomplete="off"
+                                autocapitalize="none"
+                                spellcheck="false"
+                                onkeydown={(e) =>
+                                    e.key === "Enter" &&
+                                    unlockReady &&
+                                    runUnlock()}
+                                class="w-full bg-discord-backgroundDark text-discord-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
+                            />
+                        {:else}
+                            <input
+                                type="password"
+                                bind:value={unlockPassphrase}
+                                placeholder="Recovery passphrase"
+                                autocomplete="current-password"
+                                onkeydown={(e) =>
+                                    e.key === "Enter" &&
+                                    unlockReady &&
+                                    runUnlock()}
+                                class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none"
+                            />
+                        {/if}
                         <div class="flex gap-2">
                             <button
                                 onclick={runUnlock}
-                                disabled={!isLikelyRecoveryKey(unlockKey)}
+                                disabled={!unlockReady}
                                 class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
                                 >Continue</button
                             >
