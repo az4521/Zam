@@ -1145,7 +1145,7 @@
         title="Explore rooms"
     >
         <svg
-            class="w-6 h-6 text-discord-textPositive group-hover:text-white transition-colors"
+            class="w-6 h-6 text-discord-textSecondary group-hover:text-white transition-colors"
             fill="currentColor"
             viewBox="0 0 24 24"
         >
