@@ -150,7 +150,7 @@
                 >
                     {#each waveform as bar}
                         <div
-                            class="flex-1 min-w-[2px] rounded-full bg-discord-textMuted"
+                            class="flex-1 min-w-[2px] rounded-full bg-discord-divider"
                             style="height: {Math.max(8, (bar / 1024) * 100)}%"
                         ></div>
                     {/each}
