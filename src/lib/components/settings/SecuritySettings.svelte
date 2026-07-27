@@ -21,6 +21,10 @@
         restoreResultLabel,
         type RestoreProgress,
     } from "$lib/utils/keyBackup";
+    import {
+        passphraseIssue,
+        MIN_PASSPHRASE_LENGTH,
+    } from "$lib/utils/recoveryPassphrase";
 
     // The Set-up-recovery wizard is a small linear state machine:
     //   idle → password (collect account password for the UIA-guarded upload)
@@ -35,6 +39,23 @@
     let saved = $state(false);
     let copied = $state(false);
     let error = $state("");
+
+    // Optional passphrase: an ADDITIONAL way to unlock recovery. The random
+    // recovery key is always generated and shown; this only adds a second door.
+    let usePassphrase = $state(false);
+    let passphrase = $state("");
+    let keyHasPassphrase = $state(false);
+
+    // Only nag once the user has actually typed something — an empty field is
+    // "not filled in yet", not an error.
+    const passphraseError = $derived(
+        usePassphrase && passphrase.length > 0
+            ? passphraseIssue(passphrase)
+            : null,
+    );
+    const setupBlocked = $derived(
+        !password || (usePassphrase && passphraseIssue(passphrase) !== null),
+    );
 
     // Reset-recovery sub-flow, offered from the "Recovery is set up" panel for a
     // user who lost their key: confirm → password → working, then hands off into
@@ -116,13 +137,19 @@
     }
 
     async function runSetup() {
-        if (!password || step === "working") return;
+        if (setupBlocked || step === "working") return;
         error = "";
         step = "working";
         try {
-            const result = await setupRecovery(password);
+            const result = await setupRecovery(
+                password,
+                usePassphrase ? passphrase : undefined,
+            );
+            keyHasPassphrase = result.hasPassphrase;
             recoveryKey = result.recoveryKey;
             password = "";
+            passphrase = "";
+            usePassphrase = false;
             saved = false;
             copied = false;
             step = "show";
@@ -146,15 +173,21 @@
 
     function finishSetup() {
         // Drop the key from memory once the user confirms they've saved it.
+        // `keyHasPassphrase` is deliberately left alone: it's only read on the
+        // show screen, which unmounts as this runs.
         recoveryKey = "";
+        passphrase = "";
+        usePassphrase = false;
         saved = false;
         step = "done";
         loadStatus();
     }
 
     function cancel() {
-        // Never leave the plaintext key lingering after a cancel.
+        // Never leave the plaintext key or passphrase lingering after a cancel.
         password = "";
+        passphrase = "";
+        usePassphrase = false;
         recoveryKey = "";
         saved = false;
         error = "";
@@ -168,27 +201,34 @@
     }
 
     async function runReset() {
-        if (!password || resetStep === "working") return;
+        if (setupBlocked || resetStep === "working") return;
         error = "";
         resetStep = "working";
         try {
-            const result = await resetRecovery(password);
+            const result = await resetRecovery(
+                password,
+                usePassphrase ? passphrase : undefined,
+            );
+            keyHasPassphrase = result.hasPassphrase;
             recoveryKey = result.recoveryKey;
             password = "";
+            passphrase = "";
+            usePassphrase = false;
             saved = false;
             copied = false;
             resetStep = "idle";
             // Hand off to the shared show-key screen with the NEW key.
             step = "show";
         } catch (e) {
-            error =
-                e instanceof Error ? e.message : "Could not reset recovery";
+            error = e instanceof Error ? e.message : "Could not reset recovery";
             resetStep = "password";
         }
     }
 
     function cancelReset() {
         password = "";
+        passphrase = "";
+        usePassphrase = false;
         error = "";
         resetStep = "idle";
     }
@@ -350,10 +390,45 @@
                             e.key === "Enter" && password && runSetup()}
                         class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                     />
+                    <label
+                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                    >
+                        <input
+                            type="checkbox"
+                            bind:checked={usePassphrase}
+                            disabled={step === "working"}
+                            class="mt-0.5"
+                        />
+                        <span
+                            >Also let me unlock with a passphrase I choose
+                            (optional — your recovery key still works and is
+                            still shown).</span
+                        >
+                    </label>
+                    {#if usePassphrase}
+                        <input
+                            type="password"
+                            bind:value={passphrase}
+                            placeholder="Recovery passphrase"
+                            autocomplete="new-password"
+                            disabled={step === "working"}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                        {#if passphraseError}
+                            <p class="text-xs text-discord-danger">
+                                {passphraseError}
+                            </p>
+                        {:else}
+                            <p class="text-xs text-discord-textMuted">
+                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
+                                reset it for you.
+                            </p>
+                        {/if}
+                    {/if}
                     <div class="flex gap-2">
                         <button
                             onclick={runSetup}
-                            disabled={step === "working" || !password}
+                            disabled={step === "working" || setupBlocked}
                             class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
                             >{step === "working"
                                 ? "Setting up…"
@@ -387,6 +462,13 @@
                         class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
                         >{copied ? "Copied ✓" : "Copy key"}</button
                     >
+                    {#if keyHasPassphrase}
+                        <p class="text-xs text-discord-textMuted">
+                            You can also unlock with the passphrase you chose.
+                            Keep the key anyway — it's the only way in if you
+                            forget the passphrase.
+                        </p>
+                    {/if}
                     <label
                         class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
                     >
@@ -431,9 +513,7 @@
                     >Lost your recovery key? Reset recovery</button
                 >
             {:else if resetStep === "confirm"}
-                <div
-                    class="space-y-2 pt-3 border-t border-discord-divider"
-                >
+                <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-warning">
                         Resetting creates a <strong>new</strong> recovery key and
                         replaces your current backup. Your old recovery key stops
@@ -454,9 +534,7 @@
                     </div>
                 </div>
             {:else if resetStep === "password" || resetStep === "working"}
-                <div
-                    class="space-y-2 pt-3 border-t border-discord-divider"
-                >
+                <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-textMuted">
                         Confirm your account password to reset recovery.
                     </p>
@@ -469,10 +547,45 @@
                             e.key === "Enter" && password && runReset()}
                         class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                     />
+                    <label
+                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                    >
+                        <input
+                            type="checkbox"
+                            bind:checked={usePassphrase}
+                            disabled={resetStep === "working"}
+                            class="mt-0.5"
+                        />
+                        <span
+                            >Also let me unlock with a passphrase I choose
+                            (optional — your recovery key still works and is
+                            still shown).</span
+                        >
+                    </label>
+                    {#if usePassphrase}
+                        <input
+                            type="password"
+                            bind:value={passphrase}
+                            placeholder="Recovery passphrase"
+                            autocomplete="new-password"
+                            disabled={resetStep === "working"}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                        {#if passphraseError}
+                            <p class="text-xs text-discord-danger">
+                                {passphraseError}
+                            </p>
+                        {:else}
+                            <p class="text-xs text-discord-textMuted">
+                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
+                                reset it for you.
+                            </p>
+                        {/if}
+                    {/if}
                     <div class="flex gap-2">
                         <button
                             onclick={runReset}
-                            disabled={resetStep === "working" || !password}
+                            disabled={resetStep === "working" || setupBlocked}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
                             >{resetStep === "working"
                                 ? "Resetting…"
