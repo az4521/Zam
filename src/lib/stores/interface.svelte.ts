@@ -1,6 +1,9 @@
 // Centralised UI/interface state.
 //
-// Two mutually-exclusive "slots":
+// Three mutually-exclusive "slots", dismissed in this priority order by
+// AppShell.dismissTopmost() (Escape and mobile hardware back):
+//   - subPage: a page layered INSIDE the open modal (mobile settings
+//              drill-down) — popped first, leaving the modal open.
 //   - modal:   the single open popup / modal / context-menu / picker.
 //   - sidebar: the single open side panel (member list, pinned, notifications).
 //
@@ -64,6 +67,10 @@ export const interfaceState = $state({
     modal: null as ModalId | null,
     /** Closes the open modal (runs its cleanup). Set alongside `modal`. */
     modalClose: null as null | (() => void),
+    /** A page layered inside the open modal (mobile settings drill-down).
+     *  Popped by Escape / mobile back BEFORE the modal itself closes. Holds
+     *  the "go back one level" handler, or null when no sub-page is open. */
+    subPageClose: null as null | (() => void),
     /** The single open side panel, or null. */
     sidebar: null as SidebarId | null,
     /** Closes the open sidebar (runs its cleanup). Set alongside `sidebar`. */
@@ -115,6 +122,34 @@ export function clearModal(id: ModalId): void {
     if (interfaceState.modal === id) {
         interfaceState.modal = null;
         interfaceState.modalClose = null;
+    }
+}
+
+/**
+ * Push a sub-page above the open modal. `close` pops one level (it should NOT
+ * close the modal). Any previous sub-page is closed first, so a component that
+ * supersedes another's sub-page cannot strand it.
+ */
+export function openSubPage(close: () => void): void {
+    const prev = interfaceState.subPageClose;
+    if (prev === close) return;
+    interfaceState.subPageClose = close;
+    prev?.();
+}
+
+/** Pop the open sub-page, running its handler. No-op when none is open. */
+export function closeSubPage(): void {
+    const close = interfaceState.subPageClose;
+    interfaceState.subPageClose = null;
+    close?.();
+}
+
+/** Release the sub-page slot on unmount, without running the handler — but
+ *  only if `close` still owns it. Function identity is the ownership token:
+ *  a late cleanup must never null a slot a newer owner already claimed. */
+export function clearSubPageIfOwner(close: () => void): void {
+    if (interfaceState.subPageClose === close) {
+        interfaceState.subPageClose = null;
     }
 }
 
