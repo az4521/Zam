@@ -1348,7 +1348,7 @@
                         />
                     </div>
                 </div>
-                {#if modalError}<p class="text-sm text-discord-error">
+                {#if modalError}<p class="text-sm text-discord-danger">
                         {modalError}
                     </p>{/if}
                 <div class="flex justify-end gap-2 mt-1">

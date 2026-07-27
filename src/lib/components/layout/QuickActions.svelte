@@ -404,7 +404,7 @@
                 {/if}
 
                 {#if error}
-                    <p class="text-sm text-discord-error">{error}</p>
+                    <p class="text-sm text-discord-danger">{error}</p>
                 {/if}
 
                 <div class="flex justify-end gap-2 mt-1">

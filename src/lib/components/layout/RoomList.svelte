@@ -1158,7 +1158,7 @@
                                 class="w-full px-2 py-1 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-xs"
                             />
                             {#if knockError}
-                                <p class="text-xs text-discord-error">
+                                <p class="text-xs text-discord-danger">
                                     {knockError}
                                 </p>
                             {/if}

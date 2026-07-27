@@ -178,7 +178,7 @@
         </div>
 
         {#if error}
-            <p class="text-sm text-discord-error">{error}</p>
+            <p class="text-sm text-discord-danger">{error}</p>
         {/if}
 
         <div class="flex-1 overflow-y-auto flex flex-col gap-1 min-h-32">
@@ -225,7 +225,7 @@
                                     · {entry.topic}{/if}
                             </p>
                             {#if joinError?.roomId === entry.roomId}
-                                <p class="text-xs text-discord-error truncate">
+                                <p class="text-xs text-discord-danger truncate">
                                     {joinError.message}
                                 </p>
                             {/if}
