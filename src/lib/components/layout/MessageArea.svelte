@@ -51,6 +51,7 @@
         openSidebar,
         closeSidebar,
         showCallView,
+        type SidebarId,
     } from "$lib/stores/interface.svelte";
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
     import { ignoredUsersState } from "$lib/stores/ignoredUsers.svelte";
@@ -60,6 +61,7 @@
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
     import MessageSearchPanel from "$lib/components/layout/MessageSearchPanel.svelte";
     import ThreadsListPanel from "$lib/components/layout/ThreadsListPanel.svelte";
+    import RoomMediaPanel from "./RoomMediaPanel.svelte";
     import { searchState } from "$lib/stores/search.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import {
@@ -81,7 +83,7 @@
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
-    import { Phone, Volume2, Lock } from "lucide-svelte";
+    import { Phone, Volume2, Lock, Image } from "lucide-svelte";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
@@ -200,11 +202,13 @@
     );
     const showSearchPanel = $derived(interfaceState.sidebar === "search");
     const showThreadsPanel = $derived(interfaceState.sidebar === "threads");
+    const showMediaPanel = $derived(interfaceState.sidebar === "media");
     const showRightPanel = $derived(
         showPinnedPanel ||
             showNotificationsPanel ||
             showSearchPanel ||
-            showThreadsPanel,
+            showThreadsPanel ||
+            showMediaPanel,
     );
 
     // Room-level thread unread rollup for the threads-toggle badge. Keyed off
@@ -219,9 +223,7 @@
         );
     });
 
-    function toggleSidebar(
-        id: "members" | "pinned" | "notifications" | "search" | "threads",
-    ) {
+    function toggleSidebar(id: SidebarId) {
         if (interfaceState.sidebar === id) closeSidebar();
         else openSidebar(id, () => {});
     }
@@ -1207,6 +1209,17 @@
                     /></svg
                 >
             </button>
+            <!-- Media and files browser -->
+            <button
+                onclick={() => toggleSidebar("media")}
+                class="p-1.5 rounded transition-colors {showMediaPanel
+                    ? 'text-discord-accent bg-discord-messageHover'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                title="Media and files"
+                aria-label="Media and files"
+            >
+                <Image size={18} />
+            </button>
             <!-- Toggle member list -->
             <button
                 onclick={() => toggleSidebar("members")}
@@ -1524,6 +1537,8 @@
                     onClose={closeSidebar}
                     onOpenThread={openThread}
                 />
+            {:else if showMediaPanel}
+                <RoomMediaPanel {room} onClose={closeSidebar} />
             {:else}
                 <PinnedMessagesPanel
                     {room}
@@ -1549,6 +1564,8 @@
             onClose={closeSidebar}
             onOpenThread={openThread}
         />
+    {:else if showMediaPanel}
+        <RoomMediaPanel {room} onClose={closeSidebar} />
     {:else if showPinnedPanel}
         <PinnedMessagesPanel
             {room}
