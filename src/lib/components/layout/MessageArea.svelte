@@ -1086,11 +1086,12 @@
             <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
                 >#</span
             >
-            <!-- 5rem floor: the header's buttons cannot shrink, so without a floor
-                 the name and topic both get a proportional share of the deficit at
-                 412px and neither renders even an ellipsis. -->
+            <!-- min-w-min keeps the pre-existing min-content floor (the longest word)
+                 so the name stays readable when the header's unshrinkable buttons
+                 overflow the row at 412px, while truncate stops it wrapping inside
+                 the h-12 row. A fixed floor would strand short names. -->
             <h2
-                class="font-semibold text-discord-textPrimary min-w-[5rem] truncate"
+                class="font-semibold text-discord-textPrimary min-w-min truncate"
                 title={roomName}
             >
                 {roomName}

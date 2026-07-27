@@ -1314,7 +1314,7 @@
 </script>
 
 <div
-    class="px-4 pt-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] md:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))] flex-shrink-0 relative"
+    class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(1.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0 relative"
 >
     <!-- Reply preview bar -->
     {#if replyToEvent}
@@ -1643,7 +1643,7 @@
                 placeholder={composerPlaceholder}
                 contenteditable={!disabled}
                 tabindex={disabled ? -1 : 0}
-                class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+                class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
 
             <!-- GIF picker button -->
@@ -1871,11 +1871,13 @@
         </div>
     {:else if typingUsers.length > 0}
         <!-- Touch: float the indicator in the root's bottom padding band instead
-             of reserving 20px that is empty whenever nobody is typing. Anchored
-             bottom-0 so it can never overlap the reply-preview or file-queue
-             strips at the top of this container. -->
+             of reserving 20px that is empty whenever nobody is typing. That band
+             is a 16px band above the safe-area inset, sized to exactly fit the
+             chip (leading-4 makes its line box exactly 16px), so the chip fills
+             the band without painting over the input pill above it — and sitting
+             on top of the inset keeps it clear of a notched device's gesture bar. -->
         <p
-            class="pointer-events-none absolute bottom-0 left-5 right-5 truncate rounded bg-discord-background/90 px-1 text-xs text-discord-textMuted"
+            class="pointer-events-none absolute bottom-[env(safe-area-inset-bottom,0px)] left-5 right-5 truncate rounded bg-discord-background/90 px-1 text-xs leading-4 text-discord-textMuted"
         >
             {typingText()}
         </p>
