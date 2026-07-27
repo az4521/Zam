@@ -1,5 +1,10 @@
 import type { Room } from "matrix-js-sdk";
-import { findSpaceForRoom, getRoom, isVideoRoom } from "$lib/matrix/client";
+import {
+    findSpaceForRoom,
+    getRoom,
+    isVideoRoom,
+    roomTypeIsKnown,
+} from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
 import { interfaceState } from "./interface.svelte";
 import { settingsState } from "./settings.svelte";
@@ -51,9 +56,10 @@ function saveLastSpace(spaceId: string | null): void {
 export function reloadLastLocationFromStorage(): void {
     roomsState.activeSpaceId = loadLastSpace();
     roomsState.activeRoomId = getLastRoom(roomsState.activeSpaceId);
-    // Booting and switching account are location changes like any other: a
-    // restored video room belongs on its call surface, and a call view left
-    // open by the previous account must not outlive that account's rooms.
+    // The restored room is a destination like any other, so it gets the same
+    // surface decision. On boot that decision is almost always deferred (no
+    // rooms exist yet), which is precisely why this call matters: it arms the
+    // deferral that `resolvePendingSurface` later settles.
     applyDefaultSurface(roomsState.activeRoomId);
 }
 
@@ -100,22 +106,27 @@ let pendingSurfaceRoomId: string | null = null;
 /**
  * Pick the surface a room opens on. A video room's purpose IS the call, so it
  * lands on the call view — peeking, never auto-joining (`showCallView`'s own
- * contract) — while everything else lands on its timeline. Every navigation
- * entry point routes through here so a video room behaves the same however you
- * reach it: sidebar click, space switch, inbox jump, boot restore, or account
- * switch.
+ * contract) — while everything else lands on its timeline. The ordinary
+ * navigation entry points route through here (sidebar click, space switch,
+ * inbox jump, boot restore) so a video room behaves the same however you reach
+ * it; deliberate call-surface entry (`showCallView`) and the few places that
+ * clear `activeRoomId` outright to show something other than a room bypass it.
  *
- * Boot restore does NOT resolve here, and cannot: the app shell mounts as soon
- * as the session is authenticated, and at that moment the SDK has no `Room`
- * objects at all — the persisted sync is only turned into rooms once
- * `startClient` runs its first sync pass. So an unknown room id is *remembered*
- * rather than decided, the timeline stands in meanwhile (the pre-existing
- * behaviour, never worse), and `resolvePendingSurface` settles it as soon as
- * the room actually exists.
+ * The decision is only made when the room's type can actually be read, which on
+ * boot is never and over federation is not immediately. Two ways it is unknown:
+ * the app shell mounts as soon as the session is authenticated, and at that
+ * moment the SDK has no `Room` objects at all (the persisted sync only becomes
+ * rooms once `startClient` runs its first pass); and continuwuity omits
+ * federated rooms from /sync, leaving a state-less stub whose `getType()` reads
+ * `undefined` — identical to an ordinary room — until `seedRoomStateIfMissing`
+ * heals it. Committing on either would silently strand a video room on its
+ * timeline for the whole visit, so an undecidable room is *remembered* rather
+ * than decided, the timeline stands in meanwhile (the pre-existing behaviour,
+ * never worse), and `resolvePendingSurface` settles it once the type is real.
  */
 function applyDefaultSurface(roomId: string | null): void {
     const room = roomId ? getRoom(roomId) : null;
-    if (roomId && !room) {
+    if (roomId && (!room || !roomTypeIsKnown(room))) {
         pendingSurfaceRoomId = roomId;
         interfaceState.callViewRoomId = null;
         return;
@@ -126,12 +137,16 @@ function applyDefaultSurface(roomId: string | null): void {
 }
 
 /**
- * Settle a surface choice that boot could not make. Cheap enough to call on
- * every room-list rebuild, and guarded so it can only ever help: it does
- * nothing unless the user is still sitting on the very room whose surface was
- * deferred, so someone who flipped to the timeline or navigated away is never
- * yanked into a call view after the fact. Resolving once clears the deferral;
- * a room that still is not loaded stays pending for the next rebuild.
+ * Settle a surface choice that could not be made when the room was opened.
+ * Cheap enough to call on every room-list rebuild, and guarded so it can only
+ * ever help: it does nothing unless the user is still sitting on the very room
+ * whose surface was deferred, so someone who has navigated away is never yanked
+ * into a call view after the fact. (Someone who stayed put and pressed "Show
+ * chat" is not protected by that guard — `showChatView` cannot clear the
+ * deferral without an import cycle — but that only costs one late flip back to
+ * the call, on the room whose purpose is the call.) Resolving once clears the
+ * deferral; a room whose type is still unreadable stays pending for the next
+ * rebuild.
  */
 export function resolvePendingSurface(): void {
     if (pendingSurfaceRoomId === null) return;
@@ -139,7 +154,8 @@ export function resolvePendingSurface(): void {
         pendingSurfaceRoomId = null;
         return;
     }
-    if (!getRoom(pendingSurfaceRoomId)) return;
+    const room = getRoom(pendingSurfaceRoomId);
+    if (!room || !roomTypeIsKnown(room)) return;
     applyDefaultSurface(pendingSurfaceRoomId);
 }
 

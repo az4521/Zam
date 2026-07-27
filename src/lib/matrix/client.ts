@@ -729,6 +729,20 @@ export function isVideoRoom(room: Room): boolean {
     return isVideoRoomType(room.getType());
 }
 
+/**
+ * Whether a room's `m.room.create` has actually arrived, so `getType()` can be
+ * trusted. Federated rooms that continuwuity omits from /sync exist locally as
+ * bare stubs whose type reads as `undefined` until `seedRoomStateIfMissing`
+ * heals them — indistinguishable from a genuinely typeless ordinary room.
+ * Callers that must not commit to a decision early check this first.
+ */
+export function roomTypeIsKnown(room: Room): boolean {
+    return !!room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents("m.room.create", "");
+}
+
 export function getSpaces(): Room[] {
     return getRooms().filter((r) => r.isSpaceRoom());
 }
