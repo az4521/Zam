@@ -112,3 +112,66 @@ export function backupSummaryLabel(model: BackupStatusModel): string {
         ? `Message history is being backed up (v${model.version}).`
         : "Message history is being backed up.";
 }
+
+/**
+ * The extra key-backup facts the SDK already computes but the UI discarded:
+ * the server's session count, this session's upload queue, and whether the
+ * loaded backup key actually matches the server's backup.
+ */
+export interface BackupDetail {
+    /** The server holds a backup for this account. */
+    exists: boolean;
+    /** This session is actively backing up to it. */
+    active: boolean;
+    /** The loaded backup decryption key matches the server backup. */
+    matchesDecryptionKey: boolean;
+    /** Sessions stored server-side (`KeyBackupInfo.count`), null if unreported. */
+    count: number | null;
+    /** Sessions this client still has to upload, null until the SDK reports. */
+    sessionsRemaining: number | null;
+}
+
+/**
+ * Detail lines for the backup panel, in display order. Empty when there is no
+ * backup (the summary line already says so) — every line here is additive
+ * detail, never the only thing shown.
+ */
+export function backupDetailLines(detail: BackupDetail): string[] {
+    if (!detail.exists) return [];
+    const lines: string[] = [];
+    const { count, sessionsRemaining } = detail;
+    if (count != null) {
+        if (count <= 0) lines.push("No keys backed up yet");
+        else lines.push(`${count} ${count === 1 ? "key" : "keys"} backed up`);
+    }
+    if (sessionsRemaining != null) {
+        if (sessionsRemaining > 0) {
+            lines.push(
+                `${sessionsRemaining} ${
+                    sessionsRemaining === 1 ? "key" : "keys"
+                } still to upload`,
+            );
+        } else {
+            lines.push("Everything on this session is backed up");
+        }
+    }
+    // Only meaningful while this session is connected to the backup: an
+    // unconnected session has no loaded key to compare in the first place.
+    if (detail.active && !detail.matchesDecryptionKey) {
+        lines.push(
+            "This session's backup key doesn't match the backup on the server",
+        );
+    }
+    return lines;
+}
+
+/** How many characters of a 4S key id to show before eliding. */
+const KEY_ID_VISIBLE = 8;
+
+/** Short, human-safe rendering of the account's default secret-storage key id. */
+export function secretStorageKeyLabel(defaultKeyId: string | null): string {
+    if (!defaultKeyId) return "Not set";
+    return defaultKeyId.length > KEY_ID_VISIBLE
+        ? `${defaultKeyId.slice(0, KEY_ID_VISIBLE)}…`
+        : defaultKeyId;
+}
