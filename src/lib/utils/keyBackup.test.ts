@@ -179,6 +179,18 @@ describe("backupDetailLines", () => {
         ).toEqual([]);
     });
 
+    it("returns nothing when a backup exists but there's nothing to report yet", () => {
+        expect(
+            backupDetailLines({
+                exists: true,
+                active: true,
+                matchesDecryptionKey: true,
+                count: null,
+                sessionsRemaining: null,
+            }),
+        ).toEqual([]);
+    });
+
     it("reports the server-side key count", () => {
         expect(backupDetailLines({ ...base, count: 12 })).toContain(
             "12 keys backed up",

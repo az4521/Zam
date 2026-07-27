@@ -88,8 +88,14 @@
     let unlockPassphrase = $state("");
 
     const canUnlockByPassphrase = $derived(status?.passphraseRecovery ?? false);
+    // The stored mode is only meaningful while the passphrase path exists; if
+    // it disappears under us, fall back to key entry rather than stranding the
+    // user on an input that can no longer work.
+    const effectiveUnlockMode = $derived(
+        canUnlockByPassphrase ? unlockMode : "key",
+    );
     const unlockReady = $derived(
-        unlockMode === "key"
+        effectiveUnlockMode === "key"
             ? isLikelyRecoveryKey(unlockKey)
             : unlockPassphrase.length > 0,
     );
@@ -286,7 +292,7 @@
                 progress = p;
             };
             const result =
-                unlockMode === "key"
+                effectiveUnlockMode === "key"
                     ? await unlockWithRecoveryKey(unlockKey, onProgress)
                     : await unlockWithPassphrase(unlockPassphrase, onProgress);
             unlockKey = "";
@@ -698,12 +704,19 @@
                     {/each}
                 </ul>
             {/if}
-            {@render statusRow(
-                "Backup key on this session",
-                backup.matchesDecryptionKey,
-                "Matches",
-                "Not matched",
-            )}
+            <!-- The `exists` gate is load-bearing: matchesDecryptionKey is false
+                 both when no backup exists at all and when this session has
+                 simply never unlocked one, so rendering it ungated asserts a
+                 mismatch against a backup that may not exist. "Not loaded" is
+                 truthful for every off-state the single boolean can represent. -->
+            {#if backup.exists}
+                {@render statusRow(
+                    "Backup key on this session",
+                    backup.matchesDecryptionKey,
+                    "Matches",
+                    "Not loaded",
+                )}
+            {/if}
 
             {#if needsUnlock}
                 {#if unlockStep === "idle"}
@@ -736,13 +749,13 @@
                         {/if}
                         <p class="text-xs text-discord-textMuted">
                             Enter your <strong
-                                >{unlockMode === "key"
+                                >{effectiveUnlockMode === "key"
                                     ? "recovery key"
                                     : "recovery passphrase"}</strong
                             > to verify this session and restore your encrypted message
                             history.
                         </p>
-                        {#if unlockMode === "key"}
+                        {#if effectiveUnlockMode === "key"}
                             <input
                                 type="text"
                                 bind:value={unlockKey}
