@@ -151,6 +151,63 @@ describe("mediaItemFromEvent", () => {
     it("rejects an event with no id", () => {
         expect(mediaItemFromEvent(ev({ eventId: null }))).toBeNull();
     });
+
+    // A msgtype is remote-controlled: any room member can send one. Looking it
+    // up on a plain object literal would resolve Object.prototype members and
+    // hand back a truthy non-MediaKind.
+    it.each(["toString", "constructor", "valueOf"])(
+        "rejects the prototype-chain msgtype %s",
+        (msgtype) => {
+            expect(
+                mediaItemFromEvent(
+                    ev({
+                        content: {
+                            msgtype,
+                            body: "evil",
+                            url: "mxc://example.org/p",
+                        },
+                    }),
+                ),
+            ).toBeNull();
+        },
+    );
+
+    it("defaults a missing sender and timestamp", () => {
+        const result = mediaItemFromEvent(ev({ sender: null, ts: null }));
+        expect(result?.sender).toBe("");
+        expect(result?.ts).toBe(0);
+    });
+
+    it("keeps a zero size rather than nulling it", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.image",
+                    body: "empty.png",
+                    url: "mxc://example.org/z",
+                    info: { size: 0 },
+                },
+            }),
+        );
+        expect(result?.size).toBe(0);
+        expect(formatMediaSize(result?.size ?? null)).toBe("");
+    });
+
+    it("survives info that is not an object", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.image",
+                    body: "odd.png",
+                    url: "mxc://example.org/o",
+                    info: "not an object",
+                },
+            }),
+        );
+        expect(result?.mimetype).toBeNull();
+        expect(result?.thumbnailUrl).toBeNull();
+        expect(result?.size).toBeNull();
+    });
 });
 
 describe("mediaFilterDefinition", () => {
@@ -230,12 +287,13 @@ describe("splitMediaItems", () => {
     });
 
     it("preserves order within each tab", () => {
-        const { visual } = splitMediaItems([
+        const { visual, files } = splitMediaItems([
             item({ eventId: "$1", kind: "image" }),
             item({ eventId: "$2", kind: "file" }),
             item({ eventId: "$3", kind: "image" }),
         ]);
         expect(visual.map((i) => i.eventId)).toEqual(["$1", "$3"]);
+        expect(files.map((i) => i.eventId)).toEqual(["$2"]);
     });
 });
 
@@ -248,8 +306,14 @@ describe("formatMediaSize", () => {
         expect(formatMediaSize(5 * 1048576)).toBe("5.0 MB");
     });
 
+    it("switches to MB exactly at one megabyte", () => {
+        expect(formatMediaSize(1048575)).toBe("1024.0 KB");
+        expect(formatMediaSize(1048576)).toBe("1.0 MB");
+    });
+
     it("is empty for an unknown size", () => {
         expect(formatMediaSize(null)).toBe("");
+        expect(formatMediaSize(undefined)).toBe("");
         expect(formatMediaSize(0)).toBe("");
     });
 });

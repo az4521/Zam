@@ -63,6 +63,10 @@ function mxc(value: unknown): string | null {
  * media. Encrypted attachments (`content.file`, no `content.url`) return null
  * on purpose: this client has no attachment-decryption path, so showing them
  * would only produce broken tiles.
+ *
+ * Pass the POST-DECRYPTION type and content: this hard-rejects anything whose
+ * type is not `m.room.message`, so in an encrypted room the caller must have
+ * already unwrapped the `m.room.encrypted` envelope before calling here.
  */
 export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
     if (ev.type !== "m.room.message") return null;
@@ -71,13 +75,25 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
     const content = ev.content;
     if (!content) return null;
 
-    const kind = KIND_BY_MSGTYPE[str(content.msgtype) ?? ""];
+    // Own-property check only: `msgtype` is remote-controlled, and a plain
+    // object literal would happily resolve "toString"/"constructor" off
+    // Object.prototype and hand back a truthy non-MediaKind.
+    const msgtype = str(content.msgtype) ?? "";
+    const kind: MediaKind | undefined = Object.prototype.hasOwnProperty.call(
+        KIND_BY_MSGTYPE,
+        msgtype,
+    )
+        ? KIND_BY_MSGTYPE[msgtype]
+        : undefined;
     if (!kind) return null;
 
     const url = mxc(content.url);
     if (url === null) return null;
 
-    const info = (content.info ?? {}) as Record<string, unknown>;
+    const info: Record<string, unknown> =
+        typeof content.info === "object" && content.info !== null
+            ? (content.info as Record<string, unknown>)
+            : {};
     const size = typeof info.size === "number" ? info.size : null;
 
     return {
@@ -157,7 +173,7 @@ export function splitMediaItems(items: RoomMediaItem[]): {
 
 /** Human size, matching the message renderer's KB/MB rounding. Empty when the
  *  server did not tell us (`info.size` is optional). */
-export function formatMediaSize(bytes: number | null): string {
+export function formatMediaSize(bytes: number | null | undefined): string {
     if (!bytes || bytes <= 0) return "";
     return bytes / 1024 < 1024
         ? `${(bytes / 1024).toFixed(1)} KB`
