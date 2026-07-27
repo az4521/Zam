@@ -1,16 +1,19 @@
 // Centralised UI/interface state.
 //
-// Three mutually-exclusive "slots", dismissed in this priority order by
-// AppShell.dismissTopmost() (Escape and mobile hardware back):
+// Three UI slots, dismissed in this priority order by AppShell.dismissTopmost()
+// (Escape and mobile hardware back):
 //   - subPage: a page layered INSIDE the open modal (mobile settings
 //              drill-down) — popped first, leaving the modal open.
 //   - modal:   the single open popup / modal / context-menu / picker.
 //   - sidebar: the single open side panel (member list, pinned, notifications).
 //
+// Each slot holds at most one owner, but the slots are not exclusive of one
+// another: a sub-page exists precisely while its modal is also open.
+//
 // Components no longer track their own open/closed booleans — they render based
 // on `interfaceState.modal === "<id>"` / `interfaceState.sidebar === "<id>"` and
-// open/close through the helpers below. The main page (+page.svelte) owns the
-// global Escape-key and mobile back-button handling and operates on this store.
+// open/close through the helpers below. AppShell.svelte owns the global
+// Escape-key and mobile back-button handling and operates on this store.
 
 export type ModalId =
     | "app-settings"
@@ -127,14 +130,18 @@ export function clearModal(id: ModalId): void {
 
 /**
  * Push a sub-page above the open modal. `close` pops one level (it should NOT
- * close the modal). Any previous sub-page is closed first, so a component that
- * supersedes another's sub-page cannot strand it.
+ * close the modal). Any previous sub-page is closed first — its handler runs
+ * before the new owner takes the slot — so a component that supersedes
+ * another's sub-page cannot strand it.
  */
 export function openSubPage(close: () => void): void {
     const prev = interfaceState.subPageClose;
     if (prev === close) return;
-    interfaceState.subPageClose = close;
+    // Clear before running the superseded handler (as openModal does), so a
+    // handler that reaches back into the store cannot pop the new owner.
+    interfaceState.subPageClose = null;
     prev?.();
+    interfaceState.subPageClose = close;
 }
 
 /** Pop the open sub-page, running its handler. No-op when none is open. */

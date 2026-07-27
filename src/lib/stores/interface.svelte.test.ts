@@ -53,6 +53,15 @@ describe("sub-page slot", () => {
         expect(interfaceState.subPageClose).toBe(second);
     });
 
+    it("a superseded handler that closes the sub-page cannot pop the new owner", () => {
+        const replacement = vi.fn();
+        const outgoing = vi.fn(() => closeSubPage());
+        openSubPage(outgoing);
+        openSubPage(replacement);
+        expect(interfaceState.subPageClose).toBe(replacement);
+        expect(replacement).not.toHaveBeenCalled();
+    });
+
     it("openSubPage with the same handler does not re-run it", () => {
         const close = vi.fn();
         openSubPage(close);
