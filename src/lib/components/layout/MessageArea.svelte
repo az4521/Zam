@@ -242,6 +242,18 @@
         interfaceState.modal === "room-header-overflow",
     );
 
+    // On desktop each of the four buttons colours itself accent while its own
+    // panel is open. The "⋯" trigger stands in for all four, so it has to carry
+    // that signal too — otherwise opening the member list on mobile leaves the
+    // header with no indication that any panel is open.
+    const overflowActive = $derived(
+        overflowOpen ||
+            showThreadsPanel ||
+            showPinnedPanel ||
+            showNotificationsPanel ||
+            showMemberList,
+    );
+
     function toggleOverflowMenu() {
         if (interfaceState.modal === "room-header-overflow") closeModal();
         else openModal("room-header-overflow", () => {});
@@ -250,6 +262,32 @@
     function chooseOverflowItem(key: RoomHeaderMenuKey) {
         toggleSidebar(key);
     }
+
+    // The sheet only renders while `isMobile && overflowOpen`, but the slot it
+    // registers in is global. Widening past the 767px breakpoint (devtools,
+    // an Electron window, a tablet rotating) or unmounting this component
+    // (call view, inbox, no active room) makes the sheet disappear WITHOUT
+    // touching interfaceState.modal, stranding the slot on an invisible modal:
+    // AppShell.dismissTopmost() then swallows the next Escape/back that should
+    // have closed a sidebar, type-to-focus stays disabled, and mobile keeps a
+    // matrixBackGuard history entry pushed. Release it on both paths.
+    //
+    // Id-guarded rather than an unconditional closeModal() so it is idempotent
+    // and can never dismiss a modal some other component now owns.
+    function releaseOverflowSlot() {
+        if (interfaceState.modal === "room-header-overflow") closeModal();
+    }
+
+    // Tracks `isMobile` and nothing else — the interfaceState read AND write
+    // both live inside untrack(), so this effect can never take its own store
+    // write as a dependency and re-trigger itself (effect_update_depth_exceeded).
+    $effect(() => {
+        if (isMobile) return;
+        untrack(releaseOverflowSlot);
+    });
+
+    // Unmount half, mirroring Lightbox's teardown.
+    onMount(() => releaseOverflowSlot);
 
     // Any loud (red) notification anywhere → badge the mobile hamburger.
     const hasAnyLoud = $derived(getLoudNotificationCount() > 0);
@@ -1253,7 +1291,7 @@
             {:else}
                 <button
                     onclick={toggleOverflowMenu}
-                    class="relative p-1.5 rounded transition-colors flex-shrink-0 {overflowOpen
+                    class="relative p-1.5 rounded transition-colors flex-shrink-0 {overflowActive
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
                     title="More"
