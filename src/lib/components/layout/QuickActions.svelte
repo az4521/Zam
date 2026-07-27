@@ -38,6 +38,9 @@
     // Encryption toggle for create-room / create-dm. Only offered when crypto
     // started this session (encrypting a room we can't decrypt is a foot-gun).
     let encrypt = $state(false);
+    // Video-room toggle for create-room. Orthogonal to encryption, so it is
+    // offered whether or not crypto started this session.
+    let videoRoom = $state(false);
     const cryptoReady = isCryptoAvailable();
 
     // When encryption is requested but an *existing* (plaintext) DM is reused,
@@ -98,6 +101,7 @@
         noticeRoomId = null;
         // New DMs pre-check the account default; new rooms default off.
         encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
+        videoRoom = false;
         resetKnock();
         openModal("quick-actions", () => (mode = null));
     }
@@ -117,6 +121,7 @@
                     input2.trim(),
                     spaceId,
                     cryptoReady && encrypt,
+                    videoRoom,
                 );
             } else if (mode === "create-space") {
                 roomId = await createSpace(input1.trim(), input2.trim());
@@ -301,6 +306,25 @@
                                 class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                             />
                         </div>
+                        {#if mode === "create-room"}
+                            <label
+                                class="flex items-start gap-2.5 cursor-pointer"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={videoRoom}
+                                    class="mt-0.5 accent-discord-accent"
+                                />
+                                <span class="text-sm text-discord-textPrimary"
+                                    >Video room
+                                    <span
+                                        class="block text-xs text-discord-textMuted"
+                                        >Opens straight into a call. Messages
+                                        still work.</span
+                                    ></span
+                                >
+                            </label>
+                        {/if}
                         {#if mode === "create-room" && cryptoReady}
                             <label
                                 class="flex items-start gap-2.5 cursor-pointer"
