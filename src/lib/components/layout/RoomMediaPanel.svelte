@@ -37,6 +37,11 @@
     const visible = $derived(tab === "media" ? split.visual : split.files);
     const hasMore = $derived(!exhausted);
 
+    // The Lightbox renders a single <img>, so only images can be viewed in it.
+    // Videos still get a grid tile (they belong there visually) but clicking
+    // one downloads it — see the tile's onclick.
+    const gallery = $derived(split.visual.filter((i) => i.kind === "image"));
+
     // A page can legitimately contain no media at all (a run of text
     // messages), so keep pulling until something lands or history runs out.
     // Capped so a media-less room cannot spin forever on one click.
@@ -93,13 +98,15 @@
     });
 
     function openViewer(item: RoomMediaItem): void {
-        viewerIndex = split.visual.findIndex((i) => i.eventId === item.eventId);
+        const index = gallery.findIndex((i) => i.eventId === item.eventId);
+        if (index === -1) return;
+        viewerIndex = index;
     }
 
     function step(delta: number): void {
         if (viewerIndex === null) return;
         const next = viewerIndex + delta;
-        if (next < 0 || next >= split.visual.length) return;
+        if (next < 0 || next >= gallery.length) return;
         viewerIndex = next;
     }
 
@@ -190,6 +197,14 @@
             <p class="text-sm text-discord-danger text-center mt-8 px-4">
                 {error}
             </p>
+            <div class="px-2 pt-2">
+                <button
+                    onclick={() => pull(true)}
+                    class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                >
+                    Try again
+                </button>
+            </div>
         {:else if visible.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
                 {tab === "media"
@@ -203,9 +218,14 @@
                         mxcToHttp(media.thumbnailUrl ?? media.url, 160, 160) ??
                         mxcToHttp(media.url)}
                     <button
-                        onclick={() => openViewer(media)}
+                        onclick={() =>
+                            media.kind === "image"
+                                ? openViewer(media)
+                                : download(media)}
                         class="relative aspect-square rounded overflow-hidden bg-discord-background hover:opacity-80 transition-opacity"
-                        title={media.name}
+                        title={media.kind === "image"
+                            ? media.name
+                            : `${media.name} — download`}
                     >
                         {#if thumb}
                             <img
@@ -259,8 +279,8 @@
     </div>
 </div>
 
-{#if viewerIndex !== null && split.visual[viewerIndex]}
-    {@const current = split.visual[viewerIndex]}
+{#if viewerIndex !== null && gallery[viewerIndex]}
+    {@const current = gallery[viewerIndex]}
     {@const full = mxcToHttp(current.url)}
     {#if full}
         <Lightbox
@@ -268,7 +288,7 @@
             alt={current.name}
             onClose={() => (viewerIndex = null)}
             onPrev={viewerIndex > 0 ? () => step(-1) : undefined}
-            onNext={viewerIndex < split.visual.length - 1
+            onNext={viewerIndex < gallery.length - 1
                 ? () => step(1)
                 : undefined}
         />
