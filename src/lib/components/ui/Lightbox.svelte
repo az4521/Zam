@@ -24,7 +24,7 @@
     } from "$lib/stores/favourites.svelte";
     import { fetchAttachmentBlob } from "$lib/matrix/client";
     import { focusTrap } from "$lib/actions/focusTrap";
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
 
     let { src, alt = "", onClose, favourite, onPrev, onNext }: Props = $props();
 
@@ -91,6 +91,20 @@
     let scale = $state(1);
     let tx = $state(0);
     let ty = $state(0);
+
+    // Gallery stepping swaps `src` on the SAME instance, so without this the
+    // next image opens at the previous one's zoom, panned to coordinates
+    // clamped against the previous one's dimensions. `src` is read outside
+    // untrack so it is the only dependency; the writes are untracked so they
+    // cannot re-enter this effect (effect_update_depth_exceeded).
+    $effect(() => {
+        void src;
+        untrack(() => {
+            scale = 1;
+            tx = 0;
+            ty = 0;
+        });
+    });
 
     // Active pointers for pinch/pan.
     const pointers = new Map<number, { x: number; y: number }>();
@@ -239,6 +253,10 @@
     // here — `use:focusTrap={{ onEscape: onClose }}` owns it.
     onMount(() => {
         const onKey = (e: KeyboardEvent) => {
+            // Alt+ArrowLeft is the browser-back chord; hijacking (and
+            // preventDefault-ing) it would swallow the popstate the app's back
+            // guard depends on. Leave every modified arrow to the browser.
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
             if (e.key === "ArrowLeft" && onPrev) {
                 e.preventDefault();
                 onPrev();
