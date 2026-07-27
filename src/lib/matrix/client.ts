@@ -3402,17 +3402,21 @@ export async function fetchRoomMediaPage(
         filter,
     );
 
+    const events = (res.chunk ?? []).map((raw) => new MatrixEvent(raw));
+
+    // Decrypt the whole page at once rather than 40 serial awaits. A missing
+    // key does NOT reject: the SDK's decryption loop swallows the error and
+    // marks the event as a decryption failure, so it resolves and the event
+    // surfaces as m.bad.encrypted, which the mapper rejects anyway. The catch
+    // is belt-and-braces for an unexpected throw.
+    await Promise.all(
+        events
+            .filter((e) => e.getType() === "m.room.encrypted")
+            .map((e) => matrixClient!.decryptEventIfNeeded(e).catch(() => {})),
+    );
+
     const items: RoomMediaItem[] = [];
-    for (const raw of res.chunk ?? []) {
-        const event = new MatrixEvent(raw);
-        if (event.getType() === "m.room.encrypted") {
-            try {
-                await matrixClient.decryptEventIfNeeded(event);
-            } catch {
-                // A key we never received: skip rather than fail the page.
-                continue;
-            }
-        }
+    for (const event of events) {
         const item = mediaItemFromEvent({
             eventId: event.getId(),
             sender: event.getSender(),
@@ -3423,9 +3427,12 @@ export async function fetchRoomMediaPage(
         if (item) items.push(item);
     }
 
-    // The server echoes `end` even when exhausted; an empty chunk is the real
-    // end-of-history signal.
-    const nextToken = (res.chunk ?? []).length === 0 ? null : (res.end ?? null);
+    // End of history is the token, not the chunk: conduit-derived servers
+    // (continuwuity/tuwunel) filter a fixed PDU window after the fact, so an
+    // empty chunk mid-history is normal. A token that does not advance means
+    // the server has nothing further to give.
+    const end = res.end ?? null;
+    const nextToken = end !== null && end !== fromToken ? end : null;
     return { items, nextToken };
 }
 
