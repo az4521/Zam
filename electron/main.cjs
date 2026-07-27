@@ -323,10 +323,22 @@ function setupDisplayMediaHandler() {
                 pendingShareRequests.delete(requestId);
                 denyShareRequest(pending);
                 if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send(
-                        "screenshare:cancel",
-                        requestId,
-                    );
+                    try {
+                        mainWindow.webContents.send(
+                            "screenshare:cancel",
+                            requestId,
+                        );
+                    } catch (err) {
+                        // We are inside a setTimeout, so a throw here would be
+                        // an UNCAUGHT main-process exception. The webContents
+                        // can be torn down between the guard above and this
+                        // send; the request is already denied either way, so
+                        // there is nothing to recover — just note it.
+                        console.error(
+                            "screen-share cancel notify failed:",
+                            err,
+                        );
+                    }
                 }
             }, SHARE_PICK_TIMEOUT_MS);
             pendingShareRequests.set(requestId, {
