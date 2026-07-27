@@ -316,7 +316,7 @@
                             <img
                                 src={ownAvatarUrl}
                                 alt="My stickers"
-                                class="w-5 h-5 rounded-full object-contain"
+                                class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else if pack.id === "user"}
                             <svg
@@ -332,7 +332,7 @@
                             <img
                                 src={pack.avatarUrl}
                                 alt={pack.name}
-                                class="w-5 h-5 rounded-full object-contain"
+                                class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else}
                             <span

@@ -407,7 +407,7 @@
                             <img
                                 src={ownAvatarUrl}
                                 alt="My emojis"
-                                class="w-5 h-5 rounded-full object-contain"
+                                class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else if tab.id === "user"}
                             <svg
@@ -423,7 +423,7 @@
                             <img
                                 src={tab.avatarUrl}
                                 alt={tab.label}
-                                class="w-5 h-5 rounded-full object-contain"
+                                class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else}
                             <span

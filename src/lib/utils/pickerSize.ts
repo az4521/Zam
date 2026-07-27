@@ -33,20 +33,23 @@ function resolveDimension(
 ): number {
     const shared = read(`${opts.storageKey}:${suffix}`);
     if (shared !== null) return shared;
+    const legacy = (opts.legacyKeys ?? []).map((entry) => ({
+        stored: read(`${entry.key}:${suffix}`),
+        former: suffix === "w" ? entry.defaultW : entry.defaultH,
+    }));
+    // Nothing to migrate: no old picker was ever resized in this dimension, so
+    // the shared default decides. Checking for a STORED value (not just for
+    // configured legacy keys) is what keeps `opts.defaultW`/`defaultH` live —
+    // every entry contributes a former default, so a max over them would always
+    // produce a number and the shared default could never be reached.
+    if (!legacy.some((entry) => entry.stored !== null)) return fallback;
     // Migration: compare every old picker at its EFFECTIVE size — the stored
     // value if the user resized it, otherwise that picker's own former default
     // — and take the largest. Ignoring the untouched pickers' defaults would
     // let one shrunken picker drag the others below the size they mount at
     // today; flooring at the shared default would instead override a user who
     // deliberately shrank all three.
-    let best: number | null = null;
-    for (const entry of opts.legacyKeys ?? []) {
-        const stored = read(`${entry.key}:${suffix}`);
-        const effective =
-            stored ?? (suffix === "w" ? entry.defaultW : entry.defaultH);
-        if (best === null || effective > best) best = effective;
-    }
-    return best ?? fallback;
+    return Math.max(...legacy.map((entry) => entry.stored ?? entry.former));
 }
 
 export function resolvePickerSize(

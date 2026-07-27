@@ -12,13 +12,15 @@ const OPTS = {
         { key: "stickerPicker", defaultW: 340, defaultH: 440 },
         { key: "gifPicker", defaultW: 416, defaultH: 480 },
     ],
-    defaultW: 416,
-    defaultH: 480,
+    // Deliberately unlike any legacy entry's former default, so a test that
+    // reaches the shared fallback can't be satisfied by the migration branch.
+    defaultW: 999,
+    defaultH: 888,
 };
 
 describe("resolvePickerSize", () => {
     it("returns the defaults when nothing is stored", () => {
-        expect(resolvePickerSize(reader({}), OPTS)).toEqual({ w: 416, h: 480 });
+        expect(resolvePickerSize(reader({}), OPTS)).toEqual({ w: 999, h: 888 });
     });
 
     it("uses the shared key when present", () => {
@@ -89,7 +91,7 @@ describe("resolvePickerSize", () => {
     it("falls back to the defaults when no legacy keys are configured", () => {
         expect(
             resolvePickerSize(reader({}), { ...OPTS, legacyKeys: [] }),
-        ).toEqual({ w: 416, h: 480 });
+        ).toEqual({ w: 999, h: 888 });
     });
 
     it("exports one shared config for all three pickers", () => {
