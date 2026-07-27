@@ -30,7 +30,19 @@ describe("qrModulePath", () => {
         expect(qrModulePath(3, data)).toBe("M4 4h2v1h-2z");
     });
 
-    it("emits one subpath per run, per row", () => {
+    it("closes a run that ends at the last column", () => {
+        // row 0 = ·██, rows 1-2 blank
+        const data = [0, 1, 1, 0, 0, 0, 0, 0, 0];
+        expect(qrModulePath(3, data)).toBe("M5 4h2v1h-2z");
+    });
+
+    it("emits every run in a row, not just the first", () => {
+        // row 0 = █·█, rows 1-2 blank
+        const data = [1, 0, 1, 0, 0, 0, 0, 0, 0];
+        expect(qrModulePath(3, data)).toBe("M4 4h1v1h-1zM6 4h1v1h-1z");
+    });
+
+    it("places each row's run at its own row offset", () => {
         // 2x2 checkerboard
         expect(qrModulePath(2, [1, 0, 0, 1])).toBe("M4 4h1v1h-1zM5 5h1v1h-1z");
     });
@@ -50,6 +62,10 @@ describe("qrModulePath", () => {
 
     it("returns an empty path for a non-positive size", () => {
         expect(qrModulePath(0, [])).toBe("");
+    });
+
+    it("returns an empty path for a fractional size", () => {
+        expect(qrModulePath(2.5, [1, 1, 1, 1, 1, 1, 1, 1, 1])).toBe("");
     });
 
     it("treats any non-zero value as dark", () => {
@@ -75,6 +91,7 @@ describe("toQrPayloadBytes", () => {
         expect(toQrPayloadBytes([1, 256])).toBeNull();
         expect(toQrPayloadBytes([1, 1.5])).toBeNull();
         expect(toQrPayloadBytes([1, Number.NaN])).toBeNull();
+        expect(toQrPayloadBytes([1, Number.POSITIVE_INFINITY])).toBeNull();
     });
 });
 

@@ -28,10 +28,12 @@ export function qrViewBoxSize(size: number): number {
  * so the result drops straight into a `qrViewBoxSize(size)` viewBox.
  *
  * Returns "" for an empty, undersized or all-light matrix — the caller renders
- * nothing rather than an unscannable partial symbol.
+ * nothing rather than an unscannable partial symbol. `size` must be a whole
+ * number: a fractional one makes `row * size + col` land between indices, which
+ * would emit a corrupt path instead of failing honestly.
  */
 export function qrModulePath(size: number, data: ArrayLike<number>): string {
-    if (!Number.isFinite(size) || size <= 0) return "";
+    if (!Number.isInteger(size) || size <= 0) return "";
     if (data.length < size * size) return "";
     let path = "";
     for (let row = 0; row < size; row++) {
