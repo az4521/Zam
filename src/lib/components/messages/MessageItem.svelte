@@ -9,6 +9,7 @@
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
+    import EventShield from "./EventShield.svelte";
     import { Forward, Lock } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
@@ -53,6 +54,11 @@
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
+    import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
+    import {
+        shieldViewForEvent,
+        type ShieldView,
+    } from "$lib/utils/eventShield";
 
     import {
         messagesState,
@@ -64,7 +70,8 @@
         setActiveSpace,
     } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
-    import { tick } from "svelte";
+    import { securityState } from "$lib/stores/security.svelte";
+    import { tick, untrack } from "svelte";
     import {
         messageTimestamp,
         timeOnly,
@@ -380,6 +387,53 @@
     const eventType = $derived(
         (void messagesState.timelineTick, event.getType()),
     );
+
+    // Whether this room has encryption switched on. Tick-bound because the Room
+    // mutates in place when the m.room.encryption state event lands.
+    const roomEncrypted = $derived(
+        (void roomsState.roomsTick, isRoomEncrypted(room)),
+    );
+
+    // Per-message E2EE shield. getEncryptionInfoForEvent is ASYNC, so this
+    // cannot be a $derived — it's $state written from an $effect. The effect
+    // re-runs on timelineTick (an event decrypting late gets a shield it did
+    // not have) and on securityTick (verifying a device changes the shield on
+    // every message that device sent; crypto.ts drops its memo on the same
+    // events). The SDK call is untracked per project law: an SDK call inside a
+    // tracked effect can register listener reads as dependencies and blow the
+    // effect depth.
+    let shield = $state<ShieldView | null>(null);
+    $effect(() => {
+        void messagesState.timelineTick;
+        void securityState.securityTick;
+        const encrypted = roomEncrypted;
+        const id = eventId;
+
+        if (!encrypted) {
+            shield = null;
+            return;
+        }
+
+        let cancelled = false;
+        untrack(() => {
+            void getEventShield(event)
+                .then((info) => {
+                    // A late resolution must not overwrite a newer row's state.
+                    if (cancelled || event.getId() !== id) return;
+                    shield = shieldViewForEvent({
+                        roomEncrypted: true,
+                        info,
+                    });
+                })
+                .catch(() => {
+                    if (!cancelled) shield = null;
+                });
+        });
+        return () => {
+            cancelled = true;
+        };
+    });
+
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
     // In-room verification requests ride in as m.room.message; their plain-text
@@ -973,6 +1027,17 @@
                     title={fullTimestamp(timestamp)}
                     >{messageTimestamp(timestamp)}</span
                 >
+                {#if shield}
+                    <EventShield {shield} />
+                {/if}
+            </div>
+        {:else if shield}
+            <!-- Grouped messages have no header row, but a shield must never
+                 vanish just because a message follows one from the same sender.
+                 This borrows the header row's shape so the badge lands in the
+                 same column position it would have had above. -->
+            <div class="flex items-baseline gap-2 mb-0.5">
+                <EventShield {shield} />
             </div>
         {/if}
 
