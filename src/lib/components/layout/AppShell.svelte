@@ -29,6 +29,7 @@
         openModal,
         closeModal,
         closeSidebar,
+        closeSubPage,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
@@ -253,10 +254,18 @@
     }
 
     // ── Central Escape-key + mobile back-button handling ───────────────────────
-    // Priority: dismiss open modal → dismiss open sidebar → (back only) open the
-    // left drawer → real back. All driven by the interfaceState slots; no
-    // component manages its own Escape/back shortcuts.
+    // Priority: pop a sub-page inside the open modal → dismiss open modal →
+    // dismiss open sidebar → (back only) open the left drawer → real back. All
+    // driven by the interfaceState slots; no component manages its own
+    // Escape/back shortcuts.
     function dismissTopmost(): boolean {
+        // A sub-page (mobile settings drill-down) sits INSIDE the modal, so it
+        // must pop first — one back press returns to the category list rather
+        // than throwing the user out of Settings entirely.
+        if (interfaceState.subPageClose) {
+            closeSubPage();
+            return true;
+        }
         if (interfaceState.modal) {
             closeModal();
             return true;
