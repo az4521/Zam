@@ -38,6 +38,7 @@
         setCustomDatePattern,
         setAlwaysAbsolute,
         setGifDefaultTab,
+        setShowReadReceiptAvatars,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
@@ -335,6 +336,34 @@
                 checked={settingsState.alwaysAbsolute}
                 onChange={setAlwaysAbsolute}
                 label="Always show absolute dates"
+            />
+        </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            Messages
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Read receipt avatars
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Show who has read each message as small avatars underneath
+                    it. This only changes what you see on this device — to stop
+                    others seeing how far you've read, use Private read receipts
+                    in Notifications.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.showReadReceiptAvatars}
+                onChange={setShowReadReceiptAvatars}
+                label="Read receipt avatars"
             />
         </div>
     </section>
