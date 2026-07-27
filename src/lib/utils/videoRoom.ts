@@ -39,10 +39,22 @@ export function isVideoRoomType(type: string | null | undefined): boolean {
 }
 
 /**
- * The `creation_content` contribution for `createRoom`, or `undefined` for an
- * ordinary room — so callers can spread it straight into the options object
- * without an extra empty key. Mirrors `encryptionInitialState`
- * (`utils/roomEncryption.ts`).
+ * The value of the `creation_content` KEY for `createRoom`, or `undefined` for
+ * an ordinary room — so callers can name the key conditionally without an extra
+ * empty one:
+ *
+ *     const cc = videoRoomCreationContent(videoRoom);
+ *     await client.createRoom({ name, ...(cc ? { creation_content: cc } : {}) });
+ *
+ * Do NOT spread the return value straight into the options object.
+ * `ICreateRoomOpts` has no top-level `type`, and a spread defeats TypeScript's
+ * excess-property check (the same trap `threadSupport` in `createClient` fell
+ * into), so `{ ...opts, ...cc }` would compile green and quietly produce an
+ * ordinary room the UI never treats as a video room.
+ *
+ * Mirrors `encryptionInitialState` (`utils/roomEncryption.ts`) and the
+ * `...(initialState ? { initial_state: initialState } : {})` pattern already in
+ * use at the `createRoom` call sites in `matrix/client.ts`.
  */
 export function videoRoomCreationContent(
     videoRoom: boolean,
