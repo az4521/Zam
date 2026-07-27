@@ -1,5 +1,5 @@
 import type { Room } from "matrix-js-sdk";
-import { findSpaceForRoom } from "$lib/matrix/client";
+import { findSpaceForRoom, getRoom, isVideoRoom } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
 import { interfaceState } from "./interface.svelte";
 import { settingsState } from "./settings.svelte";
@@ -85,6 +85,23 @@ export function bumpUnreadTick(): void {
     roomsState.unreadTick++;
 }
 
+/**
+ * Pick the surface a room opens on. A video room's purpose IS the call, so it
+ * lands on the call view — peeking, never auto-joining (`showCallView`'s own
+ * contract) — while everything else lands on its timeline. Every navigation
+ * entry point routes through here so a video room behaves the same however you
+ * reach it: sidebar click, space switch, inbox jump, or boot restore.
+ *
+ * A room we do not have locally yet (`getRoom` null) falls back to the
+ * timeline: the wrong surface for two frames is recoverable, and it keeps this
+ * from depending on sync timing.
+ */
+function applyDefaultSurface(roomId: string | null): void {
+    const room = roomId ? getRoom(roomId) : null;
+    interfaceState.callViewRoomId =
+        room && isVideoRoom(room) ? room.roomId : null;
+}
+
 export function setActiveSpace(
     spaceId: string | null,
     drill?: { parentId: string; name?: string; depth?: number },
@@ -92,6 +109,9 @@ export function setActiveSpace(
     if (spaceId === roomsState.activeSpaceId) return;
     roomsState.activeSpaceId = spaceId;
     roomsState.activeRoomId = getLastRoom(spaceId);
+    // Restoring a space's last room is a navigation too: if that room is a
+    // video room it must land on the call surface, not a stale timeline.
+    applyDefaultSurface(roomsState.activeRoomId);
     roomsState.spaceHierarchy = [];
     roomsState.spaceDrillParentId = drill?.parentId ?? null;
     roomsState.spaceDrillName = drill?.name ?? null;
@@ -109,10 +129,10 @@ export function setActiveSpace(
 export function setActiveRoom(roomId: string): void {
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
-    // Navigating to a room shows its timeline. The three call-view entry
-    // points re-set this immediately after their own setActiveRoom/
-    // navigateToRoom call.
-    interfaceState.callViewRoomId = null;
+    // Ordinary rooms show their timeline; video rooms show their call. The
+    // three call-view entry points re-set this immediately after their own
+    // setActiveRoom/navigateToRoom call, which still works either way.
+    applyDefaultSurface(roomId);
     saveLastRoom(roomsState.activeSpaceId, roomId);
     // Picking a room/DM is a destination: always dismiss the mobile drawer,
     // regardless of the keep-open setting.
