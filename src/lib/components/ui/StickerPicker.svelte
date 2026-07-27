@@ -10,6 +10,7 @@
 
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
+    import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
 
     interface Props {
         room?: Room | null;
@@ -247,11 +248,7 @@
     {#if !interfaceState.isTouchscreen}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-            use:resizeHandle={{
-                storageKey: "stickerPicker",
-                defaultW: 340,
-                defaultH: 440,
-            }}
+            use:resizeHandle={COMPOSER_PICKER_SIZE}
             class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
             title="Drag to resize"
         >

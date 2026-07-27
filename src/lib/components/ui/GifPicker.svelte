@@ -18,6 +18,7 @@
     } from "$lib/stores/gifSearch.svelte";
     import { untrack } from "svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
+    import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
 
     interface Props {
         onSelect: (url: string) => void;
@@ -177,11 +178,7 @@
         <!-- Resize grip (top-left; panel grows up-and-left from the composer) -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-            use:resizeHandle={{
-                storageKey: "gifPicker",
-                defaultW: 416,
-                defaultH: 480,
-            }}
+            use:resizeHandle={COMPOSER_PICKER_SIZE}
             class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
             title="Drag to resize"
         >
