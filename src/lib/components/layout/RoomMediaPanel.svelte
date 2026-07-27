@@ -46,12 +46,18 @@
     const visible = $derived(tab === "media" ? split.visual : split.files);
     const hasMore = $derived(!exhausted);
 
+    // "…in this room yet." would assert something the Load-more button directly
+    // beneath it contradicts, so only claim it once history is exhausted.
     const emptyMessage = $derived(
         isEncrypted
             ? "Encrypted attachments can't be listed yet."
-            : tab === "media"
-              ? "No images or videos in this room yet."
-              : "No files in this room yet.",
+            : hasMore
+              ? tab === "media"
+                  ? "No media found in the last few hundred messages."
+                  : "No files found in the last few hundred messages."
+              : tab === "media"
+                ? "No images or videos in this room yet."
+                : "No files in this room yet.",
     );
 
     // The Lightbox renders a single <img>, so only images can be viewed in it.
@@ -176,7 +182,12 @@
             const a = document.createElement("a");
             a.href = blobUrl;
             a.download = item.name;
+            // In the document, not detached: Firefox has historically ignored
+            // `download` on an anchor that was never in the DOM. Same dance as
+            // Lightbox's download button.
+            document.body.appendChild(a);
             a.click();
+            a.remove();
             setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         } catch (e) {
             console.error("Failed to download attachment", e);
@@ -227,7 +238,7 @@
                 ? 'bg-discord-messageHover text-discord-textPrimary'
                 : 'text-discord-textMuted hover:text-discord-textPrimary'}"
         >
-            Media ({split.visual.length})
+            Media ({split.visual.length}{hasMore ? "+" : ""})
         </button>
         <button
             id="room-media-tab-files"
@@ -240,7 +251,7 @@
                 ? 'bg-discord-messageHover text-discord-textPrimary'
                 : 'text-discord-textMuted hover:text-discord-textPrimary'}"
         >
-            Files ({split.files.length})
+            Files ({split.files.length}{hasMore ? "+" : ""})
         </button>
     </div>
 
@@ -265,7 +276,6 @@
             <div class="px-2 pt-2">
                 <button
                     onclick={() => pull(true)}
-                    disabled={loading}
                     class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                 >
                     Try again
