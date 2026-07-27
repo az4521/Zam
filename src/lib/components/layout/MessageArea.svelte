@@ -35,8 +35,8 @@
         onReceiptEvent,
         getRoomCallMemberships,
         getRoomThreads,
+        type ReadReceiptInfo,
     } from "$lib/matrix/client";
-    import type { ReadReceiptInfo } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         getMessages,
@@ -87,8 +87,9 @@
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
 
-    // Shared empty list for the avatars-off path: one identity, so the
-    // receipt row's {#each} sees no change instead of a new array per render.
+    // Shared empty list for the avatars-off path — one allocation instead of a
+    // fresh [] per message. Taking this branch also means receiptTick is never
+    // read, so receipts stop invalidating the timeline entirely.
     const NO_RECEIPTS: ReadReceiptInfo[] = [];
 
     interface Props {

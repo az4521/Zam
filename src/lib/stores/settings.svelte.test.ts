@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { settingsState, setShowReadReceiptAvatars } from "./settings.svelte";
 
 const KEY = "settings:showReadReceiptAvatars";
@@ -9,9 +9,28 @@ afterEach(() => {
     localStorage.removeItem(KEY);
 });
 
+/**
+ * Re-import the store with localStorage pre-seeded, so we observe the value it
+ * reads at boot rather than one a setter left behind. Asserting on the
+ * already-imported instance would pass even if the field were a hardcoded
+ * literal — i.e. even if the setting silently didn't survive a reload.
+ */
+async function bootWith(stored: string | null) {
+    if (stored === null) localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, stored);
+    vi.resetModules();
+    return await import("./settings.svelte");
+}
+
 describe("showReadReceiptAvatars", () => {
-    it("defaults to true so existing users keep the avatars", () => {
-        expect(settingsState.showReadReceiptAvatars).toBe(true);
+    it("defaults to true so existing users keep the avatars", async () => {
+        const fresh = await bootWith(null);
+        expect(fresh.settingsState.showReadReceiptAvatars).toBe(true);
+    });
+
+    it("reads a stored 'false' back at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootWith("false");
+        expect(fresh.settingsState.showReadReceiptAvatars).toBe(false);
     });
 
     it("writes the value to localStorage under the device-global key", () => {
