@@ -49,6 +49,7 @@ import type { RestoreProgress } from "$lib/utils/keyBackup";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
+import { settingsState } from "$lib/stores/settings.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
@@ -63,6 +64,22 @@ let decryptionHandler: ((event: MatrixEvent) => void) | null = null;
 /** Whether rust-crypto initialised successfully for the current session. */
 export function isCryptoAvailable(): boolean {
     return cryptoAvailable;
+}
+
+/**
+ * Apply the account's "only send to verified devices" preference.
+ *
+ * `globalBlacklistUnverifiedDevices` is a plain mutable property on the crypto
+ * api and is IN-MEMORY ONLY — it is not persisted by the SDK, so it has to be
+ * re-applied after every `initCrypto` (see the call there), not just when the
+ * user flips the toggle. Deliberately NOT `setDeviceIsolationMode`: that also
+ * refuses to DECRYPT from non-cross-signed devices, which is a much bigger
+ * behaviour change than this setting promises.
+ */
+export function applyVerifiedOnlySending(enabled: boolean): void {
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) return;
+    crypto.globalBlacklistUnverifiedDevices = enabled;
 }
 
 /**
@@ -90,6 +107,14 @@ export async function initCrypto(
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });
         cryptoAvailable = true;
+        // In-memory only on the crypto api — re-apply the persisted preference
+        // on every session. Uses the passed client: `getClient()` may not yet
+        // point at it this early in the login flow.
+        const cryptoApi = client.getCrypto();
+        if (cryptoApi) {
+            cryptoApi.globalBlacklistUnverifiedDevices =
+                settingsState.sendToVerifiedOnly;
+        }
         attachDecryptionListener(client);
         attachSecurityListeners(client);
     } catch (err) {

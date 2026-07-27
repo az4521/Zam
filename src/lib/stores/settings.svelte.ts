@@ -156,6 +156,10 @@ export const settingsState = $state({
      *  (see DEFAULT_ENCRYPT_DMS) — opt-in so new DMs don't silently become
      *  unreadable to contacts whose clients aren't set up for E2EE. */
     encryptNewDms: readAccountBool("encryptNewDms", DEFAULT_ENCRYPT_DMS),
+    /** Refuse to send to unverified devices (globalBlacklistUnverifiedDevices).
+     *  Default OFF: turning it on means messages silently fail to reach any
+     *  device the user hasn't verified. */
+    sendToVerifiedOnly: readAccountBool("sendToVerifiedOnly", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
     /** Voice: preferred devices (null = system default). Preferences, not
@@ -326,6 +330,10 @@ export function reloadAccountSettings(): void {
         "encryptNewDms",
         DEFAULT_ENCRYPT_DMS,
     );
+    settingsState.sendToVerifiedOnly = readAccountBool(
+        "sendToVerifiedOnly",
+        false,
+    );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.audioInputDeviceId =
         readAccountDeviceId("audioInputDeviceId");
@@ -465,6 +473,11 @@ export function setPrivateReadReceipts(value: boolean): void {
 export function setEncryptNewDms(value: boolean): void {
     settingsState.encryptNewDms = value;
     writeAccountBool("encryptNewDms", value);
+}
+
+export function setSendToVerifiedOnly(value: boolean): void {
+    settingsState.sendToVerifiedOnly = value;
+    writeAccountBool("sendToVerifiedOnly", value);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {

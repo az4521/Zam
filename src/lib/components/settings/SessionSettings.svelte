@@ -16,6 +16,7 @@
         isCryptoAvailable,
         getOwnDeviceKeyInfo,
         getDeviceTrust,
+        applyVerifiedOnlySending,
     } from "$lib/matrix/crypto";
     import { deviceTrustBadge } from "$lib/utils/verification";
     import {
@@ -26,6 +27,7 @@
     import {
         settingsState,
         setEncryptNewDms,
+        setSendToVerifiedOnly,
     } from "$lib/stores/settings.svelte";
 
     let devices = $state<DeviceInfo[]>([]);
@@ -142,6 +144,11 @@
         cryptoActive = isCryptoAvailable();
         const keys = await getOwnDeviceKeyInfo();
         deviceEd25519 = keys?.ed25519 ?? null;
+    }
+
+    function toggleVerifiedOnly(value: boolean) {
+        setSendToVerifiedOnly(value);
+        applyVerifiedOnlySending(value);
     }
 
     async function loadTrust() {
@@ -363,6 +370,25 @@
                     checked={settingsState.encryptNewDms}
                     onChange={setEncryptNewDms}
                     label="Encrypt new direct messages"
+                />
+            </div>
+            <div
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        Only send to verified devices
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Refuse to encrypt messages for sessions you haven't
+                        verified. They will not receive your messages at all —
+                        including your own unverified sessions. Off by default.
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.sendToVerifiedOnly}
+                    onChange={toggleVerifiedOnly}
+                    label="Only send to verified devices"
                 />
             </div>
         {/if}
