@@ -17,6 +17,7 @@
         loadMore,
     } from "$lib/stores/gifSearch.svelte";
     import { untrack } from "svelte";
+    import { Star } from "lucide-svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
 
     interface Props {
@@ -212,15 +213,19 @@
 
     <!-- Inner content tabs -->
     <div class="flex gap-1 px-2 pt-2 flex-shrink-0">
-        {#each [["gifs", "GIFs"], ["favourites", "★ Favourites"]] as [value, label] (value)}
+        {#each [["gifs", "GIFs"], ["favourites", "Favourites"]] as [value, label] (value)}
             <button
                 onclick={() => selectTab(value as Tab)}
                 class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
                 value
                     ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                >{label}</button
             >
+                <span class="flex items-center justify-center gap-1">
+                    {#if value === "favourites"}<Star size={14} />{/if}
+                    {label}
+                </span>
+            </button>
         {/each}
     </div>
 

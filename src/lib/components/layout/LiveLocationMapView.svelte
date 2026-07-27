@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Room } from "matrix-js-sdk";
+    import { ExternalLink } from "lucide-svelte";
     import LocationMap from "$lib/components/ui/LocationMap.svelte";
     import type { MapMarkerInput } from "$lib/components/ui/LocationMap.svelte";
     import {
@@ -161,8 +162,8 @@
                     href={mapLinkFor(s.lat, s.lon)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="ml-auto text-discord-accent hover:underline flex-shrink-0"
-                    >OSM ↗</a
+                    class="ml-auto text-discord-accent hover:underline flex-shrink-0 inline-flex items-center gap-1"
+                    >OSM <ExternalLink size={14} /></a
                 >
             </div>
         {/each}

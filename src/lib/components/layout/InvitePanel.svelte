@@ -1,5 +1,6 @@
 <script lang="ts">
     import UserPicker from "$lib/components/ui/UserPicker.svelte";
+    import { Check, X } from "lucide-svelte";
     import {
         inviteUser,
         getRoomMemberIds,
@@ -104,10 +105,14 @@
             {#each outcomes as o (o.userId)}
                 <li class="flex items-center gap-2">
                     <span
-                        class={o.ok
-                            ? "text-discord-textPositive"
-                            : "text-discord-danger"}>{o.ok ? "✓" : "✕"}</span
+                        role="img"
+                        aria-label={o.ok ? "Invited" : "Failed"}
+                        class="flex items-center {o.ok
+                            ? 'text-discord-textPositive'
+                            : 'text-discord-danger'}"
                     >
+                        {#if o.ok}<Check size={14} />{:else}<X size={14} />{/if}
+                    </span>
                     <span class="text-discord-textSecondary truncate"
                         >{o.userId}</span
                     >
@@ -149,11 +154,16 @@
             {#if emailOutcome}
                 <p class="flex items-center gap-2 text-sm">
                     <span
-                        class={emailOutcome.ok
-                            ? "text-discord-textPositive"
-                            : "text-discord-danger"}
-                        >{emailOutcome.ok ? "✓" : "✕"}</span
+                        role="img"
+                        aria-label={emailOutcome.ok ? "Invited" : "Failed"}
+                        class="flex items-center {emailOutcome.ok
+                            ? 'text-discord-textPositive'
+                            : 'text-discord-danger'}"
                     >
+                        {#if emailOutcome.ok}<Check size={14} />{:else}<X
+                                size={14}
+                            />{/if}
+                    </span>
                     <span class="text-discord-textSecondary truncate"
                         >{emailOutcome.address}</span
                     >
