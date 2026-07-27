@@ -60,6 +60,7 @@
         TAG_LOWPRIORITY,
     } from "$lib/utils/roomOrdering";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         roomsState,
         setActiveRoom,
@@ -931,8 +932,10 @@
                     <!-- Tick dependency: names change by in-place Room
                          mutation (late-seeded state, renames). -->
                     <span class="flex-1 text-sm truncate"
-                        >{(void roomsState.roomsTick,
-                        getRoomDisplayName(room))}</span
+                        >{@html renderPlainTextWithTwemoji(
+                            (void roomsState.roomsTick,
+                            getRoomDisplayName(room)),
+                        )}</span
                     >
                     {#if highlight && !isActive}
                         <span
@@ -1064,7 +1067,9 @@
                             <p
                                 class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                             >
-                                {space.name}
+                                {@html renderPlainTextWithTwemoji(
+                                    space.name ?? "",
+                                )}
                             </p>
                             {#if space.numMembers > 0}
                                 <p
@@ -1101,7 +1106,9 @@
                             <p
                                 class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                             >
-                                {room.name}
+                                {@html renderPlainTextWithTwemoji(
+                                    room.name ?? "",
+                                )}
                             </p>
                             {#if room.numMembers > 0}
                                 <p
@@ -1299,7 +1306,9 @@
                                     {/if}
                                 </div>
                                 <span class="flex-1 text-sm truncate"
-                                    >{getRoomDisplayName(room)}</span
+                                    >{@html renderPlainTextWithTwemoji(
+                                        getRoomDisplayName(room),
+                                    )}</span
                                 >
                                 {#if highlight && !isActive}
                                     <span
@@ -1492,7 +1501,9 @@
                         onclick={() =>
                             handleAddToSpace(cm.roomId, space.roomId)}
                         class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors truncate"
-                        >{getSpaceName(space)}</button
+                        >{@html renderPlainTextWithTwemoji(
+                            getSpaceName(space),
+                        )}</button
                     >
                 {/each}
             {/if}

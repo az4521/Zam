@@ -74,6 +74,7 @@
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
     import { daySeparator } from "$lib/utils/timeFormat";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
@@ -1086,7 +1087,9 @@
             <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
                 >#</span
             >
-            <h2 class="font-semibold text-discord-textPrimary">{roomName}</h2>
+            <h2 class="font-semibold text-discord-textPrimary">
+                {@html renderPlainTextWithTwemoji(roomName)}
+            </h2>
             {#if roomEncrypted}
                 <span
                     class="flex-shrink-0 text-discord-textMuted"
