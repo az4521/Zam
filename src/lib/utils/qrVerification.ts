@@ -31,7 +31,11 @@ export interface QrMethodInput {
     otherCanShow: boolean;
     /** A verifier already exists, i.e. a method has been chosen by either side. */
     hasVerifier: boolean;
-    /** This host exposes a camera API at all (false in Electron-less/headless hosts). */
+    /**
+     * This host can open a camera at all (false where
+     * `navigator.mediaDevices.getUserMedia` is absent — no camera API, or an
+     * insecure context). Gates scanning only; showing our own code needs no camera.
+     */
     cameraAvailable: boolean;
 }
 
@@ -50,13 +54,18 @@ export interface QrMethodOptions {
     shouldAutoStartSas: boolean;
 }
 
-/** Nothing to choose: before Ready, after a method is picked, and when terminal. */
-export const NO_METHOD_OPTIONS: QrMethodOptions = {
+/**
+ * Nothing to choose: before Ready, after a method is picked, and when terminal.
+ * Frozen because two of the three code paths return it by identity — a consumer
+ * writing through the result (directly, or through a Svelte 5 `$state()` proxy
+ * wrapping it) would otherwise corrupt it for every later call this session.
+ */
+export const NO_METHOD_OPTIONS: QrMethodOptions = Object.freeze({
     canShowQr: false,
     canScanQr: false,
     canSas: false,
     shouldAutoStartSas: false,
-};
+});
 
 /**
  * Which verification affordances to offer right now. A choice only exists in
