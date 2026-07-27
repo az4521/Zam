@@ -28,6 +28,7 @@ import {
     VerifierEvent,
     ImportRoomKeyStage,
     decodeRecoveryKey,
+    deriveRecoveryKeyFromPassphrase,
     DecryptionKeyDoesNotMatchError,
 } from "matrix-js-sdk/lib/crypto-api";
 import type {
@@ -657,6 +658,8 @@ function makeUiaPasswordCallback(
 export interface RecoverySetupResult {
     /** The encoded recovery key (`EsT…`), to display to the user exactly once. */
     recoveryKey: string;
+    /** The key was ALSO derived from a passphrase the user can type instead. */
+    hasPassphrase: boolean;
 }
 
 /**
@@ -670,6 +673,7 @@ export interface RecoverySetupResult {
  */
 export async function setupRecovery(
     password: string,
+    passphrase?: string,
 ): Promise<RecoverySetupResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -684,9 +688,15 @@ export async function setupRecovery(
         authUploadDeviceSigningKeys: makeUiaPasswordCallback(userId, password),
     });
 
-    // 2. Mint a fresh random recovery key — no passphrase (v1 decision: a
-    //    passphrase adds a weaker PBKDF2-derived path and more UI).
-    const generated = await crypto.createRecoveryKeyFromPassphrase();
+    // 2. Mint the recovery key. With a passphrase the SDK derives the key via
+    //    PBKDF2 and returns the derivation parameters in `keyInfo.passphrase`,
+    //    which bootstrapSecretStorage then publishes in account_data — that is
+    //    what makes "unlock with passphrase" possible later. The random key is
+    //    still generated and shown either way: the passphrase is an ADDITIONAL
+    //    path, never a replacement (v1 shipped random-only deliberately).
+    const generated = await crypto.createRecoveryKeyFromPassphrase(
+        passphrase && passphrase.length > 0 ? passphrase : undefined,
+    );
     const encoded = generated.encodedPrivateKey;
     if (!encoded) {
         throw new Error("Failed to generate a recovery key");
@@ -702,7 +712,10 @@ export async function setupRecovery(
     });
 
     bumpSecurityTick();
-    return { recoveryKey: encoded };
+    return {
+        recoveryKey: encoded,
+        hasPassphrase: generated.keyInfo?.passphrase != null,
+    };
 }
 
 /**
@@ -717,6 +730,7 @@ export async function setupRecovery(
  */
 export async function resetRecovery(
     password: string,
+    passphrase?: string,
 ): Promise<RecoverySetupResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -731,7 +745,7 @@ export async function resetRecovery(
     // 2. Set up fresh from the clean slate. bootstrapCrossSigning inside is a
     //    no-op now (resetEncryption just re-established it, so no re-upload/UIA),
     //    and a new recovery key is minted + returned for the UI to show once.
-    return setupRecovery(password);
+    return setupRecovery(password, passphrase);
 }
 
 /** Plain view-model of the account's crypto/security posture, for the UI. */
@@ -894,6 +908,71 @@ export interface UnlockResult {
 }
 
 /**
+ * Shared tail of both unlock paths (recovery key and passphrase): cache the
+ * validated 4S key, restore the message-history backup if one exists, then
+ * publish this device's cross-signature. The two public entry points differ
+ * only in how they obtain and validate `decoded`.
+ */
+async function completeUnlock(
+    client: MatrixClient,
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+    keyId: string,
+    decoded: Uint8Array<ArrayBuffer>,
+    onProgress?: (progress: RestoreProgress) => void,
+): Promise<UnlockResult> {
+    // Cache the validated key so the cryptoCallbacks resolve secret-storage
+    // reads (backup key, cross-signing keys) without re-prompting.
+    secretStorageKeys.set(keyId, decoded);
+
+    // Restore message-history keys, but only if the server actually holds a
+    // backup — an account may have cross-signing/4S without a message backup.
+    let total = 0;
+    let imported = 0;
+    const backupInfo = await crypto.getKeyBackupInfo();
+    if (backupInfo) {
+        try {
+            // Reads the backup key from 4S, validates it against the server
+            // backup, and caches it (throws DecryptionKeyDoesNotMatchError on
+            // mismatch — the 4S key is right but points at a different backup).
+            await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
+        } catch (e) {
+            if (e instanceof DecryptionKeyDoesNotMatchError) {
+                throw new Error(
+                    "That key doesn't match this account's backup on the server.",
+                );
+            }
+            throw e;
+        }
+        const result = await crypto.restoreKeyBackup(
+            onProgress
+                ? { progressCallback: (p) => onProgress(toRestoreProgress(p)) }
+                : undefined,
+        );
+        total = result.total;
+        imported = result.imported;
+    }
+
+    // Publish this device's cross-signature so the session becomes trusted.
+    // The cross-signing private keys are now readable from 4S, so this doesn't
+    // create new keys and never hits the UIA-guarded upload. Best-effort: a
+    // restore that succeeded shouldn't be reported as failed just because the
+    // cross-signature couldn't publish.
+    let sessionVerified = false;
+    try {
+        await crypto.bootstrapCrossSigning({});
+        sessionVerified = true;
+    } catch (e) {
+        console.warn(
+            "[matrix] cross-signing this session after unlock failed",
+            e,
+        );
+    }
+
+    bumpSecurityTick();
+    return { total, imported, sessionVerified };
+}
+
+/**
  * Unlock secret storage with a pasted recovery key, then verify this session and
  * restore encrypted-message history from the server backup — all in one action.
  *
@@ -945,56 +1024,66 @@ export async function unlockWithRecoveryKey(
         );
     }
 
-    // 3. Cache the validated key so the cryptoCallbacks resolve secret-storage
-    //    reads (backup key, cross-signing keys) without re-prompting.
-    secretStorageKeys.set(keyId, decoded);
+    // 3-5. Cache, restore history, cross-sign this session.
+    return completeUnlock(client, crypto, keyId, decoded, onProgress);
+}
 
-    // 4. Restore message-history keys, but only if the server actually holds a
-    //    backup — an account may have cross-signing/4S without a message backup.
-    let total = 0;
-    let imported = 0;
-    const backupInfo = await crypto.getKeyBackupInfo();
-    if (backupInfo) {
-        try {
-            // Reads the backup key from 4S, validates it against the server
-            // backup, and caches it (throws DecryptionKeyDoesNotMatchError on
-            // mismatch — the 4S key is right but points at a different backup).
-            await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
-        } catch (e) {
-            if (e instanceof DecryptionKeyDoesNotMatchError) {
-                throw new Error(
-                    "That key doesn't match this account's backup on the server.",
-                );
-            }
-            throw e;
-        }
-        const result = await crypto.restoreKeyBackup(
-            onProgress
-                ? { progressCallback: (p) => onProgress(toRestoreProgress(p)) }
-                : undefined,
-        );
-        total = result.total;
-        imported = result.imported;
+/**
+ * Unlock secret storage with the user's recovery PASSPHRASE instead of the
+ * recovery key, then verify this session and restore history — same outcome as
+ * {@link unlockWithRecoveryKey}.
+ *
+ * Only possible when the account's default 4S key was created with a
+ * passphrase (`SecurityStatus.passphraseRecovery`): the PBKDF2 salt and
+ * iteration count live in the key description in account_data. We derive the
+ * key locally and then run the SAME authoritative `checkKey` validation, so a
+ * wrong passphrase is a clean retryable error and never a lockout.
+ *
+ * Never persists or logs the passphrase or the derived key.
+ */
+export async function unlockWithPassphrase(
+    passphrase: string,
+    onProgress?: (progress: RestoreProgress) => void,
+): Promise<UnlockResult> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!client || !crypto) {
+        throw new Error("Encryption is not ready on this session");
     }
 
-    // 5. Publish this device's cross-signature so the session becomes trusted.
-    //    The cross-signing private keys are now readable from 4S (step 3), so
-    //    this doesn't create new keys and never hits the UIA-guarded upload.
-    //    Best-effort: a restore that succeeded shouldn't be reported as failed
-    //    just because the cross-signature couldn't publish.
-    let sessionVerified = false;
-    try {
-        await crypto.bootstrapCrossSigning({});
-        sessionVerified = true;
-    } catch (e) {
-        console.warn(
-            "[matrix] cross-signing this session after unlock failed",
-            e,
+    const secretStorage = client.secretStorage;
+    const keyTuple = await secretStorage.getKey();
+    if (!keyTuple) {
+        throw new Error(
+            "This account has no recovery set up yet. Set up recovery first on a session that has your keys.",
+        );
+    }
+    const [keyId, keyInfo] = keyTuple;
+
+    // The SDK's types say `passphrase` is always present; account_data says
+    // otherwise for a randomly-generated key, hence the validated read.
+    const params = passphraseParams(keyInfo);
+    if (!params) {
+        throw new Error(
+            "This account's recovery wasn't set up with a passphrase. Use your recovery key instead.",
         );
     }
 
-    bumpSecurityTick();
-    return { total, imported, sessionVerified };
+    const decoded = await deriveRecoveryKeyFromPassphrase(
+        passphrase,
+        params.salt,
+        params.iterations,
+        params.bits,
+    );
+
+    const matches = await secretStorage.checkKey(decoded, keyInfo);
+    if (!matches) {
+        throw new Error(
+            "That passphrase doesn't match this account. Check for typos and try again.",
+        );
+    }
+
+    return completeUnlock(client, crypto, keyId, decoded, onProgress);
 }
 
 /** Map the SDK's room-key import progress onto the SDK-free `RestoreProgress`. */
