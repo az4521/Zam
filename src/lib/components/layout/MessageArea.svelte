@@ -61,7 +61,7 @@
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
     import MessageSearchPanel from "$lib/components/layout/MessageSearchPanel.svelte";
     import ThreadsListPanel from "$lib/components/layout/ThreadsListPanel.svelte";
-    import RoomMediaPanel from "./RoomMediaPanel.svelte";
+    import RoomMediaPanel from "$lib/components/layout/RoomMediaPanel.svelte";
     import { searchState } from "$lib/stores/search.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import {
@@ -1218,7 +1218,7 @@
                 title="Media and files"
                 aria-label="Media and files"
             >
-                <Image size={18} />
+                <Image size={20} />
             </button>
             <!-- Toggle member list -->
             <button
