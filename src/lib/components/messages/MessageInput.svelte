@@ -1870,10 +1870,12 @@
             {/if}
         </div>
     {:else if typingUsers.length > 0}
-        <!-- Touch: float the indicator over the composer's top edge instead of
-             reserving 20px that is empty whenever nobody is typing. -->
+        <!-- Touch: float the indicator in the root's bottom padding band instead
+             of reserving 20px that is empty whenever nobody is typing. Anchored
+             bottom-0 so it can never overlap the reply-preview or file-queue
+             strips at the top of this container. -->
         <p
-            class="pointer-events-none absolute left-5 right-5 top-0 truncate rounded bg-discord-background/90 px-1 text-xs text-discord-textMuted"
+            class="pointer-events-none absolute bottom-0 left-5 right-5 truncate rounded bg-discord-background/90 px-1 text-xs text-discord-textMuted"
         >
             {typingText()}
         </p>
