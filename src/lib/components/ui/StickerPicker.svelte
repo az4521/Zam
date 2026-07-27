@@ -288,7 +288,11 @@
     </div>
 
     {#if stickerPacks.length === 0}
-        <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+        <!-- flex-1 so the empty state centres in the now fixed-height touch
+             drawer instead of hugging the top of a half-empty box. -->
+        <p
+            class="flex-1 flex items-center justify-center text-center text-discord-textMuted text-sm py-8 px-4"
+        >
             No sticker packs available
         </p>
     {:else}
