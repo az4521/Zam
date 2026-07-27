@@ -126,3 +126,122 @@ describe("ensureRoomCryptoConfigured", () => {
         expect(h.onCryptoEvent).not.toHaveBeenCalled();
     });
 });
+
+describe("getEventShield", () => {
+    /**
+     * Client stand-in whose crypto layer answers getEncryptionInfoForEvent.
+     * Mirrors makeClient() above but adds the one method under test.
+     */
+    function makeShieldClient(
+        getEncryptionInfoForEvent: ReturnType<typeof vi.fn>,
+    ) {
+        return {
+            initRustCrypto: h.initRustCrypto,
+            on: vi.fn(),
+            off: vi.fn(),
+            getCrypto: () => ({
+                onCryptoEvent: h.onCryptoEvent,
+                roomEncryptors: h.roomEncryptors,
+                getEncryptionInfoForEvent,
+            }),
+        };
+    }
+
+    async function bootWithShield(
+        getEncryptionInfoForEvent: ReturnType<typeof vi.fn>,
+    ) {
+        const mod = await import("./crypto");
+        const client = makeShieldClient(getEncryptionInfoForEvent);
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        mod.clearEventShieldCache();
+        return mod;
+    }
+
+    const evt = (id: string) => ({ getId: () => id }) as never;
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    it("reduces the SDK's EventEncryptionInfo to plain numbers", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 2 }),
+        );
+        const mod = await bootWithShield(spy);
+        await expect(mod.getEventShield(evt("$a"))).resolves.toEqual({
+            colour: 1,
+            reason: 2,
+        });
+    });
+
+    it("returns null when the event is unencrypted or not yet decrypted", async () => {
+        const spy = vi.fn(() => Promise.resolve(null));
+        const mod = await bootWithShield(spy);
+        await expect(mod.getEventShield(evt("$b"))).resolves.toBeNull();
+    });
+
+    it("never throws when the crypto layer rejects", async () => {
+        const spy = vi.fn(() => Promise.reject(new Error("boom")));
+        const mod = await bootWithShield(spy);
+        await expect(mod.getEventShield(evt("$c"))).resolves.toBeNull();
+    });
+
+    it("memoises a real result so a re-render costs no crypto call", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 2, shieldReason: 7 }),
+        );
+        const mod = await bootWithShield(spy);
+        await mod.getEventShield(evt("$d"));
+        await mod.getEventShield(evt("$d"));
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT memoise null — an undecrypted event must be re-checked", async () => {
+        const spy = vi.fn(() => Promise.resolve(null));
+        const mod = await bootWithShield(spy);
+        await mod.getEventShield(evt("$e"));
+        await mod.getEventShield(evt("$e"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it("clearEventShieldCache forces a refetch after a trust change", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const mod = await bootWithShield(spy);
+        await mod.getEventShield(evt("$f"));
+        mod.clearEventShieldCache();
+        await mod.getEventShield(evt("$f"));
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns null for an event with no id rather than poisoning the cache", async () => {
+        const spy = vi.fn(() =>
+            Promise.resolve({ shieldColour: 1, shieldReason: 1 }),
+        );
+        const mod = await bootWithShield(spy);
+        await expect(
+            mod.getEventShield({ getId: () => undefined } as never),
+        ).resolves.toBeNull();
+        expect(spy).not.toHaveBeenCalled();
+    });
+});
+
+describe("SECURITY_EVENTS trust wiring", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    it("subscribes to the two trust events that invalidate shields", async () => {
+        const mod = await import("./crypto");
+        const client = makeClient();
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        const subscribed = client.on.mock.calls.map((c) => c[0]);
+        expect(subscribed).toContain("userTrustStatusChanged");
+        expect(subscribed).toContain("crypto.devicesUpdated");
+    });
+});
