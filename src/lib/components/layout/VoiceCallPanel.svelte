@@ -104,8 +104,8 @@
                     title={voiceCallState.micMuted ? "Unmute" : "Mute"}
                     aria-label={voiceCallState.micMuted ? "Unmute" : "Mute"}
                 >
-                    {#if voiceCallState.micMuted}<MicOff size={16} />{:else}<Mic
-                            size={16}
+                    {#if voiceCallState.micMuted}<MicOff size={20} />{:else}<Mic
+                            size={20}
                         />{/if}
                 </button>
                 <button
@@ -117,8 +117,8 @@
                     aria-label={voiceCallState.deafened ? "Undeafen" : "Deafen"}
                 >
                     {#if voiceCallState.deafened}<HeadphoneOff
-                            size={16}
-                        />{:else}<Headphones size={16} />{/if}
+                            size={20}
+                        />{:else}<Headphones size={20} />{/if}
                 </button>
                 <button
                     onclick={leaveCall}
@@ -126,7 +126,7 @@
                     title="Disconnect"
                     aria-label="Disconnect"
                 >
-                    <PhoneOff size={16} />
+                    <PhoneOff size={20} />
                 </button>
             </div>
         </div>

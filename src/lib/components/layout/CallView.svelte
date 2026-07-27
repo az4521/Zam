@@ -363,7 +363,7 @@
                                     class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
                                 >
                                     <MicOff
-                                        size={12}
+                                        size={14}
                                         class="text-discord-danger flex-shrink-0"
                                     />
                                 </div>
@@ -380,7 +380,7 @@
                             >
                                 {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                     <MicOff
-                                        size={12}
+                                        size={14}
                                         class="text-discord-danger flex-shrink-0"
                                     />
                                 {/if}
@@ -480,7 +480,7 @@
                 disabled={voiceCallState.joinPendingRoomId !== null}
                 class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-discord-accent hover:bg-discord-accentHover text-white font-medium transition-colors disabled:opacity-60"
             >
-                <Phone size={18} />
+                <Phone size={20} />
                 {joining ? "Joining…" : "Join Call"}
             </button>
         {/if}

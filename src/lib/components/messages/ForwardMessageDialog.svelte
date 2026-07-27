@@ -86,7 +86,7 @@
                     onclick={closeModal}
                     class="p-1.5 rounded text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
                     aria-label="Close"
-                    title="Close"><X size={18} /></button
+                    title="Close"><X size={20} /></button
                 >
             </div>
 

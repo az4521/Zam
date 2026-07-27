@@ -1094,7 +1094,7 @@
                     title="Encryption enabled"
                     aria-label="Encryption enabled"
                 >
-                    <Lock class="w-4 h-4" />
+                    <Lock size={16} />
                 </span>
             {/if}
             {#if topic}
