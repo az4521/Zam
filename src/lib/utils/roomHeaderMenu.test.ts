@@ -88,7 +88,7 @@ describe("roomHeaderMenuRows", () => {
         expect(roomHeaderMenuRows(base).some((r) => r.active)).toBe(false);
     });
 
-    it("treats a negative or fractional count as no badge", () => {
+    it("treats a negative count as no badge", () => {
         const rows = roomHeaderMenuRows({
             ...base,
             threadMentions: -1,
@@ -96,5 +96,69 @@ describe("roomHeaderMenuRows", () => {
         });
         expect(rows.find((r) => r.key === "threads")!.badge).toBeNull();
         expect(rows.find((r) => r.key === "pinned")!.badge).toBeNull();
+    });
+
+    it("floors a fractional count rather than rendering the fraction", () => {
+        const rows = roomHeaderMenuRows({
+            ...base,
+            threadMentions: 2.7,
+            pinnedCount: 1.5,
+        });
+        expect(rows.find((r) => r.key === "threads")!.badge).toBe("2");
+        expect(rows.find((r) => r.key === "pinned")!.badge).toBe("1");
+    });
+
+    it("treats a fraction below 1 as no badge", () => {
+        const rows = roomHeaderMenuRows({ ...base, threadMentions: 0.4 });
+        const threads = rows.find((r) => r.key === "threads")!;
+        expect(threads.badge).toBeNull();
+        expect(threads.dot).toBe(false);
+    });
+
+    it("treats NaN as no badge instead of rendering 'NaN'", () => {
+        const rows = roomHeaderMenuRows({
+            ...base,
+            threadMentions: Number.NaN,
+            pinnedCount: Number.NaN,
+        });
+        expect(rows.find((r) => r.key === "threads")!.badge).toBeNull();
+        expect(rows.find((r) => r.key === "pinned")!.badge).toBeNull();
+    });
+
+    it("treats an infinite count as no badge rather than capping it", () => {
+        const rows = roomHeaderMenuRows({
+            ...base,
+            threadMentions: Number.POSITIVE_INFINITY,
+            pinnedCount: Number.NEGATIVE_INFINITY,
+        });
+        expect(rows.find((r) => r.key === "threads")!.badge).toBeNull();
+        expect(rows.find((r) => r.key === "pinned")!.badge).toBeNull();
+    });
+
+    it("caps above 99, not at it", () => {
+        const badgesFor = (n: number) => {
+            const rows = roomHeaderMenuRows({
+                ...base,
+                threadMentions: n,
+                pinnedCount: n,
+            });
+            return [
+                rows.find((r) => r.key === "threads")!.badge,
+                rows.find((r) => r.key === "pinned")!.badge,
+            ];
+        };
+        expect(badgesFor(99)).toEqual(["99", "99"]);
+        expect(badgesFor(100)).toEqual(["99+", "99+"]);
+    });
+
+    it("falls back to the unread dot when a NaN mention count is dropped", () => {
+        const rows = roomHeaderMenuRows({
+            ...base,
+            threadMentions: Number.NaN,
+            threadAnyUnread: true,
+        });
+        const threads = rows.find((r) => r.key === "threads")!;
+        expect(threads.badge).toBeNull();
+        expect(threads.dot).toBe(true);
     });
 });
