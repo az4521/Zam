@@ -47,11 +47,39 @@
 
     // What each row's badge is counting, for screen readers. The visible pill
     // is a bare number, which on its own announces as "Threads, 3".
-    const BADGE_NOUNS: Record<RoomHeaderMenuKey, string> = {
-        threads: "unread mentions",
-        pinned: "pinned messages",
-        notifications: "unread notifications",
-        members: "members",
+    const BADGE_NOUNS: Record<
+        RoomHeaderMenuKey,
+        { one: string; other: string }
+    > = {
+        threads: { one: "unread mention", other: "unread mentions" },
+        pinned: { one: "pinned message", other: "pinned messages" },
+        notifications: {
+            one: "unread notification",
+            other: "unread notifications",
+        },
+        members: { one: "member", other: "members" },
+    };
+
+    // `badge` is pill *text*, not a count: the model caps it at "99+", so the
+    // only value that is ever singular is the literal "1". Comparing the string
+    // keeps "99+" out of Number() (which would yield NaN) without needing to
+    // parse anything.
+    function badgeAnnouncement(key: RoomHeaderMenuKey, badge: string): string {
+        const noun = BADGE_NOUNS[key];
+        return `${badge} ${badge === "1" ? noun.one : noun.other}`;
+    }
+
+    // The threads pill keeps `bg-discord-danger` because it counts unread
+    // *mentions* — the same thing the desktop threads badge paints red. Every
+    // other row's badge is a neutral total (pinned messages are not urgent), so
+    // it gets a plain chip: `divider` reads as a raised surface against the
+    // sheet's `backgroundTertiary` in both themes, and `textPrimary` on it
+    // clears WCAG AA in both without depending on how bright `textMuted` is.
+    const BADGE_CLASSES: Record<RoomHeaderMenuKey, string> = {
+        threads: "bg-discord-danger text-white",
+        pinned: "bg-discord-divider text-discord-textPrimary",
+        notifications: "bg-discord-divider text-discord-textPrimary",
+        members: "bg-discord-divider text-discord-textPrimary",
     };
 
     function choose(key: RoomHeaderMenuKey) {
@@ -106,11 +134,13 @@
                     {#if row.badge}
                         <span
                             aria-hidden="true"
-                            class="flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center"
+                            class="flex-shrink-0 {BADGE_CLASSES[
+                                row.key
+                            ]} text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center"
                             >{row.badge}</span
                         >
                         <span class="sr-only"
-                            >{row.badge} {BADGE_NOUNS[row.key]}</span
+                            >{badgeAnnouncement(row.key, row.badge)}</span
                         >
                     {:else if row.dot}
                         <span
