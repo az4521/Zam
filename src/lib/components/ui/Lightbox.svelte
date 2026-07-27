@@ -6,6 +6,10 @@
         /** When set, a favourite (star) button is shown that toggles this gif
          *  in the favourite gif picker. Pass only for gif-like media. */
         favourite?: { url: string; previewUrl: string };
+        /** Gallery navigation. When supplied, a chevron and the matching arrow
+         *  key step to the neighbouring item; omit at the ends of the list. */
+        onPrev?: () => void;
+        onNext?: () => void;
     }
 
     import {
@@ -22,7 +26,7 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount } from "svelte";
 
-    let { src, alt = "", onClose, favourite }: Props = $props();
+    let { src, alt = "", onClose, favourite, onPrev, onNext }: Props = $props();
 
     // Reactively tracks favourite state (reads favouritesState.gifs $state).
     const favourited = $derived(
@@ -229,6 +233,23 @@
             clearModal("lightbox");
         };
     });
+
+    // Gallery arrow keys. Kept in its own onMount so the listener's lifecycle is
+    // independent of the modal-slot registration above. Escape is NOT handled
+    // here — `use:focusTrap={{ onEscape: onClose }}` owns it.
+    onMount(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "ArrowLeft" && onPrev) {
+                e.preventDefault();
+                onPrev();
+            } else if (e.key === "ArrowRight" && onNext) {
+                e.preventDefault();
+                onNext();
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    });
 </script>
 
 <div
@@ -317,6 +338,51 @@
                 </svg>
             </button>
         </div>
+
+        {#if onPrev}
+            <button
+                onclick={onPrev}
+                title="Previous"
+                aria-label="Previous image"
+                class="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+            >
+                <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M15 19l-7-7 7-7"
+                    />
+                </svg>
+            </button>
+        {/if}
+        {#if onNext}
+            <button
+                onclick={onNext}
+                title="Next"
+                aria-label="Next image"
+                class="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+            >
+                <svg
+                    class="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M9 5l7 7-7 7"
+                    />
+                </svg>
+            </button>
+        {/if}
 
         <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
              pointer events; it cannot be cleanly keyboard-operated within this
