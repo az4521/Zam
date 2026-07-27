@@ -51,6 +51,10 @@ function saveLastSpace(spaceId: string | null): void {
 export function reloadLastLocationFromStorage(): void {
     roomsState.activeSpaceId = loadLastSpace();
     roomsState.activeRoomId = getLastRoom(roomsState.activeSpaceId);
+    // Booting and switching account are location changes like any other: a
+    // restored video room belongs on its call surface, and a call view left
+    // open by the previous account must not outlive that account's rooms.
+    applyDefaultSurface(roomsState.activeRoomId);
 }
 
 export const roomsState = $state({
@@ -90,7 +94,8 @@ export function bumpUnreadTick(): void {
  * lands on the call view — peeking, never auto-joining (`showCallView`'s own
  * contract) — while everything else lands on its timeline. Every navigation
  * entry point routes through here so a video room behaves the same however you
- * reach it: sidebar click, space switch, inbox jump, or boot restore.
+ * reach it: sidebar click, space switch, inbox jump, boot restore, or account
+ * switch.
  *
  * A room we do not have locally yet (`getRoom` null) falls back to the
  * timeline: the wrong surface for two frames is recoverable, and it keeps this
