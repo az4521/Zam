@@ -15,6 +15,10 @@ export type ModalId =
     | "quick-actions"
     | "room-menu"
     | "room-header-menu"
+    // The mobile room-header "⋯" sheet (MessageArea). Distinct from
+    // "room-header-menu" above, which RoomList's space header already owns —
+    // sharing one id would let the two strand each other's slot.
+    | "room-header-overflow"
     | "space-menu"
     | "account-switcher"
     | "color-picker"
