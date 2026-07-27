@@ -486,6 +486,13 @@
     const showGifPicker = $derived(
         composerPickerOpen && interfaceState.composerPicker === "gif",
     );
+    // Mirrors the send button's own disabled condition so the button can go
+    // accent-coloured the moment the message becomes sendable.
+    const canSend = $derived(
+        (text.trim().length > 0 || fileQueue.length > 0) &&
+            !isSending &&
+            !disabled,
+    );
     let textareaFocusedBeforePicker = false;
 
     // Track keyboard height on mobile so pickers stay above it
@@ -1306,7 +1313,9 @@
     }
 </script>
 
-<div class="px-4 pb-6 pt-2 flex-shrink-0 relative">
+<div
+    class="px-4 pt-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] md:pb-[calc(1.5rem_+_env(safe-area-inset-bottom))] flex-shrink-0 relative"
+>
     <!-- Reply preview bar -->
     {#if replyToEvent}
         <div
@@ -1544,7 +1553,7 @@
         <VoiceRecorder {roomId} onClose={() => (voiceRecorderOpen = false)} />
     {:else}
         <div
-            class="input-box relative flex items-center gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
+            class="input-box relative flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
             class:rounded-tl-none={!!replyToEvent}
         >
             <!-- "+" actions menu -->
@@ -1555,7 +1564,7 @@
                             ? closeModal()
                             : openModal("composer-actions", () => {})}
                     {disabled}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Add"
                 >
                     <svg
@@ -1638,13 +1647,25 @@
             ></div>
 
             <!-- GIF picker button -->
-            <div class="flex-shrink-0">
+            <!-- `hidden` goes on the WRAPPER too: hiding only the button leaves
+                 an empty flex item behind, and the row's gap-2 then reserves 8px
+                 of dead space on touchscreens. Gated on the picker being CLOSED
+                 because the GIF picker is also reachable on touch via another
+                 picker's tab strip (onSwitchToGif), and display:none on the
+                 wrapper would hide that picker's subtree with it. The button
+                 keeps its own `hidden` so it never becomes visible on touch. -->
+            <div
+                class="flex-shrink-0 {interfaceState.isTouchscreen &&
+                !showGifPicker
+                    ? 'hidden'
+                    : ''}"
+            >
                 <button
                     onclick={() => openPicker("gif")}
                     {disabled}
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Favourite GIFs"
                 >
                     <svg
@@ -1690,12 +1711,18 @@
             </div>
 
             <!-- Sticker button -->
-            <div class="flex-shrink-0">
+            <!-- Same wrapper treatment as the GIF button above. -->
+            <div
+                class="flex-shrink-0 {interfaceState.isTouchscreen &&
+                !showStickerPicker
+                    ? 'hidden'
+                    : ''}"
+            >
                 <button
                     onclick={() => openPicker("sticker")}
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Stickers"
                     {disabled}
                 >
@@ -1747,7 +1774,7 @@
             <div class="flex-shrink-0">
                 <button
                     onclick={() => openPicker("emoji")}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Emoji"
                     {disabled}
                 >
@@ -1802,7 +1829,9 @@
                 disabled={(!text.trim() && fileQueue.length === 0) ||
                     isSending ||
                     disabled}
-                class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                class="flex-shrink-0 p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed {canSend
+                    ? 'text-discord-accent hover:text-discord-accentHover hover:bg-discord-messageHover'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
                 title="Send message"
             >
                 {#if isSending}
@@ -1821,22 +1850,34 @@
             </button>
         </div>
     {/if}
-    <div class="relative mt-1 px-1 h-4">
-        {#if typingUsers.length > 0}
-            <p
-                class="absolute inset-0 text-xs text-discord-textMuted bg-discord-background/90"
-            >
-                {typingText()}
-            </p>
-        {:else if !interfaceState.isTouchscreen}
-            <p class="text-xs text-discord-textMuted">
-                <kbd class="font-mono">Enter</kbd> to send &middot;
-                <kbd class="font-mono">Shift+Enter</kbd> for new line
-                {#if replyToEvent}&middot; <kbd class="font-mono">Esc</kbd> to cancel
-                    reply{/if}
-            </p>
-        {/if}
-    </div>
+    {#if !interfaceState.isTouchscreen}
+        <!-- Desktop keeps a reserved 16px row: the keyboard hints are static
+             and must not overlap the timeline. -->
+        <div class="relative mt-1 px-1 h-4">
+            {#if typingUsers.length > 0}
+                <p
+                    class="absolute inset-0 truncate text-xs text-discord-textMuted bg-discord-background/90"
+                >
+                    {typingText()}
+                </p>
+            {:else}
+                <p class="text-xs text-discord-textMuted">
+                    <kbd class="font-mono">Enter</kbd> to send &middot;
+                    <kbd class="font-mono">Shift+Enter</kbd> for new line
+                    {#if replyToEvent}&middot; <kbd class="font-mono">Esc</kbd> to
+                        cancel reply{/if}
+                </p>
+            {/if}
+        </div>
+    {:else if typingUsers.length > 0}
+        <!-- Touch: float the indicator over the composer's top edge instead of
+             reserving 20px that is empty whenever nobody is typing. -->
+        <p
+            class="pointer-events-none absolute left-5 right-5 top-0 truncate rounded bg-discord-background/90 px-1 text-xs text-discord-textMuted"
+        >
+            {typingText()}
+        </p>
+    {/if}
 </div>
 
 <style>
