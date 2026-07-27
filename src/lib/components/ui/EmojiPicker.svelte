@@ -407,7 +407,7 @@
                             <img
                                 src={ownAvatarUrl}
                                 alt="My emojis"
-                                class="w-5 h-5 rounded-full object-cover"
+                                class="w-5 h-5 rounded-full object-contain"
                             />
                         {:else if tab.id === "user"}
                             <svg
@@ -423,7 +423,7 @@
                             <img
                                 src={tab.avatarUrl}
                                 alt={tab.label}
-                                class="w-5 h-5 rounded-full object-cover"
+                                class="w-5 h-5 rounded-full object-contain"
                             />
                         {:else}
                             <span
@@ -477,7 +477,7 @@
                             <img
                                 src={e.url}
                                 alt={e.shortcode}
-                                class="w-8 h-8 object-contain"
+                                class="w-full h-full object-contain"
                                 loading="lazy"
                             />
                         </button>
@@ -543,7 +543,7 @@
                                     <img
                                         src={e.url}
                                         alt={e.shortcode}
-                                        class="w-8 h-8 object-contain"
+                                        class="w-full h-full object-contain"
                                         loading="lazy"
                                     />
                                 </button>
@@ -605,22 +605,24 @@
 </div>
 
 <style>
+    /* Both emoji kinds derive their size from the grid cell (the button is
+       `aspect-square p-1`), so a Twemoji <img> and a custom emote <img> are
+       always identical — and neither depends on the root font-size, which
+       Android's font-scaling setting changes. */
     :global(.picker-twemoji) {
-        width: 32px;
-        height: 32px;
-        display: inline-block;
+        width: 100%;
+        height: 100%;
+        display: block;
         object-fit: contain;
-        vertical-align: middle;
     }
     .search-input:focus {
         outline: none;
         border-color: rgb(var(--discord-accent-rgb) / 0.3);
     }
     :global(.picker-twemoji-tab) {
-        width: 20px;
-        height: 20px;
-        display: inline-block;
+        width: 1.25rem; /* = Tailwind w-5, matching the custom pack tabs */
+        height: 1.25rem;
+        display: block;
         object-fit: contain;
-        vertical-align: middle;
     }
 </style>
