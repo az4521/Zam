@@ -585,6 +585,10 @@ function createVerificationController(
             // out rather than show a misleading message. Nothing changed here,
             // hence no emit.
             if (verifierHooked || request.verifier) return;
+            // Clear BEFORE the attempt, not just on success: nothing else ever
+            // clears it short of a hooked verifier, so a retry would otherwise
+            // run under the previous attempt's red error text.
+            qrError = null;
             try {
                 const bytes = await request.generateQRCode();
                 qrBytes = bytes ?? null;
@@ -608,6 +612,10 @@ function createVerificationController(
                 return;
             }
             startRequested = true;
+            // Same as showQrCode: clear before the attempt so a re-scan after a
+            // rejected one doesn't run under the old error. Strictly after the
+            // latch — that must stay the first statement with no await ahead.
+            qrError = null;
             try {
                 hookVerifier(await request.scanQRCode(bytes));
                 qrError = null;

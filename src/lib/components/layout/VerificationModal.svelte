@@ -217,18 +217,22 @@
                         Only confirm if you scanned it yourself, just now.
                     </p>
                 </div>
-                <div class="mt-5 flex gap-2">
-                    <button
-                        onclick={denyScanned}
-                        class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors"
-                    >
-                        No
-                    </button>
+                <!-- Reversed: "Yes" leads in DOM order so the first Tab can't
+                     land on a "No" that cancels the whole verification, while
+                     the row still reads No / Yes left-to-right like every other
+                     button pair in this modal. -->
+                <div class="mt-5 flex flex-row-reverse gap-2">
                     <button
                         onclick={confirmScanned}
                         class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
                     >
                         Yes, I scanned it
+                    </button>
+                    <button
+                        onclick={denyScanned}
+                        class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors"
+                    >
+                        No
                     </button>
                 </div>
             {:else if emojiRows.length > 0 && !confirmed}

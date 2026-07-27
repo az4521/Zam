@@ -77,6 +77,22 @@ describe("verificationPhaseLabel — human wording, self vs other", () => {
             expect(verificationPhaseLabel(phase).length).toBeGreaterThan(0);
         }
     });
+
+    // The next two pin exact strings, deliberately. Both labels drifted into
+    // lying once QR verification landed — Ready promised a choice at the one
+    // moment nothing is being chosen, Started promised emoji through a whole
+    // QR wait that has none — precisely because nothing held them to it.
+    it("does not promise a choice at Ready — it shows when there is none", () => {
+        expect(verificationPhaseLabel(VerificationPhaseValue.Ready)).toBe(
+            "Accepted — setting up the check…",
+        );
+    });
+
+    it("does not promise emoji at Started — a QR flow never shows any", () => {
+        expect(verificationPhaseLabel(VerificationPhaseValue.Started)).toBe(
+            "Verifying…",
+        );
+    });
 });
 
 describe("deviceTrustBadge — from a device verification status", () => {
