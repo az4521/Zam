@@ -39,12 +39,13 @@
         getRoomCallMemberships,
         getMemberName,
         getMemberAvatar,
+        isVideoRoom,
         type RoomNotificationSetting,
         type SpaceChildInfo,
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { MicOff, GripVertical } from "lucide-svelte";
+    import { MicOff, GripVertical, Video } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -854,6 +855,7 @@
         <!-- Joined rooms / channels -->
         {#snippet channelRow(room: Room, section: Section | null)}
             {@const { isActive, unread, highlight, loud } = roomButton(room)}
+            {@const isVideo = (void roomsState.roomsTick, isVideoRoom(room))}
             {@const draggable =
                 reorderMode &&
                 section !== null &&
@@ -921,6 +923,13 @@
                                     ? 'bg-discord-danger'
                                     : 'bg-discord-textPrimary'} flex-shrink-0"
                             ></span>
+                        {:else if isVideo}
+                            <span
+                                class="opacity-70 flex items-center justify-center"
+                                aria-label="Video room"
+                            >
+                                <Video size={14} />
+                            </span>
                         {:else}
                             <span
                                 class="w-5 h-5 opacity-70 font-semibold flex items-center justify-center text-[0.8rem]"
