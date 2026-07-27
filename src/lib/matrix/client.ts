@@ -3373,6 +3373,11 @@ export async function searchRoomMessagesMore(
 export interface RoomMediaPage {
     items: RoomMediaItem[];
     nextToken: string | null;
+    /** Whether the source room is encrypted. Surfaced so the UI can say why a
+     *  visibly media-full room lists nothing (E2EE attachments are
+     *  `content.file`, which the mapper cannot turn into a listable item) and
+     *  can stop paging instead of decrypting hundreds of events for nothing. */
+    encrypted: boolean;
 }
 
 /**
@@ -3433,7 +3438,7 @@ export async function fetchRoomMediaPage(
     // the server has nothing further to give.
     const end = res.end ?? null;
     const nextToken = end !== null && end !== fromToken ? end : null;
-    return { items, nextToken };
+    return { items, nextToken, encrypted };
 }
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {

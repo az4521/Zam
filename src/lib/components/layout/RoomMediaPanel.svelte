@@ -29,13 +29,30 @@
     let loading = $state(true);
     let loadingMore = $state(false);
     let error = $state<string | null>(null);
+    // Kept apart from `error`: a failed "Load more" must NOT replace an already
+    // populated grid with the full-panel error branch (and its "Try again",
+    // which re-fetches from scratch). Shown as an inline strip instead.
+    let loadMoreError = $state<string | null>(null);
     let exhausted = $state(false);
+    // E2EE attachments are `content.file`, never `content.url`, and nothing here
+    // decrypts them — so an encrypted room lists nothing however far we page.
+    // Reported by the wrapper (RoomMediaPage.encrypted) rather than read from
+    // crypto.ts, which components do not import.
+    let isEncrypted = $state(false);
     let tab = $state<"media" | "files">("media");
     let viewerIndex = $state<number | null>(null);
 
     const split = $derived(splitMediaItems(items));
     const visible = $derived(tab === "media" ? split.visual : split.files);
     const hasMore = $derived(!exhausted);
+
+    const emptyMessage = $derived(
+        isEncrypted
+            ? "Encrypted attachments can't be listed yet."
+            : tab === "media"
+              ? "No images or videos in this room yet."
+              : "No files in this room yet.",
+    );
 
     // The Lightbox renders a single <img>, so only images can be viewed in it.
     // Videos still get a grid tile (they belong there visually) but clicking
@@ -55,10 +72,12 @@
 
     async function pull(reset: boolean): Promise<void> {
         const gen = ++pullGen;
+        loadMoreError = null;
         if (reset) {
             items = [];
             nextToken = null;
             exhausted = false;
+            isEncrypted = false;
             error = null;
             // A viewer left open over the old room's images would otherwise
             // re-mount on whatever lands at that index next.
@@ -88,17 +107,26 @@
                 items = mergeMediaPages(items, res.items);
                 added += items.length - before;
                 nextToken = res.nextToken;
+                if (page === 0) isEncrypted = res.encrypted;
                 if (res.nextToken === null) {
                     exhausted = true;
                     break;
                 }
+                // Encrypted room: every attachment is `content.file`, so the
+                // mapper rejects all of them and `added` stays 0 forever —
+                // walking all five pages would decrypt ~200 events and discard
+                // the lot on EVERY click. One request, then stop.
+                if (res.encrypted) break;
                 if (added > 0) break;
             }
         } catch (e) {
             // SDK errors read like `MatrixError: [403] …` — log the real one,
             // show the user something they can act on.
             console.error("Failed to load room media", e);
-            if (gen === pullGen) error = "Could not load media.";
+            if (gen === pullGen) {
+                if (reset) error = "Could not load media.";
+                else loadMoreError = "Could not load more media.";
+            }
         } finally {
             // Never clear a flag a newer pull set: the guard above `return`s
             // through this block, and without the check a late response from
@@ -245,9 +273,7 @@
             </div>
         {:else if visible.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                {tab === "media"
-                    ? "No images or videos in this room yet."
-                    : "No files in this room yet."}
+                {emptyMessage}
             </p>
         {:else if tab === "media"}
             <div class="grid grid-cols-3 gap-1 p-2">
@@ -314,6 +340,14 @@
                     </button>
                 {/each}
             </div>
+        {/if}
+
+        {#if loadMoreError}
+            <!-- Inline, not the full-panel error branch: whatever already
+                 loaded stays on screen and "Load more" can simply be retried. -->
+            <p class="text-xs text-discord-danger text-center px-2 pb-1">
+                {loadMoreError}
+            </p>
         {/if}
 
         {#if !loading && !error && hasMore}
