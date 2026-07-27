@@ -324,9 +324,11 @@ export interface VerificationView {
     /** Which method affordances to offer right now (all false once settled). */
     methodOptions: QrMethodOptions;
     /**
-     * A `.start` we sent is still in flight, so the method is being settled but
-     * `methodOptions` can't know that yet (the phase is still `Ready`). Disable
-     * the chooser while true — a second tap is swallowed by the start latch.
+     * A `.start` we sent is in flight: sent, but no verifier hooked yet. Goes
+     * false again the moment one is (success) or the send fails (retryable).
+     * `methodOptions` can't cover this window because the phase is still
+     * `Ready`, so disable the chooser while true — a second tap during it is
+     * swallowed by the start latch.
      */
     startPending: boolean;
     /** Our QR payload once generated, for display. Null until `showQrCode()` succeeds. */
@@ -409,6 +411,12 @@ function createVerificationController(
     let startRequested = false;
     let verifierHooked = false;
     let hookedVerifier: Verifier | null = null;
+    // The user has answered the "they scanned my code" prompt. Needed because
+    // the SDK NEVER clears its own `callbacks` once the QR has been scanned
+    // (rust-crypto/verification.js assigns it and nothing ever nulls it), so
+    // the live re-read below would otherwise resurrect a dismissed prompt on
+    // the very next change event — confirming or cancelling itself fires one.
+    let reciprocateSettled = false;
     const subscribers = new Set<() => void>();
     const emit = (): void => {
         for (const cb of subscribers) cb();
@@ -443,18 +451,28 @@ function createVerificationController(
     // to have happened yet. These accessors are live state reads (they just
     // return the verifier's current `callbacks`), so re-reading on every change
     // makes us independent of which callback the SDK delivers first.
+    // `sasCallbacks` needs no settled latch: we never null it, so there is
+    // nothing for a re-read to resurrect.
     const syncVerifierCallbacks = (): void => {
         if (!hookedVerifier) return;
         sasCallbacks ??= hookedVerifier.getShowSasCallbacks();
-        reciprocateCallbacks ??= hookedVerifier.getReciprocateQrCodeCallbacks();
+        if (!reciprocateSettled) {
+            reciprocateCallbacks ??=
+                hookedVerifier.getReciprocateQrCodeCallbacks();
+        }
     };
 
     const hookVerifier = (verifier: Verifier): void => {
-        // Idempotent, and deliberately keeps the FIRST verifier: `advance()`,
-        // `startSas()` and `submitScannedQr()` can all reach here, and both
-        // sides may `.start` at once. The rust SDK resolves that race itself
-        // and settles on one method, so hooking the first verifier we see (and
-        // dropping a later, different object) is safe.
+        // Idempotent, and deliberately keeps the FIRST verifier — `advance()`,
+        // `startSas()` and `submitScannedQr()` can all reach here. Dropping a
+        // later, DIFFERENT verifier object is only safe because
+        // `request.verifier` is phase-gated: the SDK returns undefined until
+        // phase `Started` precisely so the app can't grab a QR verifier that a
+        // switch to SAS would replace (a QR→SAS transition constructs a brand
+        // new RustSASVerifier — only the SAS-vs-SAS start tie-break preserves
+        // identity, via replaceInner). If `advance()` is ever changed to hook
+        // earlier than `Started`, this guard silently drops the real verifier
+        // and `verify()` is never called on it.
         if (verifierHooked) return;
         verifierHooked = true;
         hookedVerifier = verifier;
@@ -540,7 +558,10 @@ function createVerificationController(
             phase: request.phase,
             sasEmoji: sasCallbacks?.sas.emoji ?? null,
             methodOptions: currentOptions(),
-            startPending: startRequested,
+            // The internal latch stays true for the controller's life (it is
+            // the swallow-guard); "pending" to a consumer means only the
+            // window before the verifier lands.
+            startPending: startRequested && !verifierHooked,
             qrBytes,
             awaitingReciprocateConfirm: reciprocateCallbacks !== null,
             qrError,
@@ -599,17 +620,21 @@ function createVerificationController(
             }
             emit();
         },
-        // Both reciprocate handlers clear our reference and notify BEFORE
-        // calling into the SDK, so a throw from the callback can't leave the
-        // prompt stuck on screen with no re-render.
+        // Both reciprocate handlers latch `reciprocateSettled`, clear our
+        // reference, and notify BEFORE calling into the SDK — so a throw from
+        // the callback can't leave the prompt stuck on screen with no
+        // re-render, and the change event the SDK call itself triggers can't
+        // re-populate the prompt from the callbacks it never clears.
         confirmReciprocate: () => {
             const callbacks = reciprocateCallbacks;
+            reciprocateSettled = true;
             reciprocateCallbacks = null;
             emit();
             callbacks?.confirm();
         },
         denyReciprocate: () => {
             const callbacks = reciprocateCallbacks;
+            reciprocateSettled = true;
             reciprocateCallbacks = null;
             emit();
             if (callbacks) callbacks.cancel();
