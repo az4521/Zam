@@ -4,7 +4,6 @@ import {
     VIDEO_ROOM_TYPES,
     isVideoRoomType,
     videoRoomCreationContent,
-    defaultSurfaceFor,
 } from "./videoRoom";
 
 describe("VIDEO_ROOM_TYPE", () => {
@@ -59,25 +58,7 @@ describe("videoRoomCreationContent", () => {
         });
     });
 
-    it("produces undefined for an ordinary room so it can be spread away", () => {
+    it("produces undefined for an ordinary room so callers can omit creation_content entirely", () => {
         expect(videoRoomCreationContent(false)).toBeUndefined();
-    });
-});
-
-describe("defaultSurfaceFor", () => {
-    it("lands a video room on the call surface", () => {
-        expect(defaultSurfaceFor("m.video_room")).toBe("call");
-        expect(defaultSurfaceFor("org.matrix.msc3417.call")).toBe("call");
-        expect(defaultSurfaceFor("io.element.video")).toBe("call");
-    });
-
-    it("lands an ordinary room on its timeline", () => {
-        expect(defaultSurfaceFor(undefined)).toBe("chat");
-    });
-
-    it("lands a space on the chat surface, never a call", () => {
-        // A space is a room type too — landing one on a call surface would be
-        // a visible bug, so it is pinned here rather than left implicit.
-        expect(defaultSurfaceFor("m.space")).toBe("chat");
     });
 });

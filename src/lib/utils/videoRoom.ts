@@ -61,17 +61,3 @@ export function videoRoomCreationContent(
 ): { type: string } | undefined {
     return videoRoom ? { type: VIDEO_ROOM_TYPE } : undefined;
 }
-
-/** Which surface opening a room should land on. */
-export type RoomSurface = "call" | "chat";
-
-/**
- * Where opening a room should land. A video room's whole point IS the call, so
- * it opens on the call surface — peeking, never auto-joining. Everything else,
- * spaces included, opens on its timeline.
- */
-export function defaultSurfaceFor(
-    type: string | null | undefined,
-): RoomSurface {
-    return isVideoRoomType(type) ? "call" : "chat";
-}
