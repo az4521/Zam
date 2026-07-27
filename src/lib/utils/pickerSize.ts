@@ -5,11 +5,19 @@
 // ONE key. Sizes stored under the old per-picker keys are migrated on first
 // read (largest of each dimension) so nobody's stored size is silently lost.
 
+export interface LegacyPickerSize {
+    /** localStorage prefix the picker used before the keys were unified. */
+    key: string;
+    /** That picker's former default, used when the user never resized it. */
+    defaultW: number;
+    defaultH: number;
+}
+
 export interface PickerSizeOpts {
     /** localStorage prefix, e.g. "composerPicker" -> "composerPicker:w"/":h". */
     storageKey: string;
     /** Older per-picker prefixes to migrate from when the shared key is unset. */
-    legacyKeys?: readonly string[];
+    legacyKeys?: readonly LegacyPickerSize[];
     defaultW: number;
     defaultH: number;
 }
@@ -25,10 +33,18 @@ function resolveDimension(
 ): number {
     const shared = read(`${opts.storageKey}:${suffix}`);
     if (shared !== null) return shared;
+    // Migration: compare every old picker at its EFFECTIVE size — the stored
+    // value if the user resized it, otherwise that picker's own former default
+    // — and take the largest. Ignoring the untouched pickers' defaults would
+    // let one shrunken picker drag the others below the size they mount at
+    // today; flooring at the shared default would instead override a user who
+    // deliberately shrank all three.
     let best: number | null = null;
-    for (const key of opts.legacyKeys ?? []) {
-        const legacy = read(`${key}:${suffix}`);
-        if (legacy !== null && (best === null || legacy > best)) best = legacy;
+    for (const entry of opts.legacyKeys ?? []) {
+        const stored = read(`${entry.key}:${suffix}`);
+        const effective =
+            stored ?? (suffix === "w" ? entry.defaultW : entry.defaultH);
+        if (best === null || effective > best) best = effective;
     }
     return best ?? fallback;
 }
@@ -50,7 +66,11 @@ export function resolvePickerSize(
  */
 export const COMPOSER_PICKER_SIZE = {
     storageKey: "composerPicker",
-    legacyKeys: ["emojiPicker", "stickerPicker", "gifPicker"],
+    legacyKeys: [
+        { key: "emojiPicker", defaultW: 340, defaultH: 440 },
+        { key: "stickerPicker", defaultW: 340, defaultH: 440 },
+        { key: "gifPicker", defaultW: 416, defaultH: 480 },
+    ],
     defaultW: 416,
     defaultH: 480,
 } as const satisfies PickerSizeOpts;

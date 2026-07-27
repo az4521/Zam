@@ -7,7 +7,11 @@ function reader(store: Record<string, number>) {
 
 const OPTS = {
     storageKey: "composerPicker",
-    legacyKeys: ["emojiPicker", "stickerPicker", "gifPicker"],
+    legacyKeys: [
+        { key: "emojiPicker", defaultW: 340, defaultH: 440 },
+        { key: "stickerPicker", defaultW: 340, defaultH: 440 },
+        { key: "gifPicker", defaultW: 416, defaultH: 480 },
+    ],
     defaultW: 416,
     defaultH: 480,
 };
@@ -59,12 +63,41 @@ describe("resolvePickerSize", () => {
         });
     });
 
+    it("keeps a never-resized picker's old default in the migration", () => {
+        const store = { "emojiPicker:w": 300, "emojiPicker:h": 300 };
+        expect(resolvePickerSize(reader(store), OPTS)).toEqual({
+            w: 416,
+            h: 480,
+        });
+    });
+
+    it("keeps the user's size when they shrank every picker", () => {
+        const store = {
+            "emojiPicker:w": 300,
+            "emojiPicker:h": 300,
+            "stickerPicker:w": 300,
+            "stickerPicker:h": 300,
+            "gifPicker:w": 300,
+            "gifPicker:h": 300,
+        };
+        expect(resolvePickerSize(reader(store), OPTS)).toEqual({
+            w: 300,
+            h: 300,
+        });
+    });
+
+    it("falls back to the defaults when no legacy keys are configured", () => {
+        expect(
+            resolvePickerSize(reader({}), { ...OPTS, legacyKeys: [] }),
+        ).toEqual({ w: 416, h: 480 });
+    });
+
     it("exports one shared config for all three pickers", () => {
         expect(COMPOSER_PICKER_SIZE.storageKey).toBe("composerPicker");
         expect(COMPOSER_PICKER_SIZE.legacyKeys).toEqual([
-            "emojiPicker",
-            "stickerPicker",
-            "gifPicker",
+            { key: "emojiPicker", defaultW: 340, defaultH: 440 },
+            { key: "stickerPicker", defaultW: 340, defaultH: 440 },
+            { key: "gifPicker", defaultW: 416, defaultH: 480 },
         ]);
         expect(COMPOSER_PICKER_SIZE.defaultW).toBe(416);
         expect(COMPOSER_PICKER_SIZE.defaultH).toBe(480);

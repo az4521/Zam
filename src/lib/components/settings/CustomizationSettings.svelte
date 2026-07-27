@@ -627,7 +627,7 @@
             if (event.target === event.currentTarget) pickerTarget = null;
         }}
     >
-        <div class="w-full max-w-72">
+        <div class="w-full max-w-md">
             <EmojiPicker
                 room={pickerRoom}
                 onSelect={chooseReaction}
