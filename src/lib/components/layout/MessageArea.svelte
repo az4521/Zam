@@ -50,6 +50,8 @@
         interfaceState,
         openSidebar,
         closeSidebar,
+        openModal,
+        closeModal,
         showCallView,
     } from "$lib/stores/interface.svelte";
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
@@ -81,7 +83,9 @@
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
-    import { Phone, Volume2, Lock } from "lucide-svelte";
+    import { Phone, Volume2, Lock, MoreHorizontal } from "lucide-svelte";
+    import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
+    import type { RoomHeaderMenuKey } from "$lib/utils/roomHeaderMenu";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
@@ -229,6 +233,23 @@
         void roomsState.roomsTick;
         return getPinnedEventIds(room).length;
     });
+
+    // Mobile only: threads / pinned / notifications / members move off the
+    // header into a "⋯" sheet so the room name and topic get width at 412px.
+    // It uses the shared modal slot, so Escape and Android's back button
+    // dismiss it through AppShell.dismissTopmost like every other popup.
+    const overflowOpen = $derived(
+        interfaceState.modal === "room-header-overflow",
+    );
+
+    function toggleOverflowMenu() {
+        if (interfaceState.modal === "room-header-overflow") closeModal();
+        else openModal("room-header-overflow", () => {});
+    }
+
+    function chooseOverflowItem(key: RoomHeaderMenuKey) {
+        toggleSidebar(key);
+    }
 
     // Any loud (red) notification anywhere → badge the mobile hamburger.
     const hasAnyLoud = $derived(getLoudNotificationCount() > 0);
@@ -1148,79 +1169,115 @@
                     >
                 </button>
             {/if}
-            <!-- Threads list button -->
-            <button
-                onclick={() => toggleSidebar("threads")}
-                class="relative p-1.5 rounded transition-colors {showThreadsPanel
-                    ? 'text-discord-accent bg-discord-messageHover'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                title="Threads"
-                aria-label="Toggle threads list"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                    ><path
-                        d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z"
-                    /></svg
+            <!-- Threads, pinned, notifications and the member list are desktop
+                 only; on mobile they live in the "⋯" sheet below so the room
+                 name and topic are not starved by eight unshrinkable buttons. -->
+            {#if !isMobile}
+                <!-- Threads list button -->
+                <button
+                    onclick={() => toggleSidebar("threads")}
+                    class="relative p-1.5 rounded transition-colors {showThreadsPanel
+                        ? 'text-discord-accent bg-discord-messageHover'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    title="Threads"
+                    aria-label="Toggle threads list"
                 >
-                {#if threadRollup.mentions > 0}
-                    <span
-                        class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
-                        title="Unread thread mentions"
-                        >{threadRollup.mentions > 99
-                            ? "99+"
-                            : threadRollup.mentions}</span
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z"
+                        /></svg
                     >
-                {:else if threadRollup.anyUnread}
-                    <span
-                        class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
-                        title="Unread threads"
-                    ></span>
-                {/if}
-            </button>
-            <!-- Pinned messages button -->
-            <button
-                onclick={() => toggleSidebar("pinned")}
-                class="p-1.5 rounded transition-colors {showPinnedPanel
-                    ? 'text-discord-accent bg-discord-messageHover'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                title="Pinned messages{pinnedCount > 0
-                    ? ` (${pinnedCount})`
-                    : ''}"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                    ><path
-                        d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
-                    /></svg
+                    {#if threadRollup.mentions > 0}
+                        <span
+                            class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            title="Unread thread mentions"
+                            >{threadRollup.mentions > 99
+                                ? "99+"
+                                : threadRollup.mentions}</span
+                        >
+                    {:else if threadRollup.anyUnread}
+                        <span
+                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            title="Unread threads"
+                        ></span>
+                    {/if}
+                </button>
+                <!-- Pinned messages button -->
+                <button
+                    onclick={() => toggleSidebar("pinned")}
+                    class="p-1.5 rounded transition-colors {showPinnedPanel
+                        ? 'text-discord-accent bg-discord-messageHover'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    title="Pinned messages{pinnedCount > 0
+                        ? ` (${pinnedCount})`
+                        : ''}"
                 >
-            </button>
-            <!-- Notifications inbox button -->
-            <button
-                onclick={() => toggleSidebar("notifications")}
-                class="p-1.5 rounded transition-colors {showNotificationsPanel
-                    ? 'text-discord-accent bg-discord-messageHover'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                title="Notifications inbox"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                    ><path
-                        d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
-                    /></svg
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
+                        /></svg
+                    >
+                </button>
+                <!-- Notifications inbox button -->
+                <button
+                    onclick={() => toggleSidebar("notifications")}
+                    class="p-1.5 rounded transition-colors {showNotificationsPanel
+                        ? 'text-discord-accent bg-discord-messageHover'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    title="Notifications inbox"
                 >
-            </button>
-            <!-- Toggle member list -->
-            <button
-                onclick={() => toggleSidebar("members")}
-                class="p-1.5 rounded transition-colors {showMemberList
-                    ? 'text-discord-accent bg-discord-messageHover'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                title="Toggle member list"
-            >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M14 6.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM1 14.25C1 12.455 2.455 11 4.25 11h7.5C13.545 11 15 12.455 15 14.25v.25a.75.75 0 0 1-.75.75H1.75A.75.75 0 0 1 1 14.5v-.25Zm17.25-5.75a.75.75 0 0 1 .75.75v2h2a.75.75 0 0 1 0 1.5h-2v2a.75.75 0 0 1-1.5 0v-2h-2a.75.75 0 0 1 0-1.5h2v-2a.75.75 0 0 1 .75-.75Z"
-                    />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+                        /></svg
+                    >
+                </button>
+                <!-- Toggle member list -->
+                <button
+                    onclick={() => toggleSidebar("members")}
+                    class="p-1.5 rounded transition-colors {showMemberList
+                        ? 'text-discord-accent bg-discord-messageHover'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    title="Toggle member list"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M14 6.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM1 14.25C1 12.455 2.455 11 4.25 11h7.5C13.545 11 15 12.455 15 14.25v.25a.75.75 0 0 1-.75.75H1.75A.75.75 0 0 1 1 14.5v-.25Zm17.25-5.75a.75.75 0 0 1 .75.75v2h2a.75.75 0 0 1 0 1.5h-2v2a.75.75 0 0 1-1.5 0v-2h-2a.75.75 0 0 1 0-1.5h2v-2a.75.75 0 0 1 .75-.75Z"
+                        />
+                    </svg>
+                </button>
+            {:else}
+                <button
+                    onclick={toggleOverflowMenu}
+                    class="relative p-1.5 rounded transition-colors flex-shrink-0 {overflowOpen
+                        ? 'text-discord-accent bg-discord-messageHover'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    title="More"
+                    aria-label="More room options"
+                    aria-haspopup="menu"
+                    aria-expanded={overflowOpen}
+                >
+                    <MoreHorizontal size={20} />
+                    {#if threadRollup.mentions > 0}
+                        <span
+                            class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            title="Unread thread mentions"
+                            >{threadRollup.mentions > 99
+                                ? "99+"
+                                : threadRollup.mentions}</span
+                        >
+                    {:else if threadRollup.anyUnread}
+                        <span
+                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            title="Unread threads"
+                        ></span>
+                    {/if}
+                </button>
+            {/if}
         </div>
 
         <ActiveCallBanner {room} />
@@ -1620,3 +1677,14 @@
         {/if}
     {/if}
 </div>
+
+{#if isMobile && overflowOpen}
+    <RoomHeaderOverflowMenu
+        activeSidebar={interfaceState.sidebar}
+        threadMentions={threadRollup.mentions}
+        threadAnyUnread={threadRollup.anyUnread}
+        {pinnedCount}
+        onChoose={chooseOverflowItem}
+        onClose={closeModal}
+    />
+{/if}
