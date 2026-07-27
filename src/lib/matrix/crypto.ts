@@ -585,10 +585,22 @@ function createVerificationController(
             // out rather than show a misleading message. Nothing changed here,
             // hence no emit.
             if (verifierHooked || request.verifier) return;
+            // Never regenerate. The first call drives the rust request into
+            // `Transitioned`, so a second one returns undefined — which would
+            // null a code that is on screen and working, and blame it on the
+            // other side being unable to scan. Two taps reach this: Show ->
+            // "Choose a different method" -> Show.
+            if (qrBytes) {
+                emit();
+                return;
+            }
             // Clear BEFORE the attempt, not just on success: nothing else ever
             // clears it short of a hooked verifier, so a retry would otherwise
-            // run under the previous attempt's red error text.
+            // run under the previous attempt's red error text. Emit, or the
+            // cleared value stays invisible until the post-await emit —
+            // `view()` captures it by value and only a notification re-renders.
             qrError = null;
+            emit();
             try {
                 const bytes = await request.generateQRCode();
                 qrBytes = bytes ?? null;
@@ -613,9 +625,13 @@ function createVerificationController(
             }
             startRequested = true;
             // Same as showQrCode: clear before the attempt so a re-scan after a
-            // rejected one doesn't run under the old error. Strictly after the
-            // latch — that must stay the first statement with no await ahead.
+            // rejected one doesn't run under the old error, and emit so the
+            // clear is actually visible. Strictly AFTER the latch — that stays
+            // the first statement on this path, with no await ahead of it, so a
+            // duplicate `m.key.verification.start` remains impossible. `emit()`
+            // is synchronous and re-entry would hit the guard above anyway.
             qrError = null;
+            emit();
             try {
                 hookVerifier(await request.scanQRCode(bytes));
                 qrError = null;

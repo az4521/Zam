@@ -34,15 +34,23 @@
     // from the consumer still travel through `fail()`.
     let delivered = false;
 
-    function stop(): void {
+    /**
+     * End the decode loop and the camera. Tracks stop on EVERY path — the
+     * camera indicator must always go out — but nulling `srcObject` is opt-out.
+     *
+     * Ending the tracks leaves the element holding a dead stream, which renders
+     * as a frozen last frame; nulling the source blanks it to black instead.
+     * Black is right under error text, and wrong after a successful scan: the
+     * consumer's handshake can take seconds, and the frozen frame is all that
+     * stands between the user and a black box. Same teardown as
+     * VoiceAudioSettings' `stopCamera` otherwise.
+     */
+    function stop(clearPreview = true): void {
         if (frame !== null) cancelAnimationFrame(frame);
         frame = null;
         for (const track of stream?.getTracks() ?? []) track.stop();
         stream = null;
-        // Ending the tracks kills the camera indicator but leaves the element
-        // holding a dead stream, which renders as a frozen frame under the
-        // error text. Same teardown as VoiceAudioSettings' `stopCamera`.
-        if (videoEl) videoEl.srcObject = null;
+        if (clearPreview && videoEl) videoEl.srcObject = null;
     }
 
     function fail(message: string): void {
@@ -106,7 +114,10 @@
                     : null;
                 if (payload && isMatrixQrPayload(payload) && !delivered) {
                     delivered = true;
-                    stop();
+                    // Keep the last frame: the consumer's handshake runs from
+                    // here, and a black square under "checking it…" reads as a
+                    // crash. `fail()` below still blanks it if that throws.
+                    stop(false);
                     status = "Code found — checking it…";
                     try {
                         onScan(payload);

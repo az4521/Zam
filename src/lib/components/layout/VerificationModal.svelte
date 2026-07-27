@@ -61,12 +61,15 @@
     // Which QR pane the user opened. Reset with the rest of the local state
     // whenever the modal retargets to a different flow.
     let pane = $state<"choose" | "show" | "scan">("choose");
+    // Bumped to force a fresh QrScanner instance — see the scan pane.
+    let attempt = $state(0);
     $effect(() => {
         void verificationState.active?.id;
         confirmed = false;
         busy = false;
         errorMsg = null;
         pane = "choose";
+        attempt = 0;
     });
 
     // One alert line for the whole modal. `qrError` is NOT QR-specific — the
@@ -206,33 +209,47 @@
                 </div>
             {:else if view.awaitingReciprocateConfirm}
                 <!-- Outranks every other pane: the other side is blocked on this
-                     answer, and answering it wrongly is the whole attack. -->
+                     answer, and answering it wrongly is the whole attack. The
+                     copy must name the party who actually scanned — asking about
+                     "your other device" when ANOTHER USER scanned invites the
+                     worst possible reasoning ("I don't have one, so… yes?"). -->
                 <div class="mt-5 flex flex-col items-center text-center gap-3">
                     <QrCode size={32} class="text-discord-accent" />
-                    <p class="text-sm text-discord-textPrimary">
-                        Did your other {isSelf ? "session" : "device"} just scan this
-                        code?
+                    <!-- The prompt arrives asynchronously and the branch swap
+                         drops focus, so announce it rather than leaving a
+                         screen-reader user showing a code in silence. Neither
+                         button is autofocused: this answer must be deliberate. -->
+                    <p
+                        class="text-sm text-discord-textPrimary"
+                        aria-live="polite"
+                    >
+                        {isSelf
+                            ? "Did your other session just scan this code?"
+                            : `Did ${view.otherUserId} just scan this code?`}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        Only confirm if you scanned it yourself, just now.
+                        {isSelf
+                            ? "Only confirm if you scanned it yourself, just now."
+                            : "Only confirm if you watched them scan it, just now."}
                     </p>
                 </div>
-                <!-- Reversed: "Yes" leads in DOM order so the first Tab can't
-                     land on a "No" that cancels the whole verification, while
-                     the row still reads No / Yes left-to-right like every other
-                     button pair in this modal. -->
-                <div class="mt-5 flex flex-row-reverse gap-2">
-                    <button
-                        onclick={confirmScanned}
-                        class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
-                    >
-                        Yes, I scanned it
-                    </button>
+                <!-- "No" first in BOTH DOM and visual order. It is the SAFE
+                     answer — it cancels a verification you can restart, while a
+                     wrong "Yes" completes an attestation with an attacker — so
+                     it takes the first tab stop, and matching orders keep focus
+                     order and visual order in agreement (WCAG 2.4.3). -->
+                <div class="mt-5 flex gap-2">
                     <button
                         onclick={denyScanned}
                         class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors"
                     >
                         No
+                    </button>
+                    <button
+                        onclick={confirmScanned}
+                        class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
+                    >
+                        Yes, I scanned it
                     </button>
                 </div>
             {:else if emojiRows.length > 0 && !confirmed}
@@ -281,11 +298,16 @@
                         class="mt-4 flex flex-col items-center text-center gap-3"
                     >
                         {#if view.qrBytes}
-                            <QrCodeImage bytes={view.qrBytes} />
+                            <QrCodeImage
+                                bytes={view.qrBytes}
+                                label={isSelf
+                                    ? "Verification code for your other session"
+                                    : `Verification code for ${view.otherUserId}`}
+                            />
                             <p class="text-xs text-discord-textMuted">
-                                Scan this with your other {isSelf
-                                    ? "session"
-                                    : "device"}.
+                                {isSelf
+                                    ? "Scan this with your other session."
+                                    : "Ask them to scan this code."}
                             </p>
                         {:else if view.qrError}
                             <!-- The reason itself renders in the shared alert
@@ -306,20 +328,39 @@
                          must DESTROY it. Re-entering mounts a fresh instance
                          (all its state is instance-scoped, and the camera grant
                          is remembered per origin, so no second prompt). -->
-                    <div class="mt-4">
-                        {#if Scanner}
-                            <Scanner onScan={onScanned} onError={onScanError} />
-                        {:else if scannerLoadFailed}
-                            <p class="text-xs text-discord-danger" role="alert">
-                                Could not load the scanner.
-                            </p>
-                        {:else}
-                            <div class="flex justify-center">
+                    <div class="mt-4 flex flex-col items-center gap-2">
+                        {#key attempt}
+                            {#if Scanner}
+                                <Scanner
+                                    onScan={onScanned}
+                                    onError={onScanError}
+                                />
+                            {:else if scannerLoadFailed}
+                                <p
+                                    class="text-xs text-discord-danger"
+                                    role="alert"
+                                >
+                                    Could not load the scanner.
+                                </p>
+                            {:else}
                                 <Loader2
                                     size={28}
                                     class="animate-spin text-discord-accent"
                                 />
-                            </div>
+                            {/if}
+                        {/key}
+                        {#if view.qrError}
+                            <!-- Bumping the key DESTROYS and recreates the
+                                 scanner. It latches after one delivery and
+                                 cannot be reset in place, so this is the only
+                                 way to offer the same method again — the back
+                                 link would send the user the long way round. -->
+                            <button
+                                onclick={() => attempt++}
+                                class="px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-xs transition-colors"
+                            >
+                                Scan again
+                            </button>
                         {/if}
                     </div>
                 {:else}
