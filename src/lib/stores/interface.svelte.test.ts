@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
     interfaceState,
+    openModal,
+    closeModal,
     openSubPage,
     closeSubPage,
     clearSubPageIfOwner,
@@ -8,6 +10,8 @@ import {
 
 beforeEach(() => {
     interfaceState.subPageClose = null;
+    interfaceState.modal = null;
+    interfaceState.modalClose = null;
 });
 
 describe("sub-page slot", () => {
@@ -86,5 +90,14 @@ describe("sub-page slot", () => {
         clearSubPageIfOwner(stale);
         expect(interfaceState.subPageClose).toBe(current);
         expect(current).not.toHaveBeenCalled();
+    });
+
+    it("closeModal drops any sub-page layered inside the modal", () => {
+        const sub = vi.fn();
+        openModal("app-settings", () => {});
+        openSubPage(sub);
+        closeModal();
+        expect(interfaceState.subPageClose).toBe(null);
+        expect(sub).not.toHaveBeenCalled();
     });
 });

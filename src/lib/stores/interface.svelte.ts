@@ -111,8 +111,15 @@ export function openModal(id: ModalId, close: () => void): void {
     interfaceState.modalClose = close;
 }
 
-/** Dismiss the open modal, running its close handler. */
+/** Dismiss the open modal, running its close handler. Any sub-page layered
+ *  inside it is dropped too — WITHOUT running its handler, since a sub-page
+ *  dies with its modal by definition and "go back one level" is meaningless
+ *  once the level is gone. */
 export function closeModal(): void {
+    // Drop the sub-page slot first: a modal dismissed by any path other than
+    // dismissTopmost (backdrop click, onClose, a supersede) would otherwise
+    // strand a stale handler that swallows one later Escape.
+    interfaceState.subPageClose = null;
     const close = interfaceState.modalClose;
     interfaceState.modal = null;
     interfaceState.modalClose = null;
