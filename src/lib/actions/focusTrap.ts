@@ -42,8 +42,10 @@ function focusableWithin(node: HTMLElement): HTMLElement[] {
 /**
  * Svelte action: trap keyboard focus within `node` while it is mounted.
  * Moves focus into the node on mount, cycles Tab/Shift+Tab within it, calls
- * `onEscape` on Escape, and restores focus to the previously-focused element
- * on destroy. Pure cycle logic lives in {@link focusWrapTarget}.
+ * `onEscape` on Escape (and then stops that event propagating, so the global
+ * handler cannot dismiss a second layer with the same keypress), and restores
+ * focus to the previously-focused element on destroy. Pure cycle logic lives
+ * in {@link focusWrapTarget}.
  */
 export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
     let p = params;
@@ -62,7 +64,16 @@ export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
 
     function onKeydown(e: KeyboardEvent) {
         if (e.key === "Escape") {
-            p.onEscape?.();
+            // Only claim Escape when this trap actually handles it. AppShell's
+            // window-level handler dismisses the topmost slot (modal, else
+            // sidebar), and `onEscape` has usually already cleared the modal
+            // synchronously by the time the event gets there — so letting it
+            // bubble would dismiss the panel UNDERNEATH us too. Traps with no
+            // `onEscape` depend on that global handler to be dismissed at all,
+            // so they must keep bubbling.
+            if (!p.onEscape) return;
+            p.onEscape();
+            e.stopPropagation();
             return;
         }
         if (e.key !== "Tab") return;
