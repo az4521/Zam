@@ -115,9 +115,10 @@ export function backupSummaryLabel(model: BackupStatusModel): string {
 
 /**
  * Input to `backupDetailLines`: the key-backup facts the SDK already computes.
- * `count` and `sessionsRemaining` are what the lines are built from;
- * `matchesDecryptionKey` is carried here for the panel's own "backup key on
- * this session" status row, not used to build a line.
+ * `count` and `sessionsRemaining` supply the line text, while `exists` and
+ * `active` gate whether those lines are built at all; `matchesDecryptionKey`
+ * is carried here for the panel's own "backup key on this session" status row,
+ * not used to build a line.
  */
 export interface BackupDetail {
     /** The server holds a backup for this account. */

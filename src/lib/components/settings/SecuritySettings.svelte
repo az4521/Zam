@@ -118,8 +118,9 @@
     const progressView = $derived(restoreProgressView(progress));
 
     // Additive detail the SDK already reports (server key count, this session's
-    // upload queue, key mismatch). Empty when there's no backup — the summary
-    // line above already says so.
+    // upload queue). Empty when there's no backup — the summary line above
+    // already says so. The key-mismatch fact is not a line here; it's rendered
+    // by the "Backup key on this session" status row further down.
     const detailLines = $derived(
         backup
             ? backupDetailLines({
