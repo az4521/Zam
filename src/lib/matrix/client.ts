@@ -256,15 +256,21 @@ async function createAuthenticatedClient(opts: {
           })
         : null;
 
-    // Offer SAS (emoji) verification. Set at createClient time so the crypto
-    // layer advertises it from the first key upload (Layer 1). Emoji only — no
-    // QR — for v1; both self- and cross-user verification use it.
+    // Offer SAS (emoji) AND QR verification. Set at createClient time so the
+    // crypto layer advertises them from the first key upload (Layer 1).
+    // Reciprocate is what the *scanning* side sends after a successful scan, so
+    // it must be advertised by any client that can show a code.
     // cryptoCallbacks back secret storage (4S) so cross-signing/backup secrets
     // resolve without re-prompting during setup and when secrets arrive (Layer 2).
     const commonOpts = {
         ...opts,
         timelineSupport: true,
-        verificationMethods: [VerificationMethod.Sas],
+        verificationMethods: [
+            VerificationMethod.Sas,
+            VerificationMethod.ShowQrCode,
+            VerificationMethod.ScanQrCode,
+            VerificationMethod.Reciprocate,
+        ],
         cryptoCallbacks: getCryptoCallbacks(),
     };
 

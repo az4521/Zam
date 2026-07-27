@@ -5,7 +5,8 @@
  *
  * Layer 0: initialise crypto so incoming `m.room.encrypted` events decrypt and
  * outgoing messages auto-encrypt in already-encrypted rooms.
- * Layer 1 (this file too): SAS (emoji) device & user verification — request
+ * Layer 1 (this file too): device & user verification by emoji (SAS) or QR
+ * code — request
  * wrappers, an incoming-request subscription, and trust-status reads. The raw
  * `VerificationRequest`/`Verifier` SDK objects never leave this module; callers
  * drive a plain `VerificationController`. Cross-signing, key backup, and
@@ -23,7 +24,6 @@ import type {
 } from "matrix-js-sdk";
 import {
     CryptoEvent,
-    VerificationPhase,
     VerificationRequestEvent,
     VerifierEvent,
     ImportRoomKeyStage,
@@ -34,15 +34,21 @@ import type {
     VerificationRequest,
     Verifier,
     ShowSasCallbacks,
+    ShowQrCodeCallbacks,
     EmojiMapping,
     CryptoCallbacks,
     ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
-import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
+import {
+    qrMethodOptions,
+    NO_METHOD_OPTIONS,
+    VerificationMethodValue,
+    type QrMethodOptions,
+} from "$lib/utils/qrVerification";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
@@ -293,7 +299,7 @@ export async function getOwnDeviceKeyInfo(): Promise<{
     }
 }
 
-// ─── Layer 1: device & user verification (SAS emoji) ─────────────────────────
+// ─── Layer 1: device & user verification (SAS emoji / QR) ────────────────────
 //
 // The raw `VerificationRequest`/`Verifier` SDK objects never leave this module.
 // Components and stores drive a plain `VerificationController` instead — a small
@@ -316,6 +322,14 @@ export interface VerificationView {
     phase: number;
     /** The 7 SAS emoji `[symbol, name]` tuples, or null before they're ready. */
     sasEmoji: EmojiMapping[] | null;
+    /** Which method affordances to offer right now (all false once settled). */
+    methodOptions: QrMethodOptions;
+    /** Our QR payload once generated, for display. Null until `showQrCode()` succeeds. */
+    qrBytes: Uint8ClampedArray | null;
+    /** The other side scanned our code and we must confirm it really was them. */
+    awaitingReciprocateConfirm: boolean;
+    /** Last QR-specific failure, for the modal to surface. Null when fine. */
+    qrError: string | null;
 }
 
 /** A driven verification flow. All SDK types stay hidden behind it. */
@@ -333,27 +347,78 @@ export interface VerificationController {
     mismatch(): void;
     /** Cancel / decline at any point. Always safe. */
     cancel(): void;
+    /** Generate our QR payload and expose it via `view().qrBytes`. */
+    showQrCode(): Promise<void>;
+    /** Hand a payload our camera decoded to the SDK; starts the reciprocate flow. */
+    submitScannedQr(bytes: Uint8ClampedArray): Promise<void>;
+    /** Explicitly choose the emoji (SAS) method. */
+    startSas(): Promise<void>;
+    /** Confirm the other side really scanned our code. */
+    confirmReciprocate(): void;
+    /** Deny the reciprocate prompt (they did not scan our code). */
+    denyReciprocate(): void;
 }
 
 let verificationCounter = 0;
 
+/** True when this host exposes a camera API at all, so scanning is possible. */
+function hasCameraApi(): boolean {
+    return (
+        typeof navigator !== "undefined" &&
+        typeof navigator.mediaDevices?.getUserMedia === "function"
+    );
+}
+
+/** Message for a failed QR action, falling back to a plain-language default. */
+function qrFailureText(error: unknown, fallback: string): string {
+    const message = error instanceof Error ? error.message : "";
+    return message || fallback;
+}
+
 /**
- * Wrap a live `VerificationRequest` in a `VerificationController`. The
- * controller auto-advances the SAS handshake: once the request is `Ready` it
- * starts (or picks up) the SAS verifier, hooks its `ShowSas` callback, and runs
- * `verify()`. Both sides converge on the emoji compare with no extra taps — the
- * user only decides match / no-match / cancel.
+ * Wrap a live `VerificationRequest` in a `VerificationController`. Once the
+ * request is `Ready` the controller offers whichever methods both sides can
+ * actually do (`view().methodOptions`, decided by the pure `qrMethodOptions`):
+ * show our QR, scan theirs, or compare emoji. When neither side can do QR there
+ * is nothing to choose, so it starts the SAS verifier unprompted — the exact
+ * pre-QR behaviour, no extra taps. Whichever method wins, the verifier is
+ * hooked, `verify()` runs, and the user decides match / no-match / cancel.
  */
 function createVerificationController(
     request: VerificationRequest,
 ): VerificationController {
     const id = request.transactionId ?? `verification-${++verificationCounter}`;
     let sasCallbacks: ShowSasCallbacks | null = null;
+    let reciprocateCallbacks: ShowQrCodeCallbacks | null = null;
+    let qrBytes: Uint8ClampedArray | null = null;
+    let qrError: string | null = null;
     let startRequested = false;
     let verifierHooked = false;
     const subscribers = new Set<() => void>();
     const emit = (): void => {
         for (const cb of subscribers) cb();
+    };
+
+    // `otherPartySupportsMethod` reads state that only exists once the other
+    // side's `.ready` has landed; treat any throw as "not supported" so a probe
+    // in an early phase can never break the flow.
+    const otherSupports = (method: string): boolean => {
+        try {
+            return request.otherPartySupportsMethod(method);
+        } catch {
+            return false;
+        }
+    };
+
+    const currentOptions = (): QrMethodOptions => {
+        if (verifierHooked || request.verifier) return NO_METHOD_OPTIONS;
+        return qrMethodOptions({
+            phase: request.phase,
+            otherCanScan: otherSupports(VerificationMethodValue.ScanQrCode),
+            otherCanShow: otherSupports(VerificationMethodValue.ShowQrCode),
+            hasVerifier: false,
+            cameraAvailable: hasCameraApi(),
+        });
     };
 
     const hookVerifier = (verifier: Verifier): void => {
@@ -363,28 +428,47 @@ function createVerificationController(
             sasCallbacks = callbacks;
             emit();
         });
+        verifier.on(VerifierEvent.ShowReciprocateQr, (callbacks) => {
+            reciprocateCallbacks = callbacks;
+            emit();
+        });
         verifier.on(VerifierEvent.Cancel, () => emit());
+        // The reciprocate prompt can fire before we attach — the SDK builds the
+        // verifier straight from an inbound `m.reciprocate.v1` start — so pick
+        // up anything already pending before kicking off verify().
+        reciprocateCallbacks ??= verifier.getReciprocateQrCodeCallbacks();
         // verify() resolves when both sides confirm and rejects on cancel /
         // mismatch / timeout; either way the terminal state shows via `phase`.
         verifier.verify().catch(() => emit());
     };
 
-    const advance = (): void => {
-        // The side that reaches Ready without a verifier sends the `.start`.
-        // If the other side already started, `request.verifier` is set and we
-        // just hook it — the rust SDK resolves any simultaneous-start race.
-        if (
-            !startRequested &&
-            request.phase === VerificationPhase.Ready &&
-            !request.verifier
-        ) {
-            startRequested = true;
-            request.startVerification(VerificationMethod.Sas).then(
-                (verifier) => hookVerifier(verifier),
-                () => emit(),
+    const startSas = async (): Promise<void> => {
+        if (startRequested || request.verifier) return;
+        startRequested = true;
+        try {
+            hookVerifier(
+                await request.startVerification(VerificationMethodValue.Sas),
             );
+            qrError = null;
+        } catch (e) {
+            startRequested = false;
+            qrError = qrFailureText(e, "Could not start the emoji check");
         }
-        if (request.verifier) hookVerifier(request.verifier);
+        emit();
+    };
+
+    const advance = (): void => {
+        if (request.verifier) {
+            hookVerifier(request.verifier);
+            return;
+        }
+        // With no QR option on either side there is nothing to choose, so start
+        // the emoji check unprompted — the exact pre-QR behaviour. `advance()`
+        // re-runs on every change event and the `.start` send is async, so the
+        // `startRequested` latch is what stops a duplicate `.start` going out.
+        if (!startRequested && currentOptions().shouldAutoStartSas) {
+            void startSas();
+        }
     };
 
     request.on(VerificationRequestEvent.Change, () => {
@@ -404,6 +488,10 @@ function createVerificationController(
             initiatedByMe: request.initiatedByMe,
             phase: request.phase,
             sasEmoji: sasCallbacks?.sas.emoji ?? null,
+            methodOptions: currentOptions(),
+            qrBytes,
+            awaitingReciprocateConfirm: reciprocateCallbacks !== null,
+            qrError,
         }),
         subscribe: (cb) => {
             subscribers.add(cb);
@@ -416,6 +504,47 @@ function createVerificationController(
         mismatch: () => sasCallbacks?.mismatch(),
         cancel: () => {
             void request.cancel();
+        },
+        startSas,
+        showQrCode: async () => {
+            try {
+                const bytes = await request.generateQRCode();
+                qrBytes = bytes ?? null;
+                qrError = bytes
+                    ? null
+                    : "No code available — the other side can't scan one.";
+            } catch (e) {
+                qrBytes = null;
+                qrError = qrFailureText(e, "Could not generate a QR code");
+            }
+            emit();
+        },
+        submitScannedQr: async (bytes) => {
+            if (startRequested || request.verifier) return;
+            startRequested = true;
+            try {
+                hookVerifier(await request.scanQRCode(bytes));
+                qrError = null;
+            } catch (e) {
+                startRequested = false;
+                qrError = qrFailureText(
+                    e,
+                    "That code doesn't match this verification",
+                );
+            }
+            emit();
+        },
+        confirmReciprocate: () => {
+            reciprocateCallbacks?.confirm();
+            reciprocateCallbacks = null;
+            emit();
+        },
+        denyReciprocate: () => {
+            const callbacks = reciprocateCallbacks;
+            reciprocateCallbacks = null;
+            if (callbacks) callbacks.cancel();
+            else void request.cancel();
+            emit();
         },
     };
 }
