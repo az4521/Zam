@@ -939,7 +939,6 @@ export interface UnlockResult {
  * only in how they obtain and validate `decoded`.
  */
 async function completeUnlock(
-    client: MatrixClient,
     crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
     keyId: string,
     decoded: Uint8Array<ArrayBuffer>,
@@ -1050,7 +1049,7 @@ export async function unlockWithRecoveryKey(
     }
 
     // 3-5. Cache, restore history, cross-sign this session.
-    return completeUnlock(client, crypto, keyId, decoded, onProgress);
+    return completeUnlock(crypto, keyId, decoded, onProgress);
 }
 
 /**
@@ -1094,12 +1093,23 @@ export async function unlockWithPassphrase(
         );
     }
 
-    const decoded = await deriveRecoveryKeyFromPassphrase(
-        passphrase,
-        params.salt,
-        params.iterations,
-        params.bits,
-    );
+    // Derivation is WebCrypto-backed, so it throws a raw platform message on an
+    // insecure context (plain http) — nothing to do with the passphrase being
+    // wrong, which `checkKey` below catches. Rewrite it as something the user
+    // can act on rather than leaking "not available on this platform".
+    let decoded: Uint8Array<ArrayBuffer>;
+    try {
+        decoded = await deriveRecoveryKeyFromPassphrase(
+            passphrase,
+            params.salt,
+            params.iterations,
+            params.bits,
+        );
+    } catch {
+        throw new Error(
+            "Couldn't use your passphrase on this device. Try your recovery key instead.",
+        );
+    }
 
     const matches = await secretStorage.checkKey(decoded, keyInfo);
     if (!matches) {
@@ -1108,7 +1118,7 @@ export async function unlockWithPassphrase(
         );
     }
 
-    return completeUnlock(client, crypto, keyId, decoded, onProgress);
+    return completeUnlock(crypto, keyId, decoded, onProgress);
 }
 
 /** Map the SDK's room-key import progress onto the SDK-free `RestoreProgress`. */
