@@ -47,12 +47,22 @@
     // Capped so a media-less room cannot spin forever on one click.
     const MAX_PAGES_PER_CLICK = 5;
 
+    // Identifies the pull that currently owns the panel's state. A plain `let`,
+    // deliberately NOT $state: pull() both reads and increments it, and pull()
+    // is called from the room-change $effect, so a reactive read there would
+    // register a dependency that pull's own `++` immediately invalidates.
+    let pullGen = 0;
+
     async function pull(reset: boolean): Promise<void> {
+        const gen = ++pullGen;
         if (reset) {
             items = [];
             nextToken = null;
             exhausted = false;
             error = null;
+            // A viewer left open over the old room's images would otherwise
+            // re-mount on whatever lands at that index next.
+            viewerIndex = null;
             loading = true;
         } else {
             loadingMore = true;
@@ -65,10 +75,18 @@
                     roomId,
                     reset && page === 0 ? null : nextToken,
                 );
-                // The room changed under us while awaiting; drop the result.
-                if (room.roomId !== roomId) return;
+                // Superseded while awaiting — the panel lives in a shared
+                // sidebar slot, so a room switch REPLACES the prop instead of
+                // remounting us, and an A→B→A switch leaves roomId equal. Only
+                // the generation counter reliably says "someone else owns the
+                // state now"; bail without touching any of it.
+                if (gen !== pullGen || room.roomId !== roomId) return;
+                // Count what actually landed in the list, not what came back:
+                // a page of already-merged duplicates adds nothing visible and
+                // must not end the loop.
+                const before = items.length;
                 items = mergeMediaPages(items, res.items);
-                added += res.items.length;
+                added += items.length - before;
                 nextToken = res.nextToken;
                 if (res.nextToken === null) {
                     exhausted = true;
@@ -77,10 +95,18 @@
                 if (added > 0) break;
             }
         } catch (e) {
-            error = e instanceof Error ? e.message : "Could not load media";
+            // SDK errors read like `MatrixError: [403] …` — log the real one,
+            // show the user something they can act on.
+            console.error("Failed to load room media", e);
+            if (gen === pullGen) error = "Could not load media.";
         } finally {
-            loading = false;
-            loadingMore = false;
+            // Never clear a flag a newer pull set: the guard above `return`s
+            // through this block, and without the check a late response from
+            // the previous room would drop the current room's spinner.
+            if (gen === pullGen) {
+                loading = false;
+                loadingMore = false;
+            }
         }
     }
 
@@ -163,8 +189,10 @@
         role="tablist"
     >
         <button
+            id="room-media-tab-media"
             role="tab"
             aria-selected={tab === "media"}
+            aria-controls="room-media-tabpanel"
             onclick={() => (tab = "media")}
             class="flex-1 py-1 text-xs rounded transition-colors {tab ===
             'media'
@@ -174,8 +202,10 @@
             Media ({split.visual.length})
         </button>
         <button
+            id="room-media-tab-files"
             role="tab"
             aria-selected={tab === "files"}
+            aria-controls="room-media-tabpanel"
             onclick={() => (tab = "files")}
             class="flex-1 py-1 text-xs rounded transition-colors {tab ===
             'files'
@@ -186,7 +216,14 @@
         </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto">
+    <div
+        id="room-media-tabpanel"
+        role="tabpanel"
+        aria-labelledby={tab === "media"
+            ? "room-media-tab-media"
+            : "room-media-tab-files"}
+        class="flex-1 overflow-y-auto"
+    >
         {#if loading}
             <div class="flex justify-center mt-8">
                 <div
@@ -200,6 +237,7 @@
             <div class="px-2 pt-2">
                 <button
                     onclick={() => pull(true)}
+                    disabled={loading}
                     class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                 >
                     Try again
@@ -214,9 +252,11 @@
         {:else if tab === "media"}
             <div class="grid grid-cols-3 gap-1 p-2">
                 {#each split.visual as media (media.eventId)}
-                    {@const thumb =
-                        mxcToHttp(media.thumbnailUrl ?? media.url, 160, 160) ??
-                        mxcToHttp(media.url)}
+                    {@const thumb = mxcToHttp(
+                        media.thumbnailUrl ?? media.url,
+                        160,
+                        160,
+                    )}
                     <button
                         onclick={() =>
                             media.kind === "image"
@@ -228,11 +268,22 @@
                             : `${media.name} — download`}
                     >
                         {#if thumb}
+                            <!-- A server that cannot thumbnail this media (a
+                                 video with no info.thumbnail_url is the common
+                                 case) 404s here; hide the element so the tile
+                                 stays clean rather than showing a broken-image
+                                 glyph. Deliberately NOT falling back to the
+                                 full-resolution URL — that downloads a whole
+                                 video to paint a 160px tile. -->
                             <img
                                 src={thumb}
                                 alt={media.name}
                                 loading="lazy"
                                 class="w-full h-full object-cover"
+                                onerror={(e) =>
+                                    ((
+                                        e.currentTarget as HTMLImageElement
+                                    ).style.display = "none")}
                             />
                         {/if}
                         {#if media.kind === "video"}
