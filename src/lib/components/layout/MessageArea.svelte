@@ -35,6 +35,7 @@
         onReceiptEvent,
         getRoomCallMemberships,
         getRoomThreads,
+        type ReadReceiptInfo,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -85,6 +86,11 @@
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+
+    // Shared empty list for the avatars-off path — one allocation instead of a
+    // fresh [] per message. Taking this branch also means receiptTick is never
+    // read, so receipts stop invalidating the timeline entirely.
+    const NO_RECEIPTS: ReadReceiptInfo[] = [];
 
     interface Props {
         room: Room;
@@ -1290,8 +1296,9 @@
                  so selection and copy across messages behave natively) -->
             {#each messages as event, i (event.getId())}
                 {@const sepTs = dateSeparatorLabel(messages, i)}
-                {@const receipts =
-                    (void receiptTick, getReceiptsForEvent(room, event))}
+                {@const receipts = settingsState.showReadReceiptAvatars
+                    ? (void receiptTick, getReceiptsForEvent(room, event))
+                    : NO_RECEIPTS}
                 {#if sepTs !== null}
                     <div class="flex items-center gap-4 px-4 my-4">
                         <div class="flex-1 h-px bg-discord-divider"></div>

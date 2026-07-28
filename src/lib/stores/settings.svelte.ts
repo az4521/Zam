@@ -153,6 +153,10 @@ export const settingsState = $state({
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
+    /** Device-global: render the read-receipt avatars under messages. Default
+     *  ON (existing behaviour). Display only — it does not change whether we
+     *  SEND receipts; that is `privateReadReceipts`. */
+    showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
@@ -468,6 +472,11 @@ export function setShowAllEvents(value: boolean): void {
 export function setAutoUpdateEnabled(value: boolean): void {
     settingsState.autoUpdateEnabled = value;
     writeBool("autoUpdateEnabled", value);
+}
+
+export function setShowReadReceiptAvatars(value: boolean): void {
+    settingsState.showReadReceiptAvatars = value;
+    writeBool("showReadReceiptAvatars", value);
 }
 
 export function setKeepSidebarOpen(value: boolean): void {
