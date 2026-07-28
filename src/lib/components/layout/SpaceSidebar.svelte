@@ -1151,7 +1151,7 @@
         title="Explore rooms"
     >
         <svg
-            class="w-6 h-6 text-discord-textPositive group-hover:text-white transition-colors"
+            class="w-6 h-6 text-discord-textSecondary group-hover:text-white transition-colors"
             fill="currentColor"
             viewBox="0 0 24 24"
         >
@@ -1354,7 +1354,7 @@
                         />
                     </div>
                 </div>
-                {#if modalError}<p class="text-sm text-discord-error">
+                {#if modalError}<p class="text-sm text-discord-danger">
                         {modalError}
                     </p>{/if}
                 <div class="flex justify-end gap-2 mt-1">

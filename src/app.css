@@ -92,8 +92,12 @@ body {
 
     /* ── Text ────────────────────────────────────────── */
     --discord-text-primary: #dcddde;
-    --discord-text-secondary: #72767d;
-    --discord-text-muted: #4f545c;
+    /* muted/secondary were #4f545c / #72767d — 1.5:1 and 2.9:1 against the
+       app background, far below the 4.5:1 WCAG AA floor. Raised until every
+       pair in themeContrast.test.ts clears AA; the three-step brightness
+       ramp (muted < secondary < primary) is preserved. */
+    --discord-text-secondary: #babec4;
+    --discord-text-muted: #a4a7ae;
 
     /* ── Semantic accents ────────────────────────────── */
     --discord-accent: var(--brand-500);
@@ -153,7 +157,8 @@ body {
 
     --discord-text-primary: #2e3338;
     --discord-text-secondary: #4e5058;
-    --discord-text-muted: #6d6f78;
+    /* was #6d6f78 — 4.0:1 on --discord-bg-tertiary, below AA. */
+    --discord-text-muted: #5f6169;
 
     --discord-accent: #5865c7;
     --discord-accent-hover: #4752a8;
@@ -166,8 +171,13 @@ body {
     --discord-dnd: #d83c3e;
     --discord-offline: #80848e;
     --discord-danger: #d83c3e;
+    /* Tailwind resolves discord-danger/discord-warning through the -rgb form
+       (for <alpha-value> support). Light mode redeclared only the hex vars, so
+       the Tailwind tokens kept the dark-theme red/orange. */
+    --discord-danger-rgb: 216 60 62;
     --discord-danger-hover: #b92d30;
     --discord-warning: #a86600;
+    --discord-warning-rgb: 168 102 0;
     --discord-positive: #1f7a43;
     --discord-star: #a86600;
 

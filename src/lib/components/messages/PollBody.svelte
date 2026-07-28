@@ -202,7 +202,7 @@
                             <div
                                 class="h-full rounded-full {isWinner
                                     ? 'bg-discord-accent'
-                                    : 'bg-discord-textMuted'}"
+                                    : 'bg-discord-divider'}"
                                 style="width: {pct(count, view.totalVotes)}%"
                             ></div>
                         </div>

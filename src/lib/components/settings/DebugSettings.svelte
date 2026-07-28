@@ -160,7 +160,7 @@
             </div>
         {/each}
         {#if pushDebug.lastError}
-            <p class="mt-3 text-xs text-discord-error break-all font-mono">
+            <p class="mt-3 text-xs text-discord-danger break-all font-mono">
                 Last error: {pushDebug.lastError}
             </p>
         {/if}
@@ -182,7 +182,7 @@
                 Homeserver Pushers
             </p>
             {#if pushersError}
-                <p class="text-xs text-discord-error break-all">
+                <p class="text-xs text-discord-danger break-all">
                     {pushersError}
                 </p>
             {:else if pushers?.length === 0}
@@ -231,7 +231,7 @@
                     ? "registered"
                     : "not found"}
             </div>
-            {#if webPush.error}<div class="text-discord-error">
+            {#if webPush.error}<div class="text-discord-danger">
                     error: {webPush.error}
                 </div>{/if}
         </section>
@@ -247,7 +247,7 @@
             <p
                 class="text-sm {gateway.reachable
                     ? 'text-green-400'
-                    : 'text-discord-error'}"
+                    : 'text-discord-danger'}"
             >
                 {gateway.reachable
                     ? "Gateway reachable"
@@ -265,7 +265,7 @@
                 Native Session (push enrichment)
             </p>
             {#if nativeSession.error}
-                <p class="text-discord-error">{nativeSession.error}</p>
+                <p class="text-discord-danger">{nativeSession.error}</p>
             {:else}
                 <div>homeserver: {nativeSession.homeserverUrl ?? "(none)"}</div>
                 <div>user: {nativeSession.userId ?? "(none)"}</div>
