@@ -9,10 +9,10 @@ body {
 
 @keyframes message-highlight-fade {
     0% {
-        background-color: rgba(114, 137, 218, 0.35);
+        background-color: rgb(var(--discord-accent-rgb) / 0.35);
     }
     70% {
-        background-color: rgba(114, 137, 218, 0.35);
+        background-color: rgb(var(--discord-accent-rgb) / 0.35);
     }
     100% {
         background-color: transparent;
