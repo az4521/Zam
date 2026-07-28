@@ -23,6 +23,10 @@ export function openLiveLocationMap(roomId: string): void {
  * Close the map if it still owns the slot. Safe to call unconditionally from a
  * teardown path — a no-op once another modal has superseded it (that handover
  * already ran our close via `openModal`).
+ *
+ * This is the ONLY correct way to dismiss the map: never use
+ * `clearModal("live-location-map")`, which drops the slot without running the
+ * close handler and strands `liveMapState.roomId` non-null against an empty slot.
  */
 export function closeLiveLocationMap(): void {
     if (interfaceState.modal === "live-location-map") closeModal();

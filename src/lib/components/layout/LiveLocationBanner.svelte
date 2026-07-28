@@ -46,12 +46,20 @@
     // The view is per-room, and it lives inside this component — release the
     // slot when the room changes or the banner unmounts, or the slot would
     // stay claimed by a map that is no longer rendered and Escape would
-    // silently "dismiss" nothing. untrack() keeps the store read/write out of
-    // this effect's dependencies: it must depend on room.roomId alone, never
-    // re-run on its own write.
+    // silently "dismiss" nothing. The effect depends on room.roomId alone; the
+    // store read/write happens in the teardown, which Svelte already runs
+    // outside any tracking context, so it can never re-trigger this effect.
+    // untrack() is defensive only.
+    //
+    // `room` is a live prop getter and the teardown fires AFTER the prop has
+    // changed, so capture the id in the body: reading room.roomId inside the
+    // closure would yield the NEW room and never match the still-open map.
     $effect(() => {
-        void room.roomId;
-        return () => untrack(() => closeLiveLocationMap());
+        const openedFor = room.roomId;
+        return () =>
+            untrack(() => {
+                if (liveMapState.roomId === openedFor) closeLiveLocationMap();
+            });
     });
 
     const ownShare = $derived(
