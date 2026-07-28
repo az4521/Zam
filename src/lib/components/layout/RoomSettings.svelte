@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { Room, RoomMember } from "matrix-js-sdk";
-    import { untrack } from "svelte";
+    import { tick, untrack } from "svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import InvitePanel from "./InvitePanel.svelte";
     import ImagePackEditor from "./ImagePackEditor.svelte";
@@ -46,7 +46,14 @@
     } from "$lib/utils/joinRules";
     import { parsePowerLevelInput } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import {
+        roomSettingsNavView,
+        roomSettingsTabs,
+        roomSettingsTabLabel,
+        type RoomSettingsTab,
+    } from "$lib/utils/roomSettingsNav";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -56,6 +63,11 @@
         ENABLE_ENCRYPTION_WARNING,
     } from "$lib/utils/roomEncryption";
     import { auth } from "$lib/stores/auth.svelte";
+    import {
+        interfaceState,
+        openSubPage,
+        clearSubPageIfOwner,
+    } from "$lib/stores/interface.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         blockUser,
@@ -71,17 +83,92 @@
 
     let { room, onClose, onUpdate }: Props = $props();
 
-    type Tab =
-        | "general"
-        | "access"
-        | "security"
-        | "permissions"
-        | "members"
-        | "rooms"
-        | "emotes";
-    let activeTab = $state<Tab>("general");
+    // null = "nothing drilled into yet": the mobile category list, or the
+    // desktop default panel. Kept across a viewport change in both directions
+    // so resizing/rotating never loses the user's place.
+    let selectedTab = $state<RoomSettingsTab | null>(null);
 
     const isSpace = $derived(room.isSpaceRoom());
+
+    const view = $derived(
+        roomSettingsNavView({
+            isMobile: interfaceState.isMobile,
+            isSpace,
+            selectedTab,
+        }),
+    );
+
+    // The tab whose panel is on screen, or null on the mobile category list
+    // where no panel is mounted. The lazy-load effects below gate on this, so
+    // sitting on the list must not kick off a fetch.
+    const activeTab = $derived<RoomSettingsTab | null>(
+        view.mode === "list" ? null : view.tab,
+    );
+
+    // Stable identity: it is the ownership token for the sub-page slot, so it
+    // must NOT be recreated on every render. It resets local state ONLY — it
+    // runs from inside the store's own close/supersede paths, so reaching back
+    // into the store here would pop the wrong owner.
+    function goBackToList() {
+        selectedTab = null;
+        showInvite = false;
+    }
+
+    // Register the mobile sub-page with the central dismiss stack so Escape and
+    // the hardware back button pop it before closing the whole dialog.
+    //
+    // `openSubPage` READS `interfaceState.subPageClose` (to supersede a previous
+    // owner) as well as writing it. Untracked, that read becomes a dependency of
+    // this effect while the write invalidates it → the teardown clears the slot,
+    // the body re-claims it, forever: `effect_update_depth_exceeded`. `untrack`
+    // keeps the slot out of the dependency set, so the tracked dependencies are
+    // exactly what `view` reads — isMobile, isSpace and selectedTab — none of
+    // which `openSubPage` writes, so there is no loop.
+    $effect(() => {
+        if (view.mode !== "detail") return;
+        untrack(() => openSubPage(goBackToList));
+        return () => clearSubPageIfOwner(goBackToList);
+    });
+
+    // Plain `let`, not `$state`: these are transition bookkeeping, not view
+    // data. Reading them inside the effect below must register no dependency
+    // (and `bind:this` writing a `$state` ref would retrigger it). Nothing
+    // renders from them, so the non-reactivity the warning describes is the
+    // whole point.
+    // svelte-ignore non_reactive_update
+    let backButtonEl: HTMLButtonElement | null = null;
+    // Only index 0 is ever read, and it is always "general" — the tab set has
+    // the same length for a room and a space, but not the same members, so an
+    // index means different things in the two shapes.
+    let categoryEls: HTMLButtonElement[] = [];
+    let sidebarEls: Record<string, HTMLButtonElement | null> = {};
+    let lastMode: string | null = null;
+
+    // EVERY mode change destroys the element that had focus — drilling in,
+    // backing out, and crossing the 768px breakpoint in either direction —
+    // dropping focus to <body>, outside the focus trap, where the trap's
+    // node-level keydown never fires and Tab escapes to the app shell behind
+    // the modal. So re-anchor focus on every change, including into "desktop"
+    // (never on first mount: focusTrap's rAF owns that). Writes no reactive
+    // state, so it cannot retrigger itself.
+    $effect(() => {
+        const mode = view.mode;
+        // Free: the effect already depends on `view`, so reading a second
+        // property off the same object registers nothing new.
+        const tab = mode === "list" ? null : view.tab;
+        if (lastMode === null || lastMode === mode) {
+            lastMode = mode;
+            return;
+        }
+        lastMode = mode;
+        // After the DOM is patched — `bind:this` has not necessarily landed yet.
+        void tick().then(() => {
+            if (mode === "detail") backButtonEl?.focus();
+            else if (mode === "list") categoryEls[0]?.focus();
+            else if (tab) sidebarEls[tab]?.focus();
+        });
+    });
+
     const myPowerLevel = $derived(getMyPowerLevel(room));
     const pl = $derived(getRoomPowerLevels(room));
     const canEditState = $derived(myPowerLevel >= pl.state_default);
@@ -573,20 +660,7 @@
         }
     }
 
-    const tabs: { id: Tab; label: string }[] = [
-        { id: "general", label: "General" },
-        { id: "access", label: "Access" },
-        // Encryption is a room concept, not a space one — hide Security on spaces.
-        ...(untrack(() => isSpace)
-            ? []
-            : [{ id: "security" as Tab, label: "Security" }]),
-        { id: "permissions", label: "Permissions" },
-        { id: "members", label: "Members" },
-        { id: "emotes", label: "Emotes" },
-        ...(untrack(() => isSpace)
-            ? [{ id: "rooms" as Tab, label: "Rooms" }]
-            : []),
-    ];
+    const tabs = $derived(roomSettingsTabs({ isSpace }));
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
@@ -596,22 +670,46 @@
         class="absolute inset-0 bg-black/60"
         onclick={onClose}
     ></button>
+    <!-- No `onEscape` on purpose: focusTrap's node-level keydown fires BEFORE
+         <svelte:window onkeydown> reaches AppShell, so an onEscape here would
+         close the whole dialog on the first Escape and the mobile sub-page could
+         never be popped. Escape is owned by AppShell.dismissTopmost(). -->
     <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="room-settings-title"
         class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
-        use:focusTrap={{ onEscape: onClose }}
+        use:focusTrap
     >
-        <!-- Header -->
+        <!-- Header. On a mobile sub-page the close button is replaced by a back
+             arrow and the title names the category. -->
         <div
-            class="flex items-center justify-between px-6 py-4 border-b border-discord-divider flex-shrink-0"
+            class="flex items-center gap-2 px-6 py-4 border-b border-discord-divider flex-shrink-0"
         >
+            {#if view.mode === "detail"}
+                <button
+                    bind:this={backButtonEl}
+                    onclick={goBackToList}
+                    aria-label="Back to settings"
+                    class="-ml-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+            {/if}
             <h2
                 id="room-settings-title"
-                class="text-lg font-bold text-discord-textPrimary truncate"
+                class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
             >
-                {room.name} — Settings
+                {#if view.mode === "detail"}
+                    <!-- This heading IS the dialog's accessible name
+                         (aria-labelledby), and on a sub-page the visible text is
+                         only the category — so name the room for screen readers
+                         without repeating it on screen. -->
+                    <span class="sr-only">{`${room.name} — `}</span
+                    >{roomSettingsTabLabel(view.tab)}
+                {:else}
+                    {room.name} — Settings
+                {/if}
             </h2>
             <button
                 onclick={onClose}
@@ -626,433 +724,465 @@
             </button>
         </div>
 
-        <div class="flex flex-col md:flex-row flex-1 min-h-0">
-            <!-- Tab bar: horizontal scrollable strip on mobile, sidebar on desktop -->
-            <nav
-                class="flex flex-row md:flex-col flex-shrink-0 w-full md:w-40 gap-1 md:gap-0.5 overflow-x-auto md:overflow-x-visible border-b md:border-b-0 md:border-r border-discord-divider px-2 py-2 md:py-3"
-            >
-                {#each tabs as tab (tab.id)}
+        {#if view.mode === "list"}
+            <!-- Mobile root: drill-down category list. -->
+            <nav class="flex-1 overflow-y-auto py-2">
+                {#each tabs as tab, i (tab.id)}
                     <button
+                        bind:this={categoryEls[i]}
                         onclick={() => {
-                            activeTab = tab.id;
+                            selectedTab = tab.id;
                             showInvite = false;
                         }}
-                        class="flex-shrink-0 w-auto md:w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
-                        class:bg-discord-messageHover={activeTab === tab.id}
-                        class:text-discord-textPrimary={activeTab === tab.id}
-                        class:text-discord-textMuted={activeTab !== tab.id}
-                        >{tab.label}</button
+                        class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
                     >
+                        <span class="min-w-0 truncate">{tab.label}</span>
+                        <ChevronRight
+                            size={20}
+                            aria-hidden="true"
+                            class="flex-shrink-0 text-discord-textMuted"
+                        />
+                    </button>
                 {/each}
             </nav>
-
-            <!-- Tab content -->
-            <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
-                <!-- ── General ─────────────────────────────────────────── -->
-                {#if activeTab === "general"}
-                    <div class="space-y-5">
-                        <!-- Avatar -->
-                        <div>
-                            <p
-                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        {:else}
+            <div class="flex flex-row flex-1 min-h-0">
+                {#if view.mode === "desktop"}
+                    <!-- Desktop: category sidebar beside the active panel. -->
+                    <nav
+                        class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
+                    >
+                        {#each tabs as tab (tab.id)}
+                            <button
+                                bind:this={sidebarEls[tab.id]}
+                                onclick={() => {
+                                    selectedTab = tab.id;
+                                    showInvite = false;
+                                }}
+                                class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
+                                class:bg-discord-messageHover={activeTab ===
+                                    tab.id}
+                                class:text-discord-textPrimary={activeTab ===
+                                    tab.id}
+                                class:text-discord-textMuted={activeTab !==
+                                    tab.id}>{tab.label}</button
                             >
-                                Room Avatar
-                            </p>
-                            <div class="flex items-center gap-4">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-discord-backgroundTertiary overflow-hidden flex-shrink-0 flex items-center justify-center"
+                        {/each}
+                    </nav>
+                {/if}
+
+                <!-- Tab content -->
+                <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
+                    <!-- ── General ─────────────────────────────────────────── -->
+                    {#if activeTab === "general"}
+                        <div class="space-y-5">
+                            <!-- Avatar -->
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
                                 >
-                                    {#if currentAvatarUrl}
-                                        <img
-                                            src={currentAvatarUrl}
-                                            alt=""
-                                            class="w-full h-full object-cover"
-                                        />
-                                    {:else}
-                                        <span
-                                            class="text-2xl font-bold text-discord-textMuted"
-                                            >{room.name?.[0]?.toUpperCase() ??
-                                                "#"}</span
+                                    Room Avatar
+                                </p>
+                                <div class="flex items-center gap-4">
+                                    <div
+                                        class="w-16 h-16 rounded-full bg-discord-backgroundTertiary overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                    >
+                                        {#if currentAvatarUrl}
+                                            <img
+                                                src={currentAvatarUrl}
+                                                alt=""
+                                                class="w-full h-full object-cover"
+                                            />
+                                        {:else}
+                                            <span
+                                                class="text-2xl font-bold text-discord-textMuted"
+                                                >{room.name?.[0]?.toUpperCase() ??
+                                                    "#"}</span
+                                            >
+                                        {/if}
+                                    </div>
+                                    {#if canEditState}
+                                        <label
+                                            class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors {avatarUploading
+                                                ? 'opacity-50 pointer-events-none'
+                                                : ''}"
                                         >
+                                            {avatarUploading
+                                                ? "Uploading…"
+                                                : "Upload Image"}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                class="hidden"
+                                                onchange={handleAvatarUpload}
+                                                disabled={avatarUploading}
+                                            />
+                                        </label>
                                     {/if}
                                 </div>
-                                {#if canEditState}
-                                    <label
-                                        class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors {avatarUploading
-                                            ? 'opacity-50 pointer-events-none'
-                                            : ''}"
-                                    >
-                                        {avatarUploading
-                                            ? "Uploading…"
-                                            : "Upload Image"}
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            class="hidden"
-                                            onchange={handleAvatarUpload}
-                                            disabled={avatarUploading}
-                                        />
-                                    </label>
-                                {/if}
                             </div>
-                        </div>
 
-                        <!-- Name -->
-                        <div>
-                            <label
-                                for="room-settings-name"
-                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                                >Room Name</label
-                            >
-                            <input
-                                id="room-settings-name"
-                                bind:value={nameInput}
-                                disabled={!canEditState}
-                                class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
-                            />
-                        </div>
-
-                        <!-- Topic -->
-                        <div>
-                            <label
-                                for="room-settings-topic"
-                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                                >Topic</label
-                            >
-                            <textarea
-                                id="room-settings-topic"
-                                bind:value={topicInput}
-                                disabled={!canEditState}
-                                rows="3"
-                                class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 resize-none disabled:opacity-50"
-                            ></textarea>
-                        </div>
-
-                        {#if generalError}<p
-                                class="text-sm text-discord-danger"
-                            >
-                                {generalError}
-                            </p>{/if}
-                        {#if canEditState}
-                            <button
-                                onclick={saveGeneral}
-                                disabled={generalSaving}
-                                class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                >{generalSaving
-                                    ? "Saving…"
-                                    : generalSuccess
-                                      ? "Saved!"
-                                      : "Save Changes"}</button
-                            >
-                        {/if}
-
-                        {#if !isSpace && roomVersionCap}
-                            <div
-                                class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-2"
-                            >
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                            <!-- Name -->
+                            <div>
+                                <label
+                                    for="room-settings-name"
+                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                    >Room Name</label
                                 >
-                                    Advanced
-                                </p>
-                                <p class="text-xs text-discord-textMuted">
-                                    Room version: v{room.getVersion()}
-                                </p>
-                                {#if upgradeState.isCurrentLatest || !upgradeState.available}
-                                    <p class="text-sm text-discord-textMuted">
-                                        {upgradeState.reason}
-                                    </p>
-                                {:else if !upgradeShowConfirm}
-                                    <button
-                                        onclick={() => {
-                                            upgradeShowConfirm = true;
-                                            upgradeError = "";
-                                        }}
-                                        class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
-                                        >Upgrade room…</button
-                                    >
-                                {:else}
-                                    <div class="space-y-2">
-                                        <p
-                                            class="text-sm text-discord-textPrimary"
-                                        >
-                                            This creates a new room on v{upgradeState.recommendedVersion}
-                                            and marks this one as replaced. Members
-                                            will be pointed to the new room.
-                                        </p>
-                                        {#if upgradeError}<p
-                                                class="text-sm text-discord-danger"
-                                            >
-                                                {upgradeError}
-                                            </p>{/if}
-                                        <div class="flex gap-2">
-                                            <button
-                                                onclick={doUpgradeRoom}
-                                                disabled={upgrading}
-                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                                >{upgrading
-                                                    ? "Upgrading…"
-                                                    : "Upgrade room"}</button
-                                            >
-                                            <button
-                                                onclick={() => {
-                                                    upgradeShowConfirm = false;
-                                                    upgradeError = "";
-                                                }}
-                                                disabled={upgrading}
-                                                class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                                >Cancel</button
-                                            >
-                                        </div>
-                                    </div>
-                                {/if}
+                                <input
+                                    id="room-settings-name"
+                                    bind:value={nameInput}
+                                    disabled={!canEditState}
+                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                                />
                             </div>
-                        {/if}
-                    </div>
 
-                    <!-- ── Access ──────────────────────────────────────────── -->
-                {:else if activeTab === "access"}
-                    <div class="space-y-5">
-                        <div>
-                            <p
-                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                            >
-                                Who can join?
-                            </p>
-                            <div class="space-y-1.5">
-                                {#each [["invite", "Invite only — members must be invited"], ["knock", "Knock — users can request to join"], ["public", "Public — anyone can join"]] as [value, label]}
+                            <!-- Topic -->
+                            <div>
+                                <label
+                                    for="room-settings-topic"
+                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                    >Topic</label
+                                >
+                                <textarea
+                                    id="room-settings-topic"
+                                    bind:value={topicInput}
+                                    disabled={!canEditState}
+                                    rows="3"
+                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 resize-none disabled:opacity-50"
+                                ></textarea>
+                            </div>
+
+                            {#if generalError}<p
+                                    class="text-sm text-discord-danger"
+                                >
+                                    {generalError}
+                                </p>{/if}
+                            {#if canEditState}
+                                <button
+                                    onclick={saveGeneral}
+                                    disabled={generalSaving}
+                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                    >{generalSaving
+                                        ? "Saving…"
+                                        : generalSuccess
+                                          ? "Saved!"
+                                          : "Save Changes"}</button
+                                >
+                            {/if}
+
+                            {#if !isSpace && roomVersionCap}
+                                <div
+                                    class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-2"
+                                >
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                    >
+                                        Advanced
+                                    </p>
+                                    <p class="text-xs text-discord-textMuted">
+                                        Room version: v{room.getVersion()}
+                                    </p>
+                                    {#if upgradeState.isCurrentLatest || !upgradeState.available}
+                                        <p
+                                            class="text-sm text-discord-textMuted"
+                                        >
+                                            {upgradeState.reason}
+                                        </p>
+                                    {:else if !upgradeShowConfirm}
+                                        <button
+                                            onclick={() => {
+                                                upgradeShowConfirm = true;
+                                                upgradeError = "";
+                                            }}
+                                            class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
+                                            >Upgrade room…</button
+                                        >
+                                    {:else}
+                                        <div class="space-y-2">
+                                            <p
+                                                class="text-sm text-discord-textPrimary"
+                                            >
+                                                This creates a new room on v{upgradeState.recommendedVersion}
+                                                and marks this one as replaced. Members
+                                                will be pointed to the new room.
+                                            </p>
+                                            {#if upgradeError}<p
+                                                    class="text-sm text-discord-danger"
+                                                >
+                                                    {upgradeError}
+                                                </p>{/if}
+                                            <div class="flex gap-2">
+                                                <button
+                                                    onclick={doUpgradeRoom}
+                                                    disabled={upgrading}
+                                                    class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                    >{upgrading
+                                                        ? "Upgrading…"
+                                                        : "Upgrade room"}</button
+                                                >
+                                                <button
+                                                    onclick={() => {
+                                                        upgradeShowConfirm = false;
+                                                        upgradeError = "";
+                                                    }}
+                                                    disabled={upgrading}
+                                                    class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                    >Cancel</button
+                                                >
+                                            </div>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/if}
+                        </div>
+
+                        <!-- ── Access ──────────────────────────────────────────── -->
+                    {:else if activeTab === "access"}
+                        <div class="space-y-5">
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Who can join?
+                                </p>
+                                <div class="space-y-1.5">
+                                    {#each [["invite", "Invite only — members must be invited"], ["knock", "Knock — users can request to join"], ["public", "Public — anyone can join"]] as [value, label]}
+                                        <label
+                                            class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                                ? 'opacity-50 pointer-events-none'
+                                                : ''}"
+                                        >
+                                            <input
+                                                type="radio"
+                                                bind:group={joinRule}
+                                                {value}
+                                                class="accent-discord-accent"
+                                            />
+                                            <span
+                                                class="text-sm text-discord-textPrimary"
+                                                >{label}</span
+                                            >
+                                        </label>
+                                    {/each}
                                     <label
-                                        class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                        class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
                                             ? 'opacity-50 pointer-events-none'
                                             : ''}"
                                     >
                                         <input
                                             type="radio"
                                             bind:group={joinRule}
-                                            {value}
+                                            value={RESTRICTED_JOIN_RULE}
+                                            disabled={!restrictedJoin.available}
                                             class="accent-discord-accent"
                                         />
                                         <span
                                             class="text-sm text-discord-textPrimary"
-                                            >{label}</span
+                                            >{parentSpaceNames
+                                                ? `Space members — anyone in ${parentSpaceNames} can join`
+                                                : "Space members — anyone in the parent space can join"}</span
                                         >
                                     </label>
-                                {/each}
+                                    {#if restrictedJoin.reason}
+                                        <p
+                                            class="text-xs text-discord-textMuted ml-6"
+                                        >
+                                            {restrictedJoin.reason}
+                                        </p>
+                                    {/if}
+                                </div>
+                            </div>
+
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Message History
+                                </p>
+                                <div class="space-y-1.5">
+                                    {#each [["world_readable", "Anyone (including guests)"], ["shared", "Anyone once joined"], ["invited", "Members since invited"], ["joined", "Members since joining"]] as [value, label]}
+                                        <label
+                                            class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                                ? 'opacity-50 pointer-events-none'
+                                                : ''}"
+                                        >
+                                            <input
+                                                type="radio"
+                                                bind:group={historyVisibility}
+                                                {value}
+                                                class="accent-discord-accent"
+                                            />
+                                            <span
+                                                class="text-sm text-discord-textPrimary"
+                                                >{label}</span
+                                            >
+                                        </label>
+                                    {/each}
+                                </div>
+                            </div>
+
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Discoverability
+                                </p>
                                 <label
-                                    class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
+                                    class="flex items-center gap-2.5 cursor-pointer {!canEditState ||
+                                    dirSaving
                                         ? 'opacity-50 pointer-events-none'
                                         : ''}"
                                 >
                                     <input
-                                        type="radio"
-                                        bind:group={joinRule}
-                                        value={RESTRICTED_JOIN_RULE}
-                                        disabled={!restrictedJoin.available}
+                                        type="checkbox"
+                                        checked={dirVisibility === "public"}
+                                        onchange={(e) =>
+                                            toggleDirVisibility(
+                                                e.currentTarget.checked
+                                                    ? "public"
+                                                    : "private",
+                                            )}
+                                        disabled={!canEditState ||
+                                            dirSaving ||
+                                            !dirLoaded}
                                         class="accent-discord-accent"
                                     />
                                     <span
                                         class="text-sm text-discord-textPrimary"
-                                        >{parentSpaceNames
-                                            ? `Space members — anyone in ${parentSpaceNames} can join`
-                                            : "Space members — anyone in the parent space can join"}</span
+                                        >List this {isSpace ? "space" : "room"} in
+                                        the server directory</span
                                     >
                                 </label>
-                                {#if restrictedJoin.reason}
-                                    <p
-                                        class="text-xs text-discord-textMuted ml-6"
-                                    >
-                                        {restrictedJoin.reason}
-                                    </p>
-                                {/if}
-                            </div>
-                        </div>
-
-                        <div>
-                            <p
-                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                            >
-                                Message History
-                            </p>
-                            <div class="space-y-1.5">
-                                {#each [["world_readable", "Anyone (including guests)"], ["shared", "Anyone once joined"], ["invited", "Members since invited"], ["joined", "Members since joining"]] as [value, label]}
-                                    <label
-                                        class="flex items-center gap-2.5 cursor-pointer {!canEditState
-                                            ? 'opacity-50 pointer-events-none'
-                                            : ''}"
-                                    >
-                                        <input
-                                            type="radio"
-                                            bind:group={historyVisibility}
-                                            {value}
-                                            class="accent-discord-accent"
-                                        />
-                                        <span
-                                            class="text-sm text-discord-textPrimary"
-                                            >{label}</span
-                                        >
-                                    </label>
-                                {/each}
-                            </div>
-                        </div>
-
-                        <div>
-                            <p
-                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                            >
-                                Discoverability
-                            </p>
-                            <label
-                                class="flex items-center gap-2.5 cursor-pointer {!canEditState ||
-                                dirSaving
-                                    ? 'opacity-50 pointer-events-none'
-                                    : ''}"
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={dirVisibility === "public"}
-                                    onchange={(e) =>
-                                        toggleDirVisibility(
-                                            e.currentTarget.checked
-                                                ? "public"
-                                                : "private",
-                                        )}
-                                    disabled={!canEditState ||
-                                        dirSaving ||
-                                        !dirLoaded}
-                                    class="accent-discord-accent"
-                                />
-                                <span class="text-sm text-discord-textPrimary"
-                                    >List this {isSpace ? "space" : "room"} in the
-                                    server directory</span
-                                >
-                            </label>
-                            <p class="text-xs text-discord-textMuted mt-1">
-                                Lists the {isSpace ? "space" : "room"} by ID. Being
-                                found by name also needs a published address (coming
-                                later).
-                            </p>
-                            {#if dirError}<p
-                                    class="text-sm text-discord-danger mt-1"
-                                >
-                                    {dirError}
-                                </p>{/if}
-                        </div>
-
-                        {#if accessError}<p class="text-sm text-discord-danger">
-                                {accessError}
-                            </p>{/if}
-                        {#if canEditState}
-                            <button
-                                onclick={saveAccess}
-                                disabled={accessSaving}
-                                class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                >{accessSaving
-                                    ? "Saving…"
-                                    : accessSuccess
-                                      ? "Saved!"
-                                      : "Save Changes"}</button
-                            >
-                        {/if}
-                    </div>
-
-                    <!-- ── Security ────────────────────────────────────────── -->
-                {:else if activeTab === "security"}
-                    <div class="space-y-5">
-                        <div>
-                            <p
-                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                            >
-                                Encryption
-                            </p>
-                            <span
-                                class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {encrypted
-                                    ? 'bg-discord-accent/20 text-discord-accent'
-                                    : 'bg-discord-messageHover text-discord-textMuted'}"
-                                >{encrypted
-                                    ? "Encrypted"
-                                    : "Not encrypted"}</span
-                            >
-                            <p class="text-xs text-discord-textMuted mt-2">
-                                {#if encrypted}
-                                    Messages in this room are end-to-end
-                                    encrypted. This can't be turned off.
-                                {:else}
-                                    {ENABLE_ENCRYPTION_WARNING}
-                                {/if}
-                            </p>
-                        </div>
-
-                        {#if !encrypted}
-                            {#if !encState.canEnable}
-                                <p class="text-sm text-discord-textMuted">
-                                    {encState.reason}
+                                <p class="text-xs text-discord-textMuted mt-1">
+                                    Lists the {isSpace ? "space" : "room"} by ID.
+                                    Being found by name also needs a published address
+                                    (coming later).
                                 </p>
-                            {:else if !encShowConfirm}
-                                <button
-                                    onclick={() => {
-                                        encShowConfirm = true;
-                                        encConfirmInput = "";
-                                        encError = "";
-                                    }}
-                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
-                                    >Enable encryption</button
-                                >
-                            {:else}
-                                <div class="space-y-2">
-                                    <label
-                                        for="room-settings-enc-confirm"
-                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-                                        >Type {ENABLE_ENCRYPTION_CONFIRM_PHRASE} to
-                                        confirm</label
+                                {#if dirError}<p
+                                        class="text-sm text-discord-danger mt-1"
                                     >
-                                    <input
-                                        id="room-settings-enc-confirm"
-                                        bind:value={encConfirmInput}
-                                        placeholder={ENABLE_ENCRYPTION_CONFIRM_PHRASE}
-                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
-                                    />
-                                    {#if encError}<p
-                                            class="text-sm text-discord-danger"
-                                        >
-                                            {encError}
-                                        </p>{/if}
-                                    <div class="flex gap-2">
-                                        <button
-                                            onclick={doEnableEncryption}
-                                            disabled={encEnabling ||
-                                                !matchesEnableEncryptionConfirmation(
-                                                    encConfirmInput,
-                                                )}
-                                            class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                            >{encEnabling
-                                                ? "Enabling…"
-                                                : "Enable encryption"}</button
-                                        >
-                                        <button
-                                            onclick={() => {
-                                                encShowConfirm = false;
-                                                encConfirmInput = "";
-                                                encError = "";
-                                            }}
-                                            disabled={encEnabling}
-                                            class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                            >Cancel</button
-                                        >
-                                    </div>
-                                </div>
-                            {/if}
-                        {/if}
-                    </div>
+                                        {dirError}
+                                    </p>{/if}
+                            </div>
 
-                    <!-- ── Permissions ─────────────────────────────────────── -->
-                {:else if activeTab === "permissions"}
-                    <div class="space-y-4">
-                        <p class="text-xs text-discord-textMuted">
-                            Power level required for each action (0–100).
-                        </p>
-                        {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
-                            {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}
-                            {@const setters: Record<string, (v: number) => void> = {
+                            {#if accessError}<p
+                                    class="text-sm text-discord-danger"
+                                >
+                                    {accessError}
+                                </p>{/if}
+                            {#if canEditState}
+                                <button
+                                    onclick={saveAccess}
+                                    disabled={accessSaving}
+                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                    >{accessSaving
+                                        ? "Saving…"
+                                        : accessSuccess
+                                          ? "Saved!"
+                                          : "Save Changes"}</button
+                                >
+                            {/if}
+                        </div>
+
+                        <!-- ── Security ────────────────────────────────────────── -->
+                    {:else if activeTab === "security"}
+                        <div class="space-y-5">
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Encryption
+                                </p>
+                                <span
+                                    class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {encrypted
+                                        ? 'bg-discord-accent/20 text-discord-accent'
+                                        : 'bg-discord-messageHover text-discord-textMuted'}"
+                                    >{encrypted
+                                        ? "Encrypted"
+                                        : "Not encrypted"}</span
+                                >
+                                <p class="text-xs text-discord-textMuted mt-2">
+                                    {#if encrypted}
+                                        Messages in this room are end-to-end
+                                        encrypted. This can't be turned off.
+                                    {:else}
+                                        {ENABLE_ENCRYPTION_WARNING}
+                                    {/if}
+                                </p>
+                            </div>
+
+                            {#if !encrypted}
+                                {#if !encState.canEnable}
+                                    <p class="text-sm text-discord-textMuted">
+                                        {encState.reason}
+                                    </p>
+                                {:else if !encShowConfirm}
+                                    <button
+                                        onclick={() => {
+                                            encShowConfirm = true;
+                                            encConfirmInput = "";
+                                            encError = "";
+                                        }}
+                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
+                                        >Enable encryption</button
+                                    >
+                                {:else}
+                                    <div class="space-y-2">
+                                        <label
+                                            for="room-settings-enc-confirm"
+                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                            >Type {ENABLE_ENCRYPTION_CONFIRM_PHRASE}
+                                            to confirm</label
+                                        >
+                                        <input
+                                            id="room-settings-enc-confirm"
+                                            bind:value={encConfirmInput}
+                                            placeholder={ENABLE_ENCRYPTION_CONFIRM_PHRASE}
+                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                        />
+                                        {#if encError}<p
+                                                class="text-sm text-discord-danger"
+                                            >
+                                                {encError}
+                                            </p>{/if}
+                                        <div class="flex gap-2">
+                                            <button
+                                                onclick={doEnableEncryption}
+                                                disabled={encEnabling ||
+                                                    !matchesEnableEncryptionConfirmation(
+                                                        encConfirmInput,
+                                                    )}
+                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                >{encEnabling
+                                                    ? "Enabling…"
+                                                    : "Enable encryption"}</button
+                                            >
+                                            <button
+                                                onclick={() => {
+                                                    encShowConfirm = false;
+                                                    encConfirmInput = "";
+                                                    encError = "";
+                                                }}
+                                                disabled={encEnabling}
+                                                class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                >Cancel</button
+                                            >
+                                        </div>
+                                    </div>
+                                {/if}
+                            {/if}
+                        </div>
+
+                        <!-- ── Permissions ─────────────────────────────────────── -->
+                    {:else if activeTab === "permissions"}
+                        <div class="space-y-4">
+                            <p class="text-xs text-discord-textMuted">
+                                Power level required for each action (0–100).
+                            </p>
+                            {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
+                                {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}
+                                {@const setters: Record<string, (v: number) => void> = {
 								plEventsDefault: (v) => plEventsDefault = v,
 								plStateDefault: (v) => plStateDefault = v,
 								plUsersDefault: (v) => plUsersDefault = v,
@@ -1061,163 +1191,105 @@
 								plBan: (v) => plBan = v,
 								plRedact: (v) => plRedact = v,
 							}}
-                            <div
-                                class="flex items-center justify-between gap-4"
-                            >
-                                <span class="text-sm text-discord-textPrimary"
-                                    >{label}</span
+                                <div
+                                    class="flex items-center justify-between gap-4"
                                 >
-                                <div class="flex items-center gap-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={bindings[key]}
-                                        oninput={(e) =>
-                                            setters[key](
-                                                Number(
-                                                    (
-                                                        e.target as HTMLInputElement
-                                                    ).value,
-                                                ),
-                                            )}
-                                        disabled={!canEditState}
-                                        class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
-                                    />
                                     <span
-                                        class="text-xs text-discord-textMuted w-16"
-                                        >{plLabel(bindings[key])}</span
+                                        class="text-sm text-discord-textPrimary"
+                                        >{label}</span
                                     >
+                                    <div class="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={bindings[key]}
+                                            oninput={(e) =>
+                                                setters[key](
+                                                    Number(
+                                                        (
+                                                            e.target as HTMLInputElement
+                                                        ).value,
+                                                    ),
+                                                )}
+                                            disabled={!canEditState}
+                                            class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
+                                        />
+                                        <span
+                                            class="text-xs text-discord-textMuted w-16"
+                                            >{plLabel(bindings[key])}</span
+                                        >
+                                    </div>
                                 </div>
-                            </div>
-                        {/each}
+                            {/each}
 
-                        {#if permError}<p class="text-sm text-discord-danger">
-                                {permError}
-                            </p>{/if}
-                        {#if canEditState}
-                            <button
-                                onclick={savePermissions}
-                                disabled={permSaving}
-                                class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                >{permSaving
-                                    ? "Saving…"
-                                    : permSuccess
-                                      ? "Saved!"
-                                      : "Save Changes"}</button
-                            >
-                        {/if}
-                    </div>
-
-                    <!-- ── Members ─────────────────────────────────────────── -->
-                {:else if activeTab === "members"}
-                    {#if showInvite}
-                        <div class="space-y-3">
-                            <InvitePanel
-                                roomId={room.roomId}
-                                onClose={() => (showInvite = false)}
-                            />
-                        </div>
-                    {:else}
-                        <div class="space-y-3">
-                            <div class="flex items-center gap-3">
-                                {#if canInvite}
-                                    <button
-                                        onclick={() => (showInvite = true)}
-                                        class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-                                        >Invite</button
-                                    >
-                                {/if}
-                                <input
-                                    bind:value={memberSearch}
-                                    placeholder="Search members…"
-                                    class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
-                                />
-                                {#if canBan}
-                                    <button
-                                        onclick={() =>
-                                            (showBanned = !showBanned)}
-                                        class="px-3 py-1.5 rounded text-sm font-medium transition-colors {showBanned
-                                            ? 'bg-discord-danger text-white'
-                                            : 'bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary'}"
-                                        >Banned ({bannedMembers.length})</button
-                                    >
-                                {/if}
-                            </div>
-
-                            {#if memberError}<p
+                            {#if permError}<p
                                     class="text-sm text-discord-danger"
                                 >
-                                    {memberError}
+                                    {permError}
                                 </p>{/if}
+                            {#if canEditState}
+                                <button
+                                    onclick={savePermissions}
+                                    disabled={permSaving}
+                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                    >{permSaving
+                                        ? "Saving…"
+                                        : permSuccess
+                                          ? "Saved!"
+                                          : "Save Changes"}</button
+                                >
+                            {/if}
+                        </div>
 
-                            {#if showBanned}
-                                <!-- Banned members -->
-                                <div class="space-y-1">
-                                    {#each bannedMembers as member (member.userId)}
-                                        <div
-                                            class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                        <!-- ── Members ─────────────────────────────────────────── -->
+                    {:else if activeTab === "members"}
+                        {#if showInvite}
+                            <div class="space-y-3">
+                                <InvitePanel
+                                    roomId={room.roomId}
+                                    onClose={() => (showInvite = false)}
+                                />
+                            </div>
+                        {:else}
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-3">
+                                    {#if canInvite}
+                                        <button
+                                            onclick={() => (showInvite = true)}
+                                            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+                                            >Invite</button
                                         >
-                                            <Avatar
-                                                src={mxcToHttp(
-                                                    member.getMxcAvatarUrl(),
-                                                )}
-                                                name={member.name}
-                                                id={member.userId}
-                                                size={28}
-                                            />
-                                            <div class="flex-1 min-w-0">
-                                                <p
-                                                    class="text-sm font-medium text-discord-textPrimary truncate"
-                                                >
-                                                    {member.name}
-                                                </p>
-                                                <p
-                                                    class="text-xs text-discord-textMuted truncate"
-                                                >
-                                                    {member.userId}
-                                                </p>
-                                            </div>
-                                            {#if canBan}
-                                                <button
-                                                    onclick={() =>
-                                                        doUnban(member.userId)}
-                                                    disabled={memberActionPending ===
-                                                        member.userId}
-                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
-                                                    >Unban</button
-                                                >
-                                            {/if}
-                                        </div>
-                                    {/each}
-                                    {#if bannedMembers.length === 0}<p
-                                            class="text-sm text-discord-textMuted text-center py-4"
+                                    {/if}
+                                    <input
+                                        bind:value={memberSearch}
+                                        placeholder="Search members…"
+                                        class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                    />
+                                    {#if canBan}
+                                        <button
+                                            onclick={() =>
+                                                (showBanned = !showBanned)}
+                                            class="px-3 py-1.5 rounded text-sm font-medium transition-colors {showBanned
+                                                ? 'bg-discord-danger text-white'
+                                                : 'bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary'}"
+                                            >Banned ({bannedMembers.length})</button
                                         >
-                                            No banned members
-                                        </p>{/if}
+                                    {/if}
                                 </div>
-                            {:else}
-                                <!-- Active members -->
-                                <div class="space-y-1">
-                                    {#each filteredMembers as member (member.userId)}
-                                        {@const isSelf =
-                                            member.userId === auth.userId}
-                                        {@const memberPl = getUserPowerLevel(
-                                            room,
-                                            member.userId,
-                                        )}
-                                        {@const canActOnMember =
-                                            !isSelf && myPowerLevel > memberPl}
-                                        {@const plResult = parsePowerLevelInput(
-                                            plDrafts[member.userId] ??
-                                                String(memberPl),
-                                            myPowerLevel,
-                                        )}
-                                        <div
-                                            class="rounded bg-discord-backgroundTertiary overflow-hidden"
-                                        >
+
+                                {#if memberError}<p
+                                        class="text-sm text-discord-danger"
+                                    >
+                                        {memberError}
+                                    </p>{/if}
+
+                                {#if showBanned}
+                                    <!-- Banned members -->
+                                    <div class="space-y-1">
+                                        {#each bannedMembers as member (member.userId)}
                                             <div
-                                                class="flex items-center gap-3 p-2"
+                                                class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
                                             >
                                                 <Avatar
                                                     src={mxcToHttp(
@@ -1231,9 +1303,7 @@
                                                     <p
                                                         class="text-sm font-medium text-discord-textPrimary truncate"
                                                     >
-                                                        {member.name}{isSelf
-                                                            ? " (you)"
-                                                            : ""}
+                                                        {member.name}
                                                     </p>
                                                     <p
                                                         class="text-xs text-discord-textMuted truncate"
@@ -1241,282 +1311,362 @@
                                                         {member.userId}
                                                     </p>
                                                 </div>
-                                                <span
-                                                    class="text-xs text-discord-textMuted flex-shrink-0"
-                                                    >{plLabel(memberPl)} ({memberPl})</span
-                                                >
-                                                {#if !isSelf}
+                                                {#if canBan}
                                                     <button
                                                         onclick={() =>
-                                                            (showReasonFor =
-                                                                showReasonFor ===
-                                                                member.userId
-                                                                    ? null
-                                                                    : member.userId)}
-                                                        class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                                                        title="Actions"
+                                                            doUnban(
+                                                                member.userId,
+                                                            )}
+                                                        disabled={memberActionPending ===
+                                                            member.userId}
+                                                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                        >Unban</button
                                                     >
-                                                        <svg
-                                                            class="w-4 h-4"
-                                                            fill="currentColor"
-                                                            viewBox="0 0 24 24"
-                                                            ><path
-                                                                d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
-                                                            /></svg
-                                                        >
-                                                    </button>
                                                 {/if}
                                             </div>
-                                            {#if showReasonFor === member.userId && !isSelf}
+                                        {/each}
+                                        {#if bannedMembers.length === 0}<p
+                                                class="text-sm text-discord-textMuted text-center py-4"
+                                            >
+                                                No banned members
+                                            </p>{/if}
+                                    </div>
+                                {:else}
+                                    <!-- Active members -->
+                                    <div class="space-y-1">
+                                        {#each filteredMembers as member (member.userId)}
+                                            {@const isSelf =
+                                                member.userId === auth.userId}
+                                            {@const memberPl =
+                                                getUserPowerLevel(
+                                                    room,
+                                                    member.userId,
+                                                )}
+                                            {@const canActOnMember =
+                                                !isSelf &&
+                                                myPowerLevel > memberPl}
+                                            {@const plResult =
+                                                parsePowerLevelInput(
+                                                    plDrafts[member.userId] ??
+                                                        String(memberPl),
+                                                    myPowerLevel,
+                                                )}
+                                            <div
+                                                class="rounded bg-discord-backgroundTertiary overflow-hidden"
+                                            >
                                                 <div
-                                                    class="px-3 pb-3 pt-1 border-t border-discord-divider space-y-2"
+                                                    class="flex items-center gap-3 p-2"
                                                 >
-                                                    {#if canActOnMember && (canKick || canBan)}
-                                                        <input
-                                                            bind:value={
-                                                                reasonInputs[
-                                                                    member
-                                                                        .userId
-                                                                ]
-                                                            }
-                                                            placeholder="Reason (optional)"
-                                                            class="w-full bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
-                                                        />
-                                                    {/if}
-                                                    <div
-                                                        class="flex flex-wrap gap-2"
-                                                    >
-                                                        {#if myPowerLevel >= 100 || myPowerLevel > memberPl}
-                                                            <select
-                                                                onchange={(e) =>
-                                                                    doSetPowerLevel(
-                                                                        member,
-                                                                        Number(
-                                                                            (
-                                                                                e.target as HTMLSelectElement
-                                                                            )
-                                                                                .value,
-                                                                        ),
-                                                                    )}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                class="px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
-                                                            >
-                                                                <option value=""
-                                                                    >Set role…</option
-                                                                >
-                                                                {#if myPowerLevel >= 100}<option
-                                                                        value="100"
-                                                                        >Admin
-                                                                        (100)</option
-                                                                    >{/if}
-                                                                {#if myPowerLevel >= 50}<option
-                                                                        value="50"
-                                                                        >Moderator
-                                                                        (50)</option
-                                                                    >{/if}
-                                                                <option
-                                                                    value="0"
-                                                                    >Member (0)</option
-                                                                >
-                                                            </select>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                max={myPowerLevel}
-                                                                value={plDrafts[
-                                                                    member
-                                                                        .userId
-                                                                ] ??
-                                                                    String(
-                                                                        memberPl,
-                                                                    )}
-                                                                oninput={(e) =>
-                                                                    (plDrafts[
-                                                                        member.userId
-                                                                    ] =
-                                                                        e.currentTarget.value)}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                class="w-16 px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
-                                                            />
-                                                            <button
-                                                                onclick={() =>
-                                                                    doSetPowerLevel(
-                                                                        member,
-                                                                        plResult.value!,
-                                                                    )}
-                                                                disabled={!plResult.ok ||
-                                                                    memberActionPending ===
-                                                                        member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
-                                                                >Set</button
-                                                            >
-                                                            {#if !plResult.ok}
-                                                                <p
-                                                                    class="text-xs text-discord-danger w-full"
-                                                                >
-                                                                    {plResult.error}
-                                                                </p>
-                                                            {/if}
-                                                        {/if}
-                                                        {#if canActOnMember && canKick}
-                                                            <button
-                                                                onclick={() =>
-                                                                    doKick(
-                                                                        member.userId,
-                                                                    )}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-warning/20 text-discord-warning transition-colors disabled:opacity-50"
-                                                                >Kick</button
-                                                            >
-                                                        {/if}
-                                                        {#if canActOnMember && canBan}
-                                                            <button
-                                                                onclick={() =>
-                                                                    doBan(
-                                                                        member.userId,
-                                                                    )}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
-                                                                >Ban</button
-                                                            >
-                                                        {/if}
-                                                        {#if isUserBlocked(member.userId)}
-                                                            <button
-                                                                onclick={() =>
-                                                                    doToggleBlock(
-                                                                        member.userId,
-                                                                    )}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
-                                                                >Unblock</button
-                                                            >
-                                                        {:else}
-                                                            <button
-                                                                onclick={() =>
-                                                                    doToggleBlock(
-                                                                        member.userId,
-                                                                    )}
-                                                                disabled={memberActionPending ===
-                                                                    member.userId}
-                                                                title="Hide this user's messages everywhere (stored on your account)"
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
-                                                                >Block</button
-                                                            >
-                                                        {/if}
+                                                    <Avatar
+                                                        src={mxcToHttp(
+                                                            member.getMxcAvatarUrl(),
+                                                        )}
+                                                        name={member.name}
+                                                        id={member.userId}
+                                                        size={28}
+                                                    />
+                                                    <div class="flex-1 min-w-0">
+                                                        <p
+                                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                                        >
+                                                            {member.name}{isSelf
+                                                                ? " (you)"
+                                                                : ""}
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-discord-textMuted truncate"
+                                                        >
+                                                            {member.userId}
+                                                        </p>
                                                     </div>
+                                                    <span
+                                                        class="text-xs text-discord-textMuted flex-shrink-0"
+                                                        >{plLabel(memberPl)} ({memberPl})</span
+                                                    >
+                                                    {#if !isSelf}
+                                                        <button
+                                                            onclick={() =>
+                                                                (showReasonFor =
+                                                                    showReasonFor ===
+                                                                    member.userId
+                                                                        ? null
+                                                                        : member.userId)}
+                                                            class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                                            title="Actions"
+                                                        >
+                                                            <svg
+                                                                class="w-4 h-4"
+                                                                fill="currentColor"
+                                                                viewBox="0 0 24 24"
+                                                                ><path
+                                                                    d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+                                                                /></svg
+                                                            >
+                                                        </button>
+                                                    {/if}
                                                 </div>
+                                                {#if showReasonFor === member.userId && !isSelf}
+                                                    <div
+                                                        class="px-3 pb-3 pt-1 border-t border-discord-divider space-y-2"
+                                                    >
+                                                        {#if canActOnMember && (canKick || canBan)}
+                                                            <input
+                                                                bind:value={
+                                                                    reasonInputs[
+                                                                        member
+                                                                            .userId
+                                                                    ]
+                                                                }
+                                                                placeholder="Reason (optional)"
+                                                                class="w-full bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                                            />
+                                                        {/if}
+                                                        <div
+                                                            class="flex flex-wrap gap-2"
+                                                        >
+                                                            {#if myPowerLevel >= 100 || myPowerLevel > memberPl}
+                                                                <select
+                                                                    onchange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        doSetPowerLevel(
+                                                                            member,
+                                                                            Number(
+                                                                                (
+                                                                                    e.target as HTMLSelectElement
+                                                                                )
+                                                                                    .value,
+                                                                            ),
+                                                                        )}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    class="px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                                >
+                                                                    <option
+                                                                        value=""
+                                                                        >Set
+                                                                        role…</option
+                                                                    >
+                                                                    {#if myPowerLevel >= 100}<option
+                                                                            value="100"
+                                                                            >Admin
+                                                                            (100)</option
+                                                                        >{/if}
+                                                                    {#if myPowerLevel >= 50}<option
+                                                                            value="50"
+                                                                            >Moderator
+                                                                            (50)</option
+                                                                        >{/if}
+                                                                    <option
+                                                                        value="0"
+                                                                        >Member
+                                                                        (0)</option
+                                                                    >
+                                                                </select>
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={myPowerLevel}
+                                                                    value={plDrafts[
+                                                                        member
+                                                                            .userId
+                                                                    ] ??
+                                                                        String(
+                                                                            memberPl,
+                                                                        )}
+                                                                    oninput={(
+                                                                        e,
+                                                                    ) =>
+                                                                        (plDrafts[
+                                                                            member.userId
+                                                                        ] =
+                                                                            e.currentTarget.value)}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    class="w-16 px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                                />
+                                                                <button
+                                                                    onclick={() =>
+                                                                        doSetPowerLevel(
+                                                                            member,
+                                                                            plResult.value!,
+                                                                        )}
+                                                                    disabled={!plResult.ok ||
+                                                                        memberActionPending ===
+                                                                            member.userId}
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                    >Set</button
+                                                                >
+                                                                {#if !plResult.ok}
+                                                                    <p
+                                                                        class="text-xs text-discord-danger w-full"
+                                                                    >
+                                                                        {plResult.error}
+                                                                    </p>
+                                                                {/if}
+                                                            {/if}
+                                                            {#if canActOnMember && canKick}
+                                                                <button
+                                                                    onclick={() =>
+                                                                        doKick(
+                                                                            member.userId,
+                                                                        )}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-warning/20 text-discord-warning transition-colors disabled:opacity-50"
+                                                                    >Kick</button
+                                                                >
+                                                            {/if}
+                                                            {#if canActOnMember && canBan}
+                                                                <button
+                                                                    onclick={() =>
+                                                                        doBan(
+                                                                            member.userId,
+                                                                        )}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
+                                                                    >Ban</button
+                                                                >
+                                                            {/if}
+                                                            {#if isUserBlocked(member.userId)}
+                                                                <button
+                                                                    onclick={() =>
+                                                                        doToggleBlock(
+                                                                            member.userId,
+                                                                        )}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                    >Unblock</button
+                                                                >
+                                                            {:else}
+                                                                <button
+                                                                    onclick={() =>
+                                                                        doToggleBlock(
+                                                                            member.userId,
+                                                                        )}
+                                                                    disabled={memberActionPending ===
+                                                                        member.userId}
+                                                                    title="Hide this user's messages everywhere (stored on your account)"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
+                                                                    >Block</button
+                                                                >
+                                                            {/if}
+                                                        </div>
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                        {/if}
+
+                        <!-- ── Rooms (space only) ──────────────────────────────── -->
+                    {:else if activeTab === "rooms"}
+                        <div class="space-y-3">
+                            <p class="text-xs text-discord-textMuted">
+                                Set the <code
+                                    class="font-mono bg-discord-backgroundTertiary px-1 rounded"
+                                    >order</code
+                                > field on each child room to control sort order (lexicographic).
+                                Leave blank to sort by creation time.
+                            </p>
+                            {#if roomsError}<p
+                                    class="text-sm text-discord-danger"
+                                >
+                                    {roomsError}
+                                </p>{/if}
+                            <div class="space-y-1.5">
+                                {#each spaceChildren as child (child.roomId)}
+                                    <div
+                                        class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                    >
+                                        <div
+                                            class="w-7 h-7 rounded-full bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-discord-textMuted"
+                                        >
+                                            {#if child.avatarUrl}
+                                                <img
+                                                    src={child.avatarUrl}
+                                                    alt=""
+                                                    class="w-full h-full object-cover"
+                                                />
+                                            {:else}
+                                                {child.name[0]?.toUpperCase() ??
+                                                    "#"}
                                             {/if}
                                         </div>
-                                    {/each}
-                                </div>
-                            {/if}
-                        </div>
-                    {/if}
-
-                    <!-- ── Rooms (space only) ──────────────────────────────── -->
-                {:else if activeTab === "rooms"}
-                    <div class="space-y-3">
-                        <p class="text-xs text-discord-textMuted">
-                            Set the <code
-                                class="font-mono bg-discord-backgroundTertiary px-1 rounded"
-                                >order</code
-                            > field on each child room to control sort order (lexicographic).
-                            Leave blank to sort by creation time.
-                        </p>
-                        {#if roomsError}<p class="text-sm text-discord-danger">
-                                {roomsError}
-                            </p>{/if}
-                        <div class="space-y-1.5">
-                            {#each spaceChildren as child (child.roomId)}
-                                <div
-                                    class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
-                                >
-                                    <div
-                                        class="w-7 h-7 rounded-full bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-discord-textMuted"
-                                    >
-                                        {#if child.avatarUrl}
-                                            <img
-                                                src={child.avatarUrl}
-                                                alt=""
-                                                class="w-full h-full object-cover"
+                                        <div class="flex-1 min-w-0">
+                                            <p
+                                                class="text-sm font-medium text-discord-textPrimary truncate"
+                                            >
+                                                {child.name}
+                                            </p>
+                                            <p
+                                                class="text-xs text-discord-textMuted truncate"
+                                            >
+                                                {child.roomId}
+                                            </p>
+                                        </div>
+                                        {#if canEditState}
+                                            <input
+                                                bind:value={
+                                                    orderEdits[child.roomId]
+                                                }
+                                                placeholder="order"
+                                                class="w-24 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 font-mono"
                                             />
-                                        {:else}
-                                            {child.name[0]?.toUpperCase() ??
-                                                "#"}
+                                            <button
+                                                onclick={() => saveOrder(child)}
+                                                disabled={roomActionPending ===
+                                                    child.roomId ||
+                                                    (orderEdits[child.roomId] ??
+                                                        "") === child.order}
+                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >{roomActionPending ===
+                                                child.roomId
+                                                    ? "…"
+                                                    : "Set"}</button
+                                            >
+                                            <button
+                                                onclick={() =>
+                                                    doRemoveChild(child)}
+                                                disabled={roomActionPending ===
+                                                    child.roomId}
+                                                class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                title="Remove from space"
+                                            >
+                                                <svg
+                                                    class="w-4 h-4"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                    ><path
+                                                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                                                    /></svg
+                                                >
+                                            </button>
                                         {/if}
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <p
-                                            class="text-sm font-medium text-discord-textPrimary truncate"
-                                        >
-                                            {child.name}
-                                        </p>
-                                        <p
-                                            class="text-xs text-discord-textMuted truncate"
-                                        >
-                                            {child.roomId}
-                                        </p>
-                                    </div>
-                                    {#if canEditState}
-                                        <input
-                                            bind:value={
-                                                orderEdits[child.roomId]
-                                            }
-                                            placeholder="order"
-                                            class="w-24 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 font-mono"
-                                        />
-                                        <button
-                                            onclick={() => saveOrder(child)}
-                                            disabled={roomActionPending ===
-                                                child.roomId ||
-                                                (orderEdits[child.roomId] ??
-                                                    "") === child.order}
-                                            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >{roomActionPending === child.roomId
-                                                ? "…"
-                                                : "Set"}</button
-                                        >
-                                        <button
-                                            onclick={() => doRemoveChild(child)}
-                                            disabled={roomActionPending ===
-                                                child.roomId}
-                                            class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                            title="Remove from space"
-                                        >
-                                            <svg
-                                                class="w-4 h-4"
-                                                fill="currentColor"
-                                                viewBox="0 0 24 24"
-                                                ><path
-                                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                                                /></svg
-                                            >
-                                        </button>
-                                    {/if}
-                                </div>
-                            {/each}
-                            {#if spaceChildren.length === 0}<p
-                                    class="text-sm text-discord-textMuted text-center py-4"
-                                >
-                                    No child rooms
-                                </p>{/if}
+                                {/each}
+                                {#if spaceChildren.length === 0}<p
+                                        class="text-sm text-discord-textMuted text-center py-4"
+                                    >
+                                        No child rooms
+                                    </p>{/if}
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- ── Emotes ──────────────────────────────────────────── -->
-                {:else if activeTab === "emotes"}
-                    <ImagePackEditor
-                        {room}
-                        canEdit={canEditEmojis}
-                        {onUpdate}
-                    />
-                {/if}
+                        <!-- ── Emotes ──────────────────────────────────────────── -->
+                    {:else if activeTab === "emotes"}
+                        <ImagePackEditor
+                            {room}
+                            canEdit={canEditEmojis}
+                            {onUpdate}
+                        />
+                    {/if}
+                </div>
             </div>
-        </div>
+        {/if}
     </div>
 </div>
