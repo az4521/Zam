@@ -56,6 +56,7 @@
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
+        sameShield,
         shieldViewForEvent,
         type ShieldView,
     } from "$lib/utils/eventShield";
@@ -428,6 +429,9 @@
         const id = eventId;
 
         if (!encrypted) {
+            // Assigning the same primitive is already a no-op for $state
+            // (referential equality), so this costs nothing on repeat ticks —
+            // and reading `shield` here would make the effect depend on it.
             shield = null;
             return;
         }
@@ -438,10 +442,15 @@
                 .then((info) => {
                     // A late resolution must not overwrite a newer row's state.
                     if (cancelled || event.getId() !== id) return;
-                    shield = shieldViewForEvent({
+                    const next = shieldViewForEvent({
                         roomEncrypted: true,
                         info,
                     });
+                    // shieldViewForEvent mints a fresh object every call, so an
+                    // unconditional assign would dirty this row on EVERY
+                    // timelineTick — i.e. every row in the timeline re-renders
+                    // on every sync. Only write when the value actually moved.
+                    if (!sameShield(shield, next)) shield = next;
                 })
                 .catch(() => {
                     if (!cancelled) shield = null;

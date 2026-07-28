@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     EventShieldColourValue,
     EventShieldReasonValue,
+    sameShield,
     shieldView,
     shieldViewForEvent,
 } from "./eventShield";
@@ -107,5 +108,55 @@ describe("shieldViewForEvent", () => {
                 label: "Encrypted by an unknown or deleted device.",
             },
         );
+    });
+});
+
+describe("sameShield", () => {
+    const grey = {
+        colour: EventShieldColourValue.GREY,
+        reason: EventShieldReasonValue.UNKNOWN_DEVICE,
+    };
+    const red = {
+        colour: EventShieldColourValue.RED,
+        reason: EventShieldReasonValue.VERIFICATION_VIOLATION,
+    };
+
+    it("treats two independently built views of the same shield as equal", () => {
+        const a = shieldViewForEvent({ roomEncrypted: true, info: grey });
+        const b = shieldViewForEvent({ roomEncrypted: true, info: grey });
+        // The point of the helper: distinct objects, same value.
+        expect(a).not.toBe(b);
+        expect(sameShield(a, b)).toBe(true);
+    });
+
+    it("treats two nulls as equal so an unshielded row never re-renders", () => {
+        expect(sameShield(null, null)).toBe(true);
+    });
+
+    it("reports a change when a shield appears or disappears", () => {
+        const a = shieldViewForEvent({ roomEncrypted: true, info: grey });
+        expect(sameShield(a, null)).toBe(false);
+        expect(sameShield(null, a)).toBe(false);
+    });
+
+    it("reports a change when the severity changes", () => {
+        const a = shieldViewForEvent({ roomEncrypted: true, info: grey });
+        const b = shieldViewForEvent({ roomEncrypted: true, info: red });
+        expect(sameShield(a, b)).toBe(false);
+    });
+
+    it("reports a change when only the label differs", () => {
+        const a = shieldView(
+            EventShieldColourValue.GREY,
+            EventShieldReasonValue.UNKNOWN_DEVICE,
+        );
+        const b = shieldView(
+            EventShieldColourValue.GREY,
+            EventShieldReasonValue.UNSIGNED_DEVICE,
+        );
+        // Same icon and tone — only the explanation moved.
+        expect(a!.icon).toBe(b!.icon);
+        expect(a!.tone).toBe(b!.tone);
+        expect(sameShield(a, b)).toBe(false);
     });
 });

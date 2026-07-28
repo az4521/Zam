@@ -111,3 +111,20 @@ export function shieldViewForEvent(input: {
     if (!input.info) return null;
     return shieldView(input.info.colour, input.info.reason);
 }
+
+/**
+ * Value equality for two shield views. `shieldView` mints a FRESH object every
+ * call, so a component that re-derives the shield on every tick would assign a
+ * new reference — and re-render the row — even when nothing about the shield
+ * changed. Callers hold the previous value and skip the write when this says
+ * the two are the same. `ShieldView` is three flat strings, so a shallow
+ * comparison is exact, not an approximation.
+ */
+export function sameShield(
+    a: ShieldView | null,
+    b: ShieldView | null,
+): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.icon === b.icon && a.tone === b.tone && a.label === b.label;
+}
