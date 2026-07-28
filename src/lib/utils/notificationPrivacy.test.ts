@@ -34,6 +34,18 @@ describe("notificationBody", () => {
         ).toBe("New message");
     });
 
+    it("never leaks the body through a whitespace-only sender", () => {
+        expect(
+            notificationBody({ sender: "   ", body: "secret", hideBody: true }),
+        ).toBe("New message");
+    });
+
+    it("uses the bare body when the sender is whitespace-only and privacy is off", () => {
+        expect(
+            notificationBody({ sender: "   ", body: "hello", hideBody: false }),
+        ).toBe("hello");
+    });
+
     it("uses the bare body when the sender is unknown and privacy is off", () => {
         expect(
             notificationBody({ sender: "", body: "hello", hideBody: false }),

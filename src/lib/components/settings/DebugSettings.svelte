@@ -88,6 +88,7 @@
                         homeserverUrl: null,
                         userId: null,
                         hasToken: false,
+                        hideNotificationBody: false,
                         error: error?.message ?? String(error),
                     }),
             ),
@@ -272,6 +273,11 @@
                     access token: {nativeSession.hasToken
                         ? "present"
                         : "(none)"}
+                </div>
+                <div>
+                    hide message text: {nativeSession.hideNotificationBody
+                        ? "on"
+                        : "off"}
                 </div>
             {/if}
         </section>

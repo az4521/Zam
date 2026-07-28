@@ -58,6 +58,12 @@ export async function clearNativeSession(): Promise<void> {
         await Preferences.remove({ key: KEY_HS });
         await Preferences.remove({ key: KEY_TOKEN });
         await Preferences.remove({ key: KEY_USER });
+        // Asymmetric on purpose: KEY_HIDE_BODY is a DEVICE-global setting, not
+        // session state, so it is written from the component layer (via
+        // syncNativeNotificationPrivacy) rather than by syncNativeSession —
+        // writing it there would make it session-scoped and clobber it with a
+        // stale value on every boot. It is still removed here so logout doesn't
+        // strand it for the next account.
         await Preferences.remove({ key: KEY_HIDE_BODY });
     } catch {
         /* ignore */
@@ -70,6 +76,12 @@ export interface NativeSessionState {
     userId: string | null;
     /** Whether an access token is present (not the token itself). */
     hasToken: boolean;
+    /**
+     * Whether the mirrored device-global "hide message text in notifications"
+     * flag is set natively. Java has no compile-time linkage to this key, so
+     * the debug screen is the only place the mirror can be confirmed.
+     */
+    hideNotificationBody: boolean;
     error?: string;
 }
 
@@ -84,6 +96,7 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             homeserverUrl: null,
             userId: null,
             hasToken: false,
+            hideNotificationBody: false,
         };
     }
     try {
@@ -101,11 +114,16 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             .value;
         const user = (await withTimeout(Preferences.get({ key: KEY_USER })))
             .value;
+        const hideBody = (
+            await withTimeout(Preferences.get({ key: KEY_HIDE_BODY }))
+        ).value;
         return {
             native: true,
             homeserverUrl: hs ?? null,
             userId: user ?? null,
             hasToken: !!token,
+            // Same comparison the Java side makes: only the literal "true".
+            hideNotificationBody: hideBody === "true",
         };
     } catch (err) {
         return {
@@ -113,6 +131,7 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             homeserverUrl: null,
             userId: null,
             hasToken: false,
+            hideNotificationBody: false,
             error: err instanceof Error ? err.message : String(err),
         };
     }
