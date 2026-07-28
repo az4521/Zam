@@ -10,6 +10,7 @@
 
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
+    import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
 
     interface Props {
         room?: Room | null;
@@ -241,17 +242,13 @@
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
         : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
+    style={interfaceState.isTouchscreen ? "height: 50dvh;" : undefined}
     onkeydown={onKeydown}
 >
     {#if !interfaceState.isTouchscreen}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-            use:resizeHandle={{
-                storageKey: "stickerPicker",
-                defaultW: 340,
-                defaultH: 440,
-            }}
+            use:resizeHandle={COMPOSER_PICKER_SIZE}
             class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
             title="Drag to resize"
         >
@@ -291,7 +288,11 @@
     </div>
 
     {#if stickerPacks.length === 0}
-        <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+        <!-- flex-1 so the empty state centres in the now fixed-height touch
+             drawer instead of hugging the top of a half-empty box. -->
+        <p
+            class="flex-1 flex items-center justify-center text-center text-discord-textMuted text-sm py-8 px-4"
+        >
             No sticker packs available
         </p>
     {:else}

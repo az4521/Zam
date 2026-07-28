@@ -10,6 +10,7 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
+    import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -339,18 +340,14 @@
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
         : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen ? "max-height: 50dvh;" : undefined}
+    style={interfaceState.isTouchscreen ? "height: 50dvh;" : undefined}
     onkeydown={onKeydown}
     onwheel={(e) => e.stopPropagation()}
 >
     {#if !interfaceState.isTouchscreen}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-            use:resizeHandle={{
-                storageKey: "emojiPicker",
-                defaultW: 340,
-                defaultH: 440,
-            }}
+            use:resizeHandle={COMPOSER_PICKER_SIZE}
             class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
             title="Drag to resize"
         >
@@ -480,7 +477,7 @@
                             <img
                                 src={e.url}
                                 alt={e.shortcode}
-                                class="w-8 h-8 object-contain"
+                                class="w-full h-full object-contain"
                                 loading="lazy"
                             />
                         </button>
@@ -546,7 +543,7 @@
                                     <img
                                         src={e.url}
                                         alt={e.shortcode}
-                                        class="w-8 h-8 object-contain"
+                                        class="w-full h-full object-contain"
                                         loading="lazy"
                                     />
                                 </button>
@@ -608,22 +605,24 @@
 </div>
 
 <style>
+    /* Both emoji kinds derive their size from the grid cell (the button is
+       `aspect-square p-1`), so a Twemoji <img> and a custom emote <img> are
+       always identical — and neither depends on the root font-size, which
+       Android's font-scaling setting changes. */
     :global(.picker-twemoji) {
-        width: 32px;
-        height: 32px;
-        display: inline-block;
+        width: 100%;
+        height: 100%;
+        display: block;
         object-fit: contain;
-        vertical-align: middle;
     }
     .search-input:focus {
         outline: none;
         border-color: rgb(var(--discord-accent-rgb) / 0.3);
     }
     :global(.picker-twemoji-tab) {
-        width: 20px;
-        height: 20px;
-        display: inline-block;
+        width: 1.25rem; /* = Tailwind w-5, matching the custom pack tabs */
+        height: 1.25rem;
+        display: block;
         object-fit: contain;
-        vertical-align: middle;
     }
 </style>

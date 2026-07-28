@@ -8,11 +8,9 @@
 // anchored bottom-right in the composer, so dragging up/left enlarges it. On
 // touch the grip is not rendered, so this never runs there.
 
-interface ResizeOpts {
-    /** localStorage prefix, e.g. "gifPicker" -> keys "gifPicker:w"/"gifPicker:h". */
-    storageKey: string;
-    defaultW: number;
-    defaultH: number;
+import { resolvePickerSize, type PickerSizeOpts } from "$lib/utils/pickerSize";
+
+interface ResizeOpts extends PickerSizeOpts {
     minW?: number;
     minH?: number;
 }
@@ -59,10 +57,8 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
         panel!.style.height = Math.min(max.h, Math.max(minH, h)) + "px";
     }
 
-    apply(
-        readNum(opts.storageKey + ":w") ?? opts.defaultW,
-        readNum(opts.storageKey + ":h") ?? opts.defaultH,
-    );
+    const initial = resolvePickerSize(readNum, opts);
+    apply(initial.w, initial.h);
 
     let start: { x: number; y: number; w: number; h: number } | null = null;
     function down(e: PointerEvent) {
