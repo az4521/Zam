@@ -179,6 +179,7 @@ import {
     roomVersionHasImmutableCreators,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
+import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
@@ -5405,6 +5406,82 @@ export async function setRoomDirectoryVisibility(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await (matrixClient as any).setRoomDirectoryVisibility(roomId, visibility);
+}
+
+/** Whether guests (server-created anonymous accounts) may join. */
+export function getGuestAccess(room: Room): string {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    return (
+        state?.getStateEvents("m.room.guest_access", "")?.getContent()
+            ?.guest_access ?? "forbidden"
+    );
+}
+
+/** `access` is "can_join" or "forbidden". */
+export async function setGuestAccess(
+    roomId: string,
+    access: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).sendStateEvent(roomId, "m.room.guest_access", {
+        guest_access: access,
+    });
+}
+
+/** Local aliases this homeserver holds for the room. */
+export async function getLocalRoomAliases(roomId: string): Promise<string[]> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.getLocalAliases(roomId);
+    return res?.aliases ?? [];
+}
+
+/** Map a new `#alias:server` to the room in this server's directory. */
+export async function createRoomAlias(
+    alias: string,
+    roomId: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.createAlias(alias, roomId);
+}
+
+/** Remove a local `#alias:server` from this server's directory. */
+export async function deleteRoomAlias(alias: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await matrixClient.deleteAlias(alias);
+}
+
+/**
+ * The room's published addresses. Defensively typed: a federated room can
+ * carry anything in this event, and a non-string alias would poison the UI.
+ */
+export function getCanonicalAliasContent(room: Room): CanonicalAliasContent {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    const content =
+        state?.getStateEvents("m.room.canonical_alias", "")?.getContent() ?? {};
+    const alts = Array.isArray(content.alt_aliases)
+        ? content.alt_aliases.filter(
+              (a: unknown): a is string => typeof a === "string",
+          )
+        : [];
+    return {
+        ...(typeof content.alias === "string" && content.alias
+            ? { alias: content.alias }
+            : {}),
+        ...(alts.length > 0 ? { alt_aliases: alts } : {}),
+    };
+}
+
+/** Publish the room's main address and alternates. `{}` clears both. */
+export async function setCanonicalAliasContent(
+    roomId: string,
+    content: CanonicalAliasContent,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "m.room.canonical_alias",
+        content,
+    );
 }
 
 export interface SpaceChildEntry {
