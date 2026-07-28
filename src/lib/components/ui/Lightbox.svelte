@@ -225,17 +225,26 @@
     // Lightbox is rendered INSIDE the message DOM subtree (MessageItem /
     // LinkPreview); `fixed` positioning does not change DOM ancestry, so a tap
     // on the backdrop or image would otherwise bubble to the message row's
-    // onclick (toggling mobile selection on touch). Contain every click within
-    // the viewer imperatively at the root — no inline handler, so no a11y
-    // warning; inner handlers (close, controls) still run before it stops.
-    function containClicks(node: HTMLElement) {
-        const stop = (e: Event) => e.stopPropagation();
-        node.addEventListener("click", stop);
-        return {
-            destroy() {
-                node.removeEventListener("click", stop);
-            },
-        };
+    // onclick (toggling mobile selection on touch). This contains every click
+    // within the viewer.
+    //
+    // ⚠ This MUST stay a Svelte `onclick={…}` on the root element. Do NOT
+    // "clean it up" into an action that does `node.addEventListener("click",
+    // …)` — that breaks the whole viewer. Svelte 5 DELEGATES `click`: the only
+    // real DOM listener is one at the mount root, and Svelte replays handlers
+    // down `composedPath` itself. A directly-attached listener that calls
+    // stopPropagation runs during real bubbling and stops the event before it
+    // ever reaches that root listener, so NONE of the delegated handlers inside
+    // the viewer (backdrop close, download, favourite, prev/next) ever fire —
+    // and the full-screen backdrop then hit-tests the whole viewport, leaving
+    // the app mouse-dead until reload. As a delegated handler it works
+    // correctly instead: Svelte's replay walks target→root and honours
+    // `if (event.cancelBubble) break;`
+    // (internal/client/dom/elements/events.js), so the inner handlers run
+    // FIRST and the walk still stops here, before the message row's own
+    // delegated onclick.
+    function containClicks(e: MouseEvent) {
+        e.stopPropagation();
     }
 
     onMount(() => {
@@ -271,10 +280,12 @@
     });
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class="fixed inset-0 z-[9998] overflow-hidden"
     style="touch-action: none;"
-    use:containClicks
+    onclick={containClicks}
 >
     <!-- Backdrop: clicking outside the image closes the viewer. -->
     <button
@@ -406,9 +417,10 @@
         <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
              pointer events; it cannot be cleanly keyboard-operated within this
              a11y sweep, so a11y_no_noninteractive_element_interactions stays.
-             (The old onclick=stopPropagation shim is gone: the backdrop is a
-             sibling button, and root-level containClicks stops any image tap
-             from bubbling to the surrounding message row.) -->
+             (No per-image stopPropagation shim is needed: the backdrop is a
+             sibling button, and the root's DELEGATED containClicks handler
+             stops any image tap from bubbling to the surrounding message
+             row.) -->
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <img
             bind:this={imgEl}
