@@ -146,6 +146,11 @@ export const settingsState = $state({
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
+    /** Device-global: keep message text out of OS notifications — they say
+     *  "<sender> sent a message" instead of the body. Default OFF. Applies to
+     *  in-app popups, web push (service worker) and Android FCM on THIS
+     *  device; the in-app notification inbox still shows real text. */
+    hideNotificationBody: readBool("hideNotificationBody", false),
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
@@ -449,6 +454,11 @@ export function setShowAllEvents(value: boolean): void {
 export function setAutoUpdateEnabled(value: boolean): void {
     settingsState.autoUpdateEnabled = value;
     writeBool("autoUpdateEnabled", value);
+}
+
+export function setHideNotificationBody(value: boolean): void {
+    settingsState.hideNotificationBody = value;
+    writeBool("hideNotificationBody", value);
 }
 
 export function setKeepSidebarOpen(value: boolean): void {
