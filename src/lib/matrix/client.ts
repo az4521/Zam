@@ -1781,6 +1781,10 @@ export async function initServiceWorker(): Promise<void> {
             accessToken: token,
             homeserverUrl: hsUrl,
         });
+        reg.active?.postMessage({
+            type: "SET_NOTIF_PRIVACY",
+            hideBody: settingsState.hideNotificationBody,
+        });
     } catch (e) {
         console.error("[SW] registration failed", e);
     }
@@ -1808,6 +1812,23 @@ export function clearServiceWorkerAuth(): void {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.ready
         .then((reg) => reg.active?.postMessage({ type: "CLEAR_AUTH" }))
+        .catch(() => {});
+}
+
+/**
+ * Mirror the device-global "hide message text in notifications" setting into
+ * the service worker. The SW has no localStorage, so it keeps its own copy in
+ * IndexedDB; a push wake-up reads that copy.
+ */
+export function updateServiceWorkerNotificationPrivacy(hide: boolean): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) =>
+            reg.active?.postMessage({
+                type: "SET_NOTIF_PRIVACY",
+                hideBody: hide,
+            }),
+        )
         .catch(() => {});
 }
 
