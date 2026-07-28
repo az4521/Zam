@@ -35,6 +35,7 @@
         onReceiptEvent,
         getRoomCallMemberships,
         getRoomThreads,
+        isVideoRoom,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -603,6 +604,11 @@
     const callCount = $derived(
         (void voiceCallState.voiceTick,
         dedupeParticipants(getRoomCallMemberships(room)).length),
+    );
+    // Tick dependency: a Room mutates in place, so a plain $derived over it
+    // would not re-run once the create event is seeded late.
+    const isVideoRoomView = $derived(
+        (void roomsState.roomsTick, isVideoRoom(room)),
     );
     let contextMessages = $state<MatrixEvent[] | null>(null);
     const messages = $derived(contextMessages ?? getMessages(roomId));
@@ -1206,7 +1212,7 @@
                 </button>
             {/if}
             <!-- Flip to the call view (peek without joining) -->
-            {#if callCount > 0}
+            {#if callCount > 0 || isVideoRoomView}
                 <button
                     onclick={() => showCallView(room.roomId)}
                     class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"

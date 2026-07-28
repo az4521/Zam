@@ -1,0 +1,63 @@
+/**
+ * Video rooms: rooms whose *purpose* is a call rather than a timeline. They are
+ * ordinary Matrix rooms in every other respect (invites, DMs, spaces, search,
+ * encryption) — only the landing surface and the sidebar glyph differ.
+ *
+ * Kept free of any matrix-js-sdk import so it stays unit-testable; callers pass
+ * in the type string they read off a live `Room` (`room.getType()`). The one
+ * SDK-aware wrapper is `isVideoRoom(room)` in `src/lib/matrix/client.ts`.
+ */
+
+/**
+ * The room type this client WRITES into `m.room.create`.
+ *
+ * `m.room.create` content is immutable, so this value is baked permanently into
+ * every room we create — changing it later only affects rooms created after the
+ * change, and silently orphans the ones before it. Pinned by a unit test.
+ */
+export const VIDEO_ROOM_TYPE = "m.video_room";
+
+/**
+ * Every room type treated as a video room when READING. Deliberately wider than
+ * what we write, so video rooms created elsewhere are still recognised:
+ * `org.matrix.msc3417.call` is Element Call's unstable type (matrix-js-sdk
+ * `RoomType.UnstableCall`) and `io.element.video` is Element's legacy video room
+ * (`RoomType.ElementVideo`).
+ */
+export const VIDEO_ROOM_TYPES: readonly string[] = [
+    VIDEO_ROOM_TYPE,
+    "org.matrix.msc3417.call",
+    "io.element.video",
+];
+
+/**
+ * Whether a room type string denotes a video room. Exact match only — a room
+ * with no type (the overwhelming majority) is an ordinary room.
+ */
+export function isVideoRoomType(type: string | null | undefined): boolean {
+    return typeof type === "string" && VIDEO_ROOM_TYPES.includes(type);
+}
+
+/**
+ * The value of the `creation_content` KEY for `createRoom`, or `undefined` for
+ * an ordinary room — so callers can name the key conditionally without an extra
+ * empty one:
+ *
+ *     const cc = videoRoomCreationContent(videoRoom);
+ *     await client.createRoom({ name, ...(cc ? { creation_content: cc } : {}) });
+ *
+ * Do NOT spread the return value straight into the options object.
+ * `ICreateRoomOpts` has no top-level `type`, and a spread defeats TypeScript's
+ * excess-property check (the same trap `threadSupport` in `createClient` fell
+ * into), so `{ ...opts, ...cc }` would compile green and quietly produce an
+ * ordinary room the UI never treats as a video room.
+ *
+ * Mirrors `encryptionInitialState` (`utils/roomEncryption.ts`) and the
+ * `...(initialState ? { initial_state: initialState } : {})` pattern already in
+ * use at the `createRoom` call sites in `matrix/client.ts`.
+ */
+export function videoRoomCreationContent(
+    videoRoom: boolean,
+): { type: string } | undefined {
+    return videoRoom ? { type: VIDEO_ROOM_TYPE } : undefined;
+}

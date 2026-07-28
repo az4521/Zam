@@ -544,6 +544,7 @@
     let modalInput2 = $state("");
     let modalLoading = $state(false);
     let modalError = $state("");
+    let modalVideoRoom = $state(false);
 
     function openCreateRoom(spaceId: string) {
         // Claim first — a same-id handover runs the outgoing close.
@@ -551,6 +552,7 @@
         modalInput1 = "";
         modalInput2 = "";
         modalError = "";
+        modalVideoRoom = false;
         createRoomModal = { spaceId };
     }
 
@@ -599,6 +601,8 @@
                 modalInput1.trim(),
                 modalInput2.trim(),
                 createRoomModal.spaceId,
+                false,
+                modalVideoRoom,
             );
             setActiveRoom(roomId);
             closeModal();
@@ -1354,6 +1358,20 @@
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                         />
                     </div>
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            bind:checked={modalVideoRoom}
+                            class="mt-0.5 accent-discord-accent"
+                        />
+                        <span class="text-sm text-discord-textPrimary"
+                            >Video room
+                            <span class="block text-xs text-discord-textMuted"
+                                >Opens straight into a call. Messages still
+                                work.</span
+                            ></span
+                        >
+                    </label>
                 </div>
                 {#if modalError}<p class="text-sm text-discord-danger">
                         {modalError}

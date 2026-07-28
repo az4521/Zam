@@ -74,26 +74,41 @@
     // Contract: a user absent from this set is unmuted, never "unknown".
     const muted = $derived(voiceCallState.mutedUserIds);
 
-    // Video tiles for THIS call (empty unless we are connected here). Split so
-    // a camera can replace a participant's avatar while their screenshare gets
-    // its own tile. Gated on voiceTick like every other live-object read.
+    // Video tiles for THIS call. `voiceCallState.videoTiles` is global — it
+    // holds the tiles of whichever call we are connected to, whatever room that
+    // is — so every read is gated on `inThisCall`. Without that, viewing another
+    // room's call surface mid-call renders the connected room's cameras and
+    // screenshares under this room's header (and the screenTiles term below
+    // suppresses this room's "No one is in this call"). Reachable before by
+    // peeking at a call mid-call; routine now that clicking a video room lands
+    // here. Split so a camera can replace a participant's avatar while their
+    // screenshare gets its own tile. Gated on voiceTick like every other
+    // live-object read.
     const cameraByIdentity = $derived(
         (void voiceCallState.voiceTick,
         new Map(
-            voiceCallState.videoTiles
-                .filter((t) => t.source === "camera")
-                .map((t) => [t.identity, t]),
+            inThisCall
+                ? voiceCallState.videoTiles
+                      .filter((t) => t.source === "camera")
+                      .map((t) => [t.identity, t])
+                : [],
         )),
     );
     const screenTiles = $derived(
         (void voiceCallState.voiceTick,
-        voiceCallState.videoTiles.filter((t) => t.source === "screenshare")),
+        inThisCall
+            ? voiceCallState.videoTiles.filter(
+                  (t) => t.source === "screenshare",
+              )
+            : []),
     );
     const focusedTile = $derived(
         (void voiceCallState.voiceTick,
-        voiceCallState.videoTiles.find(
-            (t) => t.key === voiceCallState.focusedTileKey,
-        ) ?? null),
+        (inThisCall
+            ? voiceCallState.videoTiles.find(
+                  (t) => t.key === voiceCallState.focusedTileKey,
+              )
+            : undefined) ?? null),
     );
 
     function tileLabel(
