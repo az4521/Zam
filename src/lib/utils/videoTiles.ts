@@ -73,3 +73,15 @@ export function nextFocus(
 export function canScreenShare(env: { getDisplayMedia?: unknown }): boolean {
     return typeof env.getDisplayMedia === "function";
 }
+
+/** The impure adapter for the above — the one line of `navigator` poking that
+ *  every call surface would otherwise copy. Support is fixed for the session,
+ *  so callers may hold the result in a plain const. */
+export function screenShareSupportedHere(): boolean {
+    return canScreenShare({
+        getDisplayMedia:
+            typeof navigator !== "undefined"
+                ? navigator.mediaDevices?.getDisplayMedia
+                : undefined,
+    });
+}

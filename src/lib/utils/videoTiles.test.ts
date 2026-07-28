@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import {
     buildVideoTiles,
     nextFocus,
     canScreenShare,
+    screenShareSupportedHere,
     type VideoPublicationInput,
 } from "./videoTiles";
 
@@ -126,5 +127,45 @@ describe("canScreenShare", () => {
     });
     it("is false when absent (mobile WebView)", () => {
         expect(canScreenShare({})).toBe(false);
+    });
+});
+
+describe("screenShareSupportedHere", () => {
+    const original = Object.getOwnPropertyDescriptor(
+        globalThis.navigator,
+        "mediaDevices",
+    );
+    const setMediaDevices = (value: unknown) =>
+        Object.defineProperty(globalThis.navigator, "mediaDevices", {
+            value,
+            configurable: true,
+        });
+    afterEach(() => {
+        if (original)
+            Object.defineProperty(
+                globalThis.navigator,
+                "mediaDevices",
+                original,
+            );
+        else
+            Reflect.deleteProperty(
+                globalThis.navigator as unknown as object,
+                "mediaDevices",
+            );
+    });
+
+    it("reads getDisplayMedia off navigator.mediaDevices", () => {
+        setMediaDevices({ getDisplayMedia: () => {} });
+        expect(screenShareSupportedHere()).toBe(true);
+    });
+
+    it("is false when mediaDevices exists without getDisplayMedia", () => {
+        setMediaDevices({});
+        expect(screenShareSupportedHere()).toBe(false);
+    });
+
+    it("survives navigator.mediaDevices being absent entirely", () => {
+        setMediaDevices(undefined);
+        expect(screenShareSupportedHere()).toBe(false);
     });
 });

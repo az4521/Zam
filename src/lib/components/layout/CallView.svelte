@@ -37,7 +37,7 @@
         clearFocus,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { canScreenShare } from "$lib/utils/videoTiles";
+    import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import {
         showChatView,
         openModal,
@@ -56,12 +56,7 @@
 
     // Capture support is fixed for the session (no runtime change), so a plain
     // const is enough — used to hide the share-screen button where unsupported.
-    const screenShareSupported = canScreenShare({
-        getDisplayMedia:
-            typeof navigator !== "undefined"
-                ? navigator.mediaDevices?.getDisplayMedia
-                : undefined,
-    });
+    const screenShareSupported = screenShareSupportedHere();
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
