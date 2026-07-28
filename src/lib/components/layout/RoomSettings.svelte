@@ -137,9 +137,9 @@
     // whole point.
     // svelte-ignore non_reactive_update
     let backButtonEl: HTMLButtonElement | null = null;
-    // Only index 0 is safe to read: `bind:this` fires on mount and destroy but
-    // not on reindex, so if the tab set changes shape (space vs room) later
-    // indices can hold stale refs. Index 0 is always "general" either way.
+    // Only index 0 is ever read, and it is always "general" — the tab set has
+    // the same length for a room and a space, but not the same members, so an
+    // index means different things in the two shapes.
     let categoryEls: HTMLButtonElement[] = [];
     let sidebarEls: Record<string, HTMLButtonElement | null> = {};
     let lastMode: string | null = null;
