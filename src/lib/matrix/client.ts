@@ -6172,11 +6172,11 @@ function applyVoiceSink(el: HTMLAudioElement): void {
     void sinkEl.setSinkId?.(voiceOutputDeviceId ?? "").catch(() => {});
 }
 
-// Mid-call input unplug: for the mic LiveKit falls back to the default device
-// on its own, so the notice explains why the chosen one stopped being used.
-// For the camera it does NOT — `selectDefaultDevices` skips `videoinput`
-// outright (livekit-client 2.20.1) — so that notice only says the camera went
-// away. One notice per kind per call.
+// Mid-call input unplug: on a track ending LiveKit restarts the mic against
+// `deviceId: "default"` but restarts the camera against the SAME (now absent)
+// device and then mutes it (livekit-client 2.20.1 `handleTrackEnded`), so the
+// mic notice can promise a fallback and the camera notice cannot.
+// One notice per kind per call.
 let voiceDeviceWatchStop: (() => void) | null = null;
 let audioInputGoneNotified: ActiveVoiceCall | null = null;
 let videoInputGoneNotified: ActiveVoiceCall | null = null;
@@ -6186,12 +6186,29 @@ const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
     videoinput: "Camera disconnected",
 };
 
+/** The camera's REAL capture device, read off the live publication rather than
+ *  `settingsState.videoInputDeviceId`: `setCameraEnabled` passes that id as a
+ *  non-exact constraint, so the browser may have substituted another camera
+ *  and warning about the saved one would be a phantom. Null when no camera is
+ *  published — which is also how "the camera is off" reaches the util.
+ *  Deliberately NOT `isCameraEnabled`: that is `!isMuted`, and the unplug we
+ *  are trying to report is exactly what makes LiveKit mute the track. */
+function activeCameraDeviceId(call: ActiveVoiceCall): string | null {
+    const track = call.lkRoom.localParticipant.getTrackPublication(
+        LivekitTrack.Source.Camera,
+    )?.videoTrack?.mediaStreamTrack;
+    return track?.getSettings().deviceId ?? null;
+}
+
 function ensureVoiceDeviceWatch(): void {
     if (voiceDeviceWatchStop || !navigator.mediaDevices?.addEventListener)
         return;
     const onChange = async () => {
         const call = activeVoice;
         if (!call) return;
+        // Snapshot before the await: LiveKit reacts to the same unplug and
+        // will have torn the camera track down by the time we resume.
+        const cameraId = activeCameraDeviceId(call);
         // null (not []) on failure: an empty list means "nothing is plugged
         // in", a rejection means "we do not know" — see voiceDeviceNotices.
         const devices = await navigator.mediaDevices
@@ -6200,9 +6217,8 @@ function ensureVoiceDeviceWatch(): void {
         if (activeVoice !== call) return;
         const notices = voiceDeviceNotices({
             devices,
-            savedAudioInputId: settingsState.audioInputDeviceId,
-            savedVideoInputId: settingsState.videoInputDeviceId,
-            cameraOn: call.lkRoom.localParticipant.isCameraEnabled,
+            audioInputId: settingsState.audioInputDeviceId,
+            videoInputId: cameraId,
             audioNotified: audioInputGoneNotified === call,
             videoNotified: videoInputGoneNotified === call,
         });
@@ -6675,6 +6691,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
     if (!call) return;
     const run = (async () => {
         activeVoice = null;
+        // These only ever hold the call they belong to; dropping them here
+        // keeps a finished call's LiveKit Room and audio elements collectable.
+        audioInputGoneNotified = null;
+        videoInputGoneNotified = null;
         // Playback mute (deafen) is per-call state — a stale flag would attach
         // every remote track of the NEXT call muted while the UI shows undeafened.
         voicePlaybackMuted = false;

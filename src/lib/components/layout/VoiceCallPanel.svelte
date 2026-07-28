@@ -86,8 +86,9 @@
             onclick={openCallView}
             title="Open call view"
         >
-            <p
-                class="text-xs font-semibold {voiceCallState.connState ===
+            <!-- spans, not <p>: a button may only contain phrasing content. -->
+            <span
+                class="block text-xs font-semibold {voiceCallState.connState ===
                 'connected'
                     ? 'text-discord-accent'
                     : 'text-discord-warning'}"
@@ -98,10 +99,10 @@
                         >{elapsed}</span
                     >
                 {/if}
-            </p>
-            <p class="text-xs text-discord-textMuted truncate">
+            </span>
+            <span class="block text-xs text-discord-textMuted truncate">
                 {locationLabel}
-            </p>
+            </span>
         </button>
         <!-- Own row, not beside the status text: five 28px controls plus gaps
              leave ~60px of a 240px sidebar, which truncates "Connected" to an

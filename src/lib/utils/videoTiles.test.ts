@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
     buildVideoTiles,
     nextFocus,
@@ -164,8 +164,16 @@ describe("screenShareSupportedHere", () => {
         expect(screenShareSupportedHere()).toBe(false);
     });
 
-    it("survives navigator.mediaDevices being absent entirely", () => {
+    it("is false when navigator.mediaDevices is undefined", () => {
         setMediaDevices(undefined);
         expect(screenShareSupportedHere()).toBe(false);
+    });
+
+    it("survives there being no navigator at all (SSR/prerender)", () => {
+        // `typeof x` is "undefined" for a bound-but-undefined global too, so
+        // this really does take the typeof arm rather than the optional chain.
+        vi.stubGlobal("navigator", undefined);
+        expect(screenShareSupportedHere()).toBe(false);
+        vi.unstubAllGlobals();
     });
 });

@@ -16,19 +16,18 @@ const bothPresent = devices(
 
 const base = {
     devices: bothPresent,
-    savedAudioInputId: MIC,
-    savedVideoInputId: CAM,
-    cameraOn: true,
+    audioInputId: MIC,
+    videoInputId: CAM,
     audioNotified: false,
     videoNotified: false,
 };
 
 describe("voiceDeviceNotices", () => {
-    it("is silent while both chosen devices are still enumerated", () => {
+    it("is silent while both devices in use are still enumerated", () => {
         expect(voiceDeviceNotices(base)).toEqual([]);
     });
 
-    it("reports the microphone when the chosen audioinput is gone", () => {
+    it("reports the microphone when its audioinput is gone", () => {
         expect(
             voiceDeviceNotices({
                 ...base,
@@ -37,7 +36,7 @@ describe("voiceDeviceNotices", () => {
         ).toEqual(["audioinput"]);
     });
 
-    it("reports the camera when the chosen videoinput is gone", () => {
+    it("reports the camera when its videoinput is gone", () => {
         expect(
             voiceDeviceNotices({
                 ...base,
@@ -60,39 +59,29 @@ describe("voiceDeviceNotices", () => {
         expect(voiceDeviceNotices({ ...base, devices: null })).toEqual([]);
     });
 
-    it("ignores a missing camera while the camera is off", () => {
+    it("ignores video when no camera is publishing (null id)", () => {
         expect(
-            voiceDeviceNotices({
-                ...base,
-                cameraOn: false,
-                devices: devices(["audioinput", MIC]),
-            }),
-        ).toEqual([]);
-    });
-
-    it("still reports the microphone while the camera is off", () => {
-        expect(
-            voiceDeviceNotices({ ...base, cameraOn: false, devices: [] }),
+            voiceDeviceNotices({ ...base, videoInputId: null, devices: [] }),
         ).toEqual(["audioinput"]);
     });
 
-    it("says nothing about a kind the user never chose", () => {
+    it("says nothing about a kind with no id to compare (system default)", () => {
         expect(
             voiceDeviceNotices({
                 ...base,
-                savedAudioInputId: null,
-                savedVideoInputId: null,
+                audioInputId: null,
+                videoInputId: null,
                 devices: [],
             }),
         ).toEqual([]);
     });
 
-    it("treats an empty-string saved id as no choice", () => {
+    it("treats an empty-string id as no id", () => {
         expect(
             voiceDeviceNotices({
                 ...base,
-                savedAudioInputId: "",
-                savedVideoInputId: "",
+                audioInputId: "",
+                videoInputId: "",
                 devices: [],
             }),
         ).toEqual([]);
@@ -127,9 +116,26 @@ describe("voiceDeviceNotices", () => {
         expect(
             voiceDeviceNotices({
                 ...base,
-                savedVideoInputId: null,
+                videoInputId: null,
                 devices: devices(["audiooutput", MIC]),
             }),
         ).toEqual(["audioinput"]);
+    });
+
+    it("is silent when the camera substituted a different, present device", () => {
+        // setCameraEnabled passes deviceId as a NON-exact constraint, so the
+        // browser may hand back another camera. The caller resolves the id off
+        // the live publication for exactly this reason — comparing the saved
+        // setting instead would toast a phantom unplug here.
+        expect(
+            voiceDeviceNotices({
+                ...base,
+                videoInputId: "cam-substituted",
+                devices: devices(
+                    ["audioinput", MIC],
+                    ["videoinput", "cam-substituted"],
+                ),
+            }),
+        ).toEqual([]);
     });
 });

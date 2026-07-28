@@ -68,7 +68,7 @@
              room, so showCallView alone suffices (no navigateToRoom). -->
         <button
             onclick={() => showCallView(room.roomId)}
-            class="flex items-center gap-3 min-w-0 flex-1 text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
+            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
             title="Open call"
         >
             <div class="flex -space-x-1.5">
@@ -100,7 +100,7 @@
             <!-- Camera/share sit here as well as in CallView so a user who
                  stayed on the timeline never has to open the call view to
                  start video. Same store toggles, same support gate. -->
-            <div class="ml-auto flex items-center gap-1 flex-shrink-0">
+            <div class="flex items-center gap-1 flex-shrink-0">
                 <button
                     onclick={() => void toggleCamera()}
                     class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
