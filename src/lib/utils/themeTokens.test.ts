@@ -8,6 +8,7 @@ const FIXTURE = `
 @keyframes pulse {
     0% {
         opacity: 1;
+        --kf-leak: nope;
     }
     100% {
         opacity: 0.5;
@@ -69,8 +70,11 @@ describe("parseCssVariableBlock", () => {
         const dark = parseCssVariableBlock(FIXTURE, ":root");
         expect(dark.size).toBe(5);
         expect(dark.get("--discord-bg")).toBe("#36393f");
-        // The keyframes' own declarations must not leak in.
-        expect(dark.has("opacity")).toBe(false);
+        // The sub-block's own custom property must not leak in. It has to be
+        // a `--` name to be a real canary: the parser drops every non-`--`
+        // declaration unconditionally, so asserting on `opacity` could never
+        // fail no matter how badly the brace scan degraded.
+        expect(dark.has("--kf-leak")).toBe(false);
     });
 });
 
@@ -105,6 +109,15 @@ describe("missingLightOverrides", () => {
 });
 
 describe("src/app.css light theme parity (regression guard)", () => {
+    // ONE definition of the dark selector, shared by the floor assertion and
+    // the parity call below. If each resolved it independently — the floor
+    // hardcoding ":root" while missingLightOverrides fell back to its own
+    // `opts.selectorDark ?? ":root"` default — then drift in the option or in
+    // that default (a themeTokens.ts edit, not just a test edit) would leave
+    // the floor passing on the old selector while parity checked the new,
+    // empty one. Same vacuous-green hole, one indirection further out.
+    const SELECTOR_DARK = ":root";
+
     // Tokens the light theme deliberately does NOT override.
     //  - --avatar-color-*: identity colours, not chrome. Intentional.
     //  - --discord-danger-rgb / --discord-warning-rgb: a real gap, fixed on
@@ -136,17 +149,24 @@ describe("src/app.css light theme parity (regression guard)", () => {
         const css = readFileSync(cssPath, "utf8");
 
         // Prove the dark block actually parsed BEFORE trusting the parity
-        // assertion below. An unmatched `:root` yields an empty map, so
+        // assertion below. An unmatched selector yields an empty map, so
         // missingLightOverrides returns [] and the parity check goes green
         // while checking nothing at all. Reachable by ordinary edits to
         // app.css: grouping the selector (`:root, :host {`), adding a
         // "system" theme (`:root, :root[data-theme="dark"] {`), or putting a
-        // semicolon at-rule immediately before the block. 94 dark props
-        // today — 80 is a floor, not a target.
-        expect(parseCssVariableBlock(css, ":root").size).toBeGreaterThan(80);
+        // semicolon at-rule immediately before the block.
+        //
+        // Every one of those shapes collapses the map to exactly 0, never to
+        // a small non-zero, so any floor in 1..93 has identical teeth. There
+        // are 94 dark props today; 40 keeps the slack wide enough that
+        // routinely deleting a few tokens never turns this into a false alarm.
+        expect(parseCssVariableBlock(css, SELECTOR_DARK).size).toBeGreaterThan(
+            40,
+        );
 
         expect(
             missingLightOverrides(css, {
+                selectorDark: SELECTOR_DARK,
                 prefixes: ["--discord-", "--syntax-", "--avatar-color-"],
                 allowMissing: ALLOW_MISSING,
             }),
