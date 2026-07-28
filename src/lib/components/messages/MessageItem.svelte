@@ -990,7 +990,7 @@
     class="{interfaceState.isTouchscreen
         ? ''
         : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation {mentionHighlight
-        ? 'bg-yellow-500/10 border-l-2 border-yellow-500'
+        ? 'bg-discord-warning/10 border-l-2 border-discord-warning'
         : ''}"
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}

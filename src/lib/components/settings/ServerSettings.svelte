@@ -28,7 +28,7 @@
 
     function badge(support: Support): { text: string; cls: string } {
         if (support === "yes") {
-            return { text: "Supported", cls: "text-green-400" };
+            return { text: "Supported", cls: "text-discord-textPositive" };
         }
         if (support === "no") {
             return { text: "Not supported", cls: "text-discord-danger" };

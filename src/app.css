@@ -9,10 +9,10 @@ body {
 
 @keyframes message-highlight-fade {
     0% {
-        background-color: rgba(114, 137, 218, 0.35);
+        background-color: rgb(var(--discord-accent-rgb) / 0.35);
     }
     70% {
-        background-color: rgba(114, 137, 218, 0.35);
+        background-color: rgb(var(--discord-accent-rgb) / 0.35);
     }
     100% {
         background-color: transparent;
@@ -25,59 +25,18 @@ body {
 
 :root {
     color-scheme: dark;
-    /* ── Brand (blurple) scale ───────────────────────── */
-    --brand-100: #f8f9fd;
-    --brand-130: #f2f4fc;
-    --brand-160: #ebeefa;
-    --brand-200: #e3e7f8;
-    --brand-230: #dae0f5;
-    --brand-260: #d1d9f3;
-    --brand-300: #c7d0f0;
-    --brand-330: #b5c1ec;
-    --brand-360: #a5b3e7;
-    --brand-400: #8ea1e1;
-    --brand-430: #869adf;
-    --brand-460: #7d92dd;
+    /* ── Brand (blurple) ─────────────────────────────────
+       Only the two steps the accent tokens actually source are kept; the
+       other 23 steps of the old ramp had zero usages (2026-07-28).
+       NOTE: :root[data-theme="light"] bypasses this indirection with
+       literal hexes for --discord-accent*, so re-branding here changes the
+       dark theme only. Deliberately left as-is — repointing light at the
+       ramp would change the light accent colour, which is the user's call. */
     --brand-500: #7289da;
     --brand-530: #687dc6;
-    --brand-560: #5c6fb1;
-    --brand-600: #4e5d94;
-    --brand-630: #435180;
-    --brand-660: #3b4770;
-    --brand-700: #2e3757;
-    --brand-730: #2b3352;
-    --brand-760: #272f4b;
-    --brand-800: #222941;
-    --brand-830: #1a2032;
-    --brand-860: #111521;
-    --brand-900: #06070b;
 
-    --brand-rgb: 114 137 218;
-    --brand-100-rgb: 248 249 253;
-    --brand-130-rgb: 242 244 252;
-    --brand-160-rgb: 235 238 250;
-    --brand-200-rgb: 227 231 248;
-    --brand-230-rgb: 218 224 245;
-    --brand-260-rgb: 209 217 243;
-    --brand-300-rgb: 199 208 240;
-    --brand-330-rgb: 181 193 236;
-    --brand-360-rgb: 165 179 231;
-    --brand-400-rgb: 142 161 225;
-    --brand-430-rgb: 134 154 223;
-    --brand-460-rgb: 125 146 221;
     --brand-500-rgb: 114 137 218;
     --brand-530-rgb: 104 125 198;
-    --brand-560-rgb: 92 111 177;
-    --brand-600-rgb: 78 93 148;
-    --brand-630-rgb: 67 81 128;
-    --brand-660-rgb: 59 71 112;
-    --brand-700-rgb: 46 55 87;
-    --brand-730-rgb: 43 51 82;
-    --brand-760-rgb: 39 47 75;
-    --brand-800-rgb: 34 41 65;
-    --brand-830-rgb: 26 32 50;
-    --brand-860-rgb: 17 21 33;
-    --brand-900-rgb: 6 7 11;
 
     /* ── Backgrounds ─────────────────────────────────── */
     --discord-bg: #36393f;

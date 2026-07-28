@@ -1577,13 +1577,13 @@
                 {#if leaveConfirmId === cm.spaceId}
                     <button
                         onclick={() => handleLeaveSpace(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-red-500 text-white font-medium text-left"
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-discord-danger text-white font-medium text-left"
                         >Click again to leave</button
                     >
                 {:else}
                     <button
                         onclick={() => (leaveConfirmId = cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500 hover:text-white text-left"
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-left"
                         >Leave Space</button
                     >
                 {/if}
@@ -1596,7 +1596,7 @@
                 <div class="w-full h-px bg-discord-divider my-1"></div>
                 <button
                     onclick={() => handleDissolveFolder(cm.folderId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500 hover:text-white text-left"
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-left"
                     >Dissolve Folder</button
                 >
             {/if}
