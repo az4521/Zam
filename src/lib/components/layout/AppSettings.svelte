@@ -11,6 +11,19 @@
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { tick, untrack } from "svelte";
+    import {
+        interfaceState,
+        openSubPage,
+        clearSubPageIfOwner,
+    } from "$lib/stores/interface.svelte";
+    import {
+        SETTINGS_TABS,
+        settingsTabLabel,
+        settingsNavView,
+        type SettingsTab,
+    } from "$lib/utils/settingsNav";
+    import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
     interface Props {
         onClose: () => void;
@@ -19,33 +32,68 @@
 
     let { onClose, onLogout }: Props = $props();
 
-    type Tab =
-        | "account"
-        | "sessions"
-        | "security"
-        | "customization"
-        | "emotes"
-        | "notifications"
-        | "voice"
-        | "blocked"
-        | "server"
-        | "about"
-        | "debug";
-    let activeTab = $state<Tab>("account");
+    // null = "nothing drilled into yet": the mobile category list, or the
+    // desktop default panel. Kept across a viewport change in both directions
+    // so resizing/rotating never loses the user's place.
+    let selectedTab = $state<SettingsTab | null>(null);
 
-    const tabs: { id: Tab; label: string }[] = [
-        { id: "account", label: "Account" },
-        { id: "sessions", label: "Sessions" },
-        { id: "security", label: "Security" },
-        { id: "customization", label: "Customization" },
-        { id: "emotes", label: "My Emotes" },
-        { id: "notifications", label: "Notifications" },
-        { id: "voice", label: "Voice & Audio" },
-        { id: "blocked", label: "Blocked Users" },
-        { id: "server", label: "Server" },
-        { id: "about", label: "About" },
-        { id: "debug", label: "Debug Info" },
-    ];
+    const view = $derived(
+        settingsNavView({ isMobile: interfaceState.isMobile, selectedTab }),
+    );
+
+    // Stable identity: it is the ownership token for the sub-page slot, so it
+    // must NOT be recreated on every render. It resets local state ONLY — it
+    // runs from inside the store's own close/supersede paths, so reaching back
+    // into the store here would pop the wrong owner.
+    function goBackToList() {
+        selectedTab = null;
+    }
+
+    // Register the mobile sub-page with the central dismiss stack so Escape and
+    // the hardware back button pop it before closing the whole dialog.
+    //
+    // `openSubPage` READS `interfaceState.subPageClose` (to supersede a previous
+    // owner) as well as writing it. Untracked, that read becomes a dependency of
+    // this effect while the write invalidates it → the teardown clears the slot,
+    // the body re-claims it, forever: `effect_update_depth_exceeded` (verified,
+    // not theoretical). `untrack` keeps the slot out of the dependency set, so
+    // the tracked dependencies are exactly what `view` reads — `isMobile` and
+    // `selectedTab` — neither of which `openSubPage` writes, so there is no loop.
+    $effect(() => {
+        if (view.mode !== "detail") return;
+        untrack(() => openSubPage(goBackToList));
+        return () => clearSubPageIfOwner(goBackToList);
+    });
+
+    // Plain `let`, not `$state`: these are transition bookkeeping, not view
+    // data. Reading them inside the effect below must register no dependency
+    // (and `bind:this` writing a `$state` ref would retrigger it). Nothing
+    // renders from them, so the non-reactivity the warning describes is the
+    // whole point.
+    // svelte-ignore non_reactive_update
+    let backButtonEl: HTMLButtonElement | null = null;
+    let categoryEls: HTMLButtonElement[] = [];
+    let lastMode: string | null = null;
+
+    // Drilling in and backing out destroy the element that had focus, dropping
+    // it to <body> — outside the focus trap, where the trap's node-level keydown
+    // never fires and Tab escapes to the app shell behind the modal. Re-anchor
+    // focus on every mode change (never on first mount: focusTrap's rAF owns
+    // that). Writes no reactive state, so it cannot retrigger itself.
+    $effect(() => {
+        const mode = view.mode;
+        if (lastMode === null || lastMode === mode) {
+            lastMode = mode;
+            return;
+        }
+        lastMode = mode;
+        if (mode === "desktop") return;
+        // After the DOM is patched — `bind:this` has not necessarily landed yet.
+        void tick().then(() => {
+            if (mode === "detail") backButtonEl?.focus();
+            else categoryEls[0]?.focus();
+        });
+    });
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
@@ -55,27 +103,44 @@
         class="absolute inset-0 bg-black/60"
         onclick={onClose}
     ></button>
+    <!-- No `onEscape` on purpose: focusTrap's node-level keydown fires BEFORE
+         <svelte:window onkeydown> reaches AppShell, so an onEscape here would
+         close the whole dialog on the first Escape and the mobile sub-page could
+         never be popped. Escape is owned by AppShell.dismissTopmost(). -->
     <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-settings-title"
         class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
-        use:focusTrap={{ onEscape: onClose }}
+        use:focusTrap
     >
-        <!-- Header -->
+        <!-- Header. On a mobile sub-page the close button is replaced by a back
+             arrow and the title names the category. -->
         <div
-            class="flex items-center justify-between px-6 py-4 border-b border-discord-divider flex-shrink-0"
+            class="flex items-center gap-2 px-6 py-4 border-b border-discord-divider flex-shrink-0"
         >
+            {#if view.mode === "detail"}
+                <button
+                    bind:this={backButtonEl}
+                    onclick={goBackToList}
+                    aria-label="Back to settings"
+                    class="-ml-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+            {/if}
             <h2
                 id="app-settings-title"
-                class="text-lg font-bold text-discord-textPrimary"
+                class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
             >
-                Settings
+                {view.mode === "detail"
+                    ? settingsTabLabel(view.tab)
+                    : "Settings"}
             </h2>
             <button
                 onclick={onClose}
                 aria-label="Close settings"
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -85,50 +150,77 @@
             </button>
         </div>
 
-        <div class="flex flex-col md:flex-row flex-1 min-h-0">
-            <!-- Tab bar: horizontal scrollable strip on mobile, sidebar on desktop -->
-            <nav
-                class="flex flex-row md:flex-col flex-shrink-0 w-full md:w-40 gap-1 md:gap-0.5 overflow-x-auto md:overflow-x-visible border-b md:border-b-0 md:border-r border-discord-divider px-2 py-2 md:py-3"
-            >
-                {#each tabs as tab (tab.id)}
+        {#if view.mode === "list"}
+            <!-- Mobile root: drill-down category list. -->
+            <nav class="flex-1 overflow-y-auto py-2">
+                {#each SETTINGS_TABS as tab, i (tab.id)}
                     <button
-                        onclick={() => (activeTab = tab.id)}
-                        class="flex-shrink-0 w-auto md:w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
-                        class:bg-discord-messageHover={activeTab === tab.id}
-                        class:text-discord-textPrimary={activeTab === tab.id}
-                        class:text-discord-textMuted={activeTab !== tab.id}
-                        >{tab.label}</button
+                        bind:this={categoryEls[i]}
+                        onclick={() => (selectedTab = tab.id)}
+                        class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
                     >
+                        <span class="min-w-0 truncate">{tab.label}</span>
+                        <ChevronRight
+                            size={20}
+                            aria-hidden="true"
+                            class="flex-shrink-0 text-discord-textMuted"
+                        />
+                    </button>
                 {/each}
             </nav>
-
-            <!-- Tab content -->
-            <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
-                <!-- ── Account ───────────────────────────────────────────── -->
-                {#if activeTab === "account"}
-                    <AccountSettings {onLogout} />
-                {:else if activeTab === "sessions"}
-                    <SessionSettings />
-                {:else if activeTab === "security"}
-                    <SecuritySettings />
-                {:else if activeTab === "customization"}
-                    <CustomizationSettings />
-                {:else if activeTab === "emotes"}
-                    <CustomPackSettings kind="emotes" />
-                {:else if activeTab === "notifications"}
-                    <NotificationSettings />
-                {:else if activeTab === "voice"}
-                    <VoiceAudioSettings />
-                {:else if activeTab === "server"}
-                    <ServerSettings />
-                {:else if activeTab === "blocked"}
-                    <BlockedUsersSettings />
-                {:else if activeTab === "about"}
-                    <AboutSettings />
-                {:else if activeTab === "debug"}
-                    <DebugSettings />
-                {/if}
+        {:else if view.mode === "detail"}
+            <!-- Mobile sub-page: one category, full screen. -->
+            <div class="flex-1 overflow-y-auto p-4 min-w-0">
+                {@render panel(view.tab)}
             </div>
-        </div>
+        {:else}
+            <!-- Desktop: category sidebar beside the active panel. -->
+            <div class="flex flex-row flex-1 min-h-0">
+                <nav
+                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
+                >
+                    {#each SETTINGS_TABS as tab (tab.id)}
+                        <button
+                            onclick={() => (selectedTab = tab.id)}
+                            class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
+                            class:bg-discord-messageHover={view.tab === tab.id}
+                            class:text-discord-textPrimary={view.tab === tab.id}
+                            class:text-discord-textMuted={view.tab !== tab.id}
+                            >{tab.label}</button
+                        >
+                    {/each}
+                </nav>
+
+                <div class="flex-1 overflow-y-auto p-6 min-w-0">
+                    {@render panel(view.tab)}
+                </div>
+            </div>
+        {/if}
     </div>
 </div>
+
+{#snippet panel(tab: SettingsTab)}
+    {#if tab === "account"}
+        <AccountSettings {onLogout} />
+    {:else if tab === "sessions"}
+        <SessionSettings />
+    {:else if tab === "security"}
+        <SecuritySettings />
+    {:else if tab === "customization"}
+        <CustomizationSettings />
+    {:else if tab === "emotes"}
+        <CustomPackSettings kind="emotes" />
+    {:else if tab === "notifications"}
+        <NotificationSettings />
+    {:else if tab === "voice"}
+        <VoiceAudioSettings />
+    {:else if tab === "server"}
+        <ServerSettings />
+    {:else if tab === "blocked"}
+        <BlockedUsersSettings />
+    {:else if tab === "about"}
+        <AboutSettings />
+    {:else if tab === "debug"}
+        <DebugSettings />
+    {/if}
+{/snippet}

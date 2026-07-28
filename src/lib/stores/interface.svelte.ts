@@ -1,13 +1,19 @@
 // Centralised UI/interface state.
 //
-// Two mutually-exclusive "slots":
+// Three UI slots, dismissed in this priority order by AppShell.dismissTopmost()
+// (Escape and mobile hardware back):
+//   - subPage: a page layered INSIDE the open modal (mobile settings
+//              drill-down) — popped first, leaving the modal open.
 //   - modal:   the single open popup / modal / context-menu / picker.
 //   - sidebar: the single open side panel (member list, pinned, notifications).
 //
+// Each slot holds at most one owner, but the slots are not exclusive of one
+// another: a sub-page exists precisely while its modal is also open.
+//
 // Components no longer track their own open/closed booleans — they render based
 // on `interfaceState.modal === "<id>"` / `interfaceState.sidebar === "<id>"` and
-// open/close through the helpers below. The main page (+page.svelte) owns the
-// global Escape-key and mobile back-button handling and operates on this store.
+// open/close through the helpers below. AppShell.svelte owns the global
+// Escape-key and mobile back-button handling and operates on this store.
 
 export type ModalId =
     | "app-settings"
@@ -67,6 +73,10 @@ export const interfaceState = $state({
     modal: null as ModalId | null,
     /** Closes the open modal (runs its cleanup). Set alongside `modal`. */
     modalClose: null as null | (() => void),
+    /** A page layered inside the open modal (mobile settings drill-down).
+     *  Popped by Escape / mobile back BEFORE the modal itself closes. Holds
+     *  the "go back one level" handler, or null when no sub-page is open. */
+    subPageClose: null as null | (() => void),
     /** The single open side panel, or null. */
     sidebar: null as SidebarId | null,
     /** Closes the open sidebar (runs its cleanup). Set alongside `sidebar`. */
@@ -123,10 +133,15 @@ export function openModal(id: ModalId, close: () => void): SlotToken {
     // re-entrant closeModal() from it is a safe no-op. A close handler must
     // NOT itself call openModal/openSidebar, though: the claim it makes is
     // silently superseded below and its own close would never run.
+    //
+    // A sub-page dies with its modal, so drop that slot in the same detach —
+    // WITHOUT running its handler, since "go back one level" is meaningless
+    // once the level is gone.
     const prev = interfaceState.modalClose;
     modalToken = 0;
     interfaceState.modal = null;
     interfaceState.modalClose = null;
+    interfaceState.subPageClose = null;
     interfaceState.lightboxOpen = false;
     prev?.();
 
@@ -138,8 +153,15 @@ export function openModal(id: ModalId, close: () => void): SlotToken {
     return token;
 }
 
-/** Dismiss the open modal, running its close handler. */
+/** Dismiss the open modal, running its close handler. Any sub-page layered
+ *  inside it is dropped too — WITHOUT running its handler, since a sub-page
+ *  dies with its modal by definition and "go back one level" is meaningless
+ *  once the level is gone. */
 export function closeModal(): void {
+    // Drop the sub-page slot first: a modal dismissed by any path other than
+    // dismissTopmost (backdrop click, onClose, a supersede) would otherwise
+    // strand a stale handler that swallows one later Escape.
+    interfaceState.subPageClose = null;
     const close = interfaceState.modalClose;
     modalToken = 0;
     interfaceState.modal = null;
@@ -159,6 +181,38 @@ export function clearModalIfOwner(token: SlotToken): boolean {
     interfaceState.modalClose = null;
     interfaceState.lightboxOpen = false;
     return true;
+}
+
+/**
+ * Push a sub-page above the open modal. `close` pops one level (it should NOT
+ * close the modal). Any previous sub-page is closed first — its handler runs
+ * before the new owner takes the slot — so a component that supersedes
+ * another's sub-page cannot strand it.
+ */
+export function openSubPage(close: () => void): void {
+    const prev = interfaceState.subPageClose;
+    if (prev === close) return;
+    // Clear before running the superseded handler (as openModal does), so a
+    // handler that reaches back into the store cannot pop the new owner.
+    interfaceState.subPageClose = null;
+    prev?.();
+    interfaceState.subPageClose = close;
+}
+
+/** Pop the open sub-page, running its handler. No-op when none is open. */
+export function closeSubPage(): void {
+    const close = interfaceState.subPageClose;
+    interfaceState.subPageClose = null;
+    close?.();
+}
+
+/** Release the sub-page slot on unmount, without running the handler — but
+ *  only if `close` still owns it. Function identity is the ownership token:
+ *  a late cleanup must never null a slot a newer owner already claimed. */
+export function clearSubPageIfOwner(close: () => void): void {
+    if (interfaceState.subPageClose === close) {
+        interfaceState.subPageClose = null;
+    }
 }
 
 /** Show a room's call view. Does NOT join the call — peeking is allowed. */
