@@ -26,6 +26,8 @@
         getRoom,
         getHistoryVisibility,
         setHistoryVisibility,
+        getGuestAccess,
+        setGuestAccess,
         getRoomDirectoryVisibility,
         setRoomDirectoryVisibility,
         getSpaceChildren,
@@ -239,6 +241,9 @@
     // ── Access tab ─────────────────────────────────────────────────────────────
     let joinRule = $state(untrack(() => getJoinRule(room)));
     let historyVisibility = $state(untrack(() => getHistoryVisibility(room)));
+    let guestAccessAllowed = $state(
+        untrack(() => getGuestAccess(room) === "can_join"),
+    );
     let accessSaving = $state(false);
     let accessError = $state("");
     let accessSuccess = $state(false);
@@ -276,6 +281,11 @@
                 promises.push(
                     setHistoryVisibility(room.roomId, historyVisibility),
                 );
+            const nextGuestAccess = guestAccessAllowed
+                ? "can_join"
+                : "forbidden";
+            if (nextGuestAccess !== getGuestAccess(room))
+                promises.push(setGuestAccess(room.roomId, nextGuestAccess));
             await Promise.all(promises);
             accessSuccess = true;
             setTimeout(() => (accessSuccess = false), 2000);
@@ -893,6 +903,34 @@
                                     </label>
                                 {/each}
                             </div>
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Guest Access
+                            </p>
+                            <label
+                                class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                    ? 'opacity-50 pointer-events-none'
+                                    : ''}"
+                            >
+                                <input
+                                    type="checkbox"
+                                    bind:checked={guestAccessAllowed}
+                                    class="accent-discord-accent"
+                                />
+                                <span class="text-sm text-discord-textPrimary"
+                                    >Allow guests to join without an account</span
+                                >
+                            </label>
+                            <p class="text-xs text-discord-textMuted mt-1">
+                                Guests are anonymous accounts the homeserver
+                                creates on demand. Many servers disable guest
+                                registration entirely, in which case this has no
+                                effect.
+                            </p>
                         </div>
 
                         <div>
