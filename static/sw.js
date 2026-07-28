@@ -42,6 +42,10 @@ function isValidHomeserverUrl(url) {
 
 let accessToken = null;
 let homeserverUrl = null;
+// Device-global "hide message text in notifications" privacy setting, mirrored
+// from the page (SET_NOTIF_PRIVACY). Mirrors src/lib/utils/notificationPrivacy.ts
+// by hand — this file is not bundled and cannot import it. Change one, change both.
+let hideNotificationBody = false;
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
@@ -50,6 +54,9 @@ const authReady = (async () => {
 		accessToken = storedToken;
 		homeserverUrl = storedHs;
 	}
+	// Fail open to today's behaviour: anything other than an explicit stored
+	// `true` (missing value, null, legacy junk) means "show bodies".
+	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
 })();
 
 self.addEventListener("message", async (event) => {
@@ -68,6 +75,13 @@ self.addEventListener("message", async (event) => {
 		homeserverUrl = null;
 		await dbSet("accessToken", null);
 		await dbSet("homeserverUrl", null);
+	} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
+		// Wait out startup hydration first: its stored read lands after this
+		// handler starts and would otherwise clobber the newer value with the
+		// pre-toggle one (leaving bodies visible until the SW restarts).
+		await authReady.catch(() => {});
+		hideNotificationBody = event.data.hideBody === true;
+		await dbSet("hideNotificationBody", hideNotificationBody);
 	}
 });
 
@@ -177,6 +191,9 @@ async function mxGet(path) {
 }
 
 async function buildNotification(data) {
+	// Never compose a body before the privacy flag has been hydrated from
+	// IndexedDB — reading it early would default to "show bodies".
+	await authReady;
 	const roomId = data.room_id;
 	const eventId = data.event_id;
 	let title = "New message";
@@ -195,15 +212,29 @@ async function buildNotification(data) {
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
 		);
 		if (event) {
-			const sender = event.sender || "";
-			const msg = (event.content && event.content.body) || "";
+			// Homeserver-supplied and untrusted: coerce to strings so a
+			// malformed event can't blow up on .trim() below.
+			const sender = typeof event.sender === "string" ? event.sender : "";
+			const rawMsg = event.content && event.content.body;
+			const msg = typeof rawMsg === "string" ? rawMsg : "";
 			let senderName = sender;
 			const member = await mxGet(
 				`/_matrix/client/v3/rooms/${rid}/state/m.room.member/${encodeURIComponent(sender)}`,
 			);
-			if (member && member.displayname) senderName = member.displayname;
-			if (msg) body = senderName ? `${senderName}: ${msg}` : msg;
-			else if (senderName) body = `${senderName} sent a message`;
+			if (
+				member &&
+				typeof member.displayname === "string" &&
+				member.displayname
+			)
+				senderName = member.displayname;
+			// Same comparisons as notificationBody() in
+			// src/lib/utils/notificationPrivacy.ts: trim both sides so a
+			// whitespace-only body counts as absent, and drop the text
+			// entirely when the privacy setting is on.
+			const name = senderName.trim();
+			const text = hideNotificationBody ? "" : msg.trim();
+			if (text) body = name ? `${name}: ${text}` : text;
+			else if (name) body = `${name} sent a message`;
 		}
 
 		const avatarRes = await mxGet(
