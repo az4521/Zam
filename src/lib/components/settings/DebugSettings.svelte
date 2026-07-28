@@ -87,6 +87,7 @@
                         native: true,
                         homeserverUrl: null,
                         userId: null,
+                        deviceId: null,
                         hasToken: false,
                         error: error?.message ?? String(error),
                     }),
@@ -268,6 +269,7 @@
             {:else}
                 <div>homeserver: {nativeSession.homeserverUrl ?? "(none)"}</div>
                 <div>user: {nativeSession.userId ?? "(none)"}</div>
+                <div>device: {nativeSession.deviceId ?? "(none)"}</div>
                 <div>
                     access token: {nativeSession.hasToken
                         ? "present"

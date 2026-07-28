@@ -37,6 +37,10 @@ import java.util.Map;
  * the web layer (see src/lib/nativeSession.ts). If the session is missing or a
  * request fails, we fall back to a generic notification.
  *
+ * Before enriching, we also read the `moe.crafty.matrix.active_session`
+ * account-data blob: if a DIFFERENT device of this account was focused within
+ * its grace window, this device stays silent (see shouldStayQuiet below).
+ *
  * Still forwards to the Capacitor plugin so token registration and foreground
  * events keep working. Declared with a higher-priority intent-filter than the
  * plugin's MessagingService so MESSAGING_EVENT routes here.
@@ -50,6 +54,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static final String PREFS = "CapacitorStorage";
     private static final String KEY_HS = "matrix_hs_url";
     private static final String KEY_TOKEN = "matrix_access_token";
+    private static final String KEY_USER = "matrix_user_id";
+    private static final String KEY_DEVICE = "matrix_device_id";
+
+    // Active-session suppression (see shouldStayQuiet below).
+    private static final String ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
+    // Mirrors MAX_FUTURE_SKEW_MS in activeSession.ts: `ts` comes from another
+    // device's clock, so anything further ahead than this is a broken clock.
+    private static final long MAX_FUTURE_SKEW_MS = 300000L;
+    // Mirrors MAX_GRACE_MS in activeSession.ts: a blob past this is a bug,
+    // and honouring it would mute this device indefinitely.
+    private static final long MAX_GRACE_MS = 900000L;
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
@@ -76,10 +91,23 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         String eventId = data.get("event_id");
         String unreadStr = data.get("unread");
 
-        // unread == 0 is a "clear" push (read elsewhere) — don't notify.
+        // unread == 0 is a "clear" push: the room was read somewhere, so take
+        // its notification DOWN rather than merely declining to post a new one.
         if (unreadStr != null) {
             try {
-                if (Integer.parseInt(unreadStr) == 0) return;
+                if (Integer.parseInt(unreadStr) == 0) {
+                    // Must match showNotification()'s id scheme exactly, or we
+                    // cancel nothing. Scoped to the room the push names: a
+                    // clear push without a room_id says nothing about WHICH
+                    // notification is stale.
+                    if (roomId != null) {
+                        try {
+                            NotificationManagerCompat.from(this)
+                                .cancel(roomId.hashCode());
+                        } catch (Throwable ignored) {}
+                    }
+                    return;
+                }
             } catch (NumberFormatException ignored) {}
         }
 
@@ -92,10 +120,16 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             String hs = prefs.getString(KEY_HS, null);
             String token = prefs.getString(KEY_TOKEN, null);
+            String selfUserId = prefs.getString(KEY_USER, null);
+            String selfDeviceId = prefs.getString(KEY_DEVICE, null);
+            if (hs != null) hs = hs.replaceAll("/+$", "");
+
+            // Another device is demonstrably in use → stay quiet. Checked
+            // before the enrichment fetches below so a suppressed push costs
+            // one request instead of five. Never throws; false on any doubt.
+            if (shouldStayQuiet(hs, token, selfUserId, selfDeviceId)) return;
 
             if (hs != null && token != null && roomId != null && eventId != null) {
-                hs = hs.replaceAll("/+$", "");
-
                 // Room display name.
                 String roomName = fetchRoomName(hs, token, roomId);
                 if (roomName != null) title = roomName;
@@ -133,6 +167,66 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
 
         showNotification(title, text, roomId, largeIcon);
+    }
+
+    // ── Active-session suppression ──────────────────────────────────────────
+
+    /**
+     * Hand-written mirror of parseActiveSession() + shouldSuppressForActiveDevice()
+     * in src/lib/utils/activeSession.ts (static/sw.js carries the third copy) —
+     * Java cannot import TypeScript, so keep all three in step.
+     *
+     * Returns false (i.e. NOTIFY) on every ambiguity: missing session, failed
+     * or non-200 request, malformed JSON, wrong types, our own device, the
+     * feature switched off, or a clock too far in the future. A suppression
+     * bug must never eat a notification.
+     *
+     * Blocking, like the enrichment fetches around it — onMessageReceived
+     * already runs on a Firebase background thread, and httpGet is bounded by
+     * the 5s connect/read timeouts.
+     */
+    private boolean shouldStayQuiet(String hs, String token, String userId, String deviceId) {
+        if (hs == null || token == null || userId == null || deviceId == null) return false;
+        if (userId.isEmpty() || deviceId.isEmpty()) return false;
+        try {
+            String url = hs + "/_matrix/client/v3/user/" + enc(userId)
+                + "/account_data/" + enc(ACTIVE_SESSION_KEY);
+            String body = httpGet(url, token);
+            if (body == null) return false; // no blob, or the request failed
+            JSONObject blob = new JSONObject(body);
+
+            // Strict parse: mirrors parseActiveSession()'s typeof checks. The
+            // opt*/get* coercions would happily turn a number into a string
+            // (or a string into a long), which TypeScript rejects — so test
+            // the runtime types instead.
+            Object rawDevice = blob.opt("deviceId");
+            Object rawTs = blob.opt("ts");
+            Object rawGrace = blob.opt("graceMs");
+            if (!(rawDevice instanceof String)) return false;
+            if (!(rawTs instanceof Number)) return false;
+            if (!(rawGrace instanceof Number)) return false;
+
+            String otherDevice = (String) rawDevice;
+            if (otherDevice.isEmpty()) return false;
+            if (otherDevice.equals(deviceId)) return false; // our own heartbeat
+
+            long ts = ((Number) rawTs).longValue();
+            long graceMs = ((Number) rawGrace).longValue();
+            if (graceMs <= 0) return false; // feature off
+
+            long now = System.currentTimeMillis();
+            // A negative ts is nonsense everywhere, but only this copy can be
+            // hurt by it: a JSON number like -1e300 parses as a Double and
+            // longValue() saturates to Long.MIN_VALUE, so `now - ts` OVERFLOWS
+            // to a large negative number, slips under the grace comparison and
+            // silently drops the notification. The TS and JS copies use IEEE
+            // doubles, cannot overflow, and would notify — match them.
+            if (ts < 0) return false;
+            if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
+            return now - ts < Math.min(graceMs, MAX_GRACE_MS);
+        } catch (Exception e) {
+            return false; // anything unexpected (network, parse) → notify
+        }
     }
 
     // ── Homeserver queries ──────────────────────────────────────────────────

@@ -126,6 +126,7 @@ import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
+import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import {
     needsStateSeed,
     shouldPrimePaginationToken,
@@ -180,7 +181,14 @@ import {
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import { addToMDirect } from "$lib/utils/mDirect";
+import {
+    ACTIVE_SESSION_KEY,
+    buildHeartbeat,
+    parseActiveSession,
+    type ActiveSessionHeartbeat,
+} from "$lib/utils/activeSession";
 
+export type { ActiveSessionHeartbeat };
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
     ServerNotification,
@@ -198,6 +206,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
+        "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
     }
 }
 
@@ -647,6 +656,37 @@ export function onAccountData(callback: (type: string) => void): () => void {
     const handler = (event: MatrixEvent) => callback(event.getType());
     matrixClient.on(ClientEvent.AccountData, handler as never);
     return () => matrixClient?.off(ClientEvent.AccountData, handler as never);
+}
+
+/** The account's current active-session heartbeat, or null when absent or
+ *  malformed. Reads the synced copy — never a /account_data GET, which the
+ *  SDK caches poorly. */
+export function getActiveSessionHeartbeat(): ActiveSessionHeartbeat | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(ACTIVE_SESSION_KEY);
+    if (!event) return null;
+    return parseActiveSession(event.getContent());
+}
+
+/** Claim "this device is in active use" for the next `graceMs`. Also the
+ *  transport for the setting itself: `graceMs` rides in the blob so the
+ *  service worker and the Android service read threshold + heartbeat in one
+ *  request.
+ *
+ *  Resolves `true` only when the account data was actually written. The two
+ *  guards below are ordinary states (no client yet, no device id), not errors,
+ *  so they cannot throw — and Settings must not report a save that never
+ *  happened, least of all for "Off", which the service worker and the Android
+ *  service can learn no other way. */
+export async function publishActiveSession(graceMs: number): Promise<boolean> {
+    if (!matrixClient) return false;
+    const deviceId = matrixClient.getDeviceId();
+    if (!deviceId) return false;
+    await matrixClient.setAccountData(
+        ACTIVE_SESSION_KEY,
+        buildHeartbeat({ deviceId, now: Date.now(), graceMs }),
+    );
+    return true;
 }
 
 export function onSyncPrepared(callback: () => void): () => void {
@@ -1772,6 +1812,14 @@ export async function initServiceWorker(): Promise<void> {
     if (!("serviceWorker" in navigator) || !matrixClient) return;
     const token = matrixClient.getAccessToken();
     const hsUrl = matrixClient.getHomeserverUrl();
+    // The worker needs to know WHICH device it is before it can read the
+    // active-session heartbeat and decide whether to stay quiet. Captured here,
+    // alongside the token, rather than after the awaits below: a logout racing
+    // registration would null out `matrixClient` and the throw would be
+    // swallowed by the catch, leaving the worker with no auth at all. Reading
+    // both up front also guarantees the identity matches the token we send.
+    const uid = matrixClient.getUserId() ?? undefined;
+    const devId = matrixClient.getDeviceId() ?? undefined;
     if (!token || !hsUrl) return;
     try {
         await navigator.serviceWorker.register("/sw.js", { scope: "/" });
@@ -1780,6 +1828,8 @@ export async function initServiceWorker(): Promise<void> {
             type: "SET_AUTH",
             accessToken: token,
             homeserverUrl: hsUrl,
+            userId: uid,
+            deviceId: devId,
         });
     } catch (e) {
         console.error("[SW] registration failed", e);
@@ -1798,6 +1848,8 @@ export function updateServiceWorkerAuth(): void {
                 type: "SET_AUTH",
                 accessToken: token,
                 homeserverUrl: hsUrl,
+                userId: matrixClient?.getUserId() ?? undefined,
+                deviceId: matrixClient?.getDeviceId() ?? undefined,
             });
         })
         .catch(() => {});
@@ -5619,6 +5671,112 @@ export function onEventDecrypted(
             MatrixEventEvent.Decrypted as never,
             handler as never,
         );
+}
+
+export interface DecryptedTimelineMeta {
+    /** The ciphertext arrived as a fresh tail append, not a mid-timeline insert. */
+    isLiveAppend: boolean;
+    /** The ciphertext arrived before sync PREPARED (page-load backlog replay). */
+    arrivedDuringInitialSync: boolean;
+}
+
+/**
+ * Live timeline events that only become notifiable once they decrypt.
+ *
+ * `onTimelineEvent` gates on the cleartext event type, but an incoming
+ * encrypted message reaches the timeline as `m.room.encrypted` (the SDK starts
+ * decryption without awaiting it, `lib/event-mapper.js`, then synchronously
+ * emits `RoomEvent.Timeline`). So encrypted messages never reached the
+ * notification path at all — no ping, no inbox entry, no OS popup.
+ *
+ * `MatrixEventEvent.Decrypted` carries no timeline context, so we remember the
+ * two facts that cannot be recovered at decryption time — whether the
+ * ciphertext was a fresh tail append, and whether it arrived before the initial
+ * sync finished (decryption of the page-load backlog routinely resolves *after*
+ * PREPARED, and reading the flag late would turn the whole replayed backlog
+ * into sound + popups). The map is bounded so a long session cannot leak.
+ *
+ * Decryption FAILURES are skipped and left pending: the SDK re-emits Decrypted
+ * when the key finally arrives, and notifying on the failure would strand a
+ * "🔒 Encrypted message" row in the inbox (markNotification dedupes by event id
+ * and never upserts).
+ */
+export function onDecryptedTimelineEvent(
+    callback: (
+        event: MatrixEvent,
+        room: Room,
+        meta: DecryptedTimelineMeta,
+    ) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const pending = createBoundedIdMap<DecryptedTimelineMeta>();
+
+    const onTimeline = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        removed?: boolean,
+        data?: { liveEvent?: boolean },
+    ) => {
+        // Scroll-up backfill and removals are never new messages.
+        if (toStartOfTimeline || removed || !room) return;
+        if (!event.isEncrypted()) return;
+        const eventId = event.getId();
+        if (!eventId) return;
+        pending.set(eventId, {
+            isLiveAppend: data?.liveEvent === true,
+            arrivedDuringInitialSync: !isInitialSyncComplete(),
+        });
+    };
+
+    const onDecrypted = (event: MatrixEvent) => {
+        const eventId = event.getId();
+        if (!eventId) return;
+        const meta = pending.get(eventId);
+        if (!meta) return;
+        // Keep it pending: the SDK retries and re-emits once the key arrives.
+        if (event.isDecryptionFailure()) return;
+        const roomId = event.getRoomId();
+        const room = roomId ? matrixClient?.getRoom(roomId) : undefined;
+        if (!room) return;
+        pending.delete(eventId);
+
+        // Same content filter as onTimelineEvent (minus its showAllEvents
+        // bypass — with that debug setting on, the ciphertext already went
+        // through the normal path and the caller's already-notified check
+        // suppresses this one).
+        // Relations are lifted OUT of the encrypted payload into the wire
+        // content (matrix-js-sdk models/event.js: "Relation info is lifted out
+        // of the encrypted content when sent to encrypted rooms"), so the
+        // cleartext accessors onTimelineEvent uses would miss an encrypted edit
+        // or thread reply. getRelation() reads wire content; fall back to the
+        // clear content for senders that also inline it.
+        const relatesTo =
+            event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
+        const isReplacement = relatesTo?.rel_type === "m.replace";
+        if (isReplacement) return;
+        if (!belongsToMainTimeline({ relatesTo, eventId })) return;
+        const type = event.getType();
+        if (
+            type !== "m.room.message" &&
+            type !== "m.sticker" &&
+            !isPollStartEventType(type)
+        )
+            return;
+        if (event.isRedacted()) return;
+
+        callback(event, room, meta);
+    };
+
+    matrixClient.on(RoomEvent.Timeline, onTimeline as never);
+    matrixClient.on(MatrixEventEvent.Decrypted as never, onDecrypted as never);
+    return () => {
+        matrixClient?.off(RoomEvent.Timeline, onTimeline as never);
+        matrixClient?.off(
+            MatrixEventEvent.Decrypted as never,
+            onDecrypted as never,
+        );
+    };
 }
 
 // ── Polls (MSC3381) ────────────────────────────────────────────────────────

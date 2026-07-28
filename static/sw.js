@@ -8,6 +8,13 @@ function openDb() {
 		req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
+		// A blocked upgrade (an older tab still holding the DB open) fires
+		// neither onsuccess nor onerror, so without this the promise never
+		// settles — and `authReady` hangs with it. The display path awaits
+		// authReady, so a hang there shows NOTHING at all: fail closed, the one
+		// outcome this module must never produce. Rejecting makes every caller
+		// take its existing catch/fallback path and notify.
+		req.onblocked = () => reject(new Error("blocked"));
 	});
 }
 
@@ -40,15 +47,50 @@ function isValidHomeserverUrl(url) {
 	}
 }
 
+/**
+ * Only accept a non-empty string as an identity; anything else becomes null so
+ * every downstream check fails open (i.e. notifies) instead of building a
+ * garbage request path out of it.
+ */
+function asIdString(value) {
+	return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 let accessToken = null;
 let homeserverUrl = null;
+// Which account/device this worker belongs to. Needed only by the
+// active-session suppression check below — null means "we don't know", which
+// always resolves to "show the notification".
+let userId = null;
+let deviceId = null;
+// Cached active-session heartbeat, read by shouldStayQuiet() below and reset
+// here whenever the identity changes. Declared with the rest of the module
+// state so the `message` listener never references it before its `let`.
+let activeSessionCache = { fetchedAt: 0, value: null };
+// Set once the page has told us who we are (SET_AUTH) or that we are logged
+// out (CLEAR_AUTH). The IndexedDB restore below checks it so it can never
+// overwrite a fresher identity that arrived while its reads were in flight.
+// Declared here, with the rest of the module state, so neither the restore nor
+// the `message` listener can touch it before its `let`.
+let authFromMessage = false;
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
 	const storedHs = await dbGet("homeserverUrl");
+	const storedUser = await dbGet("userId");
+	const storedDevice = await dbGet("deviceId");
+	// A SET_AUTH / CLEAR_AUTH message can land while these reads are in flight;
+	// it is by definition fresher than what IndexedDB held, so it wins.
+	// Overwriting it would leave the worker on a stale deviceId, which then
+	// fails to match the blob's — and the worker would suppress a push meant
+	// for the device that is actually running it (or resurrect an identity a
+	// logout just cleared).
+	if (authFromMessage) return;
 	if (isValidHomeserverUrl(storedHs)) {
 		accessToken = storedToken;
 		homeserverUrl = storedHs;
+		userId = asIdString(storedUser);
+		deviceId = asIdString(storedDevice);
 	}
 })();
 
@@ -58,16 +100,32 @@ self.addEventListener("message", async (event) => {
 	if (event.data?.type === "SET_AUTH") {
 		const { accessToken: token, homeserverUrl: hs } = event.data;
 		if (!isValidHomeserverUrl(hs)) return;
+		const user = asIdString(event.data.userId);
+		const device = asIdString(event.data.deviceId);
+		authFromMessage = true;
 		accessToken = token;
 		homeserverUrl = hs;
+		userId = user;
+		deviceId = device;
+		// A new identity invalidates any cached heartbeat decision.
+		activeSessionCache = { fetchedAt: 0, value: null };
 		await dbSet("accessToken", token);
 		await dbSet("homeserverUrl", hs);
+		await dbSet("userId", user);
+		await dbSet("deviceId", device);
 	} else if (event.data?.type === "CLEAR_AUTH") {
-		// Logout / session expiry — forget the token so we stop injecting it.
+		// Logout / session expiry — forget the token so we stop injecting it,
+		// and the identity so a stale device id can't silence this worker.
+		authFromMessage = true;
 		accessToken = null;
 		homeserverUrl = null;
+		userId = null;
+		deviceId = null;
+		activeSessionCache = { fetchedAt: 0, value: null };
 		await dbSet("accessToken", null);
 		await dbSet("homeserverUrl", null);
+		await dbSet("userId", null);
+		await dbSet("deviceId", null);
 	}
 });
 
@@ -231,6 +289,69 @@ async function buildNotification(data) {
 	return { title, body, icon, roomId };
 }
 
+// ── Active-session suppression ────────────────────────────────────────────
+// Hand-written mirror of shouldSuppressForActiveDevice() (plus the strict
+// parse in parseActiveSession()) from src/lib/utils/activeSession.ts — the SW
+// cannot import TypeScript, so keep the two in step. Fails open in every
+// ambiguous case: a suppression bug must never eat a notification.
+const ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
+const MAX_FUTURE_SKEW_MS = 300000;
+// Mirrors MAX_GRACE_MS in activeSession.ts: a blob past this is a bug, and
+// honouring it would mute this device indefinitely.
+const MAX_GRACE_MS = 900000;
+const ACTIVE_SESSION_CACHE_MS = 10000;
+// `activeSessionCache` is declared with the module auth state near the top of
+// this file, next to the `userId`/`deviceId` it is keyed to.
+
+async function shouldStayQuiet() {
+	try {
+		// A push can wake a stopped worker while the IndexedDB restore is still
+		// in flight; without this the identity would read as null on every cold
+		// start and suppression would never apply. A rejected authReady is
+		// caught below → notify.
+		//
+		// Bounded: openDb() has no `onblocked` handler, so a blocked upgrade can
+		// leave authReady permanently pending. Waiting forever here would hang
+		// waitUntil and show NOTHING — fail closed, the one outcome this whole
+		// check must never produce. On timeout the identity reads below are
+		// null and we notify.
+		await Promise.race([
+			authReady,
+			new Promise((resolve) => setTimeout(resolve, 3000)),
+		]);
+		if (!userId || !deviceId) return false; // don't know who we are → notify
+		const now = Date.now();
+		let blob = activeSessionCache.value;
+		// Short cache: several pushes can land in one burst; one GET covers
+		// them. A negative age means the clock jumped back — refetch rather
+		// than trust an entry stamped in the future.
+		const age = now - activeSessionCache.fetchedAt;
+		if (age > ACTIVE_SESSION_CACHE_MS || age < 0) {
+			blob = await mxGet(
+				`/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/${ACTIVE_SESSION_KEY}`,
+			);
+			activeSessionCache = { fetchedAt: now, value: blob };
+		}
+		if (!blob || typeof blob !== "object") return false;
+		const otherDevice = blob.deviceId;
+		const ts = blob.ts;
+		const graceMs = blob.graceMs;
+		if (typeof otherDevice !== "string" || !otherDevice) return false;
+		if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+		if (
+			typeof graceMs !== "number" ||
+			!Number.isFinite(graceMs) ||
+			graceMs <= 0
+		)
+			return false;
+		if (otherDevice === deviceId) return false; // it's us
+		if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
+		return now - ts < Math.min(graceMs, MAX_GRACE_MS);
+	} catch {
+		return false; // anything unexpected (IndexedDB, network) → notify
+	}
+}
+
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
@@ -253,30 +374,70 @@ self.addEventListener("push", (event) => {
 		data = {};
 	}
 
-	// counts.unread === 0 → a "clear" push; don't show anything.
-	if (data.counts && data.counts.unread === 0) return;
+	// counts.unread === 0 → a "clear" push: the server is telling us this room
+	// was read (on this device or another). Take the room's notification down
+	// instead of merely declining to post a new one — leaving it up is exactly
+	// the "I already read that" complaint this handles.
+	//
+	// The price: Chrome checks userVisibleOnly AFTER waitUntil settles and is
+	// satisfied by any visible notification, so the stale popup used to pay
+	// that bill for us. Closing it can leave zero visible notifications, which
+	// drains the push budget and may eventually earn the browser's own generic
+	// "This site has been updated in the background" notice. There is no way to
+	// both dismiss the notification and satisfy userVisibleOnly, so this is the
+	// cost of the feature, not a bug: a popup for a message the user already
+	// read is the worse outcome. This path returned without showing anything
+	// before the change too — the precedent is already here.
+	if (data.counts && data.counts.unread === 0) {
+		// Scoped to the room the push names. A clear push without a room_id
+		// tells us nothing about WHICH notification is stale, and closing all
+		// of them would hide genuinely unread rooms.
+		const clearedRoomId = data.room_id;
+		if (clearedRoomId) {
+			// The .catch() below handles a rejected lookup; this try handles a
+			// synchronous throw (getNotifications absent), which would escape
+			// past the return and abort the whole push event.
+			try {
+				event.waitUntil(
+					self.registration
+						.getNotifications({ tag: clearedRoomId })
+						.then((list) => {
+							for (const n of list) n.close();
+						})
+						.catch(() => {}),
+				);
+			} catch {
+				// Nothing we can close; fall through to the return.
+			}
+		}
+		return;
+	}
 
 	// userVisibleOnly subscriptions REQUIRE a notification per push or the
 	// browser penalises/blocks the subscription — so always show something,
 	// even if enrichment fails.
 	event.waitUntil(
-		buildNotification(data)
-			.catch(() => ({
+		(async () => {
+			// Another device is demonstrably in use → stay quiet. Checked first
+			// so none of the enrichment fetches below run when we won't show
+			// anything. Never throws; returns false on any doubt.
+			if (await shouldStayQuiet()) return;
+
+			const n = await buildNotification(data).catch(() => ({
 				title: "New message",
 				body: "You have a new message",
 				icon: "/favicon.png",
 				roomId: data.room_id,
-			}))
-			.then((n) =>
-				self.registration.showNotification(n.title, {
-					body: n.body,
-					icon: n.icon,
-					badge: "/favicon_foreground.png",
-					tag: n.roomId || undefined,
-					renotify: true,
-					data: { roomId: n.roomId },
-				}),
-			),
+			}));
+			return self.registration.showNotification(n.title, {
+				body: n.body,
+				icon: n.icon,
+				badge: "/favicon_foreground.png",
+				tag: n.roomId || undefined,
+				renotify: true,
+				data: { roomId: n.roomId },
+			});
+		})(),
 	);
 });
 

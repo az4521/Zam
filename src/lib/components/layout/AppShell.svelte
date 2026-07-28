@@ -56,6 +56,7 @@
     } from "$lib/stores/verification.svelte";
     import {
         reloadAccountSettings,
+        setActiveSessionGraceMs,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
@@ -97,14 +98,38 @@
         fetchOwnProfile,
         mxcToHttp,
         onThreadReplyEvent,
+        onDecryptedTimelineEvent,
         isThreadParticipant,
         getEventThreadRootId,
+        getOwnDeviceId,
+        publishActiveSession,
+        getActiveSessionHeartbeat,
+        type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
+    import {
+        shouldNotifyDecrypted,
+        createBoundedIdSet,
+    } from "$lib/utils/notifyDecrypted";
+    import {
+        ACTIVE_SESSION_KEY,
+        IDLE_LIMIT_MS,
+        MIN_HEARTBEAT_INTERVAL_MS,
+        heartbeatIntervalFor,
+        isDeviceInUse,
+        normalizeGraceMs,
+        shouldSuppressForActiveDevice,
+        shouldWriteHeartbeat,
+    } from "$lib/utils/activeSession";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
+    import {
+        notificationsToClose,
+        appendPostedEventId,
+        type PostedNotificationEntry,
+    } from "$lib/utils/notificationDismiss";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -359,6 +384,99 @@
         return false;
     }
 
+    // ── Active-session heartbeat ──────────────────────────────────────────
+    // While this window is focused we publish "this device is in use" to
+    // account data; the user's OTHER devices read it and stay quiet for
+    // `graceMs`. Deliberately NOT an $effect — this is an SDK write, and SDK
+    // writes inside tracked effects have deadlocked this app before.
+    let lastHeartbeatWriteTs: number | null = null;
+
+    // When the user last actually did something here. Plain `let`, like the
+    // write stamp above: it feeds an SDK write, and making an SDK call's
+    // inputs reactive is exactly the pattern that has deadlocked this app.
+    // Seeded at mount (opening the app is an interaction) and bumped by the
+    // passive input listeners registered there.
+    let lastInputTs: number | null = null;
+
+    // The account's newest heartbeat, refreshed from sync. Plain `let`: it is
+    // read from notification callbacks, never from a tracked scope, and
+    // nothing in the markup renders it.
+    let activeSessionHeartbeat: ActiveSessionHeartbeat | null = null;
+
+    function maybeWriteHeartbeat() {
+        // publishActiveSession() silently no-ops before login (no client / no
+        // device id). Bail here instead, so we don't stamp a write that never
+        // happened and then sit out a whole interval.
+        if (!getOwnDeviceId()) return;
+        const grace = normalizeGraceMs(settingsState.activeSessionGraceMs);
+        // Off: nothing to claim, and the blob's own persisted graceMs: 0 is
+        // what tells the other devices the feature is off — so a periodic
+        // re-PUT buys nothing. Task 6 publishes explicitly when the setting
+        // changes, which is what actually propagates a change.
+        if (grace <= 0) return;
+        if (
+            !shouldWriteHeartbeat({
+                lastWriteTs: lastHeartbeatWriteTs,
+                now: Date.now(),
+                // Focus alone is not enough to claim the account: a focused
+                // window whose owner walked away (or whose screen locked
+                // without blurring, as on macOS and some Windows paths) would
+                // keep republishing for hours and silence the phone — which
+                // has no inbox to fall back on. Require recent input too.
+                hasFocus: isDeviceInUse({
+                    hasFocus: document.hasFocus(),
+                    lastInputTs,
+                    now: Date.now(),
+                    idleLimitMs: IDLE_LIMIT_MS,
+                }),
+                // NOT the bare HEARTBEAT_INTERVAL_MS constant: a 15s grace
+                // needs a faster refresh than 30s or the blob expires while
+                // the device is still in use and suppression flaps.
+                intervalMs: heartbeatIntervalFor(grace),
+            })
+        )
+            return;
+        lastHeartbeatWriteTs = Date.now();
+        // Fire-and-forget: a failed heartbeat just means other devices keep
+        // notifying, which is the safe direction. The `false` return (write
+        // skipped) is likewise nothing to act on here — the getOwnDeviceId()
+        // guard above already covers it, and Settings is where a skipped write
+        // actually needs reporting.
+        void publishActiveSession(grace).catch(() => {});
+    }
+
+    // roomId → the live OS notification for that room, plus the events it has
+    // covered. Message notifications are tagged per ROOM (not per event, as
+    // they were), so a room shows one collapsing notification and closing it
+    // when the user reads elsewhere is a single lookup. Same shape as
+    // `notifiedCalls` below. A plain Map on purpose: it is read from
+    // notification callbacks and from an $effect, and making it reactive
+    // would turn a close() into a dependency of the effect that triggers it.
+    const postedRoomNotifications = new Map<
+        string,
+        { notification: Notification; eventIds: string[] }
+    >();
+
+    /** Snapshot for the pure rule — the Map itself never leaves this file. */
+    function postedEntries(): PostedNotificationEntry[] {
+        return [...postedRoomNotifications.entries()].map(
+            ([roomId, entry]) => ({ roomId, eventIds: entry.eventIds }),
+        );
+    }
+
+    function closeRoomNotifications(roomIds: readonly string[]) {
+        for (const roomId of roomIds) {
+            const entry = postedRoomNotifications.get(roomId);
+            if (!entry) continue;
+            postedRoomNotifications.delete(roomId);
+            try {
+                entry.notification.close();
+            } catch {
+                /* already gone — nothing to do */
+            }
+        }
+    }
+
     // Show an OS desktop notification via the Web Notification API. Works in the
     // browser and in Electron (which maps it to a native notification) with no
     // push service. Suppressed when the user is already viewing that room in a
@@ -380,29 +498,72 @@
         )
             return;
         const sender = getMemberName(room, event.getSender() ?? "");
+        const eventId = event.getId();
         try {
             const n = new Notification(getRoomDisplayName(room), {
                 body: body ? `${sender}: ${body}` : `${sender} sent a message`,
                 icon: "/favicon.png",
                 badge: "/favicon_foreground.png",
-                tag: event.getId() ?? undefined,
-            });
+                // Per ROOM, not per event: a room shows one collapsing
+                // notification instead of a growing stack, and "close what
+                // they've now read" becomes one lookup. `renotify` keeps the
+                // OS alerting on each replacement, which is what a per-event
+                // tag used to give for free. It is a persistent-notification
+                // option, so TypeScript's NotificationOptions omits it —
+                // browsers that don't honour it simply replace silently. The
+                // cast spells out the one extra key instead of asserting to
+                // the bare type, so what we are adding stays visible here
+                // rather than looking like an unexplained cast.
+                tag: `room:${room.roomId}`,
+                renotify: true,
+            } as NotificationOptions & { renotify?: boolean });
             n.onclick = () => {
                 // window.focus() alone cannot un-hide a tray-hidden Electron
                 // window; restoreAppWindow() prefers the preload bridge.
                 restoreAppWindow();
                 navigateToRoom(room.roomId);
             };
+            // The user dismissing it themselves must drop it from the map, or
+            // a later close() would target a dead notification forever.
+            n.onclose = () => {
+                if (
+                    postedRoomNotifications.get(room.roomId)?.notification === n
+                )
+                    postedRoomNotifications.delete(room.roomId);
+            };
+            const previous = postedRoomNotifications.get(room.roomId);
+            postedRoomNotifications.set(room.roomId, {
+                notification: n,
+                eventIds: eventId
+                    ? appendPostedEventId(previous?.eventIds ?? [], eventId)
+                    : (previous?.eventIds ?? []),
+            });
         } catch {
             /* notifications unsupported / blocked — ignore */
         }
     }
 
+    // Event ids this shell has already put through the notification path.
+    // Encrypted messages notify from a second subscription (on decryption), and
+    // this is what stops one message notifying twice when both paths see it —
+    // e.g. with the showAllEvents debug setting on, where the ciphertext is
+    // forwarded to the main path before it decrypts. Bounded so a long session
+    // cannot leak.
+    const notifiedEventIds = createBoundedIdSet();
+
     // Shared notification emission for both the main-timeline and thread-reply
     // paths (one rule set, not two). Assumes the caller already applied its
     // own gate (push actions + own-event + participant/mention). `loud` drives
     // the ping + red-dot badge; silent notifications still populate the inbox.
-    function emitNotification(event: MatrixEvent, room: Room, loud: boolean) {
+    // `live` drives the sound + desktop popup; it defaults to "the initial sync
+    // has finished", and the decrypted path overrides it because decryption of
+    // the page-load backlog routinely resolves *after* sync PREPARED.
+    function emitNotification(
+        event: MatrixEvent,
+        room: Room,
+        loud: boolean,
+        live: boolean = isInitialSyncComplete(),
+    ) {
         const content = event.getContent() as any;
         // Extensible events (e.g. polls) carry their text fallback in the
         // MSC1767 key instead of body.
@@ -416,14 +577,34 @@
         // show a generic "🔒 Encrypted message" line instead of an empty one.
         const body = previewForEvent(event.getType(), rawBody);
 
-        // Alerts (sound + desktop popup) fire only for events that arrive live,
-        // never for the backlog replayed during the initial sync on page load.
-        const live = isInitialSyncComplete();
+        // Another device of this account is demonstrably in use right now →
+        // stay quiet here. The local setting is checked FIRST and is
+        // authoritative: whatever the blob says, a user who turned this off
+        // on THIS device must never be silenced by it. The inbox row below
+        // is still recorded either way — the message IS unread here, we
+        // simply don't interrupt.
+        const localGrace = normalizeGraceMs(settingsState.activeSessionGraceMs);
+        // ...unless THIS device published its own heartbeat inside the same
+        // window. Whoever wrote last owns the blob, so with two devices in use
+        // the one you are typing on would otherwise go quiet until its next
+        // write — roughly half the time. "The device I'm using never goes
+        // quiet" should hold structurally, not by luck of timing.
+        const iAmAlsoActive =
+            lastHeartbeatWriteTs !== null &&
+            Date.now() - lastHeartbeatWriteTs < localGrace;
+        const quietForOtherDevice =
+            localGrace > 0 &&
+            !iAmAlsoActive &&
+            shouldSuppressForActiveDevice({
+                heartbeat: activeSessionHeartbeat,
+                myDeviceId: getOwnDeviceId(),
+                now: Date.now(),
+            });
 
         if (loud) {
             const soundEnabled =
                 localStorage.getItem("notifSoundEnabled") !== "false";
-            if (live && soundEnabled) {
+            if (live && soundEnabled && !quietForOtherDevice) {
                 playPing();
             }
         }
@@ -438,9 +619,12 @@
             body,
             loud,
         });
+        const notifiedId = event.getId();
+        if (notifiedId) notifiedEventIds.add(notifiedId);
 
         // Any notifying event also pops a desktop notification.
-        if (live) showDesktopNotification(event, room, body);
+        if (live && !quietForOtherDevice)
+            showDesktopNotification(event, room, body);
     }
 
     // Incoming DM calls get their own notification and suppression rule: the
@@ -504,6 +688,47 @@
                 notifiedCalls.get(roomId)?.close();
                 notifiedCalls.delete(roomId);
             }
+    });
+
+    // Opening a room is reading it: drop its notification without waiting for
+    // the read receipt to round-trip.
+    //
+    // This is the ONE branch that closes a notification with no read proof, so
+    // it has to be at least as strict as the branch that decides not to POST
+    // one (see showDesktopNotification) — closing an unread popup hides a
+    // message, while failing to close one is merely untidy. Hence the guards:
+    //
+    //   - activeRoomId is NOT "the room on screen". setActiveSpace() assigns it
+    //     from getLastRoom(spaceId), i.e. a value read back out of localStorage,
+    //     so merely clicking a space in the sidebar restores that space's
+    //     last-opened room id without ever rendering its timeline.
+    //   - showInbox renders InboxPanel *instead of* the active room, and
+    //     setActiveSpace() does not clear it — so the two can be true at once.
+    //   - callViewRoomId renders CallView over the same slot; the messages are
+    //     not on screen there either.
+    //
+    // Both guards mirror the {#if} chain in the markup below. Do not "simplify"
+    // them away: without them, a space switch from the Inbox silently dismisses
+    // a notification for a room the user never looked at.
+    //
+    // Deliberately NOT gated on document.hasFocus(): clicking a notification
+    // calls navigateToRoom, and this effect can run before focus lands.
+    //
+    // Safe in a tracked effect — every read is a plain reactive store field,
+    // and closeRoomNotifications touches a plain Map and the Notification API,
+    // never the SDK.
+    $effect(() => {
+        const openRoomId = roomsState.activeRoomId;
+        if (!openRoomId) return;
+        if (roomsState.showInbox) return;
+        if (interfaceState.callViewRoomId === openRoomId) return;
+        closeRoomNotifications(
+            notificationsToClose({
+                posted: postedEntries(),
+                readEventIds: new Set<string>(),
+                openRoomId,
+            }),
+        );
     });
 
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -588,14 +813,60 @@
         if (client) initWebPush(client).catch(console.error);
 
         // Mirror the session natively so the push service can enrich
-        // notifications (off-native this is a no-op).
+        // notifications and read the active-session blob (off-native this is a
+        // no-op). The device id is passed but NOT part of the guard: without it
+        // the native service simply never suppresses, whereas dropping the
+        // whole mirror would also break notification enrichment.
         if (auth.homeserverUrl && auth.accessToken && auth.userId) {
             syncNativeSession({
                 homeserverUrl: auth.homeserverUrl,
                 accessToken: auth.accessToken,
                 userId: auth.userId,
+                deviceId: auth.deviceId,
             }).catch(() => {});
         }
+
+        // Seed the reader from whatever already synced: the blob usually
+        // arrives before this shell mounts, and onAccountData only fires on
+        // the NEXT change — without this seed the first minutes of a session
+        // would notify loudly for a device that is plainly in use. Also
+        // adopts the grace, since the blob carries the account-wide setting.
+        activeSessionHeartbeat = getActiveSessionHeartbeat();
+        if (activeSessionHeartbeat)
+            setActiveSessionGraceMs(
+                normalizeGraceMs(activeSessionHeartbeat.graceMs),
+            );
+
+        // Publish the heartbeat now (if focused), on every focus gain, and on
+        // a cheap fixed tick. The TICK is deliberately shorter than any write
+        // interval — maybeWriteHeartbeat() no-ops until the grace-derived
+        // interval has actually elapsed, so the effective write rate follows
+        // the user's current setting without re-creating the timer.
+        // Opening the app is itself an interaction — without this seed the
+        // first heartbeat could never be written (isDeviceInUse treats a null
+        // stamp as "idle").
+        lastInputTs = Date.now();
+        // Passive listeners: they only stamp a number, so they must never
+        // block scrolling or typing.
+        const onUserInput = () => {
+            lastInputTs = Date.now();
+        };
+        const inputEvents = [
+            "pointerdown",
+            "keydown",
+            "wheel",
+            "touchstart",
+        ] as const;
+        for (const type of inputEvents)
+            window.addEventListener(type, onUserInput, { passive: true });
+
+        maybeWriteHeartbeat();
+        const onWindowFocus = () => maybeWriteHeartbeat();
+        window.addEventListener("focus", onWindowFocus);
+        const heartbeatTimer = window.setInterval(
+            maybeWriteHeartbeat,
+            MIN_HEARTBEAT_INTERVAL_MS,
+        );
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
@@ -656,6 +927,45 @@
             emitNotification(event, room, loud);
         });
 
+        // Encrypted messages arrive as m.room.encrypted, which onTimelineEvent
+        // filters out — so they only become notifiable once they decrypt. Same
+        // gate chain as above, re-run at that point.
+        const unsubDecryptedNotify = onDecryptedTimelineEvent(
+            (event, room, meta) => {
+                bumpUnreadTick();
+                const eventId = event.getId();
+                // The SDK caches push actions against the ciphertext envelope
+                // during sync, so they MUST be recalculated now that the
+                // cleartext body and mentions are readable — otherwise a
+                // mention never highlights and the room's mute rule is applied
+                // to the wrong content.
+                const actions = getClient()?.getPushActionsForEvent(
+                    event,
+                    true,
+                );
+                if (
+                    !shouldNotifyDecrypted({
+                        eventId,
+                        alreadyNotified:
+                            !!eventId && notifiedEventIds.has(eventId),
+                        isLiveAppend: meta.isLiveAppend,
+                        isOwnEvent: event.getSender() === getOwnUserId(),
+                        threadRootId: getEventThreadRootId(event),
+                        pushNotify: !!actions?.notify,
+                    })
+                )
+                    return;
+
+                const loud = !!(actions?.tweaks as any)?.sound;
+                emitNotification(
+                    event,
+                    room,
+                    loud,
+                    !meta.arrivedDuringInitialSync,
+                );
+            },
+        );
+
         // Thread replies are diverted off the main timeline (onTimelineEvent
         // filters them), so they need their own path into the notification
         // machinery. Gate: notify (push/mute rules) AND participant-or-mentioned
@@ -696,6 +1006,28 @@
             for (const room of client.getRooms()) {
                 clearReadNotifications(room, userId);
             }
+            // …and take the OS notifications down too. A receipt from ANY of
+            // the user's devices lands here, which is the whole point: read it
+            // on your phone, the desktop popup goes away.
+            const readEventIds = new Set<string>();
+            for (const [roomId, entry] of postedRoomNotifications) {
+                const room = getRoom(roomId);
+                if (!room) continue;
+                for (const id of entry.eventIds) {
+                    try {
+                        if (room.hasUserReadEvent(userId, id))
+                            readEventIds.add(id);
+                    } catch {
+                        /* event unknown to the room → treat as unread */
+                    }
+                }
+            }
+            closeRoomNotifications(
+                notificationsToClose({
+                    posted: postedEntries(),
+                    readEventIds,
+                }),
+            );
         });
         reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
@@ -728,6 +1060,21 @@
                 type === "im.client.space_order"
             )
                 refreshRooms();
+            if (type === ACTIVE_SESSION_KEY) {
+                activeSessionHeartbeat = getActiveSessionHeartbeat();
+                // The blob is the source of truth for the setting too, so a
+                // change made on another device lands here. Only write when
+                // the value actually differs: a focused peer republishes the
+                // same grace every 30s, and each of those would otherwise be
+                // a pointless localStorage write, forever.
+                if (activeSessionHeartbeat) {
+                    const remoteGrace = normalizeGraceMs(
+                        activeSessionHeartbeat.graceMs,
+                    );
+                    if (remoteGrace !== settingsState.activeSessionGraceMs)
+                        setActiveSessionGraceMs(remoteGrace);
+                }
+            }
         });
 
         // ── Back button ───────────────────────────────────────────────────
@@ -765,6 +1112,7 @@
         return () => {
             unsubRooms();
             unsubTimeline();
+            unsubDecryptedNotify();
             unsubThreadNotify();
             unsubReceipts();
             unsubFavourites();
@@ -780,6 +1128,10 @@
             mq.removeEventListener("change", onMqChange);
             pq.removeEventListener("change", onPqHqChange);
             hq.removeEventListener("change", onPqHqChange);
+            window.removeEventListener("focus", onWindowFocus);
+            for (const type of inputEvents)
+                window.removeEventListener(type, onUserInput);
+            window.clearInterval(heartbeatTimer);
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
