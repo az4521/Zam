@@ -6113,6 +6113,10 @@ let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
 let desiredMicMuted = false;
+// Whether the user currently wants the camera on. Intent, not LiveKit state:
+// turning the camera off only MUTES the publication, so "is a camera track
+// published" cannot answer this — see ensureVoiceDeviceWatch.
+let desiredCameraOn = false;
 
 // Output routing/volume for every tracked <audio> element. Captured from
 // settings at join (account switches reload the page and re-read).
@@ -6172,10 +6176,11 @@ function applyVoiceSink(el: HTMLAudioElement): void {
     void sinkEl.setSinkId?.(voiceOutputDeviceId ?? "").catch(() => {});
 }
 
-// Mid-call input unplug: on a track ending LiveKit restarts the mic against
-// `deviceId: "default"` but restarts the camera against the SAME (now absent)
-// device and then mutes it (livekit-client 2.20.1 `handleTrackEnded`), so the
-// mic notice can promise a fallback and the camera notice cannot.
+// Mid-call input unplug: on a track ending (livekit-client 2.20.1
+// `handleTrackEnded`) LiveKit restarts the mic against `deviceId: "default"`,
+// but restarts the camera against its existing NON-exact constraints — so the
+// camera either lands on some other camera or fails and mutes. Hence the mic
+// notice can promise a fallback and the camera notice cannot.
 // One notice per kind per call.
 let voiceDeviceWatchStop: (() => void) | null = null;
 let audioInputGoneNotified: ActiveVoiceCall | null = null;
@@ -6189,10 +6194,16 @@ const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
 /** The camera's REAL capture device, read off the live publication rather than
  *  `settingsState.videoInputDeviceId`: `setCameraEnabled` passes that id as a
  *  non-exact constraint, so the browser may have substituted another camera
- *  and warning about the saved one would be a phantom. Null when no camera is
- *  published — which is also how "the camera is off" reaches the util.
+ *  and warning about the saved one would be a phantom.
+ *
  *  Deliberately NOT `isCameraEnabled`: that is `!isMuted`, and the unplug we
- *  are trying to report is exactly what makes LiveKit mute the track. */
+ *  are trying to report is exactly what makes LiveKit mute the track. The
+ *  publication and its stopped MediaStreamTrack outlive that mute, which is
+ *  what keeps the id readable — but it also means a non-null answer does NOT
+ *  mean the camera is on, so callers gate on `desiredCameraOn` first.
+ *
+ *  Null when nothing was ever published, or if an engine ever stops reporting
+ *  `deviceId` for a stopped track — both fail quiet (no notice). */
 function activeCameraDeviceId(call: ActiveVoiceCall): string | null {
     const track = call.lkRoom.localParticipant.getTrackPublication(
         LivekitTrack.Source.Camera,
@@ -6206,9 +6217,10 @@ function ensureVoiceDeviceWatch(): void {
     const onChange = async () => {
         const call = activeVoice;
         if (!call) return;
-        // Snapshot before the await: LiveKit reacts to the same unplug and
-        // will have torn the camera track down by the time we resume.
-        const cameraId = activeCameraDeviceId(call);
+        // Snapshot before the await: LiveKit reacts to the same unplug, and
+        // with a second camera present its restart succeeds onto that one —
+        // reading afterwards would find a present device and stay silent.
+        const cameraId = desiredCameraOn ? activeCameraDeviceId(call) : null;
         // null (not []) on failure: an empty list means "nothing is plugged
         // in", a rejection means "we do not know" — see voiceDeviceNotices.
         const devices = await navigator.mediaDevices
@@ -6492,6 +6504,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     activeVoice = call;
     ensureVoiceDeviceWatch();
     desiredMicMuted = false;
+    desiredCameraOn = false;
     notifyVoiceConnState("connecting");
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
@@ -6820,6 +6833,7 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         await call.lkRoom.localParticipant.setCameraEnabled(on, {
             deviceId: settingsState.videoInputDeviceId ?? undefined,
         });
+        if (activeVoice === call) desiredCameraOn = on;
         return on;
     } catch (err) {
         console.error("Camera enable failed:", err);

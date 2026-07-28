@@ -59,7 +59,7 @@ describe("voiceDeviceNotices", () => {
         expect(voiceDeviceNotices({ ...base, devices: null })).toEqual([]);
     });
 
-    it("ignores video when no camera is publishing (null id)", () => {
+    it("ignores video when the camera is off (null id)", () => {
         expect(
             voiceDeviceNotices({ ...base, videoInputId: null, devices: [] }),
         ).toEqual(["audioinput"]);

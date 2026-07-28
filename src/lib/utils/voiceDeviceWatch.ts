@@ -6,7 +6,7 @@
  * Each kind is identified by the device id actually IN USE, which the caller
  * resolves — null means "nothing to lose": no device was chosen (we are on the
  * system default and the browser gives us no id to compare against), or, for
- * video, no camera is being published at all. A null id therefore never
+ * video, the user does not want a camera right now. A null id therefore never
  * produces a notice.
  */
 
@@ -25,7 +25,8 @@ export interface VoiceDeviceWatchInput {
     devices: EnumeratedDevice[] | null;
     /** Device id the call's microphone is using, or null. */
     audioInputId: string | null;
-    /** Device id the call's camera is using, or null when it is not on. */
+    /** Device id the call's camera is using — null when the user does not
+     *  currently want a camera, which is how "camera off" reaches us. */
     videoInputId: string | null;
     /** Already warned about this kind during the current call. */
     audioNotified: boolean;

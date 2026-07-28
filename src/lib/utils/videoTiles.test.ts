@@ -141,6 +141,9 @@ describe("screenShareSupportedHere", () => {
             configurable: true,
         });
     afterEach(() => {
+        // First — a failing expect() skips any cleanup left in a test body,
+        // and every line below dereferences globalThis.navigator.
+        vi.unstubAllGlobals();
         if (original)
             Object.defineProperty(
                 globalThis.navigator,
@@ -173,7 +176,7 @@ describe("screenShareSupportedHere", () => {
         // `typeof x` is "undefined" for a bound-but-undefined global too, so
         // this really does take the typeof arm rather than the optional chain.
         vi.stubGlobal("navigator", undefined);
+        expect(typeof navigator).toBe("undefined"); // prove the stub landed
         expect(screenShareSupportedHere()).toBe(false);
-        vi.unstubAllGlobals();
     });
 });
