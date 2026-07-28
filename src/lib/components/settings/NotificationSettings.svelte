@@ -328,9 +328,9 @@
                     Hide message text in notifications
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Notifications on this device say "someone sent a message"
-                    instead of showing what they wrote. The room name is still
-                    shown. Applies to this device only.
+                    Notifications on this device say who messaged you, but not
+                    what they said. The sender and room names are still shown.
+                    Applies to this device only.
                 </p>
             </div>
             <ToggleSwitch
