@@ -5,6 +5,7 @@
         mapLinkFor,
         googleMapsLinkFor,
     } from "$lib/utils/location";
+    import { ExternalLink } from "lucide-svelte";
     import LocationMap, {
         type MapMarkerInput,
     } from "$lib/components/ui/LocationMap.svelte";
@@ -104,15 +105,15 @@
                         href={mapLinkFor(coords.lat, coords.lon)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-xs text-discord-accent hover:underline"
-                        >OpenStreetMap ↗</a
+                        class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
+                        >OpenStreetMap <ExternalLink size={14} /></a
                     >
                     <a
                         href={googleMapsLinkFor(coords.lat, coords.lon)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-xs text-discord-accent hover:underline"
-                        >Google Maps ↗</a
+                        class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
+                        >Google Maps <ExternalLink size={14} /></a
                     >
                 </div>
             </div>

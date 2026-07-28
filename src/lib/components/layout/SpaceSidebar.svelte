@@ -4,6 +4,7 @@
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
+    import { Circle } from "lucide-svelte";
     import {
         getRoomAvatar,
         getRoomDisplayName,
@@ -1531,11 +1532,15 @@
                                 cm.spaceId,
                                 val as RoomNotificationSetting,
                             )}
+                        aria-pressed={currentNotif === val}
                         class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
                     >
-                        <span class="w-3 text-center text-xs"
-                            >{currentNotif === val ? "●" : ""}</span
-                        >
+                        <span class="w-3 flex items-center justify-center">
+                            {#if currentNotif === val}<Circle
+                                    size={8}
+                                    fill="currentColor"
+                                />{/if}
+                        </span>
                         {label}
                     </button>
                 {/each}

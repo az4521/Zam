@@ -423,7 +423,7 @@
             {:else}
                 <div class="mt-6 flex flex-col items-center text-center gap-3">
                     <Loader2
-                        size={28}
+                        size={32}
                         class="animate-spin text-discord-accent"
                     />
                     <p class="text-sm text-discord-textSecondary">

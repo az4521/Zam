@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Room } from "matrix-js-sdk";
+    import { LocateFixed, ChevronRight } from "lucide-svelte";
     import {
         getRoomBeacons,
         getOwnUserId,
@@ -88,7 +89,7 @@
             onclick={() => (mapOpen = true)}
             class="flex w-full items-center gap-2 px-4 py-2 text-sm text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
         >
-            <span class="text-discord-accent">⦿</span>
+            <LocateFixed size={16} class="text-discord-accent flex-shrink-0" />
             {#if others.length === 1}
                 <span
                     >{getMemberName(room, others[0].beaconInfoOwner)} is sharing live
@@ -97,7 +98,11 @@
             {:else}
                 <span>{others.length} people sharing live location</span>
             {/if}
-            <span class="ml-auto text-xs text-discord-accent">View map ›</span>
+            <span
+                class="ml-auto text-xs text-discord-accent flex items-center gap-0.5"
+            >
+                View map <ChevronRight size={14} />
+            </span>
         </button>
     </div>
 {/if}

@@ -2,6 +2,7 @@
     import { searchUserDirectory, getOwnServerName } from "$lib/matrix/client";
     import type { UserSearchResult } from "$lib/matrix/client";
     import { isValidUserId, debounce } from "$lib/utils/userSearch";
+    import { X } from "lucide-svelte";
     import Avatar from "./Avatar.svelte";
 
     let {
@@ -127,9 +128,11 @@
                     {userId}
                     <button
                         onclick={() => remove(userId)}
-                        class="text-discord-textMuted hover:text-discord-textPrimary"
-                        aria-label="Remove {userId}">×</button
+                        class="text-discord-textMuted hover:text-discord-textPrimary flex items-center"
+                        aria-label="Remove {userId}"
                     >
+                        <X size={14} />
+                    </button>
                 </span>
             {/each}
         </div>

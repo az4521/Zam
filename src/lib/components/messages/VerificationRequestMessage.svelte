@@ -51,7 +51,7 @@
     <div
         class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-discord-accent/20"
     >
-        <ShieldQuestion size={18} class="text-discord-accent" />
+        <ShieldQuestion size={20} class="text-discord-accent" />
     </div>
     <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium text-discord-textPrimary">

@@ -339,6 +339,18 @@ body {
     margin: 0.25rem 0;
 }
 
+/* Twemoji images inside room/space names (sidebar rows, invite cards, room
+   header). Deliberately smaller than the message-body .twemoji rule: a name
+   sits on a single dense row. Defined here, not in a component <style>, so it
+   does not depend on which components happen to be mounted. */
+.name-twemoji {
+    height: 1.1em;
+    width: 1.1em;
+    vertical-align: -0.2em;
+    display: inline-block;
+    object-fit: contain;
+}
+
 /* Focus styles */
 :focus-visible {
     outline: 2px solid var(--discord-accent);

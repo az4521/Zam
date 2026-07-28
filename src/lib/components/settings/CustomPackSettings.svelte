@@ -15,6 +15,7 @@
         validateEmojiShortcode,
         type ImageUsage,
     } from "$lib/matrix/client";
+    import { X } from "lucide-svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
 
     type PackKind = "emotes" | "emojis" | "stickers";
@@ -298,7 +299,7 @@
                     class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
                     title={`Remove ${singular.toLowerCase()}`}
                 >
-                    <span aria-hidden="true">×</span>
+                    <X size={14} aria-hidden="true" />
                 </button>
             </div>
         {/each}

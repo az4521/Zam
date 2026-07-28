@@ -78,6 +78,7 @@
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
     import { daySeparator } from "$lib/utils/timeFormat";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
@@ -90,6 +91,7 @@
         Volume2,
         Lock,
         UserPlus,
+        Hash,
         MoreHorizontal,
     } from "lucide-svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
@@ -1160,9 +1162,7 @@
                     {/if}
                 </button>
             {/if}
-            <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
-                >#</span
-            >
+            <Hash size={20} class="text-discord-textMuted flex-shrink-0" />
             <!-- 5rem floor below md only: the header's buttons cannot shrink, so
                  without a floor the name and topic each get a proportional share of
                  the deficit at 412px and neither renders even an ellipsis. Above md
@@ -1172,7 +1172,7 @@
                 class="font-semibold text-discord-textPrimary min-w-[5rem] md:min-w-0 truncate"
                 title={roomName}
             >
-                {roomName}
+                {@html renderPlainTextWithTwemoji(roomName)}
             </h2>
             {#if roomEncrypted}
                 <span
@@ -1180,7 +1180,7 @@
                     title="Encryption enabled"
                     aria-label="Encryption enabled"
                 >
-                    <Lock class="w-4 h-4" />
+                    <Lock size={16} />
                 </span>
             {/if}
             {#if topic}
@@ -1387,10 +1387,14 @@
                     <h3
                         class="text-2xl font-bold text-discord-textPrimary mb-1"
                     >
-                        Welcome to #{roomName}!
+                        Welcome to #{@html renderPlainTextWithTwemoji(
+                            roomName,
+                        )}!
                     </h3>
                     <p class="text-discord-textMuted">
-                        This is the beginning of the #{roomName} room.
+                        This is the beginning of the #{@html renderPlainTextWithTwemoji(
+                            roomName,
+                        )} room.
                     </p>
                 </div>
             {/if}

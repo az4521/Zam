@@ -1164,7 +1164,7 @@
             <div
                 class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
             >
-                <Lock class="w-3.5 h-3.5 flex-shrink-0" />
+                <Lock size={14} class="flex-shrink-0" />
                 <span>{UTD_PLACEHOLDER_TEXT}</span>
             </div>
         {:else if eventType === "m.sticker"}

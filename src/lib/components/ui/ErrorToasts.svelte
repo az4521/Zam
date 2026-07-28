@@ -1,5 +1,6 @@
 <script lang="ts">
     import { fly } from "svelte/transition";
+    import { X } from "lucide-svelte";
     import { toastsState, dismissToast } from "$lib/stores/toasts.svelte";
 </script>
 
@@ -19,7 +20,7 @@
                     onclick={() => dismissToast(toast.id)}
                     aria-label="Dismiss"
                 >
-                    ✕
+                    <X size={16} />
                 </button>
             </div>
         {/each}

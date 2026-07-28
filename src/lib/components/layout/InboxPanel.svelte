@@ -10,6 +10,7 @@
         getInviteSender,
     } from "$lib/matrix/client";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
 
     interface Props {
         isMobile?: boolean;
@@ -122,7 +123,9 @@
                             <p
                                 class="font-semibold text-discord-textPrimary truncate"
                             >
-                                {getRoomDisplayName(room)}
+                                {@html renderPlainTextWithTwemoji(
+                                    getRoomDisplayName(room),
+                                )}
                             </p>
                             {#if sender}
                                 <p class="text-xs text-discord-textMuted">
@@ -182,7 +185,9 @@
                                 <p
                                     class="font-semibold text-discord-textPrimary truncate"
                                 >
-                                    {getRoomDisplayName(room)}
+                                    {@html renderPlainTextWithTwemoji(
+                                        getRoomDisplayName(room),
+                                    )}
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
                                     You asked to join — waiting for someone to

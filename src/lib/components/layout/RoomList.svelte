@@ -45,7 +45,13 @@
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { MicOff, GripVertical, Video } from "lucide-svelte";
+    import {
+        MicOff,
+        GripVertical,
+        Video,
+        Hash,
+        Circle,
+    } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -61,6 +67,7 @@
         TAG_LOWPRIORITY,
     } from "$lib/utils/roomOrdering";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         roomsState,
         setActiveRoom,
@@ -850,7 +857,7 @@
                             </span>
                             {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                 <MicOff
-                                    size={12}
+                                    size={14}
                                     class="flex-shrink-0 text-discord-danger"
                                 />
                             {/if}
@@ -940,16 +947,19 @@
                             </span>
                         {:else}
                             <span
-                                class="w-5 h-5 opacity-70 font-semibold flex items-center justify-center text-[0.8rem]"
-                                >#</span
+                                class="w-5 h-5 opacity-70 flex items-center justify-center"
                             >
+                                <Hash size={14} />
+                            </span>
                         {/if}
                     </div>
                     <!-- Tick dependency: names change by in-place Room
                          mutation (late-seeded state, renames). -->
                     <span class="flex-1 text-sm truncate"
-                        >{(void roomsState.roomsTick,
-                        getRoomDisplayName(room))}</span
+                        >{@html renderPlainTextWithTwemoji(
+                            (void roomsState.roomsTick,
+                            getRoomDisplayName(room)),
+                        )}</span
                     >
                     {#if highlight && !isActive}
                         <span
@@ -1081,7 +1091,9 @@
                             <p
                                 class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                             >
-                                {space.name}
+                                {@html renderPlainTextWithTwemoji(
+                                    space.name ?? "",
+                                )}
                             </p>
                             {#if space.numMembers > 0}
                                 <p
@@ -1109,16 +1121,19 @@
                     >
                         <!-- Channel icon -->
                         <span
-                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 font-semibold flex items-center justify-center"
-                            >#</span
+                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
                         >
+                            <Hash size={14} />
+                        </span>
 
                         <!-- Name + member count -->
                         <div class="flex-1 min-w-0">
                             <p
                                 class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                             >
-                                {room.name}
+                                {@html renderPlainTextWithTwemoji(
+                                    room.name ?? "",
+                                )}
                             </p>
                             {#if room.numMembers > 0}
                                 <p
@@ -1316,7 +1331,9 @@
                                     {/if}
                                 </div>
                                 <span class="flex-1 text-sm truncate"
-                                    >{getRoomDisplayName(room)}</span
+                                    >{@html renderPlainTextWithTwemoji(
+                                        getRoomDisplayName(room),
+                                    )}</span
                                 >
                                 {#if highlight && !isActive}
                                     <span
@@ -1465,14 +1482,18 @@
             {#each [["default", "Default"], ["all", "All Messages"], ["mentions", "Mentions Only"], ["mute", "Mute"]] as const as [val, label]}
                 <button
                     onclick={() => handleSetNotification(cm.roomId, val)}
+                    aria-pressed={currentSetting === val}
                     class="w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
                     class:text-discord-textPrimary={currentSetting === val}
                     class:text-discord-textSecondary={currentSetting !== val}
                     class:hover:bg-discord-messageHover={true}
                 >
-                    <span class="w-3 text-center text-xs"
-                        >{currentSetting === val ? "●" : ""}</span
-                    >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if currentSetting === val}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
                     {label}
                 </button>
             {/each}
@@ -1483,14 +1504,18 @@
             {#each [["favourite", "Favourite"], ["lowPriority", "Low Priority"]] as const as [kind, label]}
                 <button
                     onclick={() => handleToggleTag(cm.roomId, kind)}
+                    aria-pressed={activeTagKind === kind}
                     class="w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
                     class:text-discord-textPrimary={activeTagKind === kind}
                     class:text-discord-textSecondary={activeTagKind !== kind}
                     class:hover:bg-discord-messageHover={true}
                 >
-                    <span class="w-3 text-center text-xs"
-                        >{activeTagKind === kind ? "●" : ""}</span
-                    >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if activeTagKind === kind}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
                     {label}
                 </button>
             {/each}
@@ -1509,7 +1534,9 @@
                         onclick={() =>
                             handleAddToSpace(cm.roomId, space.roomId)}
                         class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors truncate"
-                        >{getSpaceName(space)}</button
+                        >{@html renderPlainTextWithTwemoji(
+                            getSpaceName(space),
+                        )}</button
                     >
                 {/each}
             {/if}
