@@ -3554,11 +3554,28 @@ export async function fetchRoomMediaPage(
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
+    const roomId = event.getRoomId();
+    const eventId = event.getId();
+    if (!roomId || !eventId) return;
+
+    // Idempotence guard, same law as markThreadRead: the SDK SYNCHRONOUSLY
+    // synthesizes a local receipt and fires every app-level receipt listener
+    // (bumpUnreadTick, notification clearing) before the HTTP call ever
+    // leaves. Those listeners fan out over every rendered row, so a redundant
+    // send is not free — and scrollToBottom calls this unconditionally from
+    // several per-event paths, so "redundant" is the common case. The
+    // synthesized receipt counts here (ignoreSynthesized = false), so this
+    // trips immediately after the first send rather than after the round trip.
+    const room = matrixClient.getRoom(roomId);
+    const myUserId = matrixClient.getUserId();
+    if (room && myUserId && room.getEventReadUpTo(myUserId, false) === eventId)
+        return;
+
     const receiptType = receiptTypeForSetting(
         settingsState.privateReadReceipts,
     ) as ReceiptType;
     await matrixClient.sendReadReceipt(event, receiptType);
-    await matrixClient.setRoomReadMarkers(event.getRoomId()!, event.getId()!);
+    await matrixClient.setRoomReadMarkers(roomId, eventId);
 }
 
 /** Send a read receipt to the room's newest live event, clearing its unread state. */
