@@ -365,6 +365,10 @@
             localAliases,
         ),
     );
+    /** Is the picked main address different from the one actually published? */
+    const mainAliasDirty = $derived(
+        mainAliasChoice !== (canonicalContent.alias ?? ""),
+    );
 
     $effect(() => {
         if (activeTab !== "access" || aliasesLoaded) return;
@@ -1164,27 +1168,37 @@
                                 {/if}
 
                                 {#if canEditState && sortedAliases.length > 0}
-                                    <label class="block mt-3">
-                                        <span
-                                            class="block text-xs text-discord-textMuted mb-1"
-                                            >Main address</span
-                                        >
-                                        <select
-                                            bind:value={mainAliasChoice}
-                                            onchange={saveMainAlias}
-                                            disabled={aliasBusy}
-                                            class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
-                                        >
-                                            <option value=""
-                                                >No main address</option
+                                    <div
+                                        class="flex items-end gap-1.5 mt-3 min-w-0"
+                                    >
+                                        <label class="flex-1 min-w-0">
+                                            <span
+                                                class="block text-xs text-discord-textMuted mb-1"
+                                                >Main address</span
                                             >
-                                            {#each sortedAliases as alias (alias)}
-                                                <option value={alias}
-                                                    >{alias}</option
+                                            <select
+                                                bind:value={mainAliasChoice}
+                                                disabled={aliasBusy}
+                                                class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                            >
+                                                <option value=""
+                                                    >No main address</option
                                                 >
-                                            {/each}
-                                        </select>
-                                    </label>
+                                                {#each sortedAliases as alias (alias)}
+                                                    <option value={alias}
+                                                        >{alias}</option
+                                                    >
+                                                {/each}
+                                            </select>
+                                        </label>
+                                        <button
+                                            onclick={saveMainAlias}
+                                            disabled={aliasBusy ||
+                                                !mainAliasDirty}
+                                            class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                            >Set</button
+                                        >
+                                    </div>
                                 {/if}
 
                                 <div class="flex items-center gap-1.5 mt-3">
