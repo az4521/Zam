@@ -6770,6 +6770,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
         lkRoom.on(LivekitRoomEvent.MediaDevicesError, (e: Error) => {
             if (activeVoice !== call) return;
+            // LiveKit emits this BEFORE it rethrows the getUserMedia/
+            // getDisplayMedia rejection, so it also fires on every ordinary
+            // dismissal of a picker or permission prompt. Without this guard,
+            // cancelling the screen-share picker toasts a bogus "Audio device
+            // error", and a denied camera permission double-toasts alongside
+            // setCameraEnabled's own (accurate) message.
+            if (isUserCancel(e)) return;
             notifyVoiceNotice(`Audio device error: ${e.message}`);
         });
 

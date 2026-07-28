@@ -16,6 +16,8 @@ const {
     nativeImage,
     shell,
     ipcMain,
+    session,
+    desktopCapturer,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -243,6 +245,154 @@ ipcMain.on("updates:quit-and-install", () => {
     autoUpdater.quitAndInstall();
 });
 
+// --- Screen sharing --------------------------------------------------------
+//
+// Electron >= 17 rejects every getDisplayMedia() call unless the app installs
+// a display-media request handler, so the in-app screenshare button silently
+// failed in the packaged desktop app. macOS can hand the choice to the OS
+// picker (useSystemPicker); everywhere else we enumerate sources here and ask
+// the renderer to show an in-app picker (src/lib/components/layout/
+// ScreenSharePicker.svelte), then resolve the pending callback with its answer.
+//
+// Intercepting at the handler means ANY getDisplayMedia() caller works,
+// including LiveKit's internals, which we do not control.
+
+const SHARE_PICK_TIMEOUT_MS = 120000;
+// requestId -> {callback, timer, audioRequested, sourceIds}
+const pendingShareRequests = new Map();
+let nextShareRequestId = 1;
+
+// Granting nothing makes getDisplayMedia() reject with NotAllowedError, which
+// the renderer already treats as "the user dismissed the picker" (no toast).
+function denyShareRequest(pending) {
+    clearTimeout(pending.timer);
+    try {
+        pending.callback({});
+    } catch (err) {
+        // Reached from an ipcMain listener and from a setTimeout — in both a
+        // throw would be an UNCAUGHT main-process exception, i.e. the app dies.
+        console.error("screen-share denial failed:", err);
+    }
+}
+
+function resolveShareRequest(requestId, sourceId, sourceName) {
+    const pending = pendingShareRequests.get(requestId);
+    if (!pending) return; // already timed out or answered twice
+    pendingShareRequests.delete(requestId);
+    // Grant only a source we actually enumerated for THIS request, so a
+    // compromised renderer cannot name an arbitrary capture target. Anything
+    // else — a cancellation, a stale id, a forged one — denies.
+    if (!sourceId || !pending.sourceIds.has(sourceId)) {
+        denyShareRequest(pending);
+        return;
+    }
+    clearTimeout(pending.timer);
+    const streams = { video: { id: sourceId, name: sourceName || "" } };
+    // Loopback system audio is Windows-only in Electron; asking for it
+    // elsewhere would fail the whole request.
+    if (pending.audioRequested && process.platform === "win32") {
+        streams.audio = "loopback";
+    }
+    try {
+        pending.callback(streams);
+    } catch (err) {
+        console.error("screen-share grant failed:", err);
+    }
+}
+
+function setupDisplayMediaHandler() {
+    session.defaultSession.setDisplayMediaRequestHandler(
+        async (request, callback) => {
+            let sources = [];
+            try {
+                sources = await desktopCapturer.getSources({
+                    types: ["screen", "window"],
+                    thumbnailSize: { width: 320, height: 180 },
+                });
+            } catch (err) {
+                console.error("desktopCapturer.getSources failed:", err);
+            }
+            if (!sources.length || !mainWindow || mainWindow.isDestroyed()) {
+                callback({});
+                return;
+            }
+            const requestId = nextShareRequestId++;
+            const timer = setTimeout(() => {
+                const pending = pendingShareRequests.get(requestId);
+                if (!pending) return;
+                pendingShareRequests.delete(requestId);
+                denyShareRequest(pending);
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                    try {
+                        mainWindow.webContents.send(
+                            "screenshare:cancel",
+                            requestId,
+                        );
+                    } catch (err) {
+                        // We are inside a setTimeout, so a throw here would be
+                        // an UNCAUGHT main-process exception. The webContents
+                        // can be torn down between the guard above and this
+                        // send; the request is already denied either way, so
+                        // there is nothing to recover — just note it.
+                        console.error(
+                            "screen-share cancel notify failed:",
+                            err,
+                        );
+                    }
+                }
+            }, SHARE_PICK_TIMEOUT_MS);
+            pendingShareRequests.set(requestId, {
+                callback,
+                timer,
+                audioRequested: !!request.audioRequested,
+                sourceIds: new Set(sources.map((s) => s.id)),
+            });
+            // From here the pending entry (and its 120s timer) already exist,
+            // so a throw — a disposed thumbnail, a webContents torn down
+            // between the guard above and now — would leave getDisplayMedia()
+            // hanging with no picker until the timeout. Deny at once instead.
+            try {
+                mainWindow.webContents.send("screenshare:request", {
+                    requestId,
+                    audioRequested: !!request.audioRequested,
+                    sources: sources.map((s) => ({
+                        id: s.id,
+                        name: s.name,
+                        displayId: s.display_id,
+                        thumbnailDataUrl: s.thumbnail.isEmpty()
+                            ? null
+                            : s.thumbnail.toDataURL(),
+                    })),
+                });
+            } catch (err) {
+                console.error("screen-share picker dispatch failed:", err);
+                const pending = pendingShareRequests.get(requestId);
+                if (pending) {
+                    pendingShareRequests.delete(requestId);
+                    denyShareRequest(pending); // also clears the timer
+                }
+            }
+        },
+        // macOS only (and Experimental there): when the OS picker is available
+        // Electron uses it and never calls our handler.
+        { useSystemPicker: true },
+    );
+}
+
+// The payload comes from the renderer and is therefore untrusted: validate
+// every field before it reaches a Map key or the capture callback. A throw in
+// an ipcMain listener is an uncaught main-process exception — it kills the app.
+ipcMain.on("screenshare:respond", (_e, payload) => {
+    const { requestId, sourceId, sourceName } = payload || {};
+    const id = Number(requestId);
+    // Unknown/stale/garbage ids stay a silent no-op, as before.
+    if (!Number.isFinite(id) || !pendingShareRequests.has(id)) return;
+    // Only a non-empty string is a pick; anything else is a cancellation.
+    const picked = typeof sourceId === "string" && sourceId ? sourceId : null;
+    const name = typeof sourceName === "string" ? sourceName : "";
+    resolveShareRequest(id, picked, name);
+});
+
 async function createWindow() {
     const url = await startServer();
 
@@ -325,6 +475,8 @@ if (!app.requestSingleInstanceLock()) {
         // Required on Windows for native (Web Notification API) notifications
         // to display and be attributed to the app.
         app.setAppUserModelId("moe.crafty.matrix");
+        // Must be installed before any renderer can call getDisplayMedia().
+        setupDisplayMediaHandler();
         createWindow();
         createTray();
         setupAutoUpdater();
