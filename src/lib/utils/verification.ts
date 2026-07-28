@@ -59,9 +59,16 @@ export function verificationPhaseLabel(
         case VerificationPhaseValue.Requested:
             return "Waiting for the other side to accept…";
         case VerificationPhaseValue.Ready:
-            return "Accepted — starting the emoji check…";
+            // Method-neutral on purpose, and true where it is actually SHOWN:
+            // the modal prints its own copy while the user picks a method, so
+            // this only reaches the screen when there is nothing to pick (no QR
+            // on either side, and the caller starts the emoji check itself).
+            return "Accepted — setting up the check…";
         case VerificationPhaseValue.Started:
-            return "Compare the emoji below";
+            // NOT "compare the emoji": a QR flow spends this entire phase
+            // waiting for the other side to confirm, with no emoji in
+            // existence. The compare instruction belongs next to the emoji.
+            return "Verifying…";
         case VerificationPhaseValue.Done:
             return opts.isSelf ? "Session verified" : "User verified";
         case VerificationPhaseValue.Cancelled:
