@@ -30,6 +30,12 @@
         setGuestAccess,
         getRoomDirectoryVisibility,
         setRoomDirectoryVisibility,
+        getLocalRoomAliases,
+        createRoomAlias,
+        deleteRoomAlias,
+        getCanonicalAliasContent,
+        setCanonicalAliasContent,
+        getOwnServerName,
         getSpaceChildren,
         setSpaceChildOrder,
         removeSpaceChild,
@@ -46,6 +52,14 @@
         getRestrictedJoinState,
         RESTRICTED_JOIN_RULE,
     } from "$lib/utils/joinRules";
+    import {
+        buildAlias,
+        buildCanonicalAliasContent,
+        canonicalAliasContentAfterRemoval,
+        sortAliasesForDisplay,
+        validateAliasLocalpart,
+        type CanonicalAliasContent,
+    } from "$lib/utils/roomAliases";
     import { parsePowerLevelInput } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
     import { focusTrap } from "$lib/actions/focusTrap";
@@ -326,6 +340,131 @@
                 e?.data?.error ?? e?.message ?? "Could not change visibility";
         } finally {
             dirSaving = false;
+        }
+    }
+
+    // ── Access tab: published addresses (separate directory calls) ─────────────
+    let localAliases = $state<string[]>([]);
+    let aliasesLoaded = $state(false);
+    let aliasBusy = $state(false);
+    let aliasError = $state("");
+    let aliasNotice = $state("");
+    let newAliasLocalpart = $state("");
+    let canonicalContent = $state<CanonicalAliasContent>({});
+    let mainAliasChoice = $state("");
+    const ownServer = getOwnServerName();
+
+    const canonicalAlias = $derived(canonicalContent.alias ?? null);
+    const sortedAliases = $derived(
+        sortAliasesForDisplay(localAliases, canonicalAlias),
+    );
+    const newAliasCheck = $derived(
+        validateAliasLocalpart(
+            newAliasLocalpart.trim(),
+            ownServer,
+            localAliases,
+        ),
+    );
+
+    $effect(() => {
+        if (activeTab !== "access" || aliasesLoaded) return;
+        // Read the state event into a local first: assigning `canonicalContent`
+        // and then READING it back here would make this effect depend on a
+        // value it writes every run, and the `aliasesLoaded` guard only closes
+        // once the async load settles — that gap is an effect_update_depth
+        // trap. The local keeps `canonicalContent` write-only in here.
+        const content = getCanonicalAliasContent(room);
+        canonicalContent = content;
+        mainAliasChoice = content.alias ?? "";
+        getLocalRoomAliases(room.roomId)
+            .then((a) => {
+                localAliases = a;
+                aliasesLoaded = true;
+            })
+            .catch((e: any) => {
+                aliasError =
+                    e?.data?.error ??
+                    e?.message ??
+                    "Could not load this room's addresses";
+                aliasesLoaded = true;
+            });
+    });
+
+    async function addAlias() {
+        const localpart = newAliasLocalpart.trim();
+        if (aliasBusy || !newAliasCheck.valid) return;
+        aliasBusy = true;
+        aliasError = "";
+        aliasNotice = "";
+        const alias = buildAlias(localpart, ownServer);
+        try {
+            await createRoomAlias(alias, room.roomId);
+            localAliases = [...localAliases, alias];
+            newAliasLocalpart = "";
+        } catch (e: any) {
+            aliasError =
+                e?.data?.error ?? e?.message ?? "Could not add that address";
+        } finally {
+            aliasBusy = false;
+        }
+    }
+
+    async function removeAlias(alias: string) {
+        if (aliasBusy) return;
+        aliasBusy = true;
+        aliasError = "";
+        aliasNotice = "";
+        try {
+            // Unpublish first: a canonical alias pointing at a deleted mapping
+            // advertises an address nobody can resolve.
+            const next = canonicalAliasContentAfterRemoval(
+                canonicalContent,
+                alias,
+            );
+            if (next && canEditState) {
+                await setCanonicalAliasContent(room.roomId, next);
+                canonicalContent = next;
+                mainAliasChoice = next.alias ?? "";
+                roomsState.roomsTick++;
+            }
+            await deleteRoomAlias(alias);
+            localAliases = localAliases.filter((a) => a !== alias);
+            if (next && !canEditState) {
+                aliasNotice =
+                    "Removed, but this address is still published for the room — someone with permission needs to unpublish it.";
+            }
+        } catch (e: any) {
+            aliasError =
+                e?.data?.error ?? e?.message ?? "Could not remove that address";
+        } finally {
+            aliasBusy = false;
+        }
+    }
+
+    async function saveMainAlias() {
+        const choice = mainAliasChoice || null;
+        if (aliasBusy || choice === (canonicalContent.alias ?? null)) return;
+        aliasBusy = true;
+        aliasError = "";
+        aliasNotice = "";
+        const prev = canonicalContent;
+        try {
+            const next = buildCanonicalAliasContent({
+                alias: choice,
+                altAliases: canonicalContent.alt_aliases ?? [],
+            });
+            await setCanonicalAliasContent(room.roomId, next);
+            canonicalContent = next;
+            roomsState.roomsTick++;
+        } catch (e: any) {
+            canonicalContent = prev;
+            mainAliasChoice = prev.alias ?? "";
+            aliasError =
+                e?.data?.error ??
+                e?.message ??
+                "Could not set the main address";
+        } finally {
+            aliasBusy = false;
         }
     }
 
@@ -966,13 +1105,127 @@
                             </label>
                             <p class="text-xs text-discord-textMuted mt-1">
                                 Lists the {isSpace ? "space" : "room"} by ID. Being
-                                found by name also needs a published address (coming
-                                later).
+                                found by name also needs a published address — add
+                                one below.
                             </p>
                             {#if dirError}<p
                                     class="text-sm text-discord-danger mt-1"
                                 >
                                     {dirError}
+                                </p>{/if}
+                        </div>
+
+                        <div>
+                            <p
+                                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                            >
+                                Addresses
+                            </p>
+                            <p class="text-xs text-discord-textMuted mb-2">
+                                A published address lets people find and join
+                                this {isSpace ? "space" : "room"} by name instead
+                                of by ID.
+                            </p>
+                            {#if !aliasesLoaded}
+                                <p class="text-xs text-discord-textMuted">
+                                    Loading addresses…
+                                </p>
+                            {:else}
+                                {#if sortedAliases.length === 0}
+                                    <p class="text-xs text-discord-textMuted">
+                                        No addresses yet.
+                                    </p>
+                                {:else}
+                                    <ul class="space-y-1">
+                                        {#each sortedAliases as alias (alias)}
+                                            <li
+                                                class="flex items-center gap-2 min-w-0"
+                                            >
+                                                <span
+                                                    class="text-sm text-discord-textPrimary font-mono truncate"
+                                                    title={alias}>{alias}</span
+                                                >
+                                                {#if alias === canonicalAlias}
+                                                    <span
+                                                        class="shrink-0 text-[10px] uppercase tracking-wide bg-discord-accent text-white rounded px-1.5 py-0.5"
+                                                        >Main</span
+                                                    >
+                                                {/if}
+                                                <button
+                                                    onclick={() =>
+                                                        removeAlias(alias)}
+                                                    disabled={aliasBusy}
+                                                    class="ml-auto shrink-0 text-xs text-discord-danger hover:underline disabled:opacity-50"
+                                                    >Remove</button
+                                                >
+                                            </li>
+                                        {/each}
+                                    </ul>
+                                {/if}
+
+                                {#if canEditState && sortedAliases.length > 0}
+                                    <label class="block mt-3">
+                                        <span
+                                            class="block text-xs text-discord-textMuted mb-1"
+                                            >Main address</span
+                                        >
+                                        <select
+                                            bind:value={mainAliasChoice}
+                                            onchange={saveMainAlias}
+                                            disabled={aliasBusy}
+                                            class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                        >
+                                            <option value=""
+                                                >No main address</option
+                                            >
+                                            {#each sortedAliases as alias (alias)}
+                                                <option value={alias}
+                                                    >{alias}</option
+                                                >
+                                            {/each}
+                                        </select>
+                                    </label>
+                                {/if}
+
+                                <div class="flex items-center gap-1.5 mt-3">
+                                    <span
+                                        class="text-sm text-discord-textMuted shrink-0"
+                                        >#</span
+                                    >
+                                    <input
+                                        type="text"
+                                        bind:value={newAliasLocalpart}
+                                        placeholder="my-room"
+                                        disabled={aliasBusy}
+                                        class="flex-1 min-w-0 px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                    />
+                                    <span
+                                        class="text-sm text-discord-textMuted shrink-0 max-w-[40%] truncate"
+                                        title={ownServer}>:{ownServer}</span
+                                    >
+                                    <button
+                                        onclick={addAlias}
+                                        disabled={aliasBusy ||
+                                            !newAliasCheck.valid}
+                                        class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                        >Add</button
+                                    >
+                                </div>
+                                {#if newAliasLocalpart.trim() && newAliasCheck.reason}
+                                    <p class="text-xs text-discord-danger mt-1">
+                                        {newAliasCheck.reason}
+                                    </p>
+                                {/if}
+                            {/if}
+                            {#if aliasError}<p
+                                    class="text-sm text-discord-danger mt-1"
+                                >
+                                    {aliasError}
+                                </p>{/if}
+                            {#if aliasNotice}<p
+                                    class="text-xs text-discord-textMuted mt-1"
+                                >
+                                    {aliasNotice}
                                 </p>{/if}
                         </div>
 
