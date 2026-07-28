@@ -82,6 +82,11 @@ export async function initCrypto(
     deviceId: string,
 ): Promise<void> {
     cryptoAvailable = false;
+    // Session expiry drops back to the login view in place (no reload), so a
+    // re-login re-enters here in the same JS context — against a fresh crypto
+    // store that knows nothing about sender devices. Verdicts memoised for the
+    // old session would be served for the same event ids and under-warn.
+    clearEventShieldCache();
     try {
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
@@ -131,11 +136,18 @@ function detachDecryptionListener(): void {
 // enabled/disabled, the backup key getting cached on unlock, a backup failure).
 // Any of them bumps `securityTick` so the settings section re-reads
 // `getSecurityStatus()` / `getBackupStatus()`.
+//
+// The last two are about TRUST rather than settings: verifying a device or
+// re-fetching a user's device list changes the shield on every message they
+// sent, so they also drop the per-event shield memo. Without them a shield
+// goes stale the moment a device is verified.
 const SECURITY_EVENTS = [
     CryptoEvent.KeysChanged,
     CryptoEvent.KeyBackupStatus,
     CryptoEvent.KeyBackupDecryptionKeyCached,
     CryptoEvent.KeyBackupFailed,
+    CryptoEvent.UserTrustStatusChanged,
+    CryptoEvent.DevicesUpdated,
 ] as const;
 
 let securityListenerClient: MatrixClient | null = null;
@@ -144,7 +156,11 @@ let securityHandler: (() => void) | null = null;
 function attachSecurityListeners(client: MatrixClient): void {
     if (securityListenerClient === client) return;
     detachSecurityListeners();
-    const handler = (): void => bumpSecurityTick();
+    const handler = (): void => {
+        // Trust changed somewhere: every cached shield verdict is now suspect.
+        clearEventShieldCache();
+        bumpSecurityTick();
+    };
     for (const event of SECURITY_EVENTS) {
         client.on(event as never, handler as never);
     }
@@ -513,6 +529,88 @@ export async function getDeviceTrust(
             isVerified: status.isVerified(),
             signedByOwner: status.signedByOwner,
         };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Shield inputs for a single timeline event, reduced from the SDK's
+ * `EventEncryptionInfo` to plain numbers so the pure view-model in
+ * `utils/eventShield.ts` can stay SDK-free. Null when the event is
+ * unencrypted, has not decrypted yet, has no id, or crypto isn't ready.
+ */
+export interface EventShieldInfo {
+    colour: number;
+    reason: number | null;
+}
+
+// Memo of shield verdicts by event id. Computing one is a rust-crypto round
+// trip, and the timeline re-renders on every tick, so an unmemoised read would
+// be one call per rendered row per tick. Bounded so a long session can't leak;
+// dropped wholesale by `clearEventShieldCache()` whenever trust changes.
+const EVENT_SHIELD_CACHE_MAX = 1000;
+const eventShieldCache = new Map<string, EventShieldInfo>();
+
+// Bumped on every invalidation so a fetch that was already in flight can tell
+// that the world changed under it and decline to write its stale verdict back.
+let shieldCacheEpoch = 0;
+
+/**
+ * Drop every memoised shield verdict. Called from the security-event handler
+ * (a verification or device-list update invalidates every shield at once), from
+ * `initCrypto` (session expiry returns to login in place, with no reload, so a
+ * memo would otherwise outlive the crypto store it was computed against), and
+ * available to tests.
+ */
+export function clearEventShieldCache(): void {
+    eventShieldCache.clear();
+    shieldCacheEpoch++;
+}
+
+/**
+ * Shield verdict for one event. Memoised per event id — but only for real
+ * verdicts: a `null` means "unencrypted, or not decrypted yet", and the second
+ * is transient (keys arrive later over to-device), so caching it would pin a
+ * message to "no shield" forever.
+ */
+export async function getEventShield(
+    event: MatrixEvent,
+): Promise<EventShieldInfo | null> {
+    const eventId = event.getId();
+    if (!eventId) return null;
+
+    const cached = eventShieldCache.get(eventId);
+    if (cached) return cached;
+
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) return null;
+    // Snapshot the epoch BEFORE the round trip. If trust changes while we are
+    // in flight the map is cleared under us, and writing this now-stale verdict
+    // back would hide the very change the shield exists to surface (the rust
+    // callback fires after the store commit, so an identity change can easily
+    // land mid-fetch). The value is still right for the caller that asked, so
+    // it is returned either way — just not persisted across the boundary.
+    const epoch = shieldCacheEpoch;
+    try {
+        const info = await crypto.getEncryptionInfoForEvent(event);
+        if (!info) return null;
+        const reduced: EventShieldInfo = {
+            colour: info.shieldColour,
+            reason: info.shieldReason ?? null,
+        };
+        // Local echo (`status !== null`) is skipped: the SDK short-circuits
+        // outgoing events to a NONE shield without consulting the crypto store,
+        // and the id is a transaction id that the remote echo replaces — so the
+        // entry is instantly orphaned and would evict a real verdict.
+        if (epoch === shieldCacheEpoch && event.status === null) {
+            if (eventShieldCache.size >= EVENT_SHIELD_CACHE_MAX) {
+                const oldest = eventShieldCache.keys().next().value;
+                if (oldest !== undefined) eventShieldCache.delete(oldest);
+            }
+            eventShieldCache.set(eventId, reduced);
+        }
+        return reduced;
     } catch {
         return null;
     }
