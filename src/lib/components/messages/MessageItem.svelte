@@ -290,8 +290,18 @@
     let showReportDialog = $state(false);
 
     let keyboardOffset = $state(0);
+    // Only track the on-screen keyboard while THIS row actually has a
+    // sheet open. These are two GLOBAL listeners per instance, and this
+    // component is instantiated once per timeline row — ungated on a
+    // touchscreen (which Chrome's device emulation reports) a few hundred rows
+    // meant a few hundred pairs of visualViewport listeners, all firing on
+    // every scroll and resize. keyboardOffset is consumed by exactly two
+    // things: the touch emoji sheet and the report dialog.
     $effect(() => {
-        if (!interfaceState.isTouchscreen) {
+        const wanted =
+            interfaceState.isTouchscreen &&
+            (showEmojiPicker || showReportDialog);
+        if (!wanted) {
             keyboardOffset = 0;
             return;
         }
