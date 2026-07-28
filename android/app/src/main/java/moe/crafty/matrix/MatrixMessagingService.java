@@ -50,6 +50,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static final String PREFS = "CapacitorStorage";
     private static final String KEY_HS = "matrix_hs_url";
     private static final String KEY_TOKEN = "matrix_access_token";
+    private static final String KEY_HIDE_BODY = "matrix_hide_notification_body";
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
@@ -92,6 +93,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             String hs = prefs.getString(KEY_HS, null);
             String token = prefs.getString(KEY_TOKEN, null);
+            // Device-global "hide message text in notifications" privacy setting,
+            // mirrored by src/lib/nativeSession.ts. Capacitor Preferences stores
+            // every value as a String, so compare rather than getBoolean() (which
+            // would throw ClassCastException on a String-typed entry, and the
+            // catch below would silently swallow ALL enrichment). Absent key →
+            // "false" → bodies stay visible, today's behaviour.
+            boolean hideBody = "true".equals(prefs.getString(KEY_HIDE_BODY, "false"));
 
             if (hs != null && token != null && roomId != null && eventId != null) {
                 hs = hs.replaceAll("/+$", "");
@@ -110,10 +118,18 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     String senderName = fetchSenderName(hs, token, roomId, sender);
                     if (senderName == null || senderName.isEmpty()) senderName = sender;
 
-                    if (!body.isEmpty()) {
-                        text = senderName.isEmpty() ? body : senderName + ": " + body;
-                    } else if (!senderName.isEmpty()) {
-                        text = senderName + " sent a message";
+                    // Same comparisons as notificationBody() in
+                    // src/lib/utils/notificationPrivacy.ts (and buildNotification()
+                    // in static/sw.js): trim both sides so a whitespace-only body
+                    // counts as absent, and drop the message text entirely when
+                    // the privacy setting is on. The room name still becomes the
+                    // title — only the message text is gated.
+                    String name = senderName.trim();
+                    String preview = hideBody ? "" : body.trim();
+                    if (!preview.isEmpty()) {
+                        text = name.isEmpty() ? preview : name + ": " + preview;
+                    } else if (!name.isEmpty()) {
+                        text = name + " sent a message";
                     }
                 }
 
