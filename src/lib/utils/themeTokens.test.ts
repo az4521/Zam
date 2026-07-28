@@ -5,6 +5,15 @@ import { fileURLToPath } from "node:url";
 import { parseCssVariableBlock, missingLightOverrides } from "./themeTokens";
 
 const FIXTURE = `
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.5;
+    }
+}
+
 :root {
     color-scheme: dark;
     /* a comment: --discord-ignored: #000; */
@@ -50,6 +59,18 @@ describe("parseCssVariableBlock", () => {
         expect(
             parseCssVariableBlock(FIXTURE, ":root[data-theme=oled]").size,
         ).toBe(0);
+    });
+
+    it("finds a block that follows nested at-rule sub-blocks", () => {
+        // FIXTURE opens with an @keyframes whose percentage sub-blocks nest
+        // braces — the shape the real app.css has. A brace scan that stops
+        // surviving nesting would return an empty map for :root here, which
+        // is precisely what makes the app.css guard below pass vacuously.
+        const dark = parseCssVariableBlock(FIXTURE, ":root");
+        expect(dark.size).toBe(5);
+        expect(dark.get("--discord-bg")).toBe("#36393f");
+        // The keyframes' own declarations must not leak in.
+        expect(dark.has("opacity")).toBe(false);
     });
 });
 
@@ -113,6 +134,17 @@ describe("src/app.css light theme parity (regression guard)", () => {
             "../../app.css",
         );
         const css = readFileSync(cssPath, "utf8");
+
+        // Prove the dark block actually parsed BEFORE trusting the parity
+        // assertion below. An unmatched `:root` yields an empty map, so
+        // missingLightOverrides returns [] and the parity check goes green
+        // while checking nothing at all. Reachable by ordinary edits to
+        // app.css: grouping the selector (`:root, :host {`), adding a
+        // "system" theme (`:root, :root[data-theme="dark"] {`), or putting a
+        // semicolon at-rule immediately before the block. 94 dark props
+        // today — 80 is a floor, not a target.
+        expect(parseCssVariableBlock(css, ":root").size).toBeGreaterThan(80);
+
         expect(
             missingLightOverrides(css, {
                 prefixes: ["--discord-", "--syntax-", "--avatar-color-"],
