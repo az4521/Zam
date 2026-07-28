@@ -60,6 +60,10 @@ import {
     type VideoSource,
 } from "$lib/utils/videoTiles";
 import {
+    voiceDeviceNotices,
+    type VoiceInputKind,
+} from "$lib/utils/voiceDeviceWatch";
+import {
     effectiveVolume,
     withVolume,
     withLocalMute,
@@ -6168,30 +6172,44 @@ function applyVoiceSink(el: HTMLAudioElement): void {
     void sinkEl.setSinkId?.(voiceOutputDeviceId ?? "").catch(() => {});
 }
 
-// Mid-call input unplug: LiveKit falls back to the default device on its
-// own; surface why the chosen mic stopped being used. One notice per call.
+// Mid-call input unplug: for the mic LiveKit falls back to the default device
+// on its own, so the notice explains why the chosen one stopped being used.
+// For the camera it does NOT — `selectDefaultDevices` skips `videoinput`
+// outright (livekit-client 2.20.1) — so that notice only says the camera went
+// away. One notice per kind per call.
 let voiceDeviceWatchStop: (() => void) | null = null;
-let inputGoneNotified: ActiveVoiceCall | null = null;
+let audioInputGoneNotified: ActiveVoiceCall | null = null;
+let videoInputGoneNotified: ActiveVoiceCall | null = null;
+
+const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
+    audioinput: "Microphone disconnected — switched to the default device",
+    videoinput: "Camera disconnected",
+};
 
 function ensureVoiceDeviceWatch(): void {
     if (voiceDeviceWatchStop || !navigator.mediaDevices?.addEventListener)
         return;
     const onChange = async () => {
         const call = activeVoice;
-        const saved = settingsState.audioInputDeviceId;
-        if (!call || !saved || inputGoneNotified === call) return;
+        if (!call) return;
+        // null (not []) on failure: an empty list means "nothing is plugged
+        // in", a rejection means "we do not know" — see voiceDeviceNotices.
         const devices = await navigator.mediaDevices
             .enumerateDevices()
-            .catch(() => []);
+            .catch(() => null);
         if (activeVoice !== call) return;
-        const stillThere = devices.some(
-            (d) => d.kind === "audioinput" && d.deviceId === saved,
-        );
-        if (!stillThere) {
-            inputGoneNotified = call;
-            notifyVoiceNotice(
-                "Microphone disconnected — switched to the default device",
-            );
+        const notices = voiceDeviceNotices({
+            devices,
+            savedAudioInputId: settingsState.audioInputDeviceId,
+            savedVideoInputId: settingsState.videoInputDeviceId,
+            cameraOn: call.lkRoom.localParticipant.isCameraEnabled,
+            audioNotified: audioInputGoneNotified === call,
+            videoNotified: videoInputGoneNotified === call,
+        });
+        for (const kind of notices) {
+            if (kind === "audioinput") audioInputGoneNotified = call;
+            else videoInputGoneNotified = call;
+            notifyVoiceNotice(VOICE_DEVICE_NOTICE[kind]);
         }
     };
     navigator.mediaDevices.addEventListener("devicechange", onChange);
