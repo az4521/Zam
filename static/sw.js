@@ -31,6 +31,17 @@ async function dbSet(key, value) {
 	});
 }
 
+// Every dbSet opens its own connection/transaction, so two concurrently
+// running handlers would race and could persist out of order (memory says
+// `true`, IndexedDB ends up `false`). Chain all writes onto one promise so
+// they land in the order the messages arrived. `.then(run, run)` keeps the
+// chain alive after a failed write.
+let writeQueue = Promise.resolve();
+function queueWrite(run) {
+	writeQueue = writeQueue.then(run, run);
+	return writeQueue;
+}
+
 function isValidHomeserverUrl(url) {
 	try {
 		const parsed = new URL(url);
@@ -59,30 +70,43 @@ const authReady = (async () => {
 	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
 })();
 
-self.addEventListener("message", async (event) => {
+self.addEventListener("message", (event) => {
 	// Only accept messages from the app's own origin
 	if (event.origin !== APP_ORIGIN) return;
-	if (event.data?.type === "SET_AUTH") {
-		const { accessToken: token, homeserverUrl: hs } = event.data;
-		if (!isValidHomeserverUrl(hs)) return;
-		accessToken = token;
-		homeserverUrl = hs;
-		await dbSet("accessToken", token);
-		await dbSet("homeserverUrl", hs);
-	} else if (event.data?.type === "CLEAR_AUTH") {
-		// Logout / session expiry — forget the token so we stop injecting it.
-		accessToken = null;
-		homeserverUrl = null;
-		await dbSet("accessToken", null);
-		await dbSet("homeserverUrl", null);
-	} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
-		// Wait out startup hydration first: its stored read lands after this
-		// handler starts and would otherwise clobber the newer value with the
-		// pre-toggle one (leaving bodies visible until the SW restarts).
-		await authReady.catch(() => {});
-		hideNotificationBody = event.data.hideBody === true;
-		await dbSet("hideNotificationBody", hideNotificationBody);
-	}
+	// Hold the event open for the whole async body: without waitUntil the
+	// worker is terminable as soon as the sync part returns, so a toggle
+	// followed by closing the tab could update memory but lose the
+	// IndexedDB write — and the SW is cold for essentially every push.
+	event.waitUntil(
+		(async () => {
+			if (event.data?.type === "SET_AUTH") {
+				const { accessToken: token, homeserverUrl: hs } = event.data;
+				if (!isValidHomeserverUrl(hs)) return;
+				accessToken = token;
+				homeserverUrl = hs;
+				await queueWrite(async () => {
+					await dbSet("accessToken", token);
+					await dbSet("homeserverUrl", hs);
+				});
+			} else if (event.data?.type === "CLEAR_AUTH") {
+				// Logout / session expiry — forget the token so we stop injecting it.
+				accessToken = null;
+				homeserverUrl = null;
+				await queueWrite(async () => {
+					await dbSet("accessToken", null);
+					await dbSet("homeserverUrl", null);
+				});
+			} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
+				// Wait out startup hydration first: its stored read lands after this
+				// handler starts and would otherwise clobber the newer value with the
+				// pre-toggle one (leaving bodies visible until the SW restarts).
+				await authReady.catch(() => {});
+				hideNotificationBody = event.data.hideBody === true;
+				const hide = hideNotificationBody;
+				await queueWrite(() => dbSet("hideNotificationBody", hide));
+			}
+		})().catch(() => {}),
+	);
 });
 
 self.addEventListener("fetch", (event) => {
