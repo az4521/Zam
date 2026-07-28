@@ -17,7 +17,13 @@ export const profileCardState = new ProfileCardState();
 
 /** Open the profile card for `userId`, anchored beside `anchorEl`. */
 export function openProfileCard(userId: string, anchorEl: HTMLElement): void {
+    // Measure before claiming: the outgoing owner's close can unmount the
+    // element we are anchoring to, which would zero the rect.
     const rect = anchorEl.getBoundingClientRect();
+    openModal("profile-card", () => {
+        profileCardState.userId = null;
+        profileCardState.anchor = null;
+    });
     profileCardState.userId = userId;
     profileCardState.anchor = {
         top: rect.top,
@@ -25,10 +31,6 @@ export function openProfileCard(userId: string, anchorEl: HTMLElement): void {
         right: rect.right,
         bottom: rect.bottom,
     };
-    openModal("profile-card", () => {
-        profileCardState.userId = null;
-        profileCardState.anchor = null;
-    });
 }
 
 export function closeProfileCard(): void {

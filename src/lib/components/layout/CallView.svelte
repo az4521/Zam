@@ -41,7 +41,7 @@
     import {
         showChatView,
         openModal,
-        clearModal,
+        clearModalIfOwner,
     } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -143,14 +143,25 @@
         y: number;
         touch: boolean;
     } | null>(null);
+    // Plain let: read only from event handlers, never from markup or an effect.
+    let participantMenuToken = 0;
+
+    // Release the shared modal slot if this row is destroyed while still
+    // owning it (e.g. the room changes under an open picker) — otherwise the
+    // slot strands and swallows the next Escape.
+    $effect(() => () => clearModalIfOwner(participantMenuToken));
+
     function openParticipantMenu(
         userId: string,
         x: number,
         y: number,
         touch: boolean,
     ) {
+        participantMenuToken = openModal(
+            "call-participant-menu",
+            () => (participantMenu = null),
+        );
         participantMenu = { userId, x, y, touch };
-        openModal("call-participant-menu", () => (participantMenu = null));
     }
 </script>
 
@@ -497,7 +508,7 @@
         touch={participantMenu.touch}
         onClose={() => {
             participantMenu = null;
-            clearModal("call-participant-menu");
+            clearModalIfOwner(participantMenuToken);
         }}
     />
 {/if}

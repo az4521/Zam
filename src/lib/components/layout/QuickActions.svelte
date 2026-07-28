@@ -90,6 +90,8 @@
 
     function open(m: Mode) {
         onaction?.();
+        // Claim first — a same-id handover runs the outgoing close, which nulls mode.
+        openModal("quick-actions", () => (mode = null));
         mode = m;
         input1 = "";
         input2 = "";
@@ -99,7 +101,6 @@
         // New DMs pre-check the account default; new rooms default off.
         encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
         resetKnock();
-        openModal("quick-actions", () => (mode = null));
     }
 
     function close() {

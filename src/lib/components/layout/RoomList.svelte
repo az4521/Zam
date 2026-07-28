@@ -70,7 +70,7 @@
         interfaceState,
         openModal,
         closeModal,
-        clearModal,
+        clearModalIfOwner,
         showCallView,
     } from "$lib/stores/interface.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
@@ -172,8 +172,9 @@
         y: number,
         touch: boolean,
     ) {
-        contextMenu = { roomId, x, y, touch };
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("room-menu", () => (contextMenu = null));
+        contextMenu = { roomId, x, y, touch };
     }
 
     // Call-roster participant menu. Claims the shared modal slot so Escape /
@@ -185,6 +186,8 @@
         y: number;
         touch: boolean;
     } | null>(null);
+    // Plain let: read only from event handlers, never from markup or an effect.
+    let participantMenuToken = 0;
 
     function openParticipantMenu(
         room: Room,
@@ -193,8 +196,11 @@
         y: number,
         touch: boolean,
     ) {
+        participantMenuToken = openModal(
+            "call-participant-menu",
+            () => (participantMenu = null),
+        );
         participantMenu = { room, userId, x, y, touch };
-        openModal("call-participant-menu", () => (participantMenu = null));
     }
 
     function handleOpenSettings(roomId: string) {
@@ -448,8 +454,9 @@
     let accountSwitcherOpen = $state(false);
 
     function openAccountSwitcher() {
-        accountSwitcherOpen = true;
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("account-switcher", () => (accountSwitcherOpen = false));
+        accountSwitcherOpen = true;
     }
 
     // ── Reorder mode (edit-mode drag + raw-order field) ─────────────────────
@@ -1544,7 +1551,7 @@
         touch={participantMenu.touch}
         onClose={() => {
             participantMenu = null;
-            clearModal("call-participant-menu");
+            clearModalIfOwner(participantMenuToken);
         }}
     />
 {/if}

@@ -10,8 +10,9 @@ export const locationDialogState = $state<{ roomId: string | null }>({
 
 /** Open the share-location dialog for a room (occupies the single modal slot). */
 export function openShareLocationDialog(roomId: string): void {
-    locationDialogState.roomId = roomId;
+    // Claim first — a same-id handover runs the outgoing close, which nulls roomId.
     openModal("share-location", () => (locationDialogState.roomId = null));
+    locationDialogState.roomId = roomId;
 }
 
 export function closeShareLocationDialog(): void {

@@ -466,6 +466,8 @@
         folderId: string | null = null,
     ) {
         if (e instanceof MouseEvent) e.preventDefault();
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("space-menu", () => (contextMenu = null));
         contextMenu = {
             kind: "space",
             spaceId,
@@ -474,7 +476,6 @@
             y: e.clientY,
             touch: !(e instanceof MouseEvent),
         };
-        openModal("space-menu", () => (contextMenu = null));
     }
 
     function openFolderContextMenu(
@@ -482,6 +483,8 @@
         folderId: string,
     ) {
         if (e instanceof MouseEvent) e.preventDefault();
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("space-menu", () => (contextMenu = null));
         contextMenu = {
             kind: "folder",
             folderId,
@@ -489,7 +492,6 @@
             y: e.clientY,
             touch: !(e instanceof MouseEvent),
         };
-        openModal("space-menu", () => (contextMenu = null));
     }
 
     // --- Actions ---
@@ -543,16 +545,18 @@
     let modalError = $state("");
 
     function openCreateRoom(spaceId: string) {
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("create-room", () => (createRoomModal = null));
         modalInput1 = "";
         modalInput2 = "";
         modalError = "";
         createRoomModal = { spaceId };
-        openModal("create-room", () => (createRoomModal = null));
     }
 
     function openAddRoom(spaceId: string) {
-        addRoomModal = { spaceId };
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("add-room", () => (addRoomModal = null));
+        addRoomModal = { spaceId };
     }
 
     function handleOpenSpaceSettings(spaceId: string) {
@@ -580,8 +584,9 @@
     let exploreOpen = $state(false);
 
     function openExplore() {
-        exploreOpen = true;
+        // Claim first — a same-id handover runs the outgoing close.
         openModal("room-directory", () => (exploreOpen = false));
+        exploreOpen = true;
     }
 
     async function submitCreateRoom() {
@@ -649,11 +654,12 @@
     }
 
     function openColorPicker(folderId: string) {
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("color-picker", () => (colorPicker = null));
         const current =
             roomsState.spaceLayout.folders[folderId]?.color ?? FOLDER_COLORS[0];
         setHsvFromHex(current);
         colorPicker = { folderId };
-        openModal("color-picker", () => (colorPicker = null));
     }
 
     function commitColor() {

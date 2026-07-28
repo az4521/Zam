@@ -86,6 +86,7 @@
         interfaceState,
         openModal,
         closeModal,
+        clearModalIfOwner,
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -140,12 +141,26 @@
     let showEmojiPicker = $state(false);
     let emojiPickerEl: HTMLDivElement | undefined = $state();
 
+    // Our claim on the shared modal slot (reaction picker OR forward dialog —
+    // one holder is enough, since only the latest claim can still own it).
+    // Plain let: read only from teardown, never from markup or a tracked read.
+    let slotToken = 0;
+
+    // Release the shared modal slot if this row is destroyed while still
+    // owning it (e.g. the room changes under an open picker) — otherwise the
+    // slot strands and swallows the next Escape.
+    $effect(() => () => clearModalIfOwner(slotToken));
+
     function openReactionPicker() {
-        showEmojiPicker = true;
-        openModal("reaction-picker", () => {
+        // Claim first — a same-id handover runs the outgoing close.
+        slotToken = openModal("reaction-picker", () => {
             showEmojiPicker = false;
-            interfaceState.selectedMessageId = null;
+            // Only release the selection if it is still ours: a handover to
+            // another message row must not clear that row's selection.
+            if (interfaceState.selectedMessageId === eventId)
+                interfaceState.selectedMessageId = null;
         });
+        showEmojiPicker = true;
     }
 
     $effect(() => {
@@ -167,11 +182,14 @@
     let previousTap: TapPoint | null = null;
 
     function openForwardDialog() {
-        showForwardDialog = true;
-        openModal("forward-message", () => {
+        // Claim first — a same-id handover runs the outgoing close.
+        slotToken = openModal("forward-message", () => {
             showForwardDialog = false;
-            interfaceState.selectedMessageId = null;
+            // Only release the selection if it is still ours.
+            if (interfaceState.selectedMessageId === eventId)
+                interfaceState.selectedMessageId = null;
         });
+        showForwardDialog = true;
     }
 
     async function runDoubleTapAction() {

@@ -31,11 +31,9 @@ export type ModalId =
     | "share-location"
     | "profile-card"
     | "lightbox"
-    // Shared by two call sites (RoomList roster rows, CallView tiles), and
-    // openModal cannot supersede a same-id owner (it short-circuits when `id`
-    // is unchanged). Safety rests on CallParticipantMenu's `fixed inset-0 z-50`
-    // backdrop eating pointer events; make it pointer-events-none and the two
-    // call sites will strand each other's state.
+    // Shared by two call sites (RoomList roster rows, CallView tiles). Both
+    // hold a claim token and release with clearModalIfOwner, so a second claim
+    // supersedes the first cleanly instead of stranding it.
     | "call-participant-menu";
 
 export type SidebarId =
@@ -50,7 +48,8 @@ export const interfaceState = $state({
     isTouchscreen: false,
     /** Mobile space/room drawer (distinct from the content sidebars below). */
     leftOpen: false,
-    /** Fullscreen image/video viewer (managed by Lightbox.svelte). */
+    /** Fullscreen image/video viewer open. Mirrors the modal slot holding
+     *  "lightbox" — maintained here, never written by components. */
     lightboxOpen: false,
     selectedMessageId: null as string | null,
     /** Dev DebugPanel visibility (toggled by the global Ctrl+Shift+D shortcut). */
@@ -73,6 +72,18 @@ export const interfaceState = $state({
     callViewRoomId: null as string | null,
 });
 
+/** Opaque handle for one occupancy of a slot. See `openModal`. */
+export type SlotToken = number;
+
+// Monotonic claim tokens for the modal/sidebar slots.
+//
+// Deliberately module-scope plain `let`s and NOT fields on `interfaceState`:
+// teardown paths (onMount cleanup, $effect destroy) read them, and reading a
+// $state field from a tracked scope would register a reactive dependency.
+let nextSlotToken = 1;
+let modalToken: SlotToken = 0;
+let sidebarToken: SlotToken = 0;
+
 /** Open (or toggle off) a composer emoji/sticker/gif picker. */
 export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
     if (
@@ -82,40 +93,68 @@ export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
         closeModal();
         return;
     }
-    interfaceState.composerPicker = kind;
+    // Claim first: the outgoing owner's close nulls `composerPicker`.
     openModal("composer-picker", () => (interfaceState.composerPicker = null));
+    interfaceState.composerPicker = kind;
 }
 
 /**
- * Open a modal/popup. Any currently-open modal is closed first (only one at a
- * time). `close` should reset the owning component's local data and is invoked
- * both on dismissal and when another modal supersedes this one.
+ * Claim the modal/popup slot, returning the token that identifies THIS
+ * occupancy. Whatever held the slot is closed first — including another
+ * instance holding the SAME id, whose `close` would otherwise never run and
+ * whose UI would strand.
+ *
+ * ORDERING CONTRACT: claim FIRST, then assign your local state. The outgoing
+ * owner's `close()` runs synchronously inside this call, and on a same-id
+ * handover that callback typically resets the very field you are about to set.
+ * That close runs while the slot is EMPTY, so a close handler must never
+ * assume the slot still names it.
+ *
+ * Keep the returned token and release with `clearModalIfOwner(token)` so a
+ * stale instance can never null a slot someone else now owns.
  */
-export function openModal(id: ModalId, close: () => void): void {
-    if (interfaceState.modal && interfaceState.modal !== id) {
-        const prev = interfaceState.modalClose;
-        interfaceState.modalClose = null;
-        prev?.();
-    }
+export function openModal(id: ModalId, close: () => void): SlotToken {
+    // Release the slot BEFORE running the outgoing close: it then executes
+    // against an empty slot, so it cannot clobber the incoming owner, and a
+    // re-entrant closeModal() from it is a safe no-op. A close handler must
+    // NOT itself call openModal/openSidebar, though: the claim it makes is
+    // silently superseded below and its own close would never run.
+    const prev = interfaceState.modalClose;
+    modalToken = 0;
+    interfaceState.modal = null;
+    interfaceState.modalClose = null;
+    interfaceState.lightboxOpen = false;
+    prev?.();
+
+    const token = nextSlotToken++;
+    modalToken = token;
     interfaceState.modal = id;
     interfaceState.modalClose = close;
+    interfaceState.lightboxOpen = id === "lightbox";
+    return token;
 }
 
 /** Dismiss the open modal, running its close handler. */
 export function closeModal(): void {
     const close = interfaceState.modalClose;
+    modalToken = 0;
     interfaceState.modal = null;
     interfaceState.modalClose = null;
+    interfaceState.lightboxOpen = false;
     close?.();
 }
 
-/** Clear the slot if `id` still owns it, without re-invoking its close handler.
- *  Used by a component whose modal was dismissed by its own means. */
-export function clearModal(id: ModalId): void {
-    if (interfaceState.modal === id) {
-        interfaceState.modal = null;
-        interfaceState.modalClose = null;
-    }
+/** Release the modal slot if `token` still owns it, without re-running its
+ *  close handler. Used by a component whose modal was dismissed by its own
+ *  means (unmount, self-close). Returns whether the slot was released — a
+ *  stale token is a silent no-op, which is the whole point. */
+export function clearModalIfOwner(token: SlotToken): boolean {
+    if (token === 0 || modalToken !== token) return false;
+    modalToken = 0;
+    interfaceState.modal = null;
+    interfaceState.modalClose = null;
+    interfaceState.lightboxOpen = false;
+    return true;
 }
 
 /** Show a room's call view. Does NOT join the call — peeking is allowed. */
@@ -128,29 +167,43 @@ export function showChatView(): void {
     interfaceState.callViewRoomId = null;
 }
 
-/** Open a side panel. Any currently-open sidebar is closed first. */
-export function openSidebar(id: SidebarId, close: () => void): void {
-    if (interfaceState.sidebar && interfaceState.sidebar !== id) {
-        const prev = interfaceState.sidebarClose;
-        interfaceState.sidebarClose = null;
-        prev?.();
-    }
+/** Claim the side-panel slot, returning this occupancy's token. Same ownership
+ *  and ordering rules as `openModal`. */
+export function openSidebar(id: SidebarId, close: () => void): SlotToken {
+    // Release the slot BEFORE running the outgoing close — see `openModal`.
+    // It runs against an empty slot, so a re-entrant closeSidebar() is a safe
+    // no-op, but a close handler must not call openSidebar/openModal itself.
+    const prev = interfaceState.sidebarClose;
+    sidebarToken = 0;
+    interfaceState.sidebar = null;
+    interfaceState.sidebarClose = null;
+    prev?.();
+
+    const token = nextSlotToken++;
+    sidebarToken = token;
     interfaceState.sidebar = id;
     interfaceState.sidebarClose = close;
+    return token;
 }
 
 /** Dismiss the open sidebar, running its close handler. */
 export function closeSidebar(): void {
     const close = interfaceState.sidebarClose;
+    sidebarToken = 0;
     interfaceState.sidebar = null;
     interfaceState.sidebarClose = null;
     close?.();
 }
 
-/** Clear the sidebar slot if `id` still owns it, without re-invoking close. */
-export function clearSidebar(id: SidebarId): void {
-    if (interfaceState.sidebar === id) {
-        interfaceState.sidebar = null;
-        interfaceState.sidebarClose = null;
-    }
+// No call sites today — both openSidebar callers drop the token. Kept
+// deliberately for parity with the modal slot, so a panel that later needs to
+// self-release has the same safe primitive. NOT dead code to sweep.
+/** Release the sidebar slot if `token` still owns it, without re-running its
+ *  close handler. Returns whether the slot was released. */
+export function clearSidebarIfOwner(token: SlotToken): boolean {
+    if (token === 0 || sidebarToken !== token) return false;
+    sidebarToken = 0;
+    interfaceState.sidebar = null;
+    interfaceState.sidebarClose = null;
+    return true;
 }

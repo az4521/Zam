@@ -35,12 +35,13 @@
 
     function show() {
         below = (buttonEl?.getBoundingClientRect().top ?? 400) < 400;
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("report-message", () => (open = false));
         reason = "";
         offensive = false;
         status = "idle";
         error = "";
         open = true;
-        openModal("report-message", () => (open = false));
         setTimeout(() => textareaEl?.focus(), 0);
     }
 
