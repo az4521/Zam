@@ -103,6 +103,7 @@
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
+    import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
@@ -382,7 +383,11 @@
         const sender = getMemberName(room, event.getSender() ?? "");
         try {
             const n = new Notification(getRoomDisplayName(room), {
-                body: body ? `${sender}: ${body}` : `${sender} sent a message`,
+                body: notificationBody({
+                    sender,
+                    body,
+                    hideBody: settingsState.hideNotificationBody,
+                }),
                 icon: "/favicon.png",
                 badge: "/favicon_foreground.png",
                 tag: event.getId() ?? undefined,
