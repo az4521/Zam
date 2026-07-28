@@ -286,7 +286,9 @@
         </div>
         {#if profileError}<p class="mt-2 text-xs text-discord-danger">
                 {profileError}
-            </p>{:else if profileSaved}<p class="mt-2 text-xs text-green-400">
+            </p>{:else if profileSaved}<p
+                class="mt-2 text-xs text-discord-textPositive"
+            >
                 Saved
             </p>{/if}
     </section>
@@ -387,7 +389,7 @@
                 {#if passwordError}<p class="text-xs text-discord-danger">
                         {passwordError}
                     </p>{:else if passwordChanged}<p
-                        class="text-xs text-green-400"
+                        class="text-xs text-discord-textPositive"
                     >
                         Password changed.
                     </p>{:else if passwordProblem && (currentPassword || newPassword || confirmPassword)}<p

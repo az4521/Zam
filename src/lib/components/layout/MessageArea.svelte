@@ -1297,12 +1297,12 @@
                     <div
                         class="flex items-center gap-3 px-4 my-2 ![overflow-anchor:auto]"
                     >
-                        <div class="flex-1 h-px bg-red-500/60"></div>
+                        <div class="flex-1 h-px bg-discord-danger/60"></div>
                         <span
-                            class="text-xs font-semibold text-red-400 uppercase tracking-wide"
+                            class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
                             >New Messages</span
                         >
-                        <div class="flex-1 h-px bg-red-500/60"></div>
+                        <div class="flex-1 h-px bg-discord-danger/60"></div>
                     </div>
                 {/if}
                 {#if isRawDebugEvent(event)}

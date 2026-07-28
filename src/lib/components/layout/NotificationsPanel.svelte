@@ -192,8 +192,8 @@
                     <div
                         onclick={() => jump(n.roomId, n.eventId)}
                         class="p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 {n.read
-                            ? 'border-yellow-500/30 opacity-60'
-                            : 'border-yellow-500/70'}"
+                            ? 'border-discord-warning/30 opacity-60'
+                            : 'border-discord-warning/70'}"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar

@@ -25,13 +25,15 @@
     <summary
         class="px-2 py-1 cursor-pointer select-none flex flex-wrap items-center gap-2 text-discord-textMuted"
     >
-        <span class="text-yellow-500/80">{time}</span>
-        <span class="text-blue-400">{type}</span>
+        <span class="text-discord-warning/80">{time}</span>
+        <span class="text-discord-accent">{type}</span>
         {#if stateKey !== undefined && stateKey !== null}
-            <span class="text-orange-400" title="state_key">⊞ {stateKey || "(empty)"}</span>
+            <span class="text-discord-warning" title="state_key"
+                >⊞ {stateKey || "(empty)"}</span
+            >
         {/if}
-        <span class="text-purple-400 break-all">{sender}</span>
-        {#if redacted}<span class="text-red-400">REDACTED</span>{/if}
+        <span class="text-discord-textSecondary break-all">{sender}</span>
+        {#if redacted}<span class="text-discord-danger">REDACTED</span>{/if}
     </summary>
     <div class="px-2 pb-2 pt-1 border-t border-discord-divider space-y-1">
         <div class="text-discord-textMuted break-all">id: {eventId}</div>

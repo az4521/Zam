@@ -191,7 +191,7 @@
             {:else}
                 <p
                     class="text-sm {matchingPusher
-                        ? 'text-green-400'
+                        ? 'text-discord-textPositive'
                         : 'text-discord-warning'}"
                 >
                     {matchingPusher
@@ -245,7 +245,7 @@
             </p>
             <p
                 class="text-sm {gateway.reachable
-                    ? 'text-green-400'
+                    ? 'text-discord-textPositive'
                     : 'text-discord-error'}"
             >
                 {gateway.reachable
