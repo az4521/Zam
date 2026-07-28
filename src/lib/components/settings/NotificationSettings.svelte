@@ -21,13 +21,16 @@
         type PushRuleLevel,
         type RoomNotificationSetting,
         type KeywordBehavior,
+        updateServiceWorkerNotificationPrivacy,
     } from "$lib/matrix/client";
     import { validateKeyword } from "$lib/utils/keywordRules";
     import {
         setPrivateReadReceipts,
+        setHideNotificationBody,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
+    import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
 
     function currentPermission(): NotificationPermission | "unsupported" {
         return typeof Notification === "undefined"
@@ -56,6 +59,14 @@
     function setSoundEnabled(enabled: boolean) {
         soundEnabled = enabled;
         localStorage.setItem("notifSoundEnabled", String(enabled));
+    }
+
+    function onToggleHideNotificationBody(value: boolean) {
+        setHideNotificationBody(value);
+        // The service worker and the Android FCM service each keep their own
+        // copy of this flag — they cannot read localStorage.
+        updateServiceWorkerNotificationPrivacy(value);
+        syncNativeNotificationPrivacy(value).catch(() => {});
     }
 
     type NotifRoom = { roomId: string; name: string };
@@ -307,6 +318,25 @@
                 checked={settingsState.privateReadReceipts}
                 onChange={setPrivateReadReceipts}
                 label="Private read receipts"
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Hide message text in notifications
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Notifications on this device say "someone sent a message"
+                    instead of showing what they wrote. The room name is still
+                    shown. Applies to this device only.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.hideNotificationBody}
+                onChange={onToggleHideNotificationBody}
+                label="Hide message text in notifications"
             />
         </div>
     </section>

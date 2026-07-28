@@ -99,6 +99,7 @@
         onThreadReplyEvent,
         isThreadParticipant,
         getEventThreadRootId,
+        updateServiceWorkerNotificationPrivacy,
     } from "$lib/matrix/client";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
@@ -109,7 +110,11 @@
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
-    import { syncNativeSession, clearNativeSession } from "$lib/nativeSession";
+    import {
+        syncNativeSession,
+        clearNativeSession,
+        syncNativeNotificationPrivacy,
+    } from "$lib/nativeSession";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -601,6 +606,19 @@
                 userId: auth.userId,
             }).catch(() => {});
         }
+
+        // Push the device-global notification-privacy flag to the two
+        // background notification producers. They run without a page (SW
+        // wake-up / FCM service) and keep their own copies, so a boot is the
+        // one guaranteed chance to correct a stale one. Deliberately OUTSIDE
+        // the session guard above: logout clears the native key and the SW
+        // auth, so a logout -> login cycle must re-arm both mirrors.
+        syncNativeNotificationPrivacy(settingsState.hideNotificationBody).catch(
+            () => {},
+        );
+        updateServiceWorkerNotificationPrivacy(
+            settingsState.hideNotificationBody,
+        );
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
