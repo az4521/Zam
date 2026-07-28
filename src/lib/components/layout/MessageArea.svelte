@@ -81,7 +81,7 @@
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
-    import { Phone, Volume2, Lock } from "lucide-svelte";
+    import { Phone, Volume2, Lock, UserPlus } from "lucide-svelte";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
@@ -1086,7 +1086,17 @@
             <span class="text-xl font-bold text-discord-textMuted flex-shrink-0"
                 >#</span
             >
-            <h2 class="font-semibold text-discord-textPrimary">{roomName}</h2>
+            <!-- 5rem floor below md only: the header's buttons cannot shrink, so
+                 without a floor the name and topic each get a proportional share of
+                 the deficit at 412px and neither renders even an ellipsis. Above md
+                 there is ample width, so drop the floor rather than strand short
+                 names (a DM titled "Zam" would sit 50px from the lock icon). -->
+            <h2
+                class="font-semibold text-discord-textPrimary min-w-[5rem] md:min-w-0 truncate"
+                title={roomName}
+            >
+                {roomName}
+            </h2>
             {#if roomEncrypted}
                 <span
                     class="flex-shrink-0 text-discord-textMuted"
@@ -1098,7 +1108,10 @@
             {/if}
             {#if topic}
                 <div class="w-px h-5 bg-discord-divider"></div>
-                <p class="text-sm text-discord-textMuted truncate flex-1">
+                <p
+                    class="text-sm text-discord-textMuted truncate flex-auto min-w-0"
+                    title={topic}
+                >
                     {topic}
                 </p>
             {/if}
@@ -1215,11 +1228,7 @@
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
                 title="Toggle member list"
             >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M14 6.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM1 14.25C1 12.455 2.455 11 4.25 11h7.5C13.545 11 15 12.455 15 14.25v.25a.75.75 0 0 1-.75.75H1.75A.75.75 0 0 1 1 14.5v-.25Zm17.25-5.75a.75.75 0 0 1 .75.75v2h2a.75.75 0 0 1 0 1.5h-2v2a.75.75 0 0 1-1.5 0v-2h-2a.75.75 0 0 1 0-1.5h2v-2a.75.75 0 0 1 .75-.75Z"
-                    />
-                </svg>
+                <UserPlus size={20} />
             </button>
         </div>
 

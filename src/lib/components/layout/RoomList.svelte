@@ -762,7 +762,7 @@
                     : "padding-left: 0.5rem;"}
             >
                 <svg
-                    class="w-4 h-4 flex-shrink-0 opacity-70"
+                    class="w-5 h-5 flex-shrink-0 opacity-70"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                     ><path
@@ -910,7 +910,7 @@
                         if (reorderMode) return;
                         setActiveRoom(room.roomId);
                     }}
-                    class="flex-1 flex items-center py-1.5 min-w-0 text-left transition-colors"
+                    class="flex-1 flex items-center gap-2 py-1.5 min-w-0 text-left transition-colors"
                     class:text-discord-textPrimary={isActive || unread}
                     class:text-discord-textSecondary={!isActive && !unread}
                     class:hover:text-discord-textPrimary={!isActive}
@@ -920,7 +920,7 @@
                         : "padding-left: 0.5rem;"}
                 >
                     <div
-                        class="w-4 flex-shrink-0 flex items-center justify-center mr-1.5"
+                        class="w-5 flex-shrink-0 flex items-center justify-center"
                     >
                         {#if unread && !isActive}
                             <span
@@ -943,7 +943,7 @@
                     >
                     {#if highlight && !isActive}
                         <span
-                            class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center ml-1"
+                            class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                         >
                             {highlight > 99 ? "99+" : highlight}
                         </span>
