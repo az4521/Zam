@@ -137,26 +137,35 @@
     // whole point.
     // svelte-ignore non_reactive_update
     let backButtonEl: HTMLButtonElement | null = null;
+    // Only index 0 is safe to read: `bind:this` fires on mount and destroy but
+    // not on reindex, so if the tab set changes shape (space vs room) later
+    // indices can hold stale refs. Index 0 is always "general" either way.
     let categoryEls: HTMLButtonElement[] = [];
+    let sidebarEls: Record<string, HTMLButtonElement | null> = {};
     let lastMode: string | null = null;
 
-    // Drilling in and backing out destroy the element that had focus, dropping
-    // it to <body> — outside the focus trap, where the trap's node-level keydown
-    // never fires and Tab escapes to the app shell behind the modal. Re-anchor
-    // focus on every mode change (never on first mount: focusTrap's rAF owns
-    // that). Writes no reactive state, so it cannot retrigger itself.
+    // EVERY mode change destroys the element that had focus — drilling in,
+    // backing out, and crossing the 768px breakpoint in either direction —
+    // dropping focus to <body>, outside the focus trap, where the trap's
+    // node-level keydown never fires and Tab escapes to the app shell behind
+    // the modal. So re-anchor focus on every change, including into "desktop"
+    // (never on first mount: focusTrap's rAF owns that). Writes no reactive
+    // state, so it cannot retrigger itself.
     $effect(() => {
         const mode = view.mode;
+        // Free: the effect already depends on `view`, so reading a second
+        // property off the same object registers nothing new.
+        const tab = mode === "list" ? null : view.tab;
         if (lastMode === null || lastMode === mode) {
             lastMode = mode;
             return;
         }
         lastMode = mode;
-        if (mode === "desktop") return;
         // After the DOM is patched — `bind:this` has not necessarily landed yet.
         void tick().then(() => {
             if (mode === "detail") backButtonEl?.focus();
-            else categoryEls[0]?.focus();
+            else if (mode === "list") categoryEls[0]?.focus();
+            else if (tab) sidebarEls[tab]?.focus();
         });
     });
 
@@ -691,9 +700,16 @@
                 id="room-settings-title"
                 class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
             >
-                {view.mode === "detail"
-                    ? roomSettingsTabLabel(view.tab)
-                    : `${room.name} — Settings`}
+                {#if view.mode === "detail"}
+                    <!-- This heading IS the dialog's accessible name
+                         (aria-labelledby), and on a sub-page the visible text is
+                         only the category — so name the room for screen readers
+                         without repeating it on screen. -->
+                    <span class="sr-only">{`${room.name} — `}</span
+                    >{roomSettingsTabLabel(view.tab)}
+                {:else}
+                    {room.name} — Settings
+                {/if}
             </h2>
             <button
                 onclick={onClose}
@@ -738,6 +754,7 @@
                     >
                         {#each tabs as tab (tab.id)}
                             <button
+                                bind:this={sidebarEls[tab.id]}
                                 onclick={() => {
                                     selectedTab = tab.id;
                                     showInvite = false;
