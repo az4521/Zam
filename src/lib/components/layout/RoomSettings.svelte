@@ -46,6 +46,11 @@
     } from "$lib/utils/joinRules";
     import { parsePowerLevelInput } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import {
+        roomSettingsNavView,
+        roomSettingsTabs,
+        type RoomSettingsTab,
+    } from "$lib/utils/roomSettingsNav";
     import { focusTrap } from "$lib/actions/focusTrap";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
@@ -56,6 +61,7 @@
         ENABLE_ENCRYPTION_WARNING,
     } from "$lib/utils/roomEncryption";
     import { auth } from "$lib/stores/auth.svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         blockUser,
@@ -71,17 +77,27 @@
 
     let { room, onClose, onUpdate }: Props = $props();
 
-    type Tab =
-        | "general"
-        | "access"
-        | "security"
-        | "permissions"
-        | "members"
-        | "rooms"
-        | "emotes";
-    let activeTab = $state<Tab>("general");
+    // null = "nothing drilled into yet": the mobile category list, or the
+    // desktop default panel. Kept across a viewport change in both directions
+    // so resizing/rotating never loses the user's place.
+    let selectedTab = $state<RoomSettingsTab | null>(null);
 
     const isSpace = $derived(room.isSpaceRoom());
+
+    const view = $derived(
+        roomSettingsNavView({
+            isMobile: interfaceState.isMobile,
+            isSpace,
+            selectedTab,
+        }),
+    );
+
+    // The tab whose panel is on screen, or null on the mobile category list
+    // where no panel is mounted. The lazy-load effects below gate on this, so
+    // sitting on the list must not kick off a fetch.
+    const activeTab = $derived<RoomSettingsTab | null>(
+        view.mode === "list" ? null : view.tab,
+    );
     const myPowerLevel = $derived(getMyPowerLevel(room));
     const pl = $derived(getRoomPowerLevels(room));
     const canEditState = $derived(myPowerLevel >= pl.state_default);
@@ -573,20 +589,7 @@
         }
     }
 
-    const tabs: { id: Tab; label: string }[] = [
-        { id: "general", label: "General" },
-        { id: "access", label: "Access" },
-        // Encryption is a room concept, not a space one — hide Security on spaces.
-        ...(untrack(() => isSpace)
-            ? []
-            : [{ id: "security" as Tab, label: "Security" }]),
-        { id: "permissions", label: "Permissions" },
-        { id: "members", label: "Members" },
-        { id: "emotes", label: "Emotes" },
-        ...(untrack(() => isSpace)
-            ? [{ id: "rooms" as Tab, label: "Rooms" }]
-            : []),
-    ];
+    const tabs = $derived(roomSettingsTabs({ isSpace }));
 </script>
 
 <div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
@@ -634,7 +637,7 @@
                 {#each tabs as tab (tab.id)}
                     <button
                         onclick={() => {
-                            activeTab = tab.id;
+                            selectedTab = tab.id;
                             showInvite = false;
                         }}
                         class="flex-shrink-0 w-auto md:w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
