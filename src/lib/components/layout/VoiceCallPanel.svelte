@@ -5,14 +5,20 @@
         Headphones,
         HeadphoneOff,
         PhoneOff,
+        Video,
+        VideoOff,
+        MonitorUp,
     } from "lucide-svelte";
     import {
         voiceCallState,
         leaveCall,
         toggleCallMute,
         toggleCallDeafen,
+        toggleCamera,
+        toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
+    import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { formatCallDuration } from "$lib/utils/callDuration";
     import { showCallView } from "$lib/stores/interface.svelte";
     import {
@@ -22,6 +28,9 @@
         resumeVoicePlayback,
     } from "$lib/matrix/client";
     import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
+
+    // Fixed for the session, same as CallView — hides share where unsupported.
+    const screenShareSupported = screenShareSupportedHere();
 
     // Ticks only while the panel is on screen; the anchor itself lives in the
     // store so a reconnect doesn't restart the clock.
@@ -72,63 +81,97 @@
                 Enable audio
             </button>
         {/if}
-        <div class="flex items-center justify-between gap-2">
-            <button
-                class="min-w-0 text-left"
-                onclick={openCallView}
-                title="Open call view"
+        <button
+            class="block w-full min-w-0 text-left"
+            onclick={openCallView}
+            title="Open call view"
+        >
+            <!-- spans, not <p>: a button may only contain phrasing content. -->
+            <span
+                class="block text-xs font-semibold {voiceCallState.connState ===
+                'connected'
+                    ? 'text-discord-accent'
+                    : 'text-discord-warning'}"
             >
-                <p
-                    class="text-xs font-semibold {voiceCallState.connState ===
-                    'connected'
-                        ? 'text-discord-accent'
-                        : 'text-discord-warning'}"
-                >
-                    {connStateLabel(voiceCallState.connState)}
-                    {#if elapsed}
-                        <span class="ml-1 font-normal text-discord-textMuted"
-                            >{elapsed}</span
-                        >
-                    {/if}
-                </p>
-                <p class="text-xs text-discord-textMuted truncate">
-                    {locationLabel}
-                </p>
+                {connStateLabel(voiceCallState.connState)}
+                {#if elapsed}
+                    <span class="ml-1 font-normal text-discord-textMuted"
+                        >{elapsed}</span
+                    >
+                {/if}
+            </span>
+            <span class="block text-xs text-discord-textMuted truncate">
+                {locationLabel}
+            </span>
+        </button>
+        <!-- Own row, not beside the status text: five 32px controls plus gaps
+             leave ~60px of a 240px sidebar, which truncates "Connected" to an
+             ellipsis. Discord splits the same way. -->
+        <div class="mt-1.5 flex items-center gap-1">
+            <button
+                onclick={toggleCallMute}
+                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.micMuted
+                    ? 'text-discord-danger'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                title={voiceCallState.micMuted ? "Unmute" : "Mute"}
+                aria-label={voiceCallState.micMuted ? "Unmute" : "Mute"}
+            >
+                {#if voiceCallState.micMuted}<MicOff size={20} />{:else}<Mic
+                        size={20}
+                    />{/if}
             </button>
-            <div class="flex items-center gap-1 flex-shrink-0">
+            <button
+                onclick={toggleCallDeafen}
+                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.deafened
+                    ? 'text-discord-danger'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                title={voiceCallState.deafened ? "Undeafen" : "Deafen"}
+                aria-label={voiceCallState.deafened ? "Undeafen" : "Deafen"}
+            >
+                {#if voiceCallState.deafened}<HeadphoneOff
+                        size={20}
+                    />{:else}<Headphones size={20} />{/if}
+            </button>
+            <button
+                onclick={() => void toggleCamera()}
+                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
+                    ? 'text-discord-accent'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                title={voiceCallState.cameraOn
+                    ? "Turn off camera"
+                    : "Turn on camera"}
+                aria-label={voiceCallState.cameraOn
+                    ? "Turn off camera"
+                    : "Turn on camera"}
+            >
+                {#if voiceCallState.cameraOn}<Video size={20} />{:else}<VideoOff
+                        size={20}
+                    />{/if}
+            </button>
+            {#if screenShareSupported}
                 <button
-                    onclick={toggleCallMute}
-                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.micMuted
-                        ? 'text-discord-danger'
+                    onclick={() => void toggleScreenShare()}
+                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
+                        ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                    title={voiceCallState.micMuted ? "Unmute" : "Mute"}
-                    aria-label={voiceCallState.micMuted ? "Unmute" : "Mute"}
+                    title={voiceCallState.screenSharing
+                        ? "Stop sharing"
+                        : "Share your screen"}
+                    aria-label={voiceCallState.screenSharing
+                        ? "Stop sharing"
+                        : "Share your screen"}
                 >
-                    {#if voiceCallState.micMuted}<MicOff size={20} />{:else}<Mic
-                            size={20}
-                        />{/if}
+                    <MonitorUp size={20} />
                 </button>
-                <button
-                    onclick={toggleCallDeafen}
-                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.deafened
-                        ? 'text-discord-danger'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                    title={voiceCallState.deafened ? "Undeafen" : "Deafen"}
-                    aria-label={voiceCallState.deafened ? "Undeafen" : "Deafen"}
-                >
-                    {#if voiceCallState.deafened}<HeadphoneOff
-                            size={20}
-                        />{:else}<Headphones size={20} />{/if}
-                </button>
-                <button
-                    onclick={leaveCall}
-                    class="p-1.5 rounded hover:bg-discord-messageHover text-discord-danger"
-                    title="Disconnect"
-                    aria-label="Disconnect"
-                >
-                    <PhoneOff size={20} />
-                </button>
-            </div>
+            {/if}
+            <button
+                onclick={leaveCall}
+                class="ml-auto p-1.5 rounded hover:bg-discord-messageHover text-discord-danger"
+                title="Disconnect"
+                aria-label="Disconnect"
+            >
+                <PhoneOff size={20} />
+            </button>
         </div>
     </div>
 {/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { Phone, PhoneOff } from "lucide-svelte";
+    import { Phone, PhoneOff, Video, VideoOff, MonitorUp } from "lucide-svelte";
     import {
         getRoomCallMemberships,
         getMemberName,
@@ -12,8 +12,11 @@
         voiceCallState,
         joinCall,
         leaveCall,
+        toggleCamera,
+        toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { showCallView } from "$lib/stores/interface.svelte";
@@ -22,6 +25,9 @@
         room: Room;
     }
     let { room }: Props = $props();
+
+    // Fixed for the session, same as CallView and VoiceCallPanel.
+    const screenShareSupported = screenShareSupportedHere();
 
     const participants = $derived(
         (void voiceCallState.voiceTick,
@@ -62,7 +68,7 @@
              room, so showCallView alone suffices (no navigateToRoom). -->
         <button
             onclick={() => showCallView(room.roomId)}
-            class="flex items-center gap-3 min-w-0 flex-1 text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
+            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
             title="Open call"
         >
             <div class="flex -space-x-1.5">
@@ -91,9 +97,46 @@
             </span>
         </button>
         {#if inThisCall}
+            <!-- Camera/share sit here as well as in CallView so a user who
+                 stayed on the timeline never has to open the call view to
+                 start video. Same store toggles, same support gate. -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button
+                    onclick={() => void toggleCamera()}
+                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
+                        ? 'text-discord-accent'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    title={voiceCallState.cameraOn
+                        ? "Turn off camera"
+                        : "Turn on camera"}
+                    aria-label={voiceCallState.cameraOn
+                        ? "Turn off camera"
+                        : "Turn on camera"}
+                >
+                    {#if voiceCallState.cameraOn}<Video
+                            size={16}
+                        />{:else}<VideoOff size={16} />{/if}
+                </button>
+                {#if screenShareSupported}
+                    <button
+                        onclick={() => void toggleScreenShare()}
+                        class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
+                            ? 'text-discord-accent'
+                            : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                        title={voiceCallState.screenSharing
+                            ? "Stop sharing"
+                            : "Share your screen"}
+                        aria-label={voiceCallState.screenSharing
+                            ? "Stop sharing"
+                            : "Share your screen"}
+                    >
+                        <MonitorUp size={16} />
+                    </button>
+                {/if}
+            </div>
             <button
                 onclick={leaveCall}
-                class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-sm font-medium transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-sm font-medium transition-colors flex-shrink-0"
             >
                 <PhoneOff size={14} /> Leave
             </button>

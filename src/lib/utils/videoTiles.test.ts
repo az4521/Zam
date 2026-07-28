@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
     buildVideoTiles,
     nextFocus,
     canScreenShare,
+    screenShareSupportedHere,
     type VideoPublicationInput,
 } from "./videoTiles";
 
@@ -126,5 +127,56 @@ describe("canScreenShare", () => {
     });
     it("is false when absent (mobile WebView)", () => {
         expect(canScreenShare({})).toBe(false);
+    });
+});
+
+describe("screenShareSupportedHere", () => {
+    const original = Object.getOwnPropertyDescriptor(
+        globalThis.navigator,
+        "mediaDevices",
+    );
+    const setMediaDevices = (value: unknown) =>
+        Object.defineProperty(globalThis.navigator, "mediaDevices", {
+            value,
+            configurable: true,
+        });
+    afterEach(() => {
+        // First — a failing expect() skips any cleanup left in a test body,
+        // and every line below dereferences globalThis.navigator.
+        vi.unstubAllGlobals();
+        if (original)
+            Object.defineProperty(
+                globalThis.navigator,
+                "mediaDevices",
+                original,
+            );
+        else
+            Reflect.deleteProperty(
+                globalThis.navigator as unknown as object,
+                "mediaDevices",
+            );
+    });
+
+    it("reads getDisplayMedia off navigator.mediaDevices", () => {
+        setMediaDevices({ getDisplayMedia: () => {} });
+        expect(screenShareSupportedHere()).toBe(true);
+    });
+
+    it("is false when mediaDevices exists without getDisplayMedia", () => {
+        setMediaDevices({});
+        expect(screenShareSupportedHere()).toBe(false);
+    });
+
+    it("is false when navigator.mediaDevices is undefined", () => {
+        setMediaDevices(undefined);
+        expect(screenShareSupportedHere()).toBe(false);
+    });
+
+    it("survives there being no navigator at all (SSR/prerender)", () => {
+        // `typeof x` is "undefined" for a bound-but-undefined global too, so
+        // this really does take the typeof arm rather than the optional chain.
+        vi.stubGlobal("navigator", undefined);
+        expect(typeof navigator).toBe("undefined"); // prove the stub landed
+        expect(screenShareSupportedHere()).toBe(false);
     });
 });
