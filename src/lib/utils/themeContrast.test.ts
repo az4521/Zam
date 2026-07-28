@@ -114,7 +114,11 @@ function colourOf(vars: Record<string, string>, ref: string): string {
 
 describe("app.css palette", () => {
     it("parses tokens out of both theme blocks", () => {
-        expect(Object.keys(darkVars).length).toBeGreaterThan(50);
+        // Sanity guard that the :root block parsed at all, not a census. The
+        // floor was 50 until fix/light-theme-escapes deleted the ~47-strong
+        // dead `--brand-*` ramp; 40 still catches a selector typo (which would
+        // yield 0) without pinning the palette's exact size.
+        expect(Object.keys(darkVars).length).toBeGreaterThan(40);
         expect(resolveTokenToHex(darkVars, "--discord-bg")).toBe("#36393f");
         expect(resolveTokenToHex(lightVars, "--discord-bg")).toBe("#f2f3f5");
         // A mis-typed light selector would make {...dark, ...light} collapse to

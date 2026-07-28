@@ -45,13 +45,7 @@
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import {
-        MicOff,
-        GripVertical,
-        Video,
-        Hash,
-        Circle,
-    } from "lucide-svelte";
+    import { MicOff, GripVertical, Video, Hash, Circle } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {

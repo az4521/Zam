@@ -15,8 +15,12 @@ export const liveMapState = $state<{ roomId: string | null }>({
  * AppShell's central `dismissTopmost()` instead of a private key handler.
  */
 export function openLiveLocationMap(roomId: string): void {
-    liveMapState.roomId = roomId;
+    // Claim FIRST, then assign — openModal's ordering contract. A same-id
+    // handover (re-opening the map for a different room) runs the outgoing
+    // close synchronously inside openModal, and that close nulls `roomId`,
+    // so assigning before the claim would be wiped out again.
     openModal("live-location-map", () => (liveMapState.roomId = null));
+    liveMapState.roomId = roomId;
 }
 
 /**
