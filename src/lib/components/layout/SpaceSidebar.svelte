@@ -1494,8 +1494,9 @@
                 >
                 <div class="w-full h-px bg-discord-divider my-1"></div>
                 {@const currentNotif = getRoomNotificationSetting(cm.spaceId)}
+                <!-- px-3 matches this menu's buttons; twin of RoomList's context menu. -->
                 <p
-                    class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    class="px-3 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
                     Notifications
                 </p>
