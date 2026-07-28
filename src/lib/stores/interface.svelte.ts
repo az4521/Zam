@@ -29,6 +29,11 @@ export type ModalId =
     | "composer-actions"
     | "create-poll"
     | "share-location"
+    // Fullscreen live-location map (LiveLocationMapView, mounted by
+    // LiveLocationBanner). It is in the slot so Escape and mobile back
+    // dismiss it through AppShell's central stack rather than a private
+    // window keydown handler.
+    | "live-location-map"
     | "profile-card"
     | "lightbox"
     // Shared by two call sites (RoomList roster rows, CallView tiles), and
