@@ -150,7 +150,6 @@
             return false;
         }
     });
-
 </script>
 
 {#if directEmbed?.type === "youtube"}
@@ -159,6 +158,7 @@
         class="mt-1 w-full max-w-sm aspect-video rounded-lg"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
+        loading="lazy"
         title="YouTube video"
     ></iframe>
 {:else if directEmbed?.type === "video"}
@@ -450,7 +450,11 @@
         <div class="relative inline-block group/media mt-1">
             {#if isGifSite}
                 <!-- GIF-sharing sites: play the video like a GIF — muted, looped,
-                     autoplaying, and with no controls so it can't be paused/seeked. -->
+                     autoplaying, and with no controls so it can't be paused/seeked.
+                     `pointer-events-none` + no controls already make it unpausable
+                     by the user, so we do NOT re-play on pause: the only thing that
+                     pauses this element is the browser shedding load, and answering
+                     that with play() is an unterminating main-thread ping-pong. -->
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
                     src={preview.videoUrl}
@@ -461,8 +465,7 @@
                     loop
                     playsinline
                     disablepictureinpicture
-                    preload="auto"
-                    onpause={(e) => e.currentTarget.play()}
+                    preload="metadata"
                 ></video>
             {:else if videoPlaying || !preview.videoThumbnailUrl || videoThumbError}
                 <!-- No usable thumbnail (or the user clicked play): show the video
