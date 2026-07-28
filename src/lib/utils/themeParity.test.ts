@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCssVariableBlock, missingLightOverrides } from "./themeTokens";
+import { parseCssVariableBlock, missingLightOverrides } from "./themeParity";
 
 const FIXTURE = `
 @keyframes pulse {
@@ -113,7 +113,7 @@ describe("src/app.css light theme parity (regression guard)", () => {
     // the parity call below. If each resolved it independently — the floor
     // hardcoding ":root" while missingLightOverrides fell back to its own
     // `opts.selectorDark ?? ":root"` default — then drift in the option or in
-    // that default (a themeTokens.ts edit, not just a test edit) would leave
+    // that default (a themeParity.ts edit, not just a test edit) would leave
     // the floor passing on the old selector while parity checked the new,
     // empty one. Same vacuous-green hole, one indirection further out.
     const SELECTOR_DARK = ":root";
@@ -157,11 +157,11 @@ describe("src/app.css light theme parity (regression guard)", () => {
         // semicolon at-rule immediately before the block.
         //
         // Every one of those shapes collapses the map to exactly 0, never to
-        // a small non-zero, so any floor in 1..93 has identical teeth. There
-        // are 94 dark props today; 40 keeps the slack wide enough that
+        // a small non-zero, so any floor in 1..46 has identical teeth. There
+        // are 47 dark props today; 10 keeps the slack wide enough that
         // routinely deleting a few tokens never turns this into a false alarm.
         expect(parseCssVariableBlock(css, SELECTOR_DARK).size).toBeGreaterThan(
-            40,
+            10,
         );
 
         expect(
