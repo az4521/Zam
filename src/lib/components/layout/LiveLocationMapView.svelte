@@ -56,17 +56,11 @@
         void roomsState.roomsTick;
         return beaconMarkers(getRoomBeacons(room), me);
     });
-
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-        }
-    }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
+<!-- Escape and the mobile back button are handled centrally by AppShell's
+     dismissTopmost(): this view occupies the shared modal slot (see
+     $lib/stores/liveMap.svelte). Do not add a local keydown handler. -->
 <div class="fixed inset-0 z-[70] flex flex-col bg-discord-background">
     <!-- Header -->
     <div

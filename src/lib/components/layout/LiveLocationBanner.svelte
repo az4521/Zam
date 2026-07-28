@@ -15,6 +15,13 @@
     import { remainingLabel, updatedAgoLabel } from "$lib/utils/liveLocation";
     import { timeOnly } from "$lib/utils/timeFormat";
     import LiveLocationMapView from "$lib/components/layout/LiveLocationMapView.svelte";
+    import { untrack } from "svelte";
+    import { interfaceState } from "$lib/stores/interface.svelte";
+    import {
+        liveMapState,
+        openLiveLocationMap,
+        closeLiveLocationMap,
+    } from "$lib/stores/liveMap.svelte";
 
     interface Props {
         room: Room;
@@ -28,13 +35,32 @@
         return () => clearInterval(id);
     });
 
-    let mapOpen = $state(false);
     const me = getOwnUserId();
 
-    // Close the map when switching rooms — the view is per-room.
+    // Double gate, matching the share-location precedent (AppShell.svelte:1042):
+    // the slot says a map is open, the store says it is THIS room's.
+    const mapOpen = $derived(
+        interfaceState.modal === "live-location-map" &&
+            liveMapState.roomId === room.roomId,
+    );
+
+    // The view is per-room, and it lives inside this component — release the
+    // slot when the room changes or the banner unmounts, or the slot would
+    // stay claimed by a map that is no longer rendered and Escape would
+    // silently "dismiss" nothing. The effect depends on room.roomId alone; the
+    // store read/write happens in the teardown, which Svelte already runs
+    // outside any tracking context, so it can never re-trigger this effect.
+    // untrack() is defensive only.
+    //
+    // `room` is a live prop getter and the teardown fires AFTER the prop has
+    // changed, so capture the id in the body: reading room.roomId inside the
+    // closure would yield the NEW room and never match the still-open map.
     $effect(() => {
-        void room.roomId;
-        mapOpen = false;
+        const openedFor = room.roomId;
+        return () =>
+            untrack(() => {
+                if (liveMapState.roomId === openedFor) closeLiveLocationMap();
+            });
     });
 
     const ownShare = $derived(
@@ -57,7 +83,7 @@
         ></span>
         <button
             type="button"
-            onclick={() => (mapOpen = true)}
+            onclick={() => openLiveLocationMap(room.roomId)}
             class="text-left text-discord-textPrimary hover:underline"
             title="Open map"
             >Sharing live location · {remainingLabel(
@@ -69,7 +95,7 @@
         >
         <button
             type="button"
-            onclick={() => (mapOpen = true)}
+            onclick={() => openLiveLocationMap(room.roomId)}
             class="ml-auto rounded bg-discord-backgroundSecondary px-3 py-1 text-xs font-semibold text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
         >
             Map
@@ -86,7 +112,7 @@
     <div class="border-b border-discord-divider bg-discord-backgroundSecondary">
         <button
             type="button"
-            onclick={() => (mapOpen = true)}
+            onclick={() => openLiveLocationMap(room.roomId)}
             class="flex w-full items-center gap-2 px-4 py-2 text-sm text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
         >
             <LocateFixed size={16} class="text-discord-accent flex-shrink-0" />
@@ -108,5 +134,5 @@
 {/if}
 
 {#if mapOpen}
-    <LiveLocationMapView {room} onClose={() => (mapOpen = false)} />
+    <LiveLocationMapView {room} onClose={closeLiveLocationMap} />
 {/if}
