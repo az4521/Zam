@@ -102,6 +102,7 @@
     <div class="flex-1 overflow-y-auto py-2">
         {#if admins.length > 0}
             <div class="mb-2">
+                <!-- px-4 matches the member rows' mx-2 + px-2 = 16px inset. -->
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >

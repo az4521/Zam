@@ -1018,6 +1018,11 @@
         {#if visibleRooms.length > 0}
             <div class="mb-2">
                 {#if roomGroups.favourites.length > 0}
+                    <!-- px-2 matches the channel rows' 8px left inset (the row
+                         button's padding-left: 0.5rem). MemberList and the
+                         context menus use other values on purpose: a heading's
+                         inset tracks the rows it labels, so don't collapse the
+                         three panels onto one number. -->
                     <p
                         class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                     >
@@ -1474,8 +1479,9 @@
                 >Mark as Read</button
             >
             <div class="w-full h-px bg-discord-divider my-1"></div>
+            <!-- px-3 matches this menu's buttons, not the sidebar's list headings. -->
             <p
-                class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                class="px-3 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             >
                 Notifications
             </p>
