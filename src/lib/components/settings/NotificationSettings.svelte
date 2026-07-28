@@ -22,15 +22,18 @@
         type PushRuleLevel,
         type RoomNotificationSetting,
         type KeywordBehavior,
+        updateServiceWorkerNotificationPrivacy,
     } from "$lib/matrix/client";
     import { GRACE_OPTIONS, normalizeGraceMs } from "$lib/utils/activeSession";
     import { validateKeyword } from "$lib/utils/keywordRules";
     import {
         setActiveSessionGraceMs,
         setPrivateReadReceipts,
+        setHideNotificationBody,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
+    import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
 
     function currentPermission(): NotificationPermission | "unsupported" {
         return typeof Notification === "undefined"
@@ -98,6 +101,14 @@
 
     const selectClass =
         "flex-shrink-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50";
+
+    function onToggleHideNotificationBody(value: boolean) {
+        setHideNotificationBody(value);
+        // The service worker and the Android FCM service each keep their own
+        // copy of this flag — they cannot read localStorage.
+        updateServiceWorkerNotificationPrivacy(value);
+        syncNativeNotificationPrivacy(value).catch(() => {});
+    }
 
     type NotifRoom = { roomId: string; name: string };
     type NotifGroup = { label: string; rooms: NotifRoom[] };
@@ -401,6 +412,25 @@
                 checked={settingsState.privateReadReceipts}
                 onChange={setPrivateReadReceipts}
                 label="Private read receipts"
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Hide message text in notifications
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Notifications on this device say who messaged you, but not
+                    what they said. The sender and room names are still shown.
+                    Applies to this device only.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.hideNotificationBody}
+                onChange={onToggleHideNotificationBody}
+                label="Hide message text in notifications"
             />
         </div>
     </section>

@@ -38,6 +38,17 @@ async function dbSet(key, value) {
 	});
 }
 
+// Every dbSet opens its own connection/transaction, so two concurrently
+// running handlers would race and could persist out of order (memory says
+// `true`, IndexedDB ends up `false`). Chain all writes onto one promise so
+// they land in the order the messages arrived. `.then(run, run)` keeps the
+// chain alive after a failed write.
+let writeQueue = Promise.resolve();
+function queueWrite(run) {
+	writeQueue = writeQueue.then(run, run);
+	return writeQueue;
+}
+
 function isValidHomeserverUrl(url) {
 	try {
 		const parsed = new URL(url);
@@ -73,6 +84,10 @@ let activeSessionCache = { fetchedAt: 0, value: null };
 // Declared here, with the rest of the module state, so neither the restore nor
 // the `message` listener can touch it before its `let`.
 let authFromMessage = false;
+// Device-global "hide message text in notifications" privacy setting, mirrored
+// from the page (SET_NOTIF_PRIVACY). Mirrors src/lib/utils/notificationPrivacy.ts
+// by hand — this file is not bundled and cannot import it. Change one, change both.
+let hideNotificationBody = false;
 
 const authReady = (async () => {
 	const storedToken = await dbGet("accessToken");
@@ -92,41 +107,64 @@ const authReady = (async () => {
 		userId = asIdString(storedUser);
 		deviceId = asIdString(storedDevice);
 	}
+	// Fail open to today's behaviour: anything other than an explicit stored
+	// `true` (missing value, null, legacy junk) means "show bodies".
+	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
 })();
 
-self.addEventListener("message", async (event) => {
+self.addEventListener("message", (event) => {
 	// Only accept messages from the app's own origin
 	if (event.origin !== APP_ORIGIN) return;
-	if (event.data?.type === "SET_AUTH") {
-		const { accessToken: token, homeserverUrl: hs } = event.data;
-		if (!isValidHomeserverUrl(hs)) return;
-		const user = asIdString(event.data.userId);
-		const device = asIdString(event.data.deviceId);
-		authFromMessage = true;
-		accessToken = token;
-		homeserverUrl = hs;
-		userId = user;
-		deviceId = device;
-		// A new identity invalidates any cached heartbeat decision.
-		activeSessionCache = { fetchedAt: 0, value: null };
-		await dbSet("accessToken", token);
-		await dbSet("homeserverUrl", hs);
-		await dbSet("userId", user);
-		await dbSet("deviceId", device);
-	} else if (event.data?.type === "CLEAR_AUTH") {
-		// Logout / session expiry — forget the token so we stop injecting it,
-		// and the identity so a stale device id can't silence this worker.
-		authFromMessage = true;
-		accessToken = null;
-		homeserverUrl = null;
-		userId = null;
-		deviceId = null;
-		activeSessionCache = { fetchedAt: 0, value: null };
-		await dbSet("accessToken", null);
-		await dbSet("homeserverUrl", null);
-		await dbSet("userId", null);
-		await dbSet("deviceId", null);
-	}
+	// Hold the event open for the whole async body: without waitUntil the
+	// worker is terminable as soon as the sync part returns, so a toggle
+	// followed by closing the tab could update memory but lose the
+	// IndexedDB write — and the SW is cold for essentially every push.
+	event.waitUntil(
+		(async () => {
+			if (event.data?.type === "SET_AUTH") {
+				const { accessToken: token, homeserverUrl: hs } = event.data;
+				if (!isValidHomeserverUrl(hs)) return;
+				const user = asIdString(event.data.userId);
+				const device = asIdString(event.data.deviceId);
+				authFromMessage = true;
+				accessToken = token;
+				homeserverUrl = hs;
+				userId = user;
+				deviceId = device;
+				// A new identity invalidates any cached heartbeat decision.
+				activeSessionCache = { fetchedAt: 0, value: null };
+				await queueWrite(async () => {
+					await dbSet("accessToken", token);
+					await dbSet("homeserverUrl", hs);
+					await dbSet("userId", user);
+					await dbSet("deviceId", device);
+				});
+			} else if (event.data?.type === "CLEAR_AUTH") {
+				// Logout / session expiry — forget the token so we stop injecting it,
+				// and the identity so a stale device id can't silence this worker.
+				authFromMessage = true;
+				accessToken = null;
+				homeserverUrl = null;
+				userId = null;
+				deviceId = null;
+				activeSessionCache = { fetchedAt: 0, value: null };
+				await queueWrite(async () => {
+					await dbSet("accessToken", null);
+					await dbSet("homeserverUrl", null);
+					await dbSet("userId", null);
+					await dbSet("deviceId", null);
+				});
+			} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
+				// Wait out startup hydration first: its stored read lands after this
+				// handler starts and would otherwise clobber the newer value with the
+				// pre-toggle one (leaving bodies visible until the SW restarts).
+				await authReady.catch(() => {});
+				hideNotificationBody = event.data.hideBody === true;
+				const hide = hideNotificationBody;
+				await queueWrite(() => dbSet("hideNotificationBody", hide));
+			}
+		})().catch(() => {}),
+	);
 });
 
 self.addEventListener("fetch", (event) => {
@@ -235,6 +273,9 @@ async function mxGet(path) {
 }
 
 async function buildNotification(data) {
+	// Never compose a body before the privacy flag has been hydrated from
+	// IndexedDB — reading it early would default to "show bodies".
+	await authReady;
 	const roomId = data.room_id;
 	const eventId = data.event_id;
 	let title = "New message";
@@ -253,15 +294,29 @@ async function buildNotification(data) {
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
 		);
 		if (event) {
-			const sender = event.sender || "";
-			const msg = (event.content && event.content.body) || "";
+			// Homeserver-supplied and untrusted: coerce to strings so a
+			// malformed event can't blow up on .trim() below.
+			const sender = typeof event.sender === "string" ? event.sender : "";
+			const rawMsg = event.content && event.content.body;
+			const msg = typeof rawMsg === "string" ? rawMsg : "";
 			let senderName = sender;
 			const member = await mxGet(
 				`/_matrix/client/v3/rooms/${rid}/state/m.room.member/${encodeURIComponent(sender)}`,
 			);
-			if (member && member.displayname) senderName = member.displayname;
-			if (msg) body = senderName ? `${senderName}: ${msg}` : msg;
-			else if (senderName) body = `${senderName} sent a message`;
+			if (
+				member &&
+				typeof member.displayname === "string" &&
+				member.displayname
+			)
+				senderName = member.displayname;
+			// Same comparisons as notificationBody() in
+			// src/lib/utils/notificationPrivacy.ts: trim both sides so a
+			// whitespace-only body counts as absent, and drop the text
+			// entirely when the privacy setting is on.
+			const name = senderName.trim();
+			const text = hideNotificationBody ? "" : msg.trim();
+			if (text) body = name ? `${name}: ${text}` : text;
+			else if (name) body = `${name} sent a message`;
 		}
 
 		const avatarRes = await mxGet(

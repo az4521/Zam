@@ -157,6 +157,16 @@ export const settingsState = $state({
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
+    /** Device-global: keep message text out of OS notifications — they say
+     *  "<sender> sent a message" instead of the body. Default OFF. Applies to
+     *  in-app popups, web push (service worker) and Android FCM on THIS
+     *  device; the in-app notification inbox still shows real text.
+     *
+     *  ⚠ Must stay readBool/writeBool (device-global). Converting it to
+     *  readAccountBool/writeAccountBool would make readScoped() adopt the bare
+     *  key into the ACTIVE account's scope and DELETE it, silently dropping the
+     *  toggle for every other account on this device — with no error anywhere. */
+    hideNotificationBody: readBool("hideNotificationBody", false),
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
@@ -485,6 +495,11 @@ export function setAutoUpdateEnabled(value: boolean): void {
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
+}
+
+export function setHideNotificationBody(value: boolean): void {
+    settingsState.hideNotificationBody = value;
+    writeBool("hideNotificationBody", value);
 }
 
 export function setKeepSidebarOpen(value: boolean): void {

@@ -107,6 +107,7 @@
         getOwnDeviceId,
         publishActiveSession,
         getActiveSessionHeartbeat,
+        updateServiceWorkerNotificationPrivacy,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -126,6 +127,7 @@
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
+    import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import {
@@ -136,7 +138,11 @@
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
-    import { syncNativeSession, clearNativeSession } from "$lib/nativeSession";
+    import {
+        syncNativeSession,
+        clearNativeSession,
+        syncNativeNotificationPrivacy,
+    } from "$lib/nativeSession";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -513,7 +519,11 @@
         const eventId = event.getId();
         try {
             const n = new Notification(getRoomDisplayName(room), {
-                body: body ? `${sender}: ${body}` : `${sender} sent a message`,
+                body: notificationBody({
+                    sender,
+                    body,
+                    hideBody: settingsState.hideNotificationBody,
+                }),
                 icon: "/favicon.png",
                 badge: "/favicon_foreground.png",
                 // Per ROOM, not per event: a room shows one collapsing
@@ -881,6 +891,19 @@
         const heartbeatTimer = window.setInterval(
             maybeWriteHeartbeat,
             MIN_HEARTBEAT_INTERVAL_MS,
+        );
+
+        // Push the device-global notification-privacy flag to the two
+        // background notification producers. They run without a page (SW
+        // wake-up / FCM service) and keep their own copies, so a boot is the
+        // one guaranteed chance to correct a stale one. Deliberately OUTSIDE
+        // the session guard above: logout clears the native key and the SW
+        // auth, so a logout -> login cycle must re-arm both mirrors.
+        syncNativeNotificationPrivacy(settingsState.hideNotificationBody).catch(
+            () => {},
+        );
+        updateServiceWorkerNotificationPrivacy(
+            settingsState.hideNotificationBody,
         );
 
         // Native Android notification taps (MainActivity) call this to deep-link
