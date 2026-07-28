@@ -5460,7 +5460,7 @@ export function getCanonicalAliasContent(room: Room): CanonicalAliasContent {
         state?.getStateEvents("m.room.canonical_alias", "")?.getContent() ?? {};
     const alts = Array.isArray(content.alt_aliases)
         ? content.alt_aliases.filter(
-              (a: unknown): a is string => typeof a === "string",
+              (a: unknown): a is string => typeof a === "string" && !!a,
           )
         : [];
     return {

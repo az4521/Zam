@@ -105,6 +105,14 @@
         myPowerLevel >=
             (pl.events?.["im.ponies.room_emotes"] ?? pl.state_default),
     );
+    // Publishing an address is gated by the power level for the canonical-alias
+    // EVENT, not bare state_default — Element's default PL content ships
+    // `state_default: 100` with `m.room.canonical_alias: 50`, so a moderator who
+    // may publish would otherwise be shown nothing at all.
+    const canSetCanonicalAlias = $derived(
+        myPowerLevel >=
+            (pl.events?.["m.room.canonical_alias"] ?? pl.state_default),
+    );
     const canKick = $derived(myPowerLevel >= pl.kick);
     const canBan = $derived(myPowerLevel >= pl.ban);
 
@@ -369,6 +377,18 @@
     const mainAliasDirty = $derived(
         mainAliasChoice !== (canonicalContent.alias ?? ""),
     );
+    /**
+     * Choices for the main-address select. The published alias may not be one
+     * of OUR local mappings — it can live on another homeserver, or another
+     * admin may have deleted the local mapping out of band. Carry it as an
+     * extra option so it is at least visible and clearable. `sortedAliases` is
+     * already deduplicated, and it is only prepended when genuinely absent.
+     */
+    const mainAliasOptions = $derived(
+        canonicalAlias && !sortedAliases.includes(canonicalAlias)
+            ? [canonicalAlias, ...sortedAliases]
+            : sortedAliases,
+    );
 
     $effect(() => {
         if (activeTab !== "access" || aliasesLoaded) return;
@@ -425,7 +445,7 @@
                 canonicalContent,
                 alias,
             );
-            if (next && canEditState) {
+            if (next && canSetCanonicalAlias) {
                 await setCanonicalAliasContent(room.roomId, next);
                 canonicalContent = next;
                 mainAliasChoice = next.alias ?? "";
@@ -433,7 +453,13 @@
             }
             await deleteRoomAlias(alias);
             localAliases = localAliases.filter((a) => a !== alias);
-            if (next && !canEditState) {
+            // Drop a pending (unsaved) pick of the address we just deleted:
+            // it would vanish from the options, rendering the select blank
+            // while Set stayed enabled — one click from publishing a mapping
+            // that no longer exists. Snap back to what is actually published.
+            if (mainAliasChoice === alias)
+                mainAliasChoice = canonicalContent.alias ?? "";
+            if (next && !canSetCanonicalAlias) {
                 aliasNotice =
                     "Removed, but this address is still published for the room — someone with permission needs to unpublish it.";
             }
@@ -1062,6 +1088,7 @@
                                 <input
                                     type="checkbox"
                                     bind:checked={guestAccessAllowed}
+                                    disabled={!canEditState}
                                     class="accent-discord-accent"
                                 />
                                 <span class="text-sm text-discord-textPrimary"
@@ -1136,9 +1163,13 @@
                                 </p>
                             {:else}
                                 {#if sortedAliases.length === 0}
-                                    <p class="text-xs text-discord-textMuted">
-                                        No addresses yet.
-                                    </p>
+                                    {#if !aliasError}
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
+                                            No addresses yet.
+                                        </p>
+                                    {/if}
                                 {:else}
                                     <ul class="space-y-1">
                                         {#each sortedAliases as alias (alias)}
@@ -1159,6 +1190,7 @@
                                                     onclick={() =>
                                                         removeAlias(alias)}
                                                     disabled={aliasBusy}
+                                                    aria-label={`Remove ${alias}`}
                                                     class="ml-auto shrink-0 text-xs text-discord-danger hover:underline disabled:opacity-50"
                                                     >Remove</button
                                                 >
@@ -1167,7 +1199,7 @@
                                     </ul>
                                 {/if}
 
-                                {#if canEditState && sortedAliases.length > 0}
+                                {#if canSetCanonicalAlias && mainAliasOptions.length > 0}
                                     <div
                                         class="flex items-end gap-1.5 mt-3 min-w-0"
                                     >
@@ -1184,7 +1216,7 @@
                                                 <option value=""
                                                     >No main address</option
                                                 >
-                                                {#each sortedAliases as alias (alias)}
+                                                {#each mainAliasOptions as alias (alias)}
                                                     <option value={alias}
                                                         >{alias}</option
                                                     >
@@ -1211,6 +1243,18 @@
                                         bind:value={newAliasLocalpart}
                                         placeholder="my-room"
                                         disabled={aliasBusy}
+                                        onkeydown={(e) => {
+                                            if (
+                                                e.key === "Enter" &&
+                                                !e.shiftKey &&
+                                                !e.ctrlKey &&
+                                                !e.altKey &&
+                                                !e.metaKey
+                                            ) {
+                                                e.preventDefault();
+                                                addAlias();
+                                            }
+                                        }}
                                         class="flex-1 min-w-0 px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
                                     />
                                     <span
@@ -1220,6 +1264,7 @@
                                     <button
                                         onclick={addAlias}
                                         disabled={aliasBusy ||
+                                            !ownServer ||
                                             !newAliasCheck.valid}
                                         class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                                         >Add</button
