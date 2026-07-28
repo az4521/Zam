@@ -13,6 +13,7 @@ import { Preferences } from "@capacitor/preferences";
 const KEY_HS = "matrix_hs_url";
 const KEY_TOKEN = "matrix_access_token";
 const KEY_USER = "matrix_user_id";
+const KEY_HIDE_BODY = "matrix_hide_notification_body";
 
 export async function syncNativeSession(session: {
     homeserverUrl: string;
@@ -32,12 +33,32 @@ export async function syncNativeSession(session: {
     }
 }
 
+/**
+ * Mirror the device-global "hide message text in notifications" setting so the
+ * native push service (MatrixMessagingService.java) can honour it. Capacitor
+ * Preferences stores strings, so the Java side compares against "true".
+ */
+export async function syncNativeNotificationPrivacy(
+    hide: boolean,
+): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+        await Preferences.set({ key: KEY_HIDE_BODY, value: String(hide) });
+    } catch (err) {
+        console.warn(
+            "[nativeSession] failed to sync notification privacy",
+            err,
+        );
+    }
+}
+
 export async function clearNativeSession(): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     try {
         await Preferences.remove({ key: KEY_HS });
         await Preferences.remove({ key: KEY_TOKEN });
         await Preferences.remove({ key: KEY_USER });
+        await Preferences.remove({ key: KEY_HIDE_BODY });
     } catch {
         /* ignore */
     }
