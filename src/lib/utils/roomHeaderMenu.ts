@@ -1,16 +1,17 @@
 // Pure model for the mobile room-header overflow menu.
 //
 // At 412px the room header cannot fit eight buttons and still leave the room
-// name and topic any width, so on mobile four of them (threads, pinned,
-// notifications, member list) move into a "⋯" bottom sheet. Which rows exist,
-// what they say and how they badge lives here so it can be tested without a
-// DOM; MessageArea only supplies the numbers and renders the result.
+// name and topic any width, so on mobile five of them (threads, pinned,
+// notifications, media, member list) move into a "⋯" bottom sheet. Which rows
+// exist, what they say and how they badge lives here so it can be tested
+// without a DOM; MessageArea only supplies the numbers and renders the result.
 
 /** The panels that move off the header and into the overflow menu. */
 export type RoomHeaderMenuKey =
     | "threads"
     | "pinned"
     | "notifications"
+    | "media"
     | "members";
 
 export interface RoomHeaderMenuInput {
@@ -70,6 +71,13 @@ export function roomHeaderMenuRows(
             key: "notifications",
             label: "Notifications inbox",
             active: active("notifications"),
+            badge: null,
+            dot: false,
+        },
+        {
+            key: "media",
+            label: "Media and files",
+            active: active("media"),
             badge: null,
             dot: false,
         },

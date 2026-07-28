@@ -51,7 +51,8 @@ export type SidebarId =
     | "pinned"
     | "notifications"
     | "search"
-    | "threads";
+    | "threads"
+    | "media";
 
 export const interfaceState = $state({
     isMobile: false,

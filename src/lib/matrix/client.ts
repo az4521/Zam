@@ -24,6 +24,7 @@ import {
     M_BEACON,
     M_BEACON_INFO,
     ContentHelpers,
+    Filter,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -147,6 +148,11 @@ import {
     buildPollStart,
     buildPollEnd,
 } from "$lib/utils/pollContent";
+import {
+    mediaItemFromEvent,
+    mediaFilterDefinition,
+    type RoomMediaItem,
+} from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
@@ -166,6 +172,7 @@ import {
     initCrypto,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
+    isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
@@ -3445,6 +3452,78 @@ export async function searchRoomMessagesMore(
 ): Promise<ISearchResults | null> {
     if (!matrixClient) return null;
     return matrixClient.backPaginateRoomEventsSearch(results);
+}
+
+/** One page of a room's media, newest first. `nextToken` is null at the end. */
+export interface RoomMediaPage {
+    items: RoomMediaItem[];
+    nextToken: string | null;
+    /** Whether the source room is encrypted. Surfaced so the UI can say why a
+     *  visibly media-full room lists nothing (E2EE attachments are
+     *  `content.file`, which the mapper cannot turn into a listable item) and
+     *  can stop paging instead of decrypting hundreds of events for nothing. */
+    encrypted: boolean;
+}
+
+/**
+ * Fetch one backwards page of a room's image/video/file/audio attachments.
+ *
+ * Paginated on purpose — a room's whole history is never loaded. In an
+ * encrypted room the page arrives as m.room.encrypted and has to be decrypted
+ * here before the pure mapper can see a msgtype, which is also why the server
+ * filter differs (see mediaFilterDefinition).
+ */
+export async function fetchRoomMediaPage(
+    roomId: string,
+    fromToken: string | null,
+    limit = 40,
+): Promise<RoomMediaPage> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
+
+    const filter = new Filter(matrixClient.getUserId());
+    filter.setDefinition(mediaFilterDefinition(encrypted, limit));
+
+    const res = await matrixClient.createMessagesRequest(
+        roomId,
+        fromToken,
+        limit,
+        Direction.Backward,
+        filter,
+    );
+
+    const events = (res.chunk ?? []).map((raw) => new MatrixEvent(raw));
+
+    // Decrypt the whole page at once rather than 40 serial awaits. A missing
+    // key does NOT reject: the SDK's decryption loop swallows the error and
+    // marks the event as a decryption failure, so it resolves and the event
+    // surfaces as m.bad.encrypted, which the mapper rejects anyway. The catch
+    // is belt-and-braces for an unexpected throw.
+    await Promise.all(
+        events
+            .filter((e) => e.getType() === "m.room.encrypted")
+            .map((e) => matrixClient!.decryptEventIfNeeded(e).catch(() => {})),
+    );
+
+    const items: RoomMediaItem[] = [];
+    for (const event of events) {
+        const item = mediaItemFromEvent({
+            eventId: event.getId(),
+            sender: event.getSender(),
+            ts: event.getTs(),
+            type: event.getType(),
+            content: event.getContent() as Record<string, unknown>,
+        });
+        if (item) items.push(item);
+    }
+
+    // End of history is the token, not the chunk: conduit-derived servers
+    // (continuwuity/tuwunel) filter a fixed PDU window after the fact, so an
+    // empty chunk mid-history is normal. A token that does not advance means
+    // the server has nothing further to give.
+    const end = res.end ?? null;
+    const nextToken = end !== null && end !== fromToken ? end : null;
+    return { items, nextToken, encrypted };
 }
 
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {

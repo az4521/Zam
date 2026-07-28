@@ -9,11 +9,12 @@ const base: RoomHeaderMenuInput = {
 };
 
 describe("roomHeaderMenuRows", () => {
-    it("returns the four overflowed panels in a stable order", () => {
+    it("returns the five overflowed panels in a stable order", () => {
         expect(roomHeaderMenuRows(base).map((r) => r.key)).toEqual([
             "threads",
             "pinned",
             "notifications",
+            "media",
             "members",
         ]);
     });

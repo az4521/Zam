@@ -41,6 +41,9 @@
         pinned: "M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z",
         notifications:
             "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
+        // Mirrors lucide's `Image` (the desktop media button) as a solid glyph,
+        // so this sheet stays one visual family rather than mixing artwork.
+        media: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
         members:
             "M14 6.5a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM1 14.25C1 12.455 2.455 11 4.25 11h7.5C13.545 11 15 12.455 15 14.25v.25a.75.75 0 0 1-.75.75H1.75A.75.75 0 0 1 1 14.5v-.25Zm17.25-5.75a.75.75 0 0 1 .75.75v2h2a.75.75 0 0 1 0 1.5h-2v2a.75.75 0 0 1-1.5 0v-2h-2a.75.75 0 0 1 0-1.5h2v-2a.75.75 0 0 1 .75-.75Z",
     };
@@ -57,6 +60,7 @@
             one: "unread notification",
             other: "unread notifications",
         },
+        media: { one: "item", other: "items" },
         members: { one: "member", other: "members" },
     };
 
@@ -79,6 +83,7 @@
         threads: "bg-discord-danger text-white",
         pinned: "bg-discord-divider text-discord-textPrimary",
         notifications: "bg-discord-divider text-discord-textPrimary",
+        media: "bg-discord-divider text-discord-textPrimary",
         members: "bg-discord-divider text-discord-textPrimary",
     };
 
