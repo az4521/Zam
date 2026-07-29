@@ -581,31 +581,62 @@
     // `live` drives the sound + desktop popup; it defaults to "the initial sync
     // has finished", and the decrypted path overrides it because decryption of
     // the page-load backlog routinely resolves *after* sync PREPARED.
+    //
+    // Deferred by one macrotask, because the read check below cannot be
+    // answered yet at call time. `RoomEvent.Timeline` is emitted from the
+    // SDK's injectRoomEvents(), and a /sync response applies its ephemeral
+    // events — the read receipts — only AFTER that, in
+    // `room.addEphemeralEvents()` (matrix-js-sdk sync.ts). Asked inside the
+    // handler, or on a microtask, `hasUserReadEvent` still answers from the
+    // pre-response receipt and says "unread"; asked on the next macrotask, it
+    // has the receipt from the very same response. Measured on the live repro:
+    // handler false, microtask false, setTimeout(0) true, next sync tick
+    // (+14ms) true.
+    const pendingNotifyTimers = new Set<number>();
+
     function emitNotification(
         event: MatrixEvent,
         room: Room,
         loud: boolean,
         live: boolean = isInitialSyncComplete(),
     ) {
-        // Already-read messages must never notify, however live they look.
-        // On reload the client resumes from the persisted `since` token, which
-        // lags the newest events, so the server re-delivers messages the user
-        // already read as genuinely fresh live events AFTER PREPARED — a ping,
-        // a popup and an inbox row each, for things they just finished reading.
-        // Liveness cannot tell those apart from new traffic; the read receipt
-        // can. Placed here so it covers every producer (plaintext timeline,
-        // decrypted, thread reply) instead of once per path. Fails OPEN: an
-        // unknown room/user/event, or a throwing lookup, still notifies.
-        if (
-            isAlreadyReadEvent({
-                eventId: event.getId(),
-                myUserId: getOwnUserId(),
-                hasUserReadEvent: (userId, eventId) =>
-                    room.hasUserReadEvent(userId, eventId),
-            })
-        )
-            return;
+        // Recorded up front rather than at emission: this is the dedupe key
+        // for an event both the main and the decrypted path can see, and with
+        // the emission deferred they would otherwise both pass the check.
+        const notifiedId = event.getId();
+        if (notifiedId) notifiedEventIds.add(notifiedId);
+        const timer = window.setTimeout(() => {
+            pendingNotifyTimers.delete(timer);
+            // Already-read messages must never notify, however live they look.
+            // On reload the client resumes from the persisted `since` token,
+            // which lags the newest events, so the server re-delivers messages
+            // the user already read as genuinely fresh live events AFTER
+            // PREPARED — a ping, a popup and an inbox row each, for things they
+            // just finished reading. Liveness cannot tell those apart from new
+            // traffic; the read receipt can. Checked here so it covers every
+            // producer (plaintext timeline, decrypted, thread reply) instead of
+            // once per path. Fails OPEN: an unknown room/user/event, or a
+            // throwing lookup, still notifies.
+            if (
+                isAlreadyReadEvent({
+                    eventId: event.getId(),
+                    myUserId: getOwnUserId(),
+                    hasUserReadEvent: (userId, eventId) =>
+                        room.hasUserReadEvent(userId, eventId),
+                })
+            )
+                return;
+            emitNotificationNow(event, room, loud, live);
+        }, 0);
+        pendingNotifyTimers.add(timer);
+    }
 
+    function emitNotificationNow(
+        event: MatrixEvent,
+        room: Room,
+        loud: boolean,
+        live: boolean,
+    ) {
         const content = event.getContent() as any;
         // Extensible events (e.g. polls) carry their text fallback in the
         // MSC1767 key instead of body.
@@ -661,8 +692,6 @@
             body,
             loud,
         });
-        const notifiedId = event.getId();
-        if (notifiedId) notifiedEventIds.add(notifiedId);
 
         // Any notifying event also pops a desktop notification.
         if (live && !quietForOtherDevice)
@@ -1168,6 +1197,9 @@
         }
 
         return () => {
+            // Deferred notifications must not land after teardown/logout.
+            for (const t of pendingNotifyTimers) window.clearTimeout(t);
+            pendingNotifyTimers.clear();
             unsubRooms();
             unsubTimeline();
             unsubDecryptedNotify();
