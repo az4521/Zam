@@ -112,6 +112,7 @@
     } from "$lib/matrix/client";
     import {
         shouldNotifyDecrypted,
+        isAlreadyReadEvent,
         createBoundedIdSet,
     } from "$lib/utils/notifyDecrypted";
     import {
@@ -586,6 +587,25 @@
         loud: boolean,
         live: boolean = isInitialSyncComplete(),
     ) {
+        // Already-read messages must never notify, however live they look.
+        // On reload the client resumes from the persisted `since` token, which
+        // lags the newest events, so the server re-delivers messages the user
+        // already read as genuinely fresh live events AFTER PREPARED — a ping,
+        // a popup and an inbox row each, for things they just finished reading.
+        // Liveness cannot tell those apart from new traffic; the read receipt
+        // can. Placed here so it covers every producer (plaintext timeline,
+        // decrypted, thread reply) instead of once per path. Fails OPEN: an
+        // unknown room/user/event, or a throwing lookup, still notifies.
+        if (
+            isAlreadyReadEvent({
+                eventId: event.getId(),
+                myUserId: getOwnUserId(),
+                hasUserReadEvent: (userId, eventId) =>
+                    room.hasUserReadEvent(userId, eventId),
+            })
+        )
+            return;
+
         const content = event.getContent() as any;
         // Extensible events (e.g. polls) carry their text fallback in the
         // MSC1767 key instead of body.

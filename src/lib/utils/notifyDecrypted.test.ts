@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     shouldNotifyDecrypted,
+    isAlreadyReadEvent,
     createBoundedIdSet,
     createBoundedIdMap,
     NOTIFIED_ID_CAP,
@@ -70,6 +71,120 @@ describe("shouldNotifyDecrypted", () => {
                 pushNotify: false,
                 alreadyNotified: false,
                 isLiveAppend: true,
+            }),
+        ).toBe(false);
+    });
+});
+
+describe("isAlreadyReadEvent", () => {
+    const read = () => true;
+    const unread = () => false;
+
+    it("reports an event the receipt already covers", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+                hasUserReadEvent: read,
+            }),
+        ).toBe(true);
+    });
+
+    it("reports an unread event as unread", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+                hasUserReadEvent: unread,
+            }),
+        ).toBe(false);
+    });
+
+    it("asks about the right user and event", () => {
+        const calls: Array<[string, string]> = [];
+        isAlreadyReadEvent({
+            eventId: "$evt1",
+            myUserId: "@me:hs",
+            hasUserReadEvent: (u, e) => {
+                calls.push([u, e]);
+                return true;
+            },
+        });
+        expect(calls).toEqual([["@me:hs", "$evt1"]]);
+    });
+
+    it("fails OPEN when the event id is missing", () => {
+        // Ambiguity must notify: a suppression bug eats a real message.
+        expect(
+            isAlreadyReadEvent({
+                eventId: null,
+                myUserId: "@me:hs",
+                hasUserReadEvent: read,
+            }),
+        ).toBe(false);
+        expect(
+            isAlreadyReadEvent({
+                eventId: "",
+                myUserId: "@me:hs",
+                hasUserReadEvent: read,
+            }),
+        ).toBe(false);
+    });
+
+    it("fails OPEN when the user id is missing", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: null,
+                hasUserReadEvent: read,
+            }),
+        ).toBe(false);
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: undefined,
+                hasUserReadEvent: read,
+            }),
+        ).toBe(false);
+    });
+
+    it("fails OPEN when there is no room to ask", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+                hasUserReadEvent: null,
+            }),
+        ).toBe(false);
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+            }),
+        ).toBe(false);
+    });
+
+    it("fails OPEN when the lookup throws", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+                hasUserReadEvent: () => {
+                    throw new Error("event unknown to the room");
+                },
+            }),
+        ).toBe(false);
+    });
+
+    it("fails OPEN on a non-boolean answer", () => {
+        expect(
+            isAlreadyReadEvent({
+                eventId: "$evt1",
+                myUserId: "@me:hs",
+                hasUserReadEvent: (() => "yes") as unknown as (
+                    u: string,
+                    e: string,
+                ) => boolean,
             }),
         ).toBe(false);
     });
