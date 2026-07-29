@@ -52,7 +52,11 @@
         stripFormattedFallback,
     } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
-    import { videoPosterMxc, formatMediaDuration } from "$lib/utils/roomMedia";
+    import {
+        videoPosterMxc,
+        videoSourceMxc,
+        formatMediaDuration,
+    } from "$lib/utils/roomMedia";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -635,11 +639,33 @@
         );
     });
 
-    // Video: lazy-load blob only after thumbnail is clicked
-    let videoClicked = $state(false);
-    let videoBlobUrl = $state<string | null>(null);
-    let videoLoading = $state(false);
+    // Video: nothing is requested until the user clicks play, and then the
+    // <video> element streams the media URL itself rather than us buffering the
+    // whole file into a blob first. The service worker (static/sw.js) injects
+    // the access token into every element-initiated request under
+    // /_matrix/client/v1/media/, which is the same path every <img> in this
+    // timeline already depends on, so a bare `src` is authenticated.
+    //
+    // Buffering first was actively harmful: continuwuity sends neither
+    // Content-Length nor Accept-Ranges on a media download, so a blob fetch has
+    // no progress to report AND cannot start playback early — a 20 MB clip sat
+    // on a bare spinner until every byte had landed, by which point the click's
+    // user-activation window had expired, `autoplay` was refused, and the video
+    // mounted paused on a black first frame. That reads as "it does not play".
+    let videoAttempt = $state(0);
+    let videoFailed = $state(false);
     let videoThumbFailed = $state(false);
+    // The URL to stream, or null when this event carries nothing playable: an
+    // encrypted attachment (`content.file` — no decryption path here) or a
+    // malformed url. Null must render an inert "unavailable" card, never a play
+    // affordance, or the click silently does nothing forever.
+    const videoSrcUrl = $derived(
+        msgtype === "m.video" ? mxcToHttp(videoSourceMxc(content)) : null,
+    );
+    function playVideo() {
+        videoFailed = false;
+        videoAttempt += 1;
+    }
     // Poster for the unplayed video body. ONLY ever the sender's uploaded
     // thumbnail — `videoPosterMxc` hands back null otherwise, and we then render
     // the placeholder card below without requesting anything. Never point this
@@ -654,27 +680,6 @@
             ? formatMediaDuration((content?.info as any)?.duration)
             : "",
     );
-
-    $effect(() => {
-        if (!videoClicked || msgtype !== "m.video") return;
-        const httpUrl = mxcToHttp(content?.url as string);
-        if (!httpUrl) return;
-        videoLoading = true;
-        let objectUrl: string | null = null;
-        fetchAttachmentBlob(httpUrl)
-            .then((url) => {
-                objectUrl = url;
-                videoBlobUrl = url;
-                videoLoading = false;
-            })
-            .catch(() => {
-                videoLoading = false;
-            });
-        return () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            videoBlobUrl = null;
-        };
-    });
 
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
@@ -1280,14 +1285,51 @@
             {/if}
         {:else if msgtype === "m.video"}
             {@render mediaCaption()}
-            {#if videoBlobUrl}
-                <!-- svelte-ignore a11y_media_has_caption -->
-                <video
-                    src={videoBlobUrl}
-                    controls
-                    autoplay
-                    class="max-w-sm w-full max-h-72 rounded-lg mt-1 block"
-                ></video>
+            {#if videoSrcUrl === null}
+                <!-- Nothing this client can play: an encrypted attachment (no
+                     decryption path here) or a malformed url. Deliberately NOT
+                     clickable — a play affordance that can never resolve a
+                     source is a dead click, which is exactly how this gets
+                     reported as "videos cannot be played at all". -->
+                <div
+                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+                >
+                    <div
+                        class="w-10 h-10 rounded-full bg-discord-backgroundSecondary flex items-center justify-center flex-shrink-0"
+                    >
+                        <svg
+                            class="w-5 h-5 text-discord-textMuted"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                        >
+                    </div>
+                    <div class="min-w-0">
+                        <p
+                            class="text-sm font-medium text-discord-textPrimary truncate"
+                        >
+                            {mediaFilename || "Video"}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            Can't be played here
+                        </p>
+                    </div>
+                </div>
+            {:else if videoAttempt > 0 && !videoFailed}
+                <!-- Keyed so a retry after a failure remounts the element: the
+                     src is unchanged, so without this Svelte would patch
+                     nothing and the browser would never re-attempt the load. -->
+                {#key videoAttempt}
+                    <!-- svelte-ignore a11y_media_has_caption -->
+                    <video
+                        src={videoSrcUrl}
+                        controls
+                        autoplay
+                        playsinline
+                        preload="auto"
+                        class="max-w-sm w-full max-h-72 rounded-lg mt-1 block"
+                        onerror={() => (videoFailed = true)}
+                    ></video>
+                {/key}
             {:else}
                 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                 <div
@@ -1295,9 +1337,7 @@
                     style={videoThumbnailUrl && !videoThumbFailed
                         ? `aspect-ratio: ${(content?.info as any)?.w && (content?.info as any)?.h ? `${(content.info as any).w}/${(content.info as any).h}` : "16/9"}; max-height: 18rem;`
                         : ""}
-                    onclick={() => {
-                        videoClicked = true;
-                    }}
+                    onclick={playVideo}
                 >
                     {#if videoThumbnailUrl && !videoThumbFailed}
                         <img
@@ -1309,22 +1349,16 @@
                         <div
                             class="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors"
                         >
-                            {#if videoLoading}
-                                <div
-                                    class="w-12 h-12 border-2 border-white border-t-transparent rounded-full animate-spin"
-                                ></div>
-                            {:else}
-                                <div
-                                    class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                            <div
+                                class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                            >
+                                <svg
+                                    class="w-7 h-7 text-white ml-1"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path d="M8 5v14l11-7z" /></svg
                                 >
-                                    <svg
-                                        class="w-7 h-7 text-white ml-1"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                        ><path d="M8 5v14l11-7z" /></svg
-                                    >
-                                </div>
-                            {/if}
+                            </div>
                             <p
                                 class="mt-2 text-xs text-white font-medium drop-shadow px-2 py-1 text-center line-clamp-1 rounded-full bg-black/60"
                             >
@@ -1342,20 +1376,16 @@
                             class="flex items-center gap-3 px-4 py-3 bg-discord-backgroundTertiary group-hover:bg-discord-messageHover transition-colors rounded-lg"
                         >
                             <div
-                                class="w-10 h-10 rounded-full bg-discord-accent flex items-center justify-center flex-shrink-0"
+                                class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 {videoFailed
+                                    ? 'bg-discord-danger'
+                                    : 'bg-discord-accent'}"
                             >
-                                {#if videoLoading}
-                                    <div
-                                        class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
-                                    ></div>
-                                {:else}
-                                    <svg
-                                        class="w-5 h-5 text-white ml-0.5"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                        ><path d="M8 5v14l11-7z" /></svg
-                                    >
-                                {/if}
+                                <svg
+                                    class="w-5 h-5 text-white ml-0.5"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path d="M8 5v14l11-7z" /></svg
+                                >
                             </div>
                             <div class="min-w-0">
                                 <p
@@ -1363,9 +1393,17 @@
                                 >
                                     {mediaFilename || "Video"}
                                 </p>
-                                <p class="text-xs text-discord-textMuted">
-                                    {videoLoading
-                                        ? "Loading…"
+                                <!-- A failed load has to SAY so. Silently
+                                     dropping back to "Click to play" is
+                                     indistinguishable from the click having
+                                     done nothing at all. -->
+                                <p
+                                    class="text-xs {videoFailed
+                                        ? 'text-discord-danger'
+                                        : 'text-discord-textMuted'}"
+                                >
+                                    {videoFailed
+                                        ? "Playback failed · Click to retry"
                                         : videoDuration
                                           ? `${videoDuration} · Click to play`
                                           : "Click to play"}
