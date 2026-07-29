@@ -92,7 +92,7 @@
         Phone,
         Volume2,
         Lock,
-        UserPlus,
+        Users,
         Hash,
         Image,
         MoreHorizontal,
@@ -1323,7 +1323,7 @@
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
                     title="Toggle member list"
                 >
-                    <UserPlus size={20} />
+                    <Users size={20} />
                 </button>
             {:else}
                 <button
