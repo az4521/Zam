@@ -5,14 +5,19 @@ import {
     GRACE_OPTIONS,
     HEARTBEAT_INTERVAL_MS,
     IDLE_LIMIT_MS,
+    MAX_CUSTOM_GRACE_MINUTES,
     MAX_FUTURE_SKEW_MS,
     MAX_GRACE_MS,
+    MIN_CUSTOM_GRACE_MS,
     MIN_HEARTBEAT_INTERVAL_MS,
     buildHeartbeat,
+    graceMsToMinutesInput,
     heartbeatIntervalFor,
     isDeviceInUse,
+    isPresetGraceMs,
     normalizeGraceMs,
     parseActiveSession,
+    parseCustomGraceMinutes,
     shouldSuppressForActiveDevice,
     shouldWriteHeartbeat,
     type ActiveSessionHeartbeat,
@@ -433,5 +438,159 @@ describe("GRACE_OPTIONS", () => {
         for (const option of GRACE_OPTIONS) {
             expect(normalizeGraceMs(option.value)).toBe(option.value);
         }
+    });
+
+    it("offers the longer 10- and 30-minute windows", () => {
+        const values = GRACE_OPTIONS.map((o) => o.value);
+        expect(values).toContain(600_000);
+        expect(values).toContain(1_800_000);
+    });
+
+    it("keeps the short windows people already picked", () => {
+        const values = GRACE_OPTIONS.map((o) => o.value);
+        for (const kept of [0, 15_000, 30_000, 60_000, 120_000, 300_000])
+            expect(values).toContain(kept);
+    });
+});
+
+describe("MAX_GRACE_MS", () => {
+    // THE landmine this cap creates: readers clamp to it, so any offered
+    // option above it would show one duration in Settings and behave as
+    // another. The cap must stay strictly above whatever the picker offers.
+    it("never clamps an offered option", () => {
+        for (const option of GRACE_OPTIONS)
+            expect(Math.min(option.value, MAX_GRACE_MS)).toBe(option.value);
+    });
+
+    it("leaves headroom above the longest offered option", () => {
+        const longest = Math.max(...GRACE_OPTIONS.map((o) => o.value));
+        expect(MAX_GRACE_MS).toBeGreaterThan(longest);
+    });
+
+    // Hand-mirrored into static/sw.js and MatrixMessagingService.java, which
+    // no gate compiles — pin the number so a change here is loud.
+    it("is two hours", () => {
+        expect(MAX_GRACE_MS).toBe(7_200_000);
+    });
+
+    it("is the ceiling the custom picker enforces", () => {
+        expect(MAX_CUSTOM_GRACE_MINUTES * 60_000).toBe(MAX_GRACE_MS);
+    });
+});
+
+describe("parseCustomGraceMinutes", () => {
+    it("accepts a plain number of minutes", () => {
+        expect(parseCustomGraceMinutes("10")).toEqual({
+            ok: true,
+            ms: 600_000,
+        });
+    });
+
+    it("accepts a fractional value", () => {
+        expect(parseCustomGraceMinutes("1.5")).toEqual({
+            ok: true,
+            ms: 90_000,
+        });
+    });
+
+    it("tolerates surrounding whitespace", () => {
+        expect(parseCustomGraceMinutes("  45  ")).toEqual({
+            ok: true,
+            ms: 2_700_000,
+        });
+    });
+
+    it("accepts exactly the maximum", () => {
+        expect(
+            parseCustomGraceMinutes(String(MAX_CUSTOM_GRACE_MINUTES)),
+        ).toEqual({ ok: true, ms: MAX_GRACE_MS });
+    });
+
+    it("accepts exactly the minimum", () => {
+        expect(parseCustomGraceMinutes("1")).toEqual({
+            ok: true,
+            ms: MIN_CUSTOM_GRACE_MS,
+        });
+    });
+
+    it.each([
+        ["an empty string", ""],
+        ["whitespace only", "   "],
+        ["a non-numeric string", "abc"],
+        ["a half-numeric string", "10abc"],
+        ["Infinity", "Infinity"],
+        ["NaN", "NaN"],
+    ])("rejects %s", (_label, input) => {
+        const result = parseCustomGraceMinutes(input);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
+    });
+
+    it.each([
+        ["zero", "0"],
+        ["a negative value", "-5"],
+        ["a value under one minute", "0.5"],
+    ])("rejects %s as too short", (_label, input) => {
+        const result = parseCustomGraceMinutes(input);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toMatch(/least/i);
+    });
+
+    // The whole bug class: never hand back a value the readers would clamp.
+    it("rejects a value above the maximum instead of silently clamping it", () => {
+        const result = parseCustomGraceMinutes(
+            String(MAX_CUSTOM_GRACE_MINUTES + 1),
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toMatch(/120|2 hours/i);
+    });
+
+    it("never returns a value that normalizeGraceMs would change", () => {
+        for (const input of ["1", "7", "10", "30", "99.5", "120"]) {
+            const result = parseCustomGraceMinutes(input);
+            expect(result.ok).toBe(true);
+            if (result.ok) expect(normalizeGraceMs(result.ms)).toBe(result.ms);
+        }
+    });
+
+    it("never returns a value a reader would clamp", () => {
+        for (const input of ["1", "60", "120"]) {
+            const result = parseCustomGraceMinutes(input);
+            if (result.ok)
+                expect(Math.min(result.ms, MAX_GRACE_MS)).toBe(result.ms);
+        }
+    });
+});
+
+describe("isPresetGraceMs", () => {
+    it("recognises every offered option", () => {
+        for (const option of GRACE_OPTIONS)
+            expect(isPresetGraceMs(option.value)).toBe(true);
+    });
+
+    it("rejects a value that is not offered", () => {
+        expect(isPresetGraceMs(420_000)).toBe(false);
+    });
+});
+
+describe("graceMsToMinutesInput", () => {
+    it.each([
+        [600_000, "10"],
+        [1_800_000, "30"],
+        [90_000, "1.5"],
+        [45_000, "0.75"],
+        [MAX_GRACE_MS, "120"],
+    ])("renders %p as %p", (ms, expected) => {
+        expect(graceMsToMinutesInput(ms)).toBe(expected);
+    });
+
+    // Round-trip: whatever we prefill must parse back to the same ms, or
+    // reopening Settings and pressing Save would silently change the setting.
+    it("round-trips through parseCustomGraceMinutes", () => {
+        for (const ms of [60_000, 600_000, 1_800_000, 5_400_000, MAX_GRACE_MS])
+            expect(parseCustomGraceMinutes(graceMsToMinutesInput(ms))).toEqual({
+                ok: true,
+                ms,
+            });
     });
 });

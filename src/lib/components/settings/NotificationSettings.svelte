@@ -24,7 +24,15 @@
         type KeywordBehavior,
         updateServiceWorkerNotificationPrivacy,
     } from "$lib/matrix/client";
-    import { GRACE_OPTIONS, normalizeGraceMs } from "$lib/utils/activeSession";
+    import {
+        GRACE_OPTIONS,
+        MAX_CUSTOM_GRACE_MINUTES,
+        MIN_CUSTOM_GRACE_MS,
+        graceMsToMinutesInput,
+        isPresetGraceMs,
+        normalizeGraceMs,
+        parseCustomGraceMinutes,
+    } from "$lib/utils/activeSession";
     import { validateKeyword } from "$lib/utils/keywordRules";
     import {
         setActiveSessionGraceMs,
@@ -97,6 +105,57 @@
         const grace = normalizeGraceMs(Number(raw));
         setActiveSessionGraceMs(grace);
         await publishGrace(grace);
+    }
+
+    const CUSTOM_OPTION = "custom";
+
+    /* Seeded once, when the panel mounts: a stored grace that matches no
+     * preset — typed here or on another device — must come back as "Custom"
+     * with its value filled in, not blank and not snapped to a preset. */
+    let graceIsCustom = $state(
+        !isPresetGraceMs(settingsState.activeSessionGraceMs),
+    );
+    let customMinutes = $state(
+        isPresetGraceMs(settingsState.activeSessionGraceMs)
+            ? ""
+            : graceMsToMinutesInput(settingsState.activeSessionGraceMs),
+    );
+    let customError = $state("");
+
+    function onGraceSelect(raw: string) {
+        customError = "";
+        if (raw !== CUSTOM_OPTION) {
+            graceIsCustom = false;
+            void pickActiveSessionGrace(raw);
+            return;
+        }
+        graceIsCustom = true;
+        // Nothing is saved by picking "Custom" — the value only lands when the
+        // user commits one, so a half-typed number can't reach the other
+        // devices. Prefill from the current setting where that's meaningful.
+        if (customMinutes.trim().length === 0)
+            customMinutes = graceMsToMinutesInput(
+                Math.max(
+                    settingsState.activeSessionGraceMs,
+                    MIN_CUSTOM_GRACE_MS,
+                ),
+            );
+    }
+
+    /* Validation lives in activeSession.ts so the ceiling here is the same
+     * number every reader clamps to. Out-of-range input is REJECTED with a
+     * message rather than quietly curbed: storing a value the readers would
+     * shorten is exactly how this control ends up lying about its behaviour. */
+    async function saveCustomGrace() {
+        const parsed = parseCustomGraceMinutes(customMinutes);
+        if (!parsed.ok) {
+            customError = parsed.error;
+            return;
+        }
+        customError = "";
+        customMinutes = graceMsToMinutesInput(parsed.ms);
+        setActiveSessionGraceMs(parsed.ms);
+        await publishGrace(parsed.ms);
     }
 
     const selectClass =
@@ -360,15 +419,57 @@
             </div>
             <select
                 class={selectClass}
-                value={String(settingsState.activeSessionGraceMs)}
-                onchange={(e) => pickActiveSessionGrace(e.currentTarget.value)}
+                value={graceIsCustom
+                    ? CUSTOM_OPTION
+                    : String(settingsState.activeSessionGraceMs)}
+                onchange={(e) => onGraceSelect(e.currentTarget.value)}
                 aria-label="Quiet on my other devices"
             >
                 {#each GRACE_OPTIONS as opt (opt.value)}
                     <option value={String(opt.value)}>{opt.label}</option>
                 {/each}
+                <option value={CUSTOM_OPTION}>Custom…</option>
             </select>
         </div>
+        {#if graceIsCustom}
+            <div class="flex items-center justify-end gap-2 mt-2">
+                <input
+                    type="number"
+                    min="1"
+                    max={MAX_CUSTOM_GRACE_MINUTES}
+                    step="1"
+                    inputmode="decimal"
+                    class="w-24 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                    value={customMinutes}
+                    oninput={(e) => (customMinutes = e.currentTarget.value)}
+                    onkeydown={(e) => {
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveCustomGrace();
+                        }
+                    }}
+                    aria-label="Custom quiet duration, in minutes"
+                    aria-invalid={customError ? "true" : undefined}
+                />
+                <span class="text-xs text-discord-textMuted"
+                    >minutes (max {MAX_CUSTOM_GRACE_MINUTES})</span
+                >
+                <button
+                    onclick={saveCustomGrace}
+                    disabled={graceSavePending}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+                    >{graceSavePending ? "Saving…" : "Save"}</button
+                >
+            </div>
+            {#if customError}
+                <p
+                    class="text-xs text-discord-danger mt-1 text-right"
+                    aria-live="polite"
+                >
+                    {customError}
+                </p>
+            {/if}
+        {/if}
         {#if graceSaveError}
             <div class="flex items-start gap-2 mt-2">
                 <p

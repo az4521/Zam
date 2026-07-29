@@ -40,12 +40,22 @@ export const MIN_HEARTBEAT_INTERVAL_MS = 5_000;
  */
 export const MAX_FUTURE_SKEW_MS = 300_000;
 
-/** Upper bound on a remote grace value. Well above the largest offered
- *  option (5 min); a blob past this is a bug, and honouring it would mute
- *  this device indefinitely. */
-export const MAX_GRACE_MS = 900_000;
+/**
+ * Upper bound on a remote grace value: a blob past this is a bug, and
+ * honouring it would mute this device indefinitely.
+ *
+ * It MUST stay comfortably above the largest value the picker can produce.
+ * Readers clamp to it silently, so an offered option above the cap would make
+ * Settings say one duration while the device behaves like another — the exact
+ * asymmetry this module exists to avoid. Two hours vs. a 30-minute longest
+ * preset (and a 2-hour custom ceiling, `MAX_CUSTOM_GRACE_MINUTES`).
+ *
+ * Hand-mirrored in `static/sw.js` and `MatrixMessagingService.java`.
+ */
+export const MAX_GRACE_MS = 7_200_000;
 
-/** The choices offered in Settings. 0 = feature off. */
+/** The choices offered in Settings. 0 = feature off. Anything else the user
+ *  wants goes through the "Custom" input (`parseCustomGraceMinutes`). */
 export const GRACE_OPTIONS: readonly { value: number; label: string }[] = [
     { value: 0, label: "Off — always notify" },
     { value: 15_000, label: "15 seconds" },
@@ -53,7 +63,65 @@ export const GRACE_OPTIONS: readonly { value: number; label: string }[] = [
     { value: 60_000, label: "1 minute" },
     { value: 120_000, label: "2 minutes" },
     { value: 300_000, label: "5 minutes" },
+    { value: 600_000, label: "10 minutes" },
+    { value: 1_800_000, label: "30 minutes" },
 ];
+
+/** Shortest custom duration. The presets already cover everything below a
+ *  minute, and a typed "0.2" is far more likely to be a slip than a wish. */
+export const MIN_CUSTOM_GRACE_MS = 60_000;
+
+/** Longest custom duration, in minutes — the reader clamp expressed in the
+ *  unit the input uses. Anything above is REJECTED rather than clamped: a
+ *  silently curbed value is how the UI ends up lying about the behaviour. */
+export const MAX_CUSTOM_GRACE_MINUTES = MAX_GRACE_MS / 60_000;
+
+export type CustomGraceParse =
+    | { ok: true; ms: number }
+    | { ok: false; error: string };
+
+/**
+ * Validate a typed custom duration (in MINUTES) from the Settings picker.
+ *
+ * Minutes is the only unit offered on purpose: a seconds/minutes pair lets a
+ * user pick "2 seconds", which every reader would honour and no one wants.
+ * Out-of-range input comes back as an error for the UI to show — never as a
+ * quietly clamped number, because the readers clamp too and the mismatch
+ * between the two is invisible.
+ */
+export function parseCustomGraceMinutes(input: string): CustomGraceParse {
+    const trimmed = input.trim();
+    if (trimmed.length === 0)
+        return { ok: false, error: "Enter a number of minutes." };
+    const minutes = Number(trimmed);
+    if (!Number.isFinite(minutes))
+        return { ok: false, error: "Enter a number of minutes." };
+    const ms = Math.round(minutes * 60_000);
+    if (ms < MIN_CUSTOM_GRACE_MS)
+        return {
+            ok: false,
+            error: "Choose at least 1 minute — use the list above for shorter times.",
+        };
+    if (ms > MAX_GRACE_MS)
+        return {
+            ok: false,
+            error: `Choose ${MAX_CUSTOM_GRACE_MINUTES} minutes (2 hours) or less.`,
+        };
+    return { ok: true, ms };
+}
+
+/** Is this value one of the ready-made options, or a custom one? Drives which
+ *  entry the Settings <select> shows for a stored value. */
+export function isPresetGraceMs(ms: number): boolean {
+    return GRACE_OPTIONS.some((option) => option.value === ms);
+}
+
+/** Render a stored grace as the minutes string the custom input prefills
+ *  with. Must round-trip back through `parseCustomGraceMinutes` unchanged, or
+ *  reopening Settings and saving would move the setting on its own. */
+export function graceMsToMinutesInput(ms: number): string {
+    return String(Number((ms / 60_000).toFixed(6)));
+}
 
 export interface ActiveSessionHeartbeat {
     /** The device that was focused when this was written. */
