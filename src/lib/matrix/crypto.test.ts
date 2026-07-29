@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 
 // Regression cover for the "Cannot encrypt event in unconfigured room" bug
 // (2026-07-25, cross-server DM with a federated homeserver).
@@ -57,17 +57,33 @@ function makeClient() {
     };
 }
 
-async function loadCryptoModule() {
-    const mod = await import("./crypto");
-    const client = makeClient();
-    h.getClient.mockReturnValue(client);
-    // initCrypto flips the module's cryptoAvailable flag.
-    await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
-    return mod;
-}
+/**
+ * Pay for the crypto module graph ONCE, before any test's clock starts.
+ *
+ * Importing ./crypto drags in matrix-js-sdk and half of $lib; on a cold vitest
+ * cache that transform+import cost ran into seconds. Paid inside a test body it
+ * could blow the 5s test timeout — and vitest cannot cancel the promise it just
+ * gave up on, so the abandoned continuation kept going and fired
+ * `onCryptoEvent` in the middle of a LATER test, after that test's beforeEach
+ * had cleared the spy. The result was a pair of failures that only ever showed
+ * up on a cold or loaded run ("Test timed out" here, "expected onCryptoEvent
+ * not to have been called" one test down) and vanished on a re-run.
+ *
+ * Warming the graph in a hook keeps every test body down to microseconds of
+ * real work. `vi.resetModules()` in the beforeEach hooks still hands each test
+ * a fresh module instance — only the transform/dependency cache is shared.
+ */
+beforeAll(async () => {
+    await import("./crypto");
+});
 
 describe("ensureRoomCryptoConfigured", () => {
-    beforeEach(() => {
+    let mod: typeof import("./crypto");
+
+    // The module load and initCrypto both live in the hook, not in the test
+    // bodies: a test body here now holds nothing but the call under test, so
+    // there is no in-flight work that could outlive the test that started it.
+    beforeEach(async () => {
         vi.clearAllMocks();
         vi.resetModules();
         for (const key of Object.keys(h.roomEncryptors)) {
@@ -75,10 +91,15 @@ describe("ensureRoomCryptoConfigured", () => {
         }
         h.onCryptoEvent.mockImplementation(() => Promise.resolve());
         h.initRustCrypto.mockImplementation(() => Promise.resolve());
+
+        mod = await import("./crypto");
+        const client = makeClient();
+        h.getClient.mockReturnValue(client);
+        // initCrypto flips the module's cryptoAvailable flag.
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
     });
 
     it("replays a state-seeded m.room.encryption event through the crypto hook", async () => {
-        const mod = await loadCryptoModule();
         const event = { fake: "m.room.encryption event" };
         const room = makeRoom(event);
 
@@ -89,7 +110,6 @@ describe("ensureRoomCryptoConfigured", () => {
     });
 
     it("no-ops when the sync loop already configured the room", async () => {
-        const mod = await loadCryptoModule();
         h.roomEncryptors[ROOM_ID] = { alreadyThere: true };
 
         await mod.ensureRoomCryptoConfigured(makeRoom({ e: 1 }) as never);
@@ -98,15 +118,12 @@ describe("ensureRoomCryptoConfigured", () => {
     });
 
     it("no-ops for an unencrypted room", async () => {
-        const mod = await loadCryptoModule();
-
         await mod.ensureRoomCryptoConfigured(makeRoom(null) as never);
 
         expect(h.onCryptoEvent).not.toHaveBeenCalled();
     });
 
     it("never throws when the crypto layer rejects the event", async () => {
-        const mod = await loadCryptoModule();
         h.onCryptoEvent.mockRejectedValueOnce(new Error("olm machine says no"));
 
         await expect(
@@ -115,7 +132,9 @@ describe("ensureRoomCryptoConfigured", () => {
     });
 
     it("no-ops when rust-crypto failed to initialise", async () => {
-        const mod = await import("./crypto");
+        // Re-init the module the hook already booted, this time with rust-crypto
+        // refusing to load: initCrypto clears cryptoAvailable on entry, so the
+        // failed re-init leaves the module in the "no crypto" state under test.
         const client = makeClient();
         h.getClient.mockReturnValue(client);
         h.initRustCrypto.mockRejectedValueOnce(new Error("no WASM"));
