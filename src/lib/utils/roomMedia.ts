@@ -6,7 +6,12 @@
  * handed in as the plain shape `/messages` returns (see MediaSourceEvent).
  */
 
+import { formatCallDuration } from "./callDuration";
+
 export type MediaKind = "image" | "video" | "file" | "audio";
+
+/** The kinds the lightbox can actually display. */
+export type MediaViewerKind = "image" | "video";
 
 /** One row/tile in the media browser. `url` is still an mxc: URI — the caller
  *  converts it with `mxcToHttp` at render time. */
@@ -23,6 +28,9 @@ export interface RoomMediaItem {
     thumbnailUrl: string | null;
     mimetype: string | null;
     size: number | null;
+    /** `info.duration` in milliseconds — video/audio only, and optional, so it
+     *  is null far more often than not. */
+    durationMs: number | null;
 }
 
 /** The minimum an event has to expose to be considered. Deliberately loose so
@@ -106,6 +114,66 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         thumbnailUrl: mxc(info.thumbnail_url),
         mimetype: str(info.mimetype),
         size,
+        durationMs: typeof info.duration === "number" ? info.duration : null,
+    };
+}
+
+/**
+ * Which mxc to hand the server's thumbnail endpoint for this item's tile.
+ *
+ * An image is thumbnailed from itself. A video prefers the sender-uploaded
+ * `info.thumbnail_url`, but most clients omit it, so fall back to the video's
+ * own mxc: a server that can thumbnail video answers, and one that cannot 404s
+ * — the caller must treat a load failure as "show the placeholder tile", NOT
+ * fall back to the full-resolution URL (that would pull a whole video down to
+ * paint a 160px square).
+ */
+export function mediaThumbnailMxc(item: RoomMediaItem): string | null {
+    if (item.kind === "image") return item.url;
+    if (item.kind === "video") return item.thumbnailUrl ?? item.url;
+    return null;
+}
+
+/** What the lightbox should render this as, or null when it cannot show it. */
+export function mediaViewerKind(item: RoomMediaItem): MediaViewerKind | null {
+    return item.kind === "image" || item.kind === "video" ? item.kind : null;
+}
+
+/** Everything the lightbox needs, with the mxc URIs already resolved. */
+export interface MediaViewerItem {
+    kind: MediaViewerKind;
+    /** http URL of the full-resolution media. */
+    src: string;
+    /** http URL of a still to show behind the video before it starts; null for
+     *  images (which are their own poster) and when nothing resolved. */
+    poster: string | null;
+    filename: string;
+}
+
+/**
+ * Map a grid entry to the viewer's props. The mxc→http conversion is injected
+ * so this stays free of the SDK boundary: `full` resolves the download URL,
+ * `poster` a scaled thumbnail. Null when the item is not viewable at all, or
+ * when its full URL cannot be resolved (no client yet / malformed mxc) — in
+ * both cases the caller must not mount a viewer.
+ */
+export function mediaViewerItem(
+    item: RoomMediaItem,
+    resolve: {
+        full: (mxc: string) => string | null;
+        poster: (mxc: string) => string | null;
+    },
+): MediaViewerItem | null {
+    const kind = mediaViewerKind(item);
+    if (kind === null) return null;
+    const src = resolve.full(item.url);
+    if (src === null) return null;
+    const posterMxc = kind === "video" ? mediaThumbnailMxc(item) : null;
+    return {
+        kind,
+        src,
+        poster: posterMxc === null ? null : resolve.poster(posterMxc),
+        filename: item.name,
     };
 }
 
@@ -178,4 +246,12 @@ export function formatMediaSize(bytes: number | null | undefined): string {
     return bytes / 1024 < 1024
         ? `${(bytes / 1024).toFixed(1)} KB`
         : `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+/** Duration badge for a video tile, sharing the call timer's mm:ss / h:mm:ss
+ *  shape. Empty when `info.duration` was absent or nonsense, so the caller can
+ *  simply fall back to a "Video" label. */
+export function formatMediaDuration(ms: number | null | undefined): string {
+    if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) return "";
+    return formatCallDuration(ms);
 }

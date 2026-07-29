@@ -5,6 +5,10 @@ import {
     mergeMediaPages,
     splitMediaItems,
     formatMediaSize,
+    formatMediaDuration,
+    mediaThumbnailMxc,
+    mediaViewerKind,
+    mediaViewerItem,
     type MediaSourceEvent,
     type RoomMediaItem,
 } from "./roomMedia";
@@ -37,6 +41,7 @@ const item = (
     thumbnailUrl: null,
     mimetype: null,
     size: null,
+    durationMs: null,
     ...over,
 });
 
@@ -62,6 +67,7 @@ describe("mediaItemFromEvent", () => {
             thumbnailUrl: null,
             mimetype: "image/png",
             size: 2048,
+            durationMs: null,
         });
     });
 
@@ -93,6 +99,34 @@ describe("mediaItemFromEvent", () => {
         );
         expect(result?.kind).toBe("video");
         expect(result?.thumbnailUrl).toBe("mxc://example.org/t");
+    });
+
+    it("carries a video's duration through", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.video",
+                    body: "clip.mp4",
+                    url: "mxc://example.org/v",
+                    info: { duration: 65000 },
+                },
+            }),
+        );
+        expect(result?.durationMs).toBe(65000);
+    });
+
+    it("nulls a duration the sender did not send as a number", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.video",
+                    body: "clip.mp4",
+                    url: "mxc://example.org/v",
+                    info: { duration: "65000" },
+                },
+            }),
+        );
+        expect(result?.durationMs).toBeNull();
     });
 
     it("falls back to a kind label when there is no name at all", () => {
@@ -315,5 +349,152 @@ describe("formatMediaSize", () => {
         expect(formatMediaSize(null)).toBe("");
         expect(formatMediaSize(undefined)).toBe("");
         expect(formatMediaSize(0)).toBe("");
+    });
+});
+
+describe("formatMediaDuration", () => {
+    it("formats milliseconds as mm:ss", () => {
+        expect(formatMediaDuration(65000)).toBe("01:05");
+    });
+
+    it("rolls over to h:mm:ss past an hour", () => {
+        expect(formatMediaDuration(3723000)).toBe("1:02:03");
+    });
+
+    it("is empty when the sender gave no duration", () => {
+        expect(formatMediaDuration(null)).toBe("");
+        expect(formatMediaDuration(undefined)).toBe("");
+        expect(formatMediaDuration(0)).toBe("");
+    });
+
+    it("is empty for a nonsense duration rather than rendering NaN", () => {
+        expect(formatMediaDuration(-5000)).toBe("");
+        expect(formatMediaDuration(Number.NaN)).toBe("");
+        expect(formatMediaDuration(Number.POSITIVE_INFINITY)).toBe("");
+    });
+});
+
+describe("mediaThumbnailMxc", () => {
+    it("thumbnails an image from its own url", () => {
+        expect(mediaThumbnailMxc(item({ eventId: "$1", kind: "image" }))).toBe(
+            "mxc://example.org/abc",
+        );
+    });
+
+    it("prefers a video's uploaded thumbnail", () => {
+        expect(
+            mediaThumbnailMxc(
+                item({
+                    eventId: "$1",
+                    kind: "video",
+                    thumbnailUrl: "mxc://example.org/t",
+                }),
+            ),
+        ).toBe("mxc://example.org/t");
+    });
+
+    // Most senders omit info.thumbnail_url. Servers that can thumbnail a video
+    // still answer for the video's own mxc; the ones that cannot 404, and the
+    // caller falls back to the placeholder tile.
+    it("falls back to the video's own url when no thumbnail was uploaded", () => {
+        expect(
+            mediaThumbnailMxc(
+                item({ eventId: "$1", kind: "video", thumbnailUrl: null }),
+            ),
+        ).toBe("mxc://example.org/abc");
+    });
+
+    it("has nothing to show for a file or audio row", () => {
+        expect(
+            mediaThumbnailMxc(item({ eventId: "$1", kind: "file" })),
+        ).toBeNull();
+        expect(
+            mediaThumbnailMxc(item({ eventId: "$2", kind: "audio" })),
+        ).toBeNull();
+    });
+});
+
+describe("mediaViewerKind", () => {
+    it("views images and videos", () => {
+        expect(mediaViewerKind(item({ eventId: "$1", kind: "image" }))).toBe(
+            "image",
+        );
+        expect(mediaViewerKind(item({ eventId: "$2", kind: "video" }))).toBe(
+            "video",
+        );
+    });
+
+    it("does not view files or audio", () => {
+        expect(
+            mediaViewerKind(item({ eventId: "$1", kind: "file" })),
+        ).toBeNull();
+        expect(
+            mediaViewerKind(item({ eventId: "$2", kind: "audio" })),
+        ).toBeNull();
+    });
+});
+
+describe("mediaViewerItem", () => {
+    const resolve = {
+        full: (mxc: string) => `https://hs/full/${mxc.slice("mxc://".length)}`,
+        poster: (mxc: string) =>
+            `https://hs/thumb/${mxc.slice("mxc://".length)}`,
+    };
+
+    it("maps an image to an image viewer item with no poster", () => {
+        expect(
+            mediaViewerItem(item({ eventId: "$1", kind: "image" }), resolve),
+        ).toEqual({
+            kind: "image",
+            src: "https://hs/full/example.org/abc",
+            poster: null,
+            filename: "cat.png",
+        });
+    });
+
+    it("maps a video to a video viewer item posted on its thumbnail", () => {
+        expect(
+            mediaViewerItem(
+                item({
+                    eventId: "$1",
+                    kind: "video",
+                    name: "clip.mp4",
+                    url: "mxc://example.org/v",
+                    thumbnailUrl: "mxc://example.org/t",
+                }),
+                resolve,
+            ),
+        ).toEqual({
+            kind: "video",
+            src: "https://hs/full/example.org/v",
+            poster: "https://hs/thumb/example.org/t",
+            filename: "clip.mp4",
+        });
+    });
+
+    it("still maps a video whose poster cannot be resolved", () => {
+        const result = mediaViewerItem(
+            item({ eventId: "$1", kind: "video", url: "mxc://example.org/v" }),
+            { full: resolve.full, poster: () => null },
+        );
+        expect(result?.src).toBe("https://hs/full/example.org/v");
+        expect(result?.poster).toBeNull();
+    });
+
+    // mxcToHttp returns null before login and for a malformed mxc; there is
+    // nothing to show, so the caller must not mount a viewer at all.
+    it("is null when the full url cannot be resolved", () => {
+        expect(
+            mediaViewerItem(item({ eventId: "$1", kind: "image" }), {
+                full: () => null,
+                poster: resolve.poster,
+            }),
+        ).toBeNull();
+    });
+
+    it("is null for a file or audio item", () => {
+        expect(
+            mediaViewerItem(item({ eventId: "$1", kind: "file" }), resolve),
+        ).toBeNull();
     });
 });
