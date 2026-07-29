@@ -393,15 +393,15 @@ describe("mediaThumbnailMxc", () => {
         ).toBe("mxc://example.org/t");
     });
 
-    // Most senders omit info.thumbnail_url. Servers that can thumbnail a video
-    // still answer for the video's own mxc; the ones that cannot 404, and the
-    // caller falls back to the placeholder tile.
-    it("falls back to the video's own url when no thumbnail was uploaded", () => {
+    // Never the video's own mxc: continuwuity answers /media/thumbnail for a
+    // video with the original file, so an <img> pointed at it would download
+    // the whole video only to fail decoding. No source means placeholder tile.
+    it("has no thumbnail for a video the sender did not thumbnail", () => {
         expect(
             mediaThumbnailMxc(
                 item({ eventId: "$1", kind: "video", thumbnailUrl: null }),
             ),
-        ).toBe("mxc://example.org/abc");
+        ).toBeNull();
     });
 
     it("has nothing to show for a file or audio row", () => {
@@ -474,10 +474,31 @@ describe("mediaViewerItem", () => {
 
     it("still maps a video whose poster cannot be resolved", () => {
         const result = mediaViewerItem(
-            item({ eventId: "$1", kind: "video", url: "mxc://example.org/v" }),
+            item({
+                eventId: "$1",
+                kind: "video",
+                url: "mxc://example.org/v",
+                thumbnailUrl: "mxc://example.org/t",
+            }),
             { full: resolve.full, poster: () => null },
         );
         expect(result?.src).toBe("https://hs/full/example.org/v");
+        expect(result?.poster).toBeNull();
+    });
+
+    // The common case: no uploaded thumbnail, so the player gets no poster
+    // rather than a poster URL that would stream the whole video back.
+    it("gives a thumbnail-less video no poster at all", () => {
+        const result = mediaViewerItem(
+            item({
+                eventId: "$1",
+                kind: "video",
+                url: "mxc://example.org/v",
+                thumbnailUrl: null,
+            }),
+            resolve,
+        );
+        expect(result?.kind).toBe("video");
         expect(result?.poster).toBeNull();
     });
 

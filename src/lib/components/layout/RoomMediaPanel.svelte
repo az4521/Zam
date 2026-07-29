@@ -310,14 +310,14 @@
                             : media.name}
                     >
                         {#if thumb}
-                            <!-- A server that cannot thumbnail this media (a
-                                 video with no info.thumbnail_url is the common
-                                 case) 404s here; fall through to the
-                                 placeholder below rather than showing a
-                                 broken-image glyph. Deliberately NOT falling
-                                 back to the full-resolution URL — that
-                                 downloads a whole video to paint a 160px tile,
-                                 and NEVER a <video> element per tile. -->
+                            <!-- Only ever a real thumbnail: mediaThumbnailMxc
+                                 hands back null for a video the sender did not
+                                 thumbnail, so this <img> is never pointed at a
+                                 video's own mxc (continuwuity would answer with
+                                 the whole file). A thumbnail that still fails
+                                 to decode falls through to the placeholder
+                                 below instead of a broken-image glyph. And
+                                 NEVER a <video> element per tile. -->
                             <img
                                 src={thumb}
                                 alt={media.name}
@@ -327,18 +327,11 @@
                                     (thumbFailed[media.eventId] = true)}
                             />
                         {:else if media.kind === "video"}
+                            <!-- Nothing to show: a flat tile that lets the play
+                                 badge below carry the meaning on its own. -->
                             <div
-                                class="w-full h-full flex items-center justify-center bg-discord-backgroundTertiary"
-                            >
-                                <svg
-                                    class="w-7 h-7 text-discord-textMuted"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                    ><path
-                                        d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4h-4z"
-                                    /></svg
-                                >
-                            </div>
+                                class="w-full h-full bg-discord-backgroundTertiary"
+                            ></div>
                         {/if}
                         {#if media.kind === "video"}
                             <!-- Play affordance: a still tile that reads as
@@ -347,7 +340,7 @@
                                 class="absolute inset-0 flex items-center justify-center"
                             >
                                 <span
-                                    class="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
+                                    class="w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
                                 >
                                     <svg
                                         class="w-4 h-4 text-white ml-0.5"

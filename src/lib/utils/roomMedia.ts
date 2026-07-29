@@ -119,18 +119,20 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
 }
 
 /**
- * Which mxc to hand the server's thumbnail endpoint for this item's tile.
+ * Which mxc to hand the server's thumbnail endpoint for this item's tile, or
+ * null when there is nothing to ask for and the caller must draw a placeholder.
  *
- * An image is thumbnailed from itself. A video prefers the sender-uploaded
- * `info.thumbnail_url`, but most clients omit it, so fall back to the video's
- * own mxc: a server that can thumbnail video answers, and one that cannot 404s
- * — the caller must treat a load failure as "show the placeholder tile", NOT
- * fall back to the full-resolution URL (that would pull a whole video down to
- * paint a 160px square).
+ * An image is thumbnailed from itself. A video is ONLY ever thumbnailed from a
+ * sender-uploaded `info.thumbnail_url` — never from its own mxc. Servers do not
+ * thumbnail video, and they do not all fail politely: continuwuity answers
+ * `/media/thumbnail` for a video with the ORIGINAL file (200 video/mp4), so
+ * pointing an <img> at it downloads the entire video before the decode fails.
+ * Most senders omit thumbnail_url, which makes that the common path, not an
+ * edge case.
  */
 export function mediaThumbnailMxc(item: RoomMediaItem): string | null {
     if (item.kind === "image") return item.url;
-    if (item.kind === "video") return item.thumbnailUrl ?? item.url;
+    if (item.kind === "video") return item.thumbnailUrl;
     return null;
 }
 
