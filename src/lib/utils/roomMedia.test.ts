@@ -8,6 +8,7 @@ import {
     formatMediaDuration,
     mediaThumbnailMxc,
     videoPosterMxc,
+    videoSourceMxc,
     mediaViewerKind,
     mediaViewerItem,
     type MediaSourceEvent,
@@ -461,6 +462,65 @@ describe("videoPosterMxc", () => {
     it("has no poster for absent content", () => {
         expect(videoPosterMxc(null)).toBeNull();
         expect(videoPosterMxc(undefined)).toBeNull();
+    });
+});
+
+describe("videoSourceMxc", () => {
+    it("streams the video's own url", () => {
+        expect(
+            videoSourceMxc({
+                msgtype: "m.video",
+                url: "mxc://example.org/vid",
+                info: { mimetype: "video/mp4" },
+            }),
+        ).toBe("mxc://example.org/vid");
+    });
+
+    // The bridged shape this actually has to cope with (OOYE/Discord): no
+    // thumbnail_url, no duration, just w/h/mimetype/size. Still playable.
+    it("plays a bridged video that carries no thumbnail or duration", () => {
+        expect(
+            videoSourceMxc({
+                msgtype: "m.video",
+                body: "clip.mp4",
+                filename: "clip.mp4",
+                external_url: "https://bridge.example/clip.mp4",
+                url: "mxc://remote.example/xyz",
+                info: {
+                    w: 1920,
+                    h: 1080,
+                    mimetype: "video/mp4",
+                    size: 3265953,
+                },
+            }),
+        ).toBe("mxc://remote.example/xyz");
+    });
+
+    // No attachment-decryption path in this client, so an encrypted video has
+    // no source at all. The caller MUST NOT offer a play affordance for it: a
+    // card that looks clickable but can never resolve a source is exactly the
+    // "clicking does nothing" bug.
+    it("has no source for an encrypted attachment", () => {
+        expect(
+            videoSourceMxc({
+                msgtype: "m.video",
+                file: { url: "mxc://example.org/enc", key: {} },
+                info: { mimetype: "video/mp4" },
+            }),
+        ).toBeNull();
+    });
+
+    it("rejects a url that is not an mxc uri", () => {
+        expect(
+            videoSourceMxc({ url: "https://evil.example/drive-by.mp4" }),
+        ).toBeNull();
+        expect(videoSourceMxc({ url: 42 })).toBeNull();
+        expect(videoSourceMxc({ url: "" })).toBeNull();
+    });
+
+    it("has no source for absent content", () => {
+        expect(videoSourceMxc(null)).toBeNull();
+        expect(videoSourceMxc(undefined)).toBeNull();
     });
 });
 

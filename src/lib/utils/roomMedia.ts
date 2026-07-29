@@ -159,6 +159,28 @@ export function videoPosterMxc(
     return mxc(info.thumbnail_url);
 }
 
+/**
+ * The mxc a `<video>` should be pointed at for this `m.video` content, or null
+ * when the event carries nothing this client can play.
+ *
+ * Null covers the encrypted case (`content.file`, no `content.url`) — there is
+ * no attachment-decryption path here — and any malformed url. The caller MUST
+ * render a NON-interactive "unavailable" state for null instead of the play
+ * card: an affordance that can never resolve a source is indistinguishable from
+ * a dead click, which is precisely how a missing source gets reported as
+ * "videos cannot be played at all".
+ *
+ * Note what this deliberately does NOT require: a thumbnail, a duration, or any
+ * `info` at all. Bridged video (OOYE/Discord) arrives as `{w, h, mimetype,
+ * size}` and nothing else, and is perfectly playable.
+ */
+export function videoSourceMxc(
+    content: Record<string, unknown> | null | undefined,
+): string | null {
+    if (!content) return null;
+    return mxc(content.url);
+}
+
 /** What the lightbox should render this as, or null when it cannot show it. */
 export function mediaViewerKind(item: RoomMediaItem): MediaViewerKind | null {
     return item.kind === "image" || item.kind === "video" ? item.kind : null;
