@@ -63,8 +63,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // device's clock, so anything further ahead than this is a broken clock.
     private static final long MAX_FUTURE_SKEW_MS = 300000L;
     // Mirrors MAX_GRACE_MS in activeSession.ts: a blob past this is a bug,
-    // and honouring it would mute this device indefinitely.
-    private static final long MAX_GRACE_MS = 900000L;
+    // and honouring it would mute this device indefinitely. Must stay above
+    // the longest duration Settings can produce (2h custom ceiling) — this
+    // clamp is silent, so a lower value would quietly shorten the setting.
+    private static final long MAX_GRACE_MS = 7200000L;
     private static final String KEY_HIDE_BODY = "matrix_hide_notification_body";
 
     private static final int CONNECT_TIMEOUT = 5000;
@@ -225,6 +227,15 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             String otherDevice = (String) rawDevice;
             if (otherDevice.isEmpty()) return false;
             if (otherDevice.equals(deviceId)) return false; // our own heartbeat
+
+            // Mirrors parseActiveSession()'s Number.isFinite() rejection. A
+            // JSON NaN/Infinity reaches us as a Double and longValue() coerces
+            // it (NaN → 0, ±Infinity → the saturated Long bounds) instead of
+            // failing, so the fail-open outcome would depend on which guard
+            // below happens to catch it. Reject up front, like the TS/JS copies.
+            // Double.isFinite is API 24+; minSdk is 24 (android/variables.gradle).
+            if (!Double.isFinite(((Number) rawTs).doubleValue())) return false;
+            if (!Double.isFinite(((Number) rawGrace).doubleValue())) return false;
 
             long ts = ((Number) rawTs).longValue();
             long graceMs = ((Number) rawGrace).longValue();

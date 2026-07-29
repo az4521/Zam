@@ -352,8 +352,10 @@ async function buildNotification(data) {
 const ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
 const MAX_FUTURE_SKEW_MS = 300000;
 // Mirrors MAX_GRACE_MS in activeSession.ts: a blob past this is a bug, and
-// honouring it would mute this device indefinitely.
-const MAX_GRACE_MS = 900000;
+// honouring it would mute this device indefinitely. Must stay above the
+// longest duration Settings can produce (2h custom ceiling) — this clamp is
+// silent, so a lower value here would quietly shorten the user's setting.
+const MAX_GRACE_MS = 7200000;
 const ACTIVE_SESSION_CACHE_MS = 10000;
 // `activeSessionCache` is declared with the module auth state near the top of
 // this file, next to the `userId`/`deviceId` it is keyed to.
