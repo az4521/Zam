@@ -7,6 +7,7 @@ import {
     formatMediaSize,
     formatMediaDuration,
     mediaThumbnailMxc,
+    videoPosterMxc,
     mediaViewerKind,
     mediaViewerItem,
     type MediaSourceEvent,
@@ -411,6 +412,55 @@ describe("mediaThumbnailMxc", () => {
         expect(
             mediaThumbnailMxc(item({ eventId: "$2", kind: "audio" })),
         ).toBeNull();
+    });
+});
+
+describe("videoPosterMxc", () => {
+    it("uses the sender-uploaded thumbnail when there is one", () => {
+        expect(
+            videoPosterMxc({
+                msgtype: "m.video",
+                url: "mxc://example.org/vid",
+                info: { thumbnail_url: "mxc://example.org/thumb" },
+            }),
+        ).toBe("mxc://example.org/thumb");
+    });
+
+    // The whole point: continuwuity answers /media/thumbnail for a video with
+    // the ORIGINAL file (200 video/mp4), so an <img> pointed at content.url
+    // downloads the entire video and `onerror` never gets a chance to fire.
+    it("never falls back to the video's own url", () => {
+        expect(
+            videoPosterMxc({
+                msgtype: "m.video",
+                url: "mxc://example.org/vid",
+                info: { mimetype: "video/mp4" },
+            }),
+        ).toBeNull();
+    });
+
+    it("has no poster when info is missing entirely", () => {
+        expect(videoPosterMxc({ url: "mxc://example.org/vid" })).toBeNull();
+    });
+
+    it("ignores a thumbnail_url that is not an mxc uri", () => {
+        expect(
+            videoPosterMxc({
+                url: "mxc://example.org/vid",
+                info: { thumbnail_url: "https://evil.example/track.gif" },
+            }),
+        ).toBeNull();
+        expect(
+            videoPosterMxc({
+                url: "mxc://example.org/vid",
+                info: { thumbnail_url: 42 },
+            }),
+        ).toBeNull();
+    });
+
+    it("has no poster for absent content", () => {
+        expect(videoPosterMxc(null)).toBeNull();
+        expect(videoPosterMxc(undefined)).toBeNull();
     });
 });
 

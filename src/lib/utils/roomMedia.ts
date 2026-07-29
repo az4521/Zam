@@ -136,6 +136,29 @@ export function mediaThumbnailMxc(item: RoomMediaItem): string | null {
     return null;
 }
 
+/**
+ * The same rule as `mediaThumbnailMxc`'s video branch, expressed over the raw
+ * `m.video` content the timeline has to hand rather than a gallery item: the
+ * mxc to use as a poster, or null when there is nothing safe to request and the
+ * caller must render a placeholder WITHOUT issuing any request at all.
+ *
+ * Only ever a sender-uploaded `info.thumbnail_url`, never `content.url`. Asking
+ * the thumbnail endpoint for a video is not a harmless miss: continuwuity
+ * answers it with the original file (200 video/mp4), so an <img> pointed there
+ * downloads the whole video before the decode fails — `onerror` fires far too
+ * late to save the bandwidth.
+ */
+export function videoPosterMxc(
+    content: Record<string, unknown> | null | undefined,
+): string | null {
+    if (!content) return null;
+    const info =
+        typeof content.info === "object" && content.info !== null
+            ? (content.info as Record<string, unknown>)
+            : {};
+    return mxc(info.thumbnail_url);
+}
+
 /** What the lightbox should render this as, or null when it cannot show it. */
 export function mediaViewerKind(item: RoomMediaItem): MediaViewerKind | null {
     return item.kind === "image" || item.kind === "video" ? item.kind : null;

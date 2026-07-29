@@ -52,6 +52,7 @@
         stripFormattedFallback,
     } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
+    import { videoPosterMxc, formatMediaDuration } from "$lib/utils/roomMedia";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -639,11 +640,19 @@
     let videoBlobUrl = $state<string | null>(null);
     let videoLoading = $state(false);
     let videoThumbFailed = $state(false);
+    // Poster for the unplayed video body. ONLY ever the sender's uploaded
+    // thumbnail — `videoPosterMxc` hands back null otherwise, and we then render
+    // the placeholder card below without requesting anything. Never point this
+    // at the video's own mxc: continuwuity answers /media/thumbnail for a video
+    // with the original file (200 video/mp4), so the <img> would download the
+    // whole video and `onerror` fires far too late to prevent it.
     const videoThumbnailUrl = $derived(
+        msgtype === "m.video" ? mxcToHttp(videoPosterMxc(content)) : null,
+    );
+    const videoDuration = $derived(
         msgtype === "m.video"
-            ? (mxcToHttp((content?.info as any)?.thumbnail_url as string) ??
-                  mxcToHttp(content?.url as string, 640, 480, "scale"))
-            : null,
+            ? formatMediaDuration((content?.info as any)?.duration)
+            : "",
     );
 
     $effect(() => {
@@ -1323,6 +1332,12 @@
                             </p>
                         </div>
                     {:else}
+                        <!-- No sender-uploaded thumbnail: a deliberate neutral
+                             card carrying the play affordance, the filename and
+                             the duration when the sender gave one. Nothing is
+                             requested from the server until it is clicked —
+                             asking /media/thumbnail for the video itself would
+                             download the whole file (see videoThumbnailUrl). -->
                         <div
                             class="flex items-center gap-3 px-4 py-3 bg-discord-backgroundTertiary group-hover:bg-discord-messageHover transition-colors rounded-lg"
                         >
@@ -1351,7 +1366,9 @@
                                 <p class="text-xs text-discord-textMuted">
                                     {videoLoading
                                         ? "Loading…"
-                                        : "Click to play"}
+                                        : videoDuration
+                                          ? `${videoDuration} · Click to play`
+                                          : "Click to play"}
                                 </p>
                             </div>
                         </div>
