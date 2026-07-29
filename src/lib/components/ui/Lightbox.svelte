@@ -2,6 +2,15 @@
     interface Props {
         src: string;
         alt?: string;
+        /** What `src` points at. "video" swaps the zoomable <img> for a single
+         *  native player; anything else is shown as an image. */
+        kind?: "image" | "video";
+        /** Still shown behind a video until its data arrives. Ignored for
+         *  images, which are their own poster. */
+        poster?: string | null;
+        /** Name to save as. Falls back to the last path segment of `src`, which
+         *  is a bare media id (no extension) on Matrix download URLs. */
+        filename?: string;
         onClose: () => void;
         /** When set, a favourite (star) button is shown that toggles this gif
          *  in the favourite gif picker. Pass only for gif-like media. */
@@ -26,7 +35,20 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount, untrack } from "svelte";
 
-    let { src, alt = "", onClose, favourite, onPrev, onNext }: Props = $props();
+    let {
+        src,
+        alt = "",
+        kind = "image",
+        poster = null,
+        filename,
+        onClose,
+        favourite,
+        onPrev,
+        onNext,
+    }: Props = $props();
+
+    const isVideo = $derived(kind === "video");
+    const mediaNoun = $derived(isVideo ? "video" : "image");
 
     // Reactively tracks favourite state (reads favouritesState.gifs $state).
     const favourited = $derived(
@@ -47,6 +69,7 @@
     }
 
     function filenameFromSrc(): string {
+        if (filename) return filename;
         try {
             const u = new URL(src, location.href);
             const last = u.pathname.split("/").filter(Boolean).pop();
@@ -54,24 +77,37 @@
         } catch {
             /* ignore */
         }
-        return "image";
+        return mediaNoun;
+    }
+
+    function saveBlobAs(objectUrl: string, name: string) {
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = name;
+        // In the document, not detached: Firefox has historically ignored
+        // `download` on an anchor that was never in the DOM.
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     }
 
     async function download(e: MouseEvent) {
         e.stopPropagation();
         const name = filenameFromSrc();
+        // A playing video has already been pulled down in full — save that copy
+        // instead of fetching the whole file a second time. Ownership stays
+        // with the effect below, so this path must NOT revoke it.
+        if (videoBlobUrl) {
+            saveBlobAs(videoBlobUrl, name);
+            return;
+        }
         let objectUrl: string | null = null;
         try {
             // Homeserver media uses authenticated media endpoints — the token
             // must be attached, and fetchAttachmentBlob refuses to send it
             // anywhere but the homeserver (throws on foreign URLs).
             objectUrl = await fetchAttachmentBlob(src);
-            const a = document.createElement("a");
-            a.href = objectUrl;
-            a.download = name;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+            saveBlobAs(objectUrl, name);
         } catch {
             // Non-homeserver media (e.g. an embedded tweet photo) or a transient
             // failure — open it directly, with no auth attached.
@@ -85,6 +121,65 @@
             if (objectUrl) URL.revokeObjectURL(objectUrl);
         }
     }
+
+    // ── Video playback ──────────────────────────────────────────────────────
+    // Matrix media sits behind the authenticated download endpoint, so a plain
+    // <video src={http}> 401s on a server that enforces it. Fetch the bytes
+    // with the token attached and play the object URL, exactly as the timeline
+    // player does.
+    // Loading is "video branch, no blob yet, not failed" — no extra flag.
+    let videoEl = $state<HTMLVideoElement | null>(null);
+    let videoBlobUrl = $state<string | null>(null);
+    let videoFailed = $state(false);
+
+    // ⚠ Exactly ONE video element is ever live (this viewer is a singleton in
+    // the modal slot) and it is only ever created after the user clicked a
+    // tile. It carries no `loop`, and above all NO onpause handler that calls
+    // play() — that pattern fights the browser's own load-shedding forever and
+    // pegged the main thread when it lived in LinkPreview. Do not add one back.
+    //
+    // `src` and `kind` are read outside untrack so they are this effect's only
+    // dependencies; the state writes are untracked so they cannot re-enter it
+    // (effect_update_depth_exceeded). Stepping through a gallery swaps `src` on
+    // this same instance, which is why teardown has to revoke here rather than
+    // on unmount.
+    $effect(() => {
+        const target = kind === "video" ? src : null;
+        if (!target) return;
+        let objectUrl: string | null = null;
+        let cancelled = false;
+        untrack(() => {
+            videoBlobUrl = null;
+            videoFailed = false;
+        });
+        fetchAttachmentBlob(target)
+            .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                objectUrl = url;
+                videoBlobUrl = url;
+            })
+            .catch((e) => {
+                if (cancelled) return;
+                console.error("Failed to load video", e);
+                videoFailed = true;
+            });
+        return () => {
+            cancelled = true;
+            // Stop the element before the URL goes away: a paused, src-less
+            // element cannot keep buffering, and revoking alone would leave a
+            // playing video decoding what it already holds.
+            if (videoEl) {
+                videoEl.pause();
+                videoEl.removeAttribute("src");
+                videoEl.load();
+            }
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            videoBlobUrl = null;
+        };
+    });
 
     // ── Zoom & pan ──────────────────────────────────────────────────────────
     let imgEl = $state<HTMLImageElement | null>(null);
@@ -287,10 +382,10 @@
     style="touch-action: none;"
     onclick={containClicks}
 >
-    <!-- Backdrop: clicking outside the image closes the viewer. -->
+    <!-- Backdrop: clicking outside the media closes the viewer. -->
     <button
         type="button"
-        aria-label="Close image viewer"
+        aria-label="Close {mediaNoun} viewer"
         class="absolute inset-0 bg-black/80"
         onclick={onClose}
     ></button>
@@ -302,7 +397,7 @@
         class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
         role="dialog"
         aria-modal="true"
-        aria-label="Image viewer"
+        aria-label="{isVideo ? 'Video' : 'Image'} viewer"
         use:focusTrap={{ onEscape: onClose }}
     >
         <!-- Top-right action buttons -->
@@ -373,7 +468,7 @@
             <button
                 onclick={onPrev}
                 title="Previous"
-                aria-label="Previous image"
+                aria-label="Previous {mediaNoun}"
                 class="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
             >
                 <svg
@@ -395,7 +490,7 @@
             <button
                 onclick={onNext}
                 title="Next"
-                aria-label="Next image"
+                aria-label="Next {mediaNoun}"
                 class="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
             >
                 <svg
@@ -414,32 +509,90 @@
             </button>
         {/if}
 
-        <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
-             pointer events; it cannot be cleanly keyboard-operated within this
-             a11y sweep, so a11y_no_noninteractive_element_interactions stays.
-             (No per-image stopPropagation shim is needed: the backdrop is a
-             sibling button, and the root's DELEGATED containClicks handler
-             stops any image tap from bubbling to the surrounding message
-             row.) -->
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        <img
-            bind:this={imgEl}
-            {src}
-            {alt}
-            class="pointer-events-auto"
-            onpointerdown={onPointerDown}
-            onpointermove={onPointerMove}
-            onpointerup={onPointerUp}
-            onpointercancel={onPointerUp}
-            ondragstart={(e) => e.preventDefault()}
-            style="max-width: calc(100dvw - {interfaceState.isMobile
-                ? '6em'
-                : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
-                ? '6em'
-                : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
-            0
-                ? 'transform 0.2s ease'
-                : 'none'}; cursor: {scale > 1 ? 'grab' : 'zoom-in'};"
-        />
+        {#if isVideo}
+            <!-- One player, mounted only once its bytes are here. Native
+                 controls are browser-internal, so they are unaffected by
+                 Svelte's click delegation and by the root's containClicks. -->
+            <div
+                class="relative pointer-events-auto flex items-center justify-center"
+                style="max-width: calc(100dvw - {interfaceState.isMobile
+                    ? '6em'
+                    : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
+                    ? '6em'
+                    : '2em'});"
+            >
+                {#if videoBlobUrl}
+                    <!-- svelte-ignore a11y_media_has_caption -->
+                    <video
+                        bind:this={videoEl}
+                        src={videoBlobUrl}
+                        poster={poster ?? undefined}
+                        controls
+                        autoplay
+                        preload="metadata"
+                        playsinline
+                        class="max-w-full max-h-full rounded-lg bg-black"
+                        style="max-height: calc(100dvh - {interfaceState.isMobile
+                            ? '6em'
+                            : '2em'});"
+                    ></video>
+                {:else}
+                    <div
+                        class="relative flex items-center justify-center rounded-lg bg-black/60 min-w-[12rem] min-h-[8rem]"
+                    >
+                        {#if poster}
+                            <img
+                                src={poster}
+                                {alt}
+                                class="max-w-full max-h-[70dvh] rounded-lg opacity-60"
+                            />
+                        {/if}
+                        <div
+                            class="absolute inset-0 flex items-center justify-center"
+                        >
+                            {#if videoFailed}
+                                <p class="px-4 text-sm text-white text-center">
+                                    Could not load this video. Use Download to
+                                    save it instead.
+                                </p>
+                            {:else}
+                                <div
+                                    class="w-10 h-10 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                ></div>
+                            {/if}
+                        </div>
+                    </div>
+                {/if}
+            </div>
+        {:else}
+            <!-- The image is a genuine pinch/pan/zoom gesture surface driven by
+                 pointer events; it cannot be cleanly keyboard-operated within
+                 this a11y sweep, so
+                 a11y_no_noninteractive_element_interactions stays. (No
+                 per-image stopPropagation shim is needed: the backdrop is a
+                 sibling button, and the root's DELEGATED containClicks handler
+                 stops any image tap from bubbling to the surrounding message
+                 row.) -->
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <img
+                bind:this={imgEl}
+                {src}
+                {alt}
+                class="pointer-events-auto"
+                onpointerdown={onPointerDown}
+                onpointermove={onPointerMove}
+                onpointerup={onPointerUp}
+                onpointercancel={onPointerUp}
+                ondragstart={(e) => e.preventDefault()}
+                style="max-width: calc(100dvw - {interfaceState.isMobile
+                    ? '6em'
+                    : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
+                    ? '6em'
+                    : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
+                0
+                    ? 'transform 0.2s ease'
+                    : 'none'}; cursor: {scale > 1 ? 'grab' : 'zoom-in'};"
+            />
+        {/if}
     </div>
 </div>

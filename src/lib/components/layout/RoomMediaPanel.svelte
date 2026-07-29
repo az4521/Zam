@@ -11,6 +11,9 @@
         mergeMediaPages,
         splitMediaItems,
         formatMediaSize,
+        formatMediaDuration,
+        mediaThumbnailMxc,
+        mediaViewerItem,
         type RoomMediaItem,
     } from "$lib/utils/roomMedia";
     import { interfaceState } from "$lib/stores/interface.svelte";
@@ -41,6 +44,11 @@
     let isEncrypted = $state(false);
     let tab = $state<"media" | "files">("media");
     let viewerIndex = $state<number | null>(null);
+    // Event ids whose tile thumbnail 404'd or otherwise failed to decode. Most
+    // videos carry no info.thumbnail_url and most servers cannot thumbnail a
+    // video, so this is the ORDINARY path for them, not an error case: the tile
+    // swaps to a placeholder instead of showing a broken-image glyph.
+    let thumbFailed = $state<Record<string, boolean>>({});
 
     const split = $derived(splitMediaItems(items));
     const visible = $derived(tab === "media" ? split.visual : split.files);
@@ -60,10 +68,10 @@
                 : "No files in this room yet.",
     );
 
-    // The Lightbox renders a single <img>, so only images can be viewed in it.
-    // Videos still get a grid tile (they belong there visually) but clicking
-    // one downloads it — see the tile's onclick.
-    const gallery = $derived(split.visual.filter((i) => i.kind === "image"));
+    // Everything in the Media tab is viewable: the Lightbox renders an image or
+    // a native player depending on `kind`, so prev/next steps across a mixed
+    // image/video set in the order the grid shows them.
+    const gallery = $derived(split.visual);
 
     // A page can legitimately contain no media at all (a run of text
     // messages), so keep pulling until something lands or history runs out.
@@ -88,6 +96,7 @@
             // A viewer left open over the old room's images would otherwise
             // re-mount on whatever lands at that index next.
             viewerIndex = null;
+            thumbFailed = {};
             loading = true;
         } else {
             loadingMore = true;
@@ -288,44 +297,69 @@
         {:else if tab === "media"}
             <div class="grid grid-cols-3 gap-1 p-2">
                 {#each split.visual as media (media.eventId)}
-                    {@const thumb = mxcToHttp(
-                        media.thumbnailUrl ?? media.url,
-                        160,
-                        160,
-                    )}
+                    {@const thumbMxc = mediaThumbnailMxc(media)}
+                    {@const thumb = thumbFailed[media.eventId]
+                        ? null
+                        : mxcToHttp(thumbMxc, 160, 160)}
+                    {@const duration = formatMediaDuration(media.durationMs)}
                     <button
-                        onclick={() =>
-                            media.kind === "image"
-                                ? openViewer(media)
-                                : download(media)}
+                        onclick={() => openViewer(media)}
                         class="relative aspect-square rounded overflow-hidden bg-discord-background hover:opacity-80 transition-opacity"
-                        title={media.kind === "image"
-                            ? media.name
-                            : `${media.name} — download`}
+                        title={media.kind === "video"
+                            ? `${media.name} — play`
+                            : media.name}
                     >
                         {#if thumb}
                             <!-- A server that cannot thumbnail this media (a
                                  video with no info.thumbnail_url is the common
-                                 case) 404s here; hide the element so the tile
-                                 stays clean rather than showing a broken-image
-                                 glyph. Deliberately NOT falling back to the
-                                 full-resolution URL — that downloads a whole
-                                 video to paint a 160px tile. -->
+                                 case) 404s here; fall through to the
+                                 placeholder below rather than showing a
+                                 broken-image glyph. Deliberately NOT falling
+                                 back to the full-resolution URL — that
+                                 downloads a whole video to paint a 160px tile,
+                                 and NEVER a <video> element per tile. -->
                             <img
                                 src={thumb}
                                 alt={media.name}
                                 loading="lazy"
                                 class="w-full h-full object-cover"
-                                onerror={(e) =>
-                                    ((
-                                        e.currentTarget as HTMLImageElement
-                                    ).style.display = "none")}
+                                onerror={() =>
+                                    (thumbFailed[media.eventId] = true)}
                             />
+                        {:else if media.kind === "video"}
+                            <div
+                                class="w-full h-full flex items-center justify-center bg-discord-backgroundTertiary"
+                            >
+                                <svg
+                                    class="w-7 h-7 text-discord-textMuted"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path
+                                        d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4h-4z"
+                                    /></svg
+                                >
+                            </div>
                         {/if}
                         {#if media.kind === "video"}
+                            <!-- Play affordance: a still tile that reads as
+                                 playable, with no media element behind it. -->
+                            <span
+                                class="absolute inset-0 flex items-center justify-center"
+                            >
+                                <span
+                                    class="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center"
+                                >
+                                    <svg
+                                        class="w-4 h-4 text-white ml-0.5"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                        ><path d="M8 5v14l11-7z" /></svg
+                                    >
+                                </span>
+                            </span>
                             <span
                                 class="absolute bottom-1 right-1 px-1 rounded bg-black/60 text-white text-[0.625rem]"
-                                >Video</span
+                                >{duration || "Video"}</span
                             >
                         {/if}
                     </button>
@@ -375,12 +409,19 @@
 </div>
 
 {#if viewerIndex !== null && gallery[viewerIndex]}
-    {@const current = gallery[viewerIndex]}
-    {@const full = mxcToHttp(current.url)}
-    {#if full}
+    {@const view = mediaViewerItem(gallery[viewerIndex], {
+        full: (mxc) => mxcToHttp(mxc),
+        // "scale" rather than the default crop: a poster must match the video's
+        // own aspect ratio or the player letterboxes a distorted still.
+        poster: (mxc) => mxcToHttp(mxc, 800, 600, "scale"),
+    })}
+    {#if view}
         <Lightbox
-            src={full}
-            alt={current.name}
+            src={view.src}
+            alt={view.filename}
+            kind={view.kind}
+            poster={view.poster}
+            filename={view.filename}
             onClose={() => (viewerIndex = null)}
             onPrev={viewerIndex > 0 ? () => step(-1) : undefined}
             onNext={viewerIndex < gallery.length - 1
