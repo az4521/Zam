@@ -1977,14 +1977,13 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
         const videoUrl = rawVideo?.startsWith("mxc://")
             ? (mxcToHttp(rawVideo) ?? undefined)
             : rawVideo;
-        // Poster for the video: prefer an explicit og:image, otherwise ask the
-        // homeserver to thumbnail the video's own mxc (Synapse extracts a frame).
-        const videoThumbnailUrl = videoUrl
-            ? (imageUrl ??
-              (rawVideo?.startsWith("mxc://")
-                  ? (mxcToHttp(rawVideo, 640, 480, "scale") ?? undefined)
-                  : undefined))
-            : undefined;
+        // Poster for the video: an explicit og:image, or nothing. We do NOT
+        // fall back to thumbnailing the video's own mxc — continuwuity answers
+        // /media/thumbnail for a video with the ORIGINAL file (200 video/mp4),
+        // so the <img>/poster would download the whole video and the element's
+        // onerror fires far too late to prevent it. With no poster the preview
+        // renders the <video> itself at preload="metadata", which is cheap.
+        const videoThumbnailUrl = videoUrl ? imageUrl : undefined;
         const parseDim = (v: unknown): number | undefined => {
             const n = Number(v);
             return Number.isFinite(n) && n > 0 ? n : undefined;
