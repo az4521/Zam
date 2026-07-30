@@ -1,0 +1,128 @@
+import { matrixErrorMessage } from "./knock";
+
+/**
+ * A creation follow-up that can be retried on its own, WITHOUT creating a
+ * second room. Every variant carries the id of the room that already exists.
+ */
+export type RoomFollowUpTask =
+    | { kind: "space-link"; roomId: string; spaceId: string }
+    | { kind: "dm-account-data"; roomId: string; userId: string };
+
+export type DmFollowUpTask = Extract<
+    RoomFollowUpTask,
+    { kind: "dm-account-data" }
+>;
+
+/**
+ * What happened to the follow-up AFTER the room itself was created. `"none"`
+ * means there was nothing to do (e.g. a room created outside any space).
+ * A creation that never happened is a rejection, not a status — the two cases
+ * must stay distinguishable.
+ */
+export type RoomFollowUp =
+    | { status: "none" }
+    | { status: "ok" }
+    | { status: "failed"; task: RoomFollowUpTask; message: string };
+
+export interface RoomCreationResult {
+    roomId: string;
+    followUp: RoomFollowUp;
+}
+
+export const NO_FOLLOW_UP: RoomFollowUp = { status: "none" };
+
+/**
+ * User-facing copy for a failed follow-up. It must never read as "the room
+ * could not be created" — the room exists, and telling the user otherwise is
+ * what makes them retry into a duplicate.
+ */
+export function followUpFailureMessage(
+    task: RoomFollowUpTask,
+    err: unknown,
+): string {
+    if (task.kind === "space-link") {
+        const detail = matrixErrorMessage(
+            err,
+            "the server rejected the change",
+        );
+        return `The room was created, but adding it to the space failed: ${detail}`;
+    }
+    const detail = matrixErrorMessage(err, "the server rejected the change");
+    return `The direct message was created, but saving it to your DM list failed: ${detail} It may appear as a normal room until this is retried.`;
+}
+
+/** In-session memory of follow-ups that failed, keyed by the room they belong to. */
+export interface PendingFollowUps {
+    record(task: RoomFollowUpTask): void;
+    clear(roomId: string): void;
+    /** The pending DM follow-up for this partner, if any. */
+    findDm(userId: string): DmFollowUpTask | null;
+    /** Everything still pending, for tests and diagnostics. */
+    all(): RoomFollowUpTask[];
+}
+
+export function createPendingFollowUps(): PendingFollowUps {
+    const byRoom = new Map<string, RoomFollowUpTask>();
+    return {
+        record(task) {
+            byRoom.set(task.roomId, task);
+        },
+        clear(roomId) {
+            byRoom.delete(roomId);
+        },
+        findDm(userId) {
+            for (const task of byRoom.values())
+                if (task.kind === "dm-account-data" && task.userId === userId)
+                    return task;
+            return null;
+        },
+        all() {
+            return [...byRoom.values()];
+        },
+    };
+}
+
+/**
+ * Run one follow-up write and report EXACTLY what it did. Success clears any
+ * earlier pending record for that room; failure records it so a later attempt
+ * can reuse the room instead of creating another one.
+ */
+export async function runFollowUp(
+    task: RoomFollowUpTask,
+    write: (task: RoomFollowUpTask) => Promise<void>,
+    pending: PendingFollowUps,
+): Promise<RoomFollowUp> {
+    try {
+        await write(task);
+    } catch (err) {
+        pending.record(task);
+        return {
+            status: "failed",
+            task,
+            message: followUpFailureMessage(task, err),
+        };
+    }
+    pending.clear(task.roomId);
+    return { status: "ok" };
+}
+
+/**
+ * A DM room we created earlier whose `m.direct` write failed is invisible to
+ * the `m.direct` reuse check — so without this, the obvious retry creates a
+ * SECOND room and a second invite. `isUsable` reports whether the room is still
+ * one we can hand back (joined and known locally); a room that is not is
+ * forgotten rather than returned.
+ */
+export function strandedDmRoom(
+    pending: PendingFollowUps,
+    userId: string,
+    isUsable: (roomId: string) => boolean,
+): DmFollowUpTask | null {
+    const task = pending.findDm(userId);
+    if (!task) return null;
+    if (!isUsable(task.roomId)) {
+        pending.clear(task.roomId);
+        return null;
+    }
+    return task;
+}
