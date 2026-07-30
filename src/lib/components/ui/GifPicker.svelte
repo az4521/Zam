@@ -20,6 +20,7 @@
     import { Star } from "lucide-svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
+    import { safeAspectRatio } from "$lib/utils/mediaDimensions";
 
     interface Props {
         onSelect: (url: string) => void;
@@ -114,6 +115,14 @@
     function pickUrl(url: string) {
         onSelect(url);
         onClose();
+    }
+
+    // KLIPY's width/height are typed as numbers but arrive as third-party JSON,
+    // so they are untrusted style input exactly like a remote event's info.w/h.
+    // No dimensions → no style at all (the grid falls back to natural size).
+    function gifAspectRatioStyle(w: unknown, h: unknown): string | undefined {
+        const ratio = safeAspectRatio(w, h, "");
+        return ratio ? `aspect-ratio: ${ratio}` : undefined;
     }
 
     function toggleStar(r: GifResult) {
@@ -373,9 +382,10 @@
                                     alt=""
                                     class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
-                                    style={r.width && r.height
-                                        ? `aspect-ratio:${r.width}/${r.height}`
-                                        : undefined}
+                                    style={gifAspectRatioStyle(
+                                        r.width,
+                                        r.height,
+                                    )}
                                 />
                             </button>
                             <button
