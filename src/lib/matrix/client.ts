@@ -751,7 +751,7 @@ export async function logout(): Promise<void> {
         // the bound on this whole function) goes on invalidating the token
         // server-side instead of being cut short by the reload. Resolving as
         // soon as the wipe finished would leave a live access token behind.
-        await runLogoutSequence({
+        const outcome = await runLogoutSequence({
             invalidateSession: () => client.logout(true),
             // Without both ids there is no per-account prefix to pass, and
             // clearStores() falls back to the SDK's own default prefix — so the
@@ -772,6 +772,21 @@ export async function logout(): Promise<void> {
             // can't leave the module slot pointing at a stopped client.
             onLocalWipeSettled: releaseSlot,
         });
+        // The sequence reports what actually happened to the two things that
+        // matter about signing out; discarding it would make a failed wipe or a
+        // still-live token indistinguishable from a clean logout. Console only —
+        // AppShell reloads the page right after this, so there is no surface
+        // left to render on, and the log survives the reload.
+        if (!outcome.localWipeOk) {
+            console.warn(
+                "[matrix] logout: clearing local stores failed — this account's cached sync store and its rust-crypto store (message keys) may still be on this device",
+            );
+        }
+        if (outcome.invalidationStarted && !outcome.invalidationOk) {
+            console.warn(
+                "[matrix] logout: the server did not confirm the sign-out — this session's access token may still be live; it can be revoked from Settings on another session",
+            );
+        }
     } else {
         releaseSlot();
     }
