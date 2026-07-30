@@ -1,18 +1,16 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
     releaseSessionResources,
+    TEARDOWN_ORDER,
     type SessionResourceSteps,
 } from "./sessionTeardown";
 
-const NAMES: (keyof SessionResourceSteps)[] = [
-    "leaveCall",
-    "disposeSync",
-    "stopClient",
-    "clearServiceWorkerAuth",
-    "unregisterPush",
-    "clearNativeSession",
-    "deleteCryptoStore",
-];
+/**
+ * Taken from the module rather than re-listed, so this file cannot drift from
+ * the real order; the EXPECTED order is spelled out literally in the first
+ * test, which is where the assertion belongs.
+ */
+const NAMES: readonly (keyof SessionResourceSteps)[] = TEARDOWN_ORDER;
 
 /** Steps that record the order they ran in; `overrides` replaces a step. */
 function recorder(overrides: Partial<SessionResourceSteps> = {}): {
@@ -118,10 +116,9 @@ describe("releaseSessionResources", () => {
         const { steps, ran } = recorder({
             unregisterPush: () => new Promise(() => {}),
         });
-        const spy = vi.fn();
         releaseSessionResources(steps);
-        spy();
+        // Returning at all is half the point; the other half is that the
+        // steps queued behind the hung one still ran.
         expect(ran).toHaveLength(NAMES.length);
-        expect(spy).toHaveBeenCalled();
     });
 });

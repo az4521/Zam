@@ -39,8 +39,12 @@ export interface SessionResourceSteps {
  * The teardown order. Every key of SessionResourceSteps appears exactly once;
  * the first three are load-bearing (see the module comment), the rest are
  * best-effort releases whose order does not matter.
+ *
+ * `satisfies` (rather than a type annotation) keeps the literal tuple type, so
+ * the exhaustiveness proof below can read the names back out — and it already
+ * rejects a name that is not a member of the interface.
  */
-const TEARDOWN_ORDER: (keyof SessionResourceSteps)[] = [
+export const TEARDOWN_ORDER = [
     "leaveCall",
     "disposeSync",
     "stopClient",
@@ -48,7 +52,23 @@ const TEARDOWN_ORDER: (keyof SessionResourceSteps)[] = [
     "unregisterPush",
     "clearNativeSession",
     "deleteCryptoStore",
-];
+] as const satisfies readonly (keyof SessionResourceSteps)[];
+
+/**
+ * A release that exists on the interface but is missing from the order list
+ * would simply never run — LIFE-01's exact failure mode, reached by adding a
+ * step and forgetting the list. Nothing at runtime can notice that (there is
+ * no step to observe), and a test would have to duplicate the list to try, so
+ * the drift is caught by the type checker instead: whatever the order list
+ * forgot survives this `Exclude`, and anything surviving it fails the `never`
+ * constraint below, naming the forgotten member in the error.
+ */
+type UnreleasedStep = Exclude<
+    keyof SessionResourceSteps,
+    (typeof TEARDOWN_ORDER)[number]
+>;
+type AssertEveryStepIsReleased<Missing extends never> = Missing;
+type _EveryStepIsReleased = AssertEveryStepIsReleased<UnreleasedStep>;
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
     return (
