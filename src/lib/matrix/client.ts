@@ -194,6 +194,15 @@ import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import {
+    createPendingFollowUps,
+    runFollowUp,
+    strandedDmRoom,
+    NO_FOLLOW_UP,
+    type RoomCreationResult,
+    type RoomFollowUp,
+    type RoomFollowUpTask,
+} from "$lib/utils/roomCreationOutcome";
+import {
     ACTIVE_SESSION_KEY,
     buildHeartbeat,
     parseActiveSession,
@@ -205,6 +214,11 @@ import {
 } from "$lib/utils/videoRoom";
 
 export type { ActiveSessionHeartbeat };
+export type {
+    RoomCreationResult,
+    RoomFollowUp,
+    RoomFollowUpTask,
+} from "$lib/utils/roomCreationOutcome";
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
     ServerNotification,
@@ -4006,13 +4020,50 @@ const CALL_POWER_LEVEL_EVENTS = {
     "m.rtc.member": 0,
 };
 
+// Follow-ups that failed after their room was already created. Kept in memory
+// for the session so a retry reuses the existing room instead of making a
+// second one — the duplicate-room failure TX-01 describes. Exactly ONE registry
+// per module: a per-call one would never see the earlier failure it exists for.
+const pendingFollowUps = createPendingFollowUps();
+
+/** Write `m.direct` for a DM room. Idempotent: re-running never duplicates. */
+async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
+        | Record<string, string[]>
+        | undefined;
+    await matrixClient.setAccountData(
+        EventType.Direct,
+        addToMDirect(cur, userId, roomId),
+    );
+}
+
+/** Perform one follow-up write. Both variants are idempotent. */
+async function performFollowUp(task: RoomFollowUpTask): Promise<void> {
+    if (task.kind === "space-link") {
+        await addRoomToSpace(task.spaceId, task.roomId);
+        return;
+    }
+    await writeDmDirectory(task.userId, task.roomId);
+}
+
+/**
+ * Retry ONE follow-up that failed after its room was created — the recovery
+ * path for a partially-successful creation. Never creates a room.
+ */
+export async function retryRoomFollowUp(
+    task: RoomFollowUpTask,
+): Promise<RoomFollowUp> {
+    return runFollowUp(task, performFollowUp, pendingFollowUps);
+}
+
 export async function createRoom(
     name: string,
     topic: string,
     spaceId?: string,
     encrypt = false,
     videoRoom = false,
-): Promise<string> {
+): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error("Not logged in");
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
@@ -4033,11 +4084,19 @@ export async function createRoom(
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
-    if (spaceId) await addRoomToSpace(spaceId, roomId);
+    // The room now EXISTS. A failed space link must not be reported as a
+    // failed creation — that is what makes the user retry into a duplicate.
+    const followUp = spaceId
+        ? await runFollowUp(
+              { kind: "space-link", roomId, spaceId },
+              performFollowUp,
+              pendingFollowUps,
+          )
+        : NO_FOLLOW_UP;
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
     scheduleJoinedRoomsReconcile();
-    return roomId;
+    return { roomId, followUp };
 }
 
 export async function createSpace(
@@ -4118,7 +4177,7 @@ export async function searchUserDirectory(
 export async function createDirectMessage(
     userId: string,
     encrypt = false,
-): Promise<string> {
+): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists. An existing DM keeps its own
     // encryption state — we never change it here (encryption is irreversible).
@@ -4128,7 +4187,25 @@ export async function createDirectMessage(
     if (existing?.[userId]?.length) {
         const existingRoomId = existing[userId][0];
         if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
-            return existingRoomId;
+            return { roomId: existingRoomId, followUp: NO_FOLLOW_UP };
+    }
+    // A DM whose m.direct write failed earlier this session is NOT in m.direct,
+    // so the check above cannot see it. Retry that write against the existing
+    // room rather than creating a second room (and a second invite).
+    const stranded = strandedDmRoom(
+        pendingFollowUps,
+        userId,
+        (id) => matrixClient?.getRoom(id)?.getMyMembership() === "join",
+    );
+    if (stranded) {
+        return {
+            roomId: stranded.roomId,
+            followUp: await runFollowUp(
+                stranded,
+                performFollowUp,
+                pendingFollowUps,
+            ),
+        };
     }
     const initialState = encryptionInitialState(encrypt);
     const result = await matrixClient.createRoom({
@@ -4142,13 +4219,16 @@ export async function createDirectMessage(
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
-    // Update m.direct account data so the room shows in DMs
-    const dmData: Record<string, string[]> = { ...(existing ?? {}) };
-    dmData[userId] = [...(dmData[userId] ?? []), roomId];
-    await matrixClient.setAccountData(EventType.Direct, dmData);
+    // The room and the invite are already on the server. A failed m.direct
+    // write only means the room is not FILED as a DM yet — say exactly that.
+    const followUp = await runFollowUp(
+        { kind: "dm-account-data", roomId, userId },
+        performFollowUp,
+        pendingFollowUps,
+    );
     const room = matrixClient.getRoom(roomId);
     if (room) await matrixClient.scrollback(room, 30).catch(() => {});
-    return roomId;
+    return { roomId, followUp };
 }
 
 /**
