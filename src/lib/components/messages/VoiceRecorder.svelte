@@ -109,7 +109,15 @@
     }
 
     function stop() {
-        if (recorder && recorder.state !== "inactive") recorder.stop();
+        // `phase` starts as "recording", so Stop is on screen while the mic
+        // prompt is still open and `recorder` is null. Without this branch the
+        // click was a no-op that left the ticket current, and answering Allow
+        // afterwards started a recording the user had already stopped.
+        if (!recorder) {
+            discard();
+            return;
+        }
+        if (recorder.state !== "inactive") recorder.stop();
     }
 
     function teardownCapture() {
@@ -133,16 +141,23 @@
         });
         previewUrl = URL.createObjectURL(recordedBlob);
         // Decode for the waveform (best-effort; empty waveform is acceptable).
+        let decodeCtx: AudioContext | null = null;
         try {
-            const decodeCtx = new AudioContext();
+            decodeCtx = new AudioContext();
             const audioBuf = await decodeCtx.decodeAudioData(
                 await recordedBlob.arrayBuffer(),
             );
             waveform = computeWaveform(audioBuf.getChannelData(0), WAVE_BARS);
-            void decodeCtx.close().catch(() => {});
         } catch {
             waveform = [];
+        } finally {
+            // A failed decode used to leak its context, and browsers cap how
+            // many a document may hold — one exhausted cap breaks the mic
+            // meter and every call sound.
+            void decodeCtx?.close().catch(() => {});
         }
+        // Closing the composer mid-decode already revoked the preview URL.
+        if (capture.disposed) return;
         phase = "preview";
     }
 

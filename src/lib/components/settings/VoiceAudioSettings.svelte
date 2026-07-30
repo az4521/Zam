@@ -169,9 +169,11 @@
 
     async function chooseOutputViaBrowser(): Promise<void> {
         const picked = await promptSelectAudioOutput();
-        if (!picked || destroyed) return;
+        if (!picked) return;
         await refreshDevices();
-        if (destroyed) return;
+        // Deliberately NOT gated on `destroyed`: the user really did pick an
+        // output, and everything below is global (or null-safe once the meter
+        // is gone), so abandoning it would just lose their choice.
         pickOutput(picked.deviceId);
     }
 
