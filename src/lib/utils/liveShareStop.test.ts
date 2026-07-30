@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    alreadySharingMessage,
     decideStop,
     resolveStopFailure,
     pendingStopSweep,
@@ -136,6 +137,29 @@ describe("labels", () => {
         const s: StopState = { phase: "failed", error: "x" };
         expect(stopStatusLabel(s)).toBe("Still sharing — couldn't stop");
         expect(stopButtonLabel(s)).toBe("Retry stop");
+    });
+});
+
+describe("alreadySharingMessage", () => {
+    it("distinguishes a healthy share from one stuck mid-stop", () => {
+        // "You're already sharing" would be a lie for a record that only
+        // survives because our stop never landed — and it hides the control
+        // the user actually has to press.
+        const healthy = alreadySharingMessage(null);
+        const stuck = alreadySharingMessage({
+            phase: "failed",
+            error: STOP_FAILED_MESSAGE,
+        });
+        expect(healthy.length).toBeGreaterThan(0);
+        expect(stuck).not.toBe(healthy);
+    });
+
+    it("uses the same copy while the stop is still in flight", () => {
+        // Either way the room already has a record, and the reason the new
+        // share is refused is the same one.
+        expect(alreadySharingMessage({ phase: "stopping", error: null })).toBe(
+            alreadySharingMessage({ phase: "failed", error: "x" }),
+        );
     });
 });
 

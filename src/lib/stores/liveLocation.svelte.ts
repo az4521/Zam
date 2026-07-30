@@ -15,6 +15,7 @@ import {
     geolocationUnavailableMessage,
 } from "$lib/utils/geoErrors";
 import {
+    alreadySharingMessage,
     decideStop,
     resolveStopFailure,
     pendingStopSweep,
@@ -73,9 +74,12 @@ function ensureWatch() {
     if (!hasGeolocation()) {
         // No geolocation at all (or resumed on a platform without it):
         // don't leave phantom "active" shares idling forever — stop them
-        // and tell the user why, same as a watch error would.
+        // and tell the user why, same as a watch error would. The stops go
+        // through the silent path: N shares failing to stop would otherwise
+        // stack N identical toasts on top of the one below, and each room's
+        // banner already reports its own stop failure.
         for (const roomId of Array.from(liveLocationState.shares.keys())) {
-            void stopShare(roomId);
+            void attemptStop(roomId, false);
         }
         showErrorToast(geolocationUnavailableMessage(isSecureContext()));
         return;
@@ -173,8 +177,10 @@ function onGeoError(err: GeolocationPositionError) {
     // transient errors are deliberately ignored here.
     if (err?.code !== 1) return;
     const msg = geoErrorMessage(err, isSecureContext());
+    // Silent stops: the revocation is one event with one cause, so it gets one
+    // toast. A per-share stop failure is reported by that room's banner.
     for (const roomId of Array.from(liveLocationState.shares.keys())) {
-        void stopShare(roomId);
+        void attemptStop(roomId, false);
     }
     showErrorToast(msg);
 }
@@ -195,7 +201,15 @@ export async function startShare(
     roomId: string,
     durationMs: number,
 ): Promise<void> {
-    if (liveLocationState.shares.has(roomId)) return;
+    // A record here is not always a healthy share any more: a stop that the
+    // server never acked is retained on purpose, and it outlives the Stop
+    // click. Returning silently would leave the dialog closing with nothing
+    // happening and no explanation, so say which of the two it is.
+    const existing = liveLocationState.shares.get(roomId);
+    if (existing) {
+        showErrorToast(alreadySharingMessage(existing.stop));
+        return;
+    }
     const room = getRoom(roomId);
     if (!room || !canShareLiveBeacon(room)) {
         showErrorToast("You can't share live location in this room.");

@@ -57,6 +57,7 @@ import {
     liveLocationState,
 } from "./liveLocation.svelte";
 import {
+    alreadySharingMessage,
     STOP_FAILED_MESSAGE,
     STOP_WATCHDOG_MS,
 } from "$lib/utils/liveShareStop";
@@ -203,6 +204,80 @@ describe("live-location own-share engine", () => {
         // race (beacon_info not yet in currentState) still writes live:false.
         expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM, "$b1");
         expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+    });
+
+    it("toasts once, not once per share, when permission is revoked", async () => {
+        // Every share's stop write failing must not stack N identical
+        // stop-failure toasts on top of the one geolocation toast — the
+        // banner already carries that message per room.
+        await startShare("!a:s", 900000);
+        await startShare("!b:s", 900000);
+        h.stopLiveBeacon.mockRejectedValue(new Error("offline"));
+        h.showErrorToast.mockClear();
+
+        geoError?.({ code: 1, PERMISSION_DENIED: 1 });
+        await flush();
+
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+        h.stopLiveBeacon.mockResolvedValue(undefined);
+    });
+
+    it("toasts once when geolocation is gone and every stop then fails", async () => {
+        h.stopLiveBeacon.mockRejectedValue(new Error("offline"));
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: "!a:s",
+                beaconInfoEventId: "$b1",
+                expiresAt: Date.now() + 900000,
+            },
+            {
+                roomId: "!b:s",
+                beaconInfoEventId: "$b2",
+                expiresAt: Date.now() + 900000,
+            },
+        ]);
+        stubNavigator.geolocation = undefined;
+
+        initLiveLocation();
+        await flush();
+
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+        h.stopLiveBeacon.mockResolvedValue(undefined);
+    });
+
+    it("says why a second share in the same room is refused", async () => {
+        await startShare(ROOM, 900000);
+        h.showErrorToast.mockClear();
+        h.startLiveBeacon.mockClear();
+
+        await startShare(ROOM, 900000);
+
+        expect(h.startLiveBeacon).not.toHaveBeenCalled();
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+        expect(h.showErrorToast).toHaveBeenCalledWith(
+            alreadySharingMessage(null),
+        );
+    });
+
+    it("says a stuck stop is what is blocking a new share", async () => {
+        // The retained failed record outlives the Stop click, so without this
+        // the dialog just closes and nothing happens — a silent dead end.
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockRejectedValueOnce(new Error("offline"));
+        await stopShare(ROOM);
+        h.showErrorToast.mockClear();
+        h.startLiveBeacon.mockClear();
+
+        await startShare(ROOM, 900000);
+
+        expect(h.startLiveBeacon).not.toHaveBeenCalled();
+        expect(h.showErrorToast).toHaveBeenCalledTimes(1);
+        expect(h.showErrorToast).toHaveBeenCalledWith(
+            alreadySharingMessage({
+                phase: "failed",
+                error: STOP_FAILED_MESSAGE,
+            }),
+        );
     });
 
     it("records lastSentTs so the UI can show 'last updated at …'", async () => {

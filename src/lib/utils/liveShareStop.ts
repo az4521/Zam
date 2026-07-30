@@ -112,6 +112,19 @@ export function stopStatusLabel(stop: StopState | null): string | null {
         : "Still sharing — couldn't stop";
 }
 
+/**
+ * Why a request to start a new share was refused because the room already has
+ * a record. A retained stop is not a normal "already sharing": the record only
+ * survives because our live:false never landed, so it names the control that
+ * actually clears it instead of implying a healthy share the user forgot.
+ */
+export function alreadySharingMessage(stop: StopState | null): string {
+    if (!stop) {
+        return "You're already sharing your live location in this room.";
+    }
+    return "Your last live location share here hasn't stopped yet — stop it from the room's banner before starting a new one.";
+}
+
 /** Label for the stop/retry button in the banner and the map footer. */
 export function stopButtonLabel(stop: StopState | null): string {
     if (!stop) return "Stop";
