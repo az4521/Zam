@@ -105,7 +105,11 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
-import { belongsToMainTimeline, summarizeThread } from "$lib/utils/threadModel";
+import {
+    belongsToMainTimeline,
+    summarizeThread,
+    threadReplyRootId,
+} from "$lib/utils/threadModel";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
@@ -6012,11 +6016,10 @@ export function onDecryptedTimelineEvent(
         // reply reads m.room.encrypted until this very moment — so the reply
         // notified nowhere. Forward it with its root id and let the consumer
         // apply the thread policy, which needs cleartext (mentions) anyway.
-        // belongsToMainTimeline is the classifier so a malformed self-
-        // referential m.thread relation stays a main-timeline event.
-        const threadRootId = belongsToMainTimeline({ relatesTo, eventId })
-            ? null
-            : (relatesTo?.event_id ?? null);
+        // threadReplyRootId is the classifier (the inverse of
+        // belongsToMainTimeline, pinned by its own tests) so a malformed
+        // self-referential m.thread relation stays a main-timeline event.
+        const threadRootId = threadReplyRootId({ relatesTo, eventId });
         const type = event.getType();
         if (
             type !== "m.room.message" &&
