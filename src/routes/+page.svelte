@@ -26,6 +26,7 @@
         IDLE_SESSION_STARTUP,
         isLiveAttempt,
         reduceSessionStartup,
+        type SessionStartupState,
     } from "$lib/utils/sessionStartup";
     import { releaseSessionResources } from "$lib/utils/sessionTeardown";
     import AppShell from "$lib/components/layout/AppShell.svelte";
@@ -70,8 +71,14 @@
     // Startup is ONE transaction (audit AUTH-01): a login or restore only
     // becomes observable — AppShell mounted, account persisted — once sync is
     // actually running, and an attempt the app has moved past (expiry, or a
-    // newer attempt) can never publish itself late.
-    let startup = $state(IDLE_SESSION_STARTUP);
+    // newer attempt) can never publish itself late. A plain `let`, not $state:
+    // the guards below decide "did this apply?" by comparing state objects with
+    // ===, and $state would hand back a reactive PROXY of the reducer's result
+    // — identity survives that today, but if it ever stopped doing so both
+    // guards would silently invert (a stale failure would stop a live
+    // successor's client; a dead attempt would commit). Nothing renders this,
+    // so it must not be reactive.
+    let startup: SessionStartupState = IDLE_SESSION_STARTUP;
 
     // Disposer for the running sync's client listeners (LIFE-02). A plain
     // `let`, not $state — nothing renders it.
