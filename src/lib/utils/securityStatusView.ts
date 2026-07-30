@@ -63,7 +63,12 @@ export interface SecurityPanelView {
     state: SecuritySetupState;
     /** The status rows reflect a successful read, not a guess. */
     authoritative: boolean;
-    /** We're showing an older successful read because the latest one failed. */
+    /**
+     * We're showing an older successful read because the latest one didn't
+     * land. Both non-authoritative outcomes qualify: a read that threw and a
+     * session whose crypto isn't ready say equally little about the ACCOUNT, so
+     * neither is a reason to throw away a reading we already have.
+     */
     stale: boolean;
     /** Set-up / reset may be offered. False unless the read is authoritative. */
     allowDestructive: boolean;
@@ -78,7 +83,9 @@ export function securityPanelView(p: SecurityPosture): SecurityPanelView {
     return {
         state,
         authoritative,
-        stale: state === "read-failed" && p.hasLastGood,
+        stale:
+            (state === "read-failed" || state === "unavailable") &&
+            p.hasLastGood,
         allowDestructive: authoritative,
         notice:
             state === "read-failed"

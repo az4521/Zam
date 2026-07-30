@@ -63,21 +63,43 @@ const erroredBackup = {
     sessionsRemaining: null,
     version: null,
 };
+const unavailableStatus = { ...erroredStatus, read: "unavailable" as const };
+const unavailableBackup = { ...erroredBackup, read: "unavailable" as const };
+
+const READ_FAILED = "Couldn't read this account's encryption status";
+const STALE_MARKER = "Showing the last reading that loaded";
 
 let target: HTMLDivElement;
 let app: Record<string, unknown> | null = null;
 
-/** Let the tick-driven $effect's two awaited reads settle, then re-render. */
-async function settle() {
-    for (let i = 0; i < 4; i++) {
-        await Promise.resolve();
+/**
+ * Wait until the panel actually renders what the test is about.
+ *
+ * Condition-based on purpose: `loadStatus()` runs from a tick-driven `$effect`
+ * and awaits two reads, so draining a COUNTED number of microtasks would pin
+ * these tests to the exact number of awaits inside it — add one and every
+ * negative assertion below would run against a half-rendered panel and pass
+ * silently. `vi.waitFor` retries until the DOM says what we're waiting for.
+ */
+async function until(assertion: () => void) {
+    await vi.waitFor(() => {
         flushSync();
-    }
+        assertion();
+    });
 }
 
-async function render() {
+/**
+ * Yield to the MACROtask queue, which drains every already-queued promise
+ * continuation first — categorically, not by count. Needed for the one
+ * assertion that is about state NOT changing, which no condition can wait for.
+ */
+async function drained() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    flushSync();
+}
+
+function render() {
     app = mount(SecuritySettings, { target });
-    await settle();
 }
 
 const text = () => target.textContent ?? "";
@@ -85,9 +107,17 @@ const buttonByText = (label: string) =>
     [...target.querySelectorAll("button")].find((b) =>
         (b.textContent ?? "").includes(label),
     );
+/** The <section> that renders a given claim, so an assertion can be scoped. */
+const sectionWith = (needle: string) =>
+    [...target.querySelectorAll("section")].find((s) =>
+        (s.textContent ?? "").includes(needle),
+    );
 
 beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks, not clearAllMocks: clearing keeps the previous test's
+    // mockResolvedValue, so a test that set only one of the two reads would
+    // silently inherit the other test's posture. Every test sets both.
+    vi.resetAllMocks();
     target = document.createElement("div");
     document.body.appendChild(target);
 });
@@ -102,47 +132,54 @@ describe("SecuritySettings read honesty", () => {
     it("renders the account's posture when the read lands", async () => {
         h.getSecurityStatus.mockResolvedValue(okStatus);
         h.getBackupStatus.mockResolvedValue(okBackup);
-        await render();
+        render();
 
-        expect(text()).toContain("Set up");
-        expect(text()).not.toContain("Couldn't read");
-        expect(text()).not.toContain("Showing the last reading");
+        // "Recovery key ID:" is rendered by the status rows alone, and they only
+        // render from a reading that landed. Asserting on "Set up" would be
+        // vacuous — the page's static header copy says "Set up recovery so your
+        // cross-signing identity…" whatever the read did.
+        await until(() => expect(text()).toContain("Recovery key ID:"));
+
+        expect(text()).toContain("Recovery is set up");
+        expect(text()).not.toContain(READ_FAILED);
+        expect(text()).not.toContain(STALE_MARKER);
     });
 
     it("says the read failed instead of claiming nothing is set up", async () => {
         h.getSecurityStatus.mockResolvedValue(erroredStatus);
         h.getBackupStatus.mockResolvedValue(erroredBackup);
-        await render();
+        render();
 
-        expect(text()).toContain(
-            "Couldn't read this account's encryption status",
-        );
+        await until(() => expect(text()).toContain(READ_FAILED));
+
         // The all-false payload behind a failed read must not reach the rows.
         expect(text()).not.toContain("Not set up");
         expect(text()).not.toContain("Unverified");
         // …nor may it invite the user to create recovery over existing keys.
         expect(buttonByText("Set up recovery")).toBeUndefined();
         // Nothing ever loaded, so there is no earlier reading to flag as stale.
-        expect(text()).not.toContain("Showing the last reading");
+        expect(text()).not.toContain(STALE_MARKER);
     });
 
     it("keeps the last good reading and flags it stale when a later read fails", async () => {
         h.getSecurityStatus.mockResolvedValue(okStatus);
         h.getBackupStatus.mockResolvedValue(okBackup);
-        await render();
-        expect(text()).toContain("Recovery is set up");
+        render();
+        await until(() => expect(text()).toContain("Recovery is set up"));
 
         h.getSecurityStatus.mockResolvedValue(erroredStatus);
         h.getBackupStatus.mockResolvedValue(erroredBackup);
         bumpSecurityTick();
-        await settle();
+        await until(() => expect(text()).toContain(READ_FAILED));
 
         // The reading the user had is still there, marked as possibly out of date…
-        expect(text()).toContain("Showing the last reading that loaded");
-        expect(text()).toContain(
-            "Couldn't read this account's encryption status",
-        );
+        expect(text()).toContain(STALE_MARKER);
         expect(text()).not.toContain("Not set up");
+        // …including the "Recovery is set up" panel, which renders from that same
+        // retained payload and would otherwise read as a current positive claim.
+        expect(sectionWith("Recovery is set up")?.textContent).toContain(
+            STALE_MARKER,
+        );
         // …and the destructive door is shut while we can't confirm the posture.
         const reset = buttonByText("Reset recovery");
         expect(reset).toBeDefined();
@@ -152,9 +189,11 @@ describe("SecuritySettings read honesty", () => {
     it("offers reset only on a reading that landed", async () => {
         h.getSecurityStatus.mockResolvedValue(okStatus);
         h.getBackupStatus.mockResolvedValue(okBackup);
-        await render();
+        render();
 
-        expect(buttonByText("Reset recovery")?.disabled).toBe(false);
+        await until(() =>
+            expect(buttonByText("Reset recovery")?.disabled).toBe(false),
+        );
     });
 
     // loadStatus() is fired from a tick-driven $effect and awaits two reads, so
@@ -170,41 +209,56 @@ describe("SecuritySettings read honesty", () => {
             }),
         );
         h.getBackupStatus.mockResolvedValue(okBackup);
-        await render();
-        expect(text()).toContain("Loading encryption status");
+        render();
+        await until(() =>
+            expect(text()).toContain("Loading encryption status"),
+        );
 
         // A newer read starts and fails while the first is still outstanding.
         h.getSecurityStatus.mockResolvedValue(erroredStatus);
         h.getBackupStatus.mockResolvedValue(erroredBackup);
         bumpSecurityTick();
-        await settle();
-        expect(text()).toContain(
-            "Couldn't read this account's encryption status",
-        );
+        await until(() => expect(text()).toContain(READ_FAILED));
 
         // The stale run finally lands with a successful-looking payload.
         releaseFirst(okStatus);
-        await settle();
+        await drained();
 
-        expect(text()).toContain(
-            "Couldn't read this account's encryption status",
-        );
+        expect(text()).toContain(READ_FAILED);
+        expect(text()).not.toContain("Recovery key ID:");
         expect(buttonByText("Reset recovery")).toBeUndefined();
     });
 
     it("explains an unavailable session rather than blaming the account", async () => {
-        h.getSecurityStatus.mockResolvedValue({
-            ...erroredStatus,
-            read: "unavailable" as const,
-        });
-        h.getBackupStatus.mockResolvedValue({
-            ...erroredBackup,
-            read: "unavailable" as const,
-        });
-        await render();
+        h.getSecurityStatus.mockResolvedValue(unavailableStatus);
+        h.getBackupStatus.mockResolvedValue(unavailableBackup);
+        render();
 
-        expect(text()).toContain("Encryption isn't ready on this session yet");
+        await until(() =>
+            expect(text()).toContain(
+                "Encryption isn't ready on this session yet",
+            ),
+        );
+
         expect(text()).not.toContain("Not set up");
         expect(buttonByText("Set up recovery")).toBeUndefined();
+    });
+
+    it("keeps a retained reading when the session goes unavailable", async () => {
+        h.getSecurityStatus.mockResolvedValue(okStatus);
+        h.getBackupStatus.mockResolvedValue(okBackup);
+        render();
+        await until(() => expect(text()).toContain("Recovery key ID:"));
+
+        h.getSecurityStatus.mockResolvedValue(unavailableStatus);
+        h.getBackupStatus.mockResolvedValue(unavailableBackup);
+        bumpSecurityTick();
+        await until(() => expect(text()).toContain(STALE_MARKER));
+
+        // Shown-and-labelled, not blanked: an unavailable session says nothing
+        // about the ACCOUNT, so the reading we already have survives.
+        expect(text()).toContain("Recovery key ID:");
+        expect(text()).toContain("Encryption isn't ready on this session yet");
+        expect(buttonByText("Reset recovery")?.disabled).toBe(true);
     });
 });

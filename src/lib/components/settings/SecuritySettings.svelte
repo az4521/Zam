@@ -373,6 +373,15 @@
     }
 </script>
 
+<!-- One wording, every place a retained reading is shown: anything rendered from
+     `status`/`backup` after a read stopped landing is a past reading, not a
+     current claim about the account (audit CRYPTO-02). -->
+{#snippet staleMarker()}
+    <p class="text-xs text-discord-textMuted py-1.5">
+        Showing the last reading that loaded — it may be out of date.
+    </p>
+{/snippet}
+
 {#snippet statusRow(
     label: string,
     ok: boolean,
@@ -407,10 +416,7 @@
     <section class="rounded bg-discord-backgroundTertiary px-4 py-2">
         {#if status && showRows}
             {#if panel.stale}
-                <p class="text-xs text-discord-textMuted py-1.5">
-                    Showing the last reading that loaded — it may be out of
-                    date.
-                </p>
+                {@render staleMarker()}
             {/if}
             {@render statusRow(
                 "End-to-end encryption",
@@ -630,6 +636,12 @@
                     Your cross-signing keys and a key backup are stored securely
                     on the server, protected by your recovery key.
                 </p>
+                <!-- This panel renders from the RETAINED payload, so when the
+                     latest read didn't land it is a past reading like the rows
+                     above — not a current claim that recovery is fine. -->
+                {#if panel.stale}
+                    {@render staleMarker()}
+                {/if}
             </div>
 
             {#if resetStep === "idle"}

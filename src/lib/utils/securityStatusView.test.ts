@@ -125,6 +125,35 @@ describe("securityPanelView", () => {
         expect(v.allowDestructive).toBe(false);
     });
 
+    // An unavailable session says exactly as little about the ACCOUNT as a read
+    // that threw, so it is no reason to throw away a reading we already have:
+    // the two non-authoritative outcomes retain-and-label symmetrically.
+    it("keeps a retained reading, labelled stale, when the session goes unavailable", () => {
+        const v = securityPanelView({
+            ...base,
+            read: "unavailable",
+            hasLastGood: true,
+        });
+        expect(v.state).toBe("unavailable");
+        expect(v.stale).toBe(true);
+        expect(v.authoritative).toBe(false);
+        expect(v.allowDestructive).toBe(false);
+        expect(v.notice).toBe(
+            "Encryption isn't ready on this session yet. Reload if this persists.",
+        );
+    });
+
+    it("has nothing to call stale before the first read lands", () => {
+        const v = securityPanelView({
+            ...base,
+            read: null,
+            backupRead: null,
+            hasLastGood: true,
+        });
+        expect(v.state).toBe("loading");
+        expect(v.stale).toBe(false);
+    });
+
     it("explains an unavailable session without blaming the account", () => {
         const v = securityPanelView({ ...base, read: "unavailable" });
         expect(v.state).toBe("unavailable");
