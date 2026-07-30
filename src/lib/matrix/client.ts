@@ -89,6 +89,7 @@ import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
+import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -1451,15 +1452,17 @@ export async function sendFile(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     // Precheck the size against the server's advertised upload limit so an
-    // over-limit file fails fast with a clear toast instead of a 413 mid-upload.
+    // over-limit file fails fast instead of a 413 mid-upload. This REJECTS
+    // rather than resolving: resolving read to the composer as "sent" and made
+    // the queued file disappear unsent (audit MEDIA-02). The caller owns the
+    // toast — FileTooLargeError's message is already user-facing copy.
     const maxUploadSize = await getMediaUploadSizeLimit();
-    if (maxUploadSize !== null && file.size > maxUploadSize) {
-        showErrorToast(
-            `File exceeds the server's ${Math.round(
-                maxUploadSize / 1024 / 1024,
-            )} MB upload limit`,
+    if (exceedsUploadLimit(file.size, maxUploadSize)) {
+        throw new FileTooLargeError(
+            file.name,
+            file.size,
+            maxUploadSize as number,
         );
-        return;
     }
     const { content_uri } = await matrixClient.uploadContent(file, {
         name: file.name,
