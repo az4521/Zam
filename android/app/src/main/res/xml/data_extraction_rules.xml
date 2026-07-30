@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ (API 31+) backup/transfer policy. On these versions this file
+    supersedes android:allowBackup, so opting out of cloud backup there is NOT
+    enough on its own — device-to-device transfer is a separate section and has
+    to be excluded explicitly.
+
+    Everything this app persists is credential-grade: the Matrix access token
+    (SharedPreferences, via Capacitor Preferences) and the rust-crypto store
+    with the device's Megolm/Olm keys (WebView IndexedDB, plaintext). Both sit
+    under the app's internal data dir, so excluding `root` covers them; nothing
+    of ours belongs in a backup or a transfer to another device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>
