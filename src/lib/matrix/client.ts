@@ -285,6 +285,15 @@ async function createAuthenticatedClient(opts: {
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
     mediaUploadSizePromise = null;
+    // NOT dead code. Room-creation follow-ups are remembered per session, and
+    // one sign-out path does NOT reload the page: session expiry
+    // (`handleSessionExpired` in routes/+page.svelte) swaps to the login view
+    // IN PLACE, so the next sign-in runs in this same JS realm. Account A's
+    // stranded DM record would then still be here — and `findDm` keys on the
+    // partner id alone — so account B opening a DM with the same partner would
+    // be handed A's room id, have it written into B's `m.direct`, and be
+    // dropped into a room B cannot open, for the rest of the page session.
+    pendingFollowUps.reset();
 
     const indexedDB = getIndexedDBFactory();
     const store = indexedDB

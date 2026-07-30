@@ -80,6 +80,13 @@ export interface PendingFollowUps {
     clear(roomId: string): void;
     /** The pending DM follow-up for this partner, if any. */
     findDm(userId: string): DmFollowUpTask | null;
+    /**
+     * Forget everything. Every record belongs to the account that made it, so
+     * a registry that survives into a different session is a cross-account
+     * leak waiting to happen — `findDm` matches on the partner id alone and
+     * cannot tell whose room it is handing back.
+     */
+    reset(): void;
     /** Everything still pending, for tests and diagnostics. */
     all(): RoomFollowUpTask[];
 }
@@ -98,6 +105,9 @@ export function createPendingFollowUps(): PendingFollowUps {
                 if (task.kind === "dm-account-data" && task.userId === userId)
                     return task;
             return null;
+        },
+        reset() {
+            byRoom.clear();
         },
         all() {
             return [...byRoom.values()];

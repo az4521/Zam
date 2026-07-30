@@ -152,6 +152,32 @@ describe("pending registry", () => {
         expect(pending.findDm("@partner:hs")).toEqual(dmTask);
         expect(pending.findDm("@someone-else:hs")).toBeNull();
     });
+
+    /**
+     * The registry is module-scoped and outlives a sign-out that does NOT
+     * reload the page (session expiry swaps to the login view in place). A
+     * record left behind belongs to a DIFFERENT account, and `findDm` keys on
+     * the partner id alone — so the next account asking for a DM with the same
+     * partner would be handed the previous account's room.
+     */
+    it("reset() empties the registry so a new session inherits nothing", () => {
+        const pending = createPendingFollowUps();
+        pending.record(dmTask);
+        pending.record(spaceTask);
+
+        pending.reset();
+
+        expect(pending.all()).toEqual([]);
+        expect(pending.findDm("@partner:hs")).toBeNull();
+    });
+
+    it("reset() leaves the registry usable", () => {
+        const pending = createPendingFollowUps();
+        pending.record(dmTask);
+        pending.reset();
+        pending.record(dmTask);
+        expect(pending.all()).toEqual([dmTask]);
+    });
 });
 
 describe("strandedDmRoom — a retry must reuse the room, not create a second one", () => {
