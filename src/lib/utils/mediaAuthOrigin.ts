@@ -14,6 +14,12 @@
  * `static/sw.js` is served verbatim and cannot import this module, so it
  * carries a hand-written copy of this gate; `mediaAuthOrigin.test.ts` pins the
  * two together. This module is that copy's tested reference — change both.
+ *
+ * Scope note: this is the *destination* check only. The SW separately refuses
+ * to store a non-https homeserver URL at all (`isValidHomeserverUrl`), so in
+ * practice `homeserverUrl` is always https here — which is exactly why the
+ * hostname-only comparison was exploitable, since the REQUEST side had no such
+ * constraint and `http://<homeserver-host>/…` matched.
  */
 
 /**

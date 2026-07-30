@@ -110,18 +110,27 @@ describe("static/sw.js mirrors this gate", () => {
     // The service worker is served verbatim from static/ — it cannot import
     // this module, so the check lives there as a hand-written copy. Pin it, or
     // the two drift and the util silently stops describing what ships.
+    //
+    // Assertions run against a whitespace-stripped copy: they survive a reflow
+    // of the condition but still catch a dropped `!`, an `||` flipped to `&&`,
+    // or a removed clause — the mutations that would quietly re-open SEC-03.
+    // Pinning whole conditions rather than fragments is deliberate: this gate
+    // decides where the user's access token goes, so editing it should have to
+    // be a decision, visible as a red test.
     const sw = readFileSync(resolve(process.cwd(), "static/sw.js"), "utf8");
+    const swCompact = sw.replace(/\s/g, "");
 
-    it("compares full origins, not hostnames", () => {
-        expect(sw).toContain("parsedUrl.origin !== hsUrl.origin");
-        expect(sw).not.toContain("parsedUrl.hostname !== hsUrl.hostname");
-    });
-
-    it("still constrains the base path as well as the origin", () => {
-        expect(sw).toContain("reqBase.startsWith(hsBase)");
+    it("injects the token only on an exact origin match, under the base path", () => {
+        expect(swCompact).toContain(
+            "if(!accessToken||parsedUrl.origin!==hsUrl.origin||!reqBase.startsWith(hsBase))returnfetch(event.request);",
+        );
     });
 
     it("still gates on the authenticated media path", () => {
-        expect(sw).toContain("/_matrix/client/v1/media/");
+        // The bare path string also appears in sw.js comments, so anchor on the
+        // executable form or this assertion certifies nothing.
+        expect(swCompact).toContain(
+            '!parsedUrl.pathname.includes("/_matrix/client/v1/media/")',
+        );
     });
 });

@@ -38,6 +38,9 @@ export function safeDimension(value: unknown): number | null {
  * CSS `aspect-ratio` value for a pair of untrusted dimensions. Both sides must
  * survive `safeDimension`, otherwise the caller gets `fallback` — a partially
  * valid pair is not worth guessing at.
+ *
+ * `fallback` is returned verbatim, so it must be a literal the caller controls,
+ * never anything derived from event content.
  */
 export function safeAspectRatio(
     width: unknown,
