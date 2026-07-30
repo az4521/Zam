@@ -54,6 +54,12 @@
         clearDraft,
     } from "$lib/stores/composerDrafts.svelte";
     import {
+        getFileQueue,
+        addQueuedFile,
+        removeQueuedFile,
+    } from "$lib/stores/composerFileQueue.svelte";
+    import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
+    import {
         parseSlashCommand,
         matchSlashCommands,
         usageFor,
@@ -93,15 +99,12 @@
         scrollEl,
     }: Props = $props();
 
-    interface QueuedFile {
-        file: File;
-        name: string;
-        previewUrl: string | null; // object URL for images, null otherwise
-    }
-
     let text = $state("");
     let isSending = $state(false);
-    let fileQueue = $state<QueuedFile[]>([]);
+    // Queued attachments live in a per-room store, not here: this component
+    // stays mounted across room switches, so a local queue followed the user
+    // into the next room and Send posted the file there (audit UX-01).
+    const fileQueue = $derived(getFileQueue(roomId));
     let textareaEl: HTMLDivElement | undefined = $state();
     let renderingComposer = false;
 
@@ -891,6 +894,19 @@
         }
     }
 
+    /** Clear the composer after a successful send. `forRoomId` is the room the
+     *  send targeted: if the user has since switched rooms, the composer now
+     *  holds a DIFFERENT room's draft and must be left alone. */
+    function clearComposerAfterSend(forRoomId: string) {
+        if (roomId !== forRoomId) return;
+        text = "";
+        mentionQuery = null;
+        emojiQuery = null;
+        pendingMentions = new Map();
+        clearDraft(forRoomId);
+        renderComposer(0);
+    }
+
     async function send() {
         // Slash-command dispatch — only when no files are queued (with files the
         // text is a caption, not a command).
@@ -928,29 +944,28 @@
         lastTypingSentAt = 0;
 
         isSending = true;
+        // Everything below targets the room the user pressed Send in — a room
+        // switch mid-upload must not retarget a send, a queue removal or a
+        // draft write.
+        const targetRoomId = roomId;
         const filesToSend = fileQueue.slice();
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
         const formatted = trimmed ? buildFormattedBody(trimmed) : null;
-
-        // The SDK creates the local echo synchronously, so a text message shows
-        // in the timeline the moment we send it — with a retry/delete affordance
-        // there if it fails (see MessageItem). Clear the composer up front so the
-        // message isn't shown in two places and can't be sent twice by accident.
-        if (trimmed) {
-            text = "";
-            mentionQuery = null;
-            emojiQuery = null;
-            pendingMentions = new Map();
-            clearDraft(roomId);
-            renderComposer(0);
-        }
 
         // When files are queued alongside text (and we're not replying), attach
         // the text to the first file as a caption (MSC2530) rather than sending
         // it as a separate message.
         const useCaption =
             !!trimmed && !!formatted && filesToSend.length > 0 && !replyToEvent;
+
+        // The SDK creates the local echo synchronously, so a text message shows
+        // in the timeline the moment we send it — with a retry/delete affordance
+        // there if it fails (see MessageItem). Clear the composer up front so the
+        // message isn't shown in two places and can't be sent twice by accident.
+        // A caption has no local echo until its upload finishes, so that case
+        // clears on success instead (below) and the text survives a failure.
+        if (trimmed && !useCaption) clearComposerAfterSend(targetRoomId);
 
         try {
             if (trimmed && formatted && !useCaption) {
@@ -962,7 +977,7 @@
                 let sentEventId: string;
                 if (replyToEvent) {
                     sentEventId = await sendReply(
-                        roomId,
+                        targetRoomId,
                         trimmed,
                         replyToEvent,
                         html ?? undefined,
@@ -971,40 +986,46 @@
                     onCancelReply?.();
                 } else if (html) {
                     sentEventId = await sendFormattedMessage(
-                        roomId,
+                        targetRoomId,
                         trimmed,
                         html,
                         mentions,
                     );
                 } else {
-                    sentEventId = await sendTextMessage(roomId, trimmed);
+                    sentEventId = await sendTextMessage(targetRoomId, trimmed);
                 }
                 if (createThreadArmed) {
                     createThreadArmed = false;
                     onThreadCreated?.(sentEventId);
                 }
             }
-            for (let i = 0; i < filesToSend.length; i++) {
-                const item = filesToSend[i];
-                if (useCaption && i === 0 && formatted) {
-                    const { html, mentionedUserIds } = formatted;
-                    await sendFile(roomId, item.file, {
-                        body: trimmed,
-                        formattedBody: html ?? undefined,
-                        mentions:
-                            mentionedUserIds.length > 0
-                                ? { user_ids: mentionedUserIds }
-                                : undefined,
-                    });
-                } else {
-                    await sendFile(roomId, item.file);
-                }
-            }
-            // Files sent: revoke object URLs and clear the queue.
-            for (const item of filesToSend) {
-                if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-            }
-            fileQueue = [];
+            // Commit each file as it lands: a failure halfway must leave the
+            // unsent files queued so a retry sends only those (audit MEDIA-03).
+            await sendQueuedFilesInOrder(
+                filesToSend,
+                (item, i) => {
+                    if (useCaption && i === 0 && formatted) {
+                        const { html, mentionedUserIds } = formatted;
+                        return sendFile(targetRoomId, item.file, {
+                            body: trimmed,
+                            formattedBody: html ?? undefined,
+                            mentions:
+                                mentionedUserIds.length > 0
+                                    ? { user_ids: mentionedUserIds }
+                                    : undefined,
+                        });
+                    }
+                    return sendFile(targetRoomId, item.file);
+                },
+                (item, i) => {
+                    // The store revokes the preview URL as it drops the item.
+                    removeQueuedFile(targetRoomId, item.id);
+                    // The caption rode on the first file — it's only safely
+                    // sent once that file is.
+                    if (useCaption && i === 0)
+                        clearComposerAfterSend(targetRoomId);
+                },
+            );
             // Snap scroll to bottom after input shrinks — prevents content from drifting up
             await tick();
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
@@ -1187,14 +1208,12 @@
         const previewUrl = file.type.startsWith("image/")
             ? URL.createObjectURL(file)
             : null;
-        fileQueue = [...fileQueue, { file, name, previewUrl }];
+        addQueuedFile(roomId, file, name, previewUrl);
         textareaEl?.focus();
     }
 
-    function removeFromQueue(index: number) {
-        const item = fileQueue[index];
-        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-        fileQueue = fileQueue.filter((_, i) => i !== index);
+    function removeFromQueue(id: string) {
+        removeQueuedFile(roomId, id);
     }
 
     /** Model length of the current selection ("" when collapsed). */
@@ -1363,7 +1382,7 @@
     <!-- File queue preview -->
     {#if fileQueue.length > 0}
         <div class="flex gap-2 mb-2 overflow-x-auto pb-1">
-            {#each fileQueue as item, i}
+            {#each fileQueue as item (item.id)}
                 <div
                     class="relative flex-shrink-0 flex flex-col items-center gap-1 w-20 p-2"
                 >
@@ -1396,7 +1415,7 @@
                     >
                     <!-- Remove button -->
                     <button
-                        onclick={() => removeFromQueue(i)}
+                        onclick={() => removeFromQueue(item.id)}
                         class="absolute -top-0 -right-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
                         title="Remove"
                     >
