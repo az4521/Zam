@@ -36,6 +36,31 @@ describe("classifyPushRuleWriteError", () => {
             "rule-rejected",
         );
     });
+    // No httpStatus at all, so the bare-400 branch cannot be what classifies
+    // these: this is what pins the body-rejection errcode set itself.
+    it.each([
+        ["M_BAD_JSON"],
+        ["M_NOT_JSON"],
+        ["M_INVALID_PARAM"],
+        ["M_UNRECOGNIZED"],
+    ])("a statusless %s errcode is a rejection", (errcode) => {
+        expect(classifyPushRuleWriteError({ errcode })).toBe("rule-rejected");
+    });
+    it("a rejection errcode nested under data counts too", () => {
+        expect(
+            classifyPushRuleWriteError({
+                data: { errcode: "M_INVALID_PARAM" },
+            }),
+        ).toBe("rule-rejected");
+    });
+    it("a non-string top-level errcode does not shadow a valid nested one", () => {
+        expect(
+            classifyPushRuleWriteError({
+                errcode: 404,
+                data: { errcode: "M_NOT_FOUND" },
+            }),
+        ).toBe("rule-missing");
+    });
     // These MUST be transport: the write may actually have landed, so nothing
     // about server state may be assumed and no create may be attempted.
     it.each([
@@ -128,6 +153,16 @@ describe("pushRuleFailureMessage", () => {
         expect(pushRuleFailureMessage("@room mentions", reason)).toContain(
             "@room mentions",
         );
+    });
+    // Distinctness alone would survive swapping two of the strings, which would
+    // tell the user the wrong thing. Pin each reason to its own copy.
+    it.each([
+        ["rule-missing" as const, 'has no "Rooms" notification rule'],
+        ["rule-rejected" as const, 'rejected the change to "Rooms"'],
+        ["mismatch" as const, '"Rooms" notifications did not change'],
+        ["transport" as const, "Check your connection"],
+    ])("%s explains that particular failure", (reason, phrase) => {
+        expect(pushRuleFailureMessage("Rooms", reason)).toContain(phrase);
     });
     it("gives a different explanation per reason", () => {
         const messages = new Set(
