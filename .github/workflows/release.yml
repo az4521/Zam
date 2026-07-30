@@ -86,9 +86,21 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Verify APK signature
         run: |
+          set -euo pipefail
           APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
+          if [ -z "$APK" ]; then
+            echo "::error::No release APK was produced."
+            exit 1
+          fi
           APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort | tail -n1)
-          "$APKSIGNER" verify --print-certs "$APK" || echo "WARNING: APK is not signed — set the ANDROID_KEYSTORE_* secrets."
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found in $ANDROID_SDK_ROOT/build-tools."
+            exit 1
+          fi
+          # Hard failure by design: in-app updates pin the signer certificate,
+          # so an unsigned or unverifiable APK must never reach a release.
+          # Set the ANDROID_KEYSTORE_* repository secrets to sign the build.
+          "$APKSIGNER" verify --print-certs "$APK"
       - name: Stage APK with version
         run: |
           mkdir -p release-files
