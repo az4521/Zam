@@ -51,6 +51,20 @@ export function decideStop(target: StopTarget | null): StopDecision {
 export const STOP_FAILED_MESSAGE =
     "Couldn't stop sharing your live location — it's still visible to this room. Use Retry stop to try again.";
 
+/**
+ * How long a `live:false` write may stay in flight before the UI stops
+ * claiming to know what is happening.
+ *
+ * A rejected write fails fast, but a stalled connection (captive portal, dead
+ * zone) never settles at all — the request simply hangs. Unbounded, the record
+ * would sit in `"stopping"` (Stop disabled, the retry sweep skipping it) until
+ * the beacon expired: up to eight hours of a dead "Stopping…". Past this point
+ * the stop is treated as unconfirmed rather than pending so the user gets a
+ * working button back. It is NOT a verdict on the write, which is still running
+ * and still owns its own outcome.
+ */
+export const STOP_WATCHDOG_MS = 30000;
+
 export type StopOutcome =
     | { action: "drop" }
     | { action: "retain"; error: string };

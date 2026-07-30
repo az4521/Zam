@@ -7,6 +7,7 @@ import {
     stopButtonLabel,
     isSyncRecovery,
     STOP_FAILED_MESSAGE,
+    STOP_WATCHDOG_MS,
     type StopState,
 } from "./liveShareStop";
 
@@ -60,6 +61,16 @@ describe("resolveStopFailure", () => {
         expect(STOP_FAILED_MESSAGE).toContain(
             stopButtonLabel({ phase: "failed", error: "x" }),
         );
+    });
+});
+
+describe("STOP_WATCHDOG_MS", () => {
+    it("bounds the in-flight wait well inside the shortest share", () => {
+        // The watchdog only helps if it fires long before the beacon's own
+        // expiry — otherwise a hung write still locks the user out for the
+        // whole share (15 minutes at the shortest offered duration).
+        expect(STOP_WATCHDOG_MS).toBeGreaterThan(0);
+        expect(STOP_WATCHDOG_MS).toBeLessThan(900000 / 10);
     });
 });
 

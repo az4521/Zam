@@ -56,7 +56,10 @@ import {
     isSharingLive,
     liveLocationState,
 } from "./liveLocation.svelte";
-import { STOP_FAILED_MESSAGE } from "$lib/utils/liveShareStop";
+import {
+    STOP_FAILED_MESSAGE,
+    STOP_WATCHDOG_MS,
+} from "$lib/utils/liveShareStop";
 
 const ROOM = "!r:server";
 
@@ -439,6 +442,130 @@ describe("live-location own-share engine", () => {
 
         expect(isSharingLive(ROOM)).toBe(false);
         h.stopLiveBeacon.mockResolvedValue(undefined);
+    });
+
+    it("demotes a stop whose write hangs, reopening the retry path", async () => {
+        // A stalled TCP connection never rejects, so without a watchdog the
+        // record sits in "stopping" (Stop disabled, retry sweep skips it) for
+        // the beacon's whole duration — up to 8 hours of dead "Stopping…".
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+
+        void stopShare(ROOM);
+        await flush();
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe(
+            "stopping",
+        );
+
+        await vi.advanceTimersByTimeAsync(STOP_WATCHDOG_MS);
+
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe("failed");
+
+        // …and the reopened path really does send a second write.
+        h.stopLiveBeacon.mockResolvedValueOnce(undefined);
+        await stopShare(ROOM);
+
+        expect(h.stopLiveBeacon).toHaveBeenCalledTimes(2);
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("drops the record when a hung stop write finally resolves", async () => {
+        // The demotion means "we don't know yet", not "it failed": the write
+        // is still running, and if it lands the beacon really did stop.
+        await startShare(ROOM, 900000);
+        let ack: () => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((r) => (ack = r)),
+        );
+
+        const pending = stopShare(ROOM);
+        await flush();
+        await vi.advanceTimersByTimeAsync(STOP_WATCHDOG_MS);
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe("failed");
+
+        ack();
+        await pending;
+
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("does not let an abandoned attempt's rejection disturb the retry", async () => {
+        // After the watchdog demotes, the user presses Retry — a SECOND write.
+        // The first one settling afterwards belongs to nothing on screen.
+        await startShare(ROOM, 900000);
+        let fail: (e: Error) => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((_r, j) => (fail = j)),
+        );
+        const first = stopShare(ROOM);
+        await flush();
+        await vi.advanceTimersByTimeAsync(STOP_WATCHDOG_MS);
+
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+        void stopShare(ROOM);
+        await flush();
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe(
+            "stopping",
+        );
+        h.showErrorToast.mockClear();
+
+        fail(new Error("offline"));
+        await first;
+
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe(
+            "stopping",
+        );
+        expect(h.showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("does not let an abandoned attempt's ack drop the retry's record", async () => {
+        await startShare(ROOM, 900000);
+        let ack: () => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((r) => (ack = r)),
+        );
+        const first = stopShare(ROOM);
+        await flush();
+        await vi.advanceTimersByTimeAsync(STOP_WATCHDOG_MS);
+
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+        void stopShare(ROOM);
+        await flush();
+
+        ack();
+        await first;
+
+        expect(isSharingLive(ROOM)).toBe(true);
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe(
+            "stopping",
+        );
+    });
+
+    it("leaves no timer behind when a stop is acknowledged", async () => {
+        await startShare(ROOM, 900000);
+
+        await stopShare(ROOM);
+
+        // Record dropped: neither the expiry backstop nor the watchdog may
+        // outlive it.
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("keeps exactly one timer — the expiry backstop — after a stop fails", async () => {
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockRejectedValueOnce(new Error("offline"));
+
+        await stopShare(ROOM);
+
+        // The watchdog is cleared on the rejection path and the expiry timer
+        // is re-armed, not duplicated — a second one would fire onExpiry twice.
+        expect(vi.getTimerCount()).toBe(1);
     });
 
     it("does not resurrect a room whose stop is still pending", async () => {

@@ -18,6 +18,8 @@ import {
     decideStop,
     resolveStopFailure,
     pendingStopSweep,
+    STOP_FAILED_MESSAGE,
+    STOP_WATCHDOG_MS,
     type StopState,
 } from "$lib/utils/liveShareStop";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -37,6 +39,11 @@ export const liveLocationState = $state<{
 }>({ beaconTick: 0, shares: new Map() });
 
 const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Identity of the live:false write a room currently owns. Every retry mints a
+ *  new token, so an attempt that settles late can tell that the state it is
+ *  about to touch belongs to a newer attempt (or to no attempt at all) and keep
+ *  its hands off. Kept out of ShareState: it is bookkeeping, not view data. */
+const stopAttempts = new Map<string, object>();
 let watchId: number | null = null;
 
 function bump() {
@@ -133,6 +140,7 @@ function dropShare(roomId: string) {
         clearTimeout(timer);
         expiryTimers.delete(roomId);
     }
+    stopAttempts.delete(roomId);
     liveLocationState.shares.delete(roomId);
     bump();
     clearWatchIfIdle();
@@ -272,21 +280,52 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
     // a stale reference into the old map.
     const stoppingId = share.beaconInfoEventId;
     const expiresAt = share.expiresAt;
+    const attempt = {};
+    stopAttempts.set(roomId, attempt);
     share.stop = { phase: "stopping", error: null };
     bump();
     clearWatchIfIdle();
+
+    /** The record this attempt is allowed to touch, or null once it isn't. */
+    const ourShare = (): ShareState | null => {
+        // A newer attempt (the user pressed Retry after the watchdog gave up)
+        // owns the room now; this one must not write over its state.
+        if (stopAttempts.get(roomId) !== attempt) return null;
+        const cur = liveLocationState.shares.get(roomId);
+        if (!cur || !cur.stop || cur.beaconInfoEventId !== stoppingId) {
+            return null;
+        }
+        return cur;
+    };
+
+    // A write that HANGS never reaches the code below, so bound the wait. Past
+    // the watchdog the stop is shown as unconfirmed — that re-enables Stop and
+    // lets retryPendingStops pick the room up again — which is a statement
+    // about what WE know, not about what the server did: the request is still
+    // running and still gets to drop the record if it lands. Deliberately no
+    // toast; nothing new has been learned and the banner already says the
+    // share is live.
+    const watchdog = setTimeout(() => {
+        const cur = ourShare();
+        if (!cur || cur.stop?.phase !== "stopping") return;
+        cur.stop = { phase: "failed", error: STOP_FAILED_MESSAGE };
+        bump();
+    }, STOP_WATCHDOG_MS);
 
     let rejected = false;
     try {
         await stopLiveBeacon(roomId, decision.beaconInfoEventId);
     } catch {
         rejected = true;
+    } finally {
+        clearTimeout(watchdog);
     }
 
-    const current = liveLocationState.shares.get(roomId);
-    if (!current || !current.stop || current.beaconInfoEventId !== stoppingId) {
-        // The record we were stopping is gone (logout, expiry) or has been
-        // replaced by a newer share: a late ack says nothing about that one.
+    const current = ourShare();
+    if (!current) {
+        // The record we were stopping is gone (logout, expiry), has been
+        // replaced by a newer share, or a retry has taken over: a late ack
+        // says nothing about any of those.
         return;
     }
     if (!rejected) {
