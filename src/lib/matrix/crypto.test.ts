@@ -515,6 +515,139 @@ describe("posture reads report their outcome", () => {
     });
 });
 
+// `resetRecovery` destroys the old recovery key and backup BEFORE it mints the
+// replacement, so "it threw" is two completely different situations: a failure
+// in the first half leaves the account as it was and the reset is the right
+// retry, while a failure in the second half leaves the account with NO recovery
+// and re-running the reset would wipe again. The caller can't tell them apart
+// from outside, so the second one gets its own error type (audit CRYPTO-01).
+describe("resetRecovery reports which half failed", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    /**
+     * Client stand-in for the reset path: `resetEncryption` plus the three
+     * crypto calls `setupRecovery` makes afterwards. Every one is overridable
+     * so a test can fail exactly one of them.
+     */
+    function makeResetClient(cryptoOverrides: Record<string, unknown> = {}) {
+        const calls: string[] = [];
+        const client = {
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            getCrypto: () => ({
+                resetEncryption: vi.fn(() => {
+                    calls.push("resetEncryption");
+                    return Promise.resolve();
+                }),
+                bootstrapCrossSigning: vi.fn(() => {
+                    calls.push("bootstrapCrossSigning");
+                    return Promise.resolve();
+                }),
+                createRecoveryKeyFromPassphrase: vi.fn(() => {
+                    calls.push("createRecoveryKeyFromPassphrase");
+                    return Promise.resolve({
+                        encodedPrivateKey: "EsTNEWKEY",
+                        keyInfo: {},
+                    });
+                }),
+                bootstrapSecretStorage: vi.fn(() => {
+                    calls.push("bootstrapSecretStorage");
+                    return Promise.resolve();
+                }),
+                ...cryptoOverrides,
+            }),
+        };
+        return { client, calls };
+    }
+
+    it("mints and returns a new recovery key when both halves succeed", async () => {
+        const mod = await import("./crypto");
+        const { client, calls } = makeResetClient();
+        h.getClient.mockReturnValue(client);
+
+        await expect(mod.resetRecovery("pw")).resolves.toEqual({
+            recoveryKey: "EsTNEWKEY",
+            hasPassphrase: false,
+        });
+        // Destroy first, then set up — the ordering the whole hazard rests on.
+        expect(calls[0]).toBe("resetEncryption");
+        expect(calls).toContain("bootstrapSecretStorage");
+    });
+
+    it("flags a failure AFTER the destructive step as an incomplete setup", async () => {
+        const mod = await import("./crypto");
+        const cause = new Error("secret storage upload rejected");
+        const { client, calls } = makeResetClient({
+            bootstrapSecretStorage: () => Promise.reject(cause),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+
+        // The destruction did happen, so this must NOT look like a plain
+        // retryable error: the only safe retry is the setup half alone.
+        expect(calls).toContain("resetEncryption");
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(true);
+        expect(error).toBeInstanceOf(mod.RecoverySetupIncompleteError);
+        // The underlying reason survives for the UI to show...
+        expect(error.message).toBe("secret storage upload rejected");
+        // ...and so does the original, for logs.
+        expect(error.cause).toBe(cause);
+    });
+
+    it("falls back to plain copy when the inner failure has no message", async () => {
+        const mod = await import("./crypto");
+        const { client } = makeResetClient({
+            bootstrapSecretStorage: () => Promise.reject(new Error("   ")),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(true);
+        expect(error.message).toBe(
+            "Your old recovery was reset, but setting up the new one failed.",
+        );
+    });
+
+    it("leaves a failure BEFORE the destructive step an ordinary error", async () => {
+        const mod = await import("./crypto");
+        const { client, calls } = makeResetClient({
+            resetEncryption: () =>
+                Promise.reject(new Error("Incorrect password")),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+
+        expect(error.message).toBe("Incorrect password");
+        // Nothing was destroyed and nothing was set up, so re-running the reset
+        // is the right retry — the UI must not be pushed into repair.
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(false);
+        expect(calls).not.toContain("bootstrapCrossSigning");
+    });
+
+    it("does not mistake an unrelated error for an incomplete setup", async () => {
+        const mod = await import("./crypto");
+        expect(mod.isRecoverySetupIncomplete(new Error("nope"))).toBe(false);
+        expect(mod.isRecoverySetupIncomplete("nope")).toBe(false);
+        expect(mod.isRecoverySetupIncomplete(null)).toBe(false);
+    });
+
+    it("refuses before touching anything when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => undefined,
+        });
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+        expect(error.message).toBe("Encryption is not ready on this session");
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(false);
+    });
+});
+
 describe("SECURITY_EVENTS trust wiring", () => {
     beforeEach(() => {
         vi.resetModules();

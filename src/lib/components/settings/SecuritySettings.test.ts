@@ -8,22 +8,44 @@ import { flushSync, mount, unmount } from "svelte";
 // The SDK boundary is mocked, so this mounts the real component with no
 // matrix-js-sdk in the graph.
 
-const h = vi.hoisted(() => ({
-    getSecurityStatus: vi.fn(),
-    getBackupStatus: vi.fn(),
-}));
+const h = vi.hoisted(() => {
+    /**
+     * Faithful stand-in for crypto.ts's marker error: `resetEncryption()`
+     * succeeded and minting the replacement recovery did not. The real class and
+     * its predicate are covered in `src/lib/matrix/crypto.test.ts`; here they
+     * only need to be distinguishable from an ordinary Error.
+     */
+    class RecoverySetupIncompleteError extends Error {
+        constructor(message: string) {
+            super(message);
+            this.name = "RecoverySetupIncompleteError";
+        }
+    }
+    return {
+        getSecurityStatus: vi.fn(),
+        getBackupStatus: vi.fn(),
+        setupRecovery: vi.fn(),
+        resetRecovery: vi.fn(),
+        RecoverySetupIncompleteError,
+    };
+});
 
 vi.mock("$lib/matrix/crypto", () => ({
     getSecurityStatus: h.getSecurityStatus,
     getBackupStatus: h.getBackupStatus,
-    setupRecovery: vi.fn(),
-    resetRecovery: vi.fn(),
+    setupRecovery: h.setupRecovery,
+    resetRecovery: h.resetRecovery,
+    // Deliberately NOT a vi.fn: `vi.resetAllMocks()` in beforeEach would strip
+    // the implementation and every failure would classify as "before destroy".
+    isRecoverySetupIncomplete: (e: unknown) =>
+        e instanceof h.RecoverySetupIncompleteError,
     unlockWithRecoveryKey: vi.fn(),
     unlockWithPassphrase: vi.fn(),
 }));
 
 import SecuritySettings from "./SecuritySettings.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
+import { formatRecoveryKey } from "$lib/utils/recoveryKey";
 
 const okStatus = {
     read: "ok" as const,
@@ -103,10 +125,35 @@ function render() {
 }
 
 const text = () => target.textContent ?? "";
+/**
+ * textContent with runs of whitespace collapsed. Sentences long enough to wrap
+ * in the markup arrive with Prettier's line breaks and indentation inside them,
+ * so a needle that spans a wrap only matches against this.
+ */
+const flat = () => (target.textContent ?? "").replace(/\s+/g, " ");
 const buttonByText = (label: string) =>
     [...target.querySelectorAll("button")].find((b) =>
         (b.textContent ?? "").includes(label),
     );
+
+/** Click a button by its label, failing loudly if the UI never offered it. */
+function click(label: string) {
+    const button = buttonByText(label);
+    if (!button) throw new Error(`no button labelled "${label}" is rendered`);
+    button.click();
+    flushSync();
+}
+
+/** Type into a field the way a user does, so `bind:value` actually updates. */
+function type(placeholder: string, value: string) {
+    const input = target.querySelector<HTMLInputElement>(
+        `input[placeholder="${placeholder}"]`,
+    );
+    if (!input) throw new Error(`no input placeholdered "${placeholder}"`);
+    input.value = value;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    flushSync();
+}
 /** The <section> that renders a given claim, so an assertion can be scoped. */
 const sectionWith = (needle: string) =>
     [...target.querySelectorAll("section")].find((s) =>
@@ -260,5 +307,205 @@ describe("SecuritySettings read honesty", () => {
         expect(text()).toContain("Recovery key ID:");
         expect(text()).toContain("Encryption isn't ready on this session yet");
         expect(buttonByText("Reset recovery")?.disabled).toBe(true);
+    });
+});
+
+// Regression cover for audit CRYPTO-01. `resetRecovery()` destroys the old
+// recovery key and backup and only THEN mints the replacement, so a failure in
+// the second half leaves the account with NO recovery — and the old UI dropped
+// the user back on the password step, whose submit re-ran the destructive half.
+const REPAIR_COPY = "but the new recovery wasn't created";
+const NEW_KEY = "EsTbrandnewrecoverykey";
+const RESET_BUTTON = "Reset & create new key";
+const REPAIR_BUTTON = "Finish setting up recovery";
+
+/** Read a field's current value, to prove typed input survived a failure. */
+const fieldValue = (placeholder: string) =>
+    target.querySelector<HTMLInputElement>(
+        `input[placeholder="${placeholder}"]`,
+    )?.value;
+
+/** Mount on a healthy account and walk to the reset flow's password step. */
+async function reachResetPassword() {
+    h.getSecurityStatus.mockResolvedValue(okStatus);
+    h.getBackupStatus.mockResolvedValue(okBackup);
+    render();
+    await until(() =>
+        expect(buttonByText("Reset recovery")?.disabled).toBe(false),
+    );
+    click("Reset recovery");
+    click("Continue");
+    type("Account password", "hunter2");
+}
+
+/** …and past the destructive step, which destroyed and then failed. */
+async function reachRepair(message = "secret storage upload rejected") {
+    h.resetRecovery.mockRejectedValue(
+        new h.RecoverySetupIncompleteError(message),
+    );
+    await reachResetPassword();
+    click(RESET_BUTTON);
+    await until(() => expect(flat()).toContain(REPAIR_COPY));
+}
+
+describe("SecuritySettings reset-recovery phases", () => {
+    it("says the reset half-completed instead of looking like a plain retry", async () => {
+        await reachRepair();
+
+        // Its own words: not the generic error the password step showed, which
+        // is what made re-submitting (and wiping again) the obvious next move.
+        expect(flat()).toContain("Your old recovery key and backup were reset");
+        expect(flat()).toContain("secret storage upload rejected");
+
+        // No route back to the destructive call, by any control on screen…
+        expect(buttonByText(RESET_BUTTON)).toBeUndefined();
+        expect(buttonByText("Reset recovery")).toBeUndefined();
+        // …and no way to dismiss an account that currently has no recovery.
+        expect(buttonByText("Cancel")).toBeUndefined();
+        expect(buttonByText(REPAIR_BUTTON)).toBeDefined();
+    });
+
+    it("repairs with the setup half alone — resetRecovery is never called twice", async () => {
+        h.setupRecovery.mockResolvedValue({
+            recoveryKey: NEW_KEY,
+            hasPassphrase: false,
+        });
+        await reachRepair();
+
+        click(REPAIR_BUTTON);
+        await until(() => expect(flat()).toContain("Save your recovery key"));
+
+        // THE finding: the repair runs the non-destructive half only.
+        expect(h.setupRecovery).toHaveBeenCalledTimes(1);
+        expect(h.resetRecovery).toHaveBeenCalledTimes(1);
+        expect(flat()).toContain(formatRecoveryKey(NEW_KEY));
+        // The flow is finished, so the password is out of memory and off screen.
+        expect(fieldValue("Account password")).toBeUndefined();
+        expect(flat()).not.toContain(REPAIR_COPY);
+    });
+
+    it("keeps a repair that fails again in repair, with the typed password intact", async () => {
+        h.setupRecovery.mockRejectedValue(new Error("still no secret storage"));
+        await reachRepair();
+
+        click(REPAIR_BUTTON);
+        await until(() => expect(flat()).toContain("still no secret storage"));
+
+        expect(flat()).toContain(REPAIR_COPY);
+        expect(buttonByText(RESET_BUTTON)).toBeUndefined();
+        expect(buttonByText(REPAIR_BUTTON)).toBeDefined();
+        expect(h.resetRecovery).toHaveBeenCalledTimes(1);
+        // A rejected retry costs the user nothing they'd already given us.
+        expect(fieldValue("Account password")).toBe("hunter2");
+    });
+
+    // The other half of the distinction: a reset that threw BEFORE destroying
+    // anything must stay an ordinary retry, or the repair panel would be its own
+    // new lie ("we destroyed your recovery" when we didn't).
+    it("leaves a failure before the destructive step retryable", async () => {
+        h.resetRecovery.mockRejectedValue(new Error("Incorrect password"));
+        await reachResetPassword();
+
+        click(RESET_BUTTON);
+        await until(() => expect(flat()).toContain("Incorrect password"));
+
+        expect(flat()).not.toContain(REPAIR_COPY);
+        expect(buttonByText(RESET_BUTTON)).toBeDefined();
+        expect(buttonByText("Cancel")).toBeDefined();
+        expect(fieldValue("Account password")).toBe("hunter2");
+    });
+
+    // A tick-driven read lands on its own schedule. Once the old recovery is
+    // gone, no reading may unmount the panel that says so — the "fresh account"
+    // reading that follows a successful destroy would otherwise swap in the
+    // Set-up wizard (whose Cancel walks away with no recovery at all).
+    it("survives a background read that says the account is fresh", async () => {
+        await reachRepair();
+
+        h.getSecurityStatus.mockResolvedValue({
+            ...okStatus,
+            secretStorageReady: false,
+            privateKeysInSecretStorage: false,
+            defaultKeyId: null,
+        });
+        h.getBackupStatus.mockResolvedValue({ ...okBackup, exists: false });
+        bumpSecurityTick();
+        await drained();
+
+        expect(flat()).toContain(REPAIR_COPY);
+        expect(buttonByText("Set up recovery")).toBeUndefined();
+        expect(buttonByText(RESET_BUTTON)).toBeUndefined();
+
+        // …and a read that fails outright must not blank it either.
+        h.getSecurityStatus.mockResolvedValue(erroredStatus);
+        h.getBackupStatus.mockResolvedValue(erroredBackup);
+        bumpSecurityTick();
+        await until(() => expect(flat()).toContain(READ_FAILED));
+
+        expect(flat()).toContain(REPAIR_COPY);
+        expect(buttonByText(REPAIR_BUTTON)).toBeDefined();
+    });
+
+    // What stops a re-wipe after the component UNMOUNTS mid-repair (settings
+    // closed and reopened, back-navigation): `resetStep` is component state, so
+    // the remount starts at `idle` — and what it offers is then decided by the
+    // READ. A successful destroy leaves the account with no 4S key, which
+    // renders the non-destructive Set-up wizard; the destructive entry button
+    // lives only inside the "Recovery is set up" panel, which that reading
+    // cannot produce.
+    it("offers only the non-destructive setup on a remount with no recovery", async () => {
+        h.getSecurityStatus.mockResolvedValue({
+            ...okStatus,
+            secretStorageReady: false,
+            privateKeysInSecretStorage: false,
+            defaultKeyId: null,
+        });
+        h.getBackupStatus.mockResolvedValue({
+            ...okBackup,
+            exists: false,
+            active: false,
+            matchesDecryptionKey: false,
+            count: null,
+            version: null,
+        });
+        render();
+
+        await until(() =>
+            expect(buttonByText("Set up recovery")).toBeDefined(),
+        );
+
+        expect(buttonByText(RESET_BUTTON)).toBeUndefined();
+        expect(buttonByText("Reset recovery")).toBeUndefined();
+    });
+
+    it("cannot start a second destructive call while the first is in flight", async () => {
+        h.resetRecovery.mockReturnValue(new Promise(() => {}));
+        await reachResetPassword();
+
+        click(RESET_BUTTON);
+
+        // The destructive control is gone as a target: it now reads as busy and
+        // is disabled, and the phase refuses a second submit regardless.
+        expect(buttonByText(RESET_BUTTON)).toBeUndefined();
+        const busy = buttonByText("Resetting…");
+        expect(busy?.disabled).toBe(true);
+        busy?.click();
+        flushSync();
+        expect(h.resetRecovery).toHaveBeenCalledTimes(1);
+    });
+
+    it("cannot start a second repair while the first is in flight", async () => {
+        h.setupRecovery.mockReturnValue(new Promise(() => {}));
+        await reachRepair();
+
+        click(REPAIR_BUTTON);
+
+        expect(buttonByText(REPAIR_BUTTON)).toBeUndefined();
+        const busy = buttonByText("Working…");
+        expect(busy?.disabled).toBe(true);
+        busy?.click();
+        flushSync();
+        expect(h.setupRecovery).toHaveBeenCalledTimes(1);
+        expect(h.resetRecovery).toHaveBeenCalledTimes(1);
     });
 });

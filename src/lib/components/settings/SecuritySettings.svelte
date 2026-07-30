@@ -3,12 +3,14 @@
         getSecurityStatus,
         setupRecovery,
         resetRecovery,
+        isRecoverySetupIncomplete,
         getBackupStatus,
         unlockWithRecoveryKey,
         unlockWithPassphrase,
         type SecurityStatus,
         type BackupStatus,
         type UnlockResult,
+        type RecoverySetupResult,
     } from "$lib/matrix/crypto";
     import { securityState } from "$lib/stores/security.svelte";
     import {
@@ -32,6 +34,12 @@
         securityPanelView,
         type SecurityRead,
     } from "$lib/utils/securityStatusView";
+    import {
+        nextResetPhase,
+        resetPhaseView,
+        type ResetEvent,
+        type ResetPhase,
+    } from "$lib/utils/recoveryReset";
 
     // The Set-up-recovery wizard is a small linear state machine:
     //   idle → password (collect account password for the UIA-guarded upload)
@@ -70,10 +78,16 @@
     );
 
     // Reset-recovery sub-flow, offered from the "Recovery is set up" panel for a
-    // user who lost their key: confirm → password → working, then hands off into
-    // step="show" with the freshly-minted key (reusing the show screen above).
-    type ResetStep = "idle" | "confirm" | "password" | "working";
-    let resetStep = $state<ResetStep>("idle");
+    // user who lost their key: confirm → password → destroying, then hands off
+    // into step="show" with the freshly-minted key (reusing the show screen
+    // above). The phases live in a pure machine because the flow straddles a
+    // destructive boundary — see recoveryReset.ts and `repair` below.
+    let resetStep = $state<ResetPhase>("idle");
+    const resetView = $derived(resetPhaseView(resetStep));
+
+    function advanceReset(event: ResetEvent) {
+        resetStep = nextResetPhase(resetStep, event);
+    }
 
     const recoveryDone = $derived(status?.secretStorageReady ?? false);
 
@@ -284,40 +298,83 @@
     function beginReset() {
         error = "";
         password = "";
-        resetStep = "confirm";
+        advanceReset({ type: "begin" });
     }
 
     async function runReset() {
-        if (setupBlocked || resetStep === "working") return;
+        if (setupBlocked || resetView.busy || !resetView.allowsDestroy) return;
         error = "";
-        resetStep = "working";
+        advanceReset({ type: "submit" });
         try {
-            const result = await resetRecovery(
-                password,
-                usePassphrase ? passphrase : undefined,
+            finishResetSuccess(
+                await resetRecovery(
+                    password,
+                    usePassphrase ? passphrase : undefined,
+                ),
             );
-            keyHasPassphrase = result.hasPassphrase;
-            recoveryKey = result.recoveryKey;
-            password = "";
-            passphrase = "";
-            usePassphrase = false;
-            saved = false;
-            copied = false;
-            resetStep = "idle";
-            // Hand off to the shared show-key screen with the NEW key.
-            step = "show";
         } catch (e) {
             error = e instanceof Error ? e.message : "Could not reset recovery";
-            resetStep = "password";
+            // Which half failed decides where the user lands. A failure past the
+            // destructive step must never return to a submit that re-runs it
+            // (audit CRYPTO-01) — that is the whole point of `repair`.
+            advanceReset({
+                type: isRecoverySetupIncomplete(e)
+                    ? "failed-after-destroy"
+                    : "failed-before-destroy",
+            });
         }
     }
 
+    /**
+     * Repair after a reset that destroyed the old recovery and then failed to
+     * mint a new one. Runs the SETUP half only — never `resetRecovery` again.
+     */
+    async function runRepair() {
+        if (setupBlocked || resetView.busy || !resetView.allowsRepair) return;
+        error = "";
+        advanceReset({ type: "submit" });
+        try {
+            finishResetSuccess(
+                await setupRecovery(
+                    password,
+                    usePassphrase ? passphrase : undefined,
+                ),
+            );
+        } catch (e) {
+            error =
+                e instanceof Error
+                    ? e.message
+                    : "Could not finish setting up recovery";
+            // Still no recovery on the account, so stay put: `repair` is the only
+            // honest place to be, and the machine refuses anything else.
+            advanceReset({ type: "failed-after-destroy" });
+        }
+    }
+
+    function finishResetSuccess(result: RecoverySetupResult) {
+        keyHasPassphrase = result.hasPassphrase;
+        recoveryKey = result.recoveryKey;
+        password = "";
+        passphrase = "";
+        usePassphrase = false;
+        saved = false;
+        copied = false;
+        advanceReset({ type: "succeeded" });
+        // Hand off to the shared show-key screen with the NEW key.
+        step = "show";
+    }
+
     function cancelReset() {
+        // Belt-and-braces: no control calls this while blocking (the repair panel
+        // deliberately renders none), and the machine absorbs `cancel` there
+        // anyway — but wiping the typed password and the error out from under an
+        // incomplete reset would be its own small betrayal.
+        if (resetView.blocking) return;
         password = "";
         passphrase = "";
         usePassphrase = false;
         error = "";
-        resetStep = "idle";
+        advanceReset({ type: "cancel" });
     }
 
     function beginUnlock() {
@@ -483,7 +540,13 @@
          secretStorageReady → true (via securityTick), which makes canSetUp false.
          Without this, the freshly-minted key's "save it" screen would unmount the
          instant setup finishes and the user would never see their recovery key. -->
-    {#if canSetUp || step === "show"}
+    <!-- `&& !resetView.blocking` / `|| resetView.blocking` below: once a reset has
+         destroyed the old recovery, the panel that says so must survive whatever
+         a tick-driven read reports next. The reading that FOLLOWS a successful
+         destroy is "this account has no recovery", which would otherwise swap in
+         the Set-up wizard — non-destructive, but its Cancel walks away from an
+         account with nothing to recover with, and the explanation is gone. -->
+    {#if (canSetUp || step === "show") && !resetView.blocking}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
@@ -624,7 +687,7 @@
                 <p class="text-sm text-discord-danger">{error}</p>
             {/if}
         </section>
-    {:else if step === "done" || recoveryDone}
+    {:else if step === "done" || recoveryDone || resetView.blocking}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
@@ -665,7 +728,7 @@
                     </p>
                     <div class="flex gap-2">
                         <button
-                            onclick={() => (resetStep = "password")}
+                            onclick={() => advanceReset({ type: "confirmed" })}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm"
                             >Continue</button
                         >
@@ -676,18 +739,27 @@
                         >
                     </div>
                 </div>
-            {:else if resetStep === "password" || resetStep === "working"}
+            {:else if resetView.blocking}
+                <!-- The destructive half succeeded and the replacement never
+                     landed, so this account has NO recovery right now. Its own
+                     copy (not the generic error, which reads as "try that again"),
+                     its own submit — `runRepair` runs the SETUP half alone — and
+                     no cancel: re-running the reset from here would wipe a second
+                     time, and leaving quietly strands the account (CRYPTO-01). -->
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-xs text-discord-textMuted">
-                        Confirm your account password to reset recovery.
+                    <p class="text-xs text-discord-warning">
+                        Your old recovery key and backup were reset, but the new
+                        recovery wasn't created. Finish setting it up now — your
+                        messages can't be recovered on a new session until you
+                        do.
                     </p>
                     <input
                         type="password"
                         bind:value={password}
                         placeholder="Account password"
-                        disabled={resetStep === "working"}
+                        disabled={resetView.busy}
                         onkeydown={(e) =>
-                            e.key === "Enter" && password && runReset()}
+                            e.key === "Enter" && password && runRepair()}
                         class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                     />
                     <label
@@ -696,7 +768,7 @@
                         <input
                             type="checkbox"
                             bind:checked={usePassphrase}
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
                             class="mt-0.5"
                         />
                         <span
@@ -711,7 +783,65 @@
                             bind:value={passphrase}
                             placeholder="Recovery passphrase"
                             autocomplete="new-password"
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                        {#if passphraseError}
+                            <p class="text-xs text-discord-danger">
+                                {passphraseError}
+                            </p>
+                        {:else}
+                            <p class="text-xs text-discord-textMuted">
+                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
+                                reset it for you.
+                            </p>
+                        {/if}
+                    {/if}
+                    <button
+                        onclick={runRepair}
+                        disabled={resetView.busy || setupBlocked}
+                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        >{resetView.busy
+                            ? "Working…"
+                            : "Finish setting up recovery"}</button
+                    >
+                </div>
+            {:else if resetStep === "password" || resetStep === "destroying"}
+                <div class="space-y-2 pt-3 border-t border-discord-divider">
+                    <p class="text-xs text-discord-textMuted">
+                        Confirm your account password to reset recovery.
+                    </p>
+                    <input
+                        type="password"
+                        bind:value={password}
+                        placeholder="Account password"
+                        disabled={resetView.busy}
+                        onkeydown={(e) =>
+                            e.key === "Enter" && password && runReset()}
+                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                    />
+                    <label
+                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                    >
+                        <input
+                            type="checkbox"
+                            bind:checked={usePassphrase}
+                            disabled={resetView.busy}
+                            class="mt-0.5"
+                        />
+                        <span
+                            >Also let me unlock with a passphrase I choose
+                            (optional — your recovery key still works and is
+                            still shown).</span
+                        >
+                    </label>
+                    {#if usePassphrase}
+                        <input
+                            type="password"
+                            bind:value={passphrase}
+                            placeholder="Recovery passphrase"
+                            autocomplete="new-password"
+                            disabled={resetView.busy}
                             class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                         {#if passphraseError}
@@ -728,15 +858,15 @@
                     <div class="flex gap-2">
                         <button
                             onclick={runReset}
-                            disabled={resetStep === "working" || setupBlocked}
+                            disabled={resetView.busy || setupBlocked}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
-                            >{resetStep === "working"
+                            >{resetView.busy
                                 ? "Resetting…"
                                 : "Reset & create new key"}</button
                         >
                         <button
                             onclick={cancelReset}
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
                             class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
                             >Cancel</button
                         >

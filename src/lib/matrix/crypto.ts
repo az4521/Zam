@@ -1095,6 +1095,24 @@ export async function setupRecovery(
 }
 
 /**
+ * `resetEncryption()` succeeded but minting the replacement recovery did not:
+ * the old recovery key and backup are already gone, so retrying the
+ * DESTRUCTIVE half is never right — only `setupRecovery()` may be retried.
+ */
+export class RecoverySetupIncompleteError extends Error {
+    constructor(message: string, options?: { cause?: unknown }) {
+        super(message, options);
+        this.name = "RecoverySetupIncompleteError";
+    }
+}
+
+export function isRecoverySetupIncomplete(
+    error: unknown,
+): error is RecoverySetupIncompleteError {
+    return error instanceof RecoverySetupIncompleteError;
+}
+
+/**
  * Reset recovery when the recovery key has been lost. Wipes the existing setup
  * ({@link CryptoApi.resetEncryption}: resets cross-signing, removes the old 4S
  * default key, deletes backups, creates a fresh backup) then sets up recovery
@@ -1116,12 +1134,26 @@ export async function resetRecovery(
     }
 
     // 1. Tear down the old (unusable) recovery. UIA-guarded → password dance.
+    //    A failure HERE is reported as-is: from outside we cannot tell whether
+    //    it destroyed anything, and re-running the reset is the only sane
+    //    retry (it is idempotent on an already-reset account).
     await crypto.resetEncryption(makeUiaPasswordCallback(userId, password));
 
     // 2. Set up fresh from the clean slate. bootstrapCrossSigning inside is a
     //    no-op now (resetEncryption just re-established it, so no re-upload/UIA),
     //    and a new recovery key is minted + returned for the UI to show once.
-    return setupRecovery(password, passphrase);
+    //    Past this line the OLD recovery is gone, so a failure is not a plain
+    //    retryable error — the caller must repair, not reset again (CRYPTO-01).
+    try {
+        return await setupRecovery(password, passphrase);
+    } catch (error) {
+        throw new RecoverySetupIncompleteError(
+            error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : "Your old recovery was reset, but setting up the new one failed.",
+            { cause: error },
+        );
+    }
 }
 
 /** Plain view-model of the account's crypto/security posture, for the UI. */
