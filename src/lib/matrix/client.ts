@@ -195,6 +195,7 @@ import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import {
     createPendingFollowUps,
+    isRoomGone,
     runFollowUp,
     runFollowUpBounded,
     strandedDmRoom,
@@ -4045,7 +4046,18 @@ const CALL_POWER_LEVEL_EVENTS = {
 // failure it exists for.
 const pendingFollowUps = createPendingFollowUps();
 
-/** Write `m.direct` for a DM room. Idempotent: re-running never duplicates. */
+/**
+ * Write `m.direct` for a DM room.
+ *
+ * `addToMDirect` is what makes this IDEMPOTENT, and idempotence is the whole
+ * reason a retry is safe to offer: this function is re-run by
+ * `retryRoomFollowUp`, and an "unconfirmed" write may already have landed on
+ * the server, so the same (userId, roomId) pair is written twice by design.
+ * Do NOT inline it back to `[...(cur[userId] ?? []), roomId]` — that appends
+ * unconditionally, so every retry grows the list, and a room listed twice in
+ * `m.direct` is a DM shown twice in the sidebar with no way for the user to
+ * clear it. (No unit test guards this; `client.ts` has no test harness.)
+ */
 async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
@@ -4221,15 +4233,22 @@ export async function createDirectMessage(
     // so the check above cannot see it. Retry that write against the existing
     // room rather than creating a second room (and a second invite).
     //
-    // The predicate must be "definitively gone", not "usable": createRoom is a
-    // bare POST that stores no Room, so getRoom() is null until /sync catches
-    // up — and the retry we care about happens inside that window. An unknown
-    // room reports false (keep it); only a room we hold locally and have left
-    // reports true.
-    const stranded = strandedDmRoom(pendingFollowUps, userId, (id) => {
-        const membership = matrixClient?.getRoom(id)?.getMyMembership();
-        return membership !== undefined && membership !== "join";
-    });
+    // isRoomGone answers "definitively gone", not "usable" — see its own doc
+    // for why an unseen room must NOT count as gone.
+    //
+    // The deliberate trade, stated plainly: if the room really was created but
+    // /sync never delivers it (a correlated server degradation — the same
+    // outage that failed the m.direct write can also stall sync), membership
+    // stays undefined forever, isRoomGone stays false, and every later
+    // createDirectMessage for this partner hands back a room the user cannot
+    // open. They are soft-locked out of DMing that person until they reload,
+    // which drops the registry. That is the right side to err on: the failure
+    // mode is one unusable room in one page session, recovered by a reload,
+    // versus silently minting duplicate rooms and duplicate invites — which is
+    // permanent, visible to the other user, and cannot be undone by a reload.
+    const stranded = strandedDmRoom(pendingFollowUps, userId, (id) =>
+        isRoomGone(matrixClient?.getRoom(id)?.getMyMembership()),
+    );
     if (stranded) {
         return {
             roomId: stranded.roomId,

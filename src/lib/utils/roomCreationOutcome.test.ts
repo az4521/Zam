@@ -3,6 +3,7 @@ import {
     createPendingFollowUps,
     followUpFailureMessage,
     followUpTimeoutMessage,
+    isRoomGone,
     runFollowUp,
     runFollowUpBounded,
     strandedDmRoom,
@@ -356,6 +357,48 @@ describe("strandedDmRoom — a retry must reuse the room, not create a second on
     it("returns null when nothing is pending for that partner", () => {
         const pending = createPendingFollowUps();
         expect(strandedDmRoom(pending, "@partner:hs", () => false)).toBeNull();
+    });
+});
+
+/**
+ * The predicate `strandedDmRoom` is handed. It answers the NARROW question
+ * "have we definitively left this room?", and the `undefined` case is the whole
+ * bug: `createRoom` is a bare POST, so the SDK holds no Room and
+ * `getMyMembership()` is undefined from the moment creation resolves until
+ * /sync delivers the room — the exact window the immediate retry happens in.
+ * Reading that as "gone" destroys the pending record and the retry creates a
+ * second room and a second invite.
+ */
+describe("isRoomGone — only PROOF that we left counts", () => {
+    it("is false for a room the client has not seen yet", () => {
+        expect(isRoomGone(undefined)).toBe(false);
+    });
+
+    it("is false for a room we are joined to", () => {
+        expect(isRoomGone("join")).toBe(false);
+    });
+
+    it("is true for every membership that means we are not in the room", () => {
+        expect(isRoomGone("leave")).toBe(true);
+        expect(isRoomGone("ban")).toBe(true);
+        expect(isRoomGone("invite")).toBe(true);
+        expect(isRoomGone("knock")).toBe(true);
+    });
+
+    it("drives strandedDmRoom: unknown keeps the record, left drops it", () => {
+        const unseen = createPendingFollowUps();
+        unseen.record(dmTask);
+        expect(
+            strandedDmRoom(unseen, "@partner:hs", () => isRoomGone(undefined)),
+        ).toEqual(dmTask);
+        expect(unseen.all()).toEqual([dmTask]);
+
+        const left = createPendingFollowUps();
+        left.record(dmTask);
+        expect(
+            strandedDmRoom(left, "@partner:hs", () => isRoomGone("leave")),
+        ).toBeNull();
+        expect(left.all()).toEqual([]);
     });
 });
 

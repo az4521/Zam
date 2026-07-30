@@ -229,6 +229,24 @@ export async function runFollowUpBounded(
  * the immediate retry it exists to serve. Anything short of proof that the room
  * is gone must keep the task, so UNKNOWN means still-pending.
  */
+/**
+ * The `isGone` predicate for {@link strandedDmRoom}, over a room's local
+ * membership (`undefined` when the client holds no Room for it).
+ *
+ * Both halves are load-bearing and both are pinned by tests:
+ *  - `!== undefined` — a room we have never seen is NOT gone. `createRoom` is a
+ *    bare POST that stores no Room, so membership is undefined from the moment
+ *    creation resolves until /sync delivers the room, which is exactly the
+ *    window the recovery retry runs in. Dropping the `undefined` check reads an
+ *    unknown room as gone, destroys the pending record, and the retry creates a
+ *    second room plus a second invite — the TX-01 bug, restored.
+ *  - `!== "join"` — anything else (left, kicked, banned, still only invited) is
+ *    proof we are not in the room, so there is nothing to reuse.
+ */
+export function isRoomGone(membership: string | undefined): boolean {
+    return membership !== undefined && membership !== "join";
+}
+
 export function strandedDmRoom(
     pending: PendingFollowUps,
     userId: string,
