@@ -80,6 +80,14 @@ import {
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
 import {
+    OWNERSHIP_LOST_MESSAGE,
+    captureOwnership,
+    guardOwnership,
+    nextGeneration,
+    ownsRuntime,
+    type ClientOwnership,
+} from "$lib/utils/clientGeneration";
+import {
     sanitizeCustomization,
     type ClientCustomization,
 } from "$lib/utils/customization";
@@ -228,9 +236,43 @@ declare module "matrix-js-sdk" {
 
 let matrixClient: MatrixClient | null = null;
 let matrixStore: IndexedDBStore | null = null;
+// Monotonic id of the CURRENT occupant of the `matrixClient` slot, bumped on
+// every install and every release. An operation or listener that captured the
+// pair {client, generation} at entry can re-check it after an await and refuse
+// to act for an account that no longer owns the runtime.
+let clientGeneration = 0;
 
 export function getClient(): MatrixClient | null {
     return matrixClient;
+}
+
+/** The live occupant of the slot — the read side of every ownership guard. */
+function readOwner(): { client: MatrixClient | null; generation: number } {
+    return { client: matrixClient, generation: clientGeneration };
+}
+
+/** Snapshot the owner for an operation that spans awaits. */
+function captureClient(): ClientOwnership<MatrixClient> {
+    if (!matrixClient) throw new Error("Not logged in");
+    return captureOwnership(matrixClient, clientGeneration);
+}
+
+/** The captured client, or null once a successor has taken the slot. */
+function ownedClient(
+    owner: ClientOwnership<MatrixClient>,
+): MatrixClient | null {
+    return ownsRuntime(owner, matrixClient, clientGeneration)
+        ? owner.client
+        : null;
+}
+
+/** As `ownedClient`, for operations whose caller must learn they aborted. */
+function ownedClientOrThrow(
+    owner: ClientOwnership<MatrixClient>,
+): MatrixClient {
+    const client = ownedClient(owner);
+    if (!client) throw new Error(OWNERSHIP_LOST_MESSAGE);
+    return client;
 }
 
 function getIndexedDBFactory(): IDBFactory | null {
@@ -318,6 +360,7 @@ async function createAuthenticatedClient(opts: {
     }
 
     matrixClient = client;
+    clientGeneration = nextGeneration(clientGeneration);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
@@ -505,26 +548,38 @@ export function isInitialSyncComplete(): boolean {
     return initialSyncComplete;
 }
 
+/**
+ * Start the sync loop for the current client and return a disposer that
+ * detaches this session's listeners.
+ *
+ * Every handler is wrapped so it no-ops once a successor client owns the
+ * module slot: `.off()` alone is not enough, because a callback already
+ * dispatched by the emitter can still run after the detach, and the SDK's own
+ * `stopClient()` never clears emitter listeners (audit LIFE-02).
+ */
 export async function startSync(
     onStateChange: (state: string) => void,
     onSessionExpired?: () => void,
-): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+): Promise<() => void> {
+    const owner = captureClient();
+    const client = owner.client;
 
     initialSyncComplete = false;
-    matrixClient.on(ClientEvent.Sync, (state) => {
+
+    const onSync = guardOwnership(owner, readOwner, (state: string) => {
         if (state === "PREPARED") {
             initialSyncComplete = true;
             seedStatelessRooms();
             void reconcileJoinedRooms();
         }
-        onStateChange(state as string);
+        onStateChange(state);
     });
     // Membership changes are how new joins surface — heal stubs right away
     // (covers joins from other devices too, not just this client's wrappers).
-    matrixClient.on(
-        "Room.myMembership" as never,
-        ((room: Room, membership: string, prevMembership?: string) => {
+    const onMyMembership = guardOwnership(
+        owner,
+        readOwner,
+        (room: Room, membership: string, prevMembership?: string) => {
             // invite → join: the room holds only the sparse set invite_state
             // delivered (no m.space.child, no power levels) and the server
             // won't re-send the rest, but it LOOKS stated — force the seed.
@@ -534,36 +589,61 @@ export async function startSync(
                 return;
             }
             if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
-        }) as never,
+        },
     );
     // Sync creates the room ALREADY joined (bare membership, no state), so
     // no membership transition fires and the join wrapper ran before the
     // room existed — ClientEvent.Room is the moment the stub appears.
-    matrixClient.on(
-        ClientEvent.Room as never,
-        ((room: Room) => {
-            if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
-        }) as never,
-    );
-
+    const onRoom = guardOwnership(owner, readOwner, (room: Room) => {
+        if (roomLacksState(room)) void seedRoomStateIfMissing(room.roomId);
+    });
     // Fired when any request comes back with M_UNKNOWN_TOKEN (token revoked,
     // password changed, device deleted, server data wiped). Without this the
     // client sits in a permanent sync-error state with no path back to login.
-    if (onSessionExpired) {
-        matrixClient.on(HttpApiEvent.SessionLoggedOut, onSessionExpired);
+    const onLoggedOut = onSessionExpired
+        ? guardOwnership(owner, readOwner, () => onSessionExpired())
+        : null;
+
+    client.on(ClientEvent.Sync, onSync as never);
+    client.on("Room.myMembership" as never, onMyMembership as never);
+    client.on(ClientEvent.Room as never, onRoom as never);
+    if (onLoggedOut) client.on(HttpApiEvent.SessionLoggedOut, onLoggedOut);
+
+    let disposed = false;
+    /** Idempotent: safe to call from a teardown path and again on re-sync. */
+    const dispose = (): void => {
+        if (disposed) return;
+        disposed = true;
+        client.off(ClientEvent.Sync, onSync as never);
+        client.off("Room.myMembership" as never, onMyMembership as never);
+        client.off(ClientEvent.Room as never, onRoom as never);
+        if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
+    };
+
+    try {
+        await client.startClient({
+            initialSyncLimit: 8,
+            lazyLoadMembers: true,
+            pendingEventOrdering: PendingEventOrdering.Detached,
+            // threadSupport is an IStartClientOpts option — supportsThreads()
+            // reads the opts passed HERE, not createClient's (which silently
+            // ignores the key). With it off, the SDK never builds Thread objects
+            // and every m.thread reply stays in the main timeline, where the
+            // thread filter in getTimelineMessages hides it from view entirely.
+            threadSupport: true,
+        });
+    } catch (err) {
+        // A rejected start must not leave four listeners bound to a client the
+        // caller is about to throw away.
+        dispose();
+        throw err;
     }
 
-    await matrixClient.startClient({
-        initialSyncLimit: 8,
-        lazyLoadMembers: true,
-        pendingEventOrdering: PendingEventOrdering.Detached,
-        // threadSupport is an IStartClientOpts option — supportsThreads()
-        // reads the opts passed HERE, not createClient's (which silently
-        // ignores the key). With it off, the SDK never builds Thread objects
-        // and every m.thread reply stays in the main timeline, where the
-        // thread filter in getTimelineMessages hides it from view entirely.
-        threadSupport: true,
-    });
+    // The slot changed while we were starting up (expiry, or a second
+    // sign-in): this client never became the app's client, so detach now.
+    if (!ownedClient(owner)) dispose();
+
+    return dispose;
 }
 
 /** Retry a failed (NOT_SENT) local echo. */
@@ -722,6 +802,7 @@ export function onSyncPrepared(callback: () => void): () => void {
 
 export async function logout(): Promise<void> {
     const client = matrixClient;
+    const owner = client ? captureOwnership(client, clientGeneration) : null;
     if (client) {
         try {
             // stopClient=true; invalidates the token server-side.
@@ -752,16 +833,22 @@ export async function logout(): Promise<void> {
         }
     }
     // Only release the module slot if we still own it — a successor account's
-    // client may have been created (via reconnect) while the awaits were in flight.
-    if (matrixClient === client) {
+    // client may have been created (via reconnect) while the awaits were in
+    // flight. Bumping the generation on release invalidates every ownership
+    // token this client handed out.
+    if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
         matrixClient = null;
         matrixStore = null;
+        clientGeneration = nextGeneration(clientGeneration);
     }
 }
 
 export function stopClient(): void {
     matrixClient?.stopClient();
     matrixClient = null;
+    // Invalidate every outstanding ownership token: a stopped client's late
+    // callback must not run root teardown against its successor (LIFE-02).
+    clientGeneration = nextGeneration(clientGeneration);
     matrixStore?.destroy().catch(() => {});
     matrixStore = null;
 }

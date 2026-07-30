@@ -54,6 +54,20 @@
               }),
     );
 
+    // Disposer for the running sync's client listeners (LIFE-02). A plain
+    // `let`, not $state — nothing renders it.
+    let disposeSync: (() => void) | null = null;
+
+    // Both entry points (session restore and fresh login) go through here, so
+    // a previous session's listeners are always detached before new ones bind.
+    async function beginSync(): Promise<void> {
+        disposeSync?.();
+        disposeSync = null;
+        disposeSync = await startSync((state) => {
+            auth.syncState = state;
+        }, handleSessionExpired);
+    }
+
     // Invoked when the homeserver rejects our token (M_UNKNOWN_TOKEN) — during
     // restore or later while the app is open. Tears down the dead session and
     // flips state back to the LOGIN view IN PLACE (no route hop, no redirect):
@@ -67,6 +81,12 @@
         const client = getClient();
         const expiringUserId = auth.userId;
         const expiringDeviceId = auth.deviceId;
+
+        // Detach this session's sync listeners while its client still exists,
+        // so a late callback from the dying client can never run root teardown
+        // against its successor.
+        disposeSync?.();
+        disposeSync = null;
 
         stopClient();
         clearServiceWorkerAuth();
@@ -115,9 +135,7 @@
                 auth.isAuthenticated = true;
                 restoring = false;
                 initServiceWorker();
-                await startSync((state) => {
-                    auth.syncState = state;
-                }, handleSessionExpired);
+                await beginSync();
             } catch {
                 auth.error = "Failed to reconnect. Please log in again.";
                 restoring = false;
@@ -147,9 +165,7 @@
             return;
         }
         initServiceWorker();
-        await startSync((state) => {
-            auth.syncState = state;
-        }, handleSessionExpired);
+        await beginSync();
     }
 
     // Switch to a dormant account: full reload boots it with clean stores.
