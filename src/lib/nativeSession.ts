@@ -63,6 +63,14 @@ export async function syncNativeSession(session: {
         // partial fallback. A three-field "best effort" mirror is worse than
         // no mirror, because the native service would pair whatever we wrote
         // with whatever was already sitting there.
+        //
+        // Refusing to write also leaves any PREVIOUS record in place at rest,
+        // and that is deliberate: a transient blank auth state (a store not yet
+        // hydrated, a restore still in flight) must not nuke a working mirror
+        // at boot. Clearing is logout's job — clearNativeSession() below. This
+        // branch is unreachable today anyway: the sole caller,
+        // src/lib/components/layout/AppShell.svelte:894, guards all three
+        // required fields before it calls in.
         console.warn(
             "[nativeSession] refusing to mirror an incomplete session",
         );

@@ -252,6 +252,22 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * native today, and this record only mirrors whatever the account already
      * uses. static/sw.js layers an https-only check on top: that restriction is
      * the WORKER's alone and is deliberately NOT copied here.
+     *
+     * This is a scheme-prefix test, not a WHATWG URL parse, so as well as being
+     * STRICTER in the one place noted inline below it is also LAXER in three
+     * known ways. All three are rejected by the new URL() the TS/JS copies use
+     * and accepted here:
+     *   - a space inside the host   — "https://ho st.com"
+     *   - an out-of-range port      — "https://hs.com:99999"
+     *   - a percent-encoded host    — "https://%2F"
+     * Unreachable today: serializeNativeSession() in
+     * src/lib/utils/nativeSessionRecord.ts is the ONLY producer of this record
+     * and it runs the same value through new URL() before storing it, so none
+     * of those shapes can be at rest for this method to read. Harmless if that
+     * ever changed: a bogus host just fails DNS, every fetch below throws, and
+     * the service falls back to the generic notification. Deliberately NOT
+     * validated here — the extra parsing would be dead code guarding a hole the
+     * writer already closes.
      */
     private static String validHomeserverUrl(Object value) {
         String raw = nonBlankString(value);
@@ -267,9 +283,15 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         // Relative ("/_matrix") or bare ("matrix.example.org"): we would have
         // no idea which server the token belongs to. Refuse the whole record.
         else return null;
-        // new URL() also rejects a special scheme with an EMPTY host
-        // ("https://", "https:///_matrix"); a prefix test alone would not, and
-        // the result would be concatenated into a hostless request URL.
+        // The one place this method is STRICTER than the TS/JS copies, and it
+        // does NOT mirror new URL() — it deliberately diverges from it, in the
+        // safe direction. Verified empirically: new URL("https://") DOES throw,
+        // but new URL("https:///_matrix") SUCCEEDS, with "_matrix" as the host,
+        // so the WHATWG parser accepts an empty authority that this test
+        // refuses. Every request below is hs + "/_matrix/…", so accepting it
+        // would concatenate a bearer token into a hostless URL; refusing it
+        // costs at most the enrichment (fall back to the generic notification).
+        // A future maintainer "resyncing" the copies must NOT loosen this.
         if (url.length() <= hostStart) return null;
         char first = url.charAt(hostStart);
         if (first == '/' || first == '?' || first == '#') return null;

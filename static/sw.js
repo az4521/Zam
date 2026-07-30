@@ -273,6 +273,19 @@ self.addEventListener("message", (event) => {
 				// handler reads immediately and the record is what the next
 				// cold start reads; deriving both from one parse is what makes
 				// it impossible for them to describe different accounts.
+				//
+				// NEW COUPLING, introduced with the record: the identity is now
+				// load-bearing for EVERYTHING. SET_AUTH used to set accessToken
+				// and homeserverUrl even with no userId, so authenticated-media
+				// injection in the fetch handler worked without an identity;
+				// now a missing or malformed userId makes buildSessionRecord
+				// return null, which zeroes the whole tuple and kills media auth
+				// and push enrichment as well as active-session suppression.
+				// Unreachable today — createAuthenticatedClient() in
+				// src/lib/matrix/client.ts requires `userId: string`, so
+				// getUserId() is never null by the time initServiceWorker posts
+				// SET_AUTH. A future SSO/OIDC path that lands a token before the
+				// user id is known would trip it, and silently.
 				const record = buildSessionRecord(
 					event.data.homeserverUrl,
 					event.data.accessToken,
@@ -556,11 +569,12 @@ async function shouldStayQuiet() {
 		// start and suppression would never apply. A rejected authReady is
 		// caught below → notify.
 		//
-		// Bounded: openDb() has no `onblocked` handler, so a blocked upgrade can
-		// leave authReady permanently pending. Waiting forever here would hang
-		// waitUntil and show NOTHING — fail closed, the one outcome this whole
-		// check must never produce. On timeout the identity reads below are
-		// null and we notify.
+		// Bounded regardless: openDb() rejects on `onblocked`, so the one known
+		// way authReady could hang is already closed, but ANY other cause of a
+		// never-settling authReady would hang waitUntil here and show NOTHING —
+		// fail closed, the one outcome this whole check must never produce. The
+		// race is the guarantee, not a workaround for a specific bug. On timeout
+		// the identity reads below are null and we notify.
 		await Promise.race([
 			authReady,
 			new Promise((resolve) => setTimeout(resolve, 3000)),
