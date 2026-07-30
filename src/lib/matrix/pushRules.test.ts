@@ -194,28 +194,43 @@ describe("setDefaultPushRuleLevelForClient", () => {
     ];
 
     function harness(opts: {
+        /** Level the cached rules report ONCE getPushRules has resolved. */
         observedAfter: PushRuleLevel;
+        /** Level they report before that — i.e. the value being changed away
+         *  from. Deliberately NOT equal to observedAfter in the success cases:
+         *  a constant reader would let a verdict that reads the cache before the
+         *  refresh pass, and in production that pre-write read makes every
+         *  successful change raise a spurious "did not change" error. */
+        observedBefore?: PushRuleLevel;
         enabledFails?: unknown;
         actionsFails?: unknown;
         refreshFails?: boolean;
         createFails?: unknown;
         canCreate?: boolean;
+        readFails?: boolean;
     }) {
+        const calls: string[] = [];
+        let refreshed = false;
         const optimistic = vi.fn();
         const createRule = vi.fn(async () => {
+            calls.push("create");
             if (opts.createFails) throw opts.createFails;
         });
         const client = {
             setPushRuleEnabled: vi.fn(async () => {
+                calls.push("enabled");
                 if (opts.enabledFails) throw opts.enabledFails;
                 return {};
             }),
             setPushRuleActions: vi.fn(async () => {
+                calls.push("actions");
                 if (opts.actionsFails) throw opts.actionsFails;
                 return {};
             }),
             getPushRules: vi.fn(async () => {
+                calls.push("refresh");
                 if (opts.refreshFails) throw new Error("offline");
+                refreshed = true;
                 return {};
             }),
         } as unknown as MatrixClient;
@@ -227,14 +242,19 @@ describe("setDefaultPushRuleLevelForClient", () => {
             defaultActions: MENTION,
             label: "@room mentions",
             createRule: opts.canCreate ? createRule : null,
-            readLevel: () => opts.observedAfter,
+            readLevel: () => {
+                if (opts.readFails) throw new Error("rules cache is garbage");
+                return refreshed
+                    ? opts.observedAfter
+                    : (opts.observedBefore ?? "loud");
+            },
             applyOptimistic: optimistic,
         });
-        return { client, write, optimistic, createRule };
+        return { client, write, optimistic, createRule, calls };
     }
 
     it("off: disables the rule, re-reads canonical rules, resolves", async () => {
-        const h = harness({ observedAfter: "off" });
+        const h = harness({ observedAfter: "off", observedBefore: "loud" });
         await expect(
             setDefaultPushRuleLevelForClient(h.client, h.write("off")),
         ).resolves.toBeUndefined();
@@ -249,7 +269,7 @@ describe("setDefaultPushRuleLevelForClient", () => {
     });
 
     it("loud: writes actions then enables", async () => {
-        const h = harness({ observedAfter: "loud" });
+        const h = harness({ observedAfter: "loud", observedBefore: "off" });
         await setDefaultPushRuleLevelForClient(h.client, h.write("loud"));
         expect(h.client.setPushRuleActions).toHaveBeenCalledWith(
             "global",
@@ -263,6 +283,10 @@ describe("setDefaultPushRuleLevelForClient", () => {
             ".m.rule.is_room_mention",
             true,
         );
+        // ORDER matters: enabling first would re-arm the rule with whatever
+        // actions it still carries, so a rule being turned up from silent would
+        // briefly notify at the OLD settings before the new ones land.
+        expect(h.calls).toEqual(["actions", "enabled", "refresh"]);
     });
 
     // NOTIF-01: this is the whole finding. The server kept the old rule, so the
@@ -293,6 +317,7 @@ describe("setDefaultPushRuleLevelForClient", () => {
     it("a missing custom rule is created, then verified", async () => {
         const h = harness({
             observedAfter: "loud",
+            observedBefore: "off",
             actionsFails: { httpStatus: 404 },
             canCreate: true,
         });
@@ -300,26 +325,15 @@ describe("setDefaultPushRuleLevelForClient", () => {
             setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
         ).resolves.toBeUndefined();
         expect(h.createRule).toHaveBeenCalledWith(MENTION);
+        // The create replaces the failed update, and only THEN is the result
+        // re-read — verifying before the create would judge the wrong state.
+        expect(h.calls).toEqual(["actions", "create", "refresh"]);
     });
 
-    it("a create that also fails rejects, and still re-reads canonical rules", async () => {
-        const h = harness({
-            observedAfter: "loud",
-            actionsFails: { httpStatus: 404 },
-            createFails: { httpStatus: 500 },
-            canCreate: true,
-        });
-        await expect(
-            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
-        ).rejects.toThrow();
-        expect(h.client.getPushRules).toHaveBeenCalled();
-        expect(h.optimistic).not.toHaveBeenCalled();
-    });
-
-    // The case above asks for "off", which only ever calls setPushRuleEnabled —
-    // so it never reaches the create path at all. Drive that path with a level
-    // that does, and pin the message to the CREATE failure's reason: a create
-    // that dies on the network must not be reported as "no such rule".
+    // Requesting a level that does reach setPushRuleActions, so the 404 lands
+    // there and the create path actually runs. Pin the message to the CREATE
+    // failure's reason: a create that dies on the network must not be reported
+    // as "no such rule", which would send the user looking in the wrong place.
     it("a create that dies mid-flight rejects with the create's own reason", async () => {
         const h = harness({
             observedAfter: "off",
@@ -334,8 +348,12 @@ describe("setDefaultPushRuleLevelForClient", () => {
         expect(h.optimistic).not.toHaveBeenCalled();
     });
 
-    // A server-default rule the homeserver simply does not have: turning it off
-    // is already true, so this is success, not an error toast.
+    // A rule the homeserver does not have AND the SDK does not re-inject: the
+    // refreshed cache reads "off", which is what was asked for, so this is
+    // success rather than an error toast. (For the ids matrix-js-sdk 41
+    // re-injects — .m.rule.is_room_mention and friends — the read comes back
+    // "silent" instead and the call rejects; see the doc comment on
+    // setDefaultPushRuleLevelForClient.)
     it("a rule the server does not have is already off", async () => {
         const h = harness({
             observedAfter: "off",
@@ -365,6 +383,53 @@ describe("setDefaultPushRuleLevelForClient", () => {
         await expect(
             setDefaultPushRuleLevelForClient(h.client, h.write("off")),
         ).rejects.toThrow(/did not change/);
+        expect(h.client.getPushRules).toHaveBeenCalled();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    // Each failure reason must reach the user as ITS OWN explanation — the copy
+    // is what the settings toast shows, and "check your connection" for a rule
+    // the homeserver refused outright is advice that cannot help.
+    it("a missing rule rejects with the rule-missing explanation", async () => {
+        const h = harness({
+            observedAfter: "off",
+            actionsFails: { httpStatus: 404 },
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
+        ).rejects.toThrow(/has no .* notification rule/);
+    });
+
+    it("a refused rule rejects with the rule-rejected explanation", async () => {
+        const h = harness({
+            observedAfter: "off",
+            actionsFails: { httpStatus: 400, errcode: "M_BAD_JSON" },
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
+        ).rejects.toThrow(/rejected the change/);
+    });
+
+    // The read-back is injected, so it can throw (a malformed cached rule, a
+    // client torn down mid-flight). Unreadable is UNKNOWN, not failure...
+    it("a cache reader that throws is unverified, not an error", async () => {
+        const h = harness({ observedAfter: "off", readFails: true });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).resolves.toBeUndefined();
+    });
+
+    // ...and it must never leak a raw error where the caller's contract promises
+    // user-facing copy: Task 3's settings UI toasts this message verbatim.
+    it("a cache reader that throws still rejects with user-facing copy", async () => {
+        const h = harness({
+            observedAfter: "off",
+            enabledFails: { httpStatus: 500 },
+            readFails: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow(/Check your connection/);
     });
 
     it("a successful write whose re-read fails mirrors locally and resolves", async () => {

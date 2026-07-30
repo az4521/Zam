@@ -292,6 +292,23 @@ async function writeLevel(
 }
 
 /**
+ * Read back the level the refreshed cache reports, defensively. The reader is
+ * injected, so it can throw (a malformed rule, a client torn down mid-flight);
+ * an unreadable cache is UNKNOWN, which `verifyPushRuleLevel` treats as
+ * "unverified". Letting it propagate would reject with a raw error message where
+ * the caller's contract promises user-facing copy — and the settings UI toasts
+ * that message verbatim.
+ */
+function observedLevel(write: DefaultRuleLevelWrite): PushRuleLevel | null {
+    try {
+        return write.readLevel();
+    } catch (error) {
+        console.warn("[push rules] could not read back", write.ruleId, error);
+        return null;
+    }
+}
+
+/**
  * Set a default push rule's level and report the outcome HONESTLY (NOTIF-01).
  *
  * The old shape optimistically mutated the cached rule after ANY failure, so a
@@ -301,8 +318,20 @@ async function writeLevel(
  * when a *confirmed* write could not be re-read.
  *
  * Rejects with a user-facing message when the requested level is not what the
- * server ended up with. Resolves when the server already agrees — including the
- * case where the rule does not exist at all and the request was "off".
+ * refreshed rules report; resolves when they agree.
+ *
+ * "Agree" is judged against the SDK's cache, which is NOT raw server truth:
+ * `getPushRules()` feeds `setPushRules()`, which runs
+ * `PushProcessor.rewriteDefaultRules` and re-injects the client-side default
+ * rules a homeserver omits — in matrix-js-sdk 41 those are
+ * `.m.rule.is_room_mention`, `.m.rule.reaction`,
+ * `.org.matrix.msc3786.rule.room.server_acl` and
+ * `.org.matrix.msc3914.rule.room.call`. So "the rule does not exist and you asked
+ * for off, therefore success" holds only for ids OUTSIDE that set. Asking for
+ * "off" on `.m.rule.is_room_mention` reads back "silent" — it is re-injected
+ * enabled with notify + highlight and no sound — and correctly rejects with the
+ * rule-missing copy, because the SDK goes on evaluating that rule locally no
+ * matter what the server does or does not store.
  */
 export async function setDefaultPushRuleLevelForClient(
     client: MatrixClient,
@@ -356,12 +385,14 @@ export async function setDefaultPushRuleLevelForClient(
         write.applyOptimistic(actions);
     }
 
+    // Read AFTER the refresh, never before: the pre-write level is the old value
+    // by definition, so verifying against it would fail every successful change.
     const verdict = verifyPushRuleLevel({
         requested: write.level,
-        observed: refreshed ? write.readLevel() : null,
+        observed: refreshed ? observedLevel(write) : null,
     });
-    // The server agrees with the request — including "the rule does not exist
-    // and you asked for off", which needed no write at all.
+    // The refreshed rules report what was asked for. For a rule the server does
+    // not have, this is only reachable when the SDK does not re-inject it.
     if (verdict.status === "applied") return;
     if (!wrote) {
         throw new Error(
