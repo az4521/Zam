@@ -59,7 +59,10 @@
         removeQueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
     import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
-    import { shouldClearComposerAfterSend } from "$lib/utils/composerClear";
+    import {
+        shouldClearComposerAfterSend,
+        shouldClearStoredDraft,
+    } from "$lib/utils/composerClear";
     import {
         parseSlashCommand,
         matchSlashCommands,
@@ -900,12 +903,18 @@
      *  resolves when its upload finishes, which can be long after Send with the
      *  composer still editable in the meantime.
      *
-     *  The draft drop is unconditional: text that has been sent is not a draft
-     *  of the room it went to, and leaving it there let a switched-away room
-     *  re-offer an already-posted caption. The VISIBLE clear is conditional —
-     *  see shouldClearComposerAfterSend for why. */
+     *  Both halves are conditional, for the same reason: neither the stored
+     *  draft nor the visible buffer is ours to wipe once the user has moved on
+     *  from the text we sent. See shouldClearStoredDraft and
+     *  shouldClearComposerAfterSend. */
     function clearComposerAfterSend(forRoomId: string, textAtSend: string) {
-        clearDraft(forRoomId);
+        if (
+            shouldClearStoredDraft({
+                storedText: getDraft(forRoomId)?.text ?? null,
+                textAtSend,
+            })
+        )
+            clearDraft(forRoomId);
         if (
             !shouldClearComposerAfterSend({
                 currentRoomId: roomId,
