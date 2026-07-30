@@ -324,15 +324,17 @@ export async function retryPendingStops(): Promise<void> {
 
 /** Best-effort stop of every active share (logout / account switch). */
 export async function stopAllShares(): Promise<void> {
-    await Promise.allSettled(
-        Array.from(liveLocationState.shares.keys()).map((r) =>
-            attemptStop(r, false),
-        ),
-    );
+    // Snapshot the rooms we are responsible for BEFORE the await. Logout fires
+    // this without awaiting it, so the next account's sync can resume a
+    // genuinely live beacon while our writes are still settling — re-reading
+    // the map afterwards would sweep that share away and hide a beacon that is
+    // really broadcasting, which is LOC-01 pointing the other way.
+    const rooms = Array.from(liveLocationState.shares.keys());
+    await Promise.allSettled(rooms.map((r) => attemptStop(r, false)));
     // Teardown: this module's state outlives the session, so a retained
     // stop-failure record would surface in the NEXT account's UI referring to a
     // beacon it cannot touch. Drop whatever survived the attempts.
-    for (const roomId of Array.from(liveLocationState.shares.keys())) {
+    for (const roomId of rooms) {
         dropShare(roomId);
     }
 }

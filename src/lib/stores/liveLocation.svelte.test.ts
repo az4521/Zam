@@ -491,6 +491,37 @@ describe("live-location own-share engine", () => {
         expect(liveLocationState.shares.get(ROOM)?.stop).toBeNull();
     });
 
+    it("does not sweep away a share that appeared while it was stopping", async () => {
+        // Logout fires stopAllShares without awaiting it. If an old write is
+        // slow, the next account's sync can resume a genuinely live beacon
+        // before the teardown finishes — the sweep must only forget the rooms
+        // it actually attempted, or it hides a share that IS broadcasting.
+        await startShare("!a:s", 900000);
+        let ack: () => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((r) => (ack = r)),
+        );
+
+        const pending = stopAllShares();
+        await flush();
+
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: "!b:s",
+                beaconInfoEventId: "$b9",
+                expiresAt: Date.now() + 900000,
+            },
+        ]);
+        initLiveLocation();
+        expect(isSharingLive("!b:s")).toBe(true);
+
+        ack();
+        await pending;
+
+        expect(isSharingLive("!b:s")).toBe(true);
+        expect(liveLocationState.shares.get("!b:s")?.stop).toBeNull();
+    });
+
     it("does not let a late ack delete a share resumed from the server", async () => {
         // Logout sweeps the record while the write is in flight; the next
         // session's sync still sees the beacon live and resumes it as an
