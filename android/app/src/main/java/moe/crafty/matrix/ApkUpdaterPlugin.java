@@ -219,10 +219,14 @@ public class ApkUpdaterPlugin extends Plugin {
      * The archive is MOVED to a staged file before it is verified, never
      * after, and every attempt mints its OWN staged filename. downloadApk
      * writes only to update.apk and no staged name is ever written twice, so
-     * from the rename onwards nothing can change the bytes that verifyApk
-     * read and the installer will later open — which matters because the
-     * installer opens its content:// URI asynchronously, long after this
-     * method has returned.
+     * from the rename onwards nothing OTHER THAN the very download that
+     * produced this file can still change its bytes: a download still in
+     * flight holds an open FileOutputStream on that inode and keeps appending
+     * through the rename, which the OS installer's own signature check then
+     * rejects. No DIFFERENT archive can ever take the place of the one
+     * verifyApk read and the installer will later open — which matters
+     * because the installer opens its content:// URI asynchronously, long
+     * after this method has returned.
      */
     @PluginMethod
     public void installApk(final PluginCall call) {

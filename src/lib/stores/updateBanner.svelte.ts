@@ -135,7 +135,18 @@ export async function runBannerAction(): Promise<void> {
             // `apkPath` stays the "a download completed" marker; it is no
             // longer passed — native installs its own private download.
             if (updateBannerState.apkPath) {
-                await installApk();
+                try {
+                    await installApk();
+                } catch (e) {
+                    // Native rejects for real reasons now (signer mismatch,
+                    // version floor, nothing staged), so this branch fires.
+                    // Route it through the same error phase androidFlow uses
+                    // rather than leaving an unhandled rejection.
+                    setStatus({
+                        phase: "error",
+                        message: (e as Error)?.message ?? "Install failed",
+                    });
+                }
             }
             break;
         case "download":
