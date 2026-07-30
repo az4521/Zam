@@ -74,10 +74,13 @@
         {/if}
     </div>
     {#if view.showActions && controller}
+        <!-- Never disabled while an accept is in flight: nothing bounds accept()
+             client-side, so declining (which drops the card AND frees the
+             store's one-at-a-time gate) is the only way out of a hung one short
+             of a reload. -->
         <button
             type="button"
             class="rounded px-2.5 py-1 text-xs text-discord-textPrimary transition-colors bg-discord-messageHover hover:bg-discord-danger/20 hover:text-discord-danger disabled:opacity-60"
-            disabled={busy}
             onclick={() => declineIncoming(controller)}
         >
             Decline

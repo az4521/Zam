@@ -17,12 +17,16 @@ import {
     isAcceptingRequest,
     acceptRequestError,
 } from "./verification.svelte";
+import { VerificationPhaseValue } from "$lib/utils/verification";
 
 /** The one line a failed accept ever shows (acceptFailureText). */
 const FAIL_COPY = "Couldn't accept this request. Try again.";
 
 type Fake = {
     id: string;
+    /** Mutable so a test can move a request to a terminal phase mid-flight,
+     *  the way the SDK mutates the live request object in place. */
+    phase: number;
     accept: () => Promise<void>;
     cancel: () => void;
     view: () => { phase: number };
@@ -30,14 +34,16 @@ type Fake = {
 };
 
 function fakeController(id: string, accept: () => Promise<void>): Fake {
-    return {
+    const fake: Fake = {
         id,
+        // "Unsent" is non-terminal for verificationPhaseKind.
+        phase: VerificationPhaseValue.Unsent,
         accept,
         cancel: vi.fn(),
-        // Phase 1 ("Unsent") is non-terminal for verificationPhaseKind.
-        view: () => ({ phase: 1 }),
+        view: () => ({ phase: fake.phase }),
         subscribe: () => () => {},
     };
+    return fake;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,10 +258,10 @@ describe("acceptIncoming", () => {
         const outstanding = acceptIncoming(asController(stalled));
         expect(verificationState.accepting).toBe("$stall");
 
-        // Nothing bounds accept() client-side, so the SDK timing the request
-        // out prunes the card while the promise is still outstanding. That
-        // prune goes through removeIncoming — the same path declineIncoming
-        // takes, which is how this test reaches it.
+        // Nothing bounds accept() client-side, so a card can leave the queue
+        // while its accept promise is still outstanding — the user declining is
+        // the escape hatch that makes that reachable on purpose, and the peer
+        // cancelling reaches the same removeIncoming through the subscriber.
         declineIncoming(asController(stalled));
         expect(verificationState.accepting).toBeNull();
 
@@ -305,6 +311,103 @@ describe("acceptIncoming", () => {
         await second;
         expect(verificationState.accepting).toBeNull();
     });
+
+    // The twin of the stalled-accept tests above, which all REJECT the
+    // outstanding promise. A stale accept that RESOLVES takes the success path,
+    // and promoting from there unconditionally hands the modal to a request the
+    // user has already walked away from — and silently orphans the one that is
+    // actually live (no card, no modal, never cancelled), which is the very
+    // shape of CRYPTO-03.
+    it("does not promote a resolve that lands after its card was pruned", async () => {
+        let resolveStale = () => {};
+        const stale = fakeController(
+            "$stale",
+            () => new Promise<void>((resolve) => (resolveStale = resolve)),
+        );
+        const acceptNext = vi.fn(async () => {});
+        const next = fakeController("$next3", acceptNext);
+        verificationState.incoming = [asController(stale), asController(next)];
+
+        const outstanding = acceptIncoming(asController(stale));
+        expect(verificationState.accepting).toBe("$stale");
+
+        // The card leaves the queue mid-accept. Its phase is deliberately still
+        // non-terminal: cancel() only flips it once the SDK has processed the
+        // cancellation, so "gone from the queue" is its own condition and cannot
+        // be inferred from the phase.
+        declineIncoming(asController(stale));
+
+        // The user then verifies the request that is actually live.
+        const ok = await acceptIncoming(asController(next));
+        expect(ok).toBe(true);
+        expect(verificationState.active?.id).toBe("$next3");
+
+        resolveStale();
+        const staleOk = await outstanding;
+
+        expect(staleOk).toBe(false);
+        // The abandoned flow must not take the modal…
+        expect(verificationState.active?.id).toBe("$next3");
+        // …and $next3 must still be the one thing the user can act on: it left
+        // the queue on the way into the modal, so a clobbered `active` would
+        // leave it live on the wire with nothing rendering it.
+        expect(verificationState.incoming).toEqual([]);
+        expect(verificationState.accepting).toBeNull();
+        expect(verificationState.acceptErrors).toEqual({});
+    });
+
+    it("does not open the modal on a request that finished while accept() was in flight", async () => {
+        let release = () => {};
+        const c = fakeController(
+            "$dead",
+            () => new Promise<void>((resolve) => (release = resolve)),
+        );
+        verificationState.incoming = [asController(c)];
+
+        const pending = acceptIncoming(asController(c));
+        // The peer cancels. The live request object mutates in place, so the
+        // phase is terminal the moment we look — whether our subscriber has been
+        // handed the change event yet (and pruned the card) is not ours to time.
+        c.phase = VerificationPhaseValue.Cancelled;
+        release();
+        const ok = await pending;
+
+        expect(ok).toBe(false);
+        // A modal on a cancelled flow is a dead end that claims a verification
+        // is under way; the card can say "cancelled" and be pruned as usual.
+        expect(verificationState.active).toBeNull();
+        expect(verificationState.accepting).toBeNull();
+    });
+
+    it("refuses an accept for a request that is not in the queue", async () => {
+        let calls = 0;
+        const accept = vi.fn(async () => {
+            calls++;
+            // A second, real accept() for the promoted flow is exactly what the
+            // SDK rejects — and "Try again" on a request that is FINE is a retry
+            // that can never work.
+            if (calls > 1) {
+                throw new Error(
+                    "Cannot accept a verification request in state 6",
+                );
+            }
+        });
+        const c = fakeController("$promoted", accept);
+        verificationState.incoming = [asController(c)];
+
+        await acceptIncoming(asController(c));
+        expect(verificationState.active?.id).toBe("$promoted");
+
+        // The in-timeline card still renders Verify/Decline for the active flow,
+        // so a second click is reachable without anything being wrong.
+        const again = await acceptIncoming(asController(c));
+
+        expect(again).toBe(false);
+        expect(accept).toHaveBeenCalledTimes(1);
+        expect(acceptRequestError(asController(c))).toBeNull();
+        expect(verificationState.accepting).toBeNull();
+        expect(verificationState.active?.id).toBe("$promoted");
+    });
 });
 
 describe("declineIncoming", () => {
@@ -326,24 +429,21 @@ describe("declineIncoming", () => {
 
 describe("closeActive", () => {
     it("forgets an accept error recorded against the active flow", async () => {
-        let fail = false;
-        const c = fakeController("$req7", async () => {
-            if (fail) throw new Error("nope");
-        });
+        const c = fakeController("$req7", async () => {});
         verificationState.incoming = [asController(c)];
         await acceptIncoming(asController(c));
         expect(verificationState.active?.id).toBe("$req7");
 
-        // The in-timeline card still offers Verify for the promoted flow, so a
-        // doomed second accept can land against the modal's surface.
-        fail = true;
-        await acceptIncoming(asController(c));
+        // Seeded directly: `acceptIncoming` now refuses a request that is not in
+        // the queue, so the promoted flow can no longer acquire an error of its
+        // own. The modal is still the surface `hasSurface` admits, so closing it
+        // remains the only thing that could clear such an entry — and its card
+        // left the queue on the way in.
+        verificationState.acceptErrors = { $req7: FAIL_COPY };
         expect(acceptRequestError(asController(c))).toBe(FAIL_COPY);
 
         closeActive();
 
-        // Its card left the queue on the way in, so the modal closing is the
-        // only thing that can clear this entry.
         expect(verificationState.acceptErrors).toEqual({});
     });
 });

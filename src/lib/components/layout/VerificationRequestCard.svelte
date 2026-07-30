@@ -64,10 +64,13 @@
             <p class="text-xs text-discord-textMuted truncate">{subtitle}</p>
         {/if}
     </div>
+    <!-- Never disabled while an accept is in flight: nothing bounds accept()
+         client-side, so declining (which drops the card AND frees the store's
+         one-at-a-time gate) is the only way out of a hung one short of a
+         reload. -->
     <button
         type="button"
         class="px-2.5 py-1 rounded text-xs bg-discord-messageHover text-discord-textPrimary hover:bg-discord-danger/20 hover:text-discord-danger transition-colors disabled:opacity-60"
-        disabled={busy}
         onclick={() => declineIncoming(controller)}
     >
         Decline

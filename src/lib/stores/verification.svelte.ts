@@ -89,12 +89,13 @@ function removeIncoming(controller: VerificationController): void {
     );
     clearAcceptError(controller.id);
     // Release the gate if it belonged to this request. Nothing bounds
-    // `controller.accept()` client-side (no localTimeoutMs anywhere), so a
-    // stalled accept can have its card pruned — the SDK times the request out,
-    // the subscriber sees a terminal phase — while the promise is still
-    // outstanding. Leaving `accepting` pinned to a request that no longer
+    // `controller.accept()` client-side (no localTimeoutMs anywhere) and nothing
+    // guarantees a phase change ever arrives to end it, so a card can leave the
+    // queue — the user declining, the peer cancelling — while the promise is
+    // still outstanding. Leaving `accepting` pinned to a request that no longer
     // exists would refuse every later Verify, on every card, for the rest of
-    // the session.
+    // the session; Decline is the only escape hatch from a hung accept, so it
+    // must stay live (see the cards) and it must free the gate.
     releaseAccepting(controller.id);
 }
 
@@ -112,16 +113,18 @@ function setAcceptError(id: string, text: string): void {
     };
 }
 
+/** Is this request still in the queue, i.e. something we may accept? */
+function isQueued(id: string): boolean {
+    return verificationState.incoming.some((c) => c.id === id);
+}
+
 /**
  * Is there still a surface that would render this request's error — its card in
  * the queue, or the modal? Used to drop an error nothing can show: dequeuing is
  * also the only thing that clears the map, so such an entry would leak.
  */
 function hasSurface(id: string): boolean {
-    return (
-        verificationState.incoming.some((c) => c.id === id) ||
-        verificationState.active?.id === id
-    );
+    return isQueued(id) || verificationState.active?.id === id;
 }
 
 /** Is this request's accept() in flight? */
@@ -205,6 +208,13 @@ export async function verifyUser(userId: string): Promise<void> {
 export async function acceptIncoming(
     controller: VerificationController,
 ): Promise<boolean> {
+    // Only a QUEUED request can be accepted. The in-timeline card still renders
+    // Verify/Decline for the flow it promoted into the modal, so a click on a
+    // request that has already been accepted (or was declined/pruned while its
+    // accept was outstanding) is reachable with nothing wrong — and running a
+    // real accept() for it earns the SDK's rejection and a "Try again" that can
+    // never work. Refuse it silently: no error, and no gate taken.
+    if (!isQueued(controller.id)) return false;
     // A second click on the SAME card is not an error: it already reads "…".
     if (verificationState.accepting === controller.id) return false;
     if (verificationState.accepting !== null) {
@@ -238,6 +248,23 @@ export async function acceptIncoming(
         return false;
     }
     releaseAccepting(controller.id);
+    // Nothing bounds accept() client-side, so this resolve can land long after
+    // the request stopped being the one the user is dealing with. Promoting
+    // unconditionally is CRYPTO-03 through a new door: the modal would swap to
+    // this flow and ORPHAN whatever is active — live on the wire, no card, no
+    // modal, never cancelled. Two independent ways this settle can be stale:
+    //   • its card is gone (declined, or pruned when the peer cancelled) — the
+    //     user already walked away, and the phase need not have flipped yet, so
+    //     the queue is the only thing that knows;
+    //   • the request is terminal (the live object mutates in place, so this can
+    //     be true before our subscriber is handed the change) — a modal on a
+    //     cancelled flow claims a verification that cannot proceed.
+    // Either one: drop it. The card, if there still is one, is pruned by the
+    // subscriber as usual.
+    if (!isQueued(controller.id) || isTerminal(controller)) {
+        bump();
+        return false;
+    }
     // Re-filters the CURRENT queue by id, so a request that arrived while
     // accept() was in flight keeps its card.
     removeIncoming(controller);
