@@ -4250,14 +4250,17 @@ export async function createDirectMessage(
         isRoomGone(matrixClient?.getRoom(id)?.getMyMembership()),
     );
     if (stranded) {
-        return {
-            roomId: stranded.roomId,
-            followUp: await runFollowUp(
-                stranded,
-                performFollowUp,
-                pendingFollowUps,
-            ),
-        };
+        const followUp = await runFollowUp(
+            stranded,
+            performFollowUp,
+            pendingFollowUps,
+        );
+        // Same warm-up the fresh-creation path does: this room is about to be
+        // opened, and without it the timeline starts empty until /sync fills
+        // it. Best-effort — a failed backfill must not fail the reuse.
+        const room = matrixClient.getRoom(stranded.roomId);
+        if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+        return { roomId: stranded.roomId, followUp };
     }
     const initialState = encryptionInitialState(encrypt);
     const result = await matrixClient.createRoom({

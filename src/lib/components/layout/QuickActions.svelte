@@ -82,15 +82,31 @@
                 userId,
                 wantEncrypted,
             );
-            if (wantEncrypted && !isRoomEncrypted(getRoom(roomId))) {
+            surfaceFollowUp(followUp);
+            // The notice is about REUSING an existing plaintext DM, so it must
+            // only fire when one was actually reused. `status === "none"` is
+            // exactly that signal: the existing-joined-DM early return is
+            // createDirectMessage's ONLY path that skips a follow-up — a fresh
+            // creation and a stranded-room reuse both run one and come back
+            // "ok" or "failed".
+            //
+            // Without that gate a freshly created ENCRYPTED DM tripped it too:
+            // the SDK's createRoom is a bare POST that stores no Room, so
+            // getRoom() is null until /sync and isRoomEncrypted(null) is false.
+            // The user got "you already have an unencrypted DM" while the toast
+            // said the DM had just been created — and the picker stayed open,
+            // the one path on this branch that could still create a second room.
+            if (
+                followUp.status === "none" &&
+                wantEncrypted &&
+                !isRoomEncrypted(getRoom(roomId))
+            ) {
                 notice =
                     "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
                 noticeRoomId = roomId;
-                surfaceFollowUp(followUp);
                 loading = false;
                 return;
             }
-            surfaceFollowUp(followUp);
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
