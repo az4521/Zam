@@ -104,6 +104,26 @@ describe("reduceSessionStartup", () => {
         expect(expired.error).toBe(EXPIRED);
     });
 
+    it("supersedes an attempt that is still starting with a new id", () => {
+        // Double sign-in: the second submit opens attempt 2 while attempt 1 is
+        // still in flight, so the two must not share an id.
+        const first = starting();
+        const second = reduceSessionStartup(first, { type: "begin" });
+        expect(second.phase).toBe("starting");
+        expect(second.attempt).toBe(2);
+        // Attempt 1 finishing late must not commit over the newer attempt…
+        expect(
+            reduceSessionStartup(second, { type: "succeeded", attempt: 1 }),
+        ).toBe(second);
+        // …while attempt 2 still activates normally.
+        const active = reduceSessionStartup(second, {
+            type: "succeeded",
+            attempt: 2,
+        });
+        expect(active.phase).toBe("active");
+        expect(active.attempt).toBe(2);
+    });
+
     it("never reuses an attempt id across expiry and restart", () => {
         const expired = reduceSessionStartup(starting(), {
             type: "invalidated",
