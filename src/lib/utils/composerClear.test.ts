@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { shouldClearComposerAfterSend } from "./composerClear";
+import {
+    shouldClearComposerAfterSend,
+    shouldClearStoredDraft,
+} from "./composerClear";
 
 describe("shouldClearComposerAfterSend", () => {
     it("clears when the user is still in the target room and has not typed since", () => {
@@ -79,5 +82,49 @@ describe("shouldClearComposerAfterSend", () => {
                 textAtSend: "",
             }),
         ).toBe(true);
+    });
+});
+
+describe("shouldClearStoredDraft", () => {
+    it("clears when there is no stored draft at all", () => {
+        expect(
+            shouldClearStoredDraft({ storedText: null, textAtSend: "hi" }),
+        ).toBe(true);
+    });
+
+    it("clears when the stored draft is exactly the text we just sent", () => {
+        expect(
+            shouldClearStoredDraft({ storedText: "hi", textAtSend: "hi" }),
+        ).toBe(true);
+    });
+
+    it("keeps a stored draft the user extended after pressing Send", () => {
+        expect(
+            shouldClearStoredDraft({
+                storedText: "hi — invoice attached too",
+                textAtSend: "hi",
+            }),
+        ).toBe(false);
+    });
+
+    it("keeps a stored draft that differs entirely from what we sent", () => {
+        expect(
+            shouldClearStoredDraft({
+                storedText: "an unrelated draft",
+                textAtSend: "hi",
+            }),
+        ).toBe(false);
+    });
+
+    it("keeps a stored draft that is only a whitespace variation of what we sent", () => {
+        expect(
+            shouldClearStoredDraft({ storedText: "hi ", textAtSend: "hi" }),
+        ).toBe(false);
+    });
+
+    it("clears when both the stored draft and the sent text are empty", () => {
+        expect(shouldClearStoredDraft({ storedText: "", textAtSend: "" })).toBe(
+            true,
+        );
     });
 });

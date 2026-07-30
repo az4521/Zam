@@ -23,6 +23,37 @@
  * stored draft is unconditional at the call site: text that has been sent is
  * not a draft of the room it went to, whichever room is on screen now.
  */
+/**
+ * Should the target room's STORED draft be deleted once a send lands?
+ *
+ * Sent text is not a draft of the room it went to, so the entry normally has
+ * to go — otherwise a room the user switched away from re-offers a caption it
+ * has already posted, and Enter posts it twice.
+ *
+ * But the stored draft is only ours to delete if it is still the text we sent.
+ * The composer stays editable during an upload, and leaving the room while one
+ * is in flight persists whatever the user has typed by then. Deleting that
+ * because a caption finally resolved destroys a sentence that was never sent,
+ * with no undo — the same loss shouldClearComposerAfterSend prevents in the
+ * visible buffer, one layer down in the persisted one.
+ *
+ * `storedText === null` means there is no entry, so there is nothing to
+ * protect and the caller's delete is a harmless no-op. Compared verbatim for
+ * the same reason as the sibling predicate: a whitespace-only difference is
+ * still the user's edit, and the send used the trimmed text.
+ *
+ * A stale entry left behind by a `false` here self-heals: the composer is
+ * already visibly clear, so the next room switch runs the draft effect's
+ * cleanup with blank text, and setDraft treats a blank draft as "no draft"
+ * and deletes the entry.
+ */
+export function shouldClearStoredDraft(input: {
+    storedText: string | null;
+    textAtSend: string;
+}): boolean {
+    return input.storedText === null || input.storedText === input.textAtSend;
+}
+
 export function shouldClearComposerAfterSend(input: {
     currentRoomId: string;
     targetRoomId: string;
