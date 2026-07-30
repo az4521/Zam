@@ -23,7 +23,10 @@
         desktopSetAutoDownload,
         onDesktopUpdateStatus,
     } from "$lib/desktopUpdater";
-    import { pickApkAsset } from "$lib/utils/androidUpdate";
+    import {
+        pickApkAsset,
+        versionCodeFromSemver,
+    } from "$lib/utils/androidUpdate";
     import {
         isAndroidUpdater,
         downloadApk,
@@ -157,7 +160,10 @@
         }
         androidStatus = { ...androidStatus, phase: "downloading", percent: 0 };
         try {
-            const path = await downloadApk(url, (percent) => {
+            // Floor = the version the user was shown, so native also refuses a
+            // rolled-back-but-still-signed archive.
+            const minVersionCode = versionCodeFromSemver(info?.latest ?? "");
+            const path = await downloadApk(url, minVersionCode, (percent) => {
                 androidStatus = {
                     ...androidStatus,
                     phase: "downloading",
@@ -185,7 +191,9 @@
                 await openUnknownSourcesSettings();
                 return;
             }
-            await installApk(androidApkPath);
+            // No path argument: native installs its own private download, so a
+            // compromised renderer cannot steer what gets installed.
+            await installApk();
         } catch (installError) {
             androidStatus = {
                 ...androidStatus,
