@@ -1,9 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
     createPendingFollowUps,
     followUpFailureMessage,
+    followUpTimeoutMessage,
     runFollowUp,
+    runFollowUpBounded,
     strandedDmRoom,
+    FOLLOW_UP_RETRY_TIMEOUT_MS,
     NO_FOLLOW_UP,
     type RoomFollowUpTask,
 } from "./roomCreationOutcome";
@@ -77,6 +80,137 @@ describe("followUpFailureMessage — copy that never claims the room failed", ()
         expect(
             followUpFailureMessage(spaceTask, new Error("Bad.")),
         ).not.toContain("Bad..");
+    });
+});
+
+/**
+ * A timeout has learned NOTHING. The write is still in flight and may still
+ * land, so copy for it must not claim failure any more than it may claim
+ * success — "failed" would send the user off to create a duplicate exactly the
+ * way TX-01 did.
+ */
+const CLAIMS_FOLLOW_UP_FAILED =
+    /(fail(ed|s|ure)?\b|could not|couldn'?t|unable to|rejected|went wrong|error)/i;
+
+describe("followUpTimeoutMessage — copy that admits it does not know", () => {
+    it("says the room exists and that the space link is merely unconfirmed", () => {
+        const msg = followUpTimeoutMessage(spaceTask);
+        expect(msg).toMatch(/room was created/i);
+        expect(msg).not.toMatch(CLAIMS_CREATION_FAILED);
+        expect(msg).not.toMatch(CLAIMS_FOLLOW_UP_FAILED);
+        // …and it must not claim the link landed either.
+        expect(msg).not.toMatch(CLAIMS_SPACE_LINKED);
+        expect(msg).toContain("space");
+        expect(msg).toMatch(/has ?n'?t been confirmed/i);
+        expect(msg).toMatch(/may still be saving/i);
+    });
+
+    it("says the DM exists and that the DM-list write is merely unconfirmed", () => {
+        const msg = followUpTimeoutMessage(dmTask);
+        expect(msg).toMatch(/direct message was created/i);
+        expect(msg).not.toMatch(CLAIMS_CREATION_FAILED);
+        expect(msg).not.toMatch(CLAIMS_FOLLOW_UP_FAILED);
+        expect(msg).not.toMatch(CLAIMS_DM_SAVED);
+        expect(msg).toContain("DM list");
+        expect(msg).toMatch(/has ?n'?t been confirmed/i);
+        expect(msg).toMatch(/may still be saving/i);
+    });
+
+    it("reads differently from the outright-failure copy", () => {
+        // If the two collapsed to the same string the honest status would be
+        // indistinguishable from the verdict, which is the whole point of it.
+        expect(followUpTimeoutMessage(dmTask)).not.toBe(
+            followUpFailureMessage(dmTask, new Error("x")),
+        );
+    });
+});
+
+describe("FOLLOW_UP_RETRY_TIMEOUT_MS", () => {
+    it("bounds the retry inside the user's attention span", () => {
+        // matrix-js-sdk's setAccountData awaits the /sync remote echo with no
+        // timeout, so an unbounded retry never resolves when sync is wedged —
+        // the exact condition that failed the write in the first place. The
+        // bound must outlast a slow-but-working round trip and still fire
+        // while the user remembers pressing Retry.
+        expect(FOLLOW_UP_RETRY_TIMEOUT_MS).toBeGreaterThanOrEqual(5000);
+        expect(FOLLOW_UP_RETRY_TIMEOUT_MS).toBeLessThanOrEqual(60000);
+    });
+});
+
+describe("runFollowUpBounded — a retry that hangs must still come back", () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("reports the timeout outcome for a write that never settles, and keeps the task pending", async () => {
+        const pending = createPendingFollowUps();
+        const p = runFollowUpBounded(
+            dmTask,
+            () => new Promise<void>(() => {}),
+            pending,
+        );
+
+        await vi.advanceTimersByTimeAsync(FOLLOW_UP_RETRY_TIMEOUT_MS);
+        const out = await p;
+
+        expect(out.status).toBe("unconfirmed");
+        if (out.status !== "unconfirmed") throw new Error("unreachable");
+        expect(out.task).toEqual(dmTask);
+        expect(out.message).toBe(followUpTimeoutMessage(dmTask));
+        // The room exists, so the record must survive: the next DM open has to
+        // reuse it rather than create a second room and a second invite.
+        expect(pending.all()).toEqual([dmTask]);
+    });
+
+    it("does not fabricate a verdict — a write that lands late still clears the record", async () => {
+        const pending = createPendingFollowUps();
+        let ack: () => void = () => {};
+        const p = runFollowUpBounded(
+            dmTask,
+            () => new Promise<void>((r) => (ack = r)),
+            pending,
+        );
+        await vi.advanceTimersByTimeAsync(FOLLOW_UP_RETRY_TIMEOUT_MS);
+        expect((await p).status).toBe("unconfirmed");
+
+        ack();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(pending.all()).toEqual([]);
+    });
+
+    it("is transparent to a write that resolves before the deadline", async () => {
+        const pending = createPendingFollowUps();
+        pending.record(dmTask);
+        const p = runFollowUpBounded(dmTask, () => Promise.resolve(), pending);
+
+        await vi.advanceTimersByTimeAsync(FOLLOW_UP_RETRY_TIMEOUT_MS - 1);
+
+        expect(await p).toEqual({ status: "ok" });
+        expect(pending.all()).toEqual([]);
+        // No timer may outlive the attempt that armed it.
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("still reports failed when the write rejects before the deadline", async () => {
+        const pending = createPendingFollowUps();
+        const p = runFollowUpBounded(
+            spaceTask,
+            () => Promise.reject(new Error("nope")),
+            pending,
+        );
+
+        await vi.advanceTimersByTimeAsync(FOLLOW_UP_RETRY_TIMEOUT_MS - 1);
+        const out = await p;
+
+        expect(out.status).toBe("failed");
+        if (out.status !== "failed") throw new Error("unreachable");
+        expect(out.message).toContain("nope");
+        expect(pending.all()).toEqual([spaceTask]);
+        expect(vi.getTimerCount()).toBe(0);
     });
 });
 

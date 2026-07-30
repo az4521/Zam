@@ -22,7 +22,13 @@ export type DmFollowUpTask = Extract<
 export type RoomFollowUp =
     | { status: "none" }
     | { status: "ok" }
-    | { status: "failed"; task: RoomFollowUpTask; message: string };
+    | { status: "failed"; task: RoomFollowUpTask; message: string }
+    /**
+     * The write outlived our patience without settling. NOT a synonym for
+     * `"failed"`: it may still land. Carries the task so the user keeps a
+     * retry, but the copy must never state an outcome we do not have.
+     */
+    | { status: "unconfirmed"; task: RoomFollowUpTask; message: string };
 
 export interface RoomCreationResult {
     roomId: string;
@@ -65,6 +71,37 @@ export function followUpFailureMessage(
     }
     return `The direct message was created, but saving it to your DM list failed: ${detailSentence(err)} It may appear as a normal room until this is retried.`;
 }
+
+/**
+ * User-facing copy for a follow-up write that is STILL IN FLIGHT past the
+ * point where we keep waiting. Three invariants, all pinned by tests:
+ *  - the room exists (same as the failure copy — never send them back to the
+ *    form to create a duplicate);
+ *  - it must not claim the follow-up failed: the request is still running and
+ *    may yet land, and a false "failed" is just the TX-01 lie in a new place;
+ *  - it must not claim it landed either, or the user won't know to retry.
+ */
+export function followUpTimeoutMessage(task: RoomFollowUpTask): string {
+    if (task.kind === "space-link") {
+        return "The room was created, but adding it to the space hasn't been confirmed yet — it may still be saving. Retry if the room doesn't show up in the space.";
+    }
+    return "The direct message was created, but saving it to your DM list hasn't been confirmed yet — it may still be saving. Retry if it doesn't show up in your DM list.";
+}
+
+/**
+ * How long a retried follow-up write may stay in flight before we stop
+ * claiming to know what happened.
+ *
+ * `setAccountData` (matrix-js-sdk 41) awaits the `/sync` remote echo after the
+ * PUT with no timeout of its own, so a wedged sync — the very condition that
+ * failed the original write — makes the retry hang forever. The toast that
+ * carried the Retry button is long gone by then, so an unbounded wait leaves
+ * the user with no recovery affordance and no signal at all.
+ *
+ * Matches the live-share stop watchdog (`STOP_WATCHDOG_MS`) for the same
+ * reason: it is how long a human will believe "working on it".
+ */
+export const FOLLOW_UP_RETRY_TIMEOUT_MS = 30000;
 
 /**
  * In-session memory of follow-ups that failed, keyed by the room they belong to.
@@ -137,6 +174,45 @@ export async function runFollowUp(
     }
     pending.clear(task.roomId);
     return { status: "ok" };
+}
+
+/**
+ * `runFollowUp` with a deadline. Past `timeoutMs` it reports `"unconfirmed"` —
+ * a statement about what WE know, never a verdict on the write, which keeps
+ * running and keeps its own claim on the outcome: if it lands afterwards it
+ * still clears the pending record, and if it rejects it still records one.
+ *
+ * The task is recorded on timeout so the room stays reusable: an unconfirmed
+ * write may not have landed, and forgetting the room is what makes the next
+ * attempt create a second one.
+ */
+export async function runFollowUpBounded(
+    task: RoomFollowUpTask,
+    write: (task: RoomFollowUpTask) => Promise<void>,
+    pending: PendingFollowUps,
+    timeoutMs: number = FOLLOW_UP_RETRY_TIMEOUT_MS,
+): Promise<RoomFollowUp> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<RoomFollowUp>((resolve) => {
+        timer = setTimeout(() => {
+            pending.record(task);
+            resolve({
+                status: "unconfirmed",
+                task,
+                message: followUpTimeoutMessage(task),
+            });
+        }, timeoutMs);
+    });
+    try {
+        // runFollowUp never rejects, so the losing side of this race can never
+        // surface as an unhandled rejection.
+        return await Promise.race([
+            runFollowUp(task, write, pending),
+            deadline,
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 /**

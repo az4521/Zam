@@ -196,6 +196,7 @@ import { addToMDirect } from "$lib/utils/mDirect";
 import {
     createPendingFollowUps,
     runFollowUp,
+    runFollowUpBounded,
     strandedDmRoom,
     NO_FOLLOW_UP,
     type RoomCreationResult,
@@ -4068,11 +4069,20 @@ async function performFollowUp(task: RoomFollowUpTask): Promise<void> {
 /**
  * Retry ONE follow-up that failed after its room was created — the recovery
  * path for a partially-successful creation. Never creates a room.
+ *
+ * Bounded, and ONLY here. `setAccountData` awaits the `/sync` remote echo after
+ * its PUT with no timeout of its own (matrix-js-sdk 41), so when sync is wedged
+ * — precisely the condition that failed the write in the first place — an
+ * unbounded retry never resolves: the toast that carried the button has already
+ * expired, so the user is left with no recovery affordance AND no signal.
+ * The first attempt inside createRoom/createDirectMessage is deliberately left
+ * unbounded: it runs while the user is still watching the creation form, and
+ * bounding it would change creation latency behaviour for everyone.
  */
 export async function retryRoomFollowUp(
     task: RoomFollowUpTask,
 ): Promise<RoomFollowUp> {
-    return runFollowUp(task, performFollowUp, pendingFollowUps);
+    return runFollowUpBounded(task, performFollowUp, pendingFollowUps);
 }
 
 export async function createRoom(
