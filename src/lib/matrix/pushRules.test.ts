@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { PushRuleKind } from "matrix-js-sdk";
+import { PushRuleKind, type MatrixClient } from "matrix-js-sdk";
 import {
     actionsForLevel,
     getRoomNotificationSettingForClient,
     isHighlightAction,
+    setDefaultPushRuleLevelForClient,
     setRoomNotificationSettingForClient,
+    type DefaultRuleLevelWrite,
+    type PushRuleLevel,
 } from "./pushRules";
 
 // Spec-default action templates (as stored on each DEFAULT_PUSH_RULES entry).
@@ -180,5 +183,192 @@ describe("room notification settings", () => {
             setRoomNotificationSettingForClient(client, "!r", "all"),
         ).rejects.toThrow("offline");
         expect(client.getPushRules).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("setDefaultPushRuleLevelForClient", () => {
+    const MENTION = [
+        "notify",
+        { set_tweak: "sound", value: "default" },
+        { set_tweak: "highlight" },
+    ];
+
+    function harness(opts: {
+        observedAfter: PushRuleLevel;
+        enabledFails?: unknown;
+        actionsFails?: unknown;
+        refreshFails?: boolean;
+        createFails?: unknown;
+        canCreate?: boolean;
+    }) {
+        const optimistic = vi.fn();
+        const createRule = vi.fn(async () => {
+            if (opts.createFails) throw opts.createFails;
+        });
+        const client = {
+            setPushRuleEnabled: vi.fn(async () => {
+                if (opts.enabledFails) throw opts.enabledFails;
+                return {};
+            }),
+            setPushRuleActions: vi.fn(async () => {
+                if (opts.actionsFails) throw opts.actionsFails;
+                return {};
+            }),
+            getPushRules: vi.fn(async () => {
+                if (opts.refreshFails) throw new Error("offline");
+                return {};
+            }),
+        } as unknown as MatrixClient;
+        const write = (level: PushRuleLevel): DefaultRuleLevelWrite => ({
+            ruleId: ".m.rule.is_room_mention",
+            targetId: ".m.rule.is_room_mention",
+            kind: PushRuleKind.Override,
+            level,
+            defaultActions: MENTION,
+            label: "@room mentions",
+            createRule: opts.canCreate ? createRule : null,
+            readLevel: () => opts.observedAfter,
+            applyOptimistic: optimistic,
+        });
+        return { client, write, optimistic, createRule };
+    }
+
+    it("off: disables the rule, re-reads canonical rules, resolves", async () => {
+        const h = harness({ observedAfter: "off" });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).resolves.toBeUndefined();
+        expect(h.client.setPushRuleEnabled).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            ".m.rule.is_room_mention",
+            false,
+        );
+        expect(h.client.getPushRules).toHaveBeenCalled();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    it("loud: writes actions then enables", async () => {
+        const h = harness({ observedAfter: "loud" });
+        await setDefaultPushRuleLevelForClient(h.client, h.write("loud"));
+        expect(h.client.setPushRuleActions).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            ".m.rule.is_room_mention",
+            MENTION,
+        );
+        expect(h.client.setPushRuleEnabled).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            ".m.rule.is_room_mention",
+            true,
+        );
+    });
+
+    // NOTIF-01: this is the whole finding. The server kept the old rule, so the
+    // caller must see an error and the cache must NOT be told it changed.
+    it("a failed write rejects and never touches the cache", async () => {
+        const h = harness({
+            observedAfter: "loud",
+            enabledFails: { httpStatus: 500 },
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow(/@room mentions/);
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    it("a transport failure never creates a rule on top of it", async () => {
+        const h = harness({
+            observedAfter: "loud",
+            enabledFails: new Error("Failed to fetch"),
+            canCreate: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow();
+        expect(h.createRule).not.toHaveBeenCalled();
+    });
+
+    it("a missing custom rule is created, then verified", async () => {
+        const h = harness({
+            observedAfter: "loud",
+            actionsFails: { httpStatus: 404 },
+            canCreate: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
+        ).resolves.toBeUndefined();
+        expect(h.createRule).toHaveBeenCalledWith(MENTION);
+    });
+
+    it("a create that also fails rejects, and still re-reads canonical rules", async () => {
+        const h = harness({
+            observedAfter: "loud",
+            actionsFails: { httpStatus: 404 },
+            createFails: { httpStatus: 500 },
+            canCreate: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow();
+        expect(h.client.getPushRules).toHaveBeenCalled();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    // A server-default rule the homeserver simply does not have: turning it off
+    // is already true, so this is success, not an error toast.
+    it("a rule the server does not have is already off", async () => {
+        const h = harness({
+            observedAfter: "off",
+            enabledFails: { httpStatus: 404 },
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).resolves.toBeUndefined();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    // setPushRuleActions landed, setPushRuleEnabled did not: half-applied state
+    // must not be reported as the requested level.
+    it("a half-applied write rejects", async () => {
+        const h = harness({
+            observedAfter: "off",
+            enabledFails: { httpStatus: 500 },
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
+        ).rejects.toThrow();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
+    it("a write the server accepted but ignored rejects", async () => {
+        const h = harness({ observedAfter: "loud" });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow(/did not change/);
+    });
+
+    it("a successful write whose re-read fails mirrors locally and resolves", async () => {
+        const h = harness({ observedAfter: "off", refreshFails: true });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("silent")),
+        ).resolves.toBeUndefined();
+        expect(h.optimistic).toHaveBeenCalledWith([
+            "notify",
+            { set_tweak: "highlight" },
+        ]);
+    });
+
+    it("a failed write whose re-read also fails still rejects and mirrors nothing", async () => {
+        const h = harness({
+            observedAfter: "loud",
+            enabledFails: { httpStatus: 500 },
+            refreshFails: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("off")),
+        ).rejects.toThrow();
+        expect(h.optimistic).not.toHaveBeenCalled();
     });
 });

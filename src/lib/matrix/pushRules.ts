@@ -5,13 +5,21 @@ import {
     type MatrixClient,
     type MatrixError,
 } from "matrix-js-sdk";
+import {
+    classifyPushRuleWriteError,
+    planPushRuleCacheUpdate,
+    pushRuleFailureMessage,
+    shouldAttemptRuleCreate,
+    verifyPushRuleLevel,
+    type PushRuleWriteFailure,
+} from "$lib/utils/pushRuleWrite";
 
 export type RoomNotificationSetting = "default" | "all" | "mentions" | "mute";
 
 export type PushRuleLevel = "loud" | "silent" | "off";
 
 /** A single push-rule action: the "notify" string, "dont_notify", or a tweak. */
-type PushAction = string | { set_tweak?: string; value?: unknown };
+export type PushAction = string | { set_tweak?: string; value?: unknown };
 
 /**
  * Build the actions array for a default push rule at a chosen level, derived
@@ -212,11 +220,157 @@ export async function setRoomNotificationSettingForClient(
     } finally {
         // SDK push-rule mutation methods only update the server. Pull the
         // canonical rules back so push processing and settings UI agree.
-        try {
-            await client.getPushRules();
-        } catch (error) {
-            console.warn("[push rules] could not refresh rules", error);
-            if (updated) updateCachedSetting(client, roomId, setting);
+        const refreshed = await refreshCachedPushRules(client);
+        if (!refreshed && updated) {
+            updateCachedSetting(client, roomId, setting);
         }
     }
+}
+
+/**
+ * Re-pull the canonical push rules into the SDK cache. Never throws; returns
+ * whether the cache now holds server truth. SDK push-rule mutation methods only
+ * update the server, so this is the only way the cache and the server agree.
+ */
+export async function refreshCachedPushRules(
+    client: MatrixClient,
+): Promise<boolean> {
+    try {
+        await client.getPushRules();
+        return true;
+    } catch (error) {
+        console.warn("[push rules] could not refresh rules", error);
+        return false;
+    }
+}
+
+/** One requested level change for a default push rule. The caller supplies the
+ *  id resolution, the create path and the cache accessors; this module owns the
+ *  ordering and the honesty rules. */
+export interface DefaultRuleLevelWrite {
+    /** Id the UI reads back (the default rule's primary id). */
+    ruleId: string;
+    /** Id to write to: the primary or legacy fallback that exists, else ruleId. */
+    targetId: string;
+    kind: PushRuleKind;
+    level: PushRuleLevel;
+    /** This rule's spec-default actions, fed to actionsForLevel. */
+    defaultActions: PushAction[];
+    /** Human label, used in the user-facing error copy. */
+    label: string;
+    /** Creates targetId with the given actions. `null` for server-default
+     *  (dotted) ids, which cannot be created — only enabled/actions updated. */
+    createRule: ((actions: PushAction[]) => Promise<void>) | null;
+    /** The level the cached rules currently report for `ruleId`. */
+    readLevel: () => PushRuleLevel;
+    /** Mirror the change into the cached rules. Called ONLY when a successful
+     *  write could not be confirmed by re-reading. */
+    applyOptimistic: (actions: PushAction[]) => void;
+}
+
+async function writeLevel(
+    client: MatrixClient,
+    write: DefaultRuleLevelWrite,
+    actions: PushAction[],
+): Promise<void> {
+    if (write.level === "off") {
+        await client.setPushRuleEnabled(
+            "global",
+            write.kind,
+            write.targetId,
+            false,
+        );
+        return;
+    }
+    await client.setPushRuleActions(
+        "global",
+        write.kind,
+        write.targetId,
+        actions as any,
+    );
+    await client.setPushRuleEnabled("global", write.kind, write.targetId, true);
+}
+
+/**
+ * Set a default push rule's level and report the outcome HONESTLY (NOTIF-01).
+ *
+ * The old shape optimistically mutated the cached rule after ANY failure, so a
+ * network blip while muting showed "muted" while the homeserver kept notifying.
+ * Instead: attempt the write, re-pull canonical rules (which also discards a
+ * half-applied write), and compare. The cached rules are only mutated locally
+ * when a *confirmed* write could not be re-read.
+ *
+ * Rejects with a user-facing message when the requested level is not what the
+ * server ended up with. Resolves when the server already agrees — including the
+ * case where the rule does not exist at all and the request was "off".
+ */
+export async function setDefaultPushRuleLevelForClient(
+    client: MatrixClient,
+    write: DefaultRuleLevelWrite,
+): Promise<void> {
+    const actions = actionsForLevel(write.defaultActions, write.level);
+    let wrote = false;
+    let failure: PushRuleWriteFailure | undefined;
+
+    try {
+        await writeLevel(client, write, actions);
+        wrote = true;
+    } catch (error) {
+        failure = classifyPushRuleWriteError(error);
+        console.warn("[push rules] write failed", write.targetId, error);
+        if (
+            write.createRule &&
+            shouldAttemptRuleCreate(failure, write.createRule !== null)
+        ) {
+            // A custom rule the server does not have yet (or refused to update)
+            // can be created outright. "off" is created silent, then disabled.
+            try {
+                await write.createRule(
+                    write.level === "off"
+                        ? actionsForLevel(write.defaultActions, "silent")
+                        : actions,
+                );
+                if (write.level === "off") {
+                    await client.setPushRuleEnabled(
+                        "global",
+                        write.kind,
+                        write.targetId,
+                        false,
+                    );
+                }
+                wrote = true;
+                failure = undefined;
+            } catch (createError) {
+                failure = classifyPushRuleWriteError(createError);
+                console.warn(
+                    "[push rules] create failed",
+                    write.targetId,
+                    createError,
+                );
+            }
+        }
+    }
+
+    const refreshed = await refreshCachedPushRules(client);
+    if (planPushRuleCacheUpdate({ wrote, refreshed }) === "optimistic") {
+        write.applyOptimistic(actions);
+    }
+
+    const verdict = verifyPushRuleLevel({
+        requested: write.level,
+        observed: refreshed ? write.readLevel() : null,
+    });
+    // The server agrees with the request — including "the rule does not exist
+    // and you asked for off", which needed no write at all.
+    if (verdict.status === "applied") return;
+    if (!wrote) {
+        throw new Error(
+            pushRuleFailureMessage(write.label, failure ?? "transport"),
+        );
+    }
+    if (verdict.status === "mismatch") {
+        throw new Error(pushRuleFailureMessage(write.label, "mismatch"));
+    }
+    // Wrote, but could not re-read: the local mirror above is the best truth we
+    // have. Not an error.
 }
