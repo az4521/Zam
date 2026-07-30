@@ -33,6 +33,8 @@
         popoutPosition,
         summarizeMutualRooms,
     } from "$lib/utils/profileCard";
+    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
     import {
@@ -178,7 +180,13 @@
         pending = "message";
         errorMsg = null;
         try {
-            const roomId = await createDirectMessage(userId);
+            const roomId = await createDirectMessage(
+                userId,
+                shouldEncryptNewDm({
+                    cryptoReady: isCryptoAvailable(),
+                    setting: settingsState.encryptNewDms,
+                }),
+            );
             closeProfileCard();
             setActiveRoom(roomId);
         } catch (e) {

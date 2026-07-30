@@ -14,6 +14,9 @@
         createDirectMessage,
     } from "$lib/matrix/client";
     import { menuGates } from "$lib/utils/callMenu";
+    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import { settingsState } from "$lib/stores/settings.svelte";
+    import { isCryptoAvailable } from "$lib/matrix/crypto";
     import {
         setUserVolume,
         setUserLocalMute,
@@ -118,7 +121,15 @@
         openProfileCard(userId, anchor);
     };
     const onMessage = act(async () => {
-        setActiveRoom(await createDirectMessage(userId));
+        setActiveRoom(
+            await createDirectMessage(
+                userId,
+                shouldEncryptNewDm({
+                    cryptoReady: isCryptoAvailable(),
+                    setting: settingsState.encryptNewDms,
+                }),
+            ),
+        );
     }, "Could not open a direct message");
     const onToggleBlock = act(
         async () => (blocked ? unblockUser(userId) : blockUser(userId)),

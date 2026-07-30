@@ -10,6 +10,7 @@
     } from "$lib/matrix/client";
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
+    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -55,7 +56,10 @@
         noticeRoomId = null;
         loading = true;
         try {
-            const wantEncrypted = cryptoReady && encrypt;
+            const wantEncrypted = shouldEncryptNewDm({
+                cryptoReady,
+                setting: encrypt,
+            });
             const roomId = await createDirectMessage(userId, wantEncrypted);
             if (wantEncrypted && !isRoomEncrypted(getRoom(roomId))) {
                 notice =

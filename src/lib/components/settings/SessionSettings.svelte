@@ -362,8 +362,9 @@
                         Encrypt new direct messages
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        Turn on encryption for DMs you start. Existing DMs are
-                        left unchanged. Off by default.
+                        New DMs you start are encrypted. Existing DMs are left
+                        unchanged. Turn this off if you message people whose
+                        clients don't support encryption.
                     </p>
                 </div>
                 <ToggleSwitch
