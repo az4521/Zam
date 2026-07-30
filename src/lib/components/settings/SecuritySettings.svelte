@@ -28,6 +28,10 @@
         passphraseIssue,
         MIN_PASSPHRASE_LENGTH,
     } from "$lib/utils/recoveryPassphrase";
+    import {
+        securityPanelView,
+        type SecurityRead,
+    } from "$lib/utils/securityStatusView";
 
     // The Set-up-recovery wizard is a small linear state machine:
     //   idle → password (collect account password for the UIA-guarded upload)
@@ -35,7 +39,12 @@
     //        → done.
     type Step = "idle" | "password" | "working" | "show" | "done";
 
+    // Read outcomes are tracked separately from the payload so a transient
+    // failure can't masquerade as "nothing is set up": on a failed read we keep
+    // the last good payload on screen and mark it stale (audit CRYPTO-02).
     let status = $state<SecurityStatus | null>(null);
+    let statusRead = $state<SecurityRead | null>(null);
+    let backupRead = $state<SecurityRead | null>(null);
     let step = $state<Step>("idle");
     let password = $state("");
     let recoveryKey = $state("");
@@ -67,7 +76,6 @@
     let resetStep = $state<ResetStep>("idle");
 
     const recoveryDone = $derived(status?.secretStorageReady ?? false);
-    const canSetUp = $derived((status?.available ?? false) && !recoveryDone);
 
     // ── Layer 3: enter-recovery-key → verify this session & restore history ──
     //   idle → entry (paste key) → working (restoring, with progress) → done.
@@ -133,6 +141,28 @@
             : [],
     );
 
+    // Is what's on screen a reading that actually landed, and may we offer the
+    // destructive affordances on top of it? `hasLastGood` is simply "a payload
+    // is retained", because `loadStatus` only ever stores one from a successful
+    // read — a failed read never overwrites it.
+    const panel = $derived(
+        securityPanelView({
+            read: statusRead,
+            backupRead,
+            secretStorageReady: status?.secretStorageReady ?? false,
+            defaultKeyId: status?.defaultKeyId ?? null,
+            thisDeviceVerified: status?.thisDeviceVerified ?? false,
+            backupExists: backup?.exists ?? false,
+            backupActive: backup?.active ?? false,
+            hasLastGood: status !== null,
+        }),
+    );
+    // The status rows show either a fresh reading or a retained one flagged as
+    // stale. They are NOT rendered from a failed read's all-false placeholder:
+    // "Not set up" over working keys is the bug (audit CRYPTO-02).
+    const showRows = $derived(panel.authoritative || panel.stale);
+    const canSetUp = $derived(panel.allowDestructive && !recoveryDone);
+
     // Recovery is set up on the account (a 4S default key exists), so this
     // session can be unlocked with the recovery key.
     const recoverySetUp = $derived(
@@ -143,17 +173,35 @@
     // exists but this session isn't trusted yet, or a backup exists that this
     // session isn't connected to. Not shown on the session that just set up.
     const needsUnlock = $derived(
-        (status?.available ?? false) &&
+        panel.authoritative &&
             recoverySetUp &&
             (!(status?.thisDeviceVerified ?? false) ||
                 ((backup?.exists ?? false) && !(backup?.active ?? false))),
     );
 
+    // loadStatus runs from the tick-driven $effect below and from every flow
+    // that finishes, so two runs can overlap — and the later-RESOLVING run is
+    // not necessarily the later-STARTING one. Stamp each run and let only the
+    // newest one write, or an older reading can clobber a newer one (worst
+    // case: re-marking a good read as failed and hiding the panel).
+    let loadSeq = 0;
+
     async function loadStatus() {
-        [status, backup] = await Promise.all([
+        const seq = ++loadSeq;
+        const [nextStatus, nextBackup] = await Promise.all([
             getSecurityStatus(),
             getBackupStatus(),
         ]);
+        if (seq !== loadSeq) return;
+        statusRead = nextStatus.read;
+        backupRead = nextBackup.read;
+        // Only a successful read may replace what's on screen. On "error" the
+        // payload's all-false fields are noise, and on "unavailable" they say
+        // nothing about the ACCOUNT (only about this session's crypto) — either
+        // one overwriting a good reading is how "No backup"/"Not set up" ends up
+        // rendered over working keys, with Reset recovery offered underneath.
+        if (nextStatus.read === "ok") status = nextStatus;
+        if (nextBackup.read === "ok") backup = nextBackup;
     }
 
     // Initial load + refresh whenever crypto state changes (securityTick bumps
@@ -353,14 +401,22 @@
         </p>
     </div>
 
-    <!-- Status rows -->
+    <!-- Status rows. Rendered only from a reading that actually landed: a
+         failed read shows the notice below instead, because the all-false
+         placeholder underneath it is indistinguishable from a fresh account. -->
     <section class="rounded bg-discord-backgroundTertiary px-4 py-2">
-        {#if status}
+        {#if status && showRows}
+            {#if panel.stale}
+                <p class="text-xs text-discord-textMuted py-1.5">
+                    Showing the last reading that loaded — it may be out of
+                    date.
+                </p>
+            {/if}
             {@render statusRow(
                 "End-to-end encryption",
-                status.available,
+                statusRead === "ok",
                 "Active",
-                "Unavailable",
+                "Unknown",
             )}
             {@render statusRow(
                 "Cross-signing",
@@ -392,12 +448,18 @@
                 "Verified",
                 "Unverified",
             )}
-        {:else}
+        {:else if panel.state === "loading"}
             <p class="text-xs text-discord-textMuted py-1.5">
                 Loading encryption status…
             </p>
+        {:else}
+            <!-- Deliberately NOT the rows above: we don't know this account's
+                 posture, and "Not set up" would claim we do. -->
+            <p class="text-xs text-discord-textMuted py-1.5">
+                Encryption status unknown on this session.
+            </p>
         {/if}
-        {#if status}
+        {#if status && showRows}
             <p class="text-[11px] text-discord-textMuted pt-1 pb-1.5">
                 Recovery key ID: <span class="font-mono"
                     >{secretStorageKeyLabel(status.defaultKeyId)}</span
@@ -406,11 +468,8 @@
         {/if}
     </section>
 
-    {#if status && !status.available}
-        <p class="text-xs text-discord-textMuted">
-            End-to-end encryption could not start on this session, so recovery
-            can't be set up here. Encrypted rooms will show placeholders.
-        </p>
+    {#if panel.notice}
+        <p class="text-xs text-discord-textMuted">{panel.notice}</p>
     {/if}
 
     <!-- Set-up-recovery wizard -->
@@ -574,9 +633,14 @@
             </div>
 
             {#if resetStep === "idle"}
+                <!-- Reset destroys the current recovery key and backup. It is
+                     offered ONLY on top of a reading that landed: on a failed
+                     read we might be looking at a retained/blank posture, and
+                     the notice above already says so. -->
                 <button
                     onclick={beginReset}
-                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary"
+                    disabled={!panel.allowDestructive}
+                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary disabled:opacity-50 disabled:no-underline"
                     >Lost your recovery key? Reset recovery</button
                 >
             {:else if resetStep === "confirm"}
@@ -674,8 +738,12 @@
         </section>
     {/if}
 
-    <!-- Message-history backup + restore-on-this-session (Layer 3) -->
-    {#if status?.available && backup}
+    <!-- Message-history backup + restore-on-this-session (Layer 3).
+         Gated on an authoritative read: `backupBadge`/`backupSummaryLabel` would
+         otherwise say "No backup" from a failed read's `exists: false`, which
+         means "we don't know" — and that line is what talks users into resetting
+         recovery they still have (audit CRYPTO-02). The notice above covers it. -->
+    {#if panel.authoritative && backup}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >

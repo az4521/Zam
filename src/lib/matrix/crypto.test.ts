@@ -417,6 +417,104 @@ describe("getEventShield", () => {
     });
 });
 
+// A failed read used to come back as "available, and nothing is set up" — the
+// same shape a brand-new account has — so Settings offered "Set up recovery"
+// and "Reset recovery" over working keys (audit CRYPTO-02). The read outcome is
+// now reported in `read`, and these tests hold that distinction open.
+describe("posture reads report their outcome", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    /** Client stand-in whose crypto layer answers the posture/backup reads. */
+    function makeStatusClient(cryptoOverrides: Record<string, unknown> = {}) {
+        return {
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            secretStorage: { getKey: () => Promise.resolve(null) },
+            getCrypto: () => ({
+                isCrossSigningReady: () => Promise.resolve(true),
+                getCrossSigningStatus: () =>
+                    Promise.resolve({ privateKeysInSecretStorage: true }),
+                isSecretStorageReady: () => Promise.resolve(true),
+                getSecretStorageStatus: () =>
+                    Promise.resolve({ defaultKeyId: "key1" }),
+                getDeviceVerificationStatus: () =>
+                    Promise.resolve({ crossSigningVerified: true }),
+                getKeyBackupInfo: () =>
+                    Promise.resolve({ version: "3", count: 12 }),
+                getActiveSessionBackupVersion: () => Promise.resolve("3"),
+                isKeyBackupTrusted: () =>
+                    Promise.resolve({
+                        trusted: true,
+                        matchesDecryptionKey: true,
+                    }),
+                ...cryptoOverrides,
+            }),
+        };
+    }
+
+    it("getSecurityStatus reports ok on a read that landed", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(makeStatusClient());
+        const status = await mod.getSecurityStatus();
+        expect(status.read).toBe("ok");
+        expect(status.secretStorageReady).toBe(true);
+        expect(status.defaultKeyId).toBe("key1");
+    });
+
+    it("getSecurityStatus reports error — never ok — when a read throws", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                isSecretStorageReady: () =>
+                    Promise.reject(new Error("IndexedDB is gone")),
+            }),
+        );
+        const status = await mod.getSecurityStatus();
+        expect(status.read).toBe("error");
+        // The payload below a failed read is a placeholder, so the ONLY thing
+        // that keeps it from reading as "brand-new account" is `read`.
+        expect(status.secretStorageReady).toBe(false);
+    });
+
+    it("getSecurityStatus reports unavailable when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        expect((await mod.getSecurityStatus()).read).toBe("unavailable");
+    });
+
+    it("getBackupStatus reports ok on a read that landed", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(makeStatusClient());
+        const backup = await mod.getBackupStatus();
+        expect(backup.read).toBe("ok");
+        expect(backup.exists).toBe(true);
+        expect(backup.active).toBe(true);
+    });
+
+    it("getBackupStatus reports error — never ok — when a read throws", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                getKeyBackupInfo: () =>
+                    Promise.reject(new Error("backup read blew up")),
+            }),
+        );
+        const backup = await mod.getBackupStatus();
+        expect(backup.read).toBe("error");
+        // `exists: false` here means "we don't know", not "no backup".
+        expect(backup.exists).toBe(false);
+    });
+
+    it("getBackupStatus reports unavailable when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        expect((await mod.getBackupStatus()).read).toBe("unavailable");
+    });
+});
+
 describe("SECURITY_EVENTS trust wiring", () => {
     beforeEach(() => {
         vi.resetModules();

@@ -52,6 +52,7 @@ import {
     type QrMethodOptions,
 } from "$lib/utils/qrVerification";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
+import type { SecurityRead } from "$lib/utils/securityStatusView";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
@@ -1125,8 +1126,8 @@ export async function resetRecovery(
 
 /** Plain view-model of the account's crypto/security posture, for the UI. */
 export interface SecurityStatus {
-    /** rust-crypto initialised on this session. */
-    available: boolean;
+    /** Outcome of this read: ok, crypto-not-ready, or the read itself failed. */
+    read: SecurityRead;
     /** Cross-signing identity is set up and usable. */
     crossSigningReady: boolean;
     /** Cross-signing private keys are stored (encrypted) in secret storage. */
@@ -1142,7 +1143,7 @@ export interface SecurityStatus {
 }
 
 const EMPTY_SECURITY_STATUS: SecurityStatus = {
-    available: false,
+    read: "unavailable",
     crossSigningReady: false,
     privateKeysInSecretStorage: false,
     secretStorageReady: false,
@@ -1154,7 +1155,13 @@ const EMPTY_SECURITY_STATUS: SecurityStatus = {
 /**
  * Read the account's cross-signing + secret-storage posture as a plain
  * view-model. Re-read whenever `securityState.securityTick` bumps. Never throws:
- * degrades to the empty status when crypto isn't ready or a read fails.
+ * the outcome of the read is reported in `read` instead.
+ *
+ * Callers MUST branch on `read` before believing the rest: on `"error"` (and on
+ * `"unavailable"`) every other field is an all-false placeholder, NOT a fact
+ * about the account. Treating `"error"` as "nothing is set up" is exactly the
+ * bug this field exists to prevent — it invites the user to set up (or reset)
+ * recovery on top of keys that are working fine (audit CRYPTO-02).
  */
 export async function getSecurityStatus(): Promise<SecurityStatus> {
     const client = getClient();
@@ -1187,7 +1194,7 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             thisDeviceVerified = dev?.crossSigningVerified ?? false;
         }
         return {
-            available: true,
+            read: "ok",
             crossSigningReady,
             privateKeysInSecretStorage: crossStatus.privateKeysInSecretStorage,
             secretStorageReady,
@@ -1196,7 +1203,9 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             thisDeviceVerified,
         };
     } catch {
-        return { ...EMPTY_SECURITY_STATUS, available: true };
+        // The read failed — say so. The all-false payload underneath is a
+        // placeholder the caller must not read as the account's posture.
+        return { ...EMPTY_SECURITY_STATUS, read: "error" };
     }
 }
 
@@ -1208,8 +1217,8 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
 
 /** Plain view-model of the account's key-backup posture, for the UI. */
 export interface BackupStatus {
-    /** rust-crypto initialised on this session. */
-    available: boolean;
+    /** Outcome of this read: ok, crypto-not-ready, or the read itself failed. */
+    read: SecurityRead;
     /** The server holds a key backup for this account. */
     exists: boolean;
     /** This session is actively backing up to it (its backup key is loaded). */
@@ -1227,7 +1236,7 @@ export interface BackupStatus {
 }
 
 const EMPTY_BACKUP_STATUS: BackupStatus = {
-    available: false,
+    read: "unavailable",
     exists: false,
     active: false,
     trusted: false,
@@ -1240,7 +1249,11 @@ const EMPTY_BACKUP_STATUS: BackupStatus = {
 /**
  * Read the account's key-backup posture as a plain view-model. Re-read whenever
  * `securityState.securityTick` bumps (KeyBackup* CryptoEvents drive it). Never
- * throws: degrades to the empty status when crypto isn't ready or a read fails.
+ * throws: the outcome of the read is reported in `read` instead.
+ *
+ * Callers MUST branch on `read` before believing the rest: on `"error"` (and on
+ * `"unavailable"`) `exists: false` means "we don't know", not "this account has
+ * no backup" — rendering it as the latter is the CRYPTO-02 bug.
  */
 export async function getBackupStatus(): Promise<BackupStatus> {
     const crypto = getClient()?.getCrypto();
@@ -1258,7 +1271,7 @@ export async function getBackupStatus(): Promise<BackupStatus> {
             matchesDecryptionKey = trust.matchesDecryptionKey;
         }
         return {
-            available: true,
+            read: "ok",
             exists: info != null,
             active: activeVersion != null,
             trusted,
@@ -1268,7 +1281,8 @@ export async function getBackupStatus(): Promise<BackupStatus> {
             version: info?.version ?? activeVersion ?? null,
         };
     } catch {
-        return { ...EMPTY_BACKUP_STATUS, available: true };
+        // The read failed — say so. `exists: false` below means "unknown".
+        return { ...EMPTY_BACKUP_STATUS, read: "error" };
     }
 }
 
