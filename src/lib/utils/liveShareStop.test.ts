@@ -53,6 +53,14 @@ describe("resolveStopFailure", () => {
         expect(STOP_FAILED_MESSAGE).not.toMatch(/MatrixError|\[\d{3}\]/);
         expect(STOP_FAILED_MESSAGE.length).toBeGreaterThan(0);
     });
+
+    it("names the control the failed share actually offers", () => {
+        // The button on a failed stop reads "Retry stop", so telling the user
+        // to press "Stop" would point at a control that isn't on screen.
+        expect(STOP_FAILED_MESSAGE).toContain(
+            stopButtonLabel({ phase: "failed", error: "x" }),
+        );
+    });
 });
 
 describe("pendingStopSweep", () => {

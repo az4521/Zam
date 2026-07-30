@@ -49,7 +49,7 @@ export function decideStop(target: StopTarget | null): StopDecision {
 /** Shown when a stop write is rejected. Deliberately fixed copy: a raw
  *  MatrixError string tells the user nothing and leaks server detail. */
 export const STOP_FAILED_MESSAGE =
-    "Couldn't stop sharing your live location — it's still visible to this room. Tap Stop again to retry.";
+    "Couldn't stop sharing your live location — it's still visible to this room. Use Retry stop to try again.";
 
 export type StopOutcome =
     | { action: "drop" }
