@@ -7,6 +7,7 @@ import {
     getOwnLiveBeacons,
     onBeaconUpdate,
     onSyncPrepared,
+    onSyncReconnected,
 } from "$lib/matrix/client";
 import { shouldSendUpdate } from "$lib/utils/liveLocation";
 import {
@@ -363,6 +364,10 @@ function resumeOwnShares() {
 export function initLiveLocation(): () => void {
     unsubs.push(onBeaconUpdate(() => bump()));
     unsubs.push(onSyncPrepared(() => resumeOwnShares()));
+    // A stop that failed while offline is retried the moment sync is healthy
+    // again — otherwise the beacon stays live until it times out, and the
+    // realistic cause of a failed stop is exactly that lost connection.
+    unsubs.push(onSyncReconnected(() => void retryPendingStops()));
     resumeOwnShares();
     return () => {
         unsubs.forEach((u) => u());

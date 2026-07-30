@@ -101,6 +101,9 @@ beforeEach(() => {
     h.canShareLiveBeacon.mockReturnValue(true);
     h.getRoom.mockImplementation((id: string) => ({ roomId: id }));
     h.getOwnLiveBeacons.mockReturnValue([]);
+    // Tests that capture the reconnect callback install their own
+    // implementation; restore the inert default so it can't leak forward.
+    h.onSyncReconnected.mockImplementation((_cb: () => void) => () => {});
     geoSuccess = null;
     geoError = null;
     stubNavigator.geolocation = geolocation;
@@ -580,5 +583,62 @@ describe("live-location own-share engine", () => {
             "stopping",
         );
         expect(h.showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("retries a failed stop when sync recovers", async () => {
+        // Deliberately a no-op rather than null: if initLiveLocation never
+        // subscribes, this fires nothing and the share stays live — which is
+        // exactly the failure the assertion below catches.
+        let onReconnect: () => void = () => {};
+        h.onSyncReconnected.mockImplementation((cb: () => void) => {
+            onReconnect = cb;
+            return () => {};
+        });
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockRejectedValueOnce(new Error("offline"));
+        await stopShare(ROOM);
+        initLiveLocation();
+        h.stopLiveBeacon.mockResolvedValueOnce(undefined);
+
+        onReconnect();
+        await flush();
+
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("does not re-drive a stop that is already in flight when sync recovers", async () => {
+        // The retry sweep and a manual Stop can overlap; only one live:false
+        // write per room may ever be outstanding.
+        let onReconnect: () => void = () => {};
+        h.onSyncReconnected.mockImplementation((cb: () => void) => {
+            onReconnect = cb;
+            return () => {};
+        });
+        await startShare(ROOM, 900000);
+        initLiveLocation();
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+
+        void stopShare(ROOM);
+        await flush();
+        onReconnect();
+        await flush();
+
+        expect(h.stopLiveBeacon).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops listening for sync recovery once live location is torn down", async () => {
+        // The subscription must be owned by the same cleanup as the others:
+        // a leaked listener would keep retrying stops for a logged-out account.
+        const unsubscribe = vi.fn();
+        h.onSyncReconnected.mockImplementation(() => unsubscribe);
+
+        const teardown = initLiveLocation();
+        expect(h.onSyncReconnected).toHaveBeenCalledTimes(1);
+        teardown();
+        await flush();
+
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
 });
