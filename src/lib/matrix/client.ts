@@ -5914,6 +5914,17 @@ export interface DecryptedTimelineMeta {
     isLiveAppend: boolean;
     /** The ciphertext arrived before sync PREPARED (page-load backlog replay). */
     arrivedDuringInitialSync: boolean;
+    /**
+     * Root event id when the decrypted event is an `m.thread` reply, else null.
+     *
+     * Derived HERE rather than by the consumer because the relation may live in
+     * either half of an encrypted event: matrix-js-sdk lifts `m.relates_to` out
+     * of the encrypted content when sending to an encrypted room, so
+     * `getRelation()` (wire content) is authoritative, while
+     * `getEventThreadRootId()` reads only the decrypted clear content and would
+     * miss it.
+     */
+    threadRootId: string | null;
 }
 
 /**
@@ -5945,7 +5956,11 @@ export function onDecryptedTimelineEvent(
     ) => void,
 ): () => void {
     if (!matrixClient) return () => {};
-    const pending = createBoundedIdMap<DecryptedTimelineMeta>();
+    // Only the facts knowable at CIPHERTEXT time: the thread root id is derived
+    // at decryption time (below), so the ciphertext handler is never forced to
+    // invent one.
+    const pending =
+        createBoundedIdMap<Omit<DecryptedTimelineMeta, "threadRootId">>();
 
     const onTimeline = (
         event: MatrixEvent,
@@ -5991,7 +6006,17 @@ export function onDecryptedTimelineEvent(
             event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
         const isReplacement = relatesTo?.rel_type === "m.replace";
         if (isReplacement) return;
-        if (!belongsToMainTimeline({ relatesTo, eventId })) return;
+        // NOT a filter any more (NOTIF-02). A thread reply used to be dropped
+        // here on the assumption that onThreadReplyEvent would carry it, but
+        // that subscription gates on the cleartext event type and an encrypted
+        // reply reads m.room.encrypted until this very moment — so the reply
+        // notified nowhere. Forward it with its root id and let the consumer
+        // apply the thread policy, which needs cleartext (mentions) anyway.
+        // belongsToMainTimeline is the classifier so a malformed self-
+        // referential m.thread relation stays a main-timeline event.
+        const threadRootId = belongsToMainTimeline({ relatesTo, eventId })
+            ? null
+            : (relatesTo?.event_id ?? null);
         const type = event.getType();
         if (
             type !== "m.room.message" &&
@@ -6001,7 +6026,7 @@ export function onDecryptedTimelineEvent(
             return;
         if (event.isRedacted()) return;
 
-        callback(event, room, meta);
+        callback(event, room, { ...meta, threadRootId });
     };
 
     matrixClient.on(RoomEvent.Timeline, onTimeline as never);
