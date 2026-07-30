@@ -2,6 +2,10 @@ package moe.crafty.matrix;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -15,11 +19,16 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Custom Capacitor plugin that downloads a release APK and hands it to the OS
@@ -27,6 +36,15 @@ import java.net.URL;
  * cannot self-install silently — the realistic ceiling is auto-download, then a
  * single user "Install" tap in the system installer UI. See the design spec:
  * docs/superpowers/specs/2026-07-24-android-apk-updater-design.md.
+ *
+ * Authenticity (audit SEC-02) is established HERE, not in the renderer: the
+ * renderer only ever proposes a URL and a version floor. Before the installer
+ * is shown the archive must be (a) fetched over https from an allowlisted
+ * GitHub host, redirects included, (b) this exact package, (c) a strictly
+ * higher versionCode than the installed build, and (d) signed by the same
+ * certificate as the installed build. Rotating the signing key therefore
+ * breaks in-app updates for existing installs — that is a deliberate,
+ * accepted trade (owner decision, 2026-07-30).
  *
  * NOT compiled/verified overnight (no Gradle in the CI gate). Written to spec,
  * mirrors the existing native style (MatrixMessagingService.java), and is
@@ -39,11 +57,29 @@ public class ApkUpdaterPlugin extends Plugin {
     private static final int READ_TIMEOUT = 30000;
     private static final String APK_MIME = "application/vnd.android.package-archive";
 
+    /** Subdirectory of the app-private cache the FileProvider exposes
+     *  (res/xml/file_paths.xml). Nothing else may be written here. */
+    private static final String UPDATE_DIR = "apk-update";
+    private static final String UPDATE_FILE = "update.apk";
+
+    /** Redirect hops we will follow. GitHub uses one hop to its asset CDN. */
+    private static final int MAX_REDIRECTS = 5;
+    /** Hard ceiling on a downloaded archive; the real APK is ~30 MB. */
+    private static final long MAX_APK_BYTES = 300L * 1024L * 1024L;
+    /** Exact host the initial URL must use. Matched with equals(), never
+     *  contains()/indexOf() — "github.com.evil.tld" must not pass. */
+    private static final String PRIMARY_HOST = "github.com";
+    /** Suffix of the CDN hosts GitHub redirects release downloads to. The
+     *  LEADING DOT is load-bearing: it anchors the match to a label boundary,
+     *  so "evilgithubusercontent.com" cannot satisfy it. Never drop it. */
+    private static final String CDN_HOST_SUFFIX = ".githubusercontent.com";
+
     /**
-     * Download the APK at `url` to app-private cache storage, emitting
-     * `downloadProgress` events ({ percent }). Resolves { path } (the absolute
-     * file path) once complete. Network IO runs on a background thread so it
-     * never blocks the WebView / main thread.
+     * Download the APK at `url` to app-private storage, emitting
+     * `downloadProgress` events ({ percent }), verify it, and resolve
+     * { path }. Network IO runs on a background thread so it never blocks the
+     * WebView / main thread. Any verification failure rejects AND deletes the
+     * file.
      */
     @PluginMethod
     public void downloadApk(final PluginCall call) {
@@ -52,22 +88,34 @@ public class ApkUpdaterPlugin extends Plugin {
             call.reject("Missing download url");
             return;
         }
+        final int minVersionCode = call.getInt("minVersionCode", 0);
         new Thread(() -> {
+            File outFile = updateFile();
             HttpURLConnection conn = null;
             try {
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(CONNECT_TIMEOUT);
-                conn.setReadTimeout(READ_TIMEOUT);
-                conn.setInstanceFollowRedirects(true);
-                conn.connect();
+                // Never reuse a previous attempt's bytes.
+                //noinspection ResultOfMethodCallIgnored
+                outFile.delete();
+                File dir = outFile.getParentFile();
+                if (dir != null && !dir.exists() && !dir.mkdirs()) {
+                    call.reject("Could not prepare the download folder");
+                    return;
+                }
+
+                conn = openAllowlisted(url);
+                if (conn == null) {
+                    call.reject("Refused: the update came from an unexpected location");
+                    return;
+                }
                 if (conn.getResponseCode() / 100 != 2) {
                     call.reject("Download failed (HTTP " + conn.getResponseCode() + ")");
                     return;
                 }
                 final int total = conn.getContentLength();
-                // App-private cache; the existing FileProvider
-                // (moe.crafty.matrix.fileprovider) exposes cache-path ".".
-                File outFile = new File(getContext().getCacheDir(), "update.apk");
+                if (total > MAX_APK_BYTES) {
+                    call.reject("Refused: the update is implausibly large");
+                    return;
+                }
                 long readBytes = 0;
                 int lastPercent = -1;
                 try (InputStream in = conn.getInputStream();
@@ -75,8 +123,12 @@ public class ApkUpdaterPlugin extends Plugin {
                     byte[] buf = new byte[8192];
                     int n;
                     while ((n = in.read(buf)) != -1) {
-                        out.write(buf, 0, n);
                         readBytes += n;
+                        if (readBytes > MAX_APK_BYTES) {
+                            throw new IllegalStateException(
+                                "the update is implausibly large");
+                        }
+                        out.write(buf, 0, n);
                         if (total > 0) {
                             int percent = (int) (readBytes * 100 / total);
                             if (percent != lastPercent) {
@@ -88,10 +140,27 @@ public class ApkUpdaterPlugin extends Plugin {
                         }
                     }
                 }
+                if (total > 0 && readBytes != total) {
+                    call.reject("Download was cut short — try again");
+                    //noinspection ResultOfMethodCallIgnored
+                    outFile.delete();
+                    return;
+                }
+
+                String problem = verifyApk(outFile, minVersionCode);
+                if (problem != null) {
+                    //noinspection ResultOfMethodCallIgnored
+                    outFile.delete();
+                    call.reject("Refused: " + problem);
+                    return;
+                }
+
                 JSObject ret = new JSObject();
                 ret.put("path", outFile.getAbsolutePath());
                 call.resolve(ret);
             } catch (Exception e) {
+                //noinspection ResultOfMethodCallIgnored
+                outFile.delete();
                 call.reject("Download failed: " + e.getMessage(), e);
             } finally {
                 if (conn != null) conn.disconnect();
@@ -100,20 +169,33 @@ public class ApkUpdaterPlugin extends Plugin {
     }
 
     /**
-     * Hand the downloaded APK to the OS package installer via a content:// URI
-     * from the existing FileProvider. The installer UI opens; the user taps
-     * Install. Requires REQUEST_INSTALL_PACKAGES (manifest) + the unknown-apps
-     * permission on API 26+ (see canInstall / openUnknownSourcesSettings).
+     * Hand the verified downloaded APK to the OS package installer via a
+     * content:// URI from the FileProvider. The installer UI opens; the user
+     * taps Install. Requires REQUEST_INSTALL_PACKAGES (manifest) + the
+     * unknown-apps permission on API 26+ (see canInstall /
+     * openUnknownSourcesSettings).
+     *
+     * Takes NO caller-supplied path: the file is re-derived here and
+     * re-verified, so a compromised renderer cannot pick what is installed.
+     * The re-verification is NOT redundant with downloadApk's — this is the
+     * only method that reaches startActivity, so it must not trust that any
+     * earlier call checked anything.
      */
     @PluginMethod
     public void installApk(final PluginCall call) {
-        final String path = call.getString("path");
-        if (path == null || path.isEmpty()) {
-            call.reject("Missing apk path");
-            return;
-        }
         try {
-            File apk = new File(path);
+            File apk = updateFile();
+            if (!apk.isFile()) {
+                call.reject("No downloaded update to install");
+                return;
+            }
+            String problem = verifyApk(apk, 0);
+            if (problem != null) {
+                //noinspection ResultOfMethodCallIgnored
+                apk.delete();
+                call.reject("Refused: " + problem);
+                return;
+            }
             Context ctx = getContext();
             Uri uri = FileProvider.getUriForFile(
                 ctx, ctx.getPackageName() + ".fileprovider", apk);
@@ -162,6 +244,193 @@ public class ApkUpdaterPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Could not open settings: " + e.getMessage(), e);
+        }
+    }
+
+    /** The one path this plugin ever downloads to or installs from. */
+    private File updateFile() {
+        return new File(new File(getContext().getCacheDir(), UPDATE_DIR), UPDATE_FILE);
+    }
+
+    /**
+     * Open `url`, following redirects by hand so every hop is re-checked
+     * against the https + host allowlist. Returns a connected connection, or
+     * null when a hop is not allowed / too many hops.
+     */
+    private HttpURLConnection openAllowlisted(String url) throws Exception {
+        String current = url;
+        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            URL parsed = new URL(current);
+            if (!isAllowedUrl(parsed)) return null;
+            HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+            conn.setInstanceFollowRedirects(false);
+            conn.connect();
+            int code = conn.getResponseCode();
+            if (code == HttpURLConnection.HTTP_MOVED_PERM
+                || code == HttpURLConnection.HTTP_MOVED_TEMP
+                || code == HttpURLConnection.HTTP_SEE_OTHER
+                || code == 307
+                || code == 308) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (location == null || location.isEmpty()) return null;
+                current = new URL(parsed, location).toString();
+                continue;
+            }
+            return conn;
+        }
+        return null;
+    }
+
+    /**
+     * https, no credentials, default port, github.com or its asset CDN.
+     *
+     * Host matching is dot-boundary anchored on purpose (equals for the
+     * primary host, a dot-prefixed suffix for the CDN) — a substring test
+     * would accept attacker-controlled lookalikes.
+     *
+     * Deliberately looser on the PATH than the renderer-side predicate in
+     * src/lib/utils/androidUpdate.ts, which also rejects percent-encoded
+     * traversal (%2e/%2f/%5c). GitHub's asset CDN hands back opaque, heavily
+     * encoded paths, so mirroring those TS rules here would break real
+     * downloads. The desync is safe: the path never reaches the filesystem
+     * (we always write to our own updateFile()), and authenticity comes from
+     * the signer/package/version check, not from the URL.
+     */
+    private boolean isAllowedUrl(URL u) {
+        if (!"https".equalsIgnoreCase(u.getProtocol())) return false;
+        if (u.getUserInfo() != null) return false;
+        int port = u.getPort();
+        if (port != -1 && port != 443) return false;
+        String host = u.getHost();
+        if (host == null) return false;
+        host = host.toLowerCase(Locale.ROOT);
+        return host.equals(PRIMARY_HOST) || host.endsWith(CDN_HOST_SUFFIX);
+    }
+
+    /**
+     * Verify the downloaded archive really is a newer build of THIS app signed
+     * by the same key. Returns null when it passes, otherwise a short reason
+     * suitable for the UI.
+     *
+     * `minVersionCode` (0 = none) is the versionCode of the release the user
+     * was offered; it blocks a signed-but-older asset being substituted.
+     */
+    @SuppressWarnings("deprecation")
+    private String verifyApk(File apk, int minVersionCode) {
+        if (!hasZipMagic(apk)) return "the download is not an app package";
+
+        Context ctx = getContext();
+        PackageManager pm = ctx.getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            ? PackageManager.GET_SIGNING_CERTIFICATES
+            : PackageManager.GET_SIGNATURES;
+
+        PackageInfo downloaded = pm.getPackageArchiveInfo(apk.getAbsolutePath(), flags);
+        if (downloaded == null) return "the download is not an app package";
+        if (!ctx.getPackageName().equals(downloaded.packageName)) {
+            return "the download is a different app";
+        }
+
+        PackageInfo installed;
+        try {
+            installed = pm.getPackageInfo(ctx.getPackageName(), flags);
+        } catch (PackageManager.NameNotFoundException e) {
+            return "could not read the installed app";
+        }
+
+        long newCode = versionCodeOf(downloaded);
+        long ownCode = versionCodeOf(installed);
+        // The effective floor is max(ownCode, minVersionCode). This first
+        // check is UNCONDITIONAL and strict (>, never >=): the renderer's
+        // number can only ever make the requirement stricter, never looser,
+        // so a compromised webview passing 0 or a low value cannot license a
+        // rollback or a same-version reinstall.
+        if (newCode <= ownCode) return "the download is not a newer version";
+        // minVersionCode == 0 legitimately means "no floor supplied" — a
+        // non-semver release tag, or a genuine 0.0.0 build. It means neither
+        // "reject everything" nor "skip version checking": the unconditional
+        // newCode > ownCode test above still stands on its own.
+        if (minVersionCode > 0 && newCode < minVersionCode) {
+            return "the download is older than the offered release";
+        }
+
+        Set<String> newSigners = signerDigests(downloaded);
+        Set<String> ownSigners = signerDigests(installed);
+        // Empty means unsigned or unreadable on either side. Checked BEFORE
+        // equals() so two empty sets can never compare equal into a pass.
+        if (newSigners.isEmpty() || ownSigners.isEmpty()) {
+            return "the download is not signed";
+        }
+        if (!newSigners.equals(ownSigners)) {
+            return "the download is signed by a different key";
+        }
+        return null;
+    }
+
+    /** Cheap sanity check that the file starts with a zip local-file header. */
+    private boolean hasZipMagic(File f) {
+        try (InputStream in = new FileInputStream(f)) {
+            byte[] magic = new byte[4];
+            int read = 0;
+            while (read < 4) {
+                int n = in.read(magic, read, 4 - read);
+                if (n == -1) return false;
+                read += n;
+            }
+            return magic[0] == 0x50 && magic[1] == 0x4B
+                && magic[2] == 0x03 && magic[3] == 0x04;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private long versionCodeOf(PackageInfo info) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return info.getLongVersionCode();
+        }
+        return info.versionCode;
+    }
+
+    /**
+     * SHA-256 of every signing certificate, as lowercase hex. An empty set
+     * means "unsigned or unreadable", which callers treat as a failure.
+     */
+    @SuppressWarnings("deprecation")
+    private Set<String> signerDigests(PackageInfo info) {
+        Set<String> out = new TreeSet<>();
+        Signature[] signatures = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            SigningInfo signingInfo = info.signingInfo;
+            if (signingInfo != null) {
+                signatures = signingInfo.getApkContentsSigners();
+            }
+        } else {
+            signatures = info.signatures;
+        }
+        if (signatures == null) return out;
+        for (Signature s : signatures) {
+            if (s == null) continue;
+            String hex = sha256Hex(s.toByteArray());
+            if (hex != null) out.add(hex);
+        }
+        return out;
+    }
+
+    private String sha256Hex(byte[] data) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
         }
     }
 }
