@@ -29,10 +29,10 @@ export async function startMicMeter(
     const stream = await navigator.mediaDevices.getUserMedia({
         audio: constraints,
     });
-    // Everything from here to the returned handle can throw — `new
-    // AudioContext()` in particular, since browsers cap how many a document
-    // may hold. Without this the granted stream would stay live with its only
-    // handle never constructed: a microphone nothing in the page can reach.
+    // `new AudioContext()` and the graph wiring can throw — browsers cap how
+    // many contexts a document may hold, and this app builds several. Without
+    // this the granted stream would stay live with its only handle never
+    // constructed: a microphone nothing in the page can reach.
     let ctx: AudioContext;
     let analyser: AnalyserNode;
     try {
