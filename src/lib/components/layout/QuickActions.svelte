@@ -7,7 +7,10 @@
         knockRoom,
         canAddRoomToSpace,
         getRoom,
+        retryRoomFollowUp,
     } from "$lib/matrix/client";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -49,6 +52,22 @@
     let notice = $state("");
     let noticeRoomId = $state<string | null>(null);
 
+    // A created room whose follow-up write failed: the room is real, so we open
+    // it and offer a retry of ONLY the failed step. Reporting a failure here
+    // would send the user back to the form to create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        if (followUp.status !== "failed") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            run: () => {
+                void retryRoomFollowUp(task).then((out) => {
+                    if (out.status === "failed") surfaceFollowUp(out);
+                });
+            },
+        });
+    }
+
     async function startDm(userId: string) {
         error = "";
         notice = "";
@@ -56,14 +75,19 @@
         loading = true;
         try {
             const wantEncrypted = cryptoReady && encrypt;
-            const roomId = await createDirectMessage(userId, wantEncrypted);
+            const { roomId, followUp } = await createDirectMessage(
+                userId,
+                wantEncrypted,
+            );
             if (wantEncrypted && !isRoomEncrypted(getRoom(roomId))) {
                 notice =
                     "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
                 noticeRoomId = roomId;
+                surfaceFollowUp(followUp);
                 loading = false;
                 return;
             }
+            surfaceFollowUp(followUp);
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
@@ -116,14 +140,17 @@
         loading = true;
         try {
             let roomId: string;
+            let followUp: RoomFollowUp = { status: "none" };
             if (mode === "create-room") {
-                roomId = await createRoom(
+                const created = await createRoom(
                     input1.trim(),
                     input2.trim(),
                     spaceId,
                     cryptoReady && encrypt,
                     videoRoom,
                 );
+                roomId = created.roomId;
+                followUp = created.followUp;
             } else if (mode === "create-space") {
                 roomId = await createSpace(input1.trim(), input2.trim());
             } else {
@@ -135,6 +162,7 @@
                 }
                 roomId = await joinRoomByAlias(alias);
             }
+            surfaceFollowUp(followUp);
             setActiveRoom(roomId);
             close();
         } catch (e: any) {

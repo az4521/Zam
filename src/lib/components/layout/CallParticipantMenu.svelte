@@ -12,7 +12,9 @@
         kickUser,
         banUser,
         createDirectMessage,
+        retryRoomFollowUp,
     } from "$lib/matrix/client";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { menuGates } from "$lib/utils/callMenu";
     import {
         setUserVolume,
@@ -110,6 +112,22 @@
         };
     }
 
+    // A created room whose follow-up write failed: the room is real, so we open
+    // it and offer a retry of ONLY the failed step. Reporting a failure here
+    // would send the user back to the form to create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        if (followUp.status !== "failed") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            run: () => {
+                void retryRoomFollowUp(task).then((out) => {
+                    if (out.status === "failed") surfaceFollowUp(out);
+                });
+            },
+        });
+    }
+
     // Close before opening the card: openProfileCard() claims the single modal
     // slot, so opening it first and closing afterwards would shut the card.
     const onProfile = (e: MouseEvent) => {
@@ -118,7 +136,9 @@
         openProfileCard(userId, anchor);
     };
     const onMessage = act(async () => {
-        setActiveRoom(await createDirectMessage(userId));
+        const { roomId, followUp } = await createDirectMessage(userId);
+        surfaceFollowUp(followUp);
+        setActiveRoom(roomId);
     }, "Could not open a direct message");
     const onToggleBlock = act(
         async () => (blocked ? unblockUser(userId) : blockUser(userId)),

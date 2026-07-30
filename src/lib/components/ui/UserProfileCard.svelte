@@ -21,9 +21,12 @@
         getUserPowerLevel,
         getRoomPowerLevels,
         createDirectMessage,
+        retryRoomFollowUp,
         kickUser,
         banUser,
     } from "$lib/matrix/client";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import {
         presenceDot,
         presenceDotClass,
@@ -174,11 +177,28 @@
         }
     }
 
+    // A created room whose follow-up write failed: the room is real, so we open
+    // it and offer a retry of ONLY the failed step. Reporting a failure here
+    // would send the user back to the form to create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        if (followUp.status !== "failed") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            run: () => {
+                void retryRoomFollowUp(task).then((out) => {
+                    if (out.status === "failed") surfaceFollowUp(out);
+                });
+            },
+        });
+    }
+
     async function openDM() {
         pending = "message";
         errorMsg = null;
         try {
-            const roomId = await createDirectMessage(userId);
+            const { roomId, followUp } = await createDirectMessage(userId);
+            surfaceFollowUp(followUp);
             closeProfileCard();
             setActiveRoom(roomId);
         } catch (e) {
