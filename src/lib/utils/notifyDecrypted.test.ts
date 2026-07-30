@@ -15,6 +15,8 @@ const base: DecryptedNotifyInput = {
     isLiveAppend: true,
     isOwnEvent: false,
     threadRootId: null,
+    isThreadParticipant: false,
+    isMentioned: false,
     pushNotify: true,
 };
 
@@ -84,10 +86,17 @@ describe("shouldNotifyDecrypted", () => {
             ).toBe(false);
         });
 
-        it("treats absent participant/mention facts as 'not interested'", () => {
-            // The two fields are optional; an omitted fact must never be read
-            // as a reason to notify.
-            expect(shouldNotifyDecrypted(reply)).toBe(false);
+        it("reads only a strict `true` as participation or a mention", () => {
+            // Strict `=== true`, matching isAlreadyReadEvent below: a truthy
+            // non-boolean reaching this from an untyped caller must not buy a
+            // notification for a thread the user has nothing to do with.
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    isThreadParticipant: "yes" as unknown as boolean,
+                    isMentioned: 1 as unknown as boolean,
+                }),
+            ).toBe(false);
         });
 
         it("keeps a muted room silent even for a mentioned participant", () => {
@@ -113,9 +122,9 @@ describe("shouldNotifyDecrypted", () => {
         });
 
         it("does not notify twice for the same thread reply", () => {
-            // The plaintext thread path and this one can both admit an event
-            // once the ciphertext gate is relaxed; the shared id set is what
-            // makes "exactly once" hold.
+            // The four universal gates apply to a thread reply too — the new
+            // branch must not jump ahead of them. (The shared id set that feeds
+            // `alreadyNotified` lives in AppShell, not here.)
             expect(
                 shouldNotifyDecrypted({
                     ...reply,
@@ -153,12 +162,27 @@ describe("shouldNotifyDecrypted", () => {
     });
 
     it("keeps a muted room silent even for a mention-shaped live event", () => {
+        // A main-timeline event never consults isMentioned: the push rules have
+        // already folded mentions into pushNotify, so a highlight tweak must not
+        // become a second, mute-bypassing route to notify.
         expect(
             shouldNotifyDecrypted({
                 ...base,
                 pushNotify: false,
-                alreadyNotified: false,
-                isLiveAppend: true,
+                isMentioned: true,
+            }),
+        ).toBe(false);
+    });
+
+    it("does not treat a main-timeline mention as thread participation", () => {
+        // Both thread facts set, but threadRootId is null: the event must still
+        // be judged by the main-timeline rule (pushNotify alone).
+        expect(
+            shouldNotifyDecrypted({
+                ...base,
+                pushNotify: false,
+                isThreadParticipant: true,
+                isMentioned: true,
             }),
         ).toBe(false);
     });

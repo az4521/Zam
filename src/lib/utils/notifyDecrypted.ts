@@ -1,10 +1,10 @@
 // Deciding whether a just-decrypted event should raise a notification.
 //
-// An encrypted message reaches the live timeline as `m.room.encrypted`, so the
-// main notification path (which gates on the cleartext event type) never sees
-// it. A second path notifies on decryption instead, and re-runs the same gate
-// chain here. Kept pure so every branch is unit-testable — the SDK/UI wiring
-// lives in client.ts and AppShell.svelte.
+// An encrypted message reaches the live timeline as `m.room.encrypted`, so
+// neither cleartext-typed notification path (main timeline, thread replies) ever
+// sees it. A second path notifies on decryption instead, and re-runs whichever
+// of those two gate chains applies. Kept pure so every branch is unit-testable
+// — the SDK/UI wiring lives in client.ts and AppShell.svelte.
 
 import { shouldNotifyThreadEvent } from "./threadNotify";
 
@@ -96,17 +96,18 @@ export interface DecryptedNotifyInput {
      */
     threadRootId: string | null | undefined;
     /**
-     * Thread replies only: the user authored the thread root or a reply in it.
-     * Ignored when `threadRootId` is falsy; absent counts as "not a
-     * participant".
+     * The user authored the thread root or a reply in it. Read only when
+     * `threadRootId` is set, but REQUIRED — a caller that forgot to wire it
+     * would silence every encrypted thread reply, which is precisely the bug
+     * this branch exists to fix (NOTIF-02), so omission must be a type error
+     * rather than a silent `false`.
      */
-    isThreadParticipant?: boolean;
+    isThreadParticipant: boolean;
     /**
-     * Thread replies only: this reply mentions the user (the push `highlight`
-     * tweak). Ignored when `threadRootId` is falsy; absent counts as "not
-     * mentioned".
+     * This event mentions the user (the push `highlight` tweak). Read only when
+     * `threadRootId` is set; required for the same reason as above.
      */
-    isMentioned?: boolean;
+    isMentioned: boolean;
     /** `notify` from getPushActionsForEvent(event, true) — false for a muted room. */
     pushNotify: boolean;
 }
@@ -129,12 +130,17 @@ export function shouldNotifyDecrypted(input: DecryptedNotifyInput): boolean {
     if (input.isOwnEvent) return false;
     if (input.threadRootId) {
         return shouldNotifyThreadEvent({
+            // Already false by the gate above — passed through rather than
+            // hardcoded so the delegated policy stays whole and keeps working
+            // if this chain is ever reordered.
             isOwnEvent: input.isOwnEvent,
             notify: input.pushNotify,
             isParticipant: input.isThreadParticipant === true,
             isMentioned: input.isMentioned === true,
         });
     }
+    // Main timeline: a mention cannot outvote a mute. `isMentioned` is NOT
+    // consulted here — the push rules already folded mentions into `pushNotify`.
     return input.pushNotify;
 }
 
