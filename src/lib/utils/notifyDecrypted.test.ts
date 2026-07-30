@@ -51,11 +51,99 @@ describe("shouldNotifyDecrypted", () => {
         );
     });
 
-    it("does not notify for a thread reply", () => {
-        // Thread replies have their own participant/mention-gated path.
-        expect(shouldNotifyDecrypted({ ...base, threadRootId: "$root" })).toBe(
-            false,
-        );
+    // NOTIF-02: an encrypted thread reply reaches the timeline as
+    // m.room.encrypted, so the plaintext thread path (onThreadReplyEvent, which
+    // gates on the cleartext type) never sees it. This path is the only one that
+    // can notify for it, so it applies the SAME participant/mention policy the
+    // plaintext thread path uses rather than dropping the event.
+    describe("thread replies", () => {
+        const reply: DecryptedNotifyInput = {
+            ...base,
+            threadRootId: "$root",
+        };
+
+        it("notifies when the user participates in the thread", () => {
+            expect(
+                shouldNotifyDecrypted({ ...reply, isThreadParticipant: true }),
+            ).toBe(true);
+        });
+
+        it("notifies when the reply mentions the user", () => {
+            expect(shouldNotifyDecrypted({ ...reply, isMentioned: true })).toBe(
+                true,
+            );
+        });
+
+        it("stays silent for a thread the user neither joined nor is named in", () => {
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    isThreadParticipant: false,
+                    isMentioned: false,
+                }),
+            ).toBe(false);
+        });
+
+        it("treats absent participant/mention facts as 'not interested'", () => {
+            // The two fields are optional; an omitted fact must never be read
+            // as a reason to notify.
+            expect(shouldNotifyDecrypted(reply)).toBe(false);
+        });
+
+        it("keeps a muted room silent even for a mentioned participant", () => {
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    pushNotify: false,
+                    isThreadParticipant: true,
+                    isMentioned: true,
+                }),
+            ).toBe(false);
+        });
+
+        it("never notifies for the user's own thread reply", () => {
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    isOwnEvent: true,
+                    isThreadParticipant: true,
+                    isMentioned: true,
+                }),
+            ).toBe(false);
+        });
+
+        it("does not notify twice for the same thread reply", () => {
+            // The plaintext thread path and this one can both admit an event
+            // once the ciphertext gate is relaxed; the shared id set is what
+            // makes "exactly once" hold.
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    alreadyNotified: true,
+                    isThreadParticipant: true,
+                }),
+            ).toBe(false);
+        });
+
+        it("does not notify for a mid-timeline thread insertion", () => {
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    isLiveAppend: false,
+                    isThreadParticipant: true,
+                }),
+            ).toBe(false);
+        });
+
+        it("does not notify without an event id", () => {
+            expect(
+                shouldNotifyDecrypted({
+                    ...reply,
+                    eventId: null,
+                    isThreadParticipant: true,
+                }),
+            ).toBe(false);
+        });
     });
 
     it("stays silent when push rules say not to notify (muted room)", () => {

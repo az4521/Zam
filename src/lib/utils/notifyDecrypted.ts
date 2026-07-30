@@ -6,6 +6,8 @@
 // chain here. Kept pure so every branch is unit-testable — the SDK/UI wiring
 // lives in client.ts and AppShell.svelte.
 
+import { shouldNotifyThreadEvent } from "./threadNotify";
+
 /**
  * How many event ids the notification bookkeeping remembers. Bounded so a
  * long-running session cannot grow the maps without limit; eviction is FIFO,
@@ -85,8 +87,26 @@ export interface DecryptedNotifyInput {
     /** The ciphertext arrived as a fresh tail append (not a mid-timeline insert). */
     isLiveAppend: boolean;
     isOwnEvent: boolean;
-    /** Set when the event is a thread reply — those have their own gated path. */
+    /**
+     * Set when the event is a thread reply. Thread replies are NOT dropped here
+     * — for an encrypted reply this is the only path that can notify at all
+     * (the plaintext thread path gates on the cleartext type, which is
+     * m.room.encrypted until decryption). They are instead judged by the
+     * participant/mention policy below.
+     */
     threadRootId: string | null | undefined;
+    /**
+     * Thread replies only: the user authored the thread root or a reply in it.
+     * Ignored when `threadRootId` is falsy; absent counts as "not a
+     * participant".
+     */
+    isThreadParticipant?: boolean;
+    /**
+     * Thread replies only: this reply mentions the user (the push `highlight`
+     * tweak). Ignored when `threadRootId` is falsy; absent counts as "not
+     * mentioned".
+     */
+    isMentioned?: boolean;
     /** `notify` from getPushActionsForEvent(event, true) — false for a muted room. */
     pushNotify: boolean;
 }
@@ -95,13 +115,26 @@ export interface DecryptedNotifyInput {
  * The plaintext gate chain, re-run for an event that only became notifiable
  * once it decrypted. Mirrors the order used by the main-timeline subscription
  * in AppShell so the two paths cannot drift.
+ *
+ * A thread reply takes the thread policy instead of the main-timeline one:
+ * `notify` plus participant-or-mentioned, exactly as `onThreadReplyEvent`'s
+ * consumer applies it to plaintext replies. The policy is REUSED
+ * (`shouldNotifyThreadEvent`) rather than restated, so the encrypted and
+ * plaintext thread rules cannot drift apart.
  */
 export function shouldNotifyDecrypted(input: DecryptedNotifyInput): boolean {
     if (!input.eventId) return false;
     if (input.alreadyNotified) return false;
     if (!input.isLiveAppend) return false;
     if (input.isOwnEvent) return false;
-    if (input.threadRootId) return false;
+    if (input.threadRootId) {
+        return shouldNotifyThreadEvent({
+            isOwnEvent: input.isOwnEvent,
+            notify: input.pushNotify,
+            isParticipant: input.isThreadParticipant === true,
+            isMentioned: input.isMentioned === true,
+        });
+    }
     return input.pushNotify;
 }
 
