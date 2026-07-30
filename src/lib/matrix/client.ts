@@ -3221,7 +3221,11 @@ async function backfillStubTimeline(
 /**
  * Fetch and inject the room's current state if the SDK only holds a
  * state-less stub. No-op (false) when the room already has state, isn't
- * known, or the fetch fails. Resolves true when state was seeded.
+ * known, or the fetch fails. Resolves true when state was seeded — with one
+ * exception: if a successor client takes over the slot mid-operation this
+ * abandons the heal and resolves false even though state (and its crypto
+ * config) may already have been injected, because that work belongs to a
+ * session nobody is using any more.
  */
 export async function seedRoomStateIfMissing(
     roomId: string,
@@ -3472,9 +3476,12 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
             console.warn("Priming backward pagination token failed:", err),
         );
     }
+    // Skip rather than return false when a successor client took the slot: a
+    // false return latches canLoadMore off for the session (setMessages
+    // preserves it and MessageArea never remounts), killing scroll-up in the
+    // room for good. The token below is the honest answer either way.
     const client = ownedClient(owner);
-    if (!client) return false;
-    await client.scrollback(room, 30);
+    if (client) await client.scrollback(room, 30);
     return room.oldState.paginationToken !== null;
 }
 
