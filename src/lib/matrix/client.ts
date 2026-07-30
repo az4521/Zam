@@ -737,6 +737,12 @@ export async function logout(): Promise<void> {
         // leave the crypto store on disk. `logout(true)` stops the client and
         // aborts in-flight requests synchronously, so dispatching it first
         // (without awaiting) is enough to make clearStores() legal.
+        //
+        // But we do still await that dispatched request after the wipe, so the
+        // rest of AppShell's 4s window (`Promise.race([logout(), 4000ms])` —
+        // the bound on this whole function) goes on invalidating the token
+        // server-side instead of being cut short by the reload. Resolving as
+        // soon as the wipe finished would leave a live access token behind.
         await runLogoutSequence({
             invalidateSession: () => client.logout(true),
             wipeLocalStores: () =>
