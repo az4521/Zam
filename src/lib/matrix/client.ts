@@ -179,6 +179,7 @@ import {
     isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { waitForRoomArrival } from "$lib/utils/roomArrival";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     ENCRYPTION_ALGORITHM,
@@ -4006,6 +4007,88 @@ const CALL_POWER_LEVEL_EVENTS = {
     "m.rtc.member": 0,
 };
 
+/**
+ * How long to wait for a just-created room to reach the SDK store via /sync.
+ * Generous: the cost of overshooting is a spinner, the cost of giving up early
+ * is a room the caller cannot configure crypto for.
+ */
+const NEW_ROOM_SYNC_TIMEOUT_MS = 15_000;
+
+/**
+ * Wait (bounded) for a room we just created to arrive over /sync.
+ *
+ * `createRoom` is a bare POST — the SDK stores no Room and emits no
+ * ClientEvent.Room — so `getRoom()` is null when it resolves. That matters in
+ * two ways. Sending into an unknown room skips encryption entirely
+ * (`encryptEventIfNeeded` opens with `if (!room) return`), so a message meant
+ * for a brand-new encrypted DM goes out in PLAINTEXT, with no error and no
+ * local echo. And the Room object is what `scrollback` and
+ * `ensureRoomCryptoConfigured` both need.
+ *
+ * Never throws, and never leaves the listener or the timer behind: a timeout
+ * (or a broken emitter) returns null and the caller behaves exactly as it does
+ * today.
+ */
+async function awaitCreatedRoom(roomId: string): Promise<Room | null> {
+    const client = matrixClient;
+    if (!client) return null;
+    const handle = waitForRoomArrival<Room>(roomId, client.getRoom(roomId));
+    // Already in the store: nothing was attached, so there is nothing to detach.
+    if (handle.settled()) return handle.result;
+
+    const onRoom = (room: Room) => handle.onRoomArrived(room.roomId, room);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        // Subscribe INSIDE the try: if `on` lands and `setTimeout` then throws,
+        // the finally is the only thing that takes the listener back off.
+        client.on(ClientEvent.Room, onRoom);
+        timer = setTimeout(() => handle.onTimeout(), NEW_ROOM_SYNC_TIMEOUT_MS);
+        return await handle.result;
+    } catch (err) {
+        // The room exists on the server either way — a wait that broke must not
+        // turn a successful create into a rejected one.
+        console.warn(`[matrix] waiting for created room ${roomId} failed`, err);
+        return null;
+    } finally {
+        if (timer !== undefined) clearTimeout(timer);
+        client.off(ClientEvent.Room, onRoom);
+    }
+}
+
+/**
+ * Settle a room this client just created: wait for it to land, configure crypto
+ * for it, and backfill. Best-effort throughout — a room that never arrives is
+ * still a room the caller can open, and the failure surfaces at send time
+ * exactly as it does today.
+ *
+ * Configuring crypto here is belt-and-braces: the sync response that delivers
+ * the room also runs the SDK's own `onCryptoEvent`. `ensureRoomCryptoConfigured`
+ * no-ops when the encryptor is already there, so the cost is a map lookup, and
+ * the benefit is that a room that arrives without its encryption state (the
+ * federated-stub case CLAUDE.md documents) still gets configured.
+ */
+async function settleCreatedRoom(roomId: string): Promise<void> {
+    // Captured before the wait: an account switch mid-wait swaps the module
+    // global, and backfilling this room belongs to the client that created it.
+    const client = matrixClient;
+    const room = await awaitCreatedRoom(roomId);
+    if (!room) {
+        console.warn(
+            `[matrix] created room ${roomId} did not arrive over sync in time`,
+        );
+        return;
+    }
+    await ensureRoomCryptoConfigured(room);
+    // Backfill is a bonus, not a contract. `scrollback` does synchronous work
+    // before it hands back a promise, so `.catch()` alone would not hold a
+    // throw — and a create that already succeeded must never reject here.
+    try {
+        await client?.scrollback(room, 30);
+    } catch {
+        /* no history is survivable; the room still opens */
+    }
+}
+
 export async function createRoom(
     name: string,
     topic: string,
@@ -4034,8 +4117,7 @@ export async function createRoom(
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
-    const room = matrixClient.getRoom(roomId);
-    if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    await settleCreatedRoom(roomId);
     scheduleJoinedRoomsReconcile();
     return roomId;
 }
@@ -4146,8 +4228,10 @@ export async function createDirectMessage(
     const dmData: Record<string, string[]> = { ...(existing ?? {}) };
     dmData[userId] = [...(dmData[userId] ?? []), roomId];
     await matrixClient.setAccountData(EventType.Direct, dmData);
-    const room = matrixClient.getRoom(roomId);
-    if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    // Do not resolve until the room is real and crypto knows about it: the
+    // caller opens this room immediately, and the SDK sends PLAINTEXT into a
+    // room it does not yet hold.
+    await settleCreatedRoom(roomId);
     return roomId;
 }
 
