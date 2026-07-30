@@ -110,11 +110,12 @@ export function initIncomingCalls(): () => void {
     };
 
     // Both the seed sweep and the subscription must wait for the initial sync:
-    // this runs from AppShell's onMount, which mounts the instant auth flips
-    // true — BEFORE the route's startSync resolves — so getRooms() is still
-    // would iterate zero rooms, and onVoiceSessionsChanged watches the sessions
-    // already in progress by iterating getRooms() at subscribe time — an empty
-    // list means a call that was already running never notifies at all.
+    // AppShell mounts as soon as the route's startSync resolves, which is a
+    // couple of round trips in — well before the first /sync response — so
+    // getRooms() would iterate zero rooms here, and onVoiceSessionsChanged
+    // watches the calls already in progress by iterating getRooms() at
+    // subscribe time: an empty list means a call that was already running
+    // never notifies at all.
     let unsubSessions: (() => void) | null = null;
     const start = () => {
         if (unsubSessions) return; // idempotent: PREPARED can re-fire

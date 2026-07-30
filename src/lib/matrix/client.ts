@@ -302,6 +302,12 @@ async function createAuthenticatedClient(opts: {
     deviceId: string;
 }): Promise<MatrixClient> {
     matrixClient?.stopClient();
+    // The slot below only changes several awaits later, and stopClient() does
+    // NOT abort the predecessor's in-flight requests — so retire its ownership
+    // NOW. Otherwise a 401 arriving from the account we just stopped still
+    // passes its listeners' guard and runs root session-expiry teardown
+    // against the account that is signing in.
+    clientGeneration = nextGeneration(clientGeneration);
     // Do NOT destroy the previous store here: with multiple signed-in
     // accounts the outgoing client usually belongs to an account that stays
     // signed in, and deleting its per-account sync cache (or racing that
