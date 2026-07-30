@@ -1001,10 +1001,13 @@
             if (!isLiveAppend) return;
             if (event.getSender() === getOwnUserId()) return;
 
-            // Thread replies are surfaced by the dedicated onThreadReplyEvent
-            // path below (participant/mention-gated). onTimelineEvent forwards
-            // them here too when settingsState.showAllEvents is on — skip so we
-            // don't double-notify the same reply.
+            // Thread replies are participant/mention-gated elsewhere: plaintext
+            // ones by onThreadReplyEvent below, encrypted ones by the decrypted
+            // path. Skip them here so we don't double-notify. KNOWN debug-only
+            // hole: this reads getOriginalContent, which is the WIRE content
+            // while undecrypted, so a ciphertext-only relation slips past — and
+            // with showAllEvents on the ciphertext then notifies ungated as
+            // "🔒 Encrypted message", its id suppressing the gated one.
             if (getEventThreadRootId(event)) return;
 
             const actions = getClient()?.getPushActionsForEvent(event);

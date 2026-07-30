@@ -5922,11 +5922,12 @@ export interface DecryptedTimelineMeta {
      * Root event id when the decrypted event is an `m.thread` reply, else null.
      *
      * Derived HERE rather than by the consumer because the relation may live in
-     * either half of an encrypted event: matrix-js-sdk lifts `m.relates_to` out
-     * of the encrypted content when sending to an encrypted room, so
-     * `getRelation()` (wire content) is authoritative, while
-     * `getEventThreadRootId()` reads only the decrypted clear content and would
-     * miss it.
+     * EITHER half of an encrypted event, depending on the sender: the wire
+     * content for clients that put it there (which is why `getRelation()` reads
+     * wire content at all), or the decrypted clear content for matrix-js-sdk
+     * senders, whose `makeEncrypted` replaces the wire content wholesale. So
+     * both halves are consulted, and `getEventThreadRootId()` — clear content
+     * only — is not sufficient here.
      */
     threadRootId: string | null;
 }
@@ -6000,12 +6001,13 @@ export function onDecryptedTimelineEvent(
         // bypass — with that debug setting on, the ciphertext already went
         // through the normal path and the caller's already-notified check
         // suppresses this one).
-        // Relations are lifted OUT of the encrypted payload into the wire
-        // content (matrix-js-sdk models/event.js: "Relation info is lifted out
-        // of the encrypted content when sent to encrypted rooms"), so the
-        // cleartext accessors onTimelineEvent uses would miss an encrypted edit
-        // or thread reply. getRelation() reads wire content; fall back to the
-        // clear content for senders that also inline it.
+        // An encrypted event's relation can sit in either half, depending on
+        // the sender. Some clients leave `m.relates_to` in the wire content —
+        // that is what getRelation() reads, and why the SDK's isRelation()
+        // checks it. matrix-js-sdk senders do the opposite: makeEncrypted()
+        // swaps the whole wire content for the ciphertext, so the relation only
+        // reappears in the clear content once decrypted. Consult BOTH, or an
+        // encrypted edit or thread reply gets misfiled as a plain message.
         const relatesTo =
             event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
         const isReplacement = relatesTo?.rel_type === "m.replace";
