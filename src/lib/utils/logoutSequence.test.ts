@@ -54,6 +54,42 @@ describe("runLogoutSequence", () => {
         });
     });
 
+    it("releases local references after the wipe and before awaiting the invalidation", async () => {
+        const order: string[] = [];
+        const sequence = runLogoutSequence({
+            invalidateSession: () => {
+                order.push("invalidate");
+                return new Promise<void>(() => {}); // never settles
+            },
+            wipeLocalStores: async () => {
+                order.push("wipe");
+            },
+            onLocalWipeSettled: () => {
+                order.push("release");
+            },
+        });
+        await flush();
+        // The release happened even though the invalidation is still in flight,
+        // so a hung /logout cannot strand a stopped client in the module slot.
+        expect(order).toEqual(["invalidate", "wipe", "release"]);
+        await expectStillPending(sequence);
+    });
+
+    it("does not let a throwing release hook change the outcome", async () => {
+        const outcome = await runLogoutSequence({
+            invalidateSession: async () => {},
+            wipeLocalStores: async () => {},
+            onLocalWipeSettled: () => {
+                throw new Error("release failed");
+            },
+        });
+        expect(outcome).toEqual({
+            invalidationStarted: true,
+            invalidationOk: true,
+            localWipeOk: true,
+        });
+    });
+
     it("wipes anyway when the invalidation rejects, and never rejects itself", async () => {
         const wipe = vi.fn().mockResolvedValue(undefined);
         const outcome = await runLogoutSequence({
@@ -93,34 +129,52 @@ describe("runLogoutSequence", () => {
         // The handler has to be attached when the request is dispatched, not
         // after the wipe: a real IndexedDB delete spans many event-loop turns,
         // and a rejection landing in that gap with nothing attached is an
-        // unhandled rejection (vitest fails the run on one, which is the point).
-        let failInvalidation!: (reason: Error) => void;
-        const outcome = await runLogoutSequence({
-            invalidateSession: () =>
-                new Promise<void>((_resolve, reject) => {
-                    failInvalidation = reject;
-                }),
-            wipeLocalStores: () =>
-                new Promise<void>((resolve) => {
-                    setTimeout(
-                        () => failInvalidation(new Error("network down")),
-                        0,
-                    );
-                    setTimeout(resolve, 5);
-                }),
-        });
-        expect(outcome).toEqual({
-            invalidationStarted: true,
-            invalidationOk: false,
-            localWipeOk: true,
-        });
+        // unhandled rejection. Detect that here rather than leaning on the
+        // runner's global handling, which config could switch off.
+        const unhandled: unknown[] = [];
+        const onUnhandled = (reason: unknown) => unhandled.push(reason);
+        process.on("unhandledRejection", onUnhandled);
+        try {
+            let failInvalidation!: (reason: Error) => void;
+            const outcome = await runLogoutSequence({
+                invalidateSession: () =>
+                    new Promise<void>((_resolve, reject) => {
+                        failInvalidation = reject;
+                    }),
+                wipeLocalStores: () =>
+                    new Promise<void>((resolve) => {
+                        // Fail the network call inside the wipe's gap, then let
+                        // the wipe finish a macrotask later. A handler attached
+                        // only after the wipe would miss this window entirely.
+                        setTimeout(
+                            () => failInvalidation(new Error("network down")),
+                            0,
+                        );
+                        setTimeout(resolve, 5);
+                    }),
+            });
+            expect(outcome).toEqual({
+                invalidationStarted: true,
+                invalidationOk: false,
+                localWipeOk: true,
+            });
+            expect(unhandled).toEqual([]);
+        } finally {
+            process.off("unhandledRejection", onUnhandled);
+        }
     });
 
-    it("reports a failed wipe instead of throwing, and still awaits the invalidation", async () => {
+    it("reports a failed wipe instead of throwing, and still releases and awaits the invalidation", async () => {
+        const order: string[] = [];
         const outcome = await runLogoutSequence({
             invalidateSession: async () => {},
             wipeLocalStores: () => Promise.reject(new Error("blocked")),
+            onLocalWipeSettled: () => {
+                order.push("release");
+            },
         });
+        // "Settled" includes a rejected wipe: the references are stale either way.
+        expect(order).toEqual(["release"]);
         expect(outcome).toEqual({
             invalidationStarted: true,
             invalidationOk: true,
@@ -128,7 +182,7 @@ describe("runLogoutSequence", () => {
         });
     });
 
-    it("still wipes, and still reports the invalidation as started, when starting it throws synchronously", async () => {
+    it("reports invalidationStarted false when the call could not even be dispatched", async () => {
         const wipe = vi.fn().mockResolvedValue(undefined);
         const outcome = await runLogoutSequence({
             invalidateSession: () => {
@@ -136,11 +190,11 @@ describe("runLogoutSequence", () => {
             },
             wipeLocalStores: wipe,
         });
+        // Still wipes — a client we could not even ask to stop is all the more
+        // reason to get the keys off the disk.
         expect(wipe).toHaveBeenCalledTimes(1);
-        // Nothing is in flight after a synchronous throw, so there is nothing
-        // left to wait for — and the token was never invalidated.
         expect(outcome).toEqual({
-            invalidationStarted: true,
+            invalidationStarted: false,
             invalidationOk: false,
             localWipeOk: true,
         });

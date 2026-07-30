@@ -723,6 +723,14 @@ export function onSyncPrepared(callback: () => void): () => void {
 
 export async function logout(): Promise<void> {
     const client = matrixClient;
+    // Only release the module slot if we still own it — a successor account's
+    // client may have been created (via reconnect) while the awaits were in flight.
+    const releaseSlot = () => {
+        if (matrixClient === client) {
+            matrixClient = null;
+            matrixStore = null;
+        }
+    };
     if (client) {
         const userId = client.getUserId();
         const deviceId = client.getDeviceId();
@@ -745,6 +753,10 @@ export async function logout(): Promise<void> {
         // soon as the wipe finished would leave a live access token behind.
         await runLogoutSequence({
             invalidateSession: () => client.logout(true),
+            // Without both ids there is no per-account prefix to pass, and
+            // clearStores() falls back to the SDK's own default prefix — so the
+            // sync store still goes, but the per-account crypto store is only
+            // wiped when we know both ids (always true for a logged-in client).
             wipeLocalStores: () =>
                 client.clearStores(
                     userId && deviceId
@@ -756,13 +768,12 @@ export async function logout(): Promise<void> {
                           }
                         : undefined,
                 ),
+            // Runs before the invalidation is awaited, so a hung POST /logout
+            // can't leave the module slot pointing at a stopped client.
+            onLocalWipeSettled: releaseSlot,
         });
-    }
-    // Only release the module slot if we still own it — a successor account's
-    // client may have been created (via reconnect) while the awaits were in flight.
-    if (matrixClient === client) {
-        matrixClient = null;
-        matrixStore = null;
+    } else {
+        releaseSlot();
     }
 }
 

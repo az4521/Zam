@@ -26,14 +26,23 @@ export interface LogoutTarget {
     invalidateSession(): Promise<unknown>;
     /** Delete the local sync + crypto stores. */
     wipeLocalStores(): Promise<unknown>;
+    /** Release local references. Runs after the wipe settles, before the
+     *  network invalidation is awaited, so a hung /logout can't strand a
+     *  stopped client in the module slot. */
+    onLocalWipeSettled?(): void;
 }
 
 export interface LogoutOutcome {
     /**
-     * We called `invalidateSession()`. Calling it is what stops the client, so
-     * this stays `true` even if the call rejected or threw synchronously — it
-     * is NOT a claim that the server accepted the logout. See
-     * `invalidationOk` for that.
+     * The call was dispatched: `invalidateSession()` returned without throwing,
+     * so the request is out and its client-stopping side effect has happened.
+     * This is NOT a claim that the server accepted the logout — see
+     * `invalidationOk` for that, and expect `true` here with `false` there
+     * whenever the network is down.
+     *
+     * `false` means the call could not even be dispatched (it threw
+     * synchronously), so the client may never have been stopped and no request
+     * was ever made.
      */
     invalidationStarted: boolean;
     /**
@@ -66,15 +75,25 @@ export async function runLogoutSequence(
             () => false,
         );
     } catch {
-        // A synchronous throw still means we tried; the client-stopping side
-        // effect either happened or there was no client to stop. Nothing is in
-        // flight, so there is nothing left to wait for below.
+        // Never dispatched, so the client may still be running and nothing is
+        // in flight for the await below to wait on. Report it rather than
+        // claiming we asked the server anything.
+        invalidationStarted = false;
     }
     let localWipeOk = true;
     try {
         await target.wipeLocalStores();
     } catch {
         localWipeOk = false;
+    }
+    // Drop local references now, while the invalidation may still be in flight.
+    // Sequencing this behind the network would leave a caller holding a stopped
+    // client for the whole window. A throwing hook is the caller's problem and
+    // must not change what we report.
+    try {
+        target.onLocalWipeSettled?.();
+    } catch {
+        // ignore
     }
     // The wipe has already happened, so this await cannot delay it — it only
     // spends the caller's remaining window on the token invalidation. Runs even
