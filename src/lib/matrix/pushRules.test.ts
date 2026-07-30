@@ -316,6 +316,24 @@ describe("setDefaultPushRuleLevelForClient", () => {
         expect(h.optimistic).not.toHaveBeenCalled();
     });
 
+    // The case above asks for "off", which only ever calls setPushRuleEnabled —
+    // so it never reaches the create path at all. Drive that path with a level
+    // that does, and pin the message to the CREATE failure's reason: a create
+    // that dies on the network must not be reported as "no such rule".
+    it("a create that dies mid-flight rejects with the create's own reason", async () => {
+        const h = harness({
+            observedAfter: "off",
+            actionsFails: { httpStatus: 404 },
+            createFails: { httpStatus: 500 },
+            canCreate: true,
+        });
+        await expect(
+            setDefaultPushRuleLevelForClient(h.client, h.write("loud")),
+        ).rejects.toThrow(/Check your connection/);
+        expect(h.createRule).toHaveBeenCalled();
+        expect(h.optimistic).not.toHaveBeenCalled();
+    });
+
     // A server-default rule the homeserver simply does not have: turning it off
     // is already true, so this is success, not an error toast.
     it("a rule the server does not have is already off", async () => {
