@@ -29,6 +29,7 @@ import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Custom Capacitor plugin that downloads a release APK and hands it to the OS
@@ -63,10 +64,11 @@ public class ApkUpdaterPlugin extends Plugin {
     /** Where downloadApk writes. The renderer can cause bytes to land here at
      *  any moment, so this file is never the one handed to the installer. */
     private static final String UPDATE_FILE = "update.apk";
-    /** Where installApk moves the archive before verifying it. downloadApk
-     *  NEVER writes to this name — it may only delete it — so nothing can
-     *  substitute the bytes between verifyApk and the installer's open(). */
-    private static final String STAGED_FILE = "staged.apk";
+    /** Prefix of the per-attempt staged archives installApk verifies and
+     *  installs. downloadApk never WRITES to a name with this prefix (it may
+     *  only delete one), and every install attempt mints a fresh name, so no
+     *  staged path is ever written twice — see newStagedFile(). */
+    private static final String STAGED_PREFIX = "staged-";
 
     /** Redirect hops we will follow. GitHub uses one hop to its asset CDN. */
     private static final int MAX_REDIRECTS = 5;
@@ -79,6 +81,19 @@ public class ApkUpdaterPlugin extends Plugin {
      *  LEADING DOT is load-bearing: it anchors the match to a label boundary,
      *  so "evilgithubusercontent.com" cannot satisfy it. Never drop it. */
     private static final String CDN_HOST_SUFFIX = ".githubusercontent.com";
+
+    /**
+     * The archive the most recent install attempt staged, so that retrying
+     * after the user dismisses the system installer reuses it instead of
+     * staging again. Written on Capacitor's single plugin thread (installApk)
+     * and cleared from downloadApk's worker thread, so it is volatile: the
+     * only cross-thread operations are a whole-reference read and a
+     * whole-reference write, which need visibility but no mutual exclusion.
+     */
+    private volatile File stagedApk;
+
+    /** Makes a staged filename unique even if nanoTime is coarse. */
+    private final AtomicLong stagedSeq = new AtomicLong();
 
     /**
      * Download the APK at `url` to app-private storage, emitting
@@ -96,8 +111,7 @@ public class ApkUpdaterPlugin extends Plugin {
             // a version the UI never named.
             //noinspection ResultOfMethodCallIgnored
             updateFile().delete();
-            //noinspection ResultOfMethodCallIgnored
-            stagedFile().delete();
+            clearStagedFiles();
             call.reject("Missing download url");
             return;
         }
@@ -108,13 +122,9 @@ public class ApkUpdaterPlugin extends Plugin {
             try {
                 // Never reuse a previous attempt's bytes, downloaded or
                 // staged: a fresh download supersedes whatever is on disk.
-                // Note this only ever DELETES staged.apk — deleting is safe
-                // even mid-install (an unlink cannot change bytes behind an
-                // already-open fd), whereas writing to it could not be.
                 //noinspection ResultOfMethodCallIgnored
                 outFile.delete();
-                //noinspection ResultOfMethodCallIgnored
-                stagedFile().delete();
+                clearStagedFiles();
                 File dir = outFile.getParentFile();
                 if (dir != null && !dir.exists() && !dir.mkdirs()) {
                     call.reject("Could not prepare the download folder");
@@ -206,34 +216,49 @@ public class ApkUpdaterPlugin extends Plugin {
      * only method that reaches startActivity, so it must not trust that any
      * earlier call checked anything.
      *
-     * The archive is MOVED to staged.apk before it is verified, never after.
-     * downloadApk writes only to update.apk, so once the rename has happened
-     * a concurrent download cannot change the bytes that verifyApk read and
-     * the installer will later open — closing the time-of-check /
-     * time-of-use window between the two bridge calls.
+     * The archive is MOVED to a staged file before it is verified, never
+     * after, and every attempt mints its OWN staged filename. downloadApk
+     * writes only to update.apk and no staged name is ever written twice, so
+     * from the rename onwards nothing can change the bytes that verifyApk
+     * read and the installer will later open — which matters because the
+     * installer opens its content:// URI asynchronously, long after this
+     * method has returned.
      */
     @PluginMethod
     public void installApk(final PluginCall call) {
         try {
             File downloaded = updateFile();
-            File staged = stagedFile();
-            // Step 1: take the file out of downloadApk's reach, atomically,
-            // BEFORE looking at it. Conditional on purpose — if the user
-            // cancelled the system installer dialog and taps Install again,
-            // update.apk is already gone and staged.apk is ready to reuse.
-            if (downloaded.isFile() && !downloaded.renameTo(staged)) {
-                call.reject("Could not stage the update");
-                return;
+            File staged;
+            if (downloaded.isFile()) {
+                // A fresh download: move it, atomically and BEFORE looking at
+                // it, to a filename no attempt has used before. Renaming onto
+                // a shared name would republish that path with unverified
+                // bytes while an earlier attempt's installer may still be
+                // about to open it.
+                File target = newStagedFile();
+                if (!downloaded.renameTo(target)) {
+                    call.reject("Could not stage the update");
+                    return;
+                }
+                stagedApk = target;
+                staged = target;
+            } else {
+                // No new download, so this is a retry after the user
+                // dismissed the system installer. Reuse the file the previous
+                // attempt already staged — deliberately never re-renaming
+                // onto it, which is what keeps its bytes immutable.
+                staged = stagedApk;
             }
-            if (!staged.isFile()) {
+            if (staged == null || !staged.isFile()) {
                 call.reject("No downloaded update to install");
                 return;
             }
-            // Step 2: only now verify, and only ever the staged copy.
+            // Only now verify, and only ever the staged copy.
             String problem = verifyApk(staged, 0);
             if (problem != null) {
                 //noinspection ResultOfMethodCallIgnored
                 staged.delete();
+                stagedApk = null;
                 call.reject("Refused: " + problem);
                 return;
             }
@@ -294,12 +319,44 @@ public class ApkUpdaterPlugin extends Plugin {
     }
 
     /**
-     * The one path this plugin ever installs from. Same directory as
+     * A staged path this plugin has never used before. Same directory as
      * updateFile(), so Task 4's narrowed FileProvider scope still covers it
      * and the rename between them stays within one filesystem (i.e. atomic).
+     *
+     * Uniqueness is the security property, not a nicety: a reused path could
+     * be republished with unverified bytes under a content:// URI an earlier,
+     * still-pending installer is about to open. nanoTime gives cross-process
+     * uniqueness, the counter gives it within a process even if the clock is
+     * coarse, and the exists() loop is the backstop that makes it total. The
+     * loop terminates because the counter strictly increases every pass.
      */
-    private File stagedFile() {
-        return new File(updateDir(), STAGED_FILE);
+    private File newStagedFile() {
+        File dir = updateDir();
+        File f;
+        do {
+            f = new File(dir, STAGED_PREFIX + System.nanoTime()
+                + "-" + stagedSeq.incrementAndGet() + ".apk");
+        } while (f.exists());
+        return f;
+    }
+
+    /**
+     * Forget and delete every staged archive. Only ever unlinks: an unlink
+     * cannot change the bytes behind a descriptor an installer has already
+     * opened, so the worst this can do to a pending install is make its open
+     * fail — an honest error, never a substitution. Writing to a staged name
+     * would be a different matter, and nothing here ever does.
+     */
+    private void clearStagedFiles() {
+        stagedApk = null;
+        File[] existing = updateDir().listFiles();
+        if (existing == null) return;
+        for (File f : existing) {
+            if (f.getName().startsWith(STAGED_PREFIX)) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        }
     }
 
     private File updateDir() {
