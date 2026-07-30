@@ -23,8 +23,14 @@ class VerificationStore {
     incoming = $state<VerificationController[]>([]);
     /** Request id whose accept() is in flight, if any. */
     accepting = $state<string | null>(null);
-    /** Per-request accept failure copy, keyed by request id. */
+    /** Per-request accept failure copy, keyed by request id. Real failures only. */
     acceptErrors = $state<Record<string, string>>({});
+    /**
+     * Request whose Verify was refused because `accepting` was busy. A marker,
+     * not stored copy: the refusal is only true while that other accept is in
+     * flight, so it has to die with it (see `setAccepting`).
+     */
+    busyRefusalId = $state<string | null>(null);
 }
 
 export const verificationState = new VerificationStore();
@@ -38,6 +44,22 @@ const ACCEPT_BUSY_TEXT = "Finishing another verification first. Try again.";
 
 function bump(): void {
     verificationState.verificationTick++;
+}
+
+/**
+ * The ONLY writer of `accepting`. Clearing the gate also drops any busy refusal
+ * it caused — routing both through here is what stops them drifting into
+ * "Finishing another verification first" sitting on a card with nothing in
+ * flight.
+ */
+function setAccepting(id: string | null): void {
+    verificationState.accepting = id;
+    if (id === null) verificationState.busyRefusalId = null;
+}
+
+/** Release the gate, but only if it is still ours — see `removeIncoming`. */
+function releaseAccepting(id: string): void {
+    if (verificationState.accepting === id) setAccepting(null);
 }
 
 /** Is this flow finished (verified or cancelled)? */
@@ -66,6 +88,14 @@ function removeIncoming(controller: VerificationController): void {
         (c) => c.id !== controller.id,
     );
     clearAcceptError(controller.id);
+    // Release the gate if it belonged to this request. Nothing bounds
+    // `controller.accept()` client-side (no localTimeoutMs anywhere), so a
+    // stalled accept can have its card pruned — the SDK times the request out,
+    // the subscriber sees a terminal phase — while the promise is still
+    // outstanding. Leaving `accepting` pinned to a request that no longer
+    // exists would refuse every later Verify, on every card, for the rest of
+    // the session.
+    releaseAccepting(controller.id);
 }
 
 function clearAcceptError(id: string): void {
@@ -101,11 +131,20 @@ export function isAcceptingRequest(
     return verificationState.accepting === controller.id;
 }
 
-/** Copy for this request's last failed accept, if any. */
+/**
+ * Copy for this request's last failed accept, if any. A busy refusal is derived
+ * rather than stored, so it disappears on its own when the accept that caused it
+ * finishes.
+ */
 export function acceptRequestError(
     controller: VerificationController,
 ): string | null {
-    return verificationState.acceptErrors[controller.id] ?? null;
+    return (
+        verificationState.acceptErrors[controller.id] ??
+        (verificationState.busyRefusalId === controller.id
+            ? ACCEPT_BUSY_TEXT
+            : null)
+    );
 }
 
 function addIncoming(controller: VerificationController): void {
@@ -170,31 +209,35 @@ export async function acceptIncoming(
     if (verificationState.accepting === controller.id) return false;
     if (verificationState.accepting !== null) {
         // One accept at a time, but say so — the other card's Verify button is
-        // live, and a click that silently does nothing is its own lie.
-        setAcceptError(controller.id, ACCEPT_BUSY_TEXT);
+        // live, and a click that silently does nothing is its own lie. Marker,
+        // not stored copy: it self-clears when that other accept finishes.
+        verificationState.busyRefusalId = controller.id;
         bump();
         return false;
     }
-    verificationState.accepting = controller.id;
+    setAccepting(controller.id);
     clearAcceptError(controller.id);
     bump();
     try {
         await controller.accept();
     } catch (error) {
-        // Safe to clear outright rather than compare ids: the guard above makes
-        // this the only accept in flight, and nothing else writes the field.
-        verificationState.accepting = null;
-        // Skip the error if the request lost its surface while we awaited: the
+        // Log unconditionally, BEFORE deciding whether anything can show it: on
+        // the no-surface path below the console is the only remaining record
+        // that this accept failed at all.
+        const text = acceptFailureText(error);
+        // Identity-checked: the gate may already have moved on. A prune can
+        // release it mid-flight (see removeIncoming) and the user can then
+        // start a different accept, which this settle must not disturb.
+        releaseAccepting(controller.id);
+        // Store the copy only while a card or the modal can render it. The
         // other side cancelling makes addIncoming's subscriber prune the card,
-        // and that prune is also what clears the map, so the entry would sit
-        // there forever with nothing able to render it.
-        if (hasSurface(controller.id)) {
-            setAcceptError(controller.id, acceptFailureText(error));
-        }
+        // and that prune is also what clears the map, so an entry written after
+        // it would sit there forever with nothing able to show it.
+        if (hasSurface(controller.id)) setAcceptError(controller.id, text);
         bump();
         return false;
     }
-    verificationState.accepting = null;
+    releaseAccepting(controller.id);
     // Re-filters the CURRENT queue by id, so a request that arrived while
     // accept() was in flight keeps its card.
     removeIncoming(controller);
@@ -215,6 +258,10 @@ export function declineIncoming(controller: VerificationController): void {
 export function closeActive(): void {
     const controller = verificationState.active;
     if (controller && !isTerminal(controller)) controller.cancel();
+    // The modal is the other surface `acceptErrors` is written for, so closing
+    // it is the only thing that can clear an entry recorded against the active
+    // flow (its card is long gone from the queue).
+    if (controller) clearAcceptError(controller.id);
     verificationState.active = null;
     bump();
 }

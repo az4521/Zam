@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
     VerificationPhaseValue,
     verificationPhaseKind,
@@ -195,21 +195,44 @@ describe("sasEmojiRows — grid layout for the 7 emojis", () => {
 });
 
 describe("acceptFailureText", () => {
-    it("uses the error's own message when there is one", () => {
-        expect(acceptFailureText(new Error("Unknown transaction"))).toBe(
-            "Unknown transaction",
-        );
+    let warn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     });
 
-    it("falls back to actionable copy for a non-Error rejection", () => {
+    afterEach(() => {
+        warn.mockRestore();
+    });
+
+    it("shows plain-language copy, never the SDK's developer prose", () => {
+        expect(
+            acceptFailureText(
+                new Error("Cannot accept a verification request in state Done"),
+            ),
+        ).toBe("Couldn't accept this request. Try again.");
+    });
+
+    it("shows the same copy for a non-Error rejection", () => {
         expect(acceptFailureText("nope")).toBe(
             "Couldn't accept this request. Try again.",
         );
     });
 
-    it("falls back for an Error with a blank message", () => {
+    it("shows the same copy for an Error with a blank message", () => {
         expect(acceptFailureText(new Error("   "))).toBe(
             "Couldn't accept this request. Try again.",
+        );
+    });
+
+    it("logs the raw error so the detail is not lost", () => {
+        const error = new Error("[400] M_UNKNOWN (https://hs/_matrix/…)");
+
+        acceptFailureText(error);
+
+        expect(warn).toHaveBeenCalledWith(
+            "[matrix] verification accept failed",
+            error,
         );
     });
 });

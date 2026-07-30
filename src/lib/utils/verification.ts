@@ -116,15 +116,20 @@ export function userTrustBadge(
 }
 
 /**
- * Copy for a verification request whose `accept()` rejected. The request is
- * still queued when this shows, so the wording must invite a retry rather than
- * read like the request is gone (audit CRYPTO-03).
+ * Copy for a verification request whose `accept()` rejected — and the console
+ * breadcrumb for it. Same deal as crypto.ts's `verificationFailureText`: the
+ * SDK's throws on this path are developer prose ("Cannot accept a verification
+ * request in state …", "[400] … (https://homeserver/_matrix/…)"), so the raw
+ * error goes to the log and the user gets plain language. The request is still
+ * queued when this shows, so the wording invites a retry rather than reading
+ * like the request is gone (audit CRYPTO-03).
+ *
+ * Call it for every rejection, even when there is no surface left to show the
+ * text: the log is then the only record that the accept failed at all.
  */
 export function acceptFailureText(error: unknown): string {
-    const message = error instanceof Error ? error.message.trim() : "";
-    return message.length > 0
-        ? message
-        : "Couldn't accept this request. Try again.";
+    console.warn("[matrix] verification accept failed", error);
+    return "Couldn't accept this request. Try again.";
 }
 
 export interface SasEmoji {
