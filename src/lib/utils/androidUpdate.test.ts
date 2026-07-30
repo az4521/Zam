@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     pickApkAsset,
     isTrustedApkUrl,
@@ -233,6 +236,95 @@ describe("versionCodeFromSemver", () => {
         expect(versionCodeFromSemver("1.0.0")).toBeGreaterThan(
             versionCodeFromSemver("0.99.99"),
         );
+    });
+});
+
+/**
+ * Drift guard for the HAND-WRITTEN copy of the versionCode formula.
+ *
+ * `versionCodeFromSemver` re-implements, in TypeScript, the expression
+ * `android/app/build.gradle` uses to derive the build's own versionCode. The
+ * gradle file cannot import TypeScript and the renderer cannot read Groovy, so
+ * the two are only ever kept in step by hand — and nothing pinned them.
+ *
+ * Drift is quiet and one-directional: the renderer sends native a
+ * `minVersionCode` floor computed the old way, native compares it against a
+ * versionCode the build computed the new way, and legitimate updates start
+ * being refused as "older than the offered release" (or, worse, a floor that
+ * is too low stops blocking a downgrade). No crash, no log.
+ *
+ * So this reads the real gradle file off disk and pins the multipliers. Only
+ * the numbers whose drift is the actual failure mode are asserted — never
+ * comment text or line numbers, which ordinary edits are supposed to change.
+ */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const GRADLE_PATH = "android/app/build.gradle";
+
+const KEEP_IN_STEP =
+    `${GRADLE_PATH} and versionCodeFromSemver() in src/lib/utils/androidUpdate.ts ` +
+    `hand-mirror one another — change one, change both.`;
+
+/** The `def pkgVersionCode = …` assignment, as written in the gradle file. */
+function versionCodeExpression(): string {
+    let source: string;
+    try {
+        // Resolve via dirname(), NOT `new URL("…", import.meta.url)` — Vite
+        // rewrites that literal pattern into an *asset* reference and
+        // fileURLToPath then throws. Anchored to this file rather than to
+        // process.cwd() so the test does not care where vitest was launched
+        // from. (Same approach as themeParity.test.ts.)
+        source = readFileSync(resolve(REPO_ROOT, GRADLE_PATH), "utf8");
+    } catch (err) {
+        throw new Error(
+            `Could not read ${GRADLE_PATH} (resolved under ${REPO_ROOT}). If it moved, update ` +
+                `this test AND check the formula still matches. ${KEEP_IN_STEP} ` +
+                `Underlying error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+    }
+    const match = source.match(
+        /\bdef\s+pkgVersionCode\s*=([\s\S]*?)(?=\n[ \t]*\n|\nandroid\b)/,
+    );
+    if (!match) {
+        throw new Error(
+            `${GRADLE_PATH} has no \`def pkgVersionCode = …\` assignment to read the versionCode ` +
+                `formula from. It was renamed or restructured, which hides formula drift. ${KEEP_IN_STEP}`,
+        );
+    }
+    return match[1];
+}
+
+describe(`versionCodeFromSemver mirrors ${GRADLE_PATH}`, () => {
+    it("uses the multipliers the gradle formula uses", () => {
+        const expr = versionCodeExpression();
+        const multipliers = [...expr.matchAll(/\*\s*(\d+)/g)].map((m) =>
+            Number(m[1]),
+        );
+        expect(
+            multipliers,
+            `${GRADLE_PATH} derives pkgVersionCode with the multipliers [${multipliers.join(", ")}], ` +
+                `but versionCodeFromSemver() uses major*10000 + minor*100 + patch. The renderer would ` +
+                `send native a minVersionCode floor on a different scale from the versionCode the build ` +
+                `stamps, and updates would be refused (or a downgrade let through) with no error at all. ` +
+                `${KEEP_IN_STEP} Gradle expression read: ${JSON.stringify(expr.trim())}`,
+        ).toEqual([10000, 100]);
+    });
+
+    it("computes the same versionCode as the gradle formula does", () => {
+        const expr = versionCodeExpression();
+        const [major, minor] = [...expr.matchAll(/\*\s*(\d+)/g)].map((m) =>
+            Number(m[1]),
+        );
+        for (const [v, maj, min, patch] of [
+            ["1.2.3", 1, 2, 3],
+            ["0.11.7", 0, 11, 7],
+            ["12.0.99", 12, 0, 99],
+        ] as [string, number, number, number][]) {
+            expect(
+                versionCodeFromSemver(v),
+                `versionCodeFromSemver(${JSON.stringify(v)}) disagrees with the formula in ` +
+                    `${GRADLE_PATH}. ${KEEP_IN_STEP}`,
+            ).toBe(maj * major + min * minor + patch);
+        }
     });
 });
 
