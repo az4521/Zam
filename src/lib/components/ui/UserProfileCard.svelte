@@ -179,20 +179,35 @@
     async function openDM() {
         pending = "message";
         errorMsg = null;
+        // The card is a singleton: it can retarget to another user while this
+        // is in flight, and creating a DM now waits for the new room to reach
+        // the SDK store (up to 15s). The retarget $effect clears `pending` but
+        // cannot cancel the request, so pin who we asked about and drop a
+        // result that lands after the card moved on — otherwise we'd open the
+        // PREVIOUS contact's DM, or show their error, over whoever is on screen
+        // now. A card that merely closed (userId null) is not a retarget: that
+        // navigates as it does today.
+        const requested = userId;
+        const retargeted = () =>
+            profileCardState.userId !== null &&
+            profileCardState.userId !== requested;
         try {
             const roomId = await createDirectMessage(
-                userId,
+                requested,
                 shouldEncryptNewDm({
                     cryptoReady: isCryptoAvailable(),
                     setting: settingsState.encryptNewDms,
                 }),
             );
+            if (retargeted()) return;
             closeProfileCard();
             setActiveRoom(roomId);
         } catch (e) {
+            if (retargeted()) return;
             errorMsg = e instanceof Error ? e.message : "Could not open DM";
         } finally {
-            pending = null;
+            // Leave the new target's own pending state alone.
+            if (!retargeted()) pending = null;
         }
     }
 

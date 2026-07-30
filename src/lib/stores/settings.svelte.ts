@@ -173,9 +173,12 @@ export const settingsState = $state({
     /** Send private read receipts (m.read.private): the server still tracks
      *  what you've read, but other users can't see it. Default is public. */
     privateReadReceipts: readAccountBool("privateReadReceipts", false),
-    /** Whether new direct messages are created encrypted. Default OFF for v1
-     *  (see DEFAULT_ENCRYPT_DMS) — opt-in so new DMs don't silently become
-     *  unreadable to contacts whose clients aren't set up for E2EE. */
+    /** Whether new direct messages are created encrypted. Default ON (see
+     *  DEFAULT_ENCRYPT_DMS, user decision 2026-07-30). Account-scoped and only
+     *  a fallback: an account that turned the toggle off stays off, because
+     *  readAccountBool falls back only when nothing is stored. Existing DMs are
+     *  never retro-encrypted, and the surfaces that create DMs still ask
+     *  shouldEncryptNewDm(), which refuses when crypto didn't start. */
     encryptNewDms: readAccountBool("encryptNewDms", DEFAULT_ENCRYPT_DMS),
     /** How long (ms) this device stays quiet after ANOTHER device of this
      *  account was last focused. 0 = off (always notify). Defaults to
