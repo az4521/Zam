@@ -7,6 +7,14 @@
     } from "$lib/utils/voiceMessage";
     import { formatCallDuration } from "$lib/utils/callDuration";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import {
+        newCaptureLifecycle,
+        beginCapture,
+        disposeCaptures,
+        isCaptureCurrent,
+        adoptCapture,
+        stopTracks,
+    } from "$lib/utils/captureLifecycle";
 
     interface Props {
         roomId: string;
@@ -35,17 +43,30 @@
     let startTs = 0;
     let elapsedTimer: ReturnType<typeof setInterval> | null = null;
     let autoStop: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
+    // The recording mic is one capture channel; `cleanup()` closes it for good.
+    const capture = newCaptureLifecycle();
 
     async function start() {
+        const ticket = beginCapture(capture);
         mimeType = pickAudioMimeType();
+        let granted: MediaStream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            granted = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
         } catch {
+            // A denial that arrives after teardown has no UI left to tell.
+            if (!isCaptureCurrent(capture, ticket)) return;
             showErrorToast("Microphone access was denied.");
             onClose();
             return;
         }
+        // The prompt can be answered long after the recorder closed; the
+        // cleanup that already ran had no stream to stop, so a late grant
+        // would leave the mic live with nothing able to release it.
+        const adopted = adoptCapture(capture, ticket, granted, stopTracks);
+        if (!adopted) return;
+        stream = adopted;
         recorder = new MediaRecorder(
             stream,
             mimeType ? { mimeType } : undefined,
@@ -97,14 +118,14 @@
         if (autoStop) clearTimeout(autoStop);
         elapsedTimer = null;
         autoStop = null;
-        stream?.getTracks().forEach((t) => t.stop());
+        stopTracks(stream);
         stream = null;
         void ctx?.close().catch(() => {});
         ctx = null;
     }
 
     async function onStopped() {
-        if (disposed) return;
+        if (capture.disposed) return;
         previewDurationMs = performance.now() - startTs;
         teardownCapture();
         recordedBlob = new Blob(chunks, {
@@ -158,7 +179,7 @@
     }
 
     function cleanup() {
-        disposed = true;
+        disposeCaptures(capture);
         // Stop + unwire the recorder before releasing the stream, so a discard
         // or unmount mid-recording doesn't fire a late onstop that rebuilds a
         // blob + object URL nothing would revoke.
