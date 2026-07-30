@@ -29,30 +29,53 @@ export interface RoomCreationResult {
     followUp: RoomFollowUp;
 }
 
-export const NO_FOLLOW_UP: RoomFollowUp = { status: "none" };
+/**
+ * Frozen: a single `{status:"none"}` object is shared by every no-follow-up
+ * result in the app, so a consumer that drops it into `$state` and mutates it
+ * would otherwise corrupt every other result that aliases it.
+ */
+export const NO_FOLLOW_UP: RoomFollowUp = Object.freeze({
+    status: "none",
+} as const);
 
 /**
- * User-facing copy for a failed follow-up. It must never read as "the room
- * could not be created" — the room exists, and telling the user otherwise is
- * what makes them retry into a duplicate.
+ * The server's own wording, punctuated so it can be joined into a sentence.
+ * `matrixErrorMessage` returns a bare fragment ("You don't have permission"),
+ * which would otherwise run straight into the sentence that follows it.
+ */
+function detailSentence(err: unknown): string {
+    const detail = matrixErrorMessage(err, "the server rejected the change");
+    return /[.!?]$/.test(detail) ? detail : `${detail}.`;
+}
+
+/**
+ * User-facing copy for a failed follow-up. Two invariants, both load-bearing
+ * for TX-01 and both pinned by tests:
+ *  - it must never read as "the room could not be created" — the room exists,
+ *    and telling the user otherwise is what makes them retry into a duplicate;
+ *  - it must never read as though the follow-up landed, or the user won't know
+ *    to retry it.
  */
 export function followUpFailureMessage(
     task: RoomFollowUpTask,
     err: unknown,
 ): string {
     if (task.kind === "space-link") {
-        const detail = matrixErrorMessage(
-            err,
-            "the server rejected the change",
-        );
-        return `The room was created, but adding it to the space failed: ${detail}`;
+        return `The room was created, but adding it to the space failed: ${detailSentence(err)}`;
     }
-    const detail = matrixErrorMessage(err, "the server rejected the change");
-    return `The direct message was created, but saving it to your DM list failed: ${detail} It may appear as a normal room until this is retried.`;
+    return `The direct message was created, but saving it to your DM list failed: ${detailSentence(err)} It may appear as a normal room until this is retried.`;
 }
 
-/** In-session memory of follow-ups that failed, keyed by the room they belong to. */
+/**
+ * In-session memory of follow-ups that failed, keyed by the room they belong to.
+ *
+ * INVARIANT: at most ONE pending follow-up per room. A room is created either
+ * into a space or as a DM, never both, so the two kinds never collide today.
+ * If that ever stops being true, `record` would silently drop the first kind
+ * and a success on one kind would clear the other — key by `roomId + kind` then.
+ */
 export interface PendingFollowUps {
+    /** Records this room's follow-up, replacing any previous one for the room. */
     record(task: RoomFollowUpTask): void;
     clear(roomId: string): void;
     /** The pending DM follow-up for this partner, if any. */
