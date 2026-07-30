@@ -59,6 +59,7 @@
         removeQueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
     import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
+    import { shouldClearComposerAfterSend } from "$lib/utils/composerClear";
     import {
         parseSlashCommand,
         matchSlashCommands,
@@ -894,16 +895,30 @@
         }
     }
 
-    /** Clear the composer after a successful send. `forRoomId` is the room the
-     *  send targeted: if the user has since switched rooms, the composer now
-     *  holds a DIFFERENT room's draft and must be left alone. */
-    function clearComposerAfterSend(forRoomId: string) {
-        if (roomId !== forRoomId) return;
+    /** Clear the composer after a send lands. `forRoomId` is the room the send
+     *  targeted and `textAtSend` is the text it captured at entry — a caption
+     *  resolves when its upload finishes, which can be long after Send with the
+     *  composer still editable in the meantime.
+     *
+     *  The draft drop is unconditional: text that has been sent is not a draft
+     *  of the room it went to, and leaving it there let a switched-away room
+     *  re-offer an already-posted caption. The VISIBLE clear is conditional —
+     *  see shouldClearComposerAfterSend for why. */
+    function clearComposerAfterSend(forRoomId: string, textAtSend: string) {
+        clearDraft(forRoomId);
+        if (
+            !shouldClearComposerAfterSend({
+                currentRoomId: roomId,
+                targetRoomId: forRoomId,
+                currentText: text,
+                textAtSend,
+            })
+        )
+            return;
         text = "";
         mentionQuery = null;
         emojiQuery = null;
         pendingMentions = new Map();
-        clearDraft(forRoomId);
         renderComposer(0);
     }
 
@@ -948,6 +963,10 @@
         // switch mid-upload must not retarget a send, a queue removal or a
         // draft write.
         const targetRoomId = roomId;
+        // Snapshot the composer text too, before anything can mutate it: a
+        // caption commit that lands after the user typed on must not wipe the
+        // new sentence (nor yank the caret back to 0).
+        const textAtSend = text;
         const filesToSend = fileQueue.slice();
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
@@ -965,7 +984,8 @@
         // message isn't shown in two places and can't be sent twice by accident.
         // A caption has no local echo until its upload finishes, so that case
         // clears on success instead (below) and the text survives a failure.
-        if (trimmed && !useCaption) clearComposerAfterSend(targetRoomId);
+        if (trimmed && !useCaption)
+            clearComposerAfterSend(targetRoomId, textAtSend);
 
         try {
             if (trimmed && formatted && !useCaption) {
@@ -1023,7 +1043,7 @@
                     // The caption rode on the first file — it's only safely
                     // sent once that file is.
                     if (useCaption && i === 0)
-                        clearComposerAfterSend(targetRoomId);
+                        clearComposerAfterSend(targetRoomId, textAtSend);
                 },
             );
             // Snap scroll to bottom after input shrinks — prevents content from drifting up
