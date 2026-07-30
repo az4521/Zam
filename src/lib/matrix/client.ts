@@ -180,6 +180,7 @@ import {
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
+import { createInFlightByKey } from "$lib/utils/inFlightByKey";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     ENCRYPTION_ALGORITHM,
@@ -4225,9 +4226,41 @@ export async function searchUserDirectory(
     return { users, limited: res.limited };
 }
 
-export async function createDirectMessage(
+/** In-flight DM creates, keyed by the other user's id. See below. */
+const dmCreatesByUser = createInFlightByKey<string>();
+
+/**
+ * Open (or reuse) the DM with `userId`.
+ *
+ * Concurrent calls for the same user are collapsed onto the first one. They
+ * have to be: the reuse check below reads `m.direct` account data that a
+ * simultaneous create has not written yet, so two overlapping calls both miss
+ * it and create two DM rooms for one contact — and with encryption now on by
+ * default but overridable, possibly one encrypted and one not. The UI cannot
+ * prevent this on its own; a component guard dies with the component, and the
+ * call menu unmounts the moment its backdrop is clicked.
+ *
+ * Two consequences, both deliberate:
+ * - The key is released when the call SETTLES, failure included. A rejected
+ *   promise left in the map would fail every later attempt for that contact
+ *   for the rest of the session.
+ * - A joiner's `encrypt` argument is IGNORED — it gets the first caller's room,
+ *   with the first caller's encryption choice. That is the honest trade for not
+ *   creating a second room; the alternative is exactly the bug above. In
+ *   practice the surfaces all read the same setting, so they agree.
+ */
+export function createDirectMessage(
     userId: string,
     encrypt = false,
+): Promise<string> {
+    return dmCreatesByUser.run(userId, () =>
+        openDirectMessage(userId, encrypt),
+    );
+}
+
+async function openDirectMessage(
+    userId: string,
+    encrypt: boolean,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists. An existing DM keeps its own

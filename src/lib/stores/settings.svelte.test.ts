@@ -78,9 +78,13 @@ async function bootWithEncryptDms(stored: string | null) {
 }
 
 describe("encryptNewDms", () => {
+    // clear(), not removeItem(): the scoped test below calls
+    // reloadAccountSettings() with a non-null auth.userId, and readScoped()
+    // ADOPTS any bare `settings:*` key it finds into that account's scope and
+    // deletes the original. Nothing collides today, but leaving those adopted
+    // keys behind would make this file order-dependent.
     afterEach(() => {
-        localStorage.removeItem(ENCRYPT_DMS_KEY);
-        localStorage.removeItem(SCOPED_ENCRYPT_DMS_KEY);
+        localStorage.clear();
     });
 
     it("defaults to on for an account that never touched the toggle", async () => {

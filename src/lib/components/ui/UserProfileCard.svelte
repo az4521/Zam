@@ -120,9 +120,17 @@
         userTrust = await getUserTrust(userId);
     }
 
+    // Bumped every time the card retargets or closes, so an action still in
+    // flight can tell its result is stale. Comparing user ids at resolve time
+    // instead would not be sticky: A → B → close (or A → B → A) makes the
+    // comparison match again and lets the stale result through. Plain `let`,
+    // not $state — it is only read from async handlers, never from markup.
+    let cardGeneration = 0;
+
     // Reset transient state whenever the card retargets or closes.
     $effect(() => {
         void profileCardState.userId;
+        cardGeneration++;
         pending = null;
         confirming = null;
         errorMsg = null;
@@ -182,15 +190,13 @@
         // The card is a singleton: it can retarget to another user while this
         // is in flight, and creating a DM now waits for the new room to reach
         // the SDK store (up to 15s). The retarget $effect clears `pending` but
-        // cannot cancel the request, so pin who we asked about and drop a
-        // result that lands after the card moved on — otherwise we'd open the
-        // PREVIOUS contact's DM, or show their error, over whoever is on screen
-        // now. A card that merely closed (userId null) is not a retarget: that
-        // navigates as it does today.
+        // cannot cancel the request, so pin the card generation we asked from
+        // and drop a result that lands after the card moved on — otherwise we'd
+        // open the PREVIOUS contact's DM, or show their error, over whoever is
+        // on screen now.
         const requested = userId;
-        const retargeted = () =>
-            profileCardState.userId !== null &&
-            profileCardState.userId !== requested;
+        const generation = cardGeneration;
+        const stale = () => generation !== cardGeneration;
         try {
             const roomId = await createDirectMessage(
                 requested,
@@ -199,15 +205,15 @@
                     setting: settingsState.encryptNewDms,
                 }),
             );
-            if (retargeted()) return;
+            if (stale()) return;
             closeProfileCard();
             setActiveRoom(roomId);
         } catch (e) {
-            if (retargeted()) return;
+            if (stale()) return;
             errorMsg = e instanceof Error ? e.message : "Could not open DM";
         } finally {
             // Leave the new target's own pending state alone.
-            if (!retargeted()) pending = null;
+            if (!stale()) pending = null;
         }
     }
 
