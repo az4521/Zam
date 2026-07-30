@@ -4025,9 +4025,13 @@ const NEW_ROOM_SYNC_TIMEOUT_MS = 15_000;
  * local echo. And the Room object is what `scrollback` and
  * `ensureRoomCryptoConfigured` both need.
  *
- * Never throws, and never leaves the listener or the timer behind: a timeout
- * (or a broken emitter) returns null and the caller behaves exactly as it does
- * today.
+ * Resolves null rather than rejecting on every reachable failure — timeout, a
+ * broken emitter, no client — and never leaves the listener or the timer
+ * behind, so the caller behaves exactly as it does today. The one path that
+ * could still escape is a throw from the teardown itself, which sits in the
+ * `finally` outside the `catch`; `off` only rejects a listener that is not a
+ * function, and this one is a const arrow, so `settleCreatedRoom` contains it
+ * rather than this function paying for a second try/catch to cover it.
  */
 async function awaitCreatedRoom(roomId: string): Promise<Room | null> {
     const client = matrixClient;
@@ -4061,6 +4065,11 @@ async function awaitCreatedRoom(roomId: string): Promise<Room | null> {
  * still a room the caller can open, and the failure surfaces at send time
  * exactly as it does today.
  *
+ * NEVER rejects, and that is load-bearing rather than tidy: both creators await
+ * this AFTER the server has already committed the room, so a rejection here
+ * would report a create that succeeded as a failure and strand the user with a
+ * room they were told they do not have. Every step below is guarded.
+ *
  * Configuring crypto here is belt-and-braces: the sync response that delivers
  * the room also runs the SDK's own `onCryptoEvent`. `ensureRoomCryptoConfigured`
  * no-ops when the encryptor is already there, so the cost is a map lookup, and
@@ -4071,14 +4080,24 @@ async function settleCreatedRoom(roomId: string): Promise<void> {
     // Captured before the wait: an account switch mid-wait swaps the module
     // global, and backfilling this room belongs to the client that created it.
     const client = matrixClient;
-    const room = await awaitCreatedRoom(roomId);
+    // `.catch` and not a bare await: awaitCreatedRoom resolves null on every
+    // reachable failure, but its listener teardown sits outside its own catch.
+    const room = await awaitCreatedRoom(roomId).catch(() => null);
     if (!room) {
         console.warn(
             `[matrix] created room ${roomId} did not arrive over sync in time`,
         );
         return;
     }
-    await ensureRoomCryptoConfigured(room);
+    // Guarded despite crypto.ts's own try/catch: that one wraps the hook call
+    // only, while the `room.getLiveTimeline().getState(...)` read that feeds it
+    // sits outside, so a room without live timeline state throws straight
+    // through.
+    try {
+        await ensureRoomCryptoConfigured(room);
+    } catch (err) {
+        console.warn(`[matrix] could not configure crypto for ${roomId}`, err);
+    }
     // Backfill is a bonus, not a contract. `scrollback` does synchronous work
     // before it hands back a promise, so `.catch()` alone would not hold a
     // throw — and a create that already succeeded must never reject here.
@@ -4117,8 +4136,12 @@ export async function createRoom(
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
-    await settleCreatedRoom(roomId);
+    // Scheduled BEFORE the wait, not after: it is a debounced 1.5s timer, and
+    // the heal it kicks off (seed → ensureRoomCryptoConfigured) is the recovery
+    // for exactly the dropped-from-sync rooms that make the wait below time
+    // out. Behind the wait it could only ever run too late. Do not "tidy".
     scheduleJoinedRoomsReconcile();
+    await settleCreatedRoom(roomId);
     return roomId;
 }
 
