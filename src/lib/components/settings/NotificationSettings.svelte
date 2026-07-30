@@ -34,6 +34,7 @@
         parseCustomGraceMinutes,
     } from "$lib/utils/activeSession";
     import { validateKeyword } from "$lib/utils/keywordRules";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         setActiveSessionGraceMs,
         setPrivateReadReceipts,
@@ -237,8 +238,32 @@
         rule: (typeof DEFAULT_PUSH_RULES)[number],
         level: PushRuleLevel,
     ) {
-        await setDefaultPushRuleLevel(rule.ruleId, rule.kind, level);
-        defaultRulesTick++;
+        try {
+            await setDefaultPushRuleLevel(rule.ruleId, rule.kind, level);
+        } catch (e) {
+            // The server kept the old rule: say so, and let the row snap back to
+            // the canonical value rather than showing the change as applied.
+            showErrorToast(
+                (e as Error)?.message ?? "Could not save notification setting",
+            );
+        } finally {
+            defaultRulesTick++;
+        }
+    }
+
+    async function setRoomLevel(
+        roomId: string,
+        name: string,
+        setting: RoomNotificationSetting,
+    ) {
+        try {
+            await setRoomNotificationSetting(roomId, setting);
+        } catch (e) {
+            showErrorToast(
+                (e as Error)?.message ??
+                    `Could not save notifications for ${name}`,
+            );
+        }
     }
 
     const keywordRules = $derived(getKeywordRules());
@@ -673,10 +698,7 @@
                             value={getRoomNotificationSetting(room.roomId)}
                             options={roomOptions}
                             onChange={(setting) =>
-                                setRoomNotificationSetting(
-                                    room.roomId,
-                                    setting,
-                                )}
+                                setRoomLevel(room.roomId, room.name, setting)}
                             ariaLabel={`Notifications for ${room.name}`}
                         />
                     </div>

@@ -161,9 +161,10 @@ import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import {
-    actionsForLevel,
     getRoomNotificationSettingForClient,
     isHighlightAction,
+    refreshCachedPushRules,
+    setDefaultPushRuleLevelForClient,
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
 } from "$lib/matrix/pushRules";
@@ -2746,6 +2747,7 @@ function ruleHasSound(rule: any): boolean {
 }
 
 export function getDefaultPushRuleLevel(ruleId: string): PushRuleLevel {
+    void pushRulesState.revision;
     // Read whichever id actually exists (primary, then legacy fallback).
     const rule = findRuleWithFallback(ruleId);
     if (!rule || rule.enabled === false) return "off";
@@ -2787,24 +2789,22 @@ export async function setDefaultPushRuleLevel(
     level: PushRuleLevel,
 ): Promise<void> {
     if (!matrixClient) return;
+    const client = matrixClient;
 
     const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
     const defaultActions = ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
 
     // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
     // .m.rule.roomnotif fallback): write to whichever id actually exists in this
-    // account's rules. If NEITHER exists, surface the error rather than silently
-    // pretending the change stuck.
+    // account's rules.
     const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
-    const hasFallbacks = (ruleDef?.fallbackRuleIds?.length ?? 0) > 0;
     const targetId = existingId ?? ruleId;
-
-    // Server-default rules (dotted IDs) cannot be created — only enabled/actions updated.
-    // Custom rules that don't exist yet must be created with addPushRule.
+    // Server-default rules (dotted IDs) cannot be created — only enabled/actions
+    // updated. Custom rules that don't exist yet must be created with addPushRule.
     const isServerDefault = targetId.startsWith(".");
 
     const createRule = async (actions: any[]) => {
-        const userId = matrixClient!.getUserId() ?? "";
+        const userId = client.getUserId() ?? "";
         const localpart = userId.startsWith("@")
             ? userId.slice(1).split(":")[0]
             : userId;
@@ -2815,70 +2815,32 @@ export async function setDefaultPushRuleLevel(
             ruleDef?.pattern === "USERNAME_LOCALPART"
                 ? localpart
                 : ruleDef?.pattern;
-        await matrixClient!.addPushRule("global", kind, targetId, {
+        await client.addPushRule("global", kind, targetId, {
             actions,
             conditions,
             pattern,
         });
     };
 
-    if (level === "off") {
-        try {
-            await matrixClient.setPushRuleEnabled(
-                "global",
-                kind,
-                targetId,
-                false,
-            );
-        } catch (err) {
-            if (!isServerDefault) {
-                await createRule(actionsForLevel(defaultActions, "silent"));
-                await matrixClient.setPushRuleEnabled(
-                    "global",
-                    kind,
-                    targetId,
-                    false,
-                );
-            } else if (hasFallbacks && !existingId) {
-                // Neither the primary nor the legacy @room id exists — surface
-                // the failure instead of faking success.
-                throw err;
-            }
-            // Other server-default rules: fall through, update local state optimistically.
-        }
-        const rule = findRule(targetId);
-        if (rule) rule.enabled = false;
-    } else {
-        const actions: any[] = actionsForLevel(defaultActions, level);
-        try {
-            await matrixClient.setPushRuleActions(
-                "global",
-                kind,
-                targetId,
-                actions,
-            );
-            await matrixClient.setPushRuleEnabled(
-                "global",
-                kind,
-                targetId,
-                true,
-            );
-        } catch (err) {
-            if (isServerDefault) {
-                if (hasFallbacks && !existingId) {
-                    // Neither @room id exists — surface, don't fake success.
-                    throw err;
-                }
-                // Other server-default rules: update local state optimistically only.
-            } else {
-                await createRule(actions);
-            }
-        }
-        const rule = findRule(targetId);
-        if (rule) {
-            rule.enabled = true;
-            rule.actions = actions;
-        }
+    try {
+        await setDefaultPushRuleLevelForClient(client, {
+            ruleId,
+            targetId,
+            kind,
+            level,
+            defaultActions,
+            label: ruleDef?.label ?? ruleId,
+            createRule: isServerDefault ? null : createRule,
+            readLevel: () => getDefaultPushRuleLevel(ruleId),
+            applyOptimistic: (actions) => {
+                const rule = findRule(targetId);
+                if (!rule) return;
+                rule.enabled = level !== "off";
+                if (level !== "off") rule.actions = actions;
+            },
+        });
+    } finally {
+        pushRulesState.revision++;
     }
 }
 
@@ -2914,11 +2876,8 @@ export type { KeywordBehavior, KeywordRuleView } from "$lib/utils/keywordRules";
 
 /** Re-pull the canonical push-rule set into the SDK cache; never throws. */
 async function refreshPushRulesCache(): Promise<void> {
-    try {
-        await matrixClient?.getPushRules();
-    } catch (error) {
-        console.warn("Failed to refresh push rules cache", error);
-    }
+    if (!matrixClient) return;
+    await refreshCachedPushRules(matrixClient);
 }
 
 /** Reactive read: user keyword rules from the cached global.content set. */
