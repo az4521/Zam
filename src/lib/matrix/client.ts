@@ -1536,10 +1536,13 @@ export async function sendFile(
     file: File,
     caption?: MediaCaption,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
     // over-limit file fails fast with a clear toast instead of a 413 mid-upload.
     const maxUploadSize = await getMediaUploadSizeLimit();
+    // A successor account may own the slot now: its server's limit is not this
+    // file's limit, and the toast below would land in its UI.
+    ownedClientOrThrow(owner);
     if (maxUploadSize !== null && file.size > maxUploadSize) {
         showErrorToast(
             `File exceeds the server's ${Math.round(
@@ -1548,9 +1551,10 @@ export async function sendFile(
         );
         return;
     }
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name: file.name,
-    });
+    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+        file,
+        { name: file.name },
+    );
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
     const isAudio = file.type.startsWith("audio/");
@@ -1573,10 +1577,9 @@ export async function sendFile(
             const thumbFile = new File([thumb.blob], "thumbnail.jpg", {
                 type: "image/jpeg",
             });
-            const { content_uri: thumb_uri } = await matrixClient.uploadContent(
-                thumbFile,
-                { name: "thumbnail.jpg" },
-            );
+            const { content_uri: thumb_uri } = await ownedClientOrThrow(
+                owner,
+            ).uploadContent(thumbFile, { name: "thumbnail.jpg" });
             info.w = thumb.w;
             info.h = thumb.h;
             info.thumbnail_url = thumb_uri;
@@ -1610,7 +1613,7 @@ export async function sendFile(
         }
     }
 
-    await matrixClient.sendMessage(roomId, content as never);
+    await ownedClientOrThrow(owner).sendMessage(roomId, content as never);
 }
 
 /**
@@ -1624,7 +1627,7 @@ export async function sendVoiceMessage(
     durationMs: number,
     waveform: number[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    const owner = captureClient();
     const ext = blob.type.includes("ogg")
         ? "ogg"
         : blob.type.includes("mp4")
@@ -1633,11 +1636,12 @@ export async function sendVoiceMessage(
     const file = new File([blob], `voice-message.${ext}`, {
         type: blob.type || "audio/webm",
     });
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name: file.name,
-    });
+    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+        file,
+        { name: file.name },
+    );
     const duration = Math.round(durationMs);
-    await matrixClient.sendMessage(roomId, {
+    await ownedClientOrThrow(owner).sendMessage(roomId, {
         msgtype: "m.audio",
         body: "Voice message",
         url: content_uri,
@@ -3185,26 +3189,33 @@ function roomLacksState(room: Room): boolean {
  * and silently no-ops, and sync never supplies the token for the rooms it
  * omits. A token-less /messages probe yields a starting point to prime it.
  */
-async function primeBackwardToken(room: Room): Promise<void> {
-    if (!matrixClient) return;
-    const probe = await matrixClient.createMessagesRequest(
+async function primeBackwardToken(
+    owner: ClientOwnership<MatrixClient>,
+    room: Room,
+): Promise<void> {
+    const probe = await owner.client.createMessagesRequest(
         room.roomId,
         null,
         1,
         Direction.Backward,
     );
+    if (!ownedClient(owner)) return;
     const token = probe.start ?? null;
     room.getLiveTimeline().setPaginationToken(token, Direction.Backward);
     // scrollback() reads the legacy oldState alias, not the timeline.
     room.oldState.paginationToken = token;
 }
 
-async function backfillStubTimeline(room: Room): Promise<void> {
-    if (!matrixClient) return;
+async function backfillStubTimeline(
+    owner: ClientOwnership<MatrixClient>,
+    room: Room,
+): Promise<void> {
     if (!room.getLiveTimeline().getPaginationToken(Direction.Backward)) {
-        await primeBackwardToken(room);
+        await primeBackwardToken(owner, room);
     }
-    await matrixClient.scrollback(room, 30);
+    const client = ownedClient(owner);
+    if (!client) return;
+    await client.scrollback(room, 30);
 }
 
 /**
@@ -3217,7 +3228,8 @@ export async function seedRoomStateIfMissing(
     force = false,
 ): Promise<boolean> {
     if (!matrixClient) return false;
-    const room = matrixClient.getRoom(roomId);
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    const room = owner.client.getRoom(roomId);
     if (!room || seedingRooms.has(roomId)) return false;
     // `force` is for callers that KNOW the state is partial rather than
     // absent — accepting an invite, where the room carries only the handful
@@ -3227,7 +3239,11 @@ export async function seedRoomStateIfMissing(
     if (!force && !roomLacksState(room)) return false;
     seedingRooms.add(roomId);
     try {
-        const events = await matrixClient.roomState(roomId);
+        const events = await owner.client.roomState(roomId);
+        // A successor account owns the slot: this is the previous account's
+        // room state, and every step below it (crypto config, subscriber
+        // fanout) would apply to the wrong session.
+        if (!ownedClient(owner)) return false;
         const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
         if (!state) return false;
         state.setStateEvents(events.map((e) => new MatrixEvent(e)));
@@ -3239,11 +3255,13 @@ export async function seedRoomStateIfMissing(
         // (incoming messages still decrypt, so it looks one-way). Bit a
         // cross-server DM 2026-07-25.
         await ensureRoomCryptoConfigured(room);
+        if (!ownedClient(owner)) return false;
         // The timeline suffers the same omission as the state — backfill so
         // the room doesn't open as an empty chat despite having history.
-        await backfillStubTimeline(room).catch((err) =>
+        await backfillStubTimeline(owner, room).catch((err) =>
             console.warn("Backfill after state seeding failed:", err),
         );
+        if (!ownedClient(owner)) return false;
         for (const cb of roomUpdateSubscribers) cb();
         for (const cb of roomHealedSubscribers) cb(roomId);
         return true;
@@ -3258,7 +3276,8 @@ export async function seedRoomStateIfMissing(
 /** Heal every state-less joined room the SDK knows about (boot pass). */
 function seedStatelessRooms(): void {
     if (!matrixClient) return;
-    for (const room of matrixClient.getRooms()) {
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    for (const room of owner.client.getRooms()) {
         if (roomLacksState(room)) {
             void seedRoomStateIfMissing(room.roomId);
         } else if (
@@ -3269,8 +3288,9 @@ function seedStatelessRooms(): void {
             // State present but an empty timeline (seeded before backfill
             // existed, or the sync omission's timeline variant) — backfill
             // so the room doesn't open as an empty chat.
-            void backfillStubTimeline(room)
+            void backfillStubTimeline(owner, room)
                 .then(() => {
+                    if (!ownedClient(owner)) return;
                     for (const cb of roomUpdateSubscribers) cb();
                     for (const cb of roomHealedSubscribers) cb(room.roomId);
                 })
@@ -3435,6 +3455,7 @@ export function onRoomUpdate(callback: () => void): () => void {
  */
 export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
+    const owner = captureOwnership(matrixClient, clientGeneration);
     const timeline = room.getLiveTimeline();
     if (
         shouldPrimePaginationToken({
@@ -3447,11 +3468,13 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
         // latches pagination off for the session and leaves the room
         // permanently empty. Happens to a healed room whose boot-time backfill
         // threw. Ask the server before concluding anything.
-        await primeBackwardToken(room).catch((err) =>
+        await primeBackwardToken(owner, room).catch((err) =>
             console.warn("Priming backward pagination token failed:", err),
         );
     }
-    await matrixClient.scrollback(room, 30);
+    const client = ownedClient(owner);
+    if (!client) return false;
+    await client.scrollback(room, 30);
     return room.oldState.paginationToken !== null;
 }
 
