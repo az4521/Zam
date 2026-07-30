@@ -76,6 +76,22 @@ describe("serializeNativeSession", () => {
         ).toBeNull();
     });
 
+    it("stores a padded homeserver url trimmed, not padded-but-valid", () => {
+        // `new URL()` tolerates surrounding whitespace, so without the trim
+        // the padding survives into storage — and the Java mirror builds its
+        // request URLs by concatenation (`hs + "/_matrix/…"`).
+        const raw = serializeNativeSession({
+            ...GOOD,
+            homeserverUrl: "  https://matrix.example.org  ",
+        });
+        expect(JSON.parse(raw as string).homeserverUrl).toBe(
+            "https://matrix.example.org",
+        );
+        expect(parseNativeSession(raw)?.homeserverUrl).toBe(
+            "https://matrix.example.org",
+        );
+    });
+
     it("never emits a partial 'best effort' record", () => {
         // Whatever the reason for a rejection, the answer is "no credentials"
         // — never a record with a hole in it.
@@ -214,6 +230,20 @@ describe("parseNativeSession", () => {
             }),
         );
         expect(parsed?.homeserverUrl).toBe("http://10.0.0.5:8008");
+    });
+
+    it("trims a padded homeserver stored by an older writer", () => {
+        // Records written before the trim landed are still at rest on device;
+        // hand them back usable rather than propagating the padding.
+        expect(
+            parseNativeSession(
+                JSON.stringify({
+                    ...GOOD,
+                    v: 1,
+                    homeserverUrl: "\n https://matrix.example.org \t",
+                }),
+            )?.homeserverUrl,
+        ).toBe("https://matrix.example.org");
     });
 
     it("normalises a blank device id to null but rejects a non-string one", () => {

@@ -70,8 +70,14 @@ function nonBlankString(value: unknown): string | null {
 }
 
 function validHomeserverUrl(value: unknown): string | null {
-    const url = nonBlankString(value);
-    if (!url) return null;
+    const raw = nonBlankString(value);
+    if (!raw) return null;
+    // Trim BEFORE certifying, and return the TRIMMED value: `new URL()`
+    // silently tolerates surrounding whitespace, so `"  https://hs  "` would
+    // otherwise be stamped valid with its padding intact. The Java mirror
+    // builds request URLs by concatenation (`hs + "/_matrix/…"`), which turns
+    // that padding into a malformed request against the wrong-looking host.
+    const url = raw.trim();
     try {
         const parsed = new URL(url);
         // http: stays allowed — a LAN homeserver works today and this record
