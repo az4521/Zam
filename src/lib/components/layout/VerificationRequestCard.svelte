@@ -5,6 +5,8 @@
         verificationState,
         acceptIncoming,
         declineIncoming,
+        isAcceptingRequest,
+        acceptRequestError,
     } from "$lib/stores/verification.svelte";
 
     interface Props {
@@ -27,15 +29,20 @@
             : view.otherUserId,
     );
 
-    let busy = $state(false);
+    // Accept state lives in the store, not here: it has to outlive this
+    // component (the card can remount while accept() is still in flight) and
+    // the in-timeline card has to agree with it.
+    const busy = $derived(
+        (void verificationState.verificationTick,
+        isAcceptingRequest(controller)),
+    );
+    const acceptError = $derived(
+        (void verificationState.verificationTick,
+        acceptRequestError(controller)),
+    );
+
     async function accept() {
-        if (busy) return;
-        busy = true;
-        try {
-            await acceptIncoming(controller);
-        } finally {
-            busy = false;
-        }
+        await acceptIncoming(controller);
     }
 </script>
 
@@ -51,11 +58,16 @@
         <p class="text-sm font-semibold text-discord-textPrimary truncate">
             {heading}
         </p>
-        <p class="text-xs text-discord-textMuted truncate">{subtitle}</p>
+        {#if acceptError}
+            <p class="text-xs text-discord-danger">{acceptError}</p>
+        {:else}
+            <p class="text-xs text-discord-textMuted truncate">{subtitle}</p>
+        {/if}
     </div>
     <button
         type="button"
-        class="px-2.5 py-1 rounded text-xs bg-discord-messageHover text-discord-textPrimary hover:bg-discord-danger/20 hover:text-discord-danger transition-colors"
+        class="px-2.5 py-1 rounded text-xs bg-discord-messageHover text-discord-textPrimary hover:bg-discord-danger/20 hover:text-discord-danger transition-colors disabled:opacity-60"
+        disabled={busy}
         onclick={() => declineIncoming(controller)}
     >
         Decline
