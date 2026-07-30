@@ -142,8 +142,12 @@
         }
         // A grant that arrives after the tab closed (or after a newer start)
         // owns a live mic + AudioContext that nothing else can reach.
-        meter = adoptCapture(micCapture, ticket, started, stopHandle);
-        if (!meter) return;
+        const adopted = adoptCapture(micCapture, ticket, started, stopHandle);
+        // Return WITHOUT writing on the stale path: two grants can resolve out
+        // of order, and the newer one already stored the only handle that can
+        // release its mic. Nulling it here would orphan a live microphone.
+        if (!adopted) return;
+        meter = adopted;
         // The first grant unlocks device labels — refresh the lists.
         void refreshDevices();
     }
@@ -209,8 +213,17 @@
         }
         // Leaving the tab (or clicking Preview twice) used to leave the camera
         // on with no element bound and no handle to stop it.
-        cameraStream = adoptCapture(cameraCapture, ticket, granted, stopTracks);
-        if (!cameraStream) return;
+        const adopted = adoptCapture(
+            cameraCapture,
+            ticket,
+            granted,
+            stopTracks,
+        );
+        // Return WITHOUT writing on the stale path: a newer grant that resolved
+        // first holds the live stream, and nulling `cameraStream` here would
+        // leave it playing with `stopCamera()` unable to reach its tracks.
+        if (!adopted) return;
+        cameraStream = adopted;
         cameraOn = true;
         if (videoEl) videoEl.srcObject = cameraStream;
         void refreshDevices(); // camera grant unlocks camera labels
