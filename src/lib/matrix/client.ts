@@ -179,6 +179,7 @@ import {
     isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { runLogoutSequence } from "$lib/utils/logoutSequence";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     ENCRYPTION_ALGORITHM,
@@ -723,33 +724,33 @@ export function onSyncPrepared(callback: () => void): () => void {
 export async function logout(): Promise<void> {
     const client = matrixClient;
     if (client) {
-        try {
-            // stopClient=true; invalidates the token server-side.
-            await client.logout(true);
-        } catch {
-            // ignore errors on logout
-        }
+        const userId = client.getUserId();
+        const deviceId = client.getDeviceId();
         // Wipe the persisted sync store AND the per-account rust-crypto store
         // so the next user on this device can't recover the previous account's
         // cached rooms/messages or its key material from IndexedDB. The crypto
         // store is keyed by cryptoDatabasePrefix (see initCrypto); pass the
         // same prefix so clearStores() finds and deletes it.
-        try {
-            const userId = client.getUserId();
-            const deviceId = client.getDeviceId();
-            await client.clearStores(
-                userId && deviceId
-                    ? {
-                          cryptoDatabasePrefix: getCryptoDbName(
-                              userId,
-                              deviceId,
-                          ),
-                      }
-                    : undefined,
-            );
-        } catch {
-            // ignore
-        }
+        //
+        // The wipe is NOT sequenced behind `logout(true)`: AppShell reloads
+        // after 4s, and a hung POST /logout used to eat the whole window and
+        // leave the crypto store on disk. `logout(true)` stops the client and
+        // aborts in-flight requests synchronously, so dispatching it first
+        // (without awaiting) is enough to make clearStores() legal.
+        await runLogoutSequence({
+            invalidateSession: () => client.logout(true),
+            wipeLocalStores: () =>
+                client.clearStores(
+                    userId && deviceId
+                        ? {
+                              cryptoDatabasePrefix: getCryptoDbName(
+                                  userId,
+                                  deviceId,
+                              ),
+                          }
+                        : undefined,
+                ),
+        });
     }
     // Only release the module slot if we still own it — a successor account's
     // client may have been created (via reconnect) while the awaits were in flight.
