@@ -4071,11 +4071,16 @@ async function awaitCreatedRoom(roomId: string): Promise<Room | null> {
  * would report a create that succeeded as a failure and strand the user with a
  * room they were told they do not have. Every step below is guarded.
  *
- * Configuring crypto here is belt-and-braces: the sync response that delivers
- * the room also runs the SDK's own `onCryptoEvent`. `ensureRoomCryptoConfigured`
- * no-ops when the encryptor is already there, so the cost is a map lookup, and
- * the benefit is that a room that arrives without its encryption state (the
- * federated-stub case CLAUDE.md documents) still gets configured.
+ * Configuring crypto here is belt-and-braces, and cheap: the sync loop runs its
+ * own `onCryptoEvent` (matrix-js-sdk `sync.js:1194-1200`) strictly BEFORE it
+ * emits `ClientEvent.Room` (`:1243`), so on the happy path the encryptor already
+ * exists by the time the wait resolves and `ensureRoomCryptoConfigured` costs
+ * one map lookup.
+ *
+ * It is NOT a cure for the federated-stub case CLAUDE.md documents: that helper
+ * returns early on a room with no `m.room.encryption` state event, which is
+ * exactly what a stub is, so it only does anything once `seedRoomStateIfMissing`
+ * has injected the state.
  */
 async function settleCreatedRoom(roomId: string): Promise<void> {
     // Captured before the wait: an account switch mid-wait swaps the module
@@ -4226,13 +4231,13 @@ export async function searchUserDirectory(
     return { users, limited: res.limited };
 }
 
-/** In-flight DM creates, keyed by the other user's id. See below. */
+/** In-flight DM creates, keyed by active account + contact. See below. */
 const dmCreatesByUser = createInFlightByKey<string>();
 
 /**
  * Open (or reuse) the DM with `userId`.
  *
- * Concurrent calls for the same user are collapsed onto the first one. They
+ * Concurrent calls for the same contact are collapsed onto the first one. They
  * have to be: the reuse check below reads `m.direct` account data that a
  * simultaneous create has not written yet, so two overlapping calls both miss
  * it and create two DM rooms for one contact — and with encryption now on by
@@ -4253,7 +4258,16 @@ export function createDirectMessage(
     userId: string,
     encrypt = false,
 ): Promise<string> {
-    return dmCreatesByUser.run(userId, () =>
+    // Keyed by ACTIVE ACCOUNT + contact, never the contact alone. Switching
+    // account inside the wait would otherwise let the new account join the old
+    // one's create and open a room it is not even a member of. Scoping the key
+    // beats clearing the map on teardown: the module client is replaced from
+    // three separate paths (`stopClient`, `logout`, `createAuthenticatedClient`)
+    // and missing any one of them reproduces exactly that bug, whereas a key
+    // that no longer matches simply cannot be joined. A leftover entry needs no
+    // cleanup — it releases itself when its own promise settles.
+    const ownUserId = matrixClient?.getUserId() ?? "";
+    return dmCreatesByUser.run(`${ownUserId}|${userId}`, () =>
         openDirectMessage(userId, encrypt),
     );
 }

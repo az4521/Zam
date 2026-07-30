@@ -147,13 +147,28 @@
     async function startVerifyUser() {
         pending = "verify";
         errorMsg = null;
+        // Same wait as openDM, and the same staleness problem: verifyUser ->
+        // startUserVerification creates a DM if there isn't one, so this can sit
+        // for up to 15s while the card retargets. Pin the generation so A's
+        // result cannot write A's error over B's card or clear B's pending.
+        //
+        // Its own success path is deliberately NOT gated: the verification modal
+        // is opened by verifyUser itself (verification.svelte:100), and by then
+        // the request is already on the other user's device. Suppressing the
+        // modal would strand a live request with no UI to finish it — worse than
+        // a modal the user has to dismiss.
+        const requested = userId;
+        const generation = cardGeneration;
+        const stale = () => generation !== cardGeneration;
         try {
-            await verifyUser(userId);
+            await verifyUser(requested);
         } catch (e) {
+            if (stale()) return;
             errorMsg =
                 e instanceof Error ? e.message : "Could not start verification";
         } finally {
-            pending = null;
+            // Leave the new target's own pending state alone.
+            if (!stale()) pending = null;
         }
     }
 
