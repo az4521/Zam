@@ -64,6 +64,11 @@ public class ApkUpdaterPlugin extends Plugin {
     /** Where downloadApk writes. The renderer can cause bytes to land here at
      *  any moment, so this file is never the one handed to the installer. */
     private static final String UPDATE_FILE = "update.apk";
+    /** The pre-2026-07-30 download path: update.apk directly in the cache
+     *  ROOT, before downloads moved into UPDATE_DIR. A frozen historical
+     *  literal — deliberately NOT written in terms of UPDATE_FILE, which is
+     *  free to be renamed without changing what old installs left behind. */
+    private static final String LEGACY_CACHE_FILE = "update.apk";
     /** Prefix of the per-attempt staged archives installApk verifies and
      *  installs. downloadApk never WRITES to a name with this prefix (it may
      *  only delete one), and every install attempt mints a fresh name, so no
@@ -125,6 +130,7 @@ public class ApkUpdaterPlugin extends Plugin {
                 //noinspection ResultOfMethodCallIgnored
                 outFile.delete();
                 clearStagedFiles();
+                deleteLegacyCacheApk();
                 File dir = outFile.getParentFile();
                 if (dir != null && !dir.exists() && !dir.mkdirs()) {
                     call.reject("Could not prepare the download folder");
@@ -368,15 +374,42 @@ public class ApkUpdaterPlugin extends Plugin {
     }
 
     /**
+     * Best-effort cleanup of the download path this plugin used before
+     * 2026-07-30, when downloads moved from the cache ROOT into UPDATE_DIR.
+     * Nothing ever deleted the old file, so every device that installed an
+     * earlier build carries ~30 MB of dead cache forever.
+     *
+     * This is housekeeping, not security: it only ever unlinks, failure is
+     * ignored, and the target is cacheDir/update.apk — NOT updateFile(), which
+     * now lives one directory deeper. Safe to delete this method once no
+     * install predating 2026-07-30 is plausibly still in the field.
+     */
+    private void deleteLegacyCacheApk() {
+        try {
+            File legacy = new File(getContext().getCacheDir(), LEGACY_CACHE_FILE);
+            if (legacy.isFile()) {
+                //noinspection ResultOfMethodCallIgnored
+                legacy.delete();
+            }
+        } catch (Exception ignored) {
+            // Never fail a download over cache housekeeping.
+        }
+    }
+
+    /**
      * Open `url`, following redirects by hand so every hop is re-checked
      * against the https + host allowlist. Returns a connected connection, or
      * null when a hop is not allowed / too many hops.
+     *
+     * The hop index is passed to the check, not just used to bound the loop:
+     * hop 0 is the renderer-supplied URL and is held to a stricter host rule
+     * than the redirect targets are. See isAllowedUrl.
      */
     private HttpURLConnection openAllowlisted(String url) throws Exception {
         String current = url;
         for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
             URL parsed = new URL(current);
-            if (!isAllowedUrl(parsed)) return null;
+            if (!isAllowedUrl(parsed, hop)) return null;
             HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
             // Anything that leaves this block without handing `conn` to the
             // caller must disconnect it — including a throwing connect() /
@@ -409,7 +442,15 @@ public class ApkUpdaterPlugin extends Plugin {
     }
 
     /**
-     * https, no credentials, default port, github.com or its asset CDN.
+     * https, no credentials, default port, and a host allowed AT THIS HOP.
+     *
+     * The host rule tightens at hop 0. Hop 0 is the URL the renderer handed
+     * us, and it must be PRIMARY_HOST exactly; the `*.githubusercontent.com`
+     * CDN is reachable only as a REDIRECT TARGET (hop >= 1), which is the only
+     * place GitHub ever sends us there. Accepting the CDN suffix at hop 0 too
+     * would let a compromised renderer name raw.githubusercontent.com — which
+     * serves any user's repository content — and so park up to MAX_APK_BYTES
+     * of attacker-chosen bytes in our cache before verifyApk rejects them.
      *
      * Host matching is dot-boundary anchored on purpose (equals for the
      * primary host, a dot-prefixed suffix for the CDN) — a substring test
@@ -423,7 +464,7 @@ public class ApkUpdaterPlugin extends Plugin {
      * (we always write to our own updateFile()), and authenticity comes from
      * the signer/package/version check, not from the URL.
      */
-    private boolean isAllowedUrl(URL u) {
+    private boolean isAllowedUrl(URL u, int hop) {
         if (!"https".equalsIgnoreCase(u.getProtocol())) return false;
         if (u.getUserInfo() != null) return false;
         int port = u.getPort();
@@ -431,6 +472,7 @@ public class ApkUpdaterPlugin extends Plugin {
         String host = u.getHost();
         if (host == null) return false;
         host = host.toLowerCase(Locale.ROOT);
+        if (hop == 0) return host.equals(PRIMARY_HOST);
         return host.equals(PRIMARY_HOST) || host.endsWith(CDN_HOST_SUFFIX);
     }
 
