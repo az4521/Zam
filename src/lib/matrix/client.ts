@@ -4020,10 +4020,19 @@ const CALL_POWER_LEVEL_EVENTS = {
     "m.rtc.member": 0,
 };
 
-// Follow-ups that failed after their room was already created. Kept in memory
-// for the session so a retry reuses the existing room instead of making a
-// second one — the duplicate-room failure TX-01 describes. Exactly ONE registry
-// per module: a per-call one would never see the earlier failure it exists for.
+// Follow-ups that failed after their room was already created, kept in memory
+// for the session. Two readers, and only two: `createDirectMessage` looks up a
+// stranded DM so an immediate retry reuses that room instead of creating a
+// second one plus a second invite (the TX-01 duplicate), and `runFollowUp`
+// clears the entry once a retry lands.
+//
+// It does NOT dedupe room creation generally: nothing reads a `space-link`
+// entry back out, so re-running "Create room" after a failed space link still
+// makes a second room. A named room has no dedupe key — two rooms with the same
+// name are a legitimate thing to want — so there is nothing to match on.
+//
+// Exactly ONE registry per module: a per-call one would never see the earlier
+// failure it exists for.
 const pendingFollowUps = createPendingFollowUps();
 
 /** Write `m.direct` for a DM room. Idempotent: re-running never duplicates. */
@@ -4192,11 +4201,16 @@ export async function createDirectMessage(
     // A DM whose m.direct write failed earlier this session is NOT in m.direct,
     // so the check above cannot see it. Retry that write against the existing
     // room rather than creating a second room (and a second invite).
-    const stranded = strandedDmRoom(
-        pendingFollowUps,
-        userId,
-        (id) => matrixClient?.getRoom(id)?.getMyMembership() === "join",
-    );
+    //
+    // The predicate must be "definitively gone", not "usable": createRoom is a
+    // bare POST that stores no Room, so getRoom() is null until /sync catches
+    // up — and the retry we care about happens inside that window. An unknown
+    // room reports false (keep it); only a room we hold locally and have left
+    // reports true.
+    const stranded = strandedDmRoom(pendingFollowUps, userId, (id) => {
+        const membership = matrixClient?.getRoom(id)?.getMyMembership();
+        return membership !== undefined && membership !== "join";
+    });
     if (stranded) {
         return {
             roomId: stranded.roomId,

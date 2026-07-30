@@ -155,24 +155,47 @@ describe("pending registry", () => {
 });
 
 describe("strandedDmRoom — a retry must reuse the room, not create a second one", () => {
-    it("returns the stranded DM when the room is still usable", () => {
+    it("returns the stranded DM when the room is not gone", () => {
         const pending = createPendingFollowUps();
         pending.record(dmTask);
-        expect(strandedDmRoom(pending, "@partner:hs", () => true)).toEqual(
+        expect(strandedDmRoom(pending, "@partner:hs", () => false)).toEqual(
             dmTask,
         );
     });
 
-    it("returns null and forgets the room when it is no longer usable", () => {
+    /**
+     * The exact window TX-01 lives in. `createRoom` is a bare POST: the SDK
+     * stores no Room and emits no ClientEvent.Room, so `getRoom()` is null from
+     * the moment it resolves until /sync delivers the room. If "I have not seen
+     * this room" counted as "gone", the pending record would be destroyed
+     * precisely during the immediate retry it exists to serve — and the retry
+     * would create a second room and a second invite.
+     */
+    it("still hands back a room the client has not seen yet, and keeps remembering it", () => {
         const pending = createPendingFollowUps();
         pending.record(dmTask);
-        expect(strandedDmRoom(pending, "@partner:hs", () => false)).toBeNull();
+        // "not gone" is what an unknown room reports: absence of evidence that
+        // we left, NOT evidence of absence.
+        const seen: string[] = [];
+        const out = strandedDmRoom(pending, "@partner:hs", (id) => {
+            seen.push(id);
+            return false;
+        });
+        expect(out).toEqual(dmTask);
+        expect(seen).toEqual([dmTask.roomId]);
+        expect(pending.all()).toEqual([dmTask]);
+    });
+
+    it("returns null and forgets a room we have definitively left", () => {
+        const pending = createPendingFollowUps();
+        pending.record(dmTask);
+        expect(strandedDmRoom(pending, "@partner:hs", () => true)).toBeNull();
         expect(pending.all()).toEqual([]);
     });
 
     it("returns null when nothing is pending for that partner", () => {
         const pending = createPendingFollowUps();
-        expect(strandedDmRoom(pending, "@partner:hs", () => true)).toBeNull();
+        expect(strandedDmRoom(pending, "@partner:hs", () => false)).toBeNull();
     });
 });
 

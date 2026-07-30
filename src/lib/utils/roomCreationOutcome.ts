@@ -132,18 +132,25 @@ export async function runFollowUp(
 /**
  * A DM room we created earlier whose `m.direct` write failed is invisible to
  * the `m.direct` reuse check — so without this, the obvious retry creates a
- * SECOND room and a second invite. `isUsable` reports whether the room is still
- * one we can hand back (joined and known locally); a room that is not is
- * forgotten rather than returned.
+ * SECOND room and a second invite.
+ *
+ * `isGone` asks the NARROW question "have we definitively left this room?" —
+ * never the broad "is this room usable?". The difference is the whole bug:
+ * `createRoom` is a bare POST, so the SDK holds no Room and `getRoom()` returns
+ * null from the moment it resolves until `/sync` delivers the room. A room the
+ * client has not seen yet is therefore NOT gone — it is a room we created
+ * moments ago, and forgetting it destroys the recovery record exactly during
+ * the immediate retry it exists to serve. Anything short of proof that the room
+ * is gone must keep the task, so UNKNOWN means still-pending.
  */
 export function strandedDmRoom(
     pending: PendingFollowUps,
     userId: string,
-    isUsable: (roomId: string) => boolean,
+    isGone: (roomId: string) => boolean,
 ): DmFollowUpTask | null {
     const task = pending.findDm(userId);
     if (!task) return null;
-    if (!isUsable(task.roomId)) {
+    if (isGone(task.roomId)) {
         pending.clear(task.roomId);
         return null;
     }
