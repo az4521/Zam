@@ -305,12 +305,11 @@
         if (setupBlocked || resetView.busy || !resetView.allowsDestroy) return;
         error = "";
         advanceReset({ type: "submit" });
+        let result: RecoverySetupResult;
         try {
-            finishResetSuccess(
-                await resetRecovery(
-                    password,
-                    usePassphrase ? passphrase : undefined,
-                ),
+            result = await resetRecovery(
+                password,
+                usePassphrase ? passphrase : undefined,
             );
         } catch (e) {
             error = e instanceof Error ? e.message : "Could not reset recovery";
@@ -322,7 +321,13 @@
                     ? "failed-after-destroy"
                     : "failed-before-destroy",
             });
+            return;
         }
+        // Outside the try on purpose: only the CALL can tell us which half
+        // failed. A throw in the success handoff would otherwise classify as
+        // "failed before destroy" and put the user back on the destructive
+        // submit after a destroy that actually succeeded.
+        finishResetSuccess(result);
     }
 
     /**
@@ -333,12 +338,11 @@
         if (setupBlocked || resetView.busy || !resetView.allowsRepair) return;
         error = "";
         advanceReset({ type: "submit" });
+        let result: RecoverySetupResult;
         try {
-            finishResetSuccess(
-                await setupRecovery(
-                    password,
-                    usePassphrase ? passphrase : undefined,
-                ),
+            result = await setupRecovery(
+                password,
+                usePassphrase ? passphrase : undefined,
             );
         } catch (e) {
             error =
@@ -348,7 +352,11 @@
             // Still no recovery on the account, so stay put: `repair` is the only
             // honest place to be, and the machine refuses anything else.
             advanceReset({ type: "failed-after-destroy" });
+            return;
         }
+        // Same asymmetry as `runReset`: a throw from the handoff is not the
+        // setup call failing, and must not be reported as one.
+        finishResetSuccess(result);
     }
 
     function finishResetSuccess(result: RecoverySetupResult) {
@@ -691,21 +699,41 @@
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
-            <div class="space-y-1">
-                <p class="text-sm font-medium text-discord-textPrimary">
-                    Recovery is set up
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    Your cross-signing keys and a key backup are stored securely
-                    on the server, protected by your recovery key.
-                </p>
-                <!-- This panel renders from the RETAINED payload, so when the
-                     latest read didn't land it is a past reading like the rows
-                     above — not a current claim that recovery is fine. -->
-                {#if panel.stale}
-                    {@render staleMarker()}
-                {/if}
-            </div>
+            <!-- The repair branch below lives in this same section, so this
+                 header cannot be unconditional: "Recovery is set up" directly
+                 above "the new recovery wasn't created" (and a status row
+                 reading "Recovery (secure backup): Not set up") is three
+                 statements on one security surface, and the reassuring one is
+                 the false one. -->
+            {#if !resetView.blocking}
+                <div class="space-y-1">
+                    <p class="text-sm font-medium text-discord-textPrimary">
+                        Recovery is set up
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Your cross-signing keys and a key backup are stored
+                        securely on the server, protected by your recovery key.
+                    </p>
+                    <!-- This panel renders from the RETAINED payload, so when the
+                         latest read didn't land it is a past reading like the rows
+                         above — not a current claim that recovery is fine. -->
+                    {#if panel.stale}
+                        {@render staleMarker()}
+                    {/if}
+                </div>
+            {:else}
+                <!-- No stale marker here: this state is asserted from what the
+                     reset itself did on this session, not from a read. -->
+                <div class="space-y-1">
+                    <p class="text-sm font-medium text-discord-textPrimary">
+                        Recovery is not set up
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        This account has no recovery key and no key backup until
+                        you finish the step below.
+                    </p>
+                </div>
+            {/if}
 
             {#if resetStep === "idle"}
                 <!-- Reset destroys the current recovery key and backup. It is

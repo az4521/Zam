@@ -365,6 +365,20 @@ describe("SecuritySettings reset-recovery phases", () => {
         expect(buttonByText(REPAIR_BUTTON)).toBeDefined();
     });
 
+    // The panel that carries the repair copy is the same section that normally
+    // announces "Recovery is set up". Leaving that header unconditional puts it
+    // directly above "…the new recovery wasn't created" and a status row reading
+    // "Recovery (secure backup): Not set up" — three claims, one screen, and the
+    // reassuring one is the false one.
+    it("does not claim recovery is set up while it is half-reset", async () => {
+        await reachRepair();
+
+        expect(text()).not.toContain("Recovery is set up");
+        expect(flat()).toContain(REPAIR_COPY);
+        // …and the header that replaces it agrees with the rows underneath.
+        expect(flat()).toContain("Recovery is not set up");
+    });
+
     it("repairs with the setup half alone — resetRecovery is never called twice", async () => {
         h.setupRecovery.mockResolvedValue({
             recoveryKey: NEW_KEY,
