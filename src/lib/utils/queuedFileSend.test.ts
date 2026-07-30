@@ -31,14 +31,41 @@ describe("sendQueuedFilesInOrder", () => {
 
     it("passes the index alongside the item", async () => {
         const seen: number[] = [];
+        const committed: [string, number][] = [];
         await sendQueuedFilesInOrder(
             ["a", "b"],
             async (_item, i) => {
                 seen.push(i);
             },
-            () => {},
+            (item, i) => {
+                committed.push([item, i]);
+            },
         );
         expect(seen).toEqual([0, 1]);
+        // The consumer's commit callback keys off this index (only item 0
+        // carries the caption), so an off-by-one here clears the wrong thing.
+        expect(committed).toEqual([
+            ["a", 0],
+            ["b", 1],
+        ]);
+    });
+
+    it("commits an item only after that item's send has resolved", async () => {
+        let release: (() => void) | null = null;
+        const onSent = vi.fn();
+        const promise = sendQueuedFilesInOrder(
+            ["a"],
+            () =>
+                new Promise<void>((resolve) => {
+                    release = resolve;
+                }),
+            onSent,
+        );
+        await Promise.resolve();
+        expect(onSent).not.toHaveBeenCalled();
+        release!();
+        await promise;
+        expect(onSent).toHaveBeenCalledWith("a", 0);
     });
 
     it("commits the items that succeeded before a failure and rethrows", async () => {

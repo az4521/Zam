@@ -16,10 +16,20 @@ describe("formatByteLimit", () => {
 
     it("rounds to the nearest MB", () => {
         expect(formatByteLimit(51.4 * MB)).toBe("51 MB");
+        expect(formatByteLimit(51.6 * MB)).toBe("52 MB");
+    });
+
+    it("switches to MB at exactly one megabyte", () => {
+        expect(formatByteLimit(MB)).toBe("1 MB");
     });
 
     it("renders a sub-megabyte limit in KB rather than lying about 0 MB", () => {
         expect(formatByteLimit(512 * 1024)).toBe("512 KB");
+    });
+
+    it("rounds to the nearest KB below a megabyte", () => {
+        expect(formatByteLimit(1500)).toBe("1 KB");
+        expect(formatByteLimit(1800)).toBe("2 KB");
     });
 
     it("renders a zero limit as 0 KB", () => {
@@ -71,6 +81,10 @@ describe("FileTooLargeError", () => {
     it("is a real Error", () => {
         expect(new FileTooLargeError("a", 2, 1)).toBeInstanceOf(Error);
     });
+
+    it("names itself so logs and generic handlers can tell it apart", () => {
+        expect(new FileTooLargeError("a", 2, 1).name).toBe("FileTooLargeError");
+    });
 });
 
 describe("isFileTooLargeError", () => {
@@ -91,5 +105,10 @@ describe("isFileTooLargeError", () => {
     it("rejects null and undefined", () => {
         expect(isFileTooLargeError(null)).toBe(false);
         expect(isFileTooLargeError(undefined)).toBe(false);
+    });
+
+    it("requires the marker to be exactly true, not merely truthy", () => {
+        expect(isFileTooLargeError({ isFileTooLarge: 1 })).toBe(false);
+        expect(isFileTooLargeError({ isFileTooLarge: "yes" })).toBe(false);
     });
 });
