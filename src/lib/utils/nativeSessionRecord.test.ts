@@ -274,12 +274,40 @@ describe("parseNativeSession", () => {
 });
 
 describe("key names", () => {
+    it("pins the storage key sw.js and the Java service hand-mirror", () => {
+        // Two hand-written copies of this string exist outside TypeScript;
+        // changing it here silently orphans whatever they already stored.
+        expect(NATIVE_SESSION_KEY).toBe("matrix_session_record");
+    });
+
+    it("does not reuse the legacy web localStorage session key", () => {
+        // `accounts.svelte.ts` migrates and then DELETES localStorage
+        // "matrix_session" on boot. Sharing the name invites a future reader
+        // to wire the record into that store and have it erased.
+        expect(NATIVE_SESSION_KEY).not.toBe("matrix_session");
+    });
+
     it("keeps the record key distinct from every legacy key", () => {
-        expect(LEGACY_NATIVE_SESSION_KEYS).not.toContain(NATIVE_SESSION_KEY);
+        expect(LEGACY_NATIVE_SESSION_KEYS as readonly string[]).not.toContain(
+            NATIVE_SESSION_KEY,
+        );
     });
 
     it("lists the access token first so clear removes it first", () => {
-        expect(LEGACY_NATIVE_SESSION_KEYS[0]).toBe("matrix_access_token");
+        // Typed, not merely compared: with the `as const` tuple element 0 has
+        // the literal type, so a reorder breaks the BUILD here as well as this
+        // assertion. `expect(...).toBe(...)` alone would not catch it —
+        // vitest's matcher accepts a wider argument than the asserted value.
+        const first: "matrix_access_token" = LEGACY_NATIVE_SESSION_KEYS[0];
+        expect(first).toBe("matrix_access_token");
+    });
+
+    it("stays assignable where a readonly string[] is expected", () => {
+        // The `as const` tuple must not force consumers (task 2's clear loop,
+        // the debug screen) to widen it by hand — this line is the real
+        // assertion; it fails at COMPILE time if the type regresses.
+        const keys: readonly string[] = LEGACY_NATIVE_SESSION_KEYS;
+        expect(keys).toHaveLength(4);
     });
 
     it("covers every pre-record key the native side used to write", () => {

@@ -22,8 +22,20 @@
  * this file, including the key names and the version check.
  */
 
-/** Preferences / IndexedDB key holding the whole session record. */
-export const NATIVE_SESSION_KEY = "matrix_session";
+/**
+ * Preferences / IndexedDB key holding the whole session record.
+ *
+ * Deliberately NOT `"matrix_session"`: that is the legacy single-session WEB
+ * `localStorage` key which `src/lib/stores/accounts.svelte.ts` migrates into
+ * the multi-account registry and then DELETES on boot. Different store,
+ * different lifetime, different shape — never confuse the two. Reusing the
+ * name would leave a record one boot away from being erased by migration code
+ * that has no idea this feature exists.
+ *
+ * `static/sw.js` and `MatrixMessagingService.java` hand-mirror this exact
+ * string; changing it means changing all three.
+ */
+export const NATIVE_SESSION_KEY = "matrix_session_record";
 
 /** Bump when the record shape changes; readers refuse anything else. */
 export const NATIVE_SESSION_VERSION = 1;
@@ -33,13 +45,17 @@ export const NATIVE_SESSION_VERSION = 1;
  * they are cleaned up on sync and on clear — never READ, because reading them
  * is the bug. The access token is FIRST: a clear that dies partway through
  * must have removed the credential before anything else.
+ *
+ * `as const` so that ordering is part of the TYPE, not just a test: a reorder
+ * that puts the token anywhere but slot 0 changes the tuple's signature.
+ * Still assignable wherever a `readonly string[]` is expected.
  */
-export const LEGACY_NATIVE_SESSION_KEYS: readonly string[] = [
+export const LEGACY_NATIVE_SESSION_KEYS = [
     "matrix_access_token",
     "matrix_hs_url",
     "matrix_user_id",
     "matrix_device_id",
-];
+] as const;
 
 export interface NativeSessionRecord {
     v: number;
