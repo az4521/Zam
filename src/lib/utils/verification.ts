@@ -115,6 +115,18 @@ export function userTrustBadge(
     return { label: "Unverified", tone: "unverified" };
 }
 
+/**
+ * Copy for a verification request whose `accept()` rejected. The request is
+ * still queued when this shows, so the wording must invite a retry rather than
+ * read like the request is gone (audit CRYPTO-03).
+ */
+export function acceptFailureText(error: unknown): string {
+    const message = error instanceof Error ? error.message.trim() : "";
+    return message.length > 0
+        ? message
+        : "Couldn't accept this request. Try again.";
+}
+
 export interface SasEmoji {
     symbol: string;
     name: string;

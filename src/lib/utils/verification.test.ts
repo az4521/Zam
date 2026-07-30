@@ -7,6 +7,7 @@ import {
     userTrustBadge,
     formatSasEmojis,
     sasEmojiRows,
+    acceptFailureText,
     type SasEmoji,
 } from "./verification";
 
@@ -190,5 +191,25 @@ describe("sasEmojiRows — grid layout for the 7 emojis", () => {
 
     it("returns no rows for an empty list", () => {
         expect(sasEmojiRows([])).toEqual([]);
+    });
+});
+
+describe("acceptFailureText", () => {
+    it("uses the error's own message when there is one", () => {
+        expect(acceptFailureText(new Error("Unknown transaction"))).toBe(
+            "Unknown transaction",
+        );
+    });
+
+    it("falls back to actionable copy for a non-Error rejection", () => {
+        expect(acceptFailureText("nope")).toBe(
+            "Couldn't accept this request. Try again.",
+        );
+    });
+
+    it("falls back for an Error with a blank message", () => {
+        expect(acceptFailureText(new Error("   "))).toBe(
+            "Couldn't accept this request. Try again.",
+        );
     });
 });
