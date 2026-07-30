@@ -112,6 +112,25 @@ describe("guardOwnership", () => {
         expect(fn).not.toHaveBeenCalled();
     });
 
+    // Mutation guard: every other case here also differs by generation, so they
+    // all pass on the generation half alone. This one holds the generation
+    // still, so it fails any implementation that compares the LIVE slot's
+    // client against anything but `readCurrent().client` — e.g. one that reads
+    // `owner.client` on both sides and so can never see a replacement.
+    it("makes a callback a no-op when a different client holds the same generation", () => {
+        const owner = captureOwnership(clientA, 1);
+        const fn = vi.fn();
+        const guarded = guardOwnership(
+            owner,
+            () => ({ client: clientB, generation: 1 }),
+            fn,
+        );
+
+        guarded();
+
+        expect(fn).not.toHaveBeenCalled();
+    });
+
     it("makes a callback after teardown a no-op", () => {
         const owner = captureOwnership(clientA, 1);
         const fn = vi.fn();
