@@ -4138,15 +4138,14 @@ export async function createRoom(
     if (spaceId) await addRoomToSpace(spaceId, roomId);
     await settleCreatedRoom(roomId);
     // Scheduled AFTER the wait, and that ordering is what makes it safe — do
-    // not hoist it. The reconcile compares the server's joined list against the
-    // store, and a room it cannot materialize escalates to clearCacheAndReload:
+    // not hoist it. The reconcile diffs the server's joined list against the
+    // store and escalates a room it cannot materialize to clearCacheAndReload:
     // stop the client, delete IndexedDB, reload. It cannot materialize this one
-    // on demand, because joinRoom returns a Room built by SyncApi.createRoom
-    // that is never put in the store, so getRoom() stays null. Waiting first
-    // means the room is normally present by the time this runs, so it is not
-    // "missing" and the wipe is never reached. On master the reconcile was
-    // scheduled while getRoom() was still null on EVERY create — this ordering
-    // closes that exposure rather than merely preserving it.
+    // — joinRoom returns a Room built by SyncApi.createRoom that is never
+    // stored, so getRoom() stays null. Master scheduled it without waiting at
+    // all, so the reconcile could run while the room was absent; waiting first
+    // makes that the exception, not the default. Rare, not impossible: on a
+    // NEW_ROOM_SYNC_TIMEOUT_MS timeout getRoom() is still null here.
     scheduleJoinedRoomsReconcile();
     return roomId;
 }
