@@ -168,6 +168,11 @@ import {
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
 } from "$lib/matrix/pushRules";
+import {
+    classifyPushRuleWriteError,
+    pushRuleFailureMessage,
+} from "$lib/utils/pushRuleWrite";
+import { createSerialQueue } from "$lib/utils/serialQueue";
 import { pushRulesState } from "$lib/stores/pushRules.svelte";
 import {
     fetchServerNotificationsForClient,
@@ -2705,6 +2710,20 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     },
 ];
 
+/**
+ * Every push-rule write below finishes by pulling the canonical rules back into
+ * the SDK's single shared `client.pushRules` cache, and the default-rule writes
+ * VERIFY themselves against that cache. Two writes in flight at once therefore
+ * corrupt each other: the first `GET /pushrules` can be issued before the second
+ * write lands yet resolve after it, so the first write is judged against the
+ * second one's state (a spurious "did not change" error for a change that
+ * worked) and its stale snapshot becomes the cache the settings UI reads back.
+ * That is a fake success through a different door, so all of them share ONE
+ * queue and no two ever interleave. Each caller still gets its own outcome —
+ * `createSerialQueue` never lets one write's failure reach another's caller.
+ */
+const pushRuleWriteQueue = createSerialQueue();
+
 function getGlobalPushRules(): Record<string, any[]> | undefined {
     return (matrixClient as any)?.pushRules?.global as
         | Record<string, any[]>
@@ -2791,57 +2810,63 @@ export async function setDefaultPushRuleLevel(
     if (!matrixClient) return;
     const client = matrixClient;
 
-    const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
-    const defaultActions = ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
+    // Queued: the id resolution below reads the same cache a concurrent write
+    // would be refreshing, so it must run inside the queue too, not at call time.
+    return pushRuleWriteQueue.run(async () => {
+        const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+        const defaultActions =
+            ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
 
-    // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
-    // .m.rule.roomnotif fallback): write to whichever id actually exists in this
-    // account's rules.
-    const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
-    const targetId = existingId ?? ruleId;
-    // Server-default rules (dotted IDs) cannot be created — only enabled/actions
-    // updated. Custom rules that don't exist yet must be created with addPushRule.
-    const isServerDefault = targetId.startsWith(".");
+        // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
+        // .m.rule.roomnotif fallback): write to whichever id actually exists in
+        // this account's rules.
+        const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
+        const targetId = existingId ?? ruleId;
+        // Server-default rules (dotted IDs) cannot be created — only
+        // enabled/actions updated. Custom rules that don't exist yet must be
+        // created with addPushRule.
+        const isServerDefault = targetId.startsWith(".");
 
-    const createRule = async (actions: any[]) => {
-        const userId = client.getUserId() ?? "";
-        const localpart = userId.startsWith("@")
-            ? userId.slice(1).split(":")[0]
-            : userId;
-        const conditions = ruleDef?.conditions?.map((c: any) =>
-            c.pattern === "SELF_USER_ID" ? { ...c, pattern: userId } : c,
-        );
-        const pattern =
-            ruleDef?.pattern === "USERNAME_LOCALPART"
-                ? localpart
-                : ruleDef?.pattern;
-        await client.addPushRule("global", kind, targetId, {
-            actions,
-            conditions,
-            pattern,
-        });
-    };
+        const createRule = async (actions: any[]) => {
+            const userId = client.getUserId() ?? "";
+            const localpart = userId.startsWith("@")
+                ? userId.slice(1).split(":")[0]
+                : userId;
+            const conditions = ruleDef?.conditions?.map((c: any) =>
+                c.pattern === "SELF_USER_ID" ? { ...c, pattern: userId } : c,
+            );
+            const pattern =
+                ruleDef?.pattern === "USERNAME_LOCALPART"
+                    ? localpart
+                    : ruleDef?.pattern;
+            await client.addPushRule("global", kind, targetId, {
+                actions,
+                conditions,
+                pattern,
+            });
+        };
 
-    try {
-        await setDefaultPushRuleLevelForClient(client, {
-            ruleId,
-            targetId,
-            kind,
-            level,
-            defaultActions,
-            label: ruleDef?.label ?? ruleId,
-            createRule: isServerDefault ? null : createRule,
-            readLevel: () => getDefaultPushRuleLevel(ruleId),
-            applyOptimistic: (actions) => {
-                const rule = findRule(targetId);
-                if (!rule) return;
-                rule.enabled = level !== "off";
-                if (level !== "off") rule.actions = actions;
-            },
-        });
-    } finally {
-        pushRulesState.revision++;
-    }
+        try {
+            await setDefaultPushRuleLevelForClient(client, {
+                ruleId,
+                targetId,
+                kind,
+                level,
+                defaultActions,
+                label: ruleDef?.label ?? ruleId,
+                createRule: isServerDefault ? null : createRule,
+                readLevel: () => getDefaultPushRuleLevel(ruleId),
+                applyOptimistic: (actions) => {
+                    const rule = findRule(targetId);
+                    if (!rule) return;
+                    rule.enabled = level !== "off";
+                    if (level !== "off") rule.actions = actions;
+                },
+            });
+        } finally {
+            pushRulesState.revision++;
+        }
+    });
 }
 
 // ── Per-room notification settings ────────────────────────────────────────
@@ -2859,15 +2884,32 @@ export async function setRoomNotificationSetting(
     setting: RoomNotificationSetting,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await setRoomNotificationSettingForClient(
-            matrixClient,
-            roomId,
-            setting,
-        );
-    } finally {
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await setRoomNotificationSettingForClient(client, roomId, setting);
+        } catch (error) {
+            // The settings panel toasts this message verbatim, and a raw
+            // MatrixError stringifies to "[403] Forbidden (https://…/_matrix/
+            // client/v3/pushrules/…)" — a URL and a status code are not an
+            // explanation. Translate it the same way the default-rule writes do,
+            // keeping the original in the console for diagnostics.
+            console.warn(
+                "[push rules] room notification write failed",
+                roomId,
+                error,
+            );
+            const room = client.getRoom(roomId);
+            throw new Error(
+                pushRuleFailureMessage(
+                    room ? getRoomDisplayName(room) : "this room",
+                    classifyPushRuleWriteError(error),
+                ),
+            );
+        } finally {
+            pushRulesState.revision++;
+        }
+    });
 }
 
 // ── Keyword highlight rules (content-kind push rules) ─────────────────────
@@ -2894,23 +2936,26 @@ export async function addKeywordRule(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
+    const client = matrixClient;
     // Dotted ids are reserved for server-default rules; a content rule whose
     // rule_id/pattern starts with "." would collide with them. Reject up front
     // so the error surfaces through the caller's catch (see NotificationSettings).
     if (pattern.startsWith(".")) {
         throw new Error("Keyword cannot start with '.'");
     }
-    try {
-        await matrixClient.addPushRule(
-            "global",
-            PushRuleKind.ContentSpecific,
-            pattern, // rule_id == pattern (SDK URL-encodes it)
-            { actions: keywordActions(behavior), pattern },
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.addPushRule(
+                "global",
+                PushRuleKind.ContentSpecific,
+                pattern, // rule_id == pattern (SDK URL-encodes it)
+                { actions: keywordActions(behavior), pattern },
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function setKeywordRuleBehavior(
@@ -2918,17 +2963,20 @@ export async function setKeywordRuleBehavior(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.setPushRuleActions(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-            keywordActions(behavior),
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.setPushRuleActions(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+                keywordActions(behavior),
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function setKeywordRuleEnabled(
@@ -2936,31 +2984,37 @@ export async function setKeywordRuleEnabled(
     enabled: boolean,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.setPushRuleEnabled(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-            enabled,
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.setPushRuleEnabled(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+                enabled,
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function deleteKeywordRule(ruleId: string): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.deletePushRule(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.deletePushRule(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export function onAnyReceiptEvent(callback: () => void): () => void {

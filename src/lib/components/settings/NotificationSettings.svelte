@@ -234,6 +234,17 @@
         ) as Record<string, PushRuleLevel>;
     });
 
+    /* `?? fallback` only fires for a MISSING message. An Error whose message is
+     * "" (or whitespace) is common enough — a rethrow that lost its cause, an
+     * SDK error built from an empty body — and toasting it renders an empty
+     * red box that tells the user nothing. Treat blank as absent. */
+    function toastMessage(error: unknown, fallback: string): string {
+        const message = (error as Error)?.message;
+        return typeof message === "string" && message.trim().length > 0
+            ? message
+            : fallback;
+    }
+
     async function setRuleLevel(
         rule: (typeof DEFAULT_PUSH_RULES)[number],
         level: PushRuleLevel,
@@ -244,7 +255,7 @@
             // The server kept the old rule: say so, and let the row snap back to
             // the canonical value rather than showing the change as applied.
             showErrorToast(
-                (e as Error)?.message ?? "Could not save notification setting",
+                toastMessage(e, "Could not save notification setting"),
             );
         } finally {
             defaultRulesTick++;
@@ -260,8 +271,7 @@
             await setRoomNotificationSetting(roomId, setting);
         } catch (e) {
             showErrorToast(
-                (e as Error)?.message ??
-                    `Could not save notifications for ${name}`,
+                toastMessage(e, `Could not save notifications for ${name}`),
             );
         }
     }
