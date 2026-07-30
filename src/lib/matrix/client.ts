@@ -4136,12 +4136,18 @@ export async function createRoom(
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
-    // Scheduled BEFORE the wait, not after: it is a debounced 1.5s timer, and
-    // the heal it kicks off (seed → ensureRoomCryptoConfigured) is the recovery
-    // for exactly the dropped-from-sync rooms that make the wait below time
-    // out. Behind the wait it could only ever run too late. Do not "tidy".
-    scheduleJoinedRoomsReconcile();
     await settleCreatedRoom(roomId);
+    // Scheduled AFTER the wait, and that ordering is what makes it safe — do
+    // not hoist it. The reconcile compares the server's joined list against the
+    // store, and a room it cannot materialize escalates to clearCacheAndReload:
+    // stop the client, delete IndexedDB, reload. It cannot materialize this one
+    // on demand, because joinRoom returns a Room built by SyncApi.createRoom
+    // that is never put in the store, so getRoom() stays null. Waiting first
+    // means the room is normally present by the time this runs, so it is not
+    // "missing" and the wipe is never reached. On master the reconcile was
+    // scheduled while getRoom() was still null on EVERY create — this ordering
+    // closes that exposure rather than merely preserving it.
+    scheduleJoinedRoomsReconcile();
     return roomId;
 }
 
