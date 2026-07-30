@@ -3,9 +3,16 @@
 // whose join fails: without feedback the click looks like nothing happened).
 // Rendered by ErrorToasts.svelte in the app shell.
 
+/** Optional single action rendered inside the toast (e.g. "Retry"). */
+export interface ToastAction {
+    label: string;
+    run: () => void;
+}
+
 export interface Toast {
     id: number;
     message: string;
+    action?: ToastAction;
 }
 
 const TOAST_TTL_MS = 8000;
@@ -18,9 +25,9 @@ class ToastsState {
 
 export const toastsState = new ToastsState();
 
-export function showErrorToast(message: string): void {
+export function showErrorToast(message: string, action?: ToastAction): void {
     const id = nextId++;
-    toastsState.toasts = [...toastsState.toasts, { id, message }];
+    toastsState.toasts = [...toastsState.toasts, { id, message, action }];
     setTimeout(() => dismissToast(id), TOAST_TTL_MS);
 }
 
