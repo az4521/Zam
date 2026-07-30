@@ -60,7 +60,13 @@ public class ApkUpdaterPlugin extends Plugin {
     /** Subdirectory of the app-private cache the FileProvider exposes
      *  (res/xml/file_paths.xml). Nothing else may be written here. */
     private static final String UPDATE_DIR = "apk-update";
+    /** Where downloadApk writes. The renderer can cause bytes to land here at
+     *  any moment, so this file is never the one handed to the installer. */
     private static final String UPDATE_FILE = "update.apk";
+    /** Where installApk moves the archive before verifying it. downloadApk
+     *  NEVER writes to this name — it may only delete it — so nothing can
+     *  substitute the bytes between verifyApk and the installer's open(). */
+    private static final String STAGED_FILE = "staged.apk";
 
     /** Redirect hops we will follow. GitHub uses one hop to its asset CDN. */
     private static final int MAX_REDIRECTS = 5;
@@ -85,6 +91,13 @@ public class ApkUpdaterPlugin extends Plugin {
     public void downloadApk(final PluginCall call) {
         final String url = call.getString("url");
         if (url == null || url.isEmpty()) {
+            // Clear the slate here too, not just on the worker thread: leaving
+            // an earlier verified APK behind lets a later installApk() install
+            // a version the UI never named.
+            //noinspection ResultOfMethodCallIgnored
+            updateFile().delete();
+            //noinspection ResultOfMethodCallIgnored
+            stagedFile().delete();
             call.reject("Missing download url");
             return;
         }
@@ -93,9 +106,15 @@ public class ApkUpdaterPlugin extends Plugin {
             File outFile = updateFile();
             HttpURLConnection conn = null;
             try {
-                // Never reuse a previous attempt's bytes.
+                // Never reuse a previous attempt's bytes, downloaded or
+                // staged: a fresh download supersedes whatever is on disk.
+                // Note this only ever DELETES staged.apk — deleting is safe
+                // even mid-install (an unlink cannot change bytes behind an
+                // already-open fd), whereas writing to it could not be.
                 //noinspection ResultOfMethodCallIgnored
                 outFile.delete();
+                //noinspection ResultOfMethodCallIgnored
+                stagedFile().delete();
                 File dir = outFile.getParentFile();
                 if (dir != null && !dir.exists() && !dir.mkdirs()) {
                     call.reject("Could not prepare the download folder");
@@ -111,7 +130,10 @@ public class ApkUpdaterPlugin extends Plugin {
                     call.reject("Download failed (HTTP " + conn.getResponseCode() + ")");
                     return;
                 }
-                final int total = conn.getContentLength();
+                // getContentLengthLong() is API 24 = our minSdk. The int form
+                // truncates to -1 above 2 GB, which would silently disable
+                // BOTH the pre-flight ceiling and the cut-short check below.
+                final long total = conn.getContentLengthLong();
                 if (total > MAX_APK_BYTES) {
                     call.reject("Refused: the update is implausibly large");
                     return;
@@ -141,9 +163,12 @@ public class ApkUpdaterPlugin extends Plugin {
                     }
                 }
                 if (total > 0 && readBytes != total) {
-                    call.reject("Download was cut short — try again");
+                    // Delete BEFORE rejecting: reject() resolves the JS
+                    // promise, and a renderer that retries synchronously must
+                    // not be able to observe the truncated file.
                     //noinspection ResultOfMethodCallIgnored
                     outFile.delete();
+                    call.reject("Download was cut short — try again");
                     return;
                 }
 
@@ -180,25 +205,41 @@ public class ApkUpdaterPlugin extends Plugin {
      * The re-verification is NOT redundant with downloadApk's — this is the
      * only method that reaches startActivity, so it must not trust that any
      * earlier call checked anything.
+     *
+     * The archive is MOVED to staged.apk before it is verified, never after.
+     * downloadApk writes only to update.apk, so once the rename has happened
+     * a concurrent download cannot change the bytes that verifyApk read and
+     * the installer will later open — closing the time-of-check /
+     * time-of-use window between the two bridge calls.
      */
     @PluginMethod
     public void installApk(final PluginCall call) {
         try {
-            File apk = updateFile();
-            if (!apk.isFile()) {
+            File downloaded = updateFile();
+            File staged = stagedFile();
+            // Step 1: take the file out of downloadApk's reach, atomically,
+            // BEFORE looking at it. Conditional on purpose — if the user
+            // cancelled the system installer dialog and taps Install again,
+            // update.apk is already gone and staged.apk is ready to reuse.
+            if (downloaded.isFile() && !downloaded.renameTo(staged)) {
+                call.reject("Could not stage the update");
+                return;
+            }
+            if (!staged.isFile()) {
                 call.reject("No downloaded update to install");
                 return;
             }
-            String problem = verifyApk(apk, 0);
+            // Step 2: only now verify, and only ever the staged copy.
+            String problem = verifyApk(staged, 0);
             if (problem != null) {
                 //noinspection ResultOfMethodCallIgnored
-                apk.delete();
+                staged.delete();
                 call.reject("Refused: " + problem);
                 return;
             }
             Context ctx = getContext();
             Uri uri = FileProvider.getUriForFile(
-                ctx, ctx.getPackageName() + ".fileprovider", apk);
+                ctx, ctx.getPackageName() + ".fileprovider", staged);
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, APK_MIME);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -247,9 +288,22 @@ public class ApkUpdaterPlugin extends Plugin {
         }
     }
 
-    /** The one path this plugin ever downloads to or installs from. */
+    /** The one path this plugin ever downloads to. */
     private File updateFile() {
-        return new File(new File(getContext().getCacheDir(), UPDATE_DIR), UPDATE_FILE);
+        return new File(updateDir(), UPDATE_FILE);
+    }
+
+    /**
+     * The one path this plugin ever installs from. Same directory as
+     * updateFile(), so Task 4's narrowed FileProvider scope still covers it
+     * and the rename between them stays within one filesystem (i.e. atomic).
+     */
+    private File stagedFile() {
+        return new File(updateDir(), STAGED_FILE);
+    }
+
+    private File updateDir() {
+        return new File(getContext().getCacheDir(), UPDATE_DIR);
     }
 
     /**
@@ -263,23 +317,32 @@ public class ApkUpdaterPlugin extends Plugin {
             URL parsed = new URL(current);
             if (!isAllowedUrl(parsed)) return null;
             HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            conn.setInstanceFollowRedirects(false);
-            conn.connect();
-            int code = conn.getResponseCode();
-            if (code == HttpURLConnection.HTTP_MOVED_PERM
-                || code == HttpURLConnection.HTTP_MOVED_TEMP
-                || code == HttpURLConnection.HTTP_SEE_OTHER
-                || code == 307
-                || code == 308) {
-                String location = conn.getHeaderField("Location");
-                conn.disconnect();
-                if (location == null || location.isEmpty()) return null;
-                current = new URL(parsed, location).toString();
-                continue;
+            // Anything that leaves this block without handing `conn` to the
+            // caller must disconnect it — including a throwing connect() /
+            // getResponseCode(), whose connection the caller cannot see and
+            // so could never clean up itself.
+            boolean handedOff = false;
+            try {
+                conn.setConnectTimeout(CONNECT_TIMEOUT);
+                conn.setReadTimeout(READ_TIMEOUT);
+                conn.setInstanceFollowRedirects(false);
+                conn.connect();
+                int code = conn.getResponseCode();
+                if (code == HttpURLConnection.HTTP_MOVED_PERM
+                    || code == HttpURLConnection.HTTP_MOVED_TEMP
+                    || code == HttpURLConnection.HTTP_SEE_OTHER
+                    || code == 307
+                    || code == 308) {
+                    String location = conn.getHeaderField("Location");
+                    if (location == null || location.isEmpty()) return null;
+                    current = new URL(parsed, location).toString();
+                    continue;
+                }
+                handedOff = true;
+                return conn;
+            } finally {
+                if (!handedOff) conn.disconnect();
             }
-            return conn;
         }
         return null;
     }
