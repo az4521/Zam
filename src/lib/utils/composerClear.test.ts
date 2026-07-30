@@ -122,6 +122,21 @@ describe("shouldClearStoredDraft", () => {
         ).toBe(false);
     });
 
+    it("keeps a stored draft the user rewrote to different text of the same length", () => {
+        // Same length, different content: comparing lengths instead of values
+        // would delete a draft the user replaced outright mid-upload.
+        expect(
+            shouldClearStoredDraft({ storedText: "yo", textAtSend: "hi" }),
+        ).toBe(false);
+    });
+
+    it("keeps a stored draft that differs from what we sent only in case", () => {
+        // Case-folding either side would delete an edit the user did make.
+        expect(
+            shouldClearStoredDraft({ storedText: "Hi", textAtSend: "hi" }),
+        ).toBe(false);
+    });
+
     it("clears when both the stored draft and the sent text are empty", () => {
         expect(shouldClearStoredDraft({ storedText: "", textAtSend: "" })).toBe(
             true,
