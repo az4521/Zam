@@ -12,6 +12,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        EllipsisVertical,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -117,6 +118,40 @@
     }
     function isLocalIdentity(identity: string): boolean {
         return identity.slice(0, identity.lastIndexOf(":")) === auth.userId;
+    }
+
+    // A tile's primary action lives on its wrapper <div> (click, contextmenu,
+    // long-press). The keyboard/AT affordance is a real, empty <button>
+    // stretched over the tile — a real button so Enter *and* Space activate it
+    // natively (Space on a focused button never scrolls the page) and so we add
+    // no keydown handler that could shadow the window-level Escape that clears
+    // the spotlight.
+    //
+    // `pointer-events-none` is load-bearing, not decoration: VideoTile renders
+    // its own Fullscreen <button> at bottom-right (and a <video>), so an overlay
+    // that took part in hit-testing would sit on top of it and silently swallow
+    // fullscreen, click-to-spotlight, right-click and long-press. Keeping it out
+    // of hit-testing leaves every pointer gesture byte-identical to before;
+    // keyboard and assistive-tech activation dispatch the click straight at the
+    // button, which needs no hit-test. The ring is white (never the accent —
+    // that colour already means "speaking/spotlighted" on these tiles) over a
+    // 40% scrim so it still reads 3:1 against an all-white shared screen.
+    const TILE_OVERLAY_BTN =
+        "absolute inset-0 z-10 pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white focus-visible:bg-black/40";
+    // The per-participant menu trigger: always visible (never hover-gated, or a
+    // keyboard user could never reach it) and never gated on pointer type — a
+    // visible affordance beats a long-press gesture nobody can discover. No
+    // aria-haspopup: CallParticipantMenu renders a focus-trapped <div> of
+    // buttons (a BottomSheet on touch) with neither role="menu" nor
+    // role="dialog", and a popup role we cannot honour is worse than none.
+    const TILE_MENU_BTN =
+        "absolute z-20 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
+
+    // focusTile() is a toggle, so the label has to say which way it goes.
+    function spotlightLabel(key: string, label: string): string {
+        return voiceCallState.focusedTileKey === key
+            ? `Exit spotlight for ${label}`
+            : `Spotlight ${label}`;
     }
 
     function onKeydown(e: KeyboardEvent): void {
@@ -225,10 +260,13 @@
             </div>
         {:else if focusedTile}
             <!-- Spotlight: the focused stream fills the view -->
+            <!-- The wrapper keeps click-anywhere-to-go-back for the pointer, so
+                 both ignores below stay live; the keyboard path is the overlay
+                 button (and Escape, handled on <svelte:window> above). -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <div
-                class="flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
+                class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
                 onclick={clearFocus}
                 title="Back to grid"
             >
@@ -239,6 +277,15 @@
                         isLocalIdentity(focusedTile.identity) &&
                         settingsState.mirrorCamera}
                 />
+                <button
+                    type="button"
+                    class={TILE_OVERLAY_BTN}
+                    aria-label="Back to grid"
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        clearFocus();
+                    }}
+                ></button>
             </div>
             <!-- Filmstrip: everyone else, small, along the bottom -->
             <div
@@ -260,6 +307,18 @@
                             label={tileLabel(t.identity, t.source)}
                             compact
                         />
+                        <button
+                            type="button"
+                            class={TILE_OVERLAY_BTN}
+                            aria-label={spotlightLabel(
+                                t.key,
+                                tileLabel(t.identity, t.source),
+                            )}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                focusTile(t.key);
+                            }}
+                        ></button>
                     </div>
                 {/each}
                 {#each participants as p (p.userId)}
@@ -304,6 +363,15 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
+                            <button
+                                type="button"
+                                class={TILE_OVERLAY_BTN}
+                                aria-label={spotlightLabel(cam.key, name)}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    focusTile(cam.key);
+                                }}
+                            ></button>
                         {:else}
                             <Avatar
                                 src={avatar}
@@ -312,6 +380,25 @@
                                 size={36}
                             />
                         {/if}
+                        <button
+                            type="button"
+                            class="{TILE_MENU_BTN} top-0.5 right-0.5 p-1"
+                            title={`Options for ${name}`}
+                            aria-label={`Options for ${name}`}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                const r =
+                                    e.currentTarget.getBoundingClientRect();
+                                openParticipantMenu(
+                                    p.userId,
+                                    r.right,
+                                    r.bottom,
+                                    false,
+                                );
+                            }}
+                        >
+                            <EllipsisVertical size={14} />
+                        </button>
                     </div>
                 {/each}
             </div>
@@ -334,6 +421,18 @@
                             tile={t}
                             label={tileLabel(t.identity, t.source)}
                         />
+                        <button
+                            type="button"
+                            class={TILE_OVERLAY_BTN}
+                            aria-label={spotlightLabel(
+                                t.key,
+                                tileLabel(t.identity, t.source),
+                            )}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                focusTile(t.key);
+                            }}
+                        ></button>
                     </div>
                 {/each}
 
@@ -379,6 +478,15 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
+                            <button
+                                type="button"
+                                class={TILE_OVERLAY_BTN}
+                                aria-label={spotlightLabel(cam.key, name)}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    focusTile(cam.key);
+                                }}
+                            ></button>
                             {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                 <div
                                     class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
@@ -410,6 +518,25 @@
                                 >
                             </div>
                         {/if}
+                        <button
+                            type="button"
+                            class="{TILE_MENU_BTN} top-2 right-2 p-1.5"
+                            title={`Options for ${name}`}
+                            aria-label={`Options for ${name}`}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                const r =
+                                    e.currentTarget.getBoundingClientRect();
+                                openParticipantMenu(
+                                    p.userId,
+                                    r.right,
+                                    r.bottom,
+                                    false,
+                                );
+                            }}
+                        >
+                            <EllipsisVertical size={16} />
+                        </button>
                     </div>
                 {/each}
             </div>
