@@ -11,6 +11,7 @@
     import ShareLocationDialog from "$lib/components/messages/ShareLocationDialog.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
+    import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
     import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
@@ -1425,6 +1426,11 @@
                         onMenuOpen={() => (interfaceState.leftOpen = true)}
                     />
                 {/if}
+            {:else if roomsState.activeSpaceId !== null}
+                <SpaceLandingPanel
+                    isMobile={interfaceState.isMobile}
+                    onMenuOpen={() => (interfaceState.leftOpen = true)}
+                />
             {:else}
                 <div
                     class="flex-1 flex flex-col items-center justify-center text-center p-8"
@@ -1439,14 +1445,10 @@
                     <h2
                         class="text-2xl font-bold text-discord-textPrimary mb-2"
                     >
-                        {roomsState.activeSpaceId === null
-                            ? "Select a room"
-                            : "Select a channel"}
+                        No rooms yet
                     </h2>
                     <p class="text-discord-textMuted max-w-sm">
-                        {roomsState.activeSpaceId === null
-                            ? "Choose a room or direct message from the sidebar to start chatting."
-                            : "Choose a channel from the list on the left to start chatting."}
+                        Create a room or start a direct message to get going.
                     </p>
                     {#if interfaceState.isMobile}
                         <button
