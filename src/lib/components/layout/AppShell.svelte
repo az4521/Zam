@@ -25,6 +25,7 @@
         bumpUnreadTick,
         reloadLastLocationFromStorage,
         resolvePendingSurface,
+        resolveLandingSurface,
     } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -863,6 +864,11 @@
         // The room list has just been rebuilt from the SDK, so this is the
         // earliest honest moment to settle a surface choice boot had to defer.
         resolvePendingSurface();
+        // Same reasoning as the line above: the room list is real now, so this
+        // is the first honest moment to replace an empty or stale main pane.
+        // Bumping the tick afterwards lets the new selection render in the
+        // same pass.
+        resolveLandingSurface();
         roomsState.roomsTick++;
     }
 
