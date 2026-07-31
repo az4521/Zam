@@ -925,12 +925,13 @@
     // alias links join if needed, then switch rooms — instead of letting the
     // SPA navigate away to matrix.to.
     //
-    // Everything here is delegated. MessageItem is one instance per timeline
-    // row, and decorating anchors eagerly needed a per-row MutationObserver to
-    // catch `{@html}` content replaced by an edit or a late decryption. Setting
-    // the tooltip when a pointer or focus first reaches the anchor is the same
-    // information at the same moment, costs one lookup instead of a sweep of
-    // every anchor in the row, and needs no observer at all.
+    // MessageItem is one instance per timeline row, so this used to carry a
+    // per-row MutationObserver: it swept the row for anchors on every mutation
+    // so that `{@html}` content replaced by an edit or a late decryption got
+    // decorated too. That job splits in two without an observer — one sweep
+    // covers the anchors present when the action runs, and delegated listeners
+    // cover anchors rendered later, resolving their target when the event
+    // fires. Clicks are delegated for the same reason.
     function matrixLinks(node: HTMLElement) {
         function onClick(e: MouseEvent) {
             if (e.defaultPrevented) return;
@@ -953,19 +954,31 @@
             });
         }
         // Full-id tooltip on user links (the anchor text may be a nickname).
-        // `pointerover` and `focusin` both bubble, so one listener each covers
-        // every anchor in the body, including ones rendered later. The title is
-        // set before the browser's tooltip delay elapses, and before assistive
-        // tech computes the accessible description on focus.
-        function decorate(e: Event) {
-            const anchor = (e.target as Element | null)?.closest?.("a[href]");
-            if (!(anchor instanceof HTMLElement) || !node.contains(anchor))
-                return;
+        // `data-matrix-link-ready` keeps the sweep and the delegated path from
+        // both writing the same anchor.
+        function decorateAnchor(anchor: HTMLElement) {
             if (anchor.dataset.matrixLinkReady) return;
             anchor.dataset.matrixLinkReady = "1";
             const title = matrixLinkTitle(anchor.getAttribute("href"));
             if (title) anchor.title = title;
         }
+        // `pointerover` and `focusin` both bubble, so one listener each covers
+        // anchors that appear after this runs, at the moment a pointer or focus
+        // first reaches them.
+        function decorate(e: Event) {
+            const anchor = (e.target as Element | null)?.closest?.("a[href]");
+            if (!(anchor instanceof HTMLElement) || !node.contains(anchor))
+                return;
+            decorateAnchor(anchor);
+        }
+        // The anchors that exist now are decorated eagerly, not on first hover:
+        // a screen reader's browse mode walks the accessibility tree without
+        // dispatching pointer or focus events, so a title that is only written
+        // from those events never reaches it — and a pill mention, whose link
+        // text is a nickname, is exactly where the full id has to be announced.
+        node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) =>
+            decorateAnchor(a),
+        );
         node.addEventListener("click", onClick);
         node.addEventListener("pointerover", decorate);
         node.addEventListener("focusin", decorate);
