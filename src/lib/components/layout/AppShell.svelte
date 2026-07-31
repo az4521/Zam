@@ -1442,14 +1442,31 @@
                             >#</span
                         >
                     </div>
-                    <h2
-                        class="text-2xl font-bold text-discord-textPrimary mb-2"
-                    >
-                        No rooms yet
-                    </h2>
-                    <p class="text-discord-textMuted max-w-sm">
-                        Create a room or start a direct message to get going.
-                    </p>
+                    <!-- Only a spaceless account is genuinely empty. With
+                         spaces joined, Home being empty just means every room
+                         lives in one — saying "no rooms yet" would be a lie. -->
+                    {#if roomsState.spaces.length === 0}
+                        <h2
+                            class="text-2xl font-bold text-discord-textPrimary mb-2"
+                        >
+                            No rooms yet
+                        </h2>
+                        <p class="text-discord-textMuted max-w-sm">
+                            Create a room or start a direct message to get
+                            going.
+                        </p>
+                    {:else}
+                        <h2
+                            class="text-2xl font-bold text-discord-textPrimary mb-2"
+                        >
+                            Nothing in Home
+                        </h2>
+                        <p class="text-discord-textMuted max-w-sm">
+                            All of your rooms live in spaces — open one to see
+                            them. Rooms and direct messages outside a space show
+                            up here.
+                        </p>
+                    {/if}
                     {#if interfaceState.isMobile}
                         <button
                             onclick={() => (interfaceState.leftOpen = true)}

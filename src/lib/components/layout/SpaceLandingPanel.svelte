@@ -144,8 +144,8 @@
                     Nothing joined here yet
                 </h2>
                 <p class="text-discord-textMuted max-w-sm">
-                    {spaceName} only holds other spaces — open one from the channel
-                    list to browse its channels.
+                    Only other spaces live inside {spaceName} — open one from the
+                    channel list to browse its channels.
                 </p>
             </div>
         {:else}
@@ -153,7 +153,7 @@
                 class="h-full flex flex-col items-center justify-center text-center"
             >
                 <p class="text-discord-textMuted max-w-sm">
-                    {spaceName} has no channels yet.
+                    There are no channels in {spaceName} yet.
                 </p>
             </div>
         {/if}

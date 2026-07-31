@@ -768,6 +768,32 @@ export function stopClient(): void {
 
 const pendingLeaves = new Set<string>();
 
+/**
+ * Rooms we have asked the server to join but that `/sync` has not confirmed
+ * yet. Consumed by `isRoomLandable` ONLY — deliberately NOT by `getRooms()` or
+ * `getRoomsInSpace()`, which must keep answering with genuinely joined rooms or
+ * the sidebar would list a room the SDK cannot render yet.
+ */
+const pendingJoins = new Set<string>();
+
+/**
+ * Clear a pending join once the SDK reflects it locally, with a backstop so a
+ * join the server never streams back can't wedge the id in the set forever.
+ * Mirrors the pendingLeaves bookkeeping at the end of `leaveRoom`.
+ */
+function clearPendingJoinWhenSynced(roomId: string): void {
+    const check = setInterval(() => {
+        if (matrixClient?.getRoom(roomId)?.getMyMembership() === "join") {
+            pendingJoins.delete(roomId);
+            clearInterval(check);
+        }
+    }, 500);
+    setTimeout(() => {
+        pendingJoins.delete(roomId);
+        clearInterval(check);
+    }, 30000);
+}
+
 export function getRooms(): Room[] {
     return (matrixClient?.getRooms() ?? []).filter(
         (r) => r.getMyMembership() === "join" && !pendingLeaves.has(r.roomId),
@@ -784,26 +810,38 @@ export function getRoom(roomId: string): Room | null {
  * from a live one, and it deliberately answers a weaker question than
  * "does membership read join".
  *
- * **Unknown membership is not gone.** `Room.getMyMembership()` is
+ * **A just-joined room is not gone.** `MatrixClient.joinRoom` resolves as soon
+ * as `/join` returns: it ends in `syncApi.createRoom(roomId)` →
+ * `_createAndReEmitRoom`, which only constructs a `Room` and NEVER calls
+ * `client.store.storeRoom` (every `storeRoom` call site lives in sync
+ * processing). Since `client.getRoom()` reads straight out of that store,
+ * `getRoom()` still answers `null` until the `/sync` carrying the join lands —
+ * so the "no Room object" test below would call a room the user just clicked
+ * Join on gone, and the chain would move them off it and persist the
+ * replacement. Accepting an invite and re-joining a left room have the same
+ * window with a non-null Room whose membership still reads `"invite"` /
+ * `"leave"`. `pendingJoins` covers all three.
+ *
+ * **Unknown membership is not gone either.** `Room.getMyMembership()` is
  * `selfMembership ?? "leave"`, and `selfMembership` is only ever written by the
- * sync loop. `MatrixClient.joinRoom` resolves as soon as `/join` returns,
- * handing back a bare `syncApi.createRoom()` stub, so between an `await
- * joinRoom(...)` and the `/sync` that carries the join, a room the user just
- * joined reads as `"leave"`. Answering false there would yank them out of the
- * room they had just clicked Join on — and persist the replacement. The same
- * hole applies to a federated room continuwuity omits from /sync, until
- * `seedRoomStateIfMissing` heals it. So a room with no `m.room.member` event
- * for us at all is treated as landable, while a room the SDK has a real
- * opinion about is held to `"join"`.
+ * sync loop. That hole applies to a federated room continuwuity omits from
+ * /sync, until `seedRoomStateIfMissing` heals it. So a room with no
+ * `m.room.member` event for us at all is treated as landable, while a room the
+ * SDK has a real opinion about is held to `"join"`.
  */
 export function isRoomLandable(roomId: string): boolean {
+    // An optimistic leave must not land us straight back on the room. This
+    // outranks pendingJoins: leaving a room we only just joined is still a
+    // leave, and the leave is the newer intent.
+    if (pendingLeaves.has(roomId)) return false;
+    // An optimistic join is landable before /sync confirms it — see above; both
+    // the `!room` test and the membership test would otherwise answer false.
+    if (pendingJoins.has(roomId)) return true;
     const room = matrixClient?.getRoom(roomId);
     // After the first sync the SDK knows every joined room, so no Room object
     // means left, forgotten, or never joined — the case that makes a stale
     // cached id fall through the chain.
     if (!room) return false;
-    // An optimistic leave must not land us straight back on the room.
-    if (pendingLeaves.has(roomId)) return false;
     // No `m.room.member` event for us at all: the SDK has formed no opinion
     // yet, which `getMyMembership()` would flatten to "leave". Unknown ≠ gone.
     const userId = matrixClient?.getUserId();
@@ -3951,6 +3989,10 @@ export function getTombstone(room: Room): RoomTombstone | null {
 
 export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
+    // Claim the room as landable up front: `/sync` won't confirm the join for
+    // a few hundred ms, and any refresh in that window would otherwise decide
+    // the room is gone and move the user off it.
+    pendingJoins.add(roomId);
     try {
         await matrixClient.joinRoom(
             roomId,
@@ -3970,8 +4012,13 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
                 // candidate failed — try the next one
             }
         }
-        if (!joined) throw err;
+        if (!joined) {
+            // A failed join must not leave the id stuck as landable.
+            pendingJoins.delete(roomId);
+            throw err;
+        }
     }
+    clearPendingJoinWhenSynced(roomId);
     await seedRoomStateIfMissing(roomId);
     scheduleJoinedRoomsReconcile();
 }
@@ -4272,7 +4319,16 @@ export async function acceptInvite(roomId: string): Promise<void> {
     const me = inviteRoom?.getMember(matrixClient.getUserId()!);
     const isDirect = me?.events.member?.getContent().is_direct === true;
     const inviter = inviteRoom ? getInviteSender(inviteRoom) : null;
-    await matrixClient.joinRoom(roomId);
+    // Membership keeps reading "invite" until the join comes back over /sync;
+    // claim the room as landable meanwhile so no refresh moves the user off it.
+    pendingJoins.add(roomId);
+    try {
+        await matrixClient.joinRoom(roomId);
+    } catch (e) {
+        pendingJoins.delete(roomId);
+        throw e;
+    }
+    clearPendingJoinWhenSynced(roomId);
     // Record peer-initiated DMs in m.direct so they surface in the DM section,
     // mirroring what createDirectMessage does for self-initiated DMs. Best-effort:
     // a failed account-data write must not strand the user after a joined room.
