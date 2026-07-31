@@ -46,3 +46,25 @@ export function summarizeThread(input: {
         latestTs: input.latestTs,
     };
 }
+
+/**
+ * Exact value equality for a ThreadSummary.
+ *
+ * `summarizeThread` mints a fresh object on every call, and Svelte's `$derived`
+ * invalidates dependents on referential inequality — so a per-row summary
+ * recomputed on every sync re-rendered every row's thread chip even when
+ * nothing about the thread had moved. Callers compare with this and keep the
+ * previous reference when it returns true. Same fix as `sameShield`.
+ */
+export function sameThreadSummary(
+    a: ThreadSummary | null,
+    b: ThreadSummary | null,
+): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return (
+        a.count === b.count &&
+        a.latestEventId === b.latestEventId &&
+        a.latestTs === b.latestTs
+    );
+}

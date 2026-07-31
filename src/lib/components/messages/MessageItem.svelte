@@ -66,6 +66,10 @@
         shieldViewForEvent,
         type ShieldView,
     } from "$lib/utils/eventShield";
+    import {
+        sameThreadSummary,
+        type ThreadSummary,
+    } from "$lib/utils/threadModel";
 
     import {
         messagesState,
@@ -760,9 +764,21 @@
     // Root summary: this message is a thread ROOT iff other events reply to it.
     // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
     // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
-    const threadSummary = $derived(
-        (void roomsState.roomsTick, getThreadSummary(room, eventId)),
-    );
+    // getThreadSummary mints a fresh object every call, so returning it unchanged
+    // would dirty this row on EVERY sync — one row's chip re-rendering is nothing,
+    // but there is one of these per timeline row. Keep the previous reference when
+    // the value has not moved (same trick as `shield` above, commit 55a5936).
+    // Plain `let`, NOT $state: a memo cell written inside a $derived must stay
+    // invisible to the reactivity graph (writing $state there throws).
+    let lastThreadSummary: ThreadSummary | null = null;
+    const threadSummary = $derived.by(() => {
+        void roomsState.roomsTick;
+        const next = getThreadSummary(room, eventId);
+        if (lastThreadSummary && sameThreadSummary(lastThreadSummary, next))
+            return lastThreadSummary;
+        lastThreadSummary = next;
+        return next;
+    });
     const isThreadRoot = $derived(!isThreadReply && threadSummary.count > 0);
 
     // Extract http/https URLs from the plain body for link previews

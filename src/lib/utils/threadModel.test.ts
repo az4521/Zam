@@ -1,6 +1,10 @@
 // src/lib/utils/threadModel.test.ts
 import { describe, it, expect } from "vitest";
-import { belongsToMainTimeline, summarizeThread } from "./threadModel";
+import {
+    belongsToMainTimeline,
+    sameThreadSummary,
+    summarizeThread,
+} from "./threadModel";
 
 describe("belongsToMainTimeline", () => {
     it("keeps a plain message with no relation", () => {
@@ -80,5 +84,35 @@ describe("summarizeThread", () => {
         expect(
             summarizeThread({ length: 0, latestEventId: null, latestTs: 0 }),
         ).toEqual({ count: 0, latestEventId: null, latestTs: 0 });
+    });
+});
+
+describe("sameThreadSummary", () => {
+    const base = { count: 2, latestEventId: "$b", latestTs: 1000 };
+
+    it("is true for two structurally identical summaries", () => {
+        expect(sameThreadSummary({ ...base }, { ...base })).toBe(true);
+    });
+
+    it("is false when the reply count changes", () => {
+        expect(sameThreadSummary(base, { ...base, count: 3 })).toBe(false);
+    });
+
+    it("is false when the latest event changes", () => {
+        expect(sameThreadSummary(base, { ...base, latestEventId: "$c" })).toBe(
+            false,
+        );
+    });
+
+    it("is false when the latest timestamp changes", () => {
+        expect(sameThreadSummary(base, { ...base, latestTs: 1001 })).toBe(
+            false,
+        );
+    });
+
+    it("handles null on either side", () => {
+        expect(sameThreadSummary(null, null)).toBe(true);
+        expect(sameThreadSummary(null, base)).toBe(false);
+        expect(sameThreadSummary(base, null)).toBe(false);
     });
 });
