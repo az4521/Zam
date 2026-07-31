@@ -32,10 +32,9 @@ export function anchoredActiveIndex(
 ): number {
     // Not redundant with the key comparison below: a caller that derived its
     // anchor from an out-of-range lookup holds `undefined`, and without the
-    // clamp `keys[999] === undefined` would report that stale cursor active.
-    // Not redundant with the key comparison below: a caller that derived its
-    // anchor from an out-of-range lookup holds `undefined`, and without the
     // clamp `keys[99] === undefined` would report that stale cursor active.
+    // The boundary that matters is `current === keys.length` -- one past the
+    // end -- so the clamp has to be exclusive there, not merely generous.
     const index = clampActiveIndex(current, keys.length);
     if (index < 0) return -1;
     return keys[index] === anchor ? index : -1;

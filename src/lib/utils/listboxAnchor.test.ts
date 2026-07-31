@@ -42,6 +42,15 @@ describe("anchoredActiveIndex", () => {
         expect(anchoredActiveIndex(1, null, KEYS)).toBe(-1);
     });
 
+    it("does not match an undefined anchor one step past the last option", () => {
+        // The exact boundary the clamp defends: `keys.length` is the first
+        // index that is no longer an option, and `keys[3]` is `undefined` just
+        // like the anchor, so an off-by-one clamp (`keys.length + 1`) would
+        // compare `undefined === undefined` and call index 3 active.
+        const noAnchor = undefined as unknown as string | null;
+        expect(anchoredActiveIndex(3, noAnchor, KEYS)).toBe(-1);
+    });
+
     it("does not match an out-of-range index against an undefined anchor", () => {
         // A caller that built its anchor from `keys[i]` without an `?? null`
         // holds `undefined` once `i` runs off the end — and `keys[99]` is
