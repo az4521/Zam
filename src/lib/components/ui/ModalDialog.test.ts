@@ -9,7 +9,6 @@ import {
     afterEach,
 } from "vitest";
 import { flushSync, mount, unmount, type ComponentProps } from "svelte";
-import ModalDialog from "./ModalDialog.svelte";
 import ModalDialogFixture from "./ModalDialog.fixture.svelte";
 
 let target: HTMLDivElement;
@@ -105,6 +104,28 @@ describe("ModalDialog semantics", () => {
         expect(backdrop?.contains(panel()!)).toBe(false);
         backdrop!.click();
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    // `aria-modal="true"` is a promise that everything behind this dialog is
+    // out of reach, and the only thing making that promise true is the layer
+    // covering the viewport and the backdrop covering the layer. Callers
+    // append to `layerClass`/`backdropClass` but cannot restore coverage if
+    // the shell drops it — and six adopters inherit this rather than restating
+    // it, so a regression here would be silently wrong in six places at once.
+    it("covers the viewport, which is what makes aria-modal honest", () => {
+        render({ onClose: vi.fn() });
+        const layer = panel()!.parentElement!;
+        expect([...layer.classList]).toEqual(
+            expect.arrayContaining(["fixed", "inset-0"]),
+        );
+
+        const backdrop = target.querySelector<HTMLButtonElement>(
+            'button[aria-label="Close dialog"]',
+        )!;
+        expect(backdrop.parentElement).toBe(layer);
+        expect([...backdrop.classList]).toEqual(
+            expect.arrayContaining(["absolute", "inset-0"]),
+        );
     });
 
     // The panel's position utility belongs to the caller. `relative` and

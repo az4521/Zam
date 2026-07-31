@@ -32,7 +32,12 @@
         panelClass?: string;
         /** Accessible name of the backdrop close control. */
         closeLabel?: string;
-        /** Key handler on the panel, for dialogs that submit on Enter. */
+        /**
+         * Key handler on the panel, for dialogs that submit on Enter. Escape
+         * does NOT reach it while `handlesEscape` is true: the trap calls
+         * `stopPropagation()` and Svelte delegates `keydown`, so the delegated
+         * listener never runs for that key. Handle Escape via `onClose`.
+         */
         onKeydown?: (event: KeyboardEvent) => void;
         children: Snippet;
     }
