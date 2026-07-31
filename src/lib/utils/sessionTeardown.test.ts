@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     releaseSessionResources,
     TEARDOWN_ORDER,
@@ -153,15 +154,21 @@ describe("session expiry keeps the crypto store (user decision, 2026-07-30)", ()
         // ways that file could reach a wipe today: the helper by any import
         // name, a raw IndexedDB delete, and the SDK's own store clear. It is
         // not a proof of absence — a future fourth way would slip past — but
-        // every route that exists now costs a red test.
+        // every route that exists now costs a red test. Prose counts, so if
+        // you need to NAME these APIs, name them in `sessionTeardown.ts`, not
+        // in the route: a comment reinforcing the policy would fail this.
         //
-        // cwd-relative, like the repo's other source-mirroring test: under
-        // Vite's transform `import.meta.url` is not a file: URL, so it cannot
-        // resolve this. `npm run test` always runs from the package root; an
-        // ad-hoc vitest invocation from a subdirectory would ENOENT here —
-        // loudly, never as a false pass.
+        // NB: resolve via dirname(), not `new URL("…", import.meta.url)` —
+        // Vite rewrites that literal pattern into an *asset* reference
+        // ("http://localhost:3000/src/routes/+page.svelte"), and fileURLToPath
+        // then throws "The URL must be of scheme file" (same trap as
+        // themeParity.test.ts). Not process.cwd() either: a policy pin must
+        // fail for policy reasons, not because vitest was invoked elsewhere.
         const page = readFileSync(
-            resolve(process.cwd(), "src/routes/+page.svelte"),
+            resolve(
+                dirname(fileURLToPath(import.meta.url)),
+                "../../routes/+page.svelte",
+            ),
             "utf8",
         );
         expect(page).not.toContain("deleteCryptoStore");
