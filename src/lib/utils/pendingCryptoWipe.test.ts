@@ -1,13 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     MAX_PENDING_WIPES,
+    PENDING_WIPE_KEY,
     PENDING_WIPE_VERSION,
     addPendingWipe,
     cryptoDbNames,
+    forgetPendingWipe,
     parsePendingWipes,
+    readPendingWipes,
+    rememberPendingWipe,
     removePendingWipe,
     serializePendingWipes,
     wipesToRetry,
+    writePendingWipes,
     type PendingWipe,
 } from "./pendingCryptoWipe";
 
@@ -16,6 +21,14 @@ const wipe: PendingWipe = {
     deviceId: "DEV1",
     cryptoDbPrefix: "matrix-client:%40a%3Aexample.org:DEV1:crypto",
 };
+
+/** `n` distinct sessions, oldest first: DEV0 … DEV(n-1). */
+function manyWipes(n: number): PendingWipe[] {
+    return Array.from({ length: n }, (_, i) => ({
+        ...wipe,
+        deviceId: `DEV${i}`,
+    }));
+}
 
 describe("parsePendingWipes", () => {
     it("is empty for null, junk, non-objects and non-arrays", () => {
@@ -71,6 +84,35 @@ describe("parsePendingWipes", () => {
             wipe,
         ]);
     });
+
+    it("caps a stored envelope that holds more entries than we ever write", () => {
+        // `addPendingWipe` only bounds writers we control. The array length
+        // comes off disk, so the read path has to bound it too.
+        const raw = JSON.stringify({
+            v: PENDING_WIPE_VERSION,
+            wipes: manyWipes(20),
+        });
+        const parsed = parsePendingWipes(raw);
+        expect(parsed).toHaveLength(MAX_PENDING_WIPES);
+        // the NEWEST survive, matching what `addPendingWipe` would have kept
+        expect(parsed[parsed.length - 1].deviceId).toBe("DEV19");
+        expect(parsed[0].deviceId).toBe(`DEV${20 - MAX_PENDING_WIPES}`);
+    });
+});
+
+describe("serializePendingWipes", () => {
+    it("writes only the three known fields, never a smuggled secret", () => {
+        // The dangerous call TypeScript will NOT catch: excess-property
+        // checking does not fire through a spread, and the account records in
+        // `matrix_accounts` carry an `accessToken`. Structure, not the type
+        // checker, is what has to keep a token out of localStorage.
+        const accountLike = { ...wipe, accessToken: "syt_secret_never_stored" };
+        const smuggled: PendingWipe = { ...accountLike };
+        const raw = serializePendingWipes([smuggled]);
+        expect(raw).not.toContain("syt_secret_never_stored");
+        expect(raw).not.toContain("accessToken");
+        expect(parsePendingWipes(raw)).toEqual([wipe]);
+    });
 });
 
 describe("addPendingWipe", () => {
@@ -98,6 +140,23 @@ describe("addPendingWipe", () => {
         expect(list[list.length - 1].deviceId).toBe(
             `DEV${MAX_PENDING_WIPES + 2}`,
         );
+    });
+
+    it("keeps the cap big enough to hold a real multi-account device", () => {
+        // Pinned with a literal floor on purpose: every other cap assertion
+        // derives its bound from the constant, so they all stay green if it
+        // collapses to 1 — which would silently forget every session's owed
+        // wipe but the last one.
+        expect(MAX_PENDING_WIPES).toBeGreaterThanOrEqual(8);
+    });
+
+    it("keeps the newest 8 of a literal 20 sessions", () => {
+        let list: PendingWipe[] = [];
+        for (const w of manyWipes(20)) list = addPendingWipe(list, w);
+        expect(list).toHaveLength(MAX_PENDING_WIPES);
+        expect(list[0].deviceId).toBe(`DEV${20 - MAX_PENDING_WIPES}`);
+        expect(list[list.length - 1].deviceId).toBe("DEV19");
+        expect(list.map((w) => w.deviceId)).toContain("DEV12");
     });
 });
 
@@ -157,5 +216,66 @@ describe("cryptoDbNames", () => {
             "p::matrix-sdk-crypto",
             "p::matrix-sdk-crypto-meta",
         ]);
+    });
+});
+
+describe("storage accessors", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it("round-trips through localStorage under the versioned key", () => {
+        writePendingWipes([wipe]);
+        expect(localStorage.getItem(PENDING_WIPE_KEY)).toBe(
+            serializePendingWipes([wipe]),
+        );
+        expect(readPendingWipes()).toEqual([wipe]);
+    });
+
+    it("reads an absent or corrupt value as no records", () => {
+        expect(readPendingWipes()).toEqual([]);
+        localStorage.setItem(PENDING_WIPE_KEY, "{{{");
+        expect(readPendingWipes()).toEqual([]);
+    });
+
+    it("remember adds without losing other sessions, and dedupes", () => {
+        const other = { ...wipe, deviceId: "DEV2" };
+        rememberPendingWipe(wipe);
+        rememberPendingWipe(other);
+        rememberPendingWipe(wipe);
+        expect(readPendingWipes()).toEqual([other, wipe]);
+    });
+
+    it("forget removes only the named session, and clears the key when empty", () => {
+        const other = { ...wipe, deviceId: "DEV2" };
+        writePendingWipes([wipe, other]);
+        forgetPendingWipe(wipe);
+        expect(readPendingWipes()).toEqual([other]);
+        forgetPendingWipe(other);
+        expect(readPendingWipes()).toEqual([]);
+        expect(localStorage.getItem(PENDING_WIPE_KEY)).toBeNull();
+    });
+
+    it("never throws when storage itself throws", () => {
+        vi.stubGlobal("localStorage", {
+            getItem() {
+                throw new Error("private mode");
+            },
+            setItem() {
+                throw new Error("private mode");
+            },
+            removeItem() {
+                throw new Error("private mode");
+            },
+        });
+        expect(readPendingWipes()).toEqual([]);
+        expect(() => writePendingWipes([wipe])).not.toThrow();
+        expect(() => rememberPendingWipe(wipe)).not.toThrow();
+        expect(() => forgetPendingWipe(wipe)).not.toThrow();
     });
 });

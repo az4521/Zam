@@ -65,16 +65,33 @@ export function parsePendingWipes(raw: string | null): PendingWipe[] {
         const envelope = data as { v?: unknown; wipes?: unknown };
         if (envelope.v !== PENDING_WIPE_VERSION) return [];
         if (!Array.isArray(envelope.wipes)) return [];
-        return envelope.wipes
-            .map(toWipe)
-            .filter((w): w is PendingWipe => w !== null);
+        return (
+            envelope.wipes
+                .map(toWipe)
+                .filter((w): w is PendingWipe => w !== null)
+                // The cap on `addPendingWipe` only binds writers we control;
+                // the stored length comes off disk, so bound it here too.
+                .slice(-MAX_PENDING_WIPES)
+        );
     } catch {
         return [];
     }
 }
 
 export function serializePendingWipes(wipes: PendingWipe[]): string {
-    return JSON.stringify({ v: PENDING_WIPE_VERSION, wipes });
+    return JSON.stringify({
+        v: PENDING_WIPE_VERSION,
+        // Rebuilt field by field on the WRITE side as well. TypeScript will not
+        // catch the dangerous call — `{ ...account, cryptoDbPrefix }` compiles
+        // clean because excess-property checking does not fire through a
+        // spread, and account records carry an `accessToken`. Structure, not
+        // the type checker, is what keeps a secret out of localStorage.
+        wipes: wipes.map((w) => ({
+            userId: w.userId,
+            deviceId: w.deviceId,
+            cryptoDbPrefix: w.cryptoDbPrefix,
+        })),
+    });
 }
 
 function sameSession(
@@ -138,4 +155,37 @@ export function cryptoDbNames(prefix: string): string[] {
         `${prefix}::matrix-sdk-crypto`,
         `${prefix}::matrix-sdk-crypto-meta`,
     ];
+}
+
+// --- storage -----------------------------------------------------------
+// Every access is try/catch-tolerant (private mode, quota, SSR), matching
+// `scopedStorage.ts`. These are total functions: a storage failure degrades to
+// "no records" / "not written", never to a thrown error on the boot path.
+
+export function readPendingWipes(): PendingWipe[] {
+    try {
+        return parsePendingWipes(localStorage.getItem(PENDING_WIPE_KEY));
+    } catch {
+        return [];
+    }
+}
+
+export function writePendingWipes(wipes: PendingWipe[]): void {
+    try {
+        if (wipes.length === 0) {
+            localStorage.removeItem(PENDING_WIPE_KEY);
+            return;
+        }
+        localStorage.setItem(PENDING_WIPE_KEY, serializePendingWipes(wipes));
+    } catch {
+        // ignore (private mode / storage full)
+    }
+}
+
+export function rememberPendingWipe(wipe: PendingWipe): void {
+    writePendingWipes(addPendingWipe(readPendingWipes(), wipe));
+}
+
+export function forgetPendingWipe(id: SessionId): void {
+    writePendingWipes(removePendingWipe(readPendingWipes(), id));
 }
