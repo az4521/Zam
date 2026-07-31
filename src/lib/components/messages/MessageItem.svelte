@@ -1772,6 +1772,14 @@
         the row carried no `group` at all on touch, which is what kept
         `group-hover:` from ever matching; the class here restores exactly that
         while leaving `group` itself unconditional for the focus reveal.
+
+        The FOCUS reveals are suppressed for the whole inline-edit session.
+        `:focus-visible` matches a focused text-entry element whatever the
+        modality, so the edit <textarea> (a descendant of this row) otherwise
+        keeps `group-has-[:focus-visible]` true from the moment Edit is
+        clicked — pinning this row's bar open while the pointer hovers another
+        row's, two floating bars at once. Hover is left alone: it follows the
+        pointer, so it cannot pin anything.
     -->
     <div
         data-message-actions
@@ -1784,7 +1792,11 @@
             ? 'flex'
             : `hidden ${
                   interfaceState.isTouchscreen ? '' : 'group-hover:flex'
-              } group-focus-visible:flex group-has-[:focus-visible]:flex`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+              } ${
+                  isEditing
+                      ? ''
+                      : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
+              }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
         {#if isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
             <button
