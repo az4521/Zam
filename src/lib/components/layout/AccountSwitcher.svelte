@@ -101,13 +101,19 @@
       viewport, so `bottom-16 left-2` / `inset-x-0 bottom-0` resolve exactly
       where the old `fixed` panel sat. The backdrop stays invisible on desktop
       (it is only a light-dismiss click catcher) and keeps its scrim on touch.
+      `cursor-default` on that invisible branch only: the shell's backdrop is a
+      real <button>, and preflight's `button{cursor:pointer}` would otherwise
+      turn the whole viewport into a pointer region with nothing visible under
+      it. The dimmed touch scrim keeps the pointer cursor, which is correct.
       There is no heading element, so the dialog is named directly.
     -->
     <ModalDialog
         onClose={closeModal}
         label="Accounts"
         layerClass="z-50"
-        backdropClass={interfaceState.isTouchscreen ? "bg-black/40" : ""}
+        backdropClass={interfaceState.isTouchscreen
+            ? "bg-black/40"
+            : "cursor-default"}
         panelClass="absolute bg-discord-backgroundSecondary border border-discord-divider shadow-xl {interfaceState.isTouchscreen
             ? 'inset-x-0 bottom-0 rounded-t-lg p-2 pb-4'
             : 'bottom-16 left-2 w-72 rounded-lg p-1.5'}"
@@ -160,12 +166,16 @@
                         </svg>
                     {/if}
                 </button>
+                <!-- `group-focus-within/account:opacity-100` is the keyboard
+                     analogue of the row-hover reveal below it. Without it the
+                     focus trap makes this destructive control the second tab
+                     stop while `opacity-0` hides both it and its focus ring. -->
                 <button
                     onclick={() => signOut(account.userId)}
                     class="flex-shrink-0 px-2 py-1 mr-1 rounded text-xs font-medium transition-colors {confirmSignOutId ===
                     account.userId
                         ? 'bg-discord-danger text-white'
-                        : 'text-discord-textMuted hover:text-discord-danger opacity-0 group-hover/account:opacity-100'} {interfaceState.isTouchscreen
+                        : 'text-discord-textMuted hover:text-discord-danger opacity-0 group-hover/account:opacity-100 group-focus-within/account:opacity-100'} {interfaceState.isTouchscreen
                         ? '!opacity-100'
                         : ''}"
                     title="Sign out {account.userId}"

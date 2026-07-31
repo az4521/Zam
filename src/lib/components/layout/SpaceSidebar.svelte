@@ -1248,7 +1248,12 @@
                     class="w-7 h-7 rounded flex-shrink-0"
                     style="background-color: {cpHex};"
                 ></div>
+                <!-- Nominated as the trap's initial focus: the first focusable
+                     in DOM order is a preset swatch, which is unnamed and whose
+                     inline `outline: none` would leave a keyboard user with no
+                     visible focus at all. -->
                 <input
+                    data-autofocus
                     class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm font-mono px-2 py-1.5 rounded outline-none border border-discord-divider focus:border-discord-accent uppercase tracking-wider"
                     value={cpHex}
                     maxlength={7}
