@@ -779,6 +779,21 @@ export function getRoom(roomId: string): Room | null {
 }
 
 /**
+ * Whether the SDK still reports us as joined to a room. Mirrors the filter in
+ * `getRooms()` so a room the user has left, been kicked from, or forgotten
+ * reads false — which is how the landing-surface chain tells a stale remembered
+ * room id from a live one.
+ */
+export function isJoinedRoom(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    return (
+        !!room &&
+        room.getMyMembership() === "join" &&
+        !pendingLeaves.has(roomId)
+    );
+}
+
+/**
  * Whether a room's purpose is a call rather than a timeline. Reads the immutable
  * `m.room.create` type through the SDK and delegates the string matching to the
  * pure util, which also accepts the types other clients write.
