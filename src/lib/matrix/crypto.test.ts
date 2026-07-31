@@ -17,6 +17,7 @@ import {
     serializePendingWipes,
     readPendingWipes,
 } from "$lib/utils/pendingCryptoWipe";
+import { getCryptoDbName } from "$lib/utils/cryptoStore";
 
 // Regression cover for the "Cannot encrypt event in unconfigured room" bug
 // (2026-07-25, cross-server DM with a federated homeserver).
@@ -690,11 +691,15 @@ type FakeMode = "success" | "error" | "blocked" | "hang" | "throw";
 function fakeIndexedDB(
     modes: Record<string, FakeMode>,
     fallback: FakeMode = "success",
+    // Fires as the delete is issued, so a test can simulate another tab
+    // writing to the record list in the middle of a sweep.
+    onDelete?: (name: string) => void,
 ) {
     const seen: string[] = [];
     const factory = {
         deleteDatabase(name: string) {
             seen.push(name);
+            onDelete?.(name);
             const mode = modes[name] ?? fallback;
             if (mode === "throw") throw new Error("nope");
             const req: Record<string, (() => void) | null> = {
@@ -719,6 +724,18 @@ const pending = {
     deviceId: "DEV1",
     cryptoDbPrefix: PREFIX,
 };
+
+/** A well-formed record: prefix derived from its own ids, as the wipe path
+ *  writes it. `pending` above pins the literal that must produce. */
+const wipeFor = (userId: string, deviceId: string) => ({
+    userId,
+    deviceId,
+    cryptoDbPrefix: getCryptoDbName(userId, deviceId),
+});
+const dbsOf = (w: { cryptoDbPrefix: string }) => [
+    `${w.cryptoDbPrefix}::matrix-sdk-crypto`,
+    `${w.cryptoDbPrefix}::matrix-sdk-crypto-meta`,
+];
 
 describe("deleteDatabaseWithOutcome", () => {
     afterEach(() => vi.unstubAllGlobals());
@@ -830,6 +847,74 @@ describe("retryPendingCryptoWipes", () => {
         );
         await expect(retryPendingCryptoWipes([])).resolves.toBeUndefined();
         expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // The live-session guard matches on user + device, but the delete takes the
+    // stored prefix. A record whose prefix does not derive from its own ids
+    // aims the irreversible call at a database the guard never looked at —
+    // possibly the ACTIVE account's store. It must never be issued.
+    it("refuses a record whose prefix does not match its own ids", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        const forged = {
+            userId: "@a:example.org",
+            deviceId: "DEV1",
+            cryptoDbPrefix: "matrix-client:%40live%3Aexample.org:LIVE:crypto",
+        };
+        localStorage.setItem(PENDING_WIPE_KEY, serializePendingWipes([forged]));
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([]);
+        // Skipped, not dropped — the same rule as a live session.
+        expect(readPendingWipes()).toEqual([forged]);
+    });
+
+    it("sweeps every record, and retires only the device that is really gone", async () => {
+        const gone = wipeFor("@a:example.org", "DEV1");
+        const stillBlocked = wipeFor("@a:example.org", "DEV2");
+        // Blocked record FIRST: a sweep that only ever handles the head of the
+        // list would leave the deletable one untouched.
+        const { factory, seen } = fakeIndexedDB({
+            [dbsOf(stillBlocked)[0]]: "blocked",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([stillBlocked, gone]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([...dbsOf(stillBlocked), ...dbsOf(gone)]);
+        // Same user, different device: retiring DEV1 must not retire DEV2's
+        // still-owed wipe.
+        expect(readPendingWipes()).toEqual([stillBlocked]);
+    });
+
+    it("keeps a record another tab wrote while the sweep was running", async () => {
+        const other = wipeFor("@b:example.org", "DEV9");
+        let injected = false;
+        const { factory } = fakeIndexedDB({}, "success", () => {
+            if (injected) return;
+            injected = true;
+            // Another tab signs out mid-sweep and appends its own record.
+            localStorage.setItem(
+                PENDING_WIPE_KEY,
+                serializePendingWipes([pending, other]),
+            );
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        // Our finished wipe is retired against the CURRENT list, not the stale
+        // copy we started from — the newcomer's key material is still owed.
+        expect(readPendingWipes()).toEqual([other]);
     });
 
     // Boot calls this fire-and-forget; a second caller (a re-render, a second

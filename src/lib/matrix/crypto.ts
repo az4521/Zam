@@ -48,6 +48,7 @@ import {
     rememberPendingWipe,
     writePendingWipes,
     wipesToRetry,
+    type PendingWipe,
 } from "$lib/utils/pendingCryptoWipe";
 import { readScoped } from "$lib/utils/scopedStorage";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
@@ -415,6 +416,24 @@ export async function deleteCryptoStore(
     }
 }
 
+/**
+ * Whether a record's delete target is the one its own identity implies.
+ *
+ * The live-session guard (`wipesToRetry`) matches on user + device, but the
+ * irreversible call takes `cryptoDbPrefix` — a string read verbatim off
+ * localStorage, which the parser only checks is non-empty. A record whose
+ * prefix does not derive from its own ids therefore aims the delete at a
+ * database the guard never inspected, which could be the ACTIVE account's
+ * crypto store. Corruption, a hand-edited entry, an extension, or a future
+ * change to `getCryptoDbName` all produce exactly that.
+ *
+ * Mismatched records are SKIPPED AND KEPT, the same rule as a live session: we
+ * never delete on a guess, and we never claim a wipe finished that didn't.
+ */
+function prefixMatchesIdentity(wipe: PendingWipe): boolean {
+    return wipe.cryptoDbPrefix === getCryptoDbName(wipe.userId, wipe.deviceId);
+}
+
 let sweepInFlight = false;
 
 /**
@@ -428,6 +447,17 @@ let sweepInFlight = false;
  * Never touches a session still known to this device, never blocks boot, and
  * never rejects. Records whose deletes are STILL blocked are kept for the next
  * boot rather than reported as done. Call it fire-and-forget.
+ *
+ * Nothing awaits it, but it is not instant: records are swept serially, so the
+ * worst case is `MAX_PENDING_WIPES` (16) × 2 databases × `DELETE_DB_TIMEOUT_MS`
+ * ≈ 160s holding `sweepInFlight`, during which a second call is a no-op. Only a
+ * store that never fires an event at all gets anywhere near that.
+ *
+ * An EMPTY `liveSessions` means "no session on this device is live", i.e. every
+ * recorded wipe is eligible — and `loadRegistry()` fails open to `[]` on a
+ * corrupt `matrix_accounts`, so that is a reachable state, not a hypothetical.
+ * What bounds the damage there is `prefixMatchesIdentity`: a record can only
+ * ever delete the two databases its own user id and device id name.
  */
 export async function retryPendingCryptoWipes(
     liveSessions: Array<{ userId: string; deviceId?: string | null }>,
@@ -439,7 +469,9 @@ export async function retryPendingCryptoWipes(
         if (stored.length === 0) return;
         const factory = getIndexedDB();
         if (!factory) return;
-        const targets = wipesToRetry(stored, liveSessions);
+        const targets = wipesToRetry(stored, liveSessions).filter(
+            prefixMatchesIdentity,
+        );
         if (targets.length === 0) return;
         const finished: typeof targets = [];
         for (const wipe of targets) {
@@ -457,8 +489,11 @@ export async function retryPendingCryptoWipes(
                 ),
         );
         writePendingWipes(remaining);
-    } catch {
-        // Boot must never fail on a best-effort cleanup.
+    } catch (e) {
+        // Boot must never fail on a best-effort cleanup — but this is the one
+        // place in the sweep that does something irreversible, so a silent
+        // no-op would leave live-verify no signal at all that it gave up.
+        console.warn("[matrix] pending crypto wipe sweep failed", e);
     } finally {
         sweepInFlight = false;
     }
