@@ -30,15 +30,24 @@ import { fileURLToPath } from "node:url";
  * WHAT THIS CANNOT PROVE — be clear about it
  * ------------------------------------------
  * This is a *textual* guard, not a behavioural one. It proves the source still
- * says what it said when the polarity was verified by hand. It does NOT prove:
+ * says what it said when the polarity was verified by hand.
+ *
+ * It DOES pin, per element: that each drawer's `inert`/`aria-hidden` sits in
+ * the opening tag of the element carrying that drawer's own
+ * `transform: translateX(<var>px)`, bound to that drawer's own derived and no
+ * other; and that the derived comes from a correctly-signed call. So an
+ * attribute swapped between the two right-hand drawers, or hoisted off the
+ * translated element onto its `fixed inset-0` ancestor (which would kill the
+ * edge-swipe-open gesture), now fails here.
+ *
+ * It still does NOT prove:
  *   - that `inert` actually removes the subtree from the tab order at runtime;
- *   - that the attribute sits on the translated element rather than an
- *     ancestor (putting it on the `fixed inset-0` container would kill the
- *     edge-swipe-open gesture, and this test would not notice);
  *   - that the mobile branch is the one being rendered;
- *   - that the drawers behave correctly mid-drag.
+ *   - that the drawers behave correctly mid-drag;
+ *   - that no OTHER element in these files wrongly gained an `inert` — the
+ *     per-element assertions are scoped to the three known drawers.
  * Those still need the live keyboard/gesture pass recorded in the task report.
- * A green run here means "nobody silently inverted the wiring", nothing more.
+ * A green run here means "nobody silently inverted or crossed the wiring".
  */
 
 // Resolve via dirname(fileURLToPath(...)), NOT `new URL("…", import.meta.url)`
@@ -108,8 +117,82 @@ function closedCalls(src: string): string[] {
     return pairs.sort();
 }
 
+/**
+ * The remainder of a drawer's OPENING TAG, sliced out of the file.
+ *
+ * Whole-file `toContain("inert={…}")` checks are positionally blind, and this
+ * file is the worst possible place for that: `MessageArea.svelte` holds two
+ * right-hand drawers that are both 280px wide with near-identical markup, so
+ * swapping their bindings is the likeliest copy-paste error here — and it is a
+ * lockout, not a cosmetic slip (with the member list open, `showRightPanel` is
+ * false, so `rightPanelClosed` is true, so the member drawer would be inert
+ * while open). A whole-file assertion passes happily through that swap.
+ *
+ * `landmark` is the element's `transform: translateX(<var>px)` — i.e. the slice
+ * is anchored to the very element whose translate polarity was verified, which
+ * is what makes "the attribute is on the right element" a real claim rather
+ * than "the attribute is somewhere in the file". `firstChild` terminates the
+ * slice at the drawer's first child, so it covers exactly the rest of that
+ * element's attributes and nothing below it.
+ */
+function drawerOpeningTag(
+    src: string,
+    landmark: string,
+    firstChild: string,
+): string {
+    const text = normalize(src);
+    const start = text.indexOf(landmark);
+    // Not found means the markup moved. Fail loudly — a silent -1 would slice
+    // from the end of the file and make every assertion below vacuous.
+    expect(start, `landmark not found: ${landmark}`).toBeGreaterThan(-1);
+    const end = text.indexOf(firstChild, start);
+    expect(
+        end,
+        `first child not found after ${landmark}: ${firstChild}`,
+    ).toBeGreaterThan(start);
+    return text.slice(start, end);
+}
+
+/** Every drawer derived in the codebase, so each block can exclude the others. */
+const DRAWER_DERIVEDS = [
+    "leftDrawerClosed",
+    "rightPanelClosed",
+    "memberDrawerClosed",
+];
+
 const appShell = () => readComponent("AppShell.svelte");
 const messageArea = () => readComponent("MessageArea.svelte");
+
+const leftDrawerTag = () =>
+    drawerOpeningTag(
+        appShell(),
+        "transform: translateX({drawerTranslate}px)",
+        "<SpaceSidebar",
+    );
+const rightPanelTag = () =>
+    drawerOpeningTag(
+        messageArea(),
+        "transform: translateX({pinnedTranslate}px)",
+        "{#if showNotificationsPanel}",
+    );
+const memberDrawerTag = () =>
+    drawerOpeningTag(
+        messageArea(),
+        "transform: translateX({memberTranslate}px)",
+        "<MemberList",
+    );
+
+/**
+ * Asserts a drawer element carries its OWN derived on both `inert` and
+ * `aria-hidden`, and carries no other drawer's derived.
+ */
+function expectBoundTo(tag: string, own: string) {
+    expect(tag).toContain(`inert={${own}}`);
+    expect(tag).toContain(`aria-hidden={${own} ? "true" : undefined}`);
+    for (const other of DRAWER_DERIVEDS.filter((name) => name !== own)) {
+        expect(tag).not.toContain(other);
+    }
+}
 
 describe("drawer inert wiring — polarity", () => {
     // The left drawer opens at 0 and closes at -DRAWER_WIDTH, so the closed
@@ -146,26 +229,34 @@ describe("drawer inert wiring — polarity", () => {
         );
     });
 
-    // Ties each `inert` attribute back to the correctly-signed derived above.
-    // Without this, someone could keep the deriveds and bind `inert` to the
-    // wrong one (or drop the attribute entirely) and the polarity assertions
-    // would still pass.
-    it("binds each inert attribute to its own drawer's derived", () => {
-        const shell = normalize(appShell());
-        expect(shell).toContain(
+    // Link 1 of 2: derived NAME ↔ correctly-signed call. Without this someone
+    // could keep the names and re-sign the call underneath them.
+    it("declares each derived from its own correctly-signed call", () => {
+        expect(normalize(appShell())).toContain(
             "const leftDrawerClosed = $derived( isOffCanvasClosed(drawerTranslate, -DRAWER_WIDTH), );",
         );
-        expect(shell).toContain("inert={leftDrawerClosed}");
-
         const area = normalize(messageArea());
         expect(area).toContain(
             "const rightPanelClosed = $derived( isOffCanvasClosed(pinnedTranslate, PINNED_WIDTH), );",
         );
-        expect(area).toContain("inert={rightPanelClosed}");
         expect(area).toContain(
             "const memberDrawerClosed = $derived( isOffCanvasClosed(memberTranslate, MEMBER_WIDTH), );",
         );
-        expect(area).toContain("inert={memberDrawerClosed}");
+    });
+
+    // Link 2 of 2: ELEMENT ↔ derived name. Together with link 1 this chains
+    // element → name → sign, which is the property that actually matters.
+    //
+    // Asserted per element, not per file. The two right-hand drawers are
+    // interchangeable-looking 280px blocks; swapping their bindings puts the
+    // member list inert while it is OPEN, and a whole-file assertion sails
+    // straight past that. The left drawer gets the same treatment even though
+    // AppShell has only one drawer today — a second one added later is exactly
+    // how this gap would reopen.
+    it("puts each drawer's inert and aria-hidden on its own element", () => {
+        expectBoundTo(leftDrawerTag(), "leftDrawerClosed");
+        expectBoundTo(rightPanelTag(), "rightPanelClosed");
+        expectBoundTo(memberDrawerTag(), "memberDrawerClosed");
     });
 });
 
