@@ -154,6 +154,8 @@
             <!-- Error banner -->
             {#if error}
                 <div
+                    id="login-error"
+                    role="alert"
                     class="mb-4 p-3 bg-discord-danger/10 border border-discord-danger/30 rounded-lg"
                 >
                     <p class="text-discord-danger text-sm">{error}</p>
@@ -163,9 +165,11 @@
             <!-- Status message -->
             {#if statusMsg && isLoading}
                 <div
+                    role="status"
                     class="mb-4 p-3 bg-discord-accent/10 border border-discord-accent/30 rounded-lg flex items-center gap-3"
                 >
                     <div
+                        aria-hidden="true"
                         class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin flex-shrink-0"
                     ></div>
                     <p class="text-discord-accent text-sm">{statusMsg}</p>
@@ -216,6 +220,8 @@
                             ? `@you:${new URL(defaultHomeserver).hostname}`
                             : "yourusername"}
                         disabled={isLoading}
+                        aria-invalid={error ? "true" : undefined}
+                        aria-describedby={error ? "login-error" : undefined}
                         class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
                         required
                     />
@@ -235,6 +241,8 @@
                         bind:value={password}
                         placeholder="••••••••••"
                         disabled={isLoading}
+                        aria-invalid={error ? "true" : undefined}
+                        aria-describedby={error ? "login-error" : undefined}
                         class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
                         required
                     />
@@ -266,6 +274,7 @@
                 <button
                     type="submit"
                     disabled={isLoading || !username || !password}
+                    aria-busy={isLoading ? "true" : undefined}
                     class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
                 >
                     {#if isLoading}
