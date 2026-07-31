@@ -64,19 +64,26 @@ const PAIRS: {
     { fg: "#ffffff", bg: "--discord-danger-fill-rgb" },
     { fg: "#ffffff", bg: "--discord-danger-fill-hover-rgb" },
     // The same hues used as TEXT (destructive labels, error text, "Leave
-    // room", failed-send notices; accent links and active labels), on every
-    // surface they can land on. This is the direction the suite never tested,
-    // and the one the dark theme was failing silently — accent-as-text was
-    // 3.48:1 on --discord-bg and nothing asserted it.
+    // room", failed-send notices; `.message-body a` links and active labels),
+    // on every surface they can land on. This is the direction the suite never
+    // tested, and the one the dark theme was failing silently — accent-as-text
+    // was 3.48:1 on --discord-bg and nothing asserted it.
+    //
+    // --discord-bg-hover is in the list because a message row IS one of these
+    // surfaces: hovering a message swaps its background to --discord-bg-hover
+    // while the link inside keeps its colour. Without this pair the suite would
+    // certify the resting link and say nothing about the hovered one.
     //
     // A single token cannot serve both directions: white-on-accent wants the
     // hue DARKER, accent-as-text wants it LIGHTER. Hence the split.
     { fg: "--discord-accent-text", bg: "--discord-bg" },
     { fg: "--discord-accent-text", bg: "--discord-bg-secondary" },
     { fg: "--discord-accent-text", bg: "--discord-bg-tertiary" },
+    { fg: "--discord-accent-text", bg: "--discord-bg-hover" },
     { fg: "--discord-danger-text", bg: "--discord-bg" },
     { fg: "--discord-danger-text", bg: "--discord-bg-secondary" },
     { fg: "--discord-danger-text", bg: "--discord-bg-tertiary" },
+    { fg: "--discord-danger-text", bg: "--discord-bg-hover" },
 ];
 
 /** Tokens that exist twice: a hex form and an `R G B` form for Tailwind. */
@@ -105,6 +112,54 @@ function colourOf(vars: Record<string, string>, ref: string): string {
     return hex;
 }
 
+/**
+ * Declarations of hand-written rules whose selector starts with `prefix`.
+ *
+ * PAIRS pins what a *token* is worth. It cannot see which token a rule picks,
+ * and that gap shipped: `.message-body a` — the app's most numerous
+ * accent-as-text surface — declared `color: var(--discord-accent)` (3.48:1 in
+ * the dark theme) while this suite certified `--discord-accent-text` at 4.61
+ * and its comment claimed to cover links. Asserting the rule, not just the
+ * token, is what makes reverting that colour go red. Rules reached through a
+ * Tailwind utility need no equivalent: the utility resolves to the token the
+ * config points at, which PAIRS already covers.
+ */
+function rulesStartingWith(
+    prefix: string,
+): { selector: string; props: Record<string, string> }[] {
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    const found: { selector: string; props: Record<string, string> }[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = rule.exec(withoutComments)) !== null) {
+        const selector = m[1].trim();
+        if (!selector.startsWith(prefix)) continue;
+        const props: Record<string, string> = {};
+        const decl = /([-\w]+)\s*:\s*([^;]+)/g;
+        let d: RegExpExecArray | null;
+        while ((d = decl.exec(m[2])) !== null) props[d[1]] = d[2].trim();
+        found.push({ selector, props });
+    }
+    return found;
+}
+
+/** A declared CSS value as something `colourOf` can resolve. */
+function refOf(value: string): string {
+    const v = value.trim();
+    const varRef = /^var\(\s*(--[\w-]+)\s*\)$/.exec(v);
+    if (varRef) return varRef[1];
+    if (v === "white") return "#ffffff";
+    if (v === "black") return "#000000";
+    return v; // a literal hex, or something colourOf will reject loudly
+}
+
+/** Surfaces a `.message-body` can sit on: timeline, panels, and row hover. */
+const MESSAGE_SURFACES = [
+    "--discord-bg",
+    "--discord-bg-secondary",
+    "--discord-bg-hover",
+];
+
 describe("app.css palette", () => {
     it("parses tokens out of both theme blocks", () => {
         // Sanity guard that the :root block parsed at all, not a census. The
@@ -123,15 +178,14 @@ describe("app.css palette", () => {
     for (const theme of THEMES) {
         describe(`${theme.name} theme`, () => {
             for (const pair of PAIRS) {
-                const threshold = AA_NORMAL;
-                const label = `${pair.fg} on ${pair.bg} clears ${threshold}:1`;
+                const label = `${pair.fg} on ${pair.bg} clears ${AA_NORMAL}:1`;
                 it(label, () => {
                     const fg = colourOf(theme.vars, pair.fg);
                     const bg = colourOf(theme.vars, pair.bg);
                     const ratio = contrastRatio(fg, bg);
                     expect(
-                        ratio >= threshold,
-                        `${pair.fg} (${fg}) on ${pair.bg} (${bg}) is ${ratio.toFixed(2)}:1, needs ${threshold}:1`,
+                        ratio >= AA_NORMAL,
+                        `${pair.fg} (${fg}) on ${pair.bg} (${bg}) is ${ratio.toFixed(2)}:1, needs ${AA_NORMAL}:1`,
                     ).toBe(true);
                 });
             }
@@ -180,6 +234,64 @@ describe("app.css palette", () => {
                         `light theme: secondary must be LIGHTER than primary — ${ramp}`,
                     ).toBeGreaterThan(primary);
                 }
+            });
+
+            // A token that clears AA proves nothing if the rule points
+            // somewhere else. `.message-body a` is the app's most numerous
+            // accent-as-text surface — every hyperlink in every message — and
+            // it is written by hand in app.css rather than reached through a
+            // Tailwind utility, so nothing above can see which token it uses.
+            // Both the resting rule and any :hover rule are covered: a hover
+            // shade that does not itself clear AA is the same defect.
+            it("gives .message-body links an AA colour on every message surface", () => {
+                const rules = rulesStartingWith(".message-body a").filter(
+                    (r) => r.props.color,
+                );
+                expect(
+                    rules.length,
+                    "no `color:` declaration found for `.message-body a` in app.css — that means this parser stopped matching, not that the palette is fine",
+                ).toBeGreaterThan(0);
+                for (const { selector, props } of rules) {
+                    const ref = refOf(props.color);
+                    const fg = colourOf(theme.vars, ref);
+                    for (const surface of MESSAGE_SURFACES) {
+                        const bg = colourOf(theme.vars, surface);
+                        const ratio = contrastRatio(fg, bg);
+                        expect(
+                            ratio >= AA_NORMAL,
+                            `${selector} { color: ${ref} } resolves to ${fg}, which is ${ratio.toFixed(2)}:1 on ${surface} (${bg}) in the ${theme.name} theme — needs ${AA_NORMAL}:1`,
+                        ).toBe(true);
+                    }
+                }
+            });
+
+            // Same class of gap, same fix: ::selection paints its own
+            // foreground AND background, so it is self-contained and neither
+            // half is reached through a Tailwind utility. It shipped
+            // `background-color: var(--discord-accent)` under white text —
+            // 3.33:1 in the dark theme, i.e. selecting text made it HARDER to
+            // read — while PAIRS certified the fill token it was not using.
+            it("keeps ::selection readable", () => {
+                // Exact, not prefix: `::selection-anything` is a different
+                // rule and must not satisfy this assertion.
+                const matches = rulesStartingWith("::selection").filter(
+                    (r) => r.selector === "::selection",
+                );
+                expect(
+                    matches.length,
+                    "expected exactly one `::selection` rule in app.css — 0 means this parser stopped matching, not that the palette is fine",
+                ).toBe(1);
+                const rule = matches[0];
+                const fg = colourOf(theme.vars, refOf(rule.props.color));
+                const bg = colourOf(
+                    theme.vars,
+                    refOf(rule.props["background-color"]),
+                );
+                const ratio = contrastRatio(fg, bg);
+                expect(
+                    ratio >= AA_NORMAL,
+                    `::selection paints ${fg} on ${bg} — ${ratio.toFixed(2)}:1 in the ${theme.name} theme, needs ${AA_NORMAL}:1`,
+                ).toBe(true);
             });
 
             for (const [hexToken, rgbToken] of RGB_TWINS) {

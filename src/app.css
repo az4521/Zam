@@ -241,9 +241,12 @@ body {
     background-clip: content-box;
 }
 
-/* Selection color */
+/* Selection color.
+   White-on-fill, exactly like .btn-primary below, so it uses the fill token:
+   the brand --discord-accent is only 3.33:1 against white in the dark theme,
+   which would make selected text harder to read than unselected text. */
 ::selection {
-    background-color: var(--discord-accent);
+    background-color: var(--discord-accent-fill);
     color: white;
 }
 
@@ -290,12 +293,22 @@ body {
     animation: fadeIn 0.2s ease-out;
 }
 
-/* Links inside message content */
+/* Links inside message content.
+   The app's most numerous accent-as-TEXT surface, so it takes the text token,
+   not the brand one: --discord-accent as a link colour is 3.48 / 3.91 / 3.69
+   against --discord-bg / -bg-secondary / -bg-hover in the dark theme, and
+   4.06 / 4.21 on -bg-tertiary / -bg-hover in the light one. --discord-accent-text
+   clears 4.5 on all of them (dark 4.61 / 5.18 / 6.35 / 4.90, light 5.28 / 5.86 /
+   4.65 / 4.82 on bg / -secondary / -tertiary / -hover), pinned by
+   src/lib/utils/themeContrast.test.ts.
+   :hover deliberately carries NO colour change: --discord-accent-hover is worse
+   still (2.94 / 3.31 / 3.12 dark), and there is no AA-clearing "hover" step
+   light enough to read as a distinct shade. The underline is the hover
+   affordance on its own. */
 .message-body a {
-    color: var(--discord-accent);
+    color: var(--discord-accent-text);
 }
 .message-body a:hover {
-    color: var(--discord-accent-hover);
     text-decoration: underline;
 }
 
