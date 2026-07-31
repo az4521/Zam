@@ -932,6 +932,7 @@
             // announcing the previous room's messages in this one.
             clearTimeout(announceTimer);
             announcerState = EMPTY_ANNOUNCER;
+            announcement = "";
         };
     });
 
