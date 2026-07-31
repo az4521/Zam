@@ -815,9 +815,18 @@
     function startEdit() {
         editText = body();
         isEditing = true;
-        tick().then(() =>
-            rootEl?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
-        );
+        tick().then(() => {
+            rootEl?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            // The action bar is `display:none` while `isEditing` (it must not
+            // stay pinned open for the whole edit session), so activating Edit
+            // from the keyboard unmounts the very button that holds focus and
+            // the browser resets `document.activeElement` to <body>. Moving
+            // focus into the textarea here covers that, and makes all three
+            // entry points (this button, ArrowUp-in-composer, double-tap)
+            // land in the same place. The other two already focus after their
+            // own tick(); focus() on the already-focused element is a no-op.
+            editTextareaEl?.focus();
+        });
     }
 
     function cancelEdit() {
