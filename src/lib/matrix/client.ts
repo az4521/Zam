@@ -179,6 +179,10 @@ import {
     isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import {
+    forgetPendingWipe,
+    rememberPendingWipe,
+} from "$lib/utils/pendingCryptoWipe";
 import { runLogoutSequence } from "$lib/utils/logoutSequence";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -734,6 +738,18 @@ export async function logout(): Promise<void> {
     if (client) {
         const userId = client.getUserId();
         const deviceId = client.getDeviceId();
+        // Remember the wipe BEFORE attempting it. `clearStores()` hangs forever
+        // when another tab holds the crypto IndexedDB open (its `onblocked`
+        // handler only logs), and AppShell's 4s window then reloads the page
+        // with the key material still on disk — writing the marker afterwards
+        // would never run in exactly the case it exists for.
+        if (userId && deviceId) {
+            rememberPendingWipe({
+                userId,
+                deviceId,
+                cryptoDbPrefix: getCryptoDbName(userId, deviceId),
+            });
+        }
         // Wipe the persisted sync store AND the per-account rust-crypto store
         // so the next user on this device can't recover the previous account's
         // cached rooms/messages or its key material from IndexedDB. The crypto
@@ -772,6 +788,11 @@ export async function logout(): Promise<void> {
             // can't leave the module slot pointing at a stopped client.
             onLocalWipeSettled: releaseSlot,
         });
+        // Only a wipe that actually completed retires the marker; a failed or
+        // blocked one must stay for the next boot to finish.
+        if (outcome.localWipeOk && userId && deviceId) {
+            forgetPendingWipe({ userId, deviceId });
+        }
         // The sequence reports what actually happened to the two things that
         // matter about signing out; discarding it would make a failed wipe or a
         // still-live token indistinguishable from a clean logout. Console only —
