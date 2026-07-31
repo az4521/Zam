@@ -20,6 +20,7 @@
     import { Star } from "lucide-svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
+    import { overlayActionClass } from "$lib/utils/touchTargets";
 
     interface Props {
         onSelect: (url: string) => void;
@@ -103,12 +104,11 @@
         else if (e.key === "Escape") editingUrl = null;
     }
 
-    // Tap targets need to be finger-sized on touch; on desktop the smaller
-    // hover buttons keep the thumbnail visible.
+    // These sit on top of the full-bleed "send this GIF" button, so anything
+    // missed by a fat finger sends the GIF instead of acting on it. Sized to
+    // the WCAG target-size minimums rather than by eye.
     const favBtnClass = $derived(
-        interfaceState.isTouchscreen
-            ? "p-1.5 rounded-full bg-black/60 transition-colors"
-            : "p-0.5 rounded-full bg-black/60 hover:bg-black/80 transition-colors",
+        overlayActionClass(interfaceState.isTouchscreen),
     );
 
     function pickUrl(url: string) {
@@ -272,11 +272,14 @@
                                 />
                             </button>
                             <!-- Touchscreens have no hover, so the controls stay
-                                 visible there instead of revealing on hover. -->
+                                 visible there instead of revealing on hover.
+                                 focus-within matters too: these stay focusable
+                                 while transparent, so without it a keyboard
+                                 user focuses a control they cannot see. -->
                             <div
                                 class="absolute top-1 right-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen
                                     ? 'opacity-100'
-                                    : 'opacity-0 group-hover/gif:opacity-100'}"
+                                    : 'opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
                             >
                                 <button
                                     onclick={(e) => {
@@ -386,11 +389,15 @@
                                 title={isFavouriteGif(r.url)
                                     ? "Remove from favourites"
                                     : "Add to favourites"}
-                                class="absolute top-1 right-1 p-0.5 rounded-full bg-black/60 transition-opacity hover:bg-black/80 {isFavouriteGif(
+                                aria-label={isFavouriteGif(r.url)
+                                    ? "Remove from favourites"
+                                    : "Add to favourites"}
+                                aria-pressed={isFavouriteGif(r.url)}
+                                class="absolute top-1 right-1 transition-opacity {favBtnClass} {isFavouriteGif(
                                     r.url,
                                 )
                                     ? 'text-discord-warning opacity-100'
-                                    : 'text-white opacity-0 group-hover/gif:opacity-100'}"
+                                    : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
                             >
                                 <svg
                                     class="w-3.5 h-3.5"
