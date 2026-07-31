@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { tick } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import {
         MessageSquare,
@@ -154,6 +155,33 @@
             : `Spotlight ${label}`;
     }
 
+    // Spotlighting and un-spotlighting both flip `{#if focusedTile}`, which
+    // tears down the entire tile subtree — including whichever overlay button
+    // was just activated. Focus would fall back to <body>, dumping a keyboard
+    // user at the top of the document and making them Tab through the whole
+    // sidebar to get back into the call. Land them on the tiles container
+    // instead: `tabindex="-1"` keeps it out of the tab order (it is a landing
+    // spot, not a stop) while still accepting focus, and Tab from there
+    // continues into the freshly rendered tiles.
+    //
+    // Both paths funnel through here so the five call sites cannot drift.
+    // Only the overlay buttons call these: the wrapper <div>s own the pointer
+    // (the overlays are `pointer-events-none`), so a mouse click never takes
+    // this path and never moves focus.
+    let tilesEl = $state<HTMLDivElement | undefined>();
+    async function keepFocusInTiles(): Promise<void> {
+        await tick();
+        tilesEl?.focus();
+    }
+    function spotlightTile(key: string): void {
+        focusTile(key);
+        void keepFocusInTiles();
+    }
+    function backToGrid(): void {
+        clearFocus();
+        void keepFocusInTiles();
+    }
+
     function onKeydown(e: KeyboardEvent): void {
         if (e.key === "Escape" && voiceCallState.focusedTileKey) {
             e.stopPropagation();
@@ -250,7 +278,15 @@
     </div>
 
     <!-- Tiles -->
-    <div class="flex-1 min-h-0 p-4 flex flex-col gap-3">
+    <!-- `tabindex="-1"`, not "0": this is the focus landing spot for a
+         spotlight toggle that unmounts the button doing the toggling (see
+         keepFocusInTiles above), NOT a new tab stop — it adds nothing to the
+         tab order and traps nothing. -->
+    <div
+        bind:this={tilesEl}
+        tabindex="-1"
+        class="flex-1 min-h-0 p-4 flex flex-col gap-3"
+    >
         {#if participants.length === 0 && screenTiles.length === 0}
             <div
                 class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
@@ -283,7 +319,7 @@
                     aria-label="Back to grid"
                     onclick={(e) => {
                         e.stopPropagation();
-                        clearFocus();
+                        backToGrid();
                     }}
                 ></button>
             </div>
@@ -316,7 +352,7 @@
                             )}
                             onclick={(e) => {
                                 e.stopPropagation();
-                                focusTile(t.key);
+                                spotlightTile(t.key);
                             }}
                         ></button>
                     </div>
@@ -369,7 +405,7 @@
                                 aria-label={spotlightLabel(cam.key, name)}
                                 onclick={(e) => {
                                     e.stopPropagation();
-                                    focusTile(cam.key);
+                                    spotlightTile(cam.key);
                                 }}
                             ></button>
                         {:else}
@@ -430,7 +466,7 @@
                             )}
                             onclick={(e) => {
                                 e.stopPropagation();
-                                focusTile(t.key);
+                                spotlightTile(t.key);
                             }}
                         ></button>
                     </div>
@@ -484,7 +520,7 @@
                                 aria-label={spotlightLabel(cam.key, name)}
                                 onclick={(e) => {
                                     e.stopPropagation();
-                                    focusTile(cam.key);
+                                    spotlightTile(cam.key);
                                 }}
                             ></button>
                             {#if muted.has(p.userId) && !speaking.has(p.userId)}
