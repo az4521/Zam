@@ -32,16 +32,17 @@ const AA_NORMAL = 4.5;
 /**
  * fg/bg are either a token name (resolved per theme) or a literal hex.
  *
- * `accept` is the ratio this pair is asserted at, defaulting to 4.5. Lowering
- * it to 3 is an explicit, documented exception for a pair the palette cannot
- * currently satisfy — it is NOT a WCAG "large text" claim, and every such
- * entry must say in `why` what would have to change to reach 4.5.
+ * There is deliberately NO per-pair threshold override. This list used to
+ * carry an `accept` escape (plus a `why` note) that four pairs set to 3,
+ * which meant the suite *certified* sub-AA text while looking green — the
+ * substance of audit finding A11Y-10. The palette now separates fill from
+ * text (see the `*-fill` / `*-text` tokens in app.css), so every pair here
+ * clears AA_NORMAL. Re-introducing an escape has to be a visible edit to
+ * this harness, not a one-line property on an entry.
  */
 const PAIRS: {
     fg: string;
     bg: string;
-    accept?: number;
-    why?: string;
 }[] = [
     // The two text tokens this item exists to fix.
     { fg: "--discord-text-muted", bg: "--discord-bg" },
@@ -53,46 +54,29 @@ const PAIRS: {
     // Body text, already fine — pinned so a future palette edit cannot break it.
     { fg: "--discord-text-primary", bg: "--discord-bg" },
     { fg: "--discord-text-primary", bg: "--discord-bg-secondary" },
-    // White on the accent/danger fills. Accepted at 3:1, NOT 4.5:1 — and NOT
-    // because the text is large (these render as `text-sm font-semibold`
-    // button captions, which WCAG counts as normal text). Clearing 4.5 needs
-    // the brand blurple darkened to ~#5c6fb1 and the danger red darkened until
-    // `text-discord-danger` stops being legible on the dark background. Both
-    // are Zam identity changes and are out of scope here. Raise these to 4.5
-    // only together with a deliberate brand decision.
-    {
-        fg: "#ffffff",
-        bg: "--discord-accent-rgb",
-        accept: 3,
-        why: "brand blurple fill; 4.5 needs the blurple darkened — brand decision",
-    },
-    {
-        fg: "#ffffff",
-        bg: "--discord-danger-rgb",
-        accept: 3,
-        why: "danger fill; 4.5 needs the red darkened — brand decision",
-    },
-    // `text-discord-danger` as a FOREGROUND (destructive labels, error text,
-    // "Leave room", failed-send notices). Accepted at 3:1 so the shortfall is
-    // declared rather than silent: 4.5:1 is unreachable for this token as it
-    // stands, because the very same `--discord-danger` is also a FILL under
-    // white text (asserted above). Darkening it far enough for 4.5:1 against
-    // the dark background is exactly the direction that breaks white-on-fill,
-    // and lightening it breaks the reverse. Reaching AA here needs a separate
-    // `--discord-danger-text` token — a palette decision for the repo owner,
-    // deliberately not taken on this branch.
-    {
-        fg: "--discord-danger",
-        bg: "--discord-bg",
-        accept: 3,
-        why: "danger as text; 4.5 unreachable — same token is a fill under white text, needs a separate dangerText token",
-    },
-    {
-        fg: "--discord-danger",
-        bg: "--discord-bg-secondary",
-        accept: 3,
-        why: "danger as text; 4.5 unreachable — same token is a fill under white text, needs a separate dangerText token",
-    },
+    // White label on a filled brand/danger surface (primary buttons, badges).
+    // These render as `text-sm font-semibold` button captions, which WCAG
+    // counts as normal text — 4.5:1, not 3:1. They point at the `*-fill`
+    // tokens, NOT at `--discord-accent` / `--discord-danger`: the brand values
+    // stay put for borders, rings, focus outlines and alpha tints.
+    { fg: "#ffffff", bg: "--discord-accent-fill-rgb" },
+    { fg: "#ffffff", bg: "--discord-accent-fill-hover-rgb" },
+    { fg: "#ffffff", bg: "--discord-danger-fill-rgb" },
+    { fg: "#ffffff", bg: "--discord-danger-fill-hover-rgb" },
+    // The same hues used as TEXT (destructive labels, error text, "Leave
+    // room", failed-send notices; accent links and active labels), on every
+    // surface they can land on. This is the direction the suite never tested,
+    // and the one the dark theme was failing silently — accent-as-text was
+    // 3.48:1 on --discord-bg and nothing asserted it.
+    //
+    // A single token cannot serve both directions: white-on-accent wants the
+    // hue DARKER, accent-as-text wants it LIGHTER. Hence the split.
+    { fg: "--discord-accent-text", bg: "--discord-bg" },
+    { fg: "--discord-accent-text", bg: "--discord-bg-secondary" },
+    { fg: "--discord-accent-text", bg: "--discord-bg-tertiary" },
+    { fg: "--discord-danger-text", bg: "--discord-bg" },
+    { fg: "--discord-danger-text", bg: "--discord-bg-secondary" },
+    { fg: "--discord-danger-text", bg: "--discord-bg-tertiary" },
 ];
 
 /** Tokens that exist twice: a hex form and an `R G B` form for Tailwind. */
@@ -103,6 +87,15 @@ const RGB_TWINS: [string, string][] = [
     ["--discord-accent-hover", "--discord-accent-hover-rgb"],
     ["--discord-danger", "--discord-danger-rgb"],
     ["--discord-warning", "--discord-warning-rgb"],
+    // Contrast-split tokens (A11Y-10). The PAIRS entries above assert the
+    // fills through their `-rgb` form and the text tokens through their hex
+    // form, so without these twins a typo in one form would go unnoticed.
+    ["--discord-accent-fill", "--discord-accent-fill-rgb"],
+    ["--discord-accent-fill-hover", "--discord-accent-fill-hover-rgb"],
+    ["--discord-accent-text", "--discord-accent-text-rgb"],
+    ["--discord-danger-fill", "--discord-danger-fill-rgb"],
+    ["--discord-danger-fill-hover", "--discord-danger-fill-hover-rgb"],
+    ["--discord-danger-text", "--discord-danger-text-rgb"],
 ];
 
 function colourOf(vars: Record<string, string>, ref: string): string {
@@ -130,10 +123,8 @@ describe("app.css palette", () => {
     for (const theme of THEMES) {
         describe(`${theme.name} theme`, () => {
             for (const pair of PAIRS) {
-                const threshold = pair.accept ?? AA_NORMAL;
-                const label = `${pair.fg} on ${pair.bg} clears ${threshold}:1${
-                    pair.why ? ` (${pair.why})` : ""
-                }`;
+                const threshold = AA_NORMAL;
+                const label = `${pair.fg} on ${pair.bg} clears ${threshold}:1`;
                 it(label, () => {
                     const fg = colourOf(theme.vars, pair.fg);
                     const bg = colourOf(theme.vars, pair.bg);

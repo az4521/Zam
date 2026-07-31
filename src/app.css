@@ -79,6 +79,32 @@ body {
     --discord-positive: #23a559;
     --discord-star: #faa61a;
 
+    /* ── Contrast-split semantic tokens (A11Y-10) ─────────────────────
+       `--discord-accent` / `--discord-danger` stay the BRAND values and
+       keep serving borders, rings, focus outlines and alpha tints. They
+       cannot also carry text: in the dark theme white-on-accent is 3.33
+       and accent-as-text is 3.48, and the two fixes pull in opposite
+       directions. So each hue gets two derived tokens:
+         *-fill  → a background that white text sits on   (>= 4.5 vs #fff)
+         *-text  → the hue used AS text on our surfaces   (>= 4.5 vs every bg)
+       Ratios are enforced by src/lib/utils/themeContrast.test.ts — change a
+       value there and the suite tells you which direction you broke.
+       accent-text is --discord-accent lightened in HSL (hue and saturation
+       held: 226.7deg 58.4% 65.1% -> 227.0deg 58.9% 72.4%), giving
+       4.61 / 5.18 / 6.35 on bg / bg-secondary / bg-tertiary. */
+    --discord-accent-fill: #5865f2;
+    --discord-accent-fill-hover: #4e5ad9;
+    --discord-accent-text: #8fa1e2;
+    --discord-accent-fill-rgb: 88 101 242;
+    --discord-accent-fill-hover-rgb: 78 90 217;
+    --discord-accent-text-rgb: 143 161 226;
+    --discord-danger-fill: #d83c3f;
+    --discord-danger-fill-hover: #c03537;
+    --discord-danger-text: #ff777c;
+    --discord-danger-fill-rgb: 216 60 63;
+    --discord-danger-fill-hover-rgb: 192 53 55;
+    --discord-danger-text-rgb: 255 119 124;
+
     /* ── Spoiler ─────────────────────────────────────── */
     --discord-spoiler-bg: #1e1f22;
     --discord-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
@@ -139,6 +165,24 @@ body {
     --discord-warning-rgb: 168 102 0;
     --discord-positive: #1f7a43;
     --discord-star: #a86600;
+
+    /* Contrast-split semantic tokens (A11Y-10) — see the dark block. The
+       light theme needs the opposite move for accent-as-text: --discord-accent
+       is 4.06 on --discord-bg-tertiary, so accent-text is the same blurple
+       DARKENED in HSL (233.0deg 49.8% 56.3% -> 232.8deg 48.3% 52.9%), giving
+       5.28 / 5.86 / 4.65 on bg / bg-secondary / bg-tertiary. */
+    --discord-accent-fill: #5865c7;
+    --discord-accent-fill-hover: #4752a8;
+    --discord-accent-text: #4d5bc1;
+    --discord-accent-fill-rgb: 88 101 199;
+    --discord-accent-fill-hover-rgb: 71 82 168;
+    --discord-accent-text-rgb: 77 91 193;
+    --discord-danger-fill: #d83c3e;
+    --discord-danger-fill-hover: #b92d30;
+    --discord-danger-text: #bc3436;
+    --discord-danger-fill-rgb: 216 60 62;
+    --discord-danger-fill-hover-rgb: 185 45 48;
+    --discord-danger-text-rgb: 188 52 54;
 
     --discord-spoiler-bg: #c9ccd1;
     --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
@@ -316,15 +360,18 @@ body {
     outline-offset: 2px;
 }
 
-/* Button hover effects */
+/* Button hover effects. The canonical white-on-accent surface, so it takes
+   the FILL token, not the brand one (A11Y-10). The :focus-visible outline
+   above deliberately stays on --discord-accent: it is a non-text UI component
+   boundary, where WCAG's bar is 3:1. */
 .btn-primary {
-    background-color: var(--discord-accent);
+    background-color: var(--discord-accent-fill);
     color: white;
     transition: background-color 0.2s;
 }
 
 .btn-primary:hover {
-    background-color: var(--discord-accent-hover);
+    background-color: var(--discord-accent-fill-hover);
 }
 
 /* Input styles */
