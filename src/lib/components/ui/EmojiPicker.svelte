@@ -12,6 +12,11 @@
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { scrollBehavior } from "$lib/utils/motionPreference";
+    import {
+        clampActiveIndex,
+        nextActiveIndex,
+        optionId,
+    } from "$lib/utils/listboxNavigation";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -39,6 +44,12 @@
     let tabBarEl: HTMLDivElement | undefined = $state();
     let searchEl: HTMLInputElement | undefined = $state();
     let selectedIndex = $state(-1);
+
+    // Unique per mounted instance: the composer can hold a popover picker while
+    // the touch drawer holds another, and duplicate DOM ids would silently aim
+    // one instance's aria-controls / aria-activedescendant at the other's
+    // elements.
+    const listId = $props.id();
 
     // Responsive columns: fit as many ~40px cells as the width allows, so
     // widening the panel shows MORE emojis instead of spreading 6 apart.
@@ -200,6 +211,26 @@
         return offsets;
     });
 
+    // `selectedIndex` forced back into range. A custom pack that shrinks under
+    // an open picker (a sync can rewrite the room's emote state) leaves the
+    // index pointing past the end of the list, and an out-of-range cursor must
+    // read as "nothing active" rather than steer the keys or the ARIA.
+    const activeIndex = $derived(
+        clampActiveIndex(selectedIndex, flatItems.length),
+    );
+
+    // aria-activedescendant may only name an element that is really in the DOM.
+    // A selected emoji whose section the lazy reveal has not rendered yet has
+    // no option element, so report nothing active until the effect below
+    // reveals it -- one flush later -- rather than emit a dangling reference.
+    // Search results are never lazy, so in search mode the id always resolves.
+    const activeOptionId = $derived.by(() => {
+        if (activeIndex < 0) return undefined;
+        if (!search && !revealedSections.has(flatItems[activeIndex].sectionId))
+            return undefined;
+        return optionId(listId, activeIndex);
+    });
+
     // Auto-reveal lazy section and scroll selected item into view
     $effect(() => {
         const idx = selectedIndex;
@@ -292,12 +323,36 @@
             } else {
                 selectedIndex -= cols;
             }
-        } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
+        } else if (e.key === "ArrowRight" && activeIndex >= 0) {
+            // A step of one along the flat list is exactly a listbox's
+            // ArrowDown, so the horizontal keys borrow that arithmetic --
+            // with `loop: false`, because walking off the last emoji has
+            // always stopped there rather than wrapping to the first.
             e.preventDefault();
-            if (selectedIndex + 1 < flatItems.length) selectedIndex++;
-        } else if (e.key === "ArrowLeft" && selectedIndex >= 0) {
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                "ArrowDown",
+                { loop: false },
+            );
+        } else if (e.key === "ArrowLeft" && activeIndex >= 0) {
             e.preventDefault();
-            if (selectedIndex > 0) selectedIndex--;
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                "ArrowUp",
+                { loop: false },
+            );
+        } else if ((e.key === "Home" || e.key === "End") && activeIndex >= 0) {
+            // Only once the user is actually navigating the grid: this is an
+            // editable text field, so with nothing selected Home/End still
+            // belong to the caret and hijacking them would strand it mid-word.
+            e.preventDefault();
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                e.key,
+            );
         } else if (e.key === "Enter" && selectedIndex >= 0) {
             e.preventDefault();
             const item = flatItems[selectedIndex];
@@ -386,6 +441,12 @@
             bind:value={search}
             placeholder="Search emoji…"
             onkeydown={onSearchKeydown}
+            role="combobox"
+            aria-label="Search emoji"
+            aria-expanded="true"
+            aria-controls="{listId}-listbox"
+            aria-autocomplete="list"
+            aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
@@ -444,10 +505,15 @@
         </div>
     {/if}
 
-    <!-- Scrollable area -->
+    <!-- Scrollable area. One listbox owns every section: `role="group"` is a
+         legal child of a listbox, so the four grids stay one navigable list
+         instead of four listboxes the virtual cursor could not cross. -->
     <div
         bind:this={scrollEl}
         onscroll={onScroll}
+        id="{listId}-listbox"
+        role="listbox"
+        aria-label="Emoji"
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
         {#if search}
@@ -464,6 +530,8 @@
                 </p>
                 <div
                     class="grid gap-1 mb-2"
+                    role="group"
+                    aria-label="Custom"
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchCustom as e, li (e.packId + ":" + e.shortcode)}
@@ -473,6 +541,11 @@
                             data-item-index={globalIdx}
                             onclick={() => pickCustom(e)}
                             title={e.shortcode}
+                            id={optionId(listId, globalIdx)}
+                            role="option"
+                            aria-selected={selectedIndex === globalIdx}
+                            aria-label={e.shortcode}
+                            tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                             class:ring-2={selectedIndex === globalIdx}
                             class:ring-discord-accent={selectedIndex ===
@@ -498,6 +571,8 @@
                 {/if}
                 <div
                     class="grid gap-1"
+                    role="group"
+                    aria-label="Standard"
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchStandard as e, li (e.name)}
@@ -507,6 +582,11 @@
                             data-item-index={globalIdx}
                             onclick={() => pick(e.emoji)}
                             title={e.name}
+                            id={optionId(listId, globalIdx)}
+                            role="option"
+                            aria-selected={selectedIndex === globalIdx}
+                            aria-label={e.name}
+                            tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                             class:ring-2={selectedIndex === globalIdx}
                             class:ring-discord-accent={selectedIndex ===
@@ -530,6 +610,10 @@
                     {#if revealedSections.has(pack.id)}
                         <div
                             class="grid gap-1 mb-2"
+                            role="group"
+                            aria-label={pack.id === "user"
+                                ? "My Emojis"
+                                : pack.name}
                             style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                         >
                             {#each pack.emojis as e, li (pack.id + ":" + e.shortcode)}
@@ -539,6 +623,11 @@
                                     data-item-index={globalIdx}
                                     onclick={() => pickCustom(e)}
                                     title={e.shortcode}
+                                    id={optionId(listId, globalIdx)}
+                                    role="option"
+                                    aria-selected={selectedIndex === globalIdx}
+                                    aria-label={e.shortcode}
+                                    tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                                     class:ring-2={selectedIndex === globalIdx}
                                     class:ring-discord-accent={selectedIndex ===
@@ -576,6 +665,8 @@
                     {#if revealedSections.has(cat.id)}
                         <div
                             class="grid gap-1 mb-2"
+                            role="group"
+                            aria-label={cat.name}
                             style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                         >
                             {#each cat.emojis as e, li (e.name)}
@@ -585,6 +676,11 @@
                                     data-item-index={globalIdx}
                                     onclick={() => pick(e.emoji)}
                                     title={e.name}
+                                    id={optionId(listId, globalIdx)}
+                                    role="option"
+                                    aria-selected={selectedIndex === globalIdx}
+                                    aria-label={e.name}
+                                    tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                                     class:ring-2={selectedIndex === globalIdx}
                                     class:ring-discord-accent={selectedIndex ===
