@@ -44,6 +44,15 @@
     // handler writes; `activeIndex` below is it clamped to the options that are
     // actually rendered, so a result list that changes under the user can never
     // leave the cursor aimed at an option that is no longer there.
+    //
+    // Clamping alone is not enough: it only rescues an OUT-OF-RANGE index. Type
+    // `ali`, arrow down to option 1 ("Alicia"), then type `c` — 300 ms later a
+    // different result set lands, index 1 is still in range so it stays active,
+    // the option id is unchanged so aria-activedescendant never moves and
+    // nothing is re-announced, and Enter invites the wrong person. The input's
+    // `oninput` below resets this to -1 on every keystroke, so an active option
+    // can only ever be one the user arrowed to since they last typed. It is an
+    // event handler, not an `$effect`, so there is no re-entrancy risk.
     let activeIndexRaw = $state(-1);
 
     const excluded = $derived(new Set([...excludeUserIds, ...selected]));
@@ -216,6 +225,7 @@
     <input
         bind:value={input}
         onkeydown={onKeydown}
+        oninput={() => (activeIndexRaw = -1)}
         {autofocus}
         {placeholder}
         role="combobox"
