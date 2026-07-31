@@ -31,7 +31,16 @@ export function nextRovingIndex(
 export interface RovingToolbarParams {
     /** Selector for the toolbar container inside `node`. */
     toolbarSelector: string;
-    /** Selector for the toolbar's focusable items. */
+    /**
+     * Selector for the toolbar's focusable items, run as a **descendant**
+     * query against the toolbar container — not a child query.
+     *
+     * The {@link DEFAULT_ITEMS} default is therefore only safe for a bar with
+     * no nested popovers. A bar that renders a picker inside itself (the
+     * message bar renders the whole emoji picker in place) would sweep every
+     * button in that popover into the roving set, so such a bar must pass an
+     * explicit per-item marker selector — e.g. `[data-message-action]`.
+     */
     itemSelector?: string;
 }
 
@@ -52,10 +61,23 @@ const DEFAULT_ITEMS = "button:not([disabled])";
  * lands back on the row and Tab off the active item leaves the row entirely —
  * there is no keyboard trap.
  *
+ * **Item contract:** an element matched by `itemSelector` must NOT declare its
+ * own `ArrowLeft`/`ArrowRight`/`Home`/`End` handling. This action claims those
+ * four keys for items and calls `stopPropagation()` on them, and because
+ * Svelte 5 delegates a markup `onkeydown` to the app root in the bubble phase,
+ * this row-level listener runs *first* — an item's own arrow handler would
+ * silently never fire. A control that needs those keys (a picker's search
+ * field, a confirm pair that toggles with arrows) must stay outside the item
+ * set; keep it out of `itemSelector`'s match and it keeps its keys.
+ *
  * Deliberately no `MutationObserver` (per-row observers were removed from this
- * surface for measured cost): the item list is re-queried on every `focusin`
- * and every handled `keydown`. Also deliberately no Escape handling — Escape
- * belongs to the pickers and dialogs these buttons open.
+ * surface for measured cost): the item list is re-queried on every `focusin`,
+ * every handled `keydown`, and on `Tab`. The `Tab` re-sync is what covers a bar
+ * that re-rendered while focus sat elsewhere in the row — without it the bar
+ * can be left with zero tab stops (the remembered item was removed) or two (a
+ * re-rendered button arrives at its default `tabIndex 0`). Also deliberately no
+ * Escape handling — Escape belongs to the pickers and dialogs these buttons
+ * open.
  */
 export function rovingToolbar(node: HTMLElement, params: RovingToolbarParams) {
     let p = params;
@@ -86,6 +108,18 @@ export function rovingToolbar(node: HTMLElement, params: RovingToolbarParams) {
     };
 
     const onKeydown = (e: KeyboardEvent) => {
+        // Tab is the moment the browser is about to *use* the tab order, and
+        // the only cheap chance to notice the bar re-rendered under us. Runs
+        // wherever in the row the key came from — the stale bar is precisely
+        // the one nothing has focus inside. Never prevented or stopped:
+        // tabbing out of the row is how the user leaves the bar.
+        if (e.key === "Tab") {
+            sync(items());
+            return;
+        }
+        // Not one of ours: bail before touching the DOM. Every keystroke in
+        // the row's inline-edit textarea and picker search field lands here.
+        if (!KEYS.has(e.key)) return;
         const list = items();
         // Strict identity, not `closest`: a key pressed in something nested
         // inside the bar (a picker's search field) is not ours to handle.

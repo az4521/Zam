@@ -161,6 +161,31 @@ describe("rovingToolbar action", () => {
         expect(outerKeydown).not.toHaveBeenCalled();
     });
 
+    // Pins the item contract documented on the action. Svelte 5 delegates a
+    // markup `onkeydown` to the app root in the BUBBLE phase, so a handler an
+    // item declares only runs if the event survives the trip up past this row
+    // — and for the four owned keys it does not. An item that wanted its own
+    // arrow handling would therefore silently never receive it.
+    it("takes its keys from an item's own delegated handler but not from a non-item", () => {
+        const { parent, row, bar, buttons } = mount();
+        const delegated: EventTarget[] = [];
+        parent.addEventListener("keydown", (e) => {
+            delegated.push(e.target as EventTarget);
+        });
+
+        row.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+        buttons[0].focus();
+        press(buttons[0], "ArrowRight");
+        expect(delegated).toEqual([]); // the item never sees its own arrow key
+
+        // A control that is not in the item set keeps its arrow keys.
+        const field = document.createElement("input");
+        bar.appendChild(field);
+        field.focus();
+        press(field, "ArrowRight");
+        expect(delegated).toEqual([field]);
+    });
+
     it("leaves keys it does not own alone", () => {
         const { row, buttons, outerKeydown } = mount();
         row.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
@@ -177,9 +202,13 @@ describe("rovingToolbar action", () => {
         const { row, bar, buttons } = mount();
         row.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
+        // Focus a real element first: left on <body>, an "activeElement did
+        // not move" assertion would hold even if the action had moved focus.
+        row.focus();
         const outside = press(row, "ArrowRight");
         expect(outside.defaultPrevented).toBe(false);
-        expect(document.activeElement).not.toBe(buttons[1]);
+        expect(document.activeElement).toBe(row);
+        expect(tabIndexes(buttons)).toEqual([0, -1, -1]);
 
         // A control nested inside the bar (a picker's search field) owns its
         // own arrow keys — the toolbar must not hijack them.
@@ -217,6 +246,40 @@ describe("rovingToolbar action", () => {
         expect(tabIndexes([buttons[0], buttons[1]])).toEqual([0, -1]);
     });
 
+    // The bar re-renders while focus sits elsewhere in the row, so nothing
+    // re-syncs — until Tab, the one moment the tab order is about to be used.
+    it("re-syncs the tab order when an item disappears while focus is elsewhere in the row", () => {
+        const { row, buttons } = mount();
+        buttons[2].focus(); // item 2 becomes the remembered tab stop
+        expect(tabIndexes(buttons)).toEqual([-1, -1, 0]);
+
+        row.focus(); // focus moves elsewhere in the same row
+        buttons[2].remove(); // ...and then the bar drops that item
+        const left = [buttons[0], buttons[1]];
+        expect(left.filter((b) => b.tabIndex === 0)).toHaveLength(0);
+
+        press(row, "Tab");
+        expect(left.filter((b) => b.tabIndex === 0)).toHaveLength(1);
+        expect(tabIndexes(left)).toEqual([0, -1]);
+    });
+
+    it("does not leave two tab stops when a new item is rendered", () => {
+        const { row, bar, buttons } = mount();
+        buttons[0].focus();
+        expect(tabIndexes(buttons)).toEqual([0, -1, -1]);
+
+        row.focus();
+        const fresh = document.createElement("button"); // defaults to tabIndex 0
+        bar.appendChild(fresh);
+        expect(
+            [...buttons, fresh].filter((b) => b.tabIndex === 0),
+        ).toHaveLength(2);
+
+        press(row, "Tab");
+        expect(fresh.tabIndex).toBe(-1);
+        expect(tabIndexes([...buttons, fresh])).toEqual([0, -1, -1, -1]);
+    });
+
     it("does nothing when the toolbar is absent", () => {
         const row = document.createElement("div");
         document.body.appendChild(row);
@@ -235,18 +298,32 @@ describe("rovingToolbar action", () => {
 
     it("retargets the toolbar on update", () => {
         const { row, bar, buttons, handle } = mount();
+        // Sync the first bar before retargeting, or the assertions below only
+        // hold because the action had never written to it.
+        row.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+        expect(tabIndexes(buttons)).toEqual([0, -1, -1]);
+
         const other = document.createElement("div");
         other.setAttribute("data-other-actions", "");
-        const otherButton = document.createElement("button");
-        other.appendChild(otherButton);
+        const otherButtons = [
+            document.createElement("button"),
+            document.createElement("button"),
+        ];
+        for (const b of otherButtons) other.appendChild(b);
         row.appendChild(other);
 
         handle.update({ toolbarSelector: "[data-other-actions]" });
         row.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
 
-        expect(otherButton.tabIndex).toBe(0);
-        expect(tabIndexes(buttons)).toEqual([0, 0, 0]); // untouched defaults
-        expect(bar.contains(otherButton)).toBe(false);
+        // Two buttons, so "one tab stop" is a real claim and not a fresh
+        // button's default.
+        expect(tabIndexes(otherButtons)).toEqual([0, -1]);
+        // The action only ever writes to its current toolbar, so the bar it
+        // was retargeted away from keeps the tabindexes it was left with —
+        // items 1 and 2 stay stranded at -1. Harmless for the real consumer,
+        // whose params never change, but it is what actually happens.
+        expect(tabIndexes(buttons)).toEqual([0, -1, -1]);
+        expect(bar.contains(otherButtons[0])).toBe(false);
     });
 
     it("detaches its listeners on destroy", () => {
