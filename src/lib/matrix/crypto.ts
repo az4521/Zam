@@ -42,6 +42,13 @@ import type {
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import {
+    cryptoDbNames,
+    readPendingWipes,
+    rememberPendingWipe,
+    writePendingWipes,
+    wipesToRetry,
+} from "$lib/utils/pendingCryptoWipe";
 import { readScoped } from "$lib/utils/scopedStorage";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
 import { passphraseParams } from "$lib/utils/recoveryPassphrase";
@@ -315,13 +322,79 @@ export function isRoomEncrypted(room: Room | null | undefined): boolean {
     }
 }
 
+/** How long a single deleteDatabase gets before we call it blocked. Boot
+ *  never waits on the sweep, but an unbounded wait would keep the request
+ *  and its closure alive for the life of the page. */
+const DELETE_DB_TIMEOUT_MS = 5000;
+
+export type DeleteDbOutcome = "deleted" | "failed" | "blocked";
+
+/**
+ * `indexedDB.deleteDatabase`, bounded and honest about which of the three
+ * things happened. The SDK's own version (`client.js:736`) leaves `onblocked`
+ * as a log-only handler, so its promise never settles — that is the bug this
+ * whole module exists for, and it must not be reproduced here.
+ *
+ * "blocked" means another connection still holds the database: nothing was
+ * deleted and the caller must keep its record. Exported for unit tests.
+ */
+export function deleteDatabaseWithOutcome(
+    factory: IDBFactory,
+    name: string,
+    timeoutMs: number,
+): Promise<DeleteDbOutcome> {
+    return new Promise<DeleteDbOutcome>((resolve) => {
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = (outcome: DeleteDbOutcome) => {
+            if (settled) return;
+            settled = true;
+            if (timer !== undefined) clearTimeout(timer);
+            resolve(outcome);
+        };
+        try {
+            const req = factory.deleteDatabase(name);
+            req.onsuccess = () => finish("deleted");
+            // Private-mode Firefox rejects every delete, even of a database
+            // that does not exist; there is nothing to do but report it.
+            req.onerror = () => finish("failed");
+            req.onblocked = () => finish("blocked");
+            timer = setTimeout(() => finish("blocked"), timeoutMs);
+        } catch {
+            finish("failed");
+        }
+    });
+}
+
+function getIndexedDB(): IDBFactory | null {
+    try {
+        return globalThis.indexedDB ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** Deletes both databases for a prefix; true only if BOTH are really gone. */
+async function deleteCryptoDbs(
+    factory: IDBFactory,
+    prefix: string,
+): Promise<boolean> {
+    const outcomes = await Promise.all(
+        cryptoDbNames(prefix).map((name) =>
+            deleteDatabaseWithOutcome(factory, name, DELETE_DB_TIMEOUT_MS),
+        ),
+    );
+    return outcomes.every((o) => o === "deleted");
+}
+
 /**
  * Best-effort wipe of a NON-active account's rust-crypto IndexedDB when it is
  * removed from this device (the account has no live client, so `clearStores`
  * isn't available). Deletes the same two databases the SDK's `clearStores`
  * targets, keyed by the per-account prefix — so it can only ever touch that
  * account's stores, never the active session's. Failures are ignored (private
- * browsing rejects deleteDatabase; a missing DB is a no-op).
+ * browsing rejects deleteDatabase; a missing DB is a no-op) but recorded, so
+ * the next boot can finish a wipe another tab blocked.
  *
  * The active account's own sign-out already wipes its crypto store via
  * `client.clearStores({ cryptoDatabasePrefix })` in `logout()`.
@@ -330,33 +403,65 @@ export async function deleteCryptoStore(
     userId: string,
     deviceId: string,
 ): Promise<void> {
-    let indexedDB: IDBFactory | undefined;
-    try {
-        indexedDB = globalThis.indexedDB;
-    } catch {
-        return;
+    const factory = getIndexedDB();
+    if (!factory) return;
+    const cryptoDbPrefix = getCryptoDbName(userId, deviceId);
+    const deleted = await deleteCryptoDbs(factory, cryptoDbPrefix);
+    if (!deleted) {
+        // Blocked by another tab, or refused: leave a marker so the next boot
+        // finishes it. Resolving here regardless keeps this function's
+        // never-rejects contract for its two callers.
+        rememberPendingWipe({ userId, deviceId, cryptoDbPrefix });
     }
-    if (!indexedDB) return;
-    const prefix = getCryptoDbName(userId, deviceId);
-    const names = [
-        `${prefix}::matrix-sdk-crypto`,
-        `${prefix}::matrix-sdk-crypto-meta`,
-    ];
-    await Promise.all(
-        names.map(
-            (name) =>
-                new Promise<void>((resolve) => {
-                    try {
-                        const req = indexedDB.deleteDatabase(name);
-                        req.onsuccess = () => resolve();
-                        req.onerror = () => resolve();
-                        req.onblocked = () => resolve();
-                    } catch {
-                        resolve();
-                    }
-                }),
-        ),
-    );
+}
+
+let sweepInFlight = false;
+
+/**
+ * Finish any crypto-store wipe a previous sign-out could not complete.
+ *
+ * `clearStores()` never resolves when another tab holds the rust-crypto
+ * IndexedDB open (matrix-js-sdk's `req.onblocked` only logs), and the logout
+ * reload wins that race — so the plaintext key material of a signed-out
+ * account can survive on disk. This re-issues those deletes at boot.
+ *
+ * Never touches a session still known to this device, never blocks boot, and
+ * never rejects. Records whose deletes are STILL blocked are kept for the next
+ * boot rather than reported as done. Call it fire-and-forget.
+ */
+export async function retryPendingCryptoWipes(
+    liveSessions: Array<{ userId: string; deviceId?: string | null }>,
+): Promise<void> {
+    if (sweepInFlight) return;
+    sweepInFlight = true;
+    try {
+        const stored = readPendingWipes();
+        if (stored.length === 0) return;
+        const factory = getIndexedDB();
+        if (!factory) return;
+        const targets = wipesToRetry(stored, liveSessions);
+        if (targets.length === 0) return;
+        const finished: typeof targets = [];
+        for (const wipe of targets) {
+            if (await deleteCryptoDbs(factory, wipe.cryptoDbPrefix)) {
+                finished.push(wipe);
+            }
+        }
+        if (finished.length === 0) return;
+        // Re-read: another tab may have written since, and a wipe we just
+        // finished must not resurrect its list.
+        const remaining = readPendingWipes().filter(
+            (w) =>
+                !finished.some(
+                    (f) => f.userId === w.userId && f.deviceId === w.deviceId,
+                ),
+        );
+        writePendingWipes(remaining);
+    } catch {
+        // Boot must never fail on a best-effort cleanup.
+    } finally {
+        sweepInFlight = false;
+    }
 }
 
 /**

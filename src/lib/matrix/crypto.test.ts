@@ -1,4 +1,22 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
+import {
+    deleteCryptoStore,
+    deleteDatabaseWithOutcome,
+    retryPendingCryptoWipes,
+} from "./crypto";
+import {
+    PENDING_WIPE_KEY,
+    serializePendingWipes,
+    readPendingWipes,
+} from "$lib/utils/pendingCryptoWipe";
 
 // Regression cover for the "Cannot encrypt event in unconfigured room" bug
 // (2026-07-25, cross-server DM with a federated homeserver).
@@ -662,5 +680,202 @@ describe("SECURITY_EVENTS trust wiring", () => {
         const subscribed = client.on.mock.calls.map((c) => c[0]);
         expect(subscribed).toContain("userTrustStatusChanged");
         expect(subscribed).toContain("crypto.devicesUpdated");
+    });
+});
+
+// A fake IDBFactory: each name is scripted with the event to fire. "hang"
+// fires nothing, which is exactly what a blocked delete does in the SDK.
+type FakeMode = "success" | "error" | "blocked" | "hang" | "throw";
+
+function fakeIndexedDB(
+    modes: Record<string, FakeMode>,
+    fallback: FakeMode = "success",
+) {
+    const seen: string[] = [];
+    const factory = {
+        deleteDatabase(name: string) {
+            seen.push(name);
+            const mode = modes[name] ?? fallback;
+            if (mode === "throw") throw new Error("nope");
+            const req: Record<string, (() => void) | null> = {
+                onsuccess: null,
+                onerror: null,
+                onblocked: null,
+            };
+            queueMicrotask(() => {
+                if (mode === "success") req.onsuccess?.();
+                if (mode === "error") req.onerror?.();
+                if (mode === "blocked") req.onblocked?.();
+            });
+            return req;
+        },
+    };
+    return { factory: factory as unknown as IDBFactory, seen };
+}
+
+const PREFIX = "matrix-client:%40a%3Aexample.org:DEV1:crypto";
+const pending = {
+    userId: "@a:example.org",
+    deviceId: "DEV1",
+    cryptoDbPrefix: PREFIX,
+};
+
+describe("deleteDatabaseWithOutcome", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("reports a completed delete", async () => {
+        const { factory } = fakeIndexedDB({});
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("deleted");
+    });
+
+    it("reports a rejected delete without throwing", async () => {
+        const { factory } = fakeIndexedDB({ db: "error" });
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("failed");
+    });
+
+    it("reports a blocked delete as blocked, not as done", async () => {
+        const { factory } = fakeIndexedDB({ db: "blocked" });
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("blocked");
+    });
+
+    it("gives up on a delete that never settles, so boot can never hang", async () => {
+        const { factory } = fakeIndexedDB({ db: "hang" });
+        await expect(deleteDatabaseWithOutcome(factory, "db", 5)).resolves.toBe(
+            "blocked",
+        );
+    });
+
+    it("reports a throwing factory as failed", async () => {
+        const { factory } = fakeIndexedDB({ db: "throw" });
+        await expect(deleteDatabaseWithOutcome(factory, "db", 5)).resolves.toBe(
+            "failed",
+        );
+    });
+});
+
+describe("retryPendingCryptoWipes", () => {
+    beforeEach(() => localStorage.clear());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it("deletes both databases and clears the record when they are gone", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([
+            `${PREFIX}::matrix-sdk-crypto`,
+            `${PREFIX}::matrix-sdk-crypto-meta`,
+        ]);
+        expect(readPendingWipes()).toEqual([]);
+    });
+
+    it("KEEPS the record when a delete is still blocked", async () => {
+        const { factory } = fakeIndexedDB({
+            [`${PREFIX}::matrix-sdk-crypto`]: "blocked",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("never touches the store of a session still known to this device", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([
+            { userId: pending.userId, deviceId: pending.deviceId },
+        ]);
+
+        expect(seen).toEqual([]);
+        // Skipped, not dropped: it must still be there when that session goes.
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("resolves without touching storage when there is nothing to do", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        await expect(retryPendingCryptoWipes([])).resolves.toBeUndefined();
+        expect(seen).toEqual([]);
+    });
+
+    it("resolves when there is no IndexedDB at all", async () => {
+        vi.stubGlobal("indexedDB", undefined);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+        await expect(retryPendingCryptoWipes([])).resolves.toBeUndefined();
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // Boot calls this fire-and-forget; a second caller (a re-render, a second
+    // account restoring) must not re-issue deletes that are already in flight.
+    it("is a no-op while a sweep is already running", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await Promise.all([
+            retryPendingCryptoWipes([]),
+            retryPendingCryptoWipes([]),
+        ]);
+
+        expect(seen).toEqual([
+            `${PREFIX}::matrix-sdk-crypto`,
+            `${PREFIX}::matrix-sdk-crypto-meta`,
+        ]);
+    });
+});
+
+describe("deleteCryptoStore", () => {
+    beforeEach(() => localStorage.clear());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it("records a pending wipe when the delete does not complete", async () => {
+        const { factory } = fakeIndexedDB({}, "blocked");
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("records nothing when both databases are gone", async () => {
+        const { factory } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([]);
     });
 });
