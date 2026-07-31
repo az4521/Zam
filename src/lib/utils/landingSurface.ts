@@ -10,7 +10,6 @@
 export type LandingTarget =
     | { kind: "keep" }
     | { kind: "room"; roomId: string }
-    | { kind: "home" }
     | { kind: "none" };
 
 export interface LandingInput {
@@ -32,10 +31,6 @@ export interface LandingInput {
      * sitting in it.
      */
     activeRoomIsJoined: boolean;
-    /** Whether `activeSpaceId` is a space we are joined to. */
-    activeSpaceIsJoined: boolean;
-    /** Whether we drilled into this (possibly unjoined) sub-space on purpose. */
-    isDrilledSubspace: boolean;
     /** Joined rooms of the active space, already in sidebar order. */
     spaceRoomIds: readonly string[];
     /** Home's rooms then DMs, already in sidebar order. */
@@ -50,10 +45,16 @@ export interface LandingInput {
  *   1. a still-joined selection wins over everything;
  *   2. at Home, the first room (rooms then DMs) in sidebar order;
  *   3. in a space, that space's first room in sidebar order;
- *   4. a space we have left falls back to Home — unless we drilled into it,
- *      where browsing an unjoined space is the point;
- *   5. otherwise there is nothing to open: `none`, and the UI shows Browse
+ *   4. otherwise there is nothing to open: `none`, and the UI shows Browse
  *      Channels or an empty state.
+ *
+ * A space we are not joined to deliberately does NOT redirect to Home:
+ * "unknown" must not mean "gone". The only signal we have for space membership
+ * is a store snapshot that is stale for a beat after joining a space, so a
+ * redirect would eject the user from the space they had just joined; and its
+ * only upside — a space left elsewhere landing on Home rather than on that
+ * space's Browse Channels — is no dead end, since Browse Channels is a real,
+ * actionable surface with the sidebar right beside it.
  */
 export function resolveLandingTarget(input: LandingInput): LandingTarget {
     if (!input.roomsReady) return { kind: "keep" };
@@ -63,10 +64,6 @@ export function resolveLandingTarget(input: LandingInput): LandingTarget {
     if (input.activeSpaceId === null) {
         const first = input.homeRoomIds[0];
         return first ? { kind: "room", roomId: first } : { kind: "none" };
-    }
-
-    if (!input.activeSpaceIsJoined && !input.isDrilledSubspace) {
-        return { kind: "home" };
     }
 
     const first = input.spaceRoomIds[0];

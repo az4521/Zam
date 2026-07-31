@@ -9,8 +9,6 @@ function baseInput(overrides: Partial<LandingInput> = {}): LandingInput {
         activeSpaceId: "!space:server",
         activeRoomId: "!general:server",
         activeRoomIsJoined: true,
-        activeSpaceIsJoined: true,
-        isDrilledSubspace: false,
         spaceRoomIds: ["!general:server", "!random:server"],
         homeRoomIds: ["!orphan:server", "!dm:server"],
         ...overrides,
@@ -175,30 +173,22 @@ describe("resolveLandingTarget — inside a space", () => {
     });
 });
 
-describe("resolveLandingTarget — a cached space that is gone", () => {
-    it("redirects to Home when the active space is no longer joined", () => {
+describe("resolveLandingTarget — a space we are not joined to (never a Home redirect)", () => {
+    it("returns none — NEVER a Home room — for an unjoined space with nothing joined in it", () => {
+        // The ruling this pins: not being joined to a space is not evidence the
+        // space is gone. `roomsState.spaces` is stale for a beat after joining
+        // one, so redirecting on it would eject the user from the space they
+        // just joined. `none` leaves them there, on Browse Channels — an
+        // actionable surface — with Home one sidebar click away.
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
                 activeRoomIsJoined: false,
-                activeSpaceIsJoined: false,
                 spaceRoomIds: [],
+                homeRoomIds: ["!orphan:server", "!dm:server"],
             }),
         );
-        expect(target).toEqual({ kind: "home" });
-    });
-
-    it("redirects to Home even when Home is empty — the space is still gone", () => {
-        const target = resolveLandingTarget(
-            baseInput({
-                activeRoomId: null,
-                activeRoomIsJoined: false,
-                activeSpaceIsJoined: false,
-                spaceRoomIds: [],
-                homeRoomIds: [],
-            }),
-        );
-        expect(target).toEqual({ kind: "home" });
+        expect(target).toEqual({ kind: "none" });
     });
 
     it("stays put in a drilled unjoined sub-space so Browse Channels can show", () => {
@@ -206,8 +196,6 @@ describe("resolveLandingTarget — a cached space that is gone", () => {
             baseInput({
                 activeRoomId: null,
                 activeRoomIsJoined: false,
-                activeSpaceIsJoined: false,
-                isDrilledSubspace: true,
                 spaceRoomIds: [],
             }),
         );
@@ -223,29 +211,16 @@ describe("resolveLandingTarget — a cached space that is gone", () => {
             baseInput({
                 activeRoomId: "!kicked:server",
                 activeRoomIsJoined: false,
-                activeSpaceIsJoined: false,
-                isDrilledSubspace: true,
                 spaceRoomIds: ["!subchannel:server", "!other:server"],
             }),
         );
         expect(target).toEqual({ kind: "room", roomId: "!subchannel:server" });
     });
 
-    it("keeps a joined room inside an unjoined drilled sub-space", () => {
-        const target = resolveLandingTarget(
-            baseInput({
-                activeSpaceIsJoined: false,
-                isDrilledSubspace: true,
-            }),
-        );
-        expect(target).toEqual({ kind: "keep" });
-    });
-
-    it("does not redirect away from an unjoined space the user is still in a room of", () => {
-        // Membership of the space is irrelevant while the active room holds.
-        const target = resolveLandingTarget(
-            baseInput({ activeSpaceIsJoined: false }),
-        );
+    it("keeps a joined room in a space that exposes no joined children at all", () => {
+        // The active room wins over the space branch even when that branch has
+        // nothing to offer — an unjoined sub-space we are reading one room of.
+        const target = resolveLandingTarget(baseInput({ spaceRoomIds: [] }));
         expect(target).toEqual({ kind: "keep" });
     });
 });

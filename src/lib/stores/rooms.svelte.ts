@@ -210,10 +210,6 @@ export function resolveLandingSurface(): void {
         activeRoomIsJoined: roomsState.activeRoomId
             ? isJoinedRoom(roomsState.activeRoomId)
             : false,
-        activeSpaceIsJoined: spaceId
-            ? roomsState.spaces.some((s) => s.roomId === spaceId)
-            : true,
-        isDrilledSubspace: roomsState.spaceDrillParentId !== null,
         spaceRoomIds: spaceId
             ? sidebarOrderedIds(getRoomsInSpace(spaceId))
             : [],
@@ -231,12 +227,6 @@ export function resolveLandingSurface(): void {
             return;
         case "room":
             landOnRoom(target.roomId);
-            return;
-        case "home":
-            // Terminates: `setActiveSpace` calls back into here, but by then
-            // `activeSpaceId` is null so the stale-space branch is unreachable
-            // and the next pass can only answer "room" or "none".
-            setActiveSpace(null);
             return;
         case "none":
             roomsState.activeRoomId = null;
@@ -269,8 +259,8 @@ export function setActiveSpace(
         interfaceState.leftOpen = false;
     // The space's remembered room was assigned above without validation, and a
     // space with no remembered room leaves us on nothing at all. Settle it now
-    // rather than rendering an empty pane. Runs last on purpose: the chain
-    // reads `spaceDrillParentId`, which this function assigns above.
+    // rather than rendering an empty pane. Runs last so it sees every field
+    // this function assigns.
     resolveLandingSurface();
 }
 
