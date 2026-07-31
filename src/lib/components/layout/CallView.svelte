@@ -44,6 +44,7 @@
         showChatView,
         openModal,
         clearModalIfOwner,
+        interfaceState,
     } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -141,7 +142,11 @@
         "absolute inset-0 z-10 pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white focus-visible:bg-black/40";
     // The per-participant menu trigger: always visible (never hover-gated, or a
     // keyboard user could never reach it) and never gated on pointer type — a
-    // visible affordance beats a long-press gesture nobody can discover. No
+    // visible affordance beats a long-press gesture nobody can discover. It
+    // passes `interfaceState.isTouchscreen` as the menu's `touch` flag, not a
+    // hardcoded false: the same device must not get a positioned popover (with
+    // an <input type="range"> in it) from a tap on this button and a BottomSheet
+    // from a long-press on the tile behind it. No
     // aria-haspopup: CallParticipantMenu renders a focus-trapped <div> of
     // buttons (a BottomSheet on touch) with neither role="menu" nor
     // role="dialog", and a popup role we cannot honour is worse than none.
@@ -429,7 +434,7 @@
                                     p.userId,
                                     r.right,
                                     r.bottom,
-                                    false,
+                                    interfaceState.isTouchscreen,
                                 );
                             }}
                         >
@@ -567,7 +572,7 @@
                                     p.userId,
                                     r.right,
                                     r.bottom,
-                                    false,
+                                    interfaceState.isTouchscreen,
                                 );
                             }}
                         >
