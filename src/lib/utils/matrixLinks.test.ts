@@ -5,6 +5,7 @@ import {
     linkifyPlainText,
     mergeViaServers,
     matrixToUrl,
+    matrixLinkTitle,
 } from "./matrixLinks";
 
 describe("parseMatrixLink — matrix.to URLs", () => {
@@ -480,5 +481,35 @@ describe("linkifyPlainText — URLs in received plain-text bodies", () => {
         );
         expect(html).not.toContain("<img");
         expect(html).toContain('<a href="https://a.io">');
+    });
+});
+
+describe("matrixLinkTitle", () => {
+    it("returns the full user id for a user permalink", () => {
+        expect(matrixLinkTitle("https://matrix.to/#/@alice:example.org")).toBe(
+            "@alice:example.org",
+        );
+    });
+
+    it("returns the full user id for a matrix: user URI", () => {
+        expect(matrixLinkTitle("matrix:u/alice:example.org")).toBe(
+            "@alice:example.org",
+        );
+    });
+
+    it("returns null for a room link", () => {
+        expect(
+            matrixLinkTitle("https://matrix.to/#/!abc123:example.org"),
+        ).toBeNull();
+    });
+
+    it("returns null for a non-matrix link", () => {
+        expect(matrixLinkTitle("https://example.com/page")).toBeNull();
+    });
+
+    it("returns null for a missing or empty href", () => {
+        expect(matrixLinkTitle(null)).toBeNull();
+        expect(matrixLinkTitle(undefined)).toBeNull();
+        expect(matrixLinkTitle("")).toBeNull();
     });
 });
