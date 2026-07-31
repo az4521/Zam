@@ -34,20 +34,34 @@ import { fileURLToPath } from "node:url";
  *
  * It DOES pin, per element: that each drawer's `inert`/`aria-hidden` sits in
  * the opening tag of the element carrying that drawer's own
- * `transform: translateX(<var>px)`, bound to that drawer's own derived and no
- * other; that the derived comes from a correctly-signed call; and — as a
- * complete set — that NO other element in either file is `inert` or
- * `aria-hidden` at all. So an attribute swapped between the two right-hand
- * drawers, hoisted off the translated element onto its `fixed inset-0` ancestor
- * (which would kill the edge-swipe-open gesture), or added to some fourth
- * element, all fail here.
+ * `transform: translateX(<var>px)` — whatever that element's tag name and
+ * whatever order its attributes are in — bound to that drawer's own derived and
+ * no other; that the derived comes from a correctly-signed call; and, as a
+ * complete set, that no other occurrence of `inert` or `aria-hidden` — valued
+ * OR bare — appears anywhere in either file. So an attribute swapped between
+ * the two right-hand drawers, hoisted off the translated element onto its
+ * `fixed inset-0` ancestor or its sibling backdrop (either would kill the
+ * edge-swipe-open gesture or the containment), or added to some fourth element,
+ * all fail here.
  *
  * It still does NOT prove:
  *   - that `inert` actually removes the subtree from the tab order at runtime;
  *   - that the mobile branch is the one being rendered;
  *   - that the drawers behave correctly mid-drag.
- * Those still need the live keyboard/gesture pass recorded in the task report.
- * A green run here means "nobody silently inverted, crossed or added wiring".
+ *
+ * Three further escapes are KNOWN and deliberately left unasserted, because
+ * each needs structural parsing this file should not grow — listed so nobody
+ * mistakes silence for coverage:
+ *   - `inert` moved onto an inner CHILD of a drawer rather than the drawer
+ *     itself (the slice stops at the drawer's first child);
+ *   - the imported `isOffCanvasClosed` shadowed by a local wrapper that inverts
+ *     it (the call text would still read correctly);
+ *   - a FOURTH drawer added with no binding at all (nothing here enumerates
+ *     translated elements, only the three known ones).
+ *
+ * All of the above still need the live keyboard/gesture pass recorded in the
+ * task report. A green run here means "nobody silently inverted, crossed or
+ * added wiring on the three known drawers", nothing more.
  */
 
 // Resolve via dirname(fileURLToPath(...)), NOT `new URL("…", import.meta.url)`
@@ -146,10 +160,35 @@ function drawerOpeningTag(
     // Not found means the markup moved. Fail loudly — a silent -1 would slice
     // from the end of the file and make every assertion below vacuous.
     expect(at, `landmark not found: ${landmark}`).toBeGreaterThan(-1);
-    // The tag cannot be located by scanning forward for ">": the style
-    // attribute contains ">=" in the box-shadow gate.
-    const start = text.lastIndexOf("<div", at);
-    expect(start, `no <div opening before: ${landmark}`).toBeGreaterThan(-1);
+
+    // Back-scan to the start of the tag holding the landmark. Scanning FORWARD
+    // for ">" cannot work: the style attribute contains ">=" in the box-shadow
+    // gate.
+    //
+    // Scan for a generic "<", never a hardcoded "<div". Pinning the tag name
+    // was a real hole: switch a drawer to <aside> — a reasonable a11y
+    // improvement for a navigation drawer — and the scan walks straight past it
+    // onto the PREVIOUS element (the backdrop), widening the slice to span two
+    // elements, so bindings hoisted onto the backdrop still look like they are
+    // on the drawer. The drawer is then tabbable while closed, which is the
+    // whole defect this file exists to prevent.
+    const start = text.lastIndexOf("<", at);
+    expect(start, `no tag opening before: ${landmark}`).toBeGreaterThan(-1);
+
+    const between = text.slice(start, at);
+    // Landed on a real tag, not on a "<" comparison operator inside an
+    // expression.
+    expect(
+        between.slice(0, 40),
+        `the "<" before "${landmark}" does not open a tag`,
+    ).toMatch(/^<[a-zA-Z]/);
+    // ...and that tag has not already closed before reaching the landmark,
+    // which is what "the slice spans two elements" looks like.
+    expect(
+        between,
+        `the tag before "${landmark}" closes before reaching it, so the slice would span two elements — found: ${between.slice(0, 80)}`,
+    ).not.toContain(">");
+
     const end = text.indexOf(firstChild, at);
     expect(
         end,
@@ -174,13 +213,30 @@ function drawerOpeningTag(
  * expected set is the deliberate act that forces its author to state the new
  * binding's polarity out loud.
  */
+function attributeOccurrences(
+    src: string,
+    name: "inert" | "aria-hidden",
+): string[] {
+    // Matches the attribute with a braced value, a quoted value, or NO value at
+    // all. The bare form matters: `inert` on its own is valid HTML, is a
+    // plausible debugging leftover, permanently locks the keyboard out of
+    // whatever it lands on, and passes both Prettier and svelte-check. A
+    // `name=\{…\}`-only pattern cannot see it, which made this assertion's
+    // promise wider than what it actually checked.
+    const re = new RegExp(
+        `(?<![\\w-])${name}(?:=(?:\\{[^}]*\\}|"[^"]*"))?(?![\\w-])`,
+        "g",
+    );
+    return (normalize(src).match(re) ?? []).sort();
+}
+
 function inertBindings(src: string): string[] {
-    return (normalize(src).match(/inert=\{[^}]*\}/g) ?? []).sort();
+    return attributeOccurrences(src, "inert");
 }
 
 /** Same exhaustive treatment for `aria-hidden`, which shadows `inert` here. */
 function ariaHiddenBindings(src: string): string[] {
-    return (normalize(src).match(/aria-hidden=\{[^}]*\}/g) ?? []).sort();
+    return attributeOccurrences(src, "aria-hidden");
 }
 
 /** Every drawer derived in the codebase, so each block can exclude the others. */
