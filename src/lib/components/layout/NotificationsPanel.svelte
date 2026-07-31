@@ -195,15 +195,25 @@
                         `block w-full text-left` restores the <div>'s layout,
                         which the UA button styles would otherwise shrink-wrap
                         and centre.
+
+                        The purpose is an sr-only span INSIDE the button, never
+                        `aria-label`: aria-label (accname step 2C) outranks
+                        name-from-content (2F), so labelling the button would
+                        suppress the sender, timestamp, room and body preview
+                        entirely — a screen reader would hear the purpose and
+                        nothing else. As a child it *prefixes* the content
+                        instead. Same pattern as RoomHeaderOverflowMenu's badge
+                        announcements. `sr-only` is position:absolute, so it is
+                        out of flow and cannot disturb the card's layout.
                     -->
                     <button
                         type="button"
                         onclick={() => jump(n.roomId, n.eventId)}
-                        aria-label={`Jump to message from ${name} in ${roomName}`}
                         class="block w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
                             ? 'border-discord-warning/30 opacity-60'
                             : 'border-discord-warning/70'}"
                     >
+                        <span class="sr-only">Jump to message:</span>
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
                                 src={avatarUrl}

@@ -1119,16 +1119,23 @@
                 through the SAME onclick instead of a hand-rolled key handler.
                 `w-full text-left` restores the <div>'s box, which the UA button
                 styles would otherwise shrink-wrap and centre.
+
+                The purpose is an sr-only child, NOT `aria-label`: aria-label
+                (accname 2C) beats name-from-content (2F), so labelling the
+                button would hide the quoted sender and body from assistive tech
+                altogether — the one thing the quote exists to convey. As a
+                child it prefixes them instead. `sr-only` is position:absolute,
+                so it is out of flow and adds no flex item and no `gap-1` gap.
             -->
             <button
                 type="button"
-                aria-label="Jump to the message being replied to"
                 class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                 onclick={(e) => {
                     e.preventDefault();
                     jumpToReply(replyTarget.getId()!);
                 }}
             >
+                <span class="sr-only">Jump to the replied-to message:</span>
                 <div
                     class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
                 ></div>
@@ -1155,17 +1162,18 @@
                 const m = line.match(/^> (?:\* )?<(@[^>]+)> ?(.*)/);
                 return m ? { sender: m[1], text: m[2] } : null;
             })()}
-            <!-- Same <button> choice as the resolved quote above, so both
-                 previews behave identically from the keyboard. -->
+            <!-- Same <button> choice, and the same sr-only-child labelling, as
+                 the resolved quote above, so both previews behave identically
+                 from the keyboard and read identically to assistive tech. -->
             <button
                 type="button"
-                aria-label="Jump to the message being replied to"
                 class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                 onclick={(e) => {
                     e.preventDefault();
                     jumpToReply(inReplyToId);
                 }}
             >
+                <span class="sr-only">Jump to the replied-to message:</span>
                 <div
                     class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0"
                 ></div>
