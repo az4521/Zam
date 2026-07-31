@@ -14,9 +14,12 @@ export type LandingTarget =
 
 export interface LandingInput {
     /**
-     * True once the SDK's room list is genuinely populated (first sync done).
-     * While false every id looks stale, so acting would overwrite the user's
-     * remembered room with a guess — and persist it.
+     * True once the SDK's room list is genuinely populated — by a **live**
+     * sync, not a cached one. A start-up served from the local store can
+     * report itself ready while missing the last few minutes of joins, and
+     * every one of those rooms then looks stale. While false, every id looks
+     * stale anyway, so acting would overwrite the user's remembered room with
+     * a guess — and persist it.
      */
     roomsReady: boolean;
     /** The inbox is a deliberate no-room surface; never land over it. */

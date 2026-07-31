@@ -197,15 +197,25 @@ function sidebarOrderedIds(rooms: readonly Room[]): string[] {
  * overwhelmingly common answer is "keep", which writes nothing at all. Not
  * free, though — the input snapshot is built eagerly, so every call re-sorts
  * Home's rooms and DMs even when the answer turns out to be "keep".
+ *
+ * Gated on a *live* sync (`auth.syncState === "SYNCING"`), never on
+ * `PREPARED`, which the SDK also emits for a purely cached start-up. Until
+ * then every call answers "keep" and nothing moves.
  */
 export function resolveLandingSurface(): void {
     const spaceId = roomsState.activeSpaceId;
     const target = resolveLandingTarget({
-        // The room list is only real once the first sync has landed. Before
-        // that every id looks stale, and acting would overwrite — and persist
-        // — a guess over the room the user actually left off in.
-        roomsReady:
-            auth.syncState === "PREPARED" || auth.syncState === "SYNCING",
+        // `SYNCING` alone, deliberately NOT `PREPARED`. `PREPARED` is emitted
+        // straight from the IndexedDB cache with no HTTP request at all
+        // (sync.js `syncFromCache`), and that cache only persists its
+        // accumulator every 5 minutes — so a warm boot can reach `PREPARED`
+        // with the last few minutes of joins missing, and every one of those
+        // rooms looks stale. `SYNCING` is only reached after a live /sync
+        // response has been processed, which is the first honest moment.
+        // Conservative on purpose: an offline or erroring boot simply never
+        // runs the chain, and the user keeps whatever the cache gave them —
+        // never worse than the behaviour before this feature.
+        roomsReady: auth.syncState === "SYNCING",
         showInbox: roomsState.showInbox,
         activeSpaceId: spaceId,
         activeRoomId: roomsState.activeRoomId,
