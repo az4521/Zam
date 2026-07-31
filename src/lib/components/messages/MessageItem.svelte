@@ -41,6 +41,7 @@
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
         parseMatrixLink,
+        matrixLinkTitle,
         mergeViaServers,
         linkifyPlainText,
         type MatrixLinkTarget,
@@ -108,6 +109,7 @@
         getDoubleTapReaction,
     } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
+    import { spoilers } from "$lib/actions/spoilers";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -881,29 +883,6 @@
         return linkifyPlainText(escaped).replace(/\n/g, "<br>");
     }
 
-    // Svelte action: make [data-mx-spoiler] spans toggle-reveal on click
-    function spoilers(node: HTMLElement) {
-        function setup() {
-            node.querySelectorAll<HTMLElement>("[data-mx-spoiler]").forEach(
-                (el) => {
-                    if (el.dataset.spoilerReady) return;
-                    el.dataset.spoilerReady = "1";
-                    el.addEventListener("click", () =>
-                        el.classList.toggle("revealed"),
-                    );
-                },
-            );
-        }
-        setup();
-        const observer = new MutationObserver(setup);
-        observer.observe(node, { childList: true, subtree: true });
-        return {
-            destroy() {
-                observer.disconnect();
-            },
-        };
-    }
-
     function sanitize(html: string): string {
         return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
     }
@@ -945,6 +924,13 @@
     // mention anchors) in-app — user links open the profile card; room and
     // alias links join if needed, then switch rooms — instead of letting the
     // SPA navigate away to matrix.to.
+    //
+    // Everything here is delegated. MessageItem is one instance per timeline
+    // row, and decorating anchors eagerly needed a per-row MutationObserver to
+    // catch `{@html}` content replaced by an edit or a late decryption. Setting
+    // the tooltip when a pointer or focus first reaches the anchor is the same
+    // information at the same moment, costs one lookup instead of a sweep of
+    // every anchor in the row, and needs no observer at all.
     function matrixLinks(node: HTMLElement) {
         function onClick(e: MouseEvent) {
             if (e.defaultPrevented) return;
@@ -967,23 +953,27 @@
             });
         }
         // Full-id tooltip on user links (the anchor text may be a nickname).
-        function decorate() {
-            node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
-                if (a.dataset.matrixLinkReady) return;
-                const target = parseMatrixLink(a.getAttribute("href")!);
-                if (!target) return;
-                a.dataset.matrixLinkReady = "1";
-                if (target.kind === "user") a.title = target.userId;
-            });
+        // `pointerover` and `focusin` both bubble, so one listener each covers
+        // every anchor in the body, including ones rendered later. The title is
+        // set before the browser's tooltip delay elapses, and before assistive
+        // tech computes the accessible description on focus.
+        function decorate(e: Event) {
+            const anchor = (e.target as Element | null)?.closest?.("a[href]");
+            if (!(anchor instanceof HTMLElement) || !node.contains(anchor))
+                return;
+            if (anchor.dataset.matrixLinkReady) return;
+            anchor.dataset.matrixLinkReady = "1";
+            const title = matrixLinkTitle(anchor.getAttribute("href"));
+            if (title) anchor.title = title;
         }
-        decorate();
-        const observer = new MutationObserver(decorate);
-        observer.observe(node, { childList: true, subtree: true });
         node.addEventListener("click", onClick);
+        node.addEventListener("pointerover", decorate);
+        node.addEventListener("focusin", decorate);
         return {
             destroy() {
-                observer.disconnect();
                 node.removeEventListener("click", onClick);
+                node.removeEventListener("pointerover", decorate);
+                node.removeEventListener("focusin", decorate);
             },
         };
     }
