@@ -12,6 +12,11 @@
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { scrollBehavior } from "$lib/utils/motionPreference";
+    import {
+        clampActiveIndex,
+        nextActiveIndex,
+        optionId,
+    } from "$lib/utils/listboxNavigation";
 
     interface Props {
         room?: Room | null;
@@ -36,6 +41,12 @@
     let searchEl: HTMLInputElement | undefined = $state();
     let selectedIndex = $state(-1);
     let revealedSections = $state(new Set<string>());
+
+    // Unique per mounted instance: the composer can hold a popover picker while
+    // the touch drawer holds another, and duplicate DOM ids would silently aim
+    // one instance's aria-controls / aria-activedescendant at the other's
+    // elements.
+    const listId = $props.id();
 
     // Responsive columns: fit as many ~68px cells as the width allows, so
     // widening the panel shows MORE stickers instead of spreading 4 apart.
@@ -115,6 +126,34 @@
             offset += pack.stickers.length;
         }
         return offsets;
+    });
+
+    // `selectedIndex` forced back into range. A pack that shrinks under an open
+    // picker (a sync can rewrite the room's sticker state) leaves the index
+    // pointing past the end of the list, and an out-of-range cursor must read
+    // as "nothing active" rather than steer the keys or the ARIA.
+    const activeIndex = $derived(
+        clampActiveIndex(selectedIndex, flatItems.length),
+    );
+
+    // aria-activedescendant may only name an element that is really in the DOM.
+    // A selected sticker whose pack the lazy reveal has not rendered yet has no
+    // option element, so report nothing active until the effect below reveals
+    // it -- one flush later -- rather than emit a dangling reference. Search
+    // results are never lazy, so in search mode the id always resolves.
+    const activeOptionId = $derived.by(() => {
+        if (activeIndex < 0) return undefined;
+        if (!search) {
+            const pack = stickerPacks.find((p) => {
+                const start = sectionOffsets.get(p.id) ?? 0;
+                return (
+                    activeIndex >= start &&
+                    activeIndex < start + p.stickers.length
+                );
+            });
+            if (!pack || !revealedSections.has(pack.id)) return undefined;
+        }
+        return optionId(listId, activeIndex);
     });
 
     // Auto-reveal section, update active tab, scroll selected item into view
@@ -203,12 +242,36 @@
             } else {
                 selectedIndex -= cols;
             }
-        } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
+        } else if (e.key === "ArrowRight" && activeIndex >= 0) {
+            // A step of one along the flat list is exactly a listbox's
+            // ArrowDown, so the horizontal keys borrow that arithmetic --
+            // with `loop: false`, because walking off the last sticker has
+            // always stopped there rather than wrapping to the first.
             e.preventDefault();
-            if (selectedIndex + 1 < flatItems.length) selectedIndex++;
-        } else if (e.key === "ArrowLeft" && selectedIndex >= 0) {
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                "ArrowDown",
+                { loop: false },
+            );
+        } else if (e.key === "ArrowLeft" && activeIndex >= 0) {
             e.preventDefault();
-            if (selectedIndex > 0) selectedIndex--;
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                "ArrowUp",
+                { loop: false },
+            );
+        } else if ((e.key === "Home" || e.key === "End") && activeIndex >= 0) {
+            // Only once the user is actually navigating the grid: this is an
+            // editable text field, so with nothing selected Home/End still
+            // belong to the caret and hijacking them would strand it mid-word.
+            e.preventDefault();
+            selectedIndex = nextActiveIndex(
+                activeIndex,
+                flatItems.length,
+                e.key,
+            );
         } else if (e.key === "Enter" && selectedIndex >= 0) {
             e.preventDefault();
             const sticker = flatItems[selectedIndex];
@@ -287,6 +350,14 @@
             bind:value={search}
             placeholder="Search stickers…"
             onkeydown={onSearchKeydown}
+            role="combobox"
+            aria-label="Search stickers"
+            aria-expanded={stickerPacks.length > 0}
+            aria-controls={stickerPacks.length > 0
+                ? `${listId}-listbox`
+                : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
@@ -350,10 +421,17 @@
             </div>
         {/if}
 
-        <!-- Scrollable area -->
+        <!-- Scrollable area. One listbox owns every pack: `role="group"` is a
+             legal child of a listbox, so the grids stay one navigable list
+             instead of several listboxes the virtual cursor could not cross.
+             It only exists when there are packs, so the combobox above drops
+             its aria-controls in the empty state rather than dangling. -->
         <div
             bind:this={scrollEl}
             onscroll={onScroll}
+            id="{listId}-listbox"
+            role="listbox"
+            aria-label="Stickers"
             class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
         >
             {#if search}
@@ -364,6 +442,8 @@
                 {:else}
                     <div
                         class="grid gap-1 mt-1"
+                        role="group"
+                        aria-label="Search results"
                         style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                     >
                         {#each searchResults as s, li (s.shortcode)}
@@ -372,6 +452,11 @@
                                 data-item-index={globalIdx}
                                 onclick={() => pick(s)}
                                 title={s.shortcode}
+                                id={optionId(listId, globalIdx)}
+                                role="option"
+                                aria-selected={selectedIndex === globalIdx}
+                                aria-label={s.shortcode}
+                                tabindex="-1"
                                 class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                                 class:ring-2={selectedIndex === globalIdx}
                                 class:ring-discord-accent={selectedIndex ===
@@ -399,6 +484,10 @@
                         {#if revealedSections.has(pack.id)}
                             <div
                                 class="grid gap-1 mb-2"
+                                role="group"
+                                aria-label={pack.id === "user"
+                                    ? "My Stickers"
+                                    : pack.name}
                                 style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                             >
                                 {#each pack.stickers as s, li (s.shortcode)}
@@ -408,6 +497,12 @@
                                         data-item-index={globalIdx}
                                         onclick={() => pick(s)}
                                         title={s.shortcode}
+                                        id={optionId(listId, globalIdx)}
+                                        role="option"
+                                        aria-selected={selectedIndex ===
+                                            globalIdx}
+                                        aria-label={s.shortcode}
+                                        tabindex="-1"
                                         class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
                                         class:ring-2={selectedIndex ===
                                             globalIdx}
