@@ -13,6 +13,7 @@
         getLatestTimelineEvent,
         onTimelineEvent,
         onEventDecrypted,
+        onDecryptedTimelineEvent,
         onLocalEchoUpdated,
         onSyncPrepared,
         onReactionEvent,
@@ -108,6 +109,7 @@
         EMPTY_ANNOUNCER,
         drainAnnouncement,
         recordArrival,
+        shouldAnnounceDecrypted,
     } from "$lib/utils/liveAnnouncer";
 
     // Shared empty list for the avatars-off path — one allocation instead of a
@@ -845,6 +847,42 @@
     let announcement = $state("");
     let announceTimer: ReturnType<typeof setTimeout> | undefined;
 
+    // Queue one live arrival for the polite region below the timeline. Called
+    // from SDK subscription callbacks, NOT from an `$effect`: an effect that
+    // both read and wrote this state would re-enter itself.
+    function queueArrivalAnnouncement(event: MatrixEvent) {
+        const arrivedBody = event.getContent()?.body;
+        const next = recordArrival(announcerState, {
+            eventId: event.getId() ?? "",
+            sender: event.sender?.name ?? event.getSender() ?? "Someone",
+            isOwn: event.getSender() === auth.userId,
+            // showAllEvents lets non-message events through, where `body` may
+            // be missing or not a string.
+            body: typeof arrivedBody === "string" ? arrivedBody : "",
+        });
+        // Identity check, not equality: an unchanged state means the message
+        // was dropped (own echo, duplicate), so the in-flight burst timer must
+        // keep running untouched.
+        if (next === announcerState) return;
+        announcerState = next;
+        clearTimeout(announceTimer);
+        announceTimer = setTimeout(() => {
+            const drained = drainAnnouncement(announcerState);
+            announcerState = drained.state;
+            // A live region only speaks when its text CHANGES, so two
+            // identical summaries in a row ("2 new messages from Alice"
+            // twice) would leave the second silent. Toggle a ZERO WIDTH SPACE
+            // (U+200B) rather than a normal space: the browser's a11y layer
+            // normalises whitespace before comparing the region's text, so a
+            // trailing space may not register as a change at all. U+200B
+            // survives that normalisation and is not spoken.
+            announcement =
+                drained.text && drained.text === announcement
+                    ? `${drained.text}\u200b`
+                    : drained.text;
+        }, ANNOUNCE_DEBOUNCE_MS);
+    }
+
     // Subscribe to new live timeline events (incoming and confirmed own messages)
     $effect(() => {
         const currentRoomId = roomId; // capture for closure
@@ -858,42 +896,7 @@
                     if (isAtBottom) {
                         tick().then(() => scrollToBottom(false));
                     }
-                    // Queue it for the polite region below the timeline. This
-                    // lives in the SDK callback, NOT an $effect: an effect that
-                    // both reads and writes this state would re-enter itself.
-                    const arrivedBody = event.getContent()?.body;
-                    const next = recordArrival(announcerState, {
-                        eventId: event.getId() ?? "",
-                        sender:
-                            event.sender?.name ??
-                            event.getSender() ??
-                            "Someone",
-                        isOwn: event.getSender() === auth.userId,
-                        // showAllEvents lets non-message events through, where
-                        // `body` may be missing or not a string.
-                        body:
-                            typeof arrivedBody === "string" ? arrivedBody : "",
-                    });
-                    // Identity check, not equality: an unchanged state means
-                    // the message was dropped (own echo, duplicate), so the
-                    // in-flight burst timer must keep running untouched.
-                    if (next !== announcerState) {
-                        announcerState = next;
-                        clearTimeout(announceTimer);
-                        announceTimer = setTimeout(() => {
-                            const drained = drainAnnouncement(announcerState);
-                            announcerState = drained.state;
-                            // A live region only speaks when its text CHANGES,
-                            // so two identical summaries in a row ("2 new
-                            // messages from Alice" twice) would leave the
-                            // second silent. Toggling a trailing space — which
-                            // AT trims before speaking — forces the mutation.
-                            announcement =
-                                drained.text && drained.text === announcement
-                                    ? `${drained.text} `
-                                    : drained.text;
-                        }, ANNOUNCE_DEBOUNCE_MS);
-                    }
+                    queueArrivalAnnouncement(event);
                 } else {
                     // Mid-timeline insertion (thread reply moved to the main
                     // timeline, out-of-order related event). appendMessage would
@@ -906,8 +909,25 @@
                 }
             },
         );
+        // An encrypted message reaches the timeline as `m.room.encrypted`, a
+        // type onTimelineEvent filters out, so the announcer above never sees
+        // it — and new DMs default to encrypted, so that is most traffic.
+        // onDecryptedTimelineEvent replays the SAME liveness signal the
+        // plaintext path gates on (the SDK's `data.liveEvent`, recorded when
+        // the ciphertext hit the timeline, backfill already excluded there),
+        // plus a sync-completion flag. So a scrollback or key-backup decrypt
+        // of history cannot reach the announcer. The reducer dedupes by event
+        // id, so an event both paths see is still announced once.
+        const unsubDecryptedAnnounce = onDecryptedTimelineEvent(
+            (event, eventRoom, meta) => {
+                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                if (!shouldAnnounceDecrypted(meta)) return;
+                queueArrivalAnnouncement(event);
+            },
+        );
         return () => {
             unsub();
+            unsubDecryptedAnnounce();
             // Room switch or unmount: drop the pending burst rather than
             // announcing the previous room's messages in this one.
             clearTimeout(announceTimer);
