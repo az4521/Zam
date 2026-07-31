@@ -51,14 +51,30 @@ describe("isOffCanvasClosed", () => {
     // Fail OPEN, never closed: an unreadable measurement must leave the drawer
     // interactive. Being wrong in this direction costs a tabbable off-screen
     // control; being wrong the other way costs the user the whole drawer.
-    it("treats a non-finite translate as not closed", () => {
-        expect(isOffCanvasClosed(Number.NaN, LEFT_CLOSED)).toBe(false);
+    // Every assertion below reports CLOSED — i.e. wrongly inert — if the
+    // Number.isFinite guard is deleted, so these are what actually pin it.
+    it("treats an infinite measurement as not closed", () => {
+        expect(isOffCanvasClosed(Number.NEGATIVE_INFINITY, LEFT_CLOSED)).toBe(
+            false,
+        );
         expect(isOffCanvasClosed(Number.POSITIVE_INFINITY, RIGHT_CLOSED)).toBe(
             false,
         );
+        // An infinite closed offset out-runs every finite translate, so a
+        // matching infinite translate is the ONLY shape in which an unreadable
+        // closed offset can be misread as closed.
+        expect(
+            isOffCanvasClosed(
+                Number.NEGATIVE_INFINITY,
+                Number.NEGATIVE_INFINITY,
+            ),
+        ).toBe(false);
     });
 
-    it("treats a non-finite closed offset as not closed", () => {
+    // Contract, NOT guard coverage: every comparison against NaN is already
+    // false, so these two pass even with the Number.isFinite guard deleted.
+    it("documents a NaN measurement as not closed (contract, not guard coverage)", () => {
+        expect(isOffCanvasClosed(Number.NaN, LEFT_CLOSED)).toBe(false);
         expect(isOffCanvasClosed(-312, Number.NaN)).toBe(false);
     });
 
