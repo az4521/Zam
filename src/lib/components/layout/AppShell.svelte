@@ -131,6 +131,7 @@
     import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
+    import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import {
         notificationsToClose,
         appendPostedEventId,
@@ -177,6 +178,16 @@
         interfaceState.isMobile
             ? ((drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH) * 0.5
             : 0,
+    );
+
+    // The mobile drawer stays mounted when closed — it is only translated off
+    // screen — so without this a hardware keyboard tabs straight into invisible
+    // controls (audit A11Y-02). `inert` also removes the subtree from the
+    // accessibility tree; `aria-hidden` is belt-and-braces for webviews that
+    // predate `inert`. Same notion as the box-shadow gate below it
+    // (`drawerTranslate <= -DRAWER_WIDTH`), expressed once.
+    const leftDrawerClosed = $derived(
+        isOffCanvasClosed(drawerTranslate, -DRAWER_WIDTH),
     );
 
     let dragPending = false; // touch down, direction not yet determined
@@ -1382,6 +1393,8 @@
                 -DRAWER_WIDTH
                     ? ''
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
+                inert={leftDrawerClosed}
+                aria-hidden={leftDrawerClosed ? "true" : undefined}
             >
                 <SpaceSidebar
                     onHomeClick={() => setActiveSpace(null)}
