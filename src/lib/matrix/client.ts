@@ -779,18 +779,36 @@ export function getRoom(roomId: string): Room | null {
 }
 
 /**
- * Whether the SDK still reports us as joined to a room. Mirrors the filter in
- * `getRooms()` so a room the user has left, been kicked from, or forgotten
- * reads false — which is how the landing-surface chain tells a stale remembered
- * room id from a live one.
+ * Whether a room is somewhere we may leave the user sitting — i.e. NOT provably
+ * gone. This is how the landing-surface chain tells a stale remembered room id
+ * from a live one, and it deliberately answers a weaker question than
+ * "does membership read join".
+ *
+ * **Unknown membership is not gone.** `Room.getMyMembership()` is
+ * `selfMembership ?? "leave"`, and `selfMembership` is only ever written by the
+ * sync loop. `MatrixClient.joinRoom` resolves as soon as `/join` returns,
+ * handing back a bare `syncApi.createRoom()` stub, so between an `await
+ * joinRoom(...)` and the `/sync` that carries the join, a room the user just
+ * joined reads as `"leave"`. Answering false there would yank them out of the
+ * room they had just clicked Join on — and persist the replacement. The same
+ * hole applies to a federated room continuwuity omits from /sync, until
+ * `seedRoomStateIfMissing` heals it. So a room with no `m.room.member` event
+ * for us at all is treated as landable, while a room the SDK has a real
+ * opinion about is held to `"join"`.
  */
-export function isJoinedRoom(roomId: string): boolean {
+export function isRoomLandable(roomId: string): boolean {
     const room = matrixClient?.getRoom(roomId);
-    return (
-        !!room &&
-        room.getMyMembership() === "join" &&
-        !pendingLeaves.has(roomId)
-    );
+    // After the first sync the SDK knows every joined room, so no Room object
+    // means left, forgotten, or never joined — the case that makes a stale
+    // cached id fall through the chain.
+    if (!room) return false;
+    // An optimistic leave must not land us straight back on the room.
+    if (pendingLeaves.has(roomId)) return false;
+    // No `m.room.member` event for us at all: the SDK has formed no opinion
+    // yet, which `getMyMembership()` would flatten to "leave". Unknown ≠ gone.
+    const userId = matrixClient?.getUserId();
+    if (userId && room.getMember(userId) === null) return true;
+    return room.getMyMembership() === "join";
 }
 
 /**

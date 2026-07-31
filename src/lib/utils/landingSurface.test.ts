@@ -8,7 +8,7 @@ function baseInput(overrides: Partial<LandingInput> = {}): LandingInput {
         showInbox: false,
         activeSpaceId: "!space:server",
         activeRoomId: "!general:server",
-        activeRoomIsJoined: true,
+        activeRoomIsLandable: true,
         spaceRoomIds: ["!general:server", "!random:server"],
         homeRoomIds: ["!orphan:server", "!dm:server"],
         ...overrides,
@@ -39,6 +39,23 @@ describe("resolveLandingTarget — leaves a good selection alone", () => {
         );
         expect(target).toEqual({ kind: "keep" });
     });
+
+    it("keeps a room the user just joined, before the join-carrying /sync arrives", () => {
+        // `joinRoom` resolves on the /join response, handing back a bare stub
+        // whose membership the sync loop has not written yet, and the space's
+        // child list cannot contain it either. The caller reports that unknown
+        // membership as landable; this pins that the chain then leaves the user
+        // exactly where their Join click put them, instead of relocating them
+        // to the space's first room and persisting that.
+        const target = resolveLandingTarget(
+            baseInput({
+                activeRoomId: "!just-joined:server",
+                activeRoomIsLandable: true,
+                spaceRoomIds: ["!general:server", "!random:server"],
+            }),
+        );
+        expect(target).toEqual({ kind: "keep" });
+    });
 });
 
 describe("resolveLandingTarget — never acts before the room list is real", () => {
@@ -47,7 +64,7 @@ describe("resolveLandingTarget — never acts before the room list is real", () 
             baseInput({
                 roomsReady: false,
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
             }),
         );
         expect(target).toEqual({ kind: "keep" });
@@ -55,7 +72,7 @@ describe("resolveLandingTarget — never acts before the room list is real", () 
 
     it("keeps a stale active room while rooms are not ready", () => {
         const target = resolveLandingTarget(
-            baseInput({ roomsReady: false, activeRoomIsJoined: false }),
+            baseInput({ roomsReady: false, activeRoomIsLandable: false }),
         );
         expect(target).toEqual({ kind: "keep" });
     });
@@ -65,7 +82,7 @@ describe("resolveLandingTarget — never acts before the room list is real", () 
             baseInput({
                 showInbox: true,
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
             }),
         );
         expect(target).toEqual({ kind: "keep" });
@@ -78,7 +95,7 @@ describe("resolveLandingTarget — Home", () => {
             baseInput({
                 activeSpaceId: null,
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
             }),
         );
         expect(target).toEqual({ kind: "room", roomId: "!orphan:server" });
@@ -89,7 +106,7 @@ describe("resolveLandingTarget — Home", () => {
             baseInput({
                 activeSpaceId: null,
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 homeRoomIds: ["!dm:server"],
             }),
         );
@@ -101,7 +118,7 @@ describe("resolveLandingTarget — Home", () => {
             baseInput({
                 activeSpaceId: null,
                 activeRoomId: "!left:server",
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
             }),
         );
         expect(target).toEqual({ kind: "room", roomId: "!orphan:server" });
@@ -112,7 +129,7 @@ describe("resolveLandingTarget — Home", () => {
             baseInput({
                 activeSpaceId: null,
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 homeRoomIds: [],
             }),
         );
@@ -123,7 +140,7 @@ describe("resolveLandingTarget — Home", () => {
 describe("resolveLandingTarget — inside a space", () => {
     it("lands on the space's first room when nothing is cached", () => {
         const target = resolveLandingTarget(
-            baseInput({ activeRoomId: null, activeRoomIsJoined: false }),
+            baseInput({ activeRoomId: null, activeRoomIsLandable: false }),
         );
         expect(target).toEqual({ kind: "room", roomId: "!general:server" });
     });
@@ -132,7 +149,7 @@ describe("resolveLandingTarget — inside a space", () => {
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: "!kicked:server",
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
             }),
         );
         expect(target).toEqual({ kind: "room", roomId: "!general:server" });
@@ -142,7 +159,7 @@ describe("resolveLandingTarget — inside a space", () => {
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: ["!favourite:server", "!general:server"],
             }),
         );
@@ -153,7 +170,7 @@ describe("resolveLandingTarget — inside a space", () => {
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: [],
             }),
         );
@@ -164,7 +181,7 @@ describe("resolveLandingTarget — inside a space", () => {
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: [],
                 homeRoomIds: ["!orphan:server"],
             }),
@@ -183,7 +200,7 @@ describe("resolveLandingTarget — a space we are not joined to (never a Home re
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: [],
                 homeRoomIds: ["!orphan:server", "!dm:server"],
             }),
@@ -195,22 +212,24 @@ describe("resolveLandingTarget — a space we are not joined to (never a Home re
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: null,
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: [],
             }),
         );
         expect(target).toEqual({ kind: "none" });
     });
 
-    it("lands on a drilled unjoined sub-space's first joined channel rather than Browse Channels", () => {
-        // Drilled into a sub-space we have not joined, but we HAVE joined one of
-        // its channels, and the remembered room is stale (left/kicked). Showing
-        // an inert Browse panel over a channel the user can already read is the
-        // "failed click" this feature exists to kill.
+    it("prefers the space's first listed room over reporting nothing, whenever that list is non-empty", () => {
+        // The space branch must reach for `spaceRoomIds[0]` before it may answer
+        // `none`: showing an inert Browse panel over a channel the user can
+        // already read is the "failed click" this feature exists to kill. Stated
+        // as pure behaviour on purpose — the applier feeds this list from
+        // `getRoomsInSpace`, which returns [] for a space with no local Room, so
+        // no claim is made here about which production state produces it.
         const target = resolveLandingTarget(
             baseInput({
                 activeRoomId: "!kicked:server",
-                activeRoomIsJoined: false,
+                activeRoomIsLandable: false,
                 spaceRoomIds: ["!subchannel:server", "!other:server"],
             }),
         );

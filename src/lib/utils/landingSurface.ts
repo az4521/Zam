@@ -25,12 +25,16 @@ export interface LandingInput {
     activeSpaceId: string | null;
     activeRoomId: string | null;
     /**
-     * Whether the SDK still reports a `join` membership for `activeRoomId`.
-     * Deliberately NOT "is it in `spaceRoomIds`": a federated room omitted from
-     * /sync can be missing from the space's child list while the user is really
-     * sitting in it.
+     * Whether `activeRoomId` is somewhere we may leave the user sitting — i.e.
+     * **not provably gone**, which is weaker than "membership reads join". A
+     * room the SDK has no membership opinion about yet (just joined, or a
+     * federated room /sync has not described) counts as landable: moving the
+     * user out of a room they just opened is worse than briefly keeping one
+     * they have left. Deliberately NOT "is it in `spaceRoomIds`" either — a
+     * federated room omitted from /sync can be missing from the space's child
+     * list while the user is really sitting in it.
      */
-    activeRoomIsJoined: boolean;
+    activeRoomIsLandable: boolean;
     /** Joined rooms of the active space, already in sidebar order. */
     spaceRoomIds: readonly string[];
     /** Home's rooms then DMs, already in sidebar order. */
@@ -42,7 +46,7 @@ export interface LandingInput {
  * caller, so each branch below is directly testable.
  *
  * The chain, in the order the user asked for it:
- *   1. a still-joined selection wins over everything;
+ *   1. a selection that is not provably gone wins over everything;
  *   2. at Home, the first room (rooms then DMs) in sidebar order;
  *   3. in a space, that space's first room in sidebar order;
  *   4. otherwise there is nothing to open: `none`, and the UI shows Browse
@@ -59,7 +63,8 @@ export interface LandingInput {
 export function resolveLandingTarget(input: LandingInput): LandingTarget {
     if (!input.roomsReady) return { kind: "keep" };
     if (input.showInbox) return { kind: "keep" };
-    if (input.activeRoomId && input.activeRoomIsJoined) return { kind: "keep" };
+    if (input.activeRoomId && input.activeRoomIsLandable)
+        return { kind: "keep" };
 
     if (input.activeSpaceId === null) {
         const first = input.homeRoomIds[0];

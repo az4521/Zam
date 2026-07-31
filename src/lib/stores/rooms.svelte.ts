@@ -4,7 +4,7 @@ import {
     getRoom,
     getRoomsInSpace,
     getRoomTags,
-    isJoinedRoom,
+    isRoomLandable,
     isVideoRoom,
     roomTypeIsKnown,
 } from "$lib/matrix/client";
@@ -193,8 +193,10 @@ function sidebarOrderedIds(rooms: readonly Room[]): string[] {
  *
  * Called at the two moments the answer can change: a space switch, and every
  * rebuild of the room list (where `resolvePendingSurface` already runs, for
- * the same reason — it is the earliest honest moment). Cheap and idempotent:
- * the overwhelmingly common answer is "keep", which writes nothing.
+ * the same reason — it is the earliest honest moment). Idempotent: the
+ * overwhelmingly common answer is "keep", which writes nothing at all. Not
+ * free, though — the input snapshot is built eagerly, so every call re-sorts
+ * Home's rooms and DMs even when the answer turns out to be "keep".
  */
 export function resolveLandingSurface(): void {
     const spaceId = roomsState.activeSpaceId;
@@ -207,8 +209,8 @@ export function resolveLandingSurface(): void {
         showInbox: roomsState.showInbox,
         activeSpaceId: spaceId,
         activeRoomId: roomsState.activeRoomId,
-        activeRoomIsJoined: roomsState.activeRoomId
-            ? isJoinedRoom(roomsState.activeRoomId)
+        activeRoomIsLandable: roomsState.activeRoomId
+            ? isRoomLandable(roomsState.activeRoomId)
             : false,
         spaceRoomIds: spaceId
             ? sidebarOrderedIds(getRoomsInSpace(spaceId))
