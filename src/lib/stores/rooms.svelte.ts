@@ -6,6 +6,7 @@ import {
     getRoomTags,
     isRoomLandable,
     isVideoRoom,
+    markRoomPendingArrival,
     roomTypeIsKnown,
 } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
@@ -277,6 +278,14 @@ export function setActiveSpace(
 }
 
 export function setActiveRoom(roomId: string): void {
+    // Every deliberate arrival funnels through here — sidebar click, inbox
+    // jump, and crucially `createRoom`/`createSpace`/`createDirectMessage`/
+    // `joinRoomByAlias`, each of which resolves BEFORE the room reaches the
+    // client store. Claiming the id here means the per-sync rebuild's landing
+    // chain cannot classify a brand-new room as gone and bounce the user off
+    // it, and no future create/join wrapper has to remember to opt in.
+    // Deliberately not done in `landOnRoom`: see markRoomPendingArrival.
+    markRoomPendingArrival(roomId);
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
     // Ordinary rooms show their timeline; video rooms show their call. The

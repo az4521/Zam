@@ -794,6 +794,26 @@ function clearPendingJoinWhenSynced(roomId: string): void {
     }, 30000);
 }
 
+/**
+ * Claim a room as landable until `/sync` catches up.
+ *
+ * Every way of *arriving* in a room has the same window: `createRoom`,
+ * `createSpace`, `createDirectMessage` and `joinRoomByAlias` all resolve before
+ * the room is in the client store, and each ends in `setActiveRoom(newId)`. So
+ * `setActiveRoom` — the single funnel every deliberate navigation goes through
+ * — calls this, and no future wrapper has to remember to. Deliberately NOT
+ * called from the fallback chain's own `landOnRoom`: that lands on a room the
+ * chain already judged landable, so marking it would be circular and would
+ * blunt the stale-id fall-through this whole feature exists for.
+ *
+ * Over-marking is bounded: a room the user genuinely cannot be in clears itself
+ * within 30 s and merely delays the chain's correction that long.
+ */
+export function markRoomPendingArrival(roomId: string): void {
+    pendingJoins.add(roomId);
+    clearPendingJoinWhenSynced(roomId);
+}
+
 export function getRooms(): Room[] {
     return (matrixClient?.getRooms() ?? []).filter(
         (r) => r.getMyMembership() === "join" && !pendingLeaves.has(r.roomId),
@@ -3992,7 +4012,7 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
     // Claim the room as landable up front: `/sync` won't confirm the join for
     // a few hundred ms, and any refresh in that window would otherwise decide
     // the room is gone and move the user off it.
-    pendingJoins.add(roomId);
+    markRoomPendingArrival(roomId);
     try {
         await matrixClient.joinRoom(
             roomId,
@@ -4018,7 +4038,6 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
             throw err;
         }
     }
-    clearPendingJoinWhenSynced(roomId);
     await seedRoomStateIfMissing(roomId);
     scheduleJoinedRoomsReconcile();
 }
@@ -4321,14 +4340,13 @@ export async function acceptInvite(roomId: string): Promise<void> {
     const inviter = inviteRoom ? getInviteSender(inviteRoom) : null;
     // Membership keeps reading "invite" until the join comes back over /sync;
     // claim the room as landable meanwhile so no refresh moves the user off it.
-    pendingJoins.add(roomId);
+    markRoomPendingArrival(roomId);
     try {
         await matrixClient.joinRoom(roomId);
     } catch (e) {
         pendingJoins.delete(roomId);
         throw e;
     }
-    clearPendingJoinWhenSynced(roomId);
     // Record peer-initiated DMs in m.direct so they surface in the DM section,
     // mirroring what createDirectMessage does for self-initiated DMs. Best-effort:
     // a failed account-data write must not strand the user after a joined room.
