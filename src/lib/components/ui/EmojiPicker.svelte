@@ -211,13 +211,38 @@
         return offsets;
     });
 
-    // `selectedIndex` forced back into range. A custom pack that shrinks under
-    // an open picker (a sync can rewrite the room's emote state) leaves the
-    // index pointing past the end of the list, and an out-of-range cursor must
-    // read as "nothing active" rather than steer the keys or the ARIA.
+    // `selectedIndex` forced back into range, and nothing more than that. A
+    // custom pack that SHRINKS under an open picker (a sync can rewrite the
+    // room's emote state) leaves the index pointing past the end of the list,
+    // and an out-of-range cursor must read as "nothing active" rather than
+    // steer the keys or the ARIA.
+    //
+    // What a clamp cannot see is the same list rewritten *within* range: if
+    // that sync instead INSERTS an emoji at the front of a pack, index 40 is
+    // still a real option, so aria-activedescendant goes on naming
+    // `…-option-40` -- an unchanged reference, so nothing is re-announced --
+    // while aria-selected has quietly slid to a different emoji. The cure is
+    // the key anchor in `anchoredActiveIndex` (utils/listboxAnchor.ts), which
+    // GifPicker already uses. It is not applied here yet because it needs
+    // every write to the cursor in this file funnelled through a single setter
+    // that records the emoji's identity next to its index, and one missed
+    // assignment site would leave the cursor permanently and silently dead --
+    // worse, and far more likely, than the residual bug it removes ("Enter
+    // inserts the neighbouring emoji after a rare mid-session pack rewrite",
+    // which is visible on screen and deletable). There is no component-test
+    // harness for this picker to catch a missed site.
     const activeIndex = $derived(
         clampActiveIndex(selectedIndex, flatItems.length),
     );
+
+    // True exactly when the box below is really rendering options. The three
+    // claims that a popup exists -- the container's `listbox` role and the
+    // combobox's aria-expanded / aria-controls -- all read this one value, so
+    // they cannot drift apart. With no options the container is a plain div,
+    // which is what lets its "No results" text be read as ordinary page
+    // content instead of a non-`option` child of a listbox that browse mode
+    // routinely drops.
+    const hasOptions = $derived(flatItems.length > 0);
 
     // aria-activedescendant may only name an element that is really in the DOM.
     // A selected emoji whose section the lazy reveal has not rendered yet has
@@ -353,9 +378,12 @@
                 flatItems.length,
                 e.key,
             );
-        } else if (e.key === "Enter" && selectedIndex >= 0) {
+        } else if (e.key === "Enter" && activeIndex >= 0) {
+            // `activeIndex`, like every branch above: a raw `selectedIndex`
+            // left past the end by a shrinking pack indexes `undefined` here
+            // and throws on `.kind`, aborting the handler mid-keystroke.
             e.preventDefault();
-            const item = flatItems[selectedIndex];
+            const item = flatItems[activeIndex];
             if (item.kind === "custom") pickCustom(item.data);
             else pick(item.data.emoji);
         }
@@ -443,8 +471,8 @@
             onkeydown={onSearchKeydown}
             role="combobox"
             aria-label="Search emoji"
-            aria-expanded="true"
-            aria-controls="{listId}-listbox"
+            aria-expanded={hasOptions}
+            aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
             aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
@@ -507,12 +535,17 @@
 
     <!-- Scrollable area. One listbox owns every section: `role="group"` is a
          legal child of a listbox, so the four grids stay one navigable list
-         instead of four listboxes the virtual cursor could not cross. -->
+         instead of four listboxes the virtual cursor could not cross.
+         The role is dropped when there is nothing to navigate -- a search that
+         matches no emoji -- so the "No results" line inside is a paragraph in
+         the page rather than a stray non-`option` child of a listbox, and the
+         combobox stops advertising an expanded popup it cannot fill. The `id`
+         stays unconditional; only aria-controls is dropped alongside. -->
     <div
         bind:this={scrollEl}
         onscroll={onScroll}
         id="{listId}-listbox"
-        role="listbox"
+        role={hasOptions ? "listbox" : undefined}
         aria-label="Emoji"
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >

@@ -129,6 +129,16 @@
         anchoredActiveIndex(selectedIndex, selectedUrl, activeKeys),
     );
 
+    // True exactly when the box below is really rendering options. The three
+    // claims that a popup exists -- the container's `listbox` role and the
+    // combobox's aria-expanded / aria-controls -- all read this one value, so
+    // they cannot drift apart. With no options the container is a plain div,
+    // which is what lets its empty states ("No favourite GIFs yet…", "No
+    // results", the KLIPY error retry button) be read as ordinary page content
+    // instead of non-`option` children of a listbox that browse mode routinely
+    // drops.
+    const hasOptions = $derived(activeKeys.length > 0);
+
     // `undefined`, never `""`: an empty aria-activedescendant is a dangling
     // reference rather than an absent one. Every option is rendered eagerly
     // (this picker has no lazily revealed sections), so an in-range index
@@ -367,24 +377,42 @@
             aria-label={tab === "favourites"
                 ? "Search favourites"
                 : "Search GIFs"}
-            aria-expanded="true"
-            aria-controls="{listId}-listbox"
+            aria-expanded={hasOptions}
+            aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
             aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
 
-    <!-- Grid. This scroll box is the listbox the search field points into, and
-         it is rendered on both tabs and in every empty state, so the combobox's
-         aria-controls can never dangle. The masonry inside is a role="group"
-         naming where the results came from; group is a legal listbox child, so
-         the whole thing stays one navigable list. -->
+    <!-- Grid. This scroll box is the element the search field points into. It
+         is rendered on both tabs and in every empty state, and it carries
+         role="listbox" only while it is really holding options, with the
+         combobox's aria-controls gated on the very same value -- so that
+         reference either resolves to a real listbox or is absent. It can
+         neither dangle nor name a div that has stopped being a listbox.
+
+         Being honest about what is inside it: the masonry is a role="group"
+         naming where the results came from, and group is a legal listbox
+         child, so the tiles themselves stay one navigable list. But they are
+         not the only descendants. The "Loading…" status line and the
+         load-more retry button sit next to the group, and each tile wraps its
+         role="option" button together with the star / edit-tags /
+         remove-favourite buttons and (while editing) a tag <input>. None of
+         those are `option` or `group`. They are ordinary focusable controls --
+         no tabindex="-1" -- so they stay Tab-reachable, but a screen reader
+         browsing the listbox may not announce them at all.
+
+         The structurally correct shape for that is a one-column role="grid":
+         each tile a `row`, the GIF and its overlay controls `gridcell`s. It is
+         deferred because it means adding wrapper elements inside a CSS
+         `columns-[165px]` masonry -- a layout change that has to be seen in a
+         real browser, not reasoned about. -->
     <div
         bind:this={gridEl}
         onscroll={onGridScroll}
         id="{listId}-listbox"
-        role="listbox"
+        role={hasOptions ? "listbox" : undefined}
         aria-label="GIF results"
         class="flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >

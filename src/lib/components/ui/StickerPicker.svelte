@@ -128,13 +128,38 @@
         return offsets;
     });
 
-    // `selectedIndex` forced back into range. A pack that shrinks under an open
-    // picker (a sync can rewrite the room's sticker state) leaves the index
-    // pointing past the end of the list, and an out-of-range cursor must read
-    // as "nothing active" rather than steer the keys or the ARIA.
+    // `selectedIndex` forced back into range, and nothing more than that. A
+    // pack that SHRINKS under an open picker (a sync can rewrite the room's
+    // sticker state) leaves the index pointing past the end of the list, and
+    // an out-of-range cursor must read as "nothing active" rather than steer
+    // the keys or the ARIA.
+    //
+    // What a clamp cannot see is the same list rewritten *within* range: if
+    // that sync instead INSERTS a sticker at the front of a pack, index 12 is
+    // still a real option, so aria-activedescendant goes on naming
+    // `…-option-12` -- an unchanged reference, so nothing is re-announced --
+    // while aria-selected has quietly slid to a different sticker. The cure is
+    // the key anchor in `anchoredActiveIndex` (utils/listboxAnchor.ts), which
+    // GifPicker already uses. It is not applied here yet because it needs
+    // every write to the cursor in this file funnelled through a single setter
+    // that records the sticker's identity next to its index, and one missed
+    // assignment site would leave the cursor permanently and silently dead --
+    // worse, and far more likely, than the residual bug it removes ("Enter
+    // sends the neighbouring sticker after a rare mid-session pack rewrite",
+    // which is visible on screen and retractable). There is no component-test
+    // harness for this picker to catch a missed site.
     const activeIndex = $derived(
         clampActiveIndex(selectedIndex, flatItems.length),
     );
+
+    // True exactly when the box below is really rendering options. The three
+    // claims that a popup exists -- the container's `listbox` role and the
+    // combobox's aria-expanded / aria-controls -- all read this one value, so
+    // they cannot drift apart. It subsumes the old `stickerPacks.length > 0`
+    // test (no packs means no stickers) and additionally covers a search that
+    // matches nothing, where the container used to keep claiming to be a
+    // listbox around a lone "No results" paragraph.
+    const hasOptions = $derived(flatItems.length > 0);
 
     // aria-activedescendant may only name an element that is really in the DOM.
     // A selected sticker whose pack the lazy reveal has not rendered yet has no
@@ -272,9 +297,13 @@
                 flatItems.length,
                 e.key,
             );
-        } else if (e.key === "Enter" && selectedIndex >= 0) {
+        } else if (e.key === "Enter" && activeIndex >= 0) {
+            // `activeIndex`, like every branch above: a raw `selectedIndex`
+            // left past the end by a shrinking pack reads `undefined` here, so
+            // Enter would silently do nothing on a cursor the ARIA had already
+            // reported as gone.
             e.preventDefault();
-            const sticker = flatItems[selectedIndex];
+            const sticker = flatItems[activeIndex];
             if (sticker) pick(sticker);
         }
     }
@@ -352,10 +381,8 @@
             onkeydown={onSearchKeydown}
             role="combobox"
             aria-label="Search stickers"
-            aria-expanded={stickerPacks.length > 0}
-            aria-controls={stickerPacks.length > 0
-                ? `${listId}-listbox`
-                : undefined}
+            aria-expanded={hasOptions}
+            aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
             aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
@@ -424,13 +451,18 @@
         <!-- Scrollable area. One listbox owns every pack: `role="group"` is a
              legal child of a listbox, so the grids stay one navigable list
              instead of several listboxes the virtual cursor could not cross.
-             It only exists when there are packs, so the combobox above drops
-             its aria-controls in the empty state rather than dangling. -->
+             The whole box only exists when there are packs, and it carries the
+             role only while it holds options -- a search that matches nothing
+             leaves a plain div, so its "No results" line reads as a paragraph
+             in the page rather than a stray non-`option` listbox child. The
+             combobox's aria-controls is gated on the same value, so it can
+             neither dangle nor point at an element that has stopped being a
+             listbox. -->
         <div
             bind:this={scrollEl}
             onscroll={onScroll}
             id="{listId}-listbox"
-            role="listbox"
+            role={hasOptions ? "listbox" : undefined}
             aria-label="Stickers"
             class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
         >
