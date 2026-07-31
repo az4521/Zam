@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import {
         accountsState,
@@ -93,19 +94,24 @@
 </script>
 
 <Portal>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-        class="fixed inset-0 z-50 {interfaceState.isTouchscreen
-            ? 'bg-black/40'
-            : ''}"
-        onclick={closeModal}
-    ></div>
-
-    <div
-        class="fixed z-50 bg-discord-backgroundSecondary border border-discord-divider shadow-xl {interfaceState.isTouchscreen
+    <!--
+      Anchored popover on desktop, bottom sheet on touch — not a centred
+      dialog, so the layer gets no flex centring and the panel is positioned
+      `absolute` INSIDE the shell's `fixed inset-0` layer. That layer spans the
+      viewport, so `bottom-16 left-2` / `inset-x-0 bottom-0` resolve exactly
+      where the old `fixed` panel sat. The backdrop stays invisible on desktop
+      (it is only a light-dismiss click catcher) and keeps its scrim on touch.
+      There is no heading element, so the dialog is named directly.
+    -->
+    <ModalDialog
+        onClose={closeModal}
+        label="Accounts"
+        layerClass="z-50"
+        backdropClass={interfaceState.isTouchscreen ? "bg-black/40" : ""}
+        panelClass="absolute bg-discord-backgroundSecondary border border-discord-divider shadow-xl {interfaceState.isTouchscreen
             ? 'inset-x-0 bottom-0 rounded-t-lg p-2 pb-4'
             : 'bottom-16 left-2 w-72 rounded-lg p-1.5'}"
+        closeLabel="Close account switcher"
     >
         <p
             class="px-2.5 py-1.5 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
@@ -183,5 +189,5 @@
             >
             <span class="text-sm text-discord-textPrimary">Add account</span>
         </button>
-    </div>
+    </ModalDialog>
 </Portal>

@@ -3,6 +3,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
+    import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
     import { Circle } from "lucide-svelte";
     import {
@@ -1169,110 +1170,107 @@
 
     <!-- Color picker dialog -->
     {#if colorPicker}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-            onclick={(e) => {
-                if (e.target === e.currentTarget) closeModal();
-            }}
+        <!-- The title is a <p>, not a heading, so the dialog is named directly
+             rather than promoted to an <h2> (which would change typography).
+             The 240px width was an inline style; ModalDialog takes no `style`,
+             so it becomes the identical Tailwind arbitrary value. -->
+        <ModalDialog
+            onClose={closeModal}
+            label="Folder Color"
+            panelClass="relative w-[240px] bg-discord-backgroundSecondary rounded-xl shadow-2xl p-4 flex flex-col gap-3"
+            backdropClass="bg-black/50"
         >
-            <div
-                class="bg-discord-backgroundSecondary rounded-xl shadow-2xl p-4 flex flex-col gap-3"
-                style="width: 240px;"
-            >
-                <p class="text-sm font-semibold text-discord-textPrimary">
-                    Folder Color
-                </p>
+            <p class="text-sm font-semibold text-discord-textPrimary">
+                Folder Color
+            </p>
 
-                <!-- SV box + hue slider -->
-                <div class="flex gap-2" style="height: 148px;">
-                    <!-- Saturation/Value gradient box -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <!-- SV box + hue slider -->
+            <div class="flex gap-2" style="height: 148px;">
+                <!-- Saturation/Value gradient box -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                    bind:this={svBoxEl}
+                    class="relative flex-1 rounded-lg overflow-hidden cursor-crosshair select-none"
+                    style="background: linear-gradient(to right, white, hsl({cpHue}, 100%, 50%));"
+                    onmousedown={startSVDrag}
+                >
+                    <!-- Black-to-transparent overlay -->
                     <div
-                        bind:this={svBoxEl}
-                        class="relative flex-1 rounded-lg overflow-hidden cursor-crosshair select-none"
-                        style="background: linear-gradient(to right, white, hsl({cpHue}, 100%, 50%));"
-                        onmousedown={startSVDrag}
-                    >
-                        <!-- Black-to-transparent overlay -->
-                        <div
-                            class="absolute inset-0"
-                            style="background: linear-gradient(to bottom, transparent, black);"
-                        ></div>
-                        <!-- Cursor -->
-                        <div
-                            class="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none -translate-x-1/2 -translate-y-1/2"
-                            style="left: {cpSat * 100}%; top: {(1 - cpVal) *
-                                100}%; box-shadow: 0 0 0 1px rgba(0,0,0,0.4);"
-                        ></div>
-                    </div>
-
-                    <!-- Hue slider -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                        bind:this={hueSliderEl}
-                        class="relative w-4 rounded-lg overflow-hidden cursor-ns-resize select-none flex-shrink-0"
-                        style="background: linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
-                        onmousedown={startHueDrag}
-                    >
-                        <!-- Cursor bar -->
-                        <div
-                            class="absolute left-0 right-0 h-1 -translate-y-1/2 pointer-events-none rounded-sm"
-                            style="top: {(cpHue / 360) *
-                                100}%; box-shadow: 0 0 0 1.5px white, 0 0 0 2.5px rgba(0,0,0,0.5);"
-                        ></div>
-                    </div>
-                </div>
-
-                <!-- Presets -->
-                <div class="flex gap-1.5">
-                    {#each FOLDER_COLORS as color}
-                        <!-- svelte-ignore a11y_consider_explicit_label -->
-                        <button
-                            onclick={() => setHsvFromHex(color)}
-                            class="flex-1 h-5 rounded transition-all duration-100"
-                            style="background-color: {color}; outline: {Math.abs(
-                                cpHue - hexToHsv(color)[0],
-                            ) < 2 &&
-                            Math.abs(cpSat - hexToHsv(color)[1]) < 0.05 &&
-                            Math.abs(cpVal - hexToHsv(color)[2]) < 0.05
-                                ? '2px solid white'
-                                : 'none'};"
-                        ></button>
-                    {/each}
-                </div>
-
-                <!-- Hex input -->
-                <div class="flex items-center gap-2">
-                    <div
-                        class="w-7 h-7 rounded flex-shrink-0"
-                        style="background-color: {cpHex};"
+                        class="absolute inset-0"
+                        style="background: linear-gradient(to bottom, transparent, black);"
                     ></div>
-                    <input
-                        class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm font-mono px-2 py-1.5 rounded outline-none border border-discord-divider focus:border-discord-accent uppercase tracking-wider"
-                        value={cpHex}
-                        maxlength={7}
-                        oninput={(e) =>
-                            setHsvFromHex((e.target as HTMLInputElement).value)}
-                    />
+                    <!-- Cursor -->
+                    <div
+                        class="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none -translate-x-1/2 -translate-y-1/2"
+                        style="left: {cpSat * 100}%; top: {(1 - cpVal) *
+                            100}%; box-shadow: 0 0 0 1px rgba(0,0,0,0.4);"
+                    ></div>
                 </div>
 
-                <!-- Actions -->
-                <div class="flex gap-2">
-                    <button
-                        onclick={commitColor}
-                        class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-                        >Save</button
-                    >
-                    <button
-                        onclick={closeModal}
-                        class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
-                        >Cancel</button
-                    >
+                <!-- Hue slider -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                    bind:this={hueSliderEl}
+                    class="relative w-4 rounded-lg overflow-hidden cursor-ns-resize select-none flex-shrink-0"
+                    style="background: linear-gradient(to bottom, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);"
+                    onmousedown={startHueDrag}
+                >
+                    <!-- Cursor bar -->
+                    <div
+                        class="absolute left-0 right-0 h-1 -translate-y-1/2 pointer-events-none rounded-sm"
+                        style="top: {(cpHue / 360) *
+                            100}%; box-shadow: 0 0 0 1.5px white, 0 0 0 2.5px rgba(0,0,0,0.5);"
+                    ></div>
                 </div>
             </div>
-        </div>
+
+            <!-- Presets -->
+            <div class="flex gap-1.5">
+                {#each FOLDER_COLORS as color}
+                    <!-- svelte-ignore a11y_consider_explicit_label -->
+                    <button
+                        onclick={() => setHsvFromHex(color)}
+                        class="flex-1 h-5 rounded transition-all duration-100"
+                        style="background-color: {color}; outline: {Math.abs(
+                            cpHue - hexToHsv(color)[0],
+                        ) < 2 &&
+                        Math.abs(cpSat - hexToHsv(color)[1]) < 0.05 &&
+                        Math.abs(cpVal - hexToHsv(color)[2]) < 0.05
+                            ? '2px solid white'
+                            : 'none'};"
+                    ></button>
+                {/each}
+            </div>
+
+            <!-- Hex input -->
+            <div class="flex items-center gap-2">
+                <div
+                    class="w-7 h-7 rounded flex-shrink-0"
+                    style="background-color: {cpHex};"
+                ></div>
+                <input
+                    class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm font-mono px-2 py-1.5 rounded outline-none border border-discord-divider focus:border-discord-accent uppercase tracking-wider"
+                    value={cpHex}
+                    maxlength={7}
+                    oninput={(e) =>
+                        setHsvFromHex((e.target as HTMLInputElement).value)}
+                />
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2">
+                <button
+                    onclick={commitColor}
+                    class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+                    >Save</button
+                >
+                <button
+                    onclick={closeModal}
+                    class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
+                    >Cancel</button
+                >
+            </div>
+        </ModalDialog>
     {/if}
 
     <!-- Touch drag ghost -->
@@ -1313,143 +1311,135 @@
 
     <!-- Create room in space modal -->
     {#if createRoomModal}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onclick={closeModal}
+        <ModalDialog
+            onClose={closeModal}
+            labelledBy="space-create-room-title"
+            panelClass="relative bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+            onKeydown={(e) => {
+                if (e.key === "Enter") submitCreateRoom();
+            }}
         >
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-                class="bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
-                onclick={(e) => e.stopPropagation()}
-                onkeydown={(e) => {
-                    if (e.key === "Enter") submitCreateRoom();
-                }}
+            <h2
+                id="space-create-room-title"
+                class="text-lg font-bold text-discord-textPrimary"
             >
-                <h2 class="text-lg font-bold text-discord-textPrimary">
-                    Create room in space
-                </h2>
-                <div class="flex flex-col gap-3">
-                    <div>
-                        <label
-                            for="create-room-name"
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                            >Room name</label
-                        >
-                        <input
-                            id="create-room-name"
-                            bind:value={modalInput1}
-                            placeholder="my-room"
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
-                        />
-                    </div>
-                    <div>
-                        <label
-                            for="create-room-topic"
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                            >Topic <span class="normal-case font-normal"
-                                >(optional)</span
-                            ></label
-                        >
-                        <input
-                            id="create-room-topic"
-                            bind:value={modalInput2}
-                            placeholder="What's this room about?"
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
-                        />
-                    </div>
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            bind:checked={modalVideoRoom}
-                            class="mt-0.5 accent-discord-accent"
-                        />
-                        <span class="text-sm text-discord-textPrimary"
-                            >Video room
-                            <span class="block text-xs text-discord-textMuted"
-                                >Opens straight into a call. Messages still
-                                work.</span
-                            ></span
-                        >
-                    </label>
-                </div>
-                {#if modalError}<p class="text-sm text-discord-danger">
-                        {modalError}
-                    </p>{/if}
-                <div class="flex justify-end gap-2 mt-1">
-                    <button
-                        onclick={closeModal}
-                        disabled={modalLoading}
-                        class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                        >Cancel</button
+                Create room in space
+            </h2>
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label
+                        for="create-room-name"
+                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                        >Room name</label
                     >
-                    <button
-                        onclick={submitCreateRoom}
-                        disabled={modalLoading || !modalInput1.trim()}
-                        class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {#if modalLoading}<div
-                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                            ></div>{/if}
-                        Create
-                    </button>
+                    <input
+                        id="create-room-name"
+                        data-autofocus
+                        bind:value={modalInput1}
+                        placeholder="my-room"
+                        class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                    />
                 </div>
+                <div>
+                    <label
+                        for="create-room-topic"
+                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                        >Topic <span class="normal-case font-normal"
+                            >(optional)</span
+                        ></label
+                    >
+                    <input
+                        id="create-room-topic"
+                        bind:value={modalInput2}
+                        placeholder="What's this room about?"
+                        class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                    />
+                </div>
+                <label class="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        bind:checked={modalVideoRoom}
+                        class="mt-0.5 accent-discord-accent"
+                    />
+                    <span class="text-sm text-discord-textPrimary"
+                        >Video room
+                        <span class="block text-xs text-discord-textMuted"
+                            >Opens straight into a call. Messages still work.</span
+                        ></span
+                    >
+                </label>
             </div>
-        </div>
+            {#if modalError}<p class="text-sm text-discord-danger">
+                    {modalError}
+                </p>{/if}
+            <div class="flex justify-end gap-2 mt-1">
+                <button
+                    onclick={closeModal}
+                    disabled={modalLoading}
+                    class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                    >Cancel</button
+                >
+                <button
+                    onclick={submitCreateRoom}
+                    disabled={modalLoading || !modalInput1.trim()}
+                    class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                    {#if modalLoading}<div
+                            class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                        ></div>{/if}
+                    Create
+                </button>
+            </div>
+        </ModalDialog>
     {/if}
 
     <!-- Add existing room to space modal -->
     {#if addRoomModal}
         {@const candidates = getRoomsNotInSpace(addRoomModal.spaceId)}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onclick={closeModal}
+        <ModalDialog
+            onClose={closeModal}
+            labelledBy="space-add-room-title"
+            panelClass="relative bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
         >
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-                class="bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
-                onclick={(e) => e.stopPropagation()}
+            <h2
+                id="space-add-room-title"
+                class="text-lg font-bold text-discord-textPrimary"
             >
-                <h2 class="text-lg font-bold text-discord-textPrimary">
-                    Add existing room to space
-                </h2>
-                {#if candidates.length === 0}
-                    <p class="text-sm text-discord-textMuted">
-                        No rooms available to add.
-                    </p>
-                {:else}
-                    <div class="flex flex-col gap-1 max-h-72 overflow-y-auto">
-                        {#each candidates as room}
-                            <button
-                                onclick={() => submitAddRoom(room.roomId)}
-                                class="w-full text-left px-3 py-2 rounded text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                Add existing room to space
+            </h2>
+            {#if candidates.length === 0}
+                <p class="text-sm text-discord-textMuted">
+                    No rooms available to add.
+                </p>
+            {:else}
+                <div class="flex flex-col gap-1 max-h-72 overflow-y-auto">
+                    {#each candidates as room}
+                        <button
+                            onclick={() => submitAddRoom(room.roomId)}
+                            class="w-full text-left px-3 py-2 rounded text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                        >
+                            <Avatar
+                                src={getRoomAvatar(room)}
+                                name={getRoomDisplayName(room)}
+                                size={24}
+                                rounded="none"
+                                class="rounded flex-shrink-0"
+                            />
+                            <span class="truncate"
+                                >{getRoomDisplayName(room)}</span
                             >
-                                <Avatar
-                                    src={getRoomAvatar(room)}
-                                    name={getRoomDisplayName(room)}
-                                    size={24}
-                                    rounded="none"
-                                    class="rounded flex-shrink-0"
-                                />
-                                <span class="truncate"
-                                    >{getRoomDisplayName(room)}</span
-                                >
-                            </button>
-                        {/each}
-                    </div>
-                {/if}
-                <div class="flex justify-end">
-                    <button
-                        onclick={closeModal}
-                        class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                        >Cancel</button
-                    >
+                        </button>
+                    {/each}
                 </div>
+            {/if}
+            <div class="flex justify-end">
+                <button
+                    onclick={closeModal}
+                    class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    >Cancel</button
+                >
             </div>
-        </div>
+        </ModalDialog>
     {/if}
 
     <!-- Explore rooms modal -->
