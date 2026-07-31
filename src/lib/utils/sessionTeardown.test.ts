@@ -82,8 +82,11 @@ describe("releaseSessionResources", () => {
     });
 
     it("swallows a rejected async step instead of leaking it", async () => {
+        // Reject from a step with others QUEUED BEHIND IT, so the length
+        // assertion below proves they still ran. The last step would satisfy
+        // it for free.
         const { steps, ran } = recorder({
-            clearNativeSession: () => Promise.reject(new Error("offline")),
+            clearServiceWorkerAuth: () => Promise.reject(new Error("offline")),
         });
         releaseSessionResources(steps);
         expect(ran).toHaveLength(NAMES.length);
@@ -146,13 +149,22 @@ describe("session expiry keeps the crypto store (user decision, 2026-07-30)", ()
     it("leaves the expiry handler with nothing that deletes the store", () => {
         // `handleSessionExpired` lives in a route component with no test
         // harness, and it could re-acquire the wipe WITHOUT going through the
-        // typed step list above — so read the source. Deliberately matches the
-        // imported symbol rather than a call shape: an import is the only way
-        // that module can reach the deletion at all.
+        // typed step list above — so read the source. This catches the three
+        // ways that file could reach a wipe today: the helper by any import
+        // name, a raw IndexedDB delete, and the SDK's own store clear. It is
+        // not a proof of absence — a future fourth way would slip past — but
+        // every route that exists now costs a red test.
+        //
+        // cwd-relative, like the repo's other source-mirroring test: under
+        // Vite's transform `import.meta.url` is not a file: URL, so it cannot
+        // resolve this. `npm run test` always runs from the package root; an
+        // ad-hoc vitest invocation from a subdirectory would ENOENT here —
+        // loudly, never as a false pass.
         const page = readFileSync(
             resolve(process.cwd(), "src/routes/+page.svelte"),
             "utf8",
         );
         expect(page).not.toContain("deleteCryptoStore");
+        expect(page).not.toMatch(/deleteDatabase|clearStores/);
     });
 });
