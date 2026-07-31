@@ -35,19 +35,19 @@ import { fileURLToPath } from "node:url";
  * It DOES pin, per element: that each drawer's `inert`/`aria-hidden` sits in
  * the opening tag of the element carrying that drawer's own
  * `transform: translateX(<var>px)`, bound to that drawer's own derived and no
- * other; and that the derived comes from a correctly-signed call. So an
- * attribute swapped between the two right-hand drawers, or hoisted off the
- * translated element onto its `fixed inset-0` ancestor (which would kill the
- * edge-swipe-open gesture), now fails here.
+ * other; that the derived comes from a correctly-signed call; and — as a
+ * complete set — that NO other element in either file is `inert` or
+ * `aria-hidden` at all. So an attribute swapped between the two right-hand
+ * drawers, hoisted off the translated element onto its `fixed inset-0` ancestor
+ * (which would kill the edge-swipe-open gesture), or added to some fourth
+ * element, all fail here.
  *
  * It still does NOT prove:
  *   - that `inert` actually removes the subtree from the tab order at runtime;
  *   - that the mobile branch is the one being rendered;
- *   - that the drawers behave correctly mid-drag;
- *   - that no OTHER element in these files wrongly gained an `inert` — the
- *     per-element assertions are scoped to the three known drawers.
+ *   - that the drawers behave correctly mid-drag.
  * Those still need the live keyboard/gesture pass recorded in the task report.
- * A green run here means "nobody silently inverted or crossed the wiring".
+ * A green run here means "nobody silently inverted, crossed or added wiring".
  */
 
 // Resolve via dirname(fileURLToPath(...)), NOT `new URL("…", import.meta.url)`
@@ -118,7 +118,7 @@ function closedCalls(src: string): string[] {
 }
 
 /**
- * The remainder of a drawer's OPENING TAG, sliced out of the file.
+ * A drawer's WHOLE OPENING TAG, sliced out of the file.
  *
  * Whole-file `toContain("inert={…}")` checks are positionally blind, and this
  * file is the worst possible place for that: `MessageArea.svelte` holds two
@@ -128,12 +128,13 @@ function closedCalls(src: string): string[] {
  * false, so `rightPanelClosed` is true, so the member drawer would be inert
  * while open). A whole-file assertion passes happily through that swap.
  *
- * `landmark` is the element's `transform: translateX(<var>px)` — i.e. the slice
- * is anchored to the very element whose translate polarity was verified, which
- * is what makes "the attribute is on the right element" a real claim rather
- * than "the attribute is somewhere in the file". `firstChild` terminates the
- * slice at the drawer's first child, so it covers exactly the rest of that
- * element's attributes and nothing below it.
+ * `landmark` — the element's `transform: translateX(<var>px)` — only IDENTIFIES
+ * which drawer this tag belongs to; it ties the slice to the very element whose
+ * translate polarity was verified. The slice itself runs from that element's
+ * `<div` back-scanned from the landmark, through to `firstChild`, so it covers
+ * the tag's attributes in ANY order. Slicing forward from the landmark instead
+ * would go red on a legal, behaviour-free attribute reorder (moving `inert`
+ * above `style`) — a false alarm that trains people to distrust the test.
  */
 function drawerOpeningTag(
     src: string,
@@ -141,16 +142,45 @@ function drawerOpeningTag(
     firstChild: string,
 ): string {
     const text = normalize(src);
-    const start = text.indexOf(landmark);
+    const at = text.indexOf(landmark);
     // Not found means the markup moved. Fail loudly — a silent -1 would slice
     // from the end of the file and make every assertion below vacuous.
-    expect(start, `landmark not found: ${landmark}`).toBeGreaterThan(-1);
-    const end = text.indexOf(firstChild, start);
+    expect(at, `landmark not found: ${landmark}`).toBeGreaterThan(-1);
+    // The tag cannot be located by scanning forward for ">": the style
+    // attribute contains ">=" in the box-shadow gate.
+    const start = text.lastIndexOf("<div", at);
+    expect(start, `no <div opening before: ${landmark}`).toBeGreaterThan(-1);
+    const end = text.indexOf(firstChild, at);
     expect(
         end,
         `first child not found after ${landmark}: ${firstChild}`,
-    ).toBeGreaterThan(start);
+    ).toBeGreaterThan(at);
     return text.slice(start, end);
+}
+
+/**
+ * Every `inert={…}` binding in a file, so the expected set can be asserted
+ * EXHAUSTIVELY rather than by presence.
+ *
+ * Presence-only checks are blind to a stray `inert` on a non-drawer element,
+ * and that blindness is load-bearing here: the plan's own out-of-scope list
+ * names "the app content behind an OPEN mobile drawer is not inert" as future
+ * work, and implementing it means adding an `inert` to a non-drawer element in
+ * exactly these two files. Get its polarity backwards — `inert={!leftDrawerClosed}`
+ * on `<main>` — and the whole app is inert whenever the drawer is closed, i.e.
+ * essentially always. A presence-only test waves that through.
+ *
+ * A legitimate future addition is SUPPOSED to fail this assertion. Updating the
+ * expected set is the deliberate act that forces its author to state the new
+ * binding's polarity out loud.
+ */
+function inertBindings(src: string): string[] {
+    return (normalize(src).match(/inert=\{[^}]*\}/g) ?? []).sort();
+}
+
+/** Same exhaustive treatment for `aria-hidden`, which shadows `inert` here. */
+function ariaHiddenBindings(src: string): string[] {
+    return (normalize(src).match(/aria-hidden=\{[^}]*\}/g) ?? []).sort();
 }
 
 /** Every drawer derived in the codebase, so each block can exclude the others. */
@@ -257,6 +287,30 @@ describe("drawer inert wiring — polarity", () => {
         expectBoundTo(leftDrawerTag(), "leftDrawerClosed");
         expectBoundTo(rightPanelTag(), "rightPanelClosed");
         expectBoundTo(memberDrawerTag(), "memberDrawerClosed");
+    });
+
+    // Link 3: nothing ELSE in these files is inert. The two tests above pin the
+    // three drawers, but they say nothing about a fourth element — and the next
+    // planned change in this area (inerting the app behind an OPEN drawer) adds
+    // exactly that. An inverted one, e.g. `inert={!leftDrawerClosed}` on
+    // `<main>`, locks the keyboard out of the entire app whenever the drawer is
+    // closed. See inertBindings() for why this is asserted as a complete set.
+    it("has no inert bindings beyond the three drawers", () => {
+        expect(inertBindings(appShell())).toEqual(["inert={leftDrawerClosed}"]);
+        expect(inertBindings(messageArea())).toEqual([
+            "inert={memberDrawerClosed}",
+            "inert={rightPanelClosed}",
+        ]);
+    });
+
+    it("has no aria-hidden bindings beyond the three drawers", () => {
+        expect(ariaHiddenBindings(appShell())).toEqual([
+            'aria-hidden={leftDrawerClosed ? "true" : undefined}',
+        ]);
+        expect(ariaHiddenBindings(messageArea())).toEqual([
+            'aria-hidden={memberDrawerClosed ? "true" : undefined}',
+            'aria-hidden={rightPanelClosed ? "true" : undefined}',
+        ]);
     });
 });
 
