@@ -42,6 +42,10 @@ describe("recordArrival", () => {
         const { state: drained } = drainAnnouncement(a);
         const b = recordArrival(drained, msg({ eventId: "$dup" }));
         expect(b.pending).toHaveLength(0);
+        // Identity, not just emptiness: the caller restarts its debounce timer
+        // on `!==`, so a fresh-but-equal object here would clear and re-arm the
+        // timer with an empty queue and swallow the burst already in flight.
+        expect(b).toBe(drained);
     });
 
     it("drops an event with no id, which cannot be deduplicated", () => {
