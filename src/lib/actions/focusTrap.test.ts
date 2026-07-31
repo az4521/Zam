@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    afterEach,
+    beforeAll,
+    afterAll,
+} from "vitest";
 import { focusWrapTarget, focusTrap } from "./focusTrap";
 
 describe("focusWrapTarget", () => {
@@ -106,5 +114,90 @@ describe("focusTrap Escape propagation", () => {
         );
 
         expect(globalHandler).toHaveBeenCalledTimes(1);
+    });
+});
+
+// Initial focus. The trap focuses the first focusable in DOM order, which for a
+// dialog is usually its close ✕ button rather than the field the user came to
+// use. `data-autofocus` lets a dialog nominate that field without racing the
+// trap's own rAF-deferred focus call (audit A11Y-01: "initial focus").
+describe("focusTrap initial focus", () => {
+    let teardown: (() => void) | null = null;
+
+    // jsdom has no layout engine and hard-codes `offsetParent` to null, so the
+    // action's visibility filter (`el.offsetParent !== null`) would reject every
+    // element here and the trap would fall back to focusing its own node —
+    // making all three assertions read `<div>` instead of a control. Report
+    // attached elements as laid out for the duration of this block; the action
+    // itself is deliberately left alone, since that filter is what keeps a
+    // display:none control from stealing focus in a real browser.
+    const realOffsetParent = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "offsetParent",
+    );
+
+    beforeAll(() => {
+        Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+            configurable: true,
+            get(this: HTMLElement) {
+                return this.parentElement;
+            },
+        });
+    });
+
+    afterAll(() => {
+        if (realOffsetParent) {
+            Object.defineProperty(
+                HTMLElement.prototype,
+                "offsetParent",
+                realOffsetParent,
+            );
+        }
+    });
+
+    afterEach(() => {
+        teardown?.();
+        teardown = null;
+    });
+
+    function mount(html: string) {
+        const node = document.createElement("div");
+        node.innerHTML = html;
+        document.body.appendChild(node);
+        const handle = focusTrap(node, {});
+        teardown = () => {
+            handle.destroy();
+            node.remove();
+        };
+        return node;
+    }
+
+    /** The trap defers its initial focus to the next animation frame. */
+    function nextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    it("focuses the first focusable element when nothing opts in", async () => {
+        const node = mount(
+            `<button id="close">x</button><input id="search" />`,
+        );
+        await nextFrame();
+        expect(document.activeElement?.id).toBe("close");
+    });
+
+    it("focuses the nominated element instead of the first one", async () => {
+        const node = mount(
+            `<button id="close">x</button><input id="search" data-autofocus />`,
+        );
+        await nextFrame();
+        expect(document.activeElement?.id).toBe("search");
+    });
+
+    it("falls back to the first focusable when the nominee cannot take focus", async () => {
+        const node = mount(
+            `<button id="close">x</button><input id="search" data-autofocus disabled />`,
+        );
+        await nextFrame();
+        expect(document.activeElement?.id).toBe("close");
     });
 });
