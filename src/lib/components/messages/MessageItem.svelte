@@ -1763,6 +1763,15 @@
         are needed — `group-focus-visible` for the row itself being focused,
         and `group-has-[:focus-visible]` for a focused button inside the bar,
         because `:has()` only matches descendants.
+
+        The HOVER reveal stays pointer-gated even though `group` no longer is.
+        Mobile browsers apply `:hover` on tap and hold it until the next tap
+        elsewhere, so an ungated `group-hover:flex` would pin the bar open
+        after the tap that clears `selectedMessageId` — tap-to-dismiss dead,
+        and a scrolled-away row left wearing a floating bar. Before this branch
+        the row carried no `group` at all on touch, which is what kept
+        `group-hover:` from ever matching; the class here restores exactly that
+        while leaving `group` itself unconditional for the focus reveal.
     -->
     <div
         data-message-actions
@@ -1773,7 +1782,9 @@
         showReportDialog ||
         mobileSelected
             ? 'flex'
-            : 'hidden group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+            : `hidden ${
+                  interfaceState.isTouchscreen ? '' : 'group-hover:flex'
+              } group-focus-visible:flex group-has-[:focus-visible]:flex`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
         {#if isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
             <button
