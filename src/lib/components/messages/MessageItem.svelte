@@ -70,6 +70,10 @@
         sameThreadSummary,
         type ThreadSummary,
     } from "$lib/utils/threadModel";
+    import {
+        shouldRescanReplyTarget,
+        type CachedReplyTarget,
+    } from "$lib/utils/replyTargetLookup";
 
     import {
         messagesState,
@@ -573,10 +577,24 @@
             | string
             | undefined;
     });
-    const timelineReplyTarget = $derived(
-        (void messagesState.timelineTick,
-        inReplyToId ? findEventById(room, inReplyToId) : null),
-    );
+    // Finding the parent is a linear scan of the loaded timeline chunk, and this
+    // derived re-runs on every timelineTick for every reply on screen. A resolved
+    // target cannot change (same MatrixEvent reference; edits and redactions mutate
+    // it in place), so search only while we do not have one — the same
+    // resolve-once shape `fetchedReplyTarget` below already uses. Plain `let`, not
+    // $state: a memo cell written inside a $derived must stay out of the graph.
+    let cachedReplyTarget: CachedReplyTarget<MatrixEvent> | null = null;
+    const timelineReplyTarget = $derived.by(() => {
+        void messagesState.timelineTick;
+        if (!inReplyToId) return null;
+        if (shouldRescanReplyTarget(cachedReplyTarget, inReplyToId)) {
+            cachedReplyTarget = {
+                id: inReplyToId,
+                target: findEventById(room, inReplyToId) ?? null,
+            };
+        }
+        return cachedReplyTarget?.target ?? null;
+    });
     // Parents outside the loaded timeline window are fetched individually —
     // modern clients (gomuks & friends) omit the legacy "> quote" fallback,
     // so without this their replies render "Original message not loaded".
