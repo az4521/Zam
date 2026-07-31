@@ -1021,9 +1021,9 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!--
     The row is a tab stop so the keyboard can reach the hover action bar (which
-    is `display:none` until this row has focus-within). It is deliberately NOT
-    `role="button"`: it isn't one, and claiming the role would promise an
-    Enter/Space activation we don't implement.
+    is `display:none` until this row, or something inside it, is focus-visible).
+    It is deliberately NOT `role="button"`: it isn't one, and claiming the role
+    would promise an Enter/Space activation we don't implement.
 -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
@@ -1730,10 +1730,18 @@
 
     <!--
         Hover action bar: always visible when a picker/dialog is open, otherwise
-        on group-hover OR group-focus-within. The focus reveal is what makes the
+        on group-hover OR *keyboard* focus. The focus reveal is what makes the
         bar keyboard reachable — the row itself is the already-focusable element
         that triggers it (a `display:none` bar can't reveal itself), and
         `use:rovingToolbar` on the row keeps the whole bar to one tab stop.
+
+        It is `:focus-visible`, NOT `:focus-within`: the row is `tabindex="0"`,
+        so a plain click/tap on message text focuses it, and `:focus-within`
+        would then leave the bar stuck open with nothing to blur it (two bars
+        visible at once on desktop; tap-to-dismiss dead on touch). Both forms
+        are needed — `group-focus-visible` for the row itself being focused,
+        and `group-has-[:focus-visible]` for a focused button inside the bar,
+        because `:has()` only matches descendants.
     -->
     <div
         data-message-actions
@@ -1744,7 +1752,7 @@
         showReportDialog ||
         mobileSelected
             ? 'flex'
-            : 'hidden group-hover:flex group-focus-within:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+            : 'hidden group-hover:flex group-focus-visible:flex group-has-[:focus-visible]:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
         {#if isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
             <button
