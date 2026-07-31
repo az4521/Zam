@@ -214,6 +214,23 @@ describe("resolveLandingTarget — a cached space that is gone", () => {
         expect(target).toEqual({ kind: "none" });
     });
 
+    it("lands on a drilled unjoined sub-space's first joined channel rather than Browse Channels", () => {
+        // Drilled into a sub-space we have not joined, but we HAVE joined one of
+        // its channels, and the remembered room is stale (left/kicked). Showing
+        // an inert Browse panel over a channel the user can already read is the
+        // "failed click" this feature exists to kill.
+        const target = resolveLandingTarget(
+            baseInput({
+                activeRoomId: "!kicked:server",
+                activeRoomIsJoined: false,
+                activeSpaceIsJoined: false,
+                isDrilledSubspace: true,
+                spaceRoomIds: ["!subchannel:server", "!other:server"],
+            }),
+        );
+        expect(target).toEqual({ kind: "room", roomId: "!subchannel:server" });
+    });
+
     it("keeps a joined room inside an unjoined drilled sub-space", () => {
         const target = resolveLandingTarget(
             baseInput({
