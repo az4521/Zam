@@ -16,6 +16,14 @@
  * Every step is independent and MUST NOT be awaited: the user's route back to
  * the login view is at the end of this, so a step that throws, rejects, or
  * hangs can never stop the steps after it.
+ *
+ * What is deliberately NOT here: the device's crypto store. Expiry releases
+ * the session, never the key material — a single `M_UNKNOWN_TOKEN` (password
+ * changed on another client, this device deleted elsewhere, a server hiccup)
+ * would otherwise `indexedDB.deleteDatabase` the rust-crypto stores, which
+ * nothing can undo. Wiping is reserved for an EXPLICIT sign-out, where
+ * `logout()` does it through `client.clearStores({ cryptoDatabasePrefix })`.
+ * The user settled this on 2026-07-30; `sessionTeardown.test.ts` pins it.
  */
 
 export interface SessionResourceSteps {
@@ -31,8 +39,6 @@ export interface SessionResourceSteps {
     unregisterPush: () => unknown;
     /** Clear the native (Capacitor) session mirror. */
     clearNativeSession: () => unknown;
-    /** Delete this device's crypto store, when its identity is known. */
-    deleteCryptoStore: () => unknown;
 }
 
 /**
@@ -51,7 +57,6 @@ export const TEARDOWN_ORDER = [
     "clearServiceWorkerAuth",
     "unregisterPush",
     "clearNativeSession",
-    "deleteCryptoStore",
 ] as const satisfies readonly (keyof SessionResourceSteps)[];
 
 /**

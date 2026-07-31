@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
     releaseSessionResources,
     TEARDOWN_ORDER,
@@ -40,7 +42,6 @@ describe("releaseSessionResources", () => {
             "clearServiceWorkerAuth",
             "unregisterPush",
             "clearNativeSession",
-            "deleteCryptoStore",
         ]);
     });
 
@@ -74,7 +75,7 @@ describe("releaseSessionResources", () => {
         const { steps, ran } = recorder({
             leaveCall: boom,
             unregisterPush: boom,
-            deleteCryptoStore: boom,
+            clearNativeSession: boom,
         });
         releaseSessionResources(steps);
         expect(ran).toHaveLength(NAMES.length);
@@ -120,5 +121,38 @@ describe("releaseSessionResources", () => {
         // Returning at all is half the point; the other half is that the
         // steps queued behind the hung one still ran.
         expect(ran).toHaveLength(NAMES.length);
+    });
+});
+
+/**
+ * A POLICY pin, not a mechanism one — the user settled this on 2026-07-30 and
+ * the whole point of the item is that it stays settled: an expired session
+ * KEEPS its crypto store, and only an explicit sign-out wipes it (which it
+ * still does, via `client.clearStores({ cryptoDatabasePrefix })` in
+ * `logout()`). A single `M_UNKNOWN_TOKEN` — a password changed on another
+ * client, this device deleted elsewhere, a server hiccup — must not destroy
+ * key material that nothing can bring back.
+ *
+ * These assertions are cheap and dull on purpose: re-adding the wipe is a
+ * decision the user has already made once, so making it should cost a red
+ * test rather than pass as tidying up.
+ */
+describe("session expiry keeps the crypto store (user decision, 2026-07-30)", () => {
+    it("runs no crypto-store wipe among the teardown steps", () => {
+        // Not just the old name: any step that wipes crypto would re-open this.
+        expect(TEARDOWN_ORDER.filter((n) => /crypto/i.test(n))).toEqual([]);
+    });
+
+    it("leaves the expiry handler with nothing that deletes the store", () => {
+        // `handleSessionExpired` lives in a route component with no test
+        // harness, and it could re-acquire the wipe WITHOUT going through the
+        // typed step list above — so read the source. Deliberately matches the
+        // imported symbol rather than a call shape: an import is the only way
+        // that module can reach the deletion at all.
+        const page = readFileSync(
+            resolve(process.cwd(), "src/routes/+page.svelte"),
+            "utf8",
+        );
+        expect(page).not.toContain("deleteCryptoStore");
     });
 });

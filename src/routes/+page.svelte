@@ -13,7 +13,6 @@
     } from "$lib/matrix/client";
     import { unregisterPush } from "$lib/push";
     import { clearNativeSession } from "$lib/nativeSession";
-    import { deleteCryptoStore } from "$lib/matrix/crypto";
     import {
         auth,
         saveSession,
@@ -161,13 +160,13 @@
     // the reactive {#if} swaps AppShell → LoginView, and LoginView surfaces
     // auth.error on mount. Stays SYNCHRONOUS: nothing here may be awaited.
     function handleSessionExpired() {
-        // Capture the expiring account's client + identity BEFORE teardown
-        // nulls them, so we release its native/push/crypto resources the same
-        // way an explicit logout does. The auth store is empty while a startup
-        // is still in flight, so fall back to the client's own identity.
+        // Capture the expiring account's client BEFORE teardown nulls it, so
+        // its push registration can still be released.
+        //
+        // Its crypto store is NOT released here, and that is the point: expiry
+        // is not a sign-out. See `sessionTeardown.ts` — a spurious
+        // M_UNKNOWN_TOKEN must not destroy key material.
         const client = getClient();
-        const expiringUserId = auth.userId ?? client?.getUserId() ?? null;
-        const expiringDeviceId = auth.deviceId ?? client?.getDeviceId() ?? null;
 
         // Invalidate any startup in flight FIRST: one that resolves after this
         // must not publish the session we are tearing down.
@@ -189,10 +188,6 @@
             clearServiceWorkerAuth,
             unregisterPush: () => (client ? unregisterPush(client) : undefined),
             clearNativeSession,
-            deleteCryptoStore: () =>
-                expiringUserId && expiringDeviceId
-                    ? deleteCryptoStore(expiringUserId, expiringDeviceId)
-                    : undefined,
         });
 
         expireActiveSession();
