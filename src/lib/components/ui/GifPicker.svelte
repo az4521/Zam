@@ -413,7 +413,7 @@
         onscroll={onGridScroll}
         id="{listId}-listbox"
         role={hasOptions ? "listbox" : undefined}
-        aria-label="GIF results"
+        aria-label={hasOptions ? "GIF results" : undefined}
         class="flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
         {#if tab === "favourites"}

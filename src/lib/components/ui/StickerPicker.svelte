@@ -463,7 +463,7 @@
             onscroll={onScroll}
             id="{listId}-listbox"
             role={hasOptions ? "listbox" : undefined}
-            aria-label="Stickers"
+            aria-label={hasOptions ? "Stickers" : undefined}
             class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
         >
             {#if search}
