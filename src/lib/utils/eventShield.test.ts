@@ -3,6 +3,7 @@ import {
     EventShieldColourValue,
     EventShieldReasonValue,
     sameShield,
+    shieldRefreshKey,
     shieldView,
     shieldViewForEvent,
 } from "./eventShield";
@@ -158,5 +159,56 @@ describe("sameShield", () => {
         expect(a!.icon).toBe(b!.icon);
         expect(a!.tone).toBe(b!.tone);
         expect(sameShield(a, b)).toBe(false);
+    });
+});
+
+describe("shieldRefreshKey", () => {
+    const base = {
+        eventId: "$a",
+        eventType: "m.room.message",
+        status: null,
+        securityTick: 0,
+    };
+
+    it("is stable for identical inputs", () => {
+        expect(shieldRefreshKey({ ...base })).toBe(
+            shieldRefreshKey({ ...base }),
+        );
+    });
+
+    it("changes when the event id changes", () => {
+        expect(shieldRefreshKey({ ...base, eventId: "$b" })).not.toBe(
+            shieldRefreshKey(base),
+        );
+    });
+
+    it("changes when the event type changes (encrypted -> decrypted)", () => {
+        expect(
+            shieldRefreshKey({ ...base, eventType: "m.room.encrypted" }),
+        ).not.toBe(shieldRefreshKey(base));
+    });
+
+    it("changes when the local-echo status changes", () => {
+        expect(shieldRefreshKey({ ...base, status: "sending" })).not.toBe(
+            shieldRefreshKey(base),
+        );
+        expect(shieldRefreshKey({ ...base, status: "sending" })).not.toBe(
+            shieldRefreshKey({ ...base, status: "sent" }),
+        );
+    });
+
+    it("changes when the security tick changes (the shield memo was cleared)", () => {
+        expect(shieldRefreshKey({ ...base, securityTick: 1 })).not.toBe(
+            shieldRefreshKey(base),
+        );
+    });
+
+    it("does not collide when a field boundary is ambiguous", () => {
+        // "$a|x" + type "y" must not equal "$a" + type "x|y"
+        expect(
+            shieldRefreshKey({ ...base, eventId: "$a|x", eventType: "y" }),
+        ).not.toBe(
+            shieldRefreshKey({ ...base, eventId: "$a", eventType: "x|y" }),
+        );
     });
 });

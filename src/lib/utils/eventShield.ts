@@ -128,3 +128,36 @@ export function sameShield(
     if (!a || !b) return false;
     return a.icon === b.icon && a.tone === b.tone && a.label === b.label;
 }
+
+/** Everything that can move one event's shield. See shieldRefreshKey. */
+export interface ShieldRefreshInput {
+    /** The row's event id — a reused row must refetch. */
+    eventId: string;
+    /** Flips "m.room.encrypted" -> the cleartext type when the event decrypts. */
+    eventType: string;
+    /** MatrixEvent.status: a local echo's shield is never memoized upstream. */
+    status: string | null;
+    /** Bumped on the same events that clear the crypto layer's shield memo. */
+    securityTick: number;
+}
+
+/**
+ * The identity of a row's shield inputs.
+ *
+ * The per-row shield effect depends on `timelineTick`, which is bumped for every
+ * timeline event and every decryption anywhere in the app — so one incoming
+ * message made every rendered row in an encrypted room fire an async crypto
+ * call. Callers keep the last key and skip the fetch when it has not changed;
+ * the tick dependency itself stays exactly where it was.
+ *
+ * The separator is a character that cannot appear in a Matrix event id, an event
+ * type or an EventStatus, so distinct inputs cannot collide into one key.
+ */
+export function shieldRefreshKey(input: ShieldRefreshInput): string {
+    return [
+        input.eventId,
+        input.eventType,
+        input.status ?? "",
+        String(input.securityTick),
+    ].join("\u0000");
+}

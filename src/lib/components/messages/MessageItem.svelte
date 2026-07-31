@@ -63,6 +63,7 @@
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         sameShield,
+        shieldRefreshKey,
         shieldViewForEvent,
         type ShieldView,
     } from "$lib/utils/eventShield";
@@ -447,9 +448,14 @@
     // tracked effect can register listener reads as dependencies and blow the
     // effect depth.
     let shield = $state<ShieldView | null>(null);
+    // The last shield inputs we actually fetched for. Plain `let`, NOT $state:
+    // like `lastThreadSummary` below, a memo cell written from inside a tracked
+    // scope must stay invisible to the reactivity graph. Component scope, not
+    // module scope — one row's verdict must never leak into another row.
+    let lastShieldKey: string | null = null;
     $effect(() => {
         void messagesState.timelineTick;
-        void securityState.securityTick;
+        const tick = securityState.securityTick;
         const encrypted = roomEncrypted;
         const id = eventId;
 
@@ -458,13 +464,33 @@
             // (referential equality), so this costs nothing on repeat ticks —
             // and reading `shield` here would make the effect depend on it.
             shield = null;
+            // A room can be switched ON: forget the key so the next encrypted
+            // pass refetches rather than trusting a pre-encryption verdict.
+            lastShieldKey = null;
             return;
         }
 
+        // timelineTick is bumped for EVERY timeline event and every decryption
+        // anywhere in the app, and there is one of these effects per rendered row.
+        // getEventShield deliberately does not memoize null results or local
+        // echoes, so an unguarded call re-hits the crypto layer per row per event.
+        // Skip when nothing that can move THIS row's shield has changed; the tick
+        // dependencies above stay exactly as they were.
+        const key = shieldRefreshKey({
+            eventId: id,
+            eventType,
+            status: event.status,
+            securityTick: tick,
+        });
+        if (key === lastShieldKey) return;
+        lastShieldKey = key;
+
         let cancelled = false;
+        let settled = false;
         untrack(() => {
             void getEventShield(event)
                 .then((info) => {
+                    settled = true;
                     // A late resolution must not overwrite a newer row's state.
                     if (cancelled || event.getId() !== id) return;
                     const next = shieldViewForEvent({
@@ -478,11 +504,20 @@
                     if (!sameShield(shield, next)) shield = next;
                 })
                 .catch(() => {
+                    settled = true;
                     if (!cancelled) shield = null;
+                    // A failed fetch must be retryable on the next real change.
+                    lastShieldKey = null;
                 });
         });
         return () => {
             cancelled = true;
+            // This teardown runs before every RE-RUN, not just on destroy. A
+            // tick landing mid-flight therefore cancels a fetch that was still
+            // going to produce this row's verdict — and with the key gate above
+            // the re-run would decline to retry, leaving the shield silently
+            // absent. Only remember a key whose fetch actually got to settle.
+            if (!settled) lastShieldKey = null;
         };
     });
 
