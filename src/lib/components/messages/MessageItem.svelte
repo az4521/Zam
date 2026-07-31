@@ -108,6 +108,7 @@
         getDoubleTapReaction,
     } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
+    import { rovingToolbar } from "$lib/actions/rovingToolbar";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -1018,15 +1019,23 @@
 {/if}
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
+<!--
+    The row is a tab stop so the keyboard can reach the hover action bar (which
+    is `display:none` until this row has focus-within). It is deliberately NOT
+    `role="button"`: it isn't one, and claiming the role would promise an
+    Enter/Space activation we don't implement.
+-->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
     bind:this={rootEl}
-    class="{interfaceState.isTouchscreen
+    class="group {interfaceState.isTouchscreen
         ? ''
-        : 'group hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation {mentionHighlight
+        : 'hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
         ? 'bg-discord-warning/10 border-l-2 border-discord-warning'
         : ''}"
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}
+    tabindex="0"
     onmouseleave={() => {
         if (!confirmingDelete) return;
     }}
@@ -1037,6 +1046,14 @@
     ontouchend={onMessageTouchEnd}
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
+    use:rovingToolbar={{
+        toolbarSelector: "[data-message-actions]",
+        // Explicit marker rather than the action's default `button` selector:
+        // the bar also hosts the emoji picker and the report dialog, whose
+        // buttons must stay out of the roving set (and keep their own
+        // tabindexes and arrow keys).
+        itemSelector: "[data-message-action]:not([disabled])",
+    }}
 >
     <!-- Avatar column -->
     <div class="w-10 flex-shrink-0 mt-0.5">
@@ -1711,20 +1728,31 @@
         {/if}
     </div>
 
-    <!-- Hover action bar: always visible when emoji picker is open, otherwise on group-hover -->
+    <!--
+        Hover action bar: always visible when a picker/dialog is open, otherwise
+        on group-hover OR group-focus-within. The focus reveal is what makes the
+        bar keyboard reachable — the row itself is the already-focusable element
+        that triggers it (a `display:none` bar can't reveal itself), and
+        `use:rovingToolbar` on the row keeps the whole bar to one tab stop.
+    -->
     <div
+        data-message-actions
+        role="toolbar"
+        aria-label="Message actions"
         class="{showEmojiPicker ||
         confirmingDelete ||
         showReportDialog ||
         mobileSelected
             ? 'flex'
-            : 'hidden group-hover:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+            : 'hidden group-hover:flex group-focus-within:flex'} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
         {#if isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
             <button
+                data-message-action
                 onclick={startEdit}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title="Edit message"
+                aria-label="Edit message"
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -1736,25 +1764,35 @@
         {#if isOwnMessage}
             {#if confirmingDelete}
                 <span class="text-xs text-discord-textMuted px-1">Delete?</span>
+                <!--
+                    Deliberately NOT `data-message-action`: these two run their
+                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
+                    roving toolbar stops propagation on the keys it owns, which
+                    would kill it. Staying out of the roving set leaves them as
+                    ordinary tab stops for the life of the confirmation — which
+                    is what keeps them reachable if focus wanders off.
+                -->
                 <button
                     bind:this={deleteYesEl}
                     onclick={() => resolveDelete(true)}
                     onkeydown={onDeleteKeydown}
                     class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
-                    >Yes</button
+                    aria-label="Yes, delete message">Yes</button
                 >
                 <button
                     bind:this={deleteNoEl}
                     onclick={() => resolveDelete(false)}
                     onkeydown={onDeleteKeydown}
                     class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
-                    >No</button
+                    aria-label="No, keep message">No</button
                 >
             {:else}
                 <button
+                    data-message-action
                     onclick={() => (confirmingDelete = true)}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
                     title="Delete message"
+                    aria-label="Delete message"
                 >
                     <svg
                         class="w-4 h-4"
@@ -1770,6 +1808,7 @@
         {/if}
         {#if canPin}
             <button
+                data-message-action
                 onclick={async () => {
                     const wasPinned = isPinned;
                     try {
@@ -1788,6 +1827,7 @@
                     ? 'text-discord-accent'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                 title={isPinned ? "Unpin message" : "Pin message"}
+                aria-label={isPinned ? "Unpin message" : "Pin message"}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
                     ><path
@@ -1799,6 +1839,7 @@
         <!-- Add reaction -->
         <div class="relative">
             <button
+                data-message-action
                 bind:this={reactionBtnEl}
                 onclick={() => {
                     if (showEmojiPicker) {
@@ -1812,6 +1853,8 @@
                 }}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title="Add reaction"
+                aria-label="Add reaction"
+                aria-expanded={showEmojiPicker}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -1847,9 +1890,11 @@
             {/if}
         </div>
         <button
+            data-message-action
             onclick={() => onReply(event)}
             class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
             title="Reply"
+            aria-label="Reply"
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path
@@ -1859,9 +1904,11 @@
         </button>
         {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
             <button
+                data-message-action
                 onclick={() => onOpenThread(threadRootId)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title={isThreadReply ? "Open thread" : "Reply in thread"}
+                aria-label={isThreadReply ? "Open thread" : "Reply in thread"}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -1872,9 +1919,11 @@
         {/if}
         {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
             <button
+                data-message-action
                 onclick={openForwardDialog}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 title="Forward message"
+                aria-label="Forward message"
             >
                 <Forward size={16} />
             </button>
