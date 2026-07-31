@@ -389,9 +389,7 @@
                                 title={isFavouriteGif(r.url)
                                     ? "Remove from favourites"
                                     : "Add to favourites"}
-                                aria-label={isFavouriteGif(r.url)
-                                    ? "Remove from favourites"
-                                    : "Add to favourites"}
+                                aria-label="Favourite"
                                 aria-pressed={isFavouriteGif(r.url)}
                                 class="absolute top-1 right-1 transition-opacity {favBtnClass} {isFavouriteGif(
                                     r.url,
