@@ -2,10 +2,15 @@ import type { Room } from "matrix-js-sdk";
 import {
     findSpaceForRoom,
     getRoom,
+    getRoomsInSpace,
+    getRoomTags,
+    isJoinedRoom,
     isVideoRoom,
     roomTypeIsKnown,
 } from "$lib/matrix/client";
 import type { SpaceChildInfo, SpaceLayout } from "$lib/matrix/client";
+import { sortRoomsByTag } from "$lib/utils/roomOrdering";
+import { resolveLandingTarget } from "$lib/utils/landingSurface";
 import { interfaceState } from "./interface.svelte";
 import { settingsState } from "./settings.svelte";
 import { auth } from "./auth.svelte";
@@ -159,6 +164,87 @@ export function resolvePendingSurface(): void {
     applyDefaultSurface(pendingSurfaceRoomId);
 }
 
+/**
+ * Land on a room chosen by the fallback chain rather than by the user.
+ *
+ * Deliberately not `setActiveRoom`: that closes the mobile drawer
+ * unconditionally, which would un-pin someone who turned on
+ * `keepSidebarOpen`. Everything else about opening a room — the call-vs-
+ * timeline surface choice and remembering it for next boot — must still
+ * happen, or an auto-landed video room shows a stale timeline and the next
+ * boot forgets where we put them.
+ */
+function landOnRoom(roomId: string): void {
+    roomsState.activeRoomId = roomId;
+    roomsState.showInbox = false;
+    applyDefaultSurface(roomId);
+    saveLastRoom(roomsState.activeSpaceId, roomId);
+}
+
+/** Room ids of the current context, in the order the sidebar renders them. */
+function sidebarOrderedIds(rooms: readonly Room[]): string[] {
+    return sortRoomsByTag(rooms, (r) => getRoomTags(r.roomId)).map(
+        (r) => r.roomId,
+    );
+}
+
+/**
+ * Replace an empty or stale main pane with something real.
+ *
+ * Called at the two moments the answer can change: a space switch, and every
+ * rebuild of the room list (where `resolvePendingSurface` already runs, for
+ * the same reason — it is the earliest honest moment). Cheap and idempotent:
+ * the overwhelmingly common answer is "keep", which writes nothing.
+ */
+export function resolveLandingSurface(): void {
+    const spaceId = roomsState.activeSpaceId;
+    const target = resolveLandingTarget({
+        // The room list is only real once the first sync has landed. Before
+        // that every id looks stale, and acting would overwrite — and persist
+        // — a guess over the room the user actually left off in.
+        roomsReady:
+            auth.syncState === "PREPARED" || auth.syncState === "SYNCING",
+        showInbox: roomsState.showInbox,
+        activeSpaceId: spaceId,
+        activeRoomId: roomsState.activeRoomId,
+        activeRoomIsJoined: roomsState.activeRoomId
+            ? isJoinedRoom(roomsState.activeRoomId)
+            : false,
+        activeSpaceIsJoined: spaceId
+            ? roomsState.spaces.some((s) => s.roomId === spaceId)
+            : true,
+        isDrilledSubspace: roomsState.spaceDrillParentId !== null,
+        spaceRoomIds: spaceId
+            ? sidebarOrderedIds(getRoomsInSpace(spaceId))
+            : [],
+        // The sidebar renders the DM section after the room groups, so Home's
+        // order is the two lists sorted separately and concatenated — never one
+        // sort over both, which would interleave a favourited DM into the rooms.
+        homeRoomIds: [
+            ...sidebarOrderedIds(roomsState.orphanRooms),
+            ...sidebarOrderedIds(roomsState.directRooms),
+        ],
+    });
+
+    switch (target.kind) {
+        case "keep":
+            return;
+        case "room":
+            landOnRoom(target.roomId);
+            return;
+        case "home":
+            // Terminates: `setActiveSpace` calls back into here, but by then
+            // `activeSpaceId` is null so the stale-space branch is unreachable
+            // and the next pass can only answer "room" or "none".
+            setActiveSpace(null);
+            return;
+        case "none":
+            roomsState.activeRoomId = null;
+            applyDefaultSurface(null);
+            return;
+    }
+}
+
 export function setActiveSpace(
     spaceId: string | null,
     drill?: { parentId: string; name?: string; depth?: number },
@@ -181,6 +267,11 @@ export function setActiveSpace(
     // open for browsing when pinned in Settings > Customization.
     if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
         interfaceState.leftOpen = false;
+    // The space's remembered room was assigned above without validation, and a
+    // space with no remembered room leaves us on nothing at all. Settle it now
+    // rather than rendering an empty pane. Runs last on purpose: the chain
+    // reads `spaceDrillParentId`, which this function assigns above.
+    resolveLandingSurface();
 }
 
 export function setActiveRoom(roomId: string): void {
