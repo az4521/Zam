@@ -86,6 +86,44 @@ export function drainAnnouncement(state: AnnouncerState): {
     };
 }
 
+/**
+ * What the caller knows about an encrypted event at the moment its ciphertext
+ * hit the timeline — the only liveness facts that survive to decryption time.
+ */
+export interface DecryptedArrivalLiveness {
+    /** The ciphertext was a fresh tail append, not a mid-timeline insert. */
+    isLiveAppend: boolean;
+    /** The ciphertext arrived before the initial sync finished. */
+    arrivedDuringInitialSync: boolean;
+}
+
+/**
+ * May a just-decrypted event be queued for announcement?
+ *
+ * Encrypted messages reach the timeline as `m.room.encrypted` and only gain a
+ * cleartext type once decryption finishes, so they never take the live-append
+ * path and would otherwise never be announced at all. Feeding the decryption
+ * path in instead is only safe behind this gate, because decryption ALSO fires
+ * for history — scrollback and key-backup imports — and announcing that is the
+ * storm this whole design exists to avoid.
+ *
+ * Both facts must be captured when the ciphertext arrived, not read at
+ * decryption time: `isLiveAppend` is the SDK's own `data.liveEvent` (the same
+ * signal the plaintext path gates on, with backfill already excluded), and
+ * `arrivedDuringInitialSync` catches the page-load backlog, whose decryption
+ * routinely resolves after sync completes.
+ *
+ * Fails CLOSED: an unknown or ambiguous arrival is silent. A missed
+ * announcement is a gap; a re-announced history is unusable.
+ */
+export function shouldAnnounceDecrypted(
+    meta: DecryptedArrivalLiveness,
+): boolean {
+    if (!meta.isLiveAppend) return false;
+    if (meta.arrivedDuringInitialSync) return false;
+    return true;
+}
+
 /** Newlines and runs of spaces read as a run-on sentence; flatten them. */
 function collapseWhitespace(text: string): string {
     return text.replace(/\s+/g, " ").trim();

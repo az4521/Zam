@@ -5,6 +5,7 @@ import {
     MAX_BODY_CHARS,
     drainAnnouncement,
     recordArrival,
+    shouldAnnounceDecrypted,
     type ArrivedMessage,
 } from "./liveAnnouncer";
 
@@ -125,5 +126,38 @@ describe("drainAnnouncement", () => {
             msg({ sender: "Alice", body: "  line one\n\nline   two  " }),
         );
         expect(drainAnnouncement(s).text).toBe("Alice: line one line two");
+    });
+});
+
+describe("shouldAnnounceDecrypted", () => {
+    it("announces a message that arrived live after the initial sync", () => {
+        expect(
+            shouldAnnounceDecrypted({
+                isLiveAppend: true,
+                arrivedDuringInitialSync: false,
+            }),
+        ).toBe(true);
+    });
+
+    it("stays silent for history decrypted during scrollback or a key import", () => {
+        // Not a live tail append: the ciphertext came from backfill or a
+        // mid-timeline insert, so decrypting it is not a new arrival.
+        expect(
+            shouldAnnounceDecrypted({
+                isLiveAppend: false,
+                arrivedDuringInitialSync: false,
+            }),
+        ).toBe(false);
+    });
+
+    it("stays silent for the page-load backlog, which decrypts after sync", () => {
+        // The whole replayed backlog is "live" by the SDK's flag; announcing it
+        // would read the visible history out on every reload.
+        expect(
+            shouldAnnounceDecrypted({
+                isLiveAppend: true,
+                arrivedDuringInitialSync: true,
+            }),
+        ).toBe(false);
     });
 });
