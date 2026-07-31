@@ -126,8 +126,9 @@ function colourOf(vars: Record<string, string>, ref: string): string {
  */
 function rulesStartingWith(
     prefix: string,
+    source: string = css,
 ): { selector: string; props: Record<string, string> }[] {
-    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, "");
     const rule = /([^{}]+)\{([^{}]*)\}/g;
     const found: { selector: string; props: Record<string, string> }[] = [];
     let m: RegExpExecArray | null;
@@ -141,6 +142,32 @@ function rulesStartingWith(
         found.push({ selector, props });
     }
     return found;
+}
+
+/**
+ * The body of the at-rule whose prelude (up to and including its `{`) matches
+ * `preludePattern`, brace-balanced so nested rules come back intact.
+ *
+ * `rulesStartingWith` cannot see an at-rule's prelude — its selector pattern
+ * excludes `{`, so it silently skips straight past `@media (…)` and returns the
+ * rules *inside* as though they were top level. That is fine for reading a
+ * rule, and useless for asserting that a media query still exists. Returns null
+ * when the block is absent so the caller can fail on that explicitly.
+ */
+function atRuleBody(preludePattern: RegExp): string | null {
+    const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    const m = preludePattern.exec(withoutComments);
+    if (!m) return null;
+    let depth = 0;
+    const open = m.index + m[0].length - 1; // the `{` the pattern ends on
+    for (let i = open; i < withoutComments.length; i++) {
+        if (withoutComments[i] === "{") depth++;
+        else if (withoutComments[i] === "}") {
+            depth--;
+            if (depth === 0) return withoutComments.slice(open + 1, i);
+        }
+    }
+    return null; // unbalanced — treat as absent
 }
 
 /** A declared CSS value as something `colourOf` can resolve. */
@@ -294,6 +321,55 @@ describe("app.css palette", () => {
                 ).toBe(true);
             });
 
+            // Third instance of the same gap, and the one the fill/text split
+            // exists FOR: `.btn-primary` is the canonical white-on-accent
+            // surface, hand-written in app.css rather than reached through a
+            // Tailwind utility. PAIRS certifies `#fff` on the `*-fill` tokens,
+            // but nothing saw which token this rule picks — reverting it to
+            // `var(--discord-accent)` (3.33:1 under white in the dark theme)
+            // kept the whole suite green. Both the declared token and the
+            // resolved ratio are pinned: the token name catches a silent
+            // re-point even if someone later retunes the brand hue to pass,
+            // and the ratio catches a retune of the fill token itself.
+            it("keeps .btn-primary's white caption readable", () => {
+                const rules = rulesStartingWith(".btn-primary");
+                // Exact selectors: `.btn-primary-subtle` is a different rule
+                // and must not be able to satisfy this assertion.
+                const base = rules.filter((r) => r.selector === ".btn-primary");
+                const hover = rules.filter(
+                    (r) => r.selector === ".btn-primary:hover",
+                );
+                expect(
+                    base.length,
+                    "expected exactly one `.btn-primary` rule in app.css — 0 means this parser stopped matching, not that the button is fine",
+                ).toBe(1);
+                expect(
+                    hover.length,
+                    "expected exactly one `.btn-primary:hover` rule in app.css — 0 means this parser stopped matching, not that the button is fine",
+                ).toBe(1);
+
+                expect(
+                    base[0].props["background-color"],
+                    "`.btn-primary` must consume the contrast-split FILL token, not the brand hue",
+                ).toBe("var(--discord-accent-fill)");
+                expect(
+                    hover[0].props["background-color"],
+                    "`.btn-primary:hover` must consume the contrast-split FILL token, not the brand hue",
+                ).toBe("var(--discord-accent-fill-hover)");
+
+                // `:hover` inherits the caption colour from the base rule.
+                const fg = colourOf(theme.vars, refOf(base[0].props.color));
+                for (const rule of [base[0], hover[0]]) {
+                    const bgRef = refOf(rule.props["background-color"]);
+                    const bg = colourOf(theme.vars, bgRef);
+                    const ratio = contrastRatio(fg, bg);
+                    expect(
+                        ratio >= AA_NORMAL,
+                        `${rule.selector} paints ${fg} on ${bgRef} (${bg}) — ${ratio.toFixed(2)}:1 in the ${theme.name} theme, needs ${AA_NORMAL}:1`,
+                    ).toBe(true);
+                }
+            });
+
             for (const [hexToken, rgbToken] of RGB_TWINS) {
                 it(`${rgbToken} matches ${hexToken}`, () => {
                     const asHex = colourOf(theme.vars, hexToken);
@@ -306,4 +382,71 @@ describe("app.css palette", () => {
             }
         });
     }
+});
+
+/**
+ * Task 2's headline deliverable is a single CSS block, and `motionPreference.ts`
+ * only covers the JS half (scroll `behavior`). Deleting the whole media query
+ * left all 1844 tests green. These two assertions are what makes that go red.
+ *
+ * They pin structure and intent, not tuning: that the query exists, that the
+ * blanket collapse is still declared on the universal selector, and that the
+ * spinner carve-out still opts back out of it. Retuning 1.5s to 2s is allowed;
+ * losing the carve-out (a still spinner reads as a hung app — rubric item 5) is
+ * not.
+ */
+describe("app.css reduced motion", () => {
+    const REDUCED_MOTION =
+        /@media\s*\(\s*prefers-reduced-motion\s*:\s*reduce\s*\)\s*\{/;
+    const COLLAPSED_DURATION = "0.01ms !important";
+
+    it("collapses non-essential animation and scrolling", () => {
+        const block = atRuleBody(REDUCED_MOTION);
+        expect(
+            block,
+            "no `@media (prefers-reduced-motion: reduce)` block in app.css — the reduced-motion deliverable is gone, or this matcher stopped matching",
+        ).not.toBeNull();
+
+        const universal = rulesStartingWith("*", block ?? "").filter((r) =>
+            r.selector
+                .split(",")
+                .map((s) => s.trim())
+                .includes("*"),
+        );
+        expect(
+            universal.length,
+            "expected exactly one universal-selector rule inside the reduced-motion block — 0 means the blanket override is gone",
+        ).toBe(1);
+
+        const props = universal[0].props;
+        expect(props["animation-duration"]).toBe(COLLAPSED_DURATION);
+        expect(props["transition-duration"]).toBe(COLLAPSED_DURATION);
+        expect(props["animation-iteration-count"]).toBe("1 !important");
+        expect(props["scroll-behavior"]).toBe("auto !important");
+    });
+
+    it("carves .animate-spin out so spinners still convey progress", () => {
+        const block = atRuleBody(REDUCED_MOTION);
+        expect(block, "no reduced-motion block to carve out of").not.toBeNull();
+
+        const spin = rulesStartingWith(".animate-spin", block ?? "").filter(
+            (r) => r.selector === ".animate-spin",
+        );
+        expect(
+            spin.length,
+            "expected exactly one `.animate-spin` rule inside the reduced-motion block — 0 means spinners now freeze, which is indistinguishable from a hung app",
+        ).toBe(1);
+
+        expect(spin[0].props["animation-iteration-count"]).toBe(
+            "infinite !important",
+        );
+        // A duration is re-declared, and it is NOT the collapsed one — a
+        // spinner that completes a turn every 0.01ms is a blur, not progress.
+        expect(spin[0].props["animation-duration"]).toMatch(
+            /^[\d.]+m?s !important$/,
+        );
+        expect(spin[0].props["animation-duration"]).not.toBe(
+            COLLAPSED_DURATION,
+        );
+    });
 });
