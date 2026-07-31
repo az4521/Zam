@@ -51,8 +51,9 @@ const DEFAULT_ITEMS = "button:not([disabled])";
  * items are traversed with the arrow keys (the ARIA toolbar pattern).
  *
  * Attach it to the container that owns focus — the message ROW — pointing at
- * the bar, NOT to the bar itself: the bar is `display:none` until the row has
- * focus-within, so nothing inside it can be focused first to reveal it. The
+ * the bar, NOT to the bar itself: the bar is `display:none` until the row is
+ * hovered, is itself `:focus-visible`, or contains something that is, so
+ * nothing inside it can be focused first to reveal it. The
  * row's `focusin` is what synchronises the item tabindexes, and by the time
  * the browser moves focus onward with Tab the bar is displayed and its active
  * item is tabbable.

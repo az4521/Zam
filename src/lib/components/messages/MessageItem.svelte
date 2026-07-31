@@ -1112,8 +1112,18 @@
 
         <!-- Reply quote block -->
         {#if replyTarget && replyTargetSender && replyTargetBody()}
-            <div
-                class="flex items-start gap-1 mb-1 cursor-default cursor-pointer"
+            <!--
+                A real <button>, not `role="button"`: the quote renders only
+                plain-text spans (no {@html}, no link, no nested control), so
+                the native element is safe — and it gets Enter/Space activation
+                through the SAME onclick instead of a hand-rolled key handler.
+                `w-full text-left` restores the <div>'s box, which the UA button
+                styles would otherwise shrink-wrap and centre.
+            -->
+            <button
+                type="button"
+                aria-label="Jump to the message being replied to"
+                class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                 onclick={(e) => {
                     e.preventDefault();
                     jumpToReply(replyTarget.getId()!);
@@ -1134,7 +1144,7 @@
                         {replyTargetBody()}
                     </span>
                 </div>
-            </div>
+            </button>
         {:else if inReplyToId}
             <!-- Referenced event not in timeline — clickable to load context -->
             {@const fallbackLine = (() => {
@@ -1145,9 +1155,12 @@
                 const m = line.match(/^> (?:\* )?<(@[^>]+)> ?(.*)/);
                 return m ? { sender: m[1], text: m[2] } : null;
             })()}
-            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-            <div
-                class="flex items-start gap-1 mb-1 cursor-pointer opacity-60 hover:opacity-80 transition-opacity"
+            <!-- Same <button> choice as the resolved quote above, so both
+                 previews behave identically from the keyboard. -->
+            <button
+                type="button"
+                aria-label="Jump to the message being replied to"
+                class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                 onclick={(e) => {
                     e.preventDefault();
                     jumpToReply(inReplyToId);
@@ -1175,7 +1188,7 @@
                         >
                     {/if}
                 </div>
-            </div>
+            </button>
         {/if}
 
         <!-- Media caption (MSC2530): rendered as a normal message above the

@@ -187,11 +187,20 @@
                     {@const name = room
                         ? getMemberName(room, n.sender)
                         : n.sender}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
+                    <!--
+                        A real <button>, not a role: activation is the browser's
+                        (Enter and Space both reach the same `onclick`), and the
+                        card renders only text, spans and an avatar image — no
+                        nested link or control to swallow.
+                        `block w-full text-left` restores the <div>'s layout,
+                        which the UA button styles would otherwise shrink-wrap
+                        and centre.
+                    -->
+                    <button
+                        type="button"
                         onclick={() => jump(n.roomId, n.eventId)}
-                        class="p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 {n.read
+                        aria-label={`Jump to message from ${name} in ${roomName}`}
+                        class="block w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
                             ? 'border-discord-warning/30 opacity-60'
                             : 'border-discord-warning/70'}"
                     >
@@ -219,7 +228,7 @@
                         >
                             {n.body || "(message)"}
                         </p>
-                    </div>
+                    </button>
                 {/each}
             </div>
         {/if}
