@@ -11,6 +11,7 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -69,7 +70,7 @@
             `[data-tabid="${activeTab}"]`,
         );
         btn?.scrollIntoView({
-            behavior: "smooth",
+            behavior: scrollBehavior(),
             inline: "nearest",
             block: "nearest",
         });
@@ -232,7 +233,10 @@
             `[data-section="${id}"]`,
         );
         if (el)
-            scrollEl.scrollTo({ top: el.offsetTop - 4, behavior: "smooth" });
+            scrollEl.scrollTo({
+                top: el.offsetTop - 4,
+                behavior: scrollBehavior(),
+            });
     }
 
     function onScroll() {

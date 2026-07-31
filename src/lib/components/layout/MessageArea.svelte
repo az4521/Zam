@@ -102,6 +102,7 @@
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
 
     // Shared empty list for the avatars-off path — one allocation instead of a
     // fresh [] per message. Taking this branch also means receiptTick is never
@@ -334,7 +335,10 @@
         stopScrollIntoView();
         intervalId = setInterval(
             () =>
-                target.scrollIntoView({ behavior: "smooth", block: "center" }),
+                target.scrollIntoView({
+                    behavior: scrollBehavior(),
+                    block: "center",
+                }),
             50,
         );
         target.classList.remove("message-highlight");
@@ -987,7 +991,7 @@
         if (!scrollEl) return;
         scrollEl.scrollTo({
             top: scrollEl.scrollHeight,
-            behavior: instant ? "instant" : "smooth",
+            behavior: scrollBehavior(instant ? "instant" : "smooth"),
         });
         markAsReadIfDisplayable();
     }

@@ -108,6 +108,7 @@
         getDoubleTapReaction,
     } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -803,7 +804,10 @@
         editText = body();
         isEditing = true;
         tick().then(() =>
-            rootEl?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+            rootEl?.scrollIntoView({
+                behavior: scrollBehavior(),
+                block: "nearest",
+            }),
         );
     }
 

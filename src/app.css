@@ -433,3 +433,36 @@ body {
         padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 }
+
+/* ── Reduced motion (A11Y-09) ────────────────────────────────────────
+   Users who ask for reduced motion get no non-essential animation. The
+   blanket override below is the standard recipe, but note the two
+   deliberate carve-outs underneath it.
+
+   `!important` is required: it has to beat Tailwind's `animate-*`
+   utilities and component-scoped `<style>` blocks alike. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* `message-highlight` is `animation-fill-mode: forwards` over a
+       keyframe that ENDS transparent, so collapsing its duration lands
+       on the final frame and the highlight simply never appears. That is
+       the correct outcome — do NOT switch this to `animation: none`,
+       which would freeze it on frame 0 (a permanent 35% accent wash over
+       the jumped-to message). */
+
+    /* Spinners are the one animation that carries meaning: a still
+       spinner is indistinguishable from a hung app. Keep them turning,
+       just slower and without the snap. */
+    .animate-spin {
+        animation-duration: 1.5s !important;
+        animation-iteration-count: infinite !important;
+    }
+}
