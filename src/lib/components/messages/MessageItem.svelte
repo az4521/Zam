@@ -346,7 +346,19 @@
         if (deleteRefocus) {
             deleteRefocus = false;
             onEditDone?.();
+            return;
         }
+        // Reached from the action bar, which is only keyboard-reachable as of
+        // this branch. Clearing `confirmingDelete` unmounts the Yes/No buttons,
+        // so without this `document.activeElement` falls back to <body> and the
+        // user is dumped at the top of the document. The row is the natural
+        // landing spot: it is the tab stop that owns this bar. After a KEYBOARD
+        // resolve the browser's keyboard-modality flag is set, so the
+        // programmatic focus still matches `:focus-visible` and the bar stays
+        // revealed; after a MOUSE resolve it does not, leaving the row focused
+        // but the bar hidden — acceptable, because the pointer is by definition
+        // still over the row and `group-hover:flex` covers it.
+        void tick().then(() => rootEl?.focus());
     }
 
     function onDeleteKeydown(e: KeyboardEvent) {
