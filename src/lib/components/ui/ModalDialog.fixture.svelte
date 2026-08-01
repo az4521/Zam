@@ -8,6 +8,7 @@
         labelledBy = undefined,
         label = undefined,
         handlesEscape = true,
+        layerClass = undefined,
         panelClass = undefined,
         onKeydown = undefined,
         nominate = false,
@@ -16,6 +17,7 @@
         labelledBy?: string;
         label?: string;
         handlesEscape?: boolean;
+        layerClass?: string;
         panelClass?: string;
         onKeydown?: (event: KeyboardEvent) => void;
         nominate?: boolean;
@@ -27,6 +29,7 @@
     {labelledBy}
     {label}
     {handlesEscape}
+    {layerClass}
     {panelClass}
     {onKeydown}
 >

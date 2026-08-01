@@ -64,7 +64,19 @@
   on the panel), and a panel carrying role/aria-modal/name plus the focus trap
   that also owns Escape and restores focus to the opener on destroy.
 -->
-<div class="fixed inset-0 {layerClass}">
+<!--
+  `isolate` is NOT redundant next to the default `layerClass`'s `z-50` — do not
+  "tidy" it away. It is what makes the backdrop's `-z-10` below safe for ANY
+  caller. A `fixed` box with `z-index: auto` forms no stacking context, so a
+  caller passing a position-only `layerClass` (`"flex items-end"`, say) would
+  let the negative-z backdrop escape this layer entirely and paint behind
+  whatever app content sits above the layer's ancestors: the dim overlay
+  vanishes and an outside click stops dismissing the dialog. `isolation: isolate`
+  forms the stacking context unconditionally, so the backdrop is trapped here
+  whatever `layerClass` says. `z-50` stays in the default for the layer's
+  position in the APP's stack; this is belt-and-braces, not a replacement.
+-->
+<div class="fixed inset-0 isolate {layerClass}">
     <!--
       `-z-10`, not "panel wins on z-index": `z-index` is inert on
       `position: static`, so a caller passing a sizing-only `panelClass` (the
@@ -75,11 +87,9 @@
       panel is above it either way. Current adopters (`relative z-10`, and
       AccountSwitcher's `absolute z-10`) keep the exact stack they have today.
 
-      This depends on the layer above forming a stacking context, which it does:
-      every `layerClass` in the repo carries a z-index (`z-50` by default,
-      `z-[90]` for ForwardMessageDialog) on a `fixed` box. Drop the z-index from
-      `layerClass` and the negative-z backdrop escapes to an ancestor stacking
-      context and disappears behind the app.
+      "This layer's stacking context" is guaranteed by the `isolate` above, not
+      merely by the default `layerClass`'s `z-50` — see the comment there. That
+      is what stops this trading one silent trap for another.
     -->
     <button
         type="button"

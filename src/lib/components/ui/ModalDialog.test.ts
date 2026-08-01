@@ -136,13 +136,25 @@ describe("ModalDialog semantics", () => {
     // a panel painting under the `absolute inset-0` backdrop, which then eats
     // every click on it while the dialog looks perfectly normal.
     //
+    // The `isolate` half is the other side of the same coin, and the reason it
+    // is asserted HERE rather than with the coverage checks: `-z-10` is only
+    // safe while the layer forms a stacking context, and `fixed` alone does not
+    // — a caller passing a position-only `layerClass` ("flex items-end") gets a
+    // z-auto layer the negative-z backdrop escapes, painting behind the app.
+    // The overlay then vanishes and an outside click stops dismissing. So the
+    // pair is pinned together; dropping either one re-arms a silent trap.
+    //
     // WHAT THIS CANNOT PROVE: jsdom has no layout or paint engine, so nothing
-    // here can observe stacking order or a swallowed click. This is a
-    // class-name assertion standing in for the CSS behaviour — a proxy, not
-    // proof. That `-z-10` reaches the built stylesheet at all is proved by
-    // grepping `npm run build`'s CSS, not by this file.
-    it("keeps the backdrop below a panel that brings no position utility", () => {
-        render({ onClose: vi.fn(), panelClass: "w-80 rounded bg-white" });
+    // here can observe stacking order, a stacking context, or a swallowed
+    // click. These are class-name assertions standing in for the CSS behaviour
+    // — a proxy, not proof. That `-z-10` and `isolate` reach the built
+    // stylesheet at all is proved by grepping `npm run build`'s CSS, not here.
+    it("sinks the backdrop below the panel without letting it escape the layer", () => {
+        render({
+            onClose: vi.fn(),
+            panelClass: "w-80 rounded bg-white",
+            layerClass: "flex items-end",
+        });
         const backdrop = target.querySelector<HTMLButtonElement>(
             'button[aria-label="Close dialog"]',
         );
@@ -154,6 +166,12 @@ describe("ModalDialog semantics", () => {
             [...backdrop!.classList],
             "the backdrop lost its negative z-index — a panel without a position utility will now paint underneath it and swallow every click",
         ).toContain("-z-10");
+        // Asserted on the layer the backdrop actually lives in, so it cannot
+        // pass off some other element's `isolate`.
+        expect(
+            [...backdrop!.parentElement!.classList],
+            "the dialog layer lost `isolate` — with a layerClass that carries no z-index it forms no stacking context, so the -z-10 backdrop escapes and paints behind the app",
+        ).toContain("isolate");
     });
 
     // The panel's position utility belongs to the caller. `relative` and
