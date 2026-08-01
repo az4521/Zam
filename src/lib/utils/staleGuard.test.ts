@@ -46,6 +46,23 @@ describe("createStaleGuard", () => {
         expect(guard.isCurrent(after)).toBe(false);
     });
 
+    it("keeps separate guards independent of one another", () => {
+        // UserProfileCard runs two guards side by side on purpose — a
+        // background trust reload and a moderation button press — so that
+        // neither supersedes the other. Sharing generation state between
+        // instances would silently break that pairing.
+        const trust = createStaleGuard();
+        const actions = createStaleGuard();
+
+        const trustToken = trust.begin();
+        actions.begin();
+        expect(trust.isCurrent(trustToken)).toBe(true);
+
+        actions.dispose();
+        expect(trust.disposed).toBe(false);
+        expect(trust.isCurrent(trustToken)).toBe(true);
+    });
+
     it("run reports a successful result", async () => {
         const guard = createStaleGuard();
         const outcome = await guard.run(() => Promise.resolve("hits"));
