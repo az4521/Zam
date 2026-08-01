@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Backup is OFF: the app's data dir holds the Matrix access token and the
+         plaintext rust-crypto store, so a cloud backup or a device-to-device
+         transfer would copy long-lived credentials and E2EE keys out of the
+         installation they belong to. allowBackup covers API <= 30;
+         dataExtractionRules covers API 31+, where it supersedes allowBackup and
+         where device transfer needs its own opt-out. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

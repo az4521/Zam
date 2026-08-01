@@ -409,7 +409,7 @@ self.addEventListener("fetch", (event) => {
 	// thumbnail below, so the access token can't leak onto other homeserver APIs.
 	// `includes` (not `startsWith`) so homeservers mounted under a base path
 	// (e.g. https://host/matrix/_matrix/client/v1/media/…) still match; the
-	// hostname + base-path checks below further constrain the destination.
+	// origin + base-path checks below further constrain the destination.
 	if (
 		!parsedUrl.pathname.includes("/_matrix/client/v1/media/") ||
 		!isElementRequest ||
@@ -420,7 +420,13 @@ self.addEventListener("fetch", (event) => {
 	event.respondWith(
 		authReady
 			.then(() => {
-				// Check hostname and path prefix so two homeservers on the same domain at different paths can't cross-contaminate
+				// Check ORIGIN (scheme + host + port, not just hostname — a
+				// media URL on the homeserver's host at an attacker-chosen
+				// port or over plain http must not receive the token) and the
+				// path prefix, so two homeservers on the same domain at
+				// different paths can't cross-contaminate either.
+				// Mirrors src/lib/utils/mediaAuthOrigin.ts — change both; its
+				// test reads this file and pins the pair together.
 				let hsUrl;
 				try {
 					hsUrl = new URL(homeserverUrl);
@@ -435,7 +441,7 @@ self.addEventListener("fetch", (event) => {
 					: parsedUrl.pathname + "/";
 				if (
 					!accessToken ||
-					parsedUrl.hostname !== hsUrl.hostname ||
+					parsedUrl.origin !== hsUrl.origin ||
 					!reqBase.startsWith(hsBase)
 				)
 					return fetch(event.request);

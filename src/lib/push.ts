@@ -96,7 +96,11 @@ export async function initPush(
         }
 
         PushNotifications.addListener("registration", async (token: Token) => {
-            console.log("[push] FCM token:", token.value);
+            // Never log the token itself: it's a long-lived device-correlating
+            // credential, and anything on the console is reachable through adb,
+            // remote debugging and crash reporters. Settings → Debug Info shows
+            // a truncated form when a human actually needs to compare it.
+            console.log("[push] FCM registration received");
             pushDebug.fcmToken = token.value;
             await registerPusher(matrixClient, token.value);
         });
@@ -108,13 +112,12 @@ export async function initPush(
         });
 
         // Foreground notifications: the OS won't show them automatically, so we
-        // could show an in-app toast here if desired. For now just log.
-        PushNotifications.addListener(
-            "pushNotificationReceived",
-            (notification) => {
-                console.log("[push] Foreground notification:", notification);
-            },
-        );
+        // could show an in-app toast here if desired. For now just note that one
+        // arrived — the payload carries room/sender/message metadata and must
+        // not reach the console.
+        PushNotifications.addListener("pushNotificationReceived", () => {
+            console.log("[push] Foreground notification received");
+        });
 
         // User tapped a notification
         PushNotifications.addListener(

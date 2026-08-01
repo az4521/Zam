@@ -57,6 +57,7 @@
         videoSourceMxc,
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
+    import { safeAspectRatio } from "$lib/utils/mediaDimensions";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -679,6 +680,13 @@
         msgtype === "m.video"
             ? formatMediaDuration((content?.info as any)?.duration)
             : "",
+    );
+    // `info.w`/`info.h` come off the wire, so they are whatever the sender put
+    // there — never interpolate them into style text raw (a crafted value
+    // closes the declaration and adds its own). safeAspectRatio only ever
+    // yields `<int> / <int>`.
+    const videoAspectRatio = $derived(
+        safeAspectRatio((content?.info as any)?.w, (content?.info as any)?.h),
     );
 
     // Audio: lazy-load blob only after play is clicked
@@ -1335,7 +1343,7 @@
                 <div
                     class="relative max-w-sm w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
                     style={videoThumbnailUrl && !videoThumbFailed
-                        ? `aspect-ratio: ${(content?.info as any)?.w && (content?.info as any)?.h ? `${(content.info as any).w}/${(content.info as any).h}` : "16/9"}; max-height: 18rem;`
+                        ? `aspect-ratio: ${videoAspectRatio}; max-height: 18rem;`
                         : ""}
                     onclick={playVideo}
                 >
