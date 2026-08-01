@@ -61,6 +61,16 @@
         voiceCallState,
         setCallVideoInputDevice,
     } from "$lib/stores/voiceCall.svelte";
+    import {
+        newCaptureLifecycle,
+        beginCapture,
+        cancelCapture,
+        disposeCaptures,
+        isCaptureCurrent,
+        adoptCapture,
+        stopTracks,
+        stopHandle,
+    } from "$lib/utils/captureLifecycle";
 
     let inputs = $state<DeviceOption[]>([]);
     let outputs = $state<DeviceOption[]>([]);
@@ -78,6 +88,12 @@
     let meter: MicMeterHandle | null = null;
     let stopOutputMeter: (() => void) | null = null;
     let unsubDevices: (() => void) | null = null;
+    // Separate channels: restarting the mic meter must not cancel an in-flight
+    // camera grant, or vice versa.
+    const micCapture = newCaptureLifecycle();
+    const cameraCapture = newCaptureLifecycle();
+    // Guards the post-await *state* writes that aren't captures.
+    let destroyed = false;
 
     const outputMode = $derived(
         outputPickerMode({
@@ -92,19 +108,24 @@
 
     async function refreshDevices(): Promise<void> {
         const all = await listMediaDevices();
+        if (destroyed) return;
         inputs = toDeviceOptions(all, "audioinput");
         outputs = toDeviceOptions(all, "audiooutput");
         cameras = toDeviceOptions(all, "videoinput");
     }
 
     async function startMeter(): Promise<void> {
-        meter?.stop();
+        // Claim the channel first: two overlapping starts used to leave the
+        // earlier meter's stream running with only the later handle stored.
+        const ticket = beginCapture(micCapture);
+        stopHandle(meter);
         meter = null;
         loopbackOn = false;
         micError = null;
         micLevel = 0;
+        let started: MicMeterHandle | null = null;
         try {
-            meter = await startMicMeter({
+            started = await startMicMeter({
                 deviceId: resolveDeviceId(
                     settingsState.audioInputDeviceId,
                     inputs,
@@ -115,8 +136,18 @@
                 onLevel: (v) => (micLevel = v),
             });
         } catch {
-            micError = "Microphone unavailable — check browser permissions";
+            if (isCaptureCurrent(micCapture, ticket))
+                micError = "Microphone unavailable — check browser permissions";
+            return;
         }
+        // A grant that arrives after the tab closed (or after a newer start)
+        // owns a live mic + AudioContext that nothing else can reach.
+        const adopted = adoptCapture(micCapture, ticket, started, stopHandle);
+        // Return WITHOUT writing on the stale path: two grants can resolve out
+        // of order, and the newer one already stored the only handle that can
+        // release its mic. Nulling it here would orphan a live microphone.
+        if (!adopted) return;
+        meter = adopted;
         // The first grant unlocks device labels — refresh the lists.
         void refreshDevices();
     }
@@ -140,6 +171,9 @@
         const picked = await promptSelectAudioOutput();
         if (!picked) return;
         await refreshDevices();
+        // Deliberately NOT gated on `destroyed`: the user really did pick an
+        // output, and everything below is global (or null-safe once the meter
+        // is gone), so abandoning it would just lose their choice.
         pickOutput(picked.deviceId);
     }
 
@@ -162,27 +196,47 @@
             stopCamera();
             return;
         }
+        const ticket = beginCapture(cameraCapture);
         cameraError = null;
+        let granted: MediaStream;
         try {
             const constraints: MediaTrackConstraints = {};
             if (settingsState.videoInputDeviceId)
                 constraints.deviceId = {
                     ideal: settingsState.videoInputDeviceId,
                 };
-            cameraStream = await navigator.mediaDevices.getUserMedia({
+            granted = await navigator.mediaDevices.getUserMedia({
                 video: constraints,
             });
-            cameraOn = true;
-            if (videoEl) videoEl.srcObject = cameraStream;
-            void refreshDevices(); // camera grant unlocks camera labels
         } catch {
-            cameraError = "Camera unavailable — check browser permissions";
+            if (isCaptureCurrent(cameraCapture, ticket))
+                cameraError = "Camera unavailable — check browser permissions";
+            return;
         }
+        // Leaving the tab (or clicking Preview twice) used to leave the camera
+        // on with no element bound and no handle to stop it.
+        const adopted = adoptCapture(
+            cameraCapture,
+            ticket,
+            granted,
+            stopTracks,
+        );
+        // Return WITHOUT writing on the stale path: a newer grant that resolved
+        // first holds the live stream, and nulling `cameraStream` here would
+        // leave it playing with `stopCamera()` unable to reach its tracks.
+        if (!adopted) return;
+        cameraStream = adopted;
+        cameraOn = true;
+        if (videoEl) videoEl.srcObject = cameraStream;
+        void refreshDevices(); // camera grant unlocks camera labels
     }
 
     function stopCamera(): void {
+        // Cancel an in-flight grant too, or a prompt answered after Stop
+        // silently reopens the camera.
+        cancelCapture(cameraCapture);
         cameraOn = false;
-        cameraStream?.getTracks().forEach((t) => t.stop());
+        stopTracks(cameraStream);
         cameraStream = null;
         if (videoEl) videoEl.srcObject = null;
     }
@@ -204,7 +258,9 @@
     }
 
     onMount(() => {
-        void refreshDevices().then(() => void startMeter());
+        void refreshDevices().then(() => {
+            if (!destroyed) void startMeter();
+        });
         unsubDevices = onDevicesChanged(() => void refreshDevices());
         // A user who blocked notifications long ago and still has ringing on
         // gets no OS call alerts; surface why without making them re-toggle.
@@ -227,7 +283,11 @@
     });
 
     onDestroy(() => {
-        meter?.stop();
+        destroyed = true;
+        disposeCaptures(micCapture);
+        disposeCaptures(cameraCapture);
+        stopHandle(meter);
+        meter = null;
         stopOutputMeter?.();
         stopCamera();
         unsubDevices?.();

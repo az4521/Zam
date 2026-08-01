@@ -29,11 +29,22 @@ export async function startMicMeter(
     const stream = await navigator.mediaDevices.getUserMedia({
         audio: constraints,
     });
-    const ctx = new AudioContext();
-    const source = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    source.connect(analyser);
+    // `new AudioContext()` and the graph wiring can throw — browsers cap how
+    // many contexts a document may hold, and this app builds several. Without
+    // this the granted stream would stay live with its only handle never
+    // constructed: a microphone nothing in the page can reach.
+    let ctx: AudioContext;
+    let analyser: AnalyserNode;
+    try {
+        ctx = new AudioContext();
+        const source = ctx.createMediaStreamSource(stream);
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+    } catch (e) {
+        stream.getTracks().forEach((t) => t.stop());
+        throw e;
+    }
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
     let stopped = false;
