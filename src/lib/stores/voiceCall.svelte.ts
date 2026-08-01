@@ -51,6 +51,16 @@ import {
 import { auth } from "$lib/stores/auth.svelte";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
+import { isChunkLoadError } from "$lib/utils/chunkLoadError";
+
+/** LiveKit now arrives in its own chunk, so joining can fail on the chunk
+ *  fetch rather than on anything Matrix-shaped. The browser caches a failed
+ *  module fetch in its module map and never evicts it, so every later join in
+ *  this page fails instantly and identically — retrying is pointless and only
+ *  a reload clears it. Say that, instead of toasting the raw
+ *  "Failed to fetch dynamically imported module: …/CkYjDUEM.js". */
+const CHUNK_LOAD_MESSAGE =
+    "Couldn't load the call component. Check your connection, then reload the page to try again.";
 
 // Active-call view state plus a tick for "who is in a call" derivations
 // anywhere in the app (room list, banners). Media/SDK wiring stays in
@@ -211,7 +221,9 @@ export async function joinCall(roomId: string): Promise<void> {
     } catch (err) {
         console.error("Failed to join voice call:", err);
         showErrorToast(
-            matrixErrorMessage(err, "Could not join the voice call"),
+            isChunkLoadError(err)
+                ? CHUNK_LOAD_MESSAGE
+                : matrixErrorMessage(err, "Could not join the voice call"),
         );
     } finally {
         voiceCallState.joinPendingRoomId = null;
