@@ -1,6 +1,6 @@
 # Push Notifications (Sygnal)
 
-Zam has **four** notification paths. Only two of them involve a push gateway;
+Zam has **three** notification paths. Only two of them involve a push gateway;
 mixing them up is the usual source of confusion, so they are listed separately
 here.
 
