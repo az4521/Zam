@@ -24,6 +24,15 @@ describe("sortSpaceChildIds", () => {
         ).toEqual(["!a:s"]);
     });
 
+    it("keeps a child whose via is malformed but non-empty, as master does", () => {
+        expect(
+            sortSpaceChildIds([
+                child({ stateKey: "!a:s", via: "example.org" as unknown }),
+                child({ stateKey: "!b:s", via: "" as unknown }),
+            ]),
+        ).toEqual(["!a:s"]);
+    });
+
     it("orders by the lexicographic order field first", () => {
         expect(
             sortSpaceChildIds([

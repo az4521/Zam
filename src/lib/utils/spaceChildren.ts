@@ -31,7 +31,13 @@ export function compareChildOrder(
 
 export function sortSpaceChildIds(events: SpaceChildDescriptor[]): string[] {
     return events
-        .filter((e) => Array.isArray(e.via) && e.via.length > 0)
+        .filter((e) => {
+            // Master's predicate verbatim (client.ts:821 `content?.via?.length > 0`):
+            // truthy-length, NOT Array.isArray. A non-conformant string `via`
+            // still lists the child, and this perf branch must not change that.
+            const via = e.via as { length?: number } | null | undefined;
+            return (via?.length ?? 0) > 0;
+        })
         .sort(compareChildOrder)
         .map((e) => e.stateKey)
         .filter(Boolean);
