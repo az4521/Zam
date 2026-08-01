@@ -3777,9 +3777,12 @@ const hierarchyDirectFailed = new Set<string>();
  * The active space's child rooms, from /hierarchy (paginated), falling back to
  * the parent space's deeper hierarchy when the server refuses the direct call.
  *
- * Returns `null` when the fetch FAILED and `[]` when the space genuinely has
- * no children. Callers must not overwrite a good hierarchy on `null`: since the
- * 2 s poll was removed there is no second chance for several minutes.
+ * Returns `null` when the hierarchy could NOT be obtained — a failed request,
+ * or no client yet — and `[]` only when the space genuinely has no children.
+ * Callers must not overwrite a good hierarchy on `null`: `[]` would blank the
+ * sidebar AND be recorded as a successful refresh, arming the several-minute
+ * TTL against it. On `null` keep what is on screen; the caller retries on a
+ * later sync, subject to the failure backoff in utils/hierarchyRefresh.ts.
  */
 export async function fetchSpaceHierarchy(
     spaceId: string,
@@ -3788,9 +3791,10 @@ export async function fetchSpaceHierarchy(
     // fallback must fetch one level deeper than that to see its children.
     drillDepth = 1,
 ): Promise<SpaceChildInfo[] | null> {
-    // Not a fetch failure: with no client there is nothing to show, and
-    // showing nothing is right.
-    if (!matrixClient) return [];
+    // No client yet is "could not fetch", not "this space is empty": returning
+    // [] here would be recorded as a successful refresh and blank the sidebar
+    // for the length of the TTL. The store's initial value is already [].
+    if (!matrixClient) return null;
 
     // Follow `next_batch` across pages so spaces with more than 200 rooms
     // populate fully (the SDK caps a single /hierarchy response at the given

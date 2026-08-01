@@ -125,6 +125,7 @@
     import { sameOrder } from "$lib/utils/roomClassification";
     import {
         HIERARCHY_TTL_MS,
+        HIERARCHY_FAILURE_BACKOFF_MS,
         hierarchyKey,
         shouldFetchHierarchy,
         hierarchyResultAction,
@@ -816,13 +817,16 @@
     }
 
     // Hierarchy refresh: invalidate on real local state change + a TTL floor,
-    // with in-flight coalescing and request generations. Master re-armed a 2 s
-    // timer from every sync, so an open space fetched (paginated) /hierarchy
-    // roughly every two seconds for as long as it stayed open.
+    // with in-flight coalescing, request generations and a failure backoff.
+    // Master re-armed a 2 s timer from every sync, so an open space fetched
+    // (paginated) /hierarchy roughly every two seconds for as long as it
+    // stayed open.
     let hierarchyGeneration = 0;
     let hierarchyInFlightKey: string | null = null;
     let hierarchyLastAppliedKey: string | null = null;
     let hierarchyLastAppliedAt: number | null = null;
+    let hierarchyLastFailedKey: string | null = null;
+    let hierarchyLastFailedAt: number | null = null;
 
     function requestHierarchy(spaceId: string, force: boolean) {
         const parentSpaceId = roomsState.spaceDrillParentId ?? null;
@@ -834,6 +838,8 @@
             parentSignature: parentSpaceId
                 ? getSpaceChildSignature(parentSpaceId)
                 : "",
+            // Cheap: the child list behind this is memoized by signature.
+            joinedChildCount: getRoomsInSpace(spaceId).length,
         });
         if (
             !shouldFetchHierarchy({
@@ -841,6 +847,9 @@
                 inFlightKey: hierarchyInFlightKey,
                 lastAppliedKey: hierarchyLastAppliedKey,
                 lastAppliedAt: hierarchyLastAppliedAt,
+                lastFailedKey: hierarchyLastFailedKey,
+                lastFailedAt: hierarchyLastFailedAt,
+                failureBackoffMs: HIERARCHY_FAILURE_BACKOFF_MS,
                 now: Date.now(),
                 ttlMs: HIERARCHY_TTL_MS,
                 force,
@@ -875,10 +884,16 @@
                     roomsState.spaceHierarchy = hierarchy ?? [];
                     hierarchyLastAppliedKey = key;
                     hierarchyLastAppliedAt = Date.now();
+                    hierarchyLastFailedKey = null;
+                    hierarchyLastFailedAt = null;
+                } else {
+                    // "keep-previous": leave spaceHierarchy alone and record no
+                    // applied key, so the next sync retries rather than waiting
+                    // out the TTL — but arm the failure backoff, or "the next
+                    // sync" would mean every sync.
+                    hierarchyLastFailedKey = key;
+                    hierarchyLastFailedAt = Date.now();
                 }
-                // "keep-previous" leaves spaceHierarchy alone and does NOT
-                // record the key, so the next refresh retries instead of
-                // waiting out the TTL on a failure.
                 roomsState.hierarchyLoading = false;
             });
     }
@@ -1334,6 +1349,12 @@
             // coalesced request returns early and must leave the flag exactly
             // as it found it, or it would strand.
             requestHierarchy(spaceId, true);
+        } else {
+            // Home requests no hierarchy, so no live request can own the flag
+            // here. Without this, leaving a space while its fetch is in flight
+            // strands the spinner (the result drops on the space check) and
+            // suppresses RoomList's "No rooms yet" hint.
+            roomsState.hierarchyLoading = false;
         }
     });
 
