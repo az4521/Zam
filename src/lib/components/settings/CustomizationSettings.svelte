@@ -397,11 +397,11 @@
                     >Link preview media</span
                 >
                 <p class="text-xs text-discord-textMuted">
-                    Preview images and videos are fetched from whichever site
-                    hosts them, so that site learns your IP address and when you
-                    read the message. "Homeserver only" loads just the copies
-                    your own server serves; "Off" shows text-only cards. Both
-                    also hide embedded YouTube players and X/Twitter cards,
+                    Preview images and videos usually come straight from the
+                    site that hosts them, so that site learns your IP address
+                    and when you read the message. "Homeserver only" loads just
+                    the copies your own server serves; "Off" loads none of it.
+                    Both also hide embedded YouTube players and X/Twitter cards,
                     which always load straight from those sites. Either way,
                     each affected preview keeps a button to load its media.
                 </p>

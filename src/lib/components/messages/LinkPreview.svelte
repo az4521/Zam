@@ -342,10 +342,10 @@
         {/if}
     </div>
 {:else if preview}
-    {#if isGifSite && preview.videoUrl}
+    {#if isGifSite && preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- GIF-sharing sites: bare inline gif-style video -->
         {@render videoMedia()}
-    {:else if preview.videoUrl && hasMeta}
+    {:else if preview.videoUrl && hasMeta && canLoad(preview.videoUrl)}
         <!-- Rich video card: title/description alongside an embedded player
              (e.g. an fxtwitter/fixvx preview that carries og:video + og:title). -->
         <div class="mt-2">
@@ -381,7 +381,7 @@
                 </div>
             </div>
         </div>
-    {:else if preview.videoUrl}
+    {:else if preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- Direct video embed (no page metadata) -->
         {@render videoMedia()}
     {:else if preview.imageUrl && !imageError && canLoad(preview.imageUrl) && (!hasMeta || isGifSite)}
@@ -504,7 +504,7 @@
                     {/if}
                 </div>
             </a>
-            {#if lightboxOpen && preview.imageUrl}
+            {#if lightboxOpen && preview.imageUrl && canLoad(preview.imageUrl)}
                 <Lightbox
                     src={preview.imageUrl}
                     alt=""
