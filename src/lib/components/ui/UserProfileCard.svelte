@@ -197,27 +197,32 @@
         pending = "message";
         errorMsg = null;
         const target = userId;
-        const outcome = await actionRequests.run(() =>
-            createDirectMessage(target),
-        );
-        // The navigation itself is NOT gated on staleness — the user asked to
-        // open this person's DM and the room exists now either way. Only the
-        // card-local state is.
-        if (outcome.status === "ok") {
-            // Cleared before navigating: master's `finally` always cleared it,
-            // and the card is not remounted on close, so a skipped clear would
-            // leave the button spinning the next time this card opens.
-            pending = null;
+        // Captured inside the work callback, NOT from the outcome: `run`
+        // reports "stale" however a superseded call settled, so reading the
+        // room id off the outcome would silently drop the navigation when the
+        // card is dismissed or retargeted mid-create. master navigated
+        // unconditionally and the room exists either way — the user asked for
+        // this person's DM, so take them there. Only the card-local state is
+        // gated on staleness.
+        let createdRoomId: string | undefined;
+        const outcome = await actionRequests.run(async () => {
+            createdRoomId = await createDirectMessage(target);
+        });
+        if (createdRoomId !== undefined) {
             closeProfileCard();
-            setActiveRoom(outcome.value);
-            return;
+            setActiveRoom(createdRoomId);
         }
         if (outcome.status === "stale") return;
+        // Cleared on the success path too: master's `finally` always cleared
+        // it, and the card is not remounted on close, so a skipped clear would
+        // leave the button spinning the next time this card opens.
         pending = null;
-        errorMsg =
-            outcome.error instanceof Error
-                ? outcome.error.message
-                : "Could not open DM";
+        if (outcome.status === "error") {
+            errorMsg =
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not open DM";
+        }
     }
 
     async function toggleBlock() {
