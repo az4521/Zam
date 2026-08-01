@@ -5,7 +5,6 @@ function child(
     partial: Partial<SpaceChildDescriptor> & { stateKey: string },
 ): SpaceChildDescriptor {
     return {
-        eventId: `$${partial.stateKey}`,
         via: ["example.org"],
         order: undefined,
         ts: 0,

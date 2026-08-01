@@ -6,7 +6,6 @@
 import { compareOrderLex } from "./orderKey";
 
 export interface SpaceChildDescriptor {
-    eventId: string;
     stateKey: string;
     via: unknown;
     order: unknown;

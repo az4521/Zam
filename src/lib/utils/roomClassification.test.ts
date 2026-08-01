@@ -64,6 +64,36 @@ describe("classifyRooms", () => {
         expect(ids(result.directRooms)).toEqual(["!dm:s"]);
     });
 
+    it("still lists a DM that is also a child of a joined space as a DM", () => {
+        // Master's getDirectRooms has NO parentage test — `m.direct` membership
+        // alone makes it a DM. The single-pass loop short-circuits on directIds
+        // before the space-child check, and this pins that they agree.
+        const result = classifyRooms({
+            rooms: [room("!dm:s"), room("!sp:s", { isSpace: true })],
+            directIds: new Set(["!dm:s"]),
+            spaceChildIds: new Map([["!sp:s", ["!dm:s"]]]),
+            activeSpaceId: null,
+        });
+        expect(ids(result.directRooms)).toEqual(["!dm:s"]);
+        expect(result.orphanRooms).toEqual([]);
+    });
+
+    it("lists a sub-space alongside its parent and keeps it out of orphans", () => {
+        // Master's getSpaces() is getRooms().filter(isSpaceRoom) — no parentage
+        // test — so a space nested under another space is still a space.
+        const result = classifyRooms({
+            rooms: [
+                room("!parent:s", { isSpace: true }),
+                room("!sub:s", { isSpace: true }),
+            ],
+            directIds: new Set(),
+            spaceChildIds: new Map([["!parent:s", ["!sub:s"]]]),
+            activeSpaceId: null,
+        });
+        expect(ids(result.spaces)).toEqual(["!parent:s", "!sub:s"]);
+        expect(result.orphanRooms).toEqual([]);
+    });
+
     it("never lists a space as a DM", () => {
         const result = classifyRooms({
             rooms: [room("!sp:s", { isSpace: true })],
@@ -116,6 +146,36 @@ describe("classifyRooms", () => {
             activeSpaceId: null,
         });
         expect(result.orphanRooms).toEqual([]);
+        expect(result.spaces).toEqual([]);
+        expect(result.directRooms).toEqual([]);
+    });
+
+    it("returns every bucket in the input rooms order", () => {
+        // Master's buckets are all filters over matrixClient.getRooms(), so the
+        // input order IS the contract. Ids are deliberately reverse-alphabetical
+        // so an accidental sort fails too, not just a reversed push.
+        const result = classifyRooms({
+            rooms: [
+                room("!z-sp:s", { isSpace: true }),
+                room("!z-dm:s"),
+                room("!z-i:s", { membership: "invite" }),
+                room("!z-k:s", { membership: "knock" }),
+                room("!z-or:s"),
+                room("!a-sp:s", { isSpace: true }),
+                room("!a-dm:s"),
+                room("!a-i:s", { membership: "invite" }),
+                room("!a-k:s", { membership: "knock" }),
+                room("!a-or:s"),
+            ],
+            directIds: new Set(["!z-dm:s", "!a-dm:s"]),
+            spaceChildIds: new Map(),
+            activeSpaceId: null,
+        });
+        expect(ids(result.spaces)).toEqual(["!z-sp:s", "!a-sp:s"]);
+        expect(ids(result.directRooms)).toEqual(["!z-dm:s", "!a-dm:s"]);
+        expect(ids(result.invitedRooms)).toEqual(["!z-i:s", "!a-i:s"]);
+        expect(ids(result.knockedRooms)).toEqual(["!z-k:s", "!a-k:s"]);
+        expect(ids(result.orphanRooms)).toEqual(["!z-or:s", "!a-or:s"]);
     });
 
     it("orders roomsInSpace by the space child list, not the rooms array", () => {
