@@ -110,8 +110,10 @@ describe("ModalDialog semantics", () => {
     // out of reach, and the only thing making that promise true is the layer
     // covering the viewport and the backdrop covering the layer. Callers
     // append to `layerClass`/`backdropClass` but cannot restore coverage if
-    // the shell drops it — and six adopters inherit this rather than restating
-    // it, so a regression here would be silently wrong in six places at once.
+    // the shell drops it — and seven adopters inherit this rather than
+    // restating it (QuickActions, RoomDirectory, AccountSwitcher,
+    // ForwardMessageDialog, and SpaceSidebar's three), so a regression here
+    // would be silently wrong in seven places at once.
     it("covers the viewport, which is what makes aria-modal honest", () => {
         render({ onClose: vi.fn() });
         const layer = panel()!.parentElement!;
@@ -131,18 +133,24 @@ describe("ModalDialog semantics", () => {
     // Regression guard for a LATENT trap, not a live bug: every current adopter
     // passes a position utility (`relative`, or `absolute` in AccountSwitcher),
     // so nothing today exercises this path. `z-index` is inert on
-    // `position: static`, so a caller passing a sizing-only `panelClass` — and
-    // the `relative` fallback only applies when the prop is OMITTED — would get
-    // a panel painting under the `absolute inset-0` backdrop, which then eats
-    // every click on it while the dialog looks perfectly normal.
+    // `position: static`, so a caller passing a sizing-only `panelClass` would
+    // get a panel painting under the `absolute inset-0` backdrop, which then
+    // eats every click on it while the dialog looks perfectly normal. The
+    // `relative` fallback does not cover them: Svelte applies a `$props()`
+    // fallback when the prop is omitted AND when it is passed as an explicit
+    // `undefined` (which is what this fixture does), but a sizing-only string
+    // is neither.
     //
     // The `isolate` half is the other side of the same coin, and the reason it
     // is asserted HERE rather than with the coverage checks: `-z-10` is only
-    // safe while the layer forms a stacking context, and `fixed` alone does not
-    // — a caller passing a position-only `layerClass` ("flex items-end") gets a
-    // z-auto layer the negative-z backdrop escapes, painting behind the app.
-    // The overlay then vanishes and an outside click stops dismissing. So the
-    // pair is pinned together; dropping either one re-arms a silent trap.
+    // safe while the layer forms a stacking context. `fixed` does form one on
+    // its own, unconditionally — so `isolate` is not what rescues the
+    // position-only `layerClass` used below; it is defence against a future
+    // `layerClass` (or a caller restyling the layer) that overrides `position`
+    // itself, leaving a z-auto box the negative-z backdrop escapes to paint
+    // behind the app. The overlay then vanishes and an outside click stops
+    // dismissing. So the pair is pinned together; dropping either one leaves
+    // the trap one careless `layerClass` away.
     //
     // WHAT THIS CANNOT PROVE: jsdom has no layout or paint engine, so nothing
     // here can observe stacking order, a stacking context, or a swallowed
@@ -170,7 +178,7 @@ describe("ModalDialog semantics", () => {
         // pass off some other element's `isolate`.
         expect(
             [...backdrop!.parentElement!.classList],
-            "the dialog layer lost `isolate` — with a layerClass that carries no z-index it forms no stacking context, so the -z-10 backdrop escapes and paints behind the app",
+            "the dialog layer lost `isolate` — a layerClass that overrides `position` would then leave it with no stacking context, so the -z-10 backdrop escapes and paints behind the app",
         ).toContain("isolate");
     });
 

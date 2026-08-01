@@ -66,30 +66,39 @@
 -->
 <!--
   `isolate` is NOT redundant next to the default `layerClass`'s `z-50` — do not
-  "tidy" it away. It is what makes the backdrop's `-z-10` below safe for ANY
-  caller. A `fixed` box with `z-index: auto` forms no stacking context, so a
-  caller passing a position-only `layerClass` (`"flex items-end"`, say) would
-  let the negative-z backdrop escape this layer entirely and paint behind
-  whatever app content sits above the layer's ancestors: the dim overlay
-  vanishes and an outside click stops dismissing the dialog. `isolation: isolate`
-  forms the stacking context unconditionally, so the backdrop is trapped here
-  whatever `layerClass` says. `z-50` stays in the default for the layer's
-  position in the APP's stack; this is belt-and-braces, not a replacement.
+  "tidy" it away. It is what keeps the backdrop's `-z-10` below safe for ANY
+  caller. To be precise about what it is and is not doing: `position: fixed`
+  already forms a stacking context on its own, `z-index` or not (CSS Positioned
+  Layout 3), so a caller passing a position-only `layerClass` ("flex items-end",
+  say) is fine today with or without `isolate`. What `isolate` defends against is
+  a `layerClass` that overrides `position` itself — `"static"`, or a caller who
+  restyles this layer — since a static (or z-auto relative) box forms no stacking
+  context and the negative-z backdrop would then escape this layer entirely and
+  paint behind whatever app content sits above the layer's ancestors: the dim
+  overlay vanishes and an outside click stops dismissing the dialog.
+  `isolation: isolate` forms the stacking context regardless of `position` or
+  `z-index`, so the backdrop is trapped here whatever `layerClass` says. `z-50`
+  stays in the default for the layer's position in the APP's stack; this is
+  belt-and-braces, not a replacement.
 -->
 <div class="fixed inset-0 isolate {layerClass}">
     <!--
       `-z-10`, not "panel wins on z-index": `z-index` is inert on
-      `position: static`, so a caller passing a sizing-only `panelClass` (the
-      prop's fallback `relative` only applies when it is OMITTED) would get a
-      panel painting UNDER this backdrop, which then swallows every click while
-      looking perfectly normal. Sending the backdrop into the negative-z phase
-      of this layer's stacking context puts it below in-flow content too, so the
-      panel is above it either way. Current adopters (`relative z-10`, and
-      AccountSwitcher's `absolute z-10`) keep the exact stack they have today.
+      `position: static`, so a caller passing a sizing-only `panelClass` would
+      get a panel painting UNDER this backdrop, which then swallows every click
+      while looking perfectly normal. The prop's `relative` fallback does not
+      save them: Svelte applies a `$props()` fallback both when the prop is
+      omitted and when it is passed as an explicit `undefined`, but a
+      sizing-only string is neither. Sending the backdrop into the negative-z
+      phase of this layer's stacking context puts it below in-flow content too,
+      so the panel is above it either way. Current adopters (`relative z-10`,
+      and AccountSwitcher's `absolute z-10`) keep the exact stack they have
+      today.
 
-      "This layer's stacking context" is guaranteed by the `isolate` above, not
-      merely by the default `layerClass`'s `z-50` — see the comment there. That
-      is what stops this trading one silent trap for another.
+      "This layer's stacking context" is guaranteed by the `fixed` above and
+      belt-and-braced by its `isolate` — not by the default `layerClass`'s
+      `z-50`, which a caller may replace. See the comment there. That is what
+      stops this trading one silent trap for another.
     -->
     <button
         type="button"
