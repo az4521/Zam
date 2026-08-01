@@ -28,6 +28,10 @@ import {
 import { auth } from "$lib/stores/auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
 import { DEFAULT_ENCRYPT_DMS } from "$lib/utils/roomEncryption";
+import {
+    normalizeLinkPreviewMedia,
+    type LinkPreviewMedia,
+} from "$lib/utils/linkPreviewPolicy";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
 import type { ClientCustomization } from "$lib/utils/customization";
 
@@ -157,6 +161,19 @@ export const settingsState = $state({
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
+    /** Device-global: which link-preview media may load automatically.
+     *  "all" (default) is the historical behaviour; "proxied" loads only the
+     *  copies our own homeserver serves, so third-party hosts never learn the
+     *  reader's IP or when they read a message; "none" shows text-only cards.
+     *  Each preview keeps a per-message button to load its media on demand.
+     *
+     *  ⚠ Must stay readString/writeString (device-global), for the same reason
+     *  spelled out on hideNotificationBody: switching a bare key to the scoped
+     *  reader would make readScoped() adopt it into the ACTIVE account's scope
+     *  and delete the bare key, silently resetting it for every other account
+     *  on this device. It is deliberately NOT part of ClientCustomization
+     *  either — this is a per-device trust decision, not a look-and-feel one. */
+    linkPreviewMedia: normalizeLinkPreviewMedia(readString("linkPreviewMedia")),
     /** Device-global: keep message text out of OS notifications — they say
      *  "<sender> sent a message" instead of the body. Default OFF. Applies to
      *  in-app popups, web push (service worker) and Android FCM on THIS
@@ -495,6 +512,12 @@ export function setAutoUpdateEnabled(value: boolean): void {
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
+}
+
+export function setLinkPreviewMedia(value: LinkPreviewMedia): void {
+    const next = normalizeLinkPreviewMedia(value);
+    settingsState.linkPreviewMedia = next;
+    writeString("linkPreviewMedia", next);
 }
 
 export function setHideNotificationBody(value: boolean): void {

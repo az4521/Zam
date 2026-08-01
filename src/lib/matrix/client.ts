@@ -1810,6 +1810,15 @@ export function mxcToHttp(
     return `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
 }
 
+/**
+ * Base URL of the homeserver this session is on, or null when signed out.
+ * Exposed so the UI can tell homeserver-proxied media (safe to load: the
+ * server already knows about the message) apart from third-party media.
+ */
+export function getHomeserverBaseUrl(): string | null {
+    return matrixClient?.getHomeserverUrl() ?? null;
+}
+
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
 export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");

@@ -38,11 +38,13 @@
         setCustomDatePattern,
         setAlwaysAbsolute,
         setGifDefaultTab,
+        setLinkPreviewMedia,
         setShowReadReceiptAvatars,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
     import { type GifTab } from "$lib/utils/klipy";
+    import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
     import {
         previewDatePattern,
         type TimeClock,
@@ -59,6 +61,27 @@
         { value: "dmy", label: "D/M/Y" },
         { value: "mdy", label: "M/D/Y" },
         { value: "custom", label: "Custom" },
+    ];
+    const linkPreviewOptions: Array<{
+        value: LinkPreviewMedia;
+        label: string;
+        title: string;
+    }> = [
+        {
+            value: "all",
+            label: "All",
+            title: "Load preview media from wherever it is hosted",
+        },
+        {
+            value: "proxied",
+            label: "Homeserver only",
+            title: "Only load preview media your own homeserver serves",
+        },
+        {
+            value: "none",
+            label: "Off",
+            title: "Never load preview media automatically",
+        },
     ];
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
@@ -364,6 +387,30 @@
                 checked={settingsState.showReadReceiptAvatars}
                 onChange={setShowReadReceiptAvatars}
                 label="Read receipt avatars"
+            />
+        </div>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-discord-textPrimary"
+                    >Link preview media</span
+                >
+                <p class="text-xs text-discord-textMuted">
+                    Preview images and videos are fetched from whichever site
+                    hosts them, so that site learns your IP address and when you
+                    read the message. "Homeserver only" loads just the copies
+                    your own server serves; "Off" shows text-only cards. Both
+                    also hide embedded YouTube players and X/Twitter cards,
+                    which always load straight from those sites. Either way,
+                    each preview keeps a button to load its media.
+                </p>
+            </div>
+            <OptionSelector
+                value={settingsState.linkPreviewMedia}
+                options={linkPreviewOptions}
+                onChange={setLinkPreviewMedia}
+                ariaLabel="Link preview media"
             />
         </div>
     </section>
