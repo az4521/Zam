@@ -815,6 +815,43 @@ describe("retryPendingCryptoWipes", () => {
         expect(readPendingWipes()).toEqual([pending]);
     });
 
+    // "blocked" is not the only way a delete fails to delete: private-mode
+    // Firefox REJECTS every deleteDatabase, even for a database that does not
+    // exist. Retiring the record on an errored delete would drop the marker
+    // while the plaintext key material is still on disk — the exact outcome
+    // this module exists to prevent — so only "deleted" may retire it.
+    it("KEEPS the record when the deletes are rejected rather than blocked", async () => {
+        const { factory, seen } = fakeIndexedDB({}, "error");
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        // It really tried — this is a kept record, not a skipped one.
+        expect(seen).toEqual(dbsOf(pending));
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("KEEPS the record when only one of the two databases could be deleted", async () => {
+        // Half a wipe is not a wipe: the meta database still names the store.
+        const { factory, seen } = fakeIndexedDB({
+            [dbsOf(pending)[1]]: "error",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual(dbsOf(pending));
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
     it("never touches the store of a session still known to this device", async () => {
         const { factory, seen } = fakeIndexedDB({});
         vi.stubGlobal("indexedDB", factory);
@@ -948,6 +985,29 @@ describe("deleteCryptoStore", () => {
 
     it("records a pending wipe when the delete does not complete", async () => {
         const { factory } = fakeIndexedDB({}, "blocked");
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // A rejected delete leaves the store exactly as intact as a blocked one
+    // does (private-mode Firefox rejects every deleteDatabase), so it has to
+    // leave the same marker behind for the next boot.
+    it("records a pending wipe when the delete is rejected outright", async () => {
+        const { factory } = fakeIndexedDB({}, "error");
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("records a pending wipe when only one of the two deletes succeeds", async () => {
+        const { factory } = fakeIndexedDB({
+            [`${PREFIX}::matrix-sdk-crypto-meta`]: "error",
+        });
         vi.stubGlobal("indexedDB", factory);
 
         await deleteCryptoStore("@a:example.org", "DEV1");

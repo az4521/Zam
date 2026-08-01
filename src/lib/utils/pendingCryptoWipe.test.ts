@@ -252,6 +252,10 @@ describe("storage accessors", () => {
     });
 
     it("forget removes only the named session, and clears the key when empty", () => {
+        // The empty case must remove ONE key, not wipe storage: `matrix_accounts`
+        // shares this localStorage, and a `clear()` here would sign the user out
+        // of every account on the device.
+        localStorage.setItem("matrix_accounts", "sentinel");
         const other = { ...wipe, deviceId: "DEV2" };
         writePendingWipes([wipe, other]);
         forgetPendingWipe(wipe);
@@ -259,6 +263,7 @@ describe("storage accessors", () => {
         forgetPendingWipe(other);
         expect(readPendingWipes()).toEqual([]);
         expect(localStorage.getItem(PENDING_WIPE_KEY)).toBeNull();
+        expect(localStorage.getItem("matrix_accounts")).toBe("sentinel");
     });
 
     it("never throws when storage itself throws", () => {
