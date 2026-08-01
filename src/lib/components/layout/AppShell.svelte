@@ -486,6 +486,18 @@
         { notification: Notification; eventIds: string[] }
     >();
 
+    // Latched by closeAllPostedNotifications(): once this session's popups have
+    // been taken down, this page must never post another one. Clearing is
+    // one-shot but the exits are not instantaneous — an account switch clears,
+    // then awaits up to 3s for leaveVoiceCall, and a message arriving in that
+    // window would post a fresh popup for the OUTGOING account that survives
+    // the reload, which is exactly the leak the clear exists to close. Never
+    // reset: every path that clears is on the way out of this session.
+    //
+    // A plain `let`, not `$state`, for the same reason as the Maps above: it is
+    // read by notifyIncomingCall(), which an $effect calls.
+    let notificationsShutDown = false;
+
     /** Snapshot for the pure rule — the Map itself never leaves this file. */
     function postedEntries(): PostedNotificationEntry[] {
         return [...postedRoomNotifications.entries()].map(
@@ -513,16 +525,23 @@
      * reload, an account switch's reload, and — worst — a session expiry,
      * which swaps to the login view IN PLACE, so this closure is still alive
      * when the user signs in as somebody else. Audit finding PRIV-02.
+     *
+     * Surfacing the app is NOT gated on the decision, only the navigation is.
+     * A tap is a tap: in Electron with the window hidden to the tray, a
+     * dropped tap that did nothing at all would look like the app had frozen,
+     * and the service worker's own click handler already calls client.focus()
+     * before it decides anything — gating here would make the two surfaces
+     * behave differently for the same stale notification.
      */
     function routeNotificationTap(roomId: string, postedBy?: string | null) {
+        // window.focus() alone cannot un-hide a tray-hidden Electron window;
+        // restoreAppWindow() prefers the preload bridge.
+        restoreAppWindow();
         const decision = decideNotificationRoute(
             { roomId, userId: postedBy },
             { userId: auth.userId },
         );
         if (decision.action !== "navigate") return;
-        // window.focus() alone cannot un-hide a tray-hidden Electron window;
-        // restoreAppWindow() prefers the preload bridge.
-        restoreAppWindow();
         navigateToRoom(decision.roomId);
     }
 
@@ -535,6 +554,9 @@
         room: Room,
         body: string,
     ) {
+        // This session's notifications have already been taken down; posting
+        // another one now would strand it above the next account's session.
+        if (notificationsShutDown) return;
         if (
             typeof Notification === "undefined" ||
             Notification.permission !== "granted"
@@ -750,6 +772,11 @@
      * the `const` Maps do not, and this only ever runs at teardown time.
      */
     function closeAllPostedNotifications() {
+        // Latch first: clearing is one-shot, and the exits that call it keep
+        // running (an account switch waits up to 3s on leaveVoiceCall) with a
+        // live sync underneath. A message landing in that window must not post
+        // a new popup for the account we are leaving.
+        notificationsShutDown = true;
         for (const roomId of [...postedRoomNotifications.keys()]) {
             const entry = postedRoomNotifications.get(roomId);
             if (!entry) continue;
@@ -772,6 +799,9 @@
     }
 
     function notifyIncomingCall(roomId: string): Notification | undefined {
+        // Same latch as showDesktopNotification: after a clear, this page is on
+        // its way out of the session and must post nothing further.
+        if (notificationsShutDown) return;
         if (
             typeof Notification === "undefined" ||
             Notification.permission !== "granted"
@@ -1290,6 +1320,12 @@
             // unmounts this component in place and the popups would otherwise
             // outlive the session with a live onclick closure attached.
             closeAllPostedNotifications();
+            // The service worker's popups outlive this component too, and not
+            // every unmount comes through a clearAllNotificationSurfaces()
+            // caller: "Add account" just routes to /?add, which flips the view
+            // to login and unmounts us with account A's SW notifications still
+            // up. Clear before dropping the registration — after it, nobody can.
+            clearServiceWorkerNotifications();
             unregisterPageSurface();
             unregisterSwSurface();
             unregisterNativeSurface();
