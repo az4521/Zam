@@ -1913,6 +1913,23 @@ export function clearServiceWorkerAuth(): void {
 }
 
 /**
+ * Ask the service worker to take its notifications down without touching its
+ * stored credentials — the account-switch case, where the next account's boot
+ * re-sends SET_AUTH and a CLEAR_AUTH in between would just race it.
+ *
+ * Synchronous and void-returning on purpose: this is registered as a
+ * notification surface, and the registry can only isolate a SYNCHRONOUS throw.
+ * A returned promise would sail past its try/catch, so the rejection is
+ * swallowed here instead.
+ */
+export function clearServiceWorkerNotifications(): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.active?.postMessage({ type: "CLEAR_NOTIFICATIONS" }))
+        .catch(() => {});
+}
+
+/**
  * Mirror the device-global "hide message text in notifications" setting into
  * the service worker. The SW has no localStorage, so it keeps its own copy in
  * IndexedDB; a push wake-up reads that copy.
