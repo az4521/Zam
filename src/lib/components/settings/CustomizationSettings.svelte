@@ -403,7 +403,7 @@
                     your own server serves; "Off" shows text-only cards. Both
                     also hide embedded YouTube players and X/Twitter cards,
                     which always load straight from those sites. Either way,
-                    each preview keeps a button to load its media.
+                    each affected preview keeps a button to load its media.
                 </p>
             </div>
             <OptionSelector

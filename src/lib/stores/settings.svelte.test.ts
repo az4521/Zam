@@ -4,13 +4,28 @@ import {
     setShowReadReceiptAvatars,
     setLinkPreviewMedia,
 } from "./settings.svelte";
+import { auth } from "$lib/stores/auth.svelte";
 
 const KEY = "settings:showReadReceiptAvatars";
 
-// The module-level store persists across tests — restore the default after each.
+/**
+ * A signed-in user id, for the "is not account-scoped" tests only.
+ *
+ * Those tests are worthless without one: `auth.userId` is null in this
+ * environment (nothing signs in, and vitest.config.ts has no setupFiles), and
+ * scopedKey(base, null) returns the BARE key — so an account-scoped writer
+ * would write to exactly the key they assert on and the regression would sail
+ * through. A real user id is what makes the scoped key observable.
+ */
+const SCOPED_USER = "@alice:example.org";
+
+// The module-level store persists across tests — restore the default after
+// each. auth.userId is reset here (not in a nested hook) so no test can leak a
+// signed-in user id into the next one, whichever describe set it.
 afterEach(() => {
     setShowReadReceiptAvatars(true);
     localStorage.removeItem(KEY);
+    auth.userId = null;
 });
 
 /**
@@ -52,6 +67,7 @@ describe("showReadReceiptAvatars", () => {
     });
 
     it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
         setShowReadReceiptAvatars(false);
         const keys = Object.keys(localStorage).filter((k) =>
             k.includes("showReadReceiptAvatars"),
@@ -103,6 +119,7 @@ describe("linkPreviewMedia", () => {
     });
 
     it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
         setLinkPreviewMedia("proxied");
         const keys = Object.keys(localStorage).filter((k) =>
             k.includes("linkPreviewMedia"),
