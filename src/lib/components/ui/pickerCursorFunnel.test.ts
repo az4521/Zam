@@ -14,10 +14,14 @@ import { fileURLToPath } from "node:url";
  *
  * That invariant is only as good as the discipline that every cursor move
  * records both. An assignment to `selectedIndex` that skips the setter leaves a
- * stale key next to a fresh index, which reads as "nothing active" FOREVER --
- * a silently dead cursor, worse than the bug the anchor removes, and invisible
- * to every other test in the suite. Reading the source is what makes a missed
- * site impossible rather than merely unlikely.
+ * stale key next to a fresh index, which reads as "nothing active": Left,
+ * Right, Home, End and Enter all no-op, and the next ArrowDown -- which tests
+ * for -1 and re-enters at index 0 -- bounces the user to the top of the list.
+ * Not permanent: any `moveCursor(n >= 0)` re-owns the cursor, because it
+ * recomputes the key at the new index. But it is silent, it is invisible to
+ * every other test in the suite, and it lands on whoever was mid-navigation.
+ * Reading the source is what makes a missed site impossible rather than merely
+ * unlikely.
  *
  * CONVENTION THIS GUARD DEPENDS ON: in the three picker files, every prose
  * mention of the cursor variable is backtick-wrapped -- `selectedIndex`, never
@@ -133,7 +137,18 @@ describe.each(PICKERS)("%s cursor funnel", (name) => {
         // The markup must compare against the ANCHORED index. Reading the raw
         // one is how aria-selected and aria-activedescendant drift apart:
         // the descendant id goes absent while the ring stays on a stranger.
-        const markup = src.slice(src.indexOf("</script>"));
+        //
+        // The delimiter is asserted before it is used: `indexOf` returns -1
+        // when it finds nothing, and `slice(-1)` is the file's final character
+        // -- a one-char "markup" that trivially contains no `selectedIndex`,
+        // so the guard would go green while checking nothing. Svelte permits
+        // the <script> block BELOW the markup, so that refactor is legal.
+        const scriptEnd = src.indexOf("</script>");
+        expect(
+            scriptEnd,
+            "no </script> found -- the markup scan would be vacuous",
+        ).toBeGreaterThan(-1);
+        const markup = src.slice(scriptEnd);
         expect(markup).not.toContain("selectedIndex");
     });
 });
