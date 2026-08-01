@@ -25,12 +25,15 @@
 
     let { room, onClose, onJumpTo }: Props = $props();
 
-    // getPinnedEventIds returns the state event's own array when pins exist,
-    // but a FRESH [] when the room has none — so on a pinless room the derived
-    // changed identity on every sync and re-ran the fetch effect below (spinner
-    // flash included). Hold the last value while the ids are equal; this is the
-    // repo's established "keep the tick dependency, make the write
-    // conditional" pattern.
+    // getPinnedEventIds returns the state event's own `content.pinned` array
+    // when pins exist — its identity is already stable across syncs, so the
+    // derived never changed for those rooms — but a FRESH [] when the room has
+    // none. Only pinless rooms were affected: there the derived changed
+    // identity on every sync and re-ran the fetch effect below for nothing.
+    // (Nothing was visible — that "refetch" is Promise.allSettled([]), which
+    // resolves in a microtask, before paint. It was pure wasted work.) Hold the
+    // last value while the ids are equal; this is the repo's established "keep
+    // the tick dependency, make the write conditional" pattern.
     let lastPinnedKey = "";
     let lastPinnedIds: string[] = [];
     const pinnedIds = $derived.by(() => {
@@ -79,7 +82,14 @@
             // Superseded — a newer run owns `loading` and `fetchedEvents`.
             if (outcome.status === "stale") return;
             // Master had no failure path at all here, so a rejection pinned the
-            // spinner on forever.
+            // spinner on forever. Blanking is the right data call — rendering
+            // the previous room's pins under this room's members is the bug
+            // this guard exists to stop — but the empty list then renders "No
+            // pinned messages", which is false for a room that has some. Log so
+            // the wrong statement is at least diagnosable.
+            if (outcome.status === "error") {
+                console.error("Pinned messages fetch failed", outcome.error);
+            }
             fetchedEvents = outcome.status === "ok" ? outcome.value : [];
             loading = false;
         })();
