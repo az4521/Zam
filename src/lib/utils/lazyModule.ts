@@ -20,7 +20,11 @@ export function lazyModule<T>(loader: () => Promise<T>): LazyModule<T> {
     return {
         peek: () => loaded,
         load: () => {
-            if (loaded) return Promise.resolve(loaded);
+            // `!== null`, not truthiness: the generic is `T`, not
+            // `T extends object`, so a module that resolves to a falsy value
+            // must still count as loaded — otherwise the cache silently
+            // disables itself and the loader runs on every single call.
+            if (loaded !== null) return Promise.resolve(loaded);
             inFlight ??= loader().then(
                 (mod) => {
                     loaded = mod;

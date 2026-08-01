@@ -37,6 +37,19 @@ describe("lazyModule", () => {
         expect(loader).toHaveBeenCalledTimes(2);
     });
 
+    it("caches a falsy resolved module instead of reloading it", async () => {
+        // The cache must key on "have I loaded yet", not on the module's
+        // truthiness: a module whose namespace resolves to a falsy value
+        // (0, "", false) would otherwise re-invoke the loader on every call
+        // and re-download nothing forever.
+        const loader = vi.fn(async () => 0);
+        const mod = lazyModule(loader);
+        expect(await mod.load()).toBe(0);
+        expect(await mod.load()).toBe(0);
+        expect(loader).toHaveBeenCalledTimes(1);
+        expect(mod.peek()).toBe(0);
+    });
+
     it("keeps peek() null while a load is still in flight", async () => {
         let release: (value: { v: number }) => void = () => {};
         const mod = lazyModule(
