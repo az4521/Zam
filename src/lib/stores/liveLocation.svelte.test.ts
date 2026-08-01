@@ -727,6 +727,36 @@ describe("live-location own-share engine", () => {
         expect(liveLocationState.shares.get("!b:s")?.stop).toBeNull();
     });
 
+    it("sweeps only the rooms it attempted, not the map as it stands afterwards", async () => {
+        // Same invariant as the test above, but with NO session boundary, so
+        // the epoch guard cannot short-circuit and the `rooms` snapshot is the
+        // only thing standing between the sweep and a share it never attempted.
+        // A's write REJECTS, so its record is retained by attemptStop and can
+        // only be cleared by the drop loop — that is what proves the loop ran
+        // at all rather than being skipped.
+        await startShare("!a:s", 900000);
+        let fail: (e: Error) => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((_r, j) => (fail = j)),
+        );
+
+        const pending = stopAllShares();
+        await flush();
+
+        h.startLiveBeacon.mockResolvedValueOnce({ beaconInfoEventId: "$b2" });
+        await startShare("!b:s", 900000);
+        expect(isSharingLive("!b:s")).toBe(true);
+
+        fail(new Error("offline"));
+        await pending;
+
+        // A was attempted and retained as failed, so the loop is what removed it.
+        expect(isSharingLive("!a:s")).toBe(false);
+        // B was never attempted: it must survive a sweep that only owns `rooms`.
+        expect(isSharingLive("!b:s")).toBe(true);
+        expect(liveLocationState.shares.get("!b:s")?.stop).toBeNull();
+    });
+
     it("does not let a late ack delete a share resumed from the server", async () => {
         // Logout sweeps the record while the write is in flight; the next
         // session's sync still sees the beacon live and resumes it as an

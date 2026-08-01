@@ -471,6 +471,15 @@ export function initLiveLocation(): () => void {
         // a stale reference called twice — must do nothing at all: its
         // listeners were detached by beginSession, and stopping the current
         // session's shares here would be a logout nobody asked for.
+        //
+        // The cost of that silence: an ACTIVE record inherited this way keeps
+        // broadcasting under the new session, publishing GPS to the previous
+        // account's beacon with nothing left to stop it. Unreachable today —
+        // `+page.svelte` renders AppShell in a plain `{#if view === "shell"}`
+        // (destroy before create, no transition) and account switching reloads
+        // the page, so a mount can never precede the outgoing unmount. Make
+        // that swap keyed or transitioned and this becomes a real location
+        // leak: stop the inherited shares here instead of returning.
         if (!ownsSession(epoch, sessionEpoch)) return;
         detachListeners();
         void stopAllShares();
