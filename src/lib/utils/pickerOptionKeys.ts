@@ -10,7 +10,10 @@
  * The keys are therefore namespaced (`s` for standard, `c` for custom) and
  * built from NUL-joined segments, so no combination of a pack id, a shortcode
  * and an mxc url can spell another option's key. NUL is used because it cannot
- * occur in any of those segments.
+ * occur in practice: shortcodes and mxc urls arrive raw from remote pack state
+ * and are only validated on write, never on read, so nothing here structurally
+ * excludes it -- but no server or client emits one, and the worst a hostile
+ * pack could buy with a smuggled NUL is a cursor that reads as inactive.
  */
 
 const SEP = "\u0000";
@@ -26,7 +29,11 @@ export type StickerOptionLike = { shortcode: string; mxcUrl: string };
 
 /** Key for one custom image (emoji or sticker). `packId` may be empty when the
  *  caller's flat list has already discarded pack identity — shortcode + mxc url
- *  still identify the image that would be sent. */
+ *  still identify the image that would be sent. Not the whole payload, though:
+ *  `sendSticker` (matrix/client.ts) also sends `body` and `info`, so two
+ *  entries agreeing on these two segments send the same image, possibly under a
+ *  different caption. That residual is acceptable here — the anchor exists to
+ *  stop Enter sending a *different picture* than the one the ring is on. */
 function customImageKey(
     packId: string,
     shortcode: string,

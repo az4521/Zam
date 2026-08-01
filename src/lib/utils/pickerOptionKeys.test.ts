@@ -16,6 +16,11 @@ const standard = (emoji: string, name: string) => ({
     data: { emoji, name },
 });
 
+// The NUL separators in the expectations below are spelled out as escapes
+// on purpose: those literals are the ONLY byte-level check in this suite.
+// Every other test compares keys against other keys, so a corrupted
+// separator shared by the util and whatever derived the expectation would
+// stay green all the way through.
 describe("emojiOptionKeys", () => {
     it("keys a standard emoji by the character it would insert", () => {
         expect(emojiOptionKeys([standard("😀", "grinning")])).toEqual([
@@ -59,8 +64,14 @@ describe("emojiOptionKeys", () => {
             custom("p", "b"),
             standard("c", "c"),
         ]);
-        expect(keys).toHaveLength(3);
-        expect(keys[1]).toContain("b");
+        // The whole array, not just `keys[1]`: the middle element of three
+        // is reversal-invariant, so pinning it alone waved a reversed
+        // implementation straight through.
+        expect(keys).toEqual([
+            "s\u0000a",
+            "c\u0000p\u0000b\u0000mxc://s/b",
+            "s\u0000c",
+        ]);
     });
 
     it("returns an empty array for an empty list", () => {
