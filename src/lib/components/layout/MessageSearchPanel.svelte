@@ -10,6 +10,7 @@
         buildSnippetSegments,
         isSearchUnsupportedError,
     } from "$lib/utils/messageSearch";
+    import { createStaleGuard } from "$lib/utils/staleGuard";
     import { searchState } from "$lib/stores/search.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -34,13 +35,25 @@
     let resultsTick = $state(0);
     let inputEl: HTMLInputElement | undefined = $state();
 
-    // Reset when switching rooms.
+    // The panel is NOT keyed by room (MessageArea passes `room` as a plain
+    // prop), so a room switch leaves the previous room's /search in flight.
+    // One guard covers both the search and its pagination: whichever request
+    // starts last is the only one allowed to write.
+    const requests = createStaleGuard();
+
+    // Reset when switching rooms. Cancelling the guard is what stops the old
+    // room's in-flight response from painting itself into the new room; the
+    // spinner flags are cleared here because that superseded run will report
+    // nothing at all.
     $effect(() => {
         void room.roomId;
+        requests.cancel();
         term = "";
         searched = null;
         results = null;
         error = null;
+        searching = false;
+        loadingMore = false;
     });
 
     // Focus the input when the panel opens. preventScroll matters: on mobile
@@ -59,38 +72,54 @@
         searching = true;
         error = null;
         results = null;
-        try {
-            results = await searchRoomMessages(room.roomId, query);
+        // A new search discards the page `loadMore` was extending, and the
+        // shared guard makes that pagination stale — so it will report nothing
+        // and can no longer clear its own flag. Clear it here, next to the
+        // results it belonged to, or the "Load more" button comes back
+        // permanently stuck on "Loading…".
+        loadingMore = false;
+        const outcome = await requests.run(() =>
+            searchRoomMessages(room.roomId, query),
+        );
+        // Superseded by a room switch or a newer request — the run that
+        // replaced us owns `searching`, `results` and `error` now.
+        if (outcome.status === "stale") return;
+        searching = false;
+        if (outcome.status === "ok") {
+            results = outcome.value;
             searched = query;
             resultsTick++;
-        } catch (e) {
-            if (isSearchUnsupportedError(e)) {
-                console.warn(
-                    "Message search: homeserver does not support /search — hiding the feature",
-                );
-                searchState.unsupported = true;
-                onClose();
-            } else {
-                console.error("Message search failed", e);
-                error = e instanceof Error ? e.message : "Search failed";
-            }
-        } finally {
-            searching = false;
+            return;
+        }
+        const e = outcome.error;
+        if (isSearchUnsupportedError(e)) {
+            console.warn(
+                "Message search: homeserver does not support /search — hiding the feature",
+            );
+            searchState.unsupported = true;
+            onClose();
+        } else {
+            console.error("Message search failed", e);
+            error = e instanceof Error ? e.message : "Search failed";
         }
     }
 
     async function loadMore() {
         if (!results || loadingMore) return;
+        const page = results;
         loadingMore = true;
-        try {
-            await searchRoomMessagesMore(results);
+        const outcome = await requests.run(() => searchRoomMessagesMore(page));
+        if (outcome.status === "stale") return;
+        loadingMore = false;
+        if (outcome.status === "ok") {
             resultsTick++;
-        } catch (e) {
-            console.error("Message search pagination failed", e);
-            error = e instanceof Error ? e.message : "Search failed";
-        } finally {
-            loadingMore = false;
+            return;
         }
+        console.error("Message search pagination failed", outcome.error);
+        error =
+            outcome.error instanceof Error
+                ? outcome.error.message
+                : "Search failed";
     }
 
     const rows = $derived.by(() => {
