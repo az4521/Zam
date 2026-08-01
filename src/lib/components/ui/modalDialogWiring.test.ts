@@ -41,9 +41,9 @@ import { fileURLToPath } from "node:url";
  *   - the BODY of QuickActions' `onKeydown` (that it still keys off Enter).
  *     svelte-check already fails if the identifier disappears, and pinning the
  *     body text would go red on a param rename that changes nothing;
- *   - the other three ModalDialog adopters that intentionally take neither
- *     capability (AccountSwitcher, SpaceSidebar's add-room and colour-picker
- *     dialogs have no Enter action of their own);
+ *   - an `onKeydown` on the three adopters that intentionally have no Enter
+ *     action of their own: AccountSwitcher, and SpaceSidebar's add-room and
+ *     colour-picker dialogs (whose dismissal wiring IS asserted below);
  *   - that `data-autofocus` lands on an element the trap considers focusable —
  *     only that it lands on an `<input>`, which is the same claim in practice.
  */
@@ -167,10 +167,12 @@ function enclosingTag(text: string, at: number, label: string): string {
 /**
  * The `<ModalDialog>` opening tag identified by one of its attributes.
  *
- * `marker` (the dialog's `labelledBy`, which is also its accessible name) only
- * IDENTIFIES which of the six ModalDialog call sites this is; asserting the
- * enclosing tag is really `<ModalDialog` is what pins the capability to the
- * SHELL rather than to some inner wrapper that would never forward it.
+ * `marker` (the dialog's `labelledBy` or `label`, which is also its accessible
+ * name) only IDENTIFIES which of the seven ModalDialog call sites this is —
+ * QuickActions, RoomDirectory, AccountSwitcher, ForwardMessageDialog and
+ * SpaceSidebar's three; asserting the enclosing tag is really `<ModalDialog` is
+ * what pins the capability to the SHELL rather than to some inner wrapper that
+ * would never forward it.
  *
  * A -1 from `indexOf` would silently slice from the end of the file and make
  * every assertion downstream vacuous, so a missing marker fails loudly.
@@ -328,6 +330,47 @@ describe("ModalDialog adoption — initial focus nomination", () => {
             "the colour picker no longer nominates its hex field",
         ).toHaveLength(1);
     });
+});
+
+/**
+ * SpaceSidebar's three ModalDialog call sites must hand the shell a REAL
+ * dismiss callback.
+ *
+ * WHY: `onClose` is not one dismissal path among several, it is BOTH of them.
+ * The shell's backdrop is `<button onclick={onClose}>`, and the focus trap is
+ * given `{ onEscape: onClose }` — so a no-op `onClose` does not degrade a
+ * dialog, it makes it UNDISMISSABLE: outside click dead, Escape dead, and the
+ * trap is still holding focus inside a panel the user cannot leave. None of
+ * these three carries a ✕ of its own to fall back on. It is also silent in
+ * every other check: the dialog opens, renders and (for create-room/add-room)
+ * still submits, so nothing throws and `npm run check` stays clean.
+ *
+ * Demonstrated, not assumed: rewriting the add-room dialog's
+ * `onClose={closeModal}` to `onClose={() => {}}` left this entire suite green
+ * before these three assertions existed.
+ *
+ * Asserted as "the expression mentions closeModal" rather than as exact source
+ * text, so wrapping it (`() => closeModal()`) stays green while gutting it does
+ * not.
+ */
+describe("ModalDialog adoption — the dialogs stay dismissable", () => {
+    // Marker per dialog: the colour picker has no visible heading to point at,
+    // so it names itself with `label` where the other two use `labelledBy`.
+    const DIALOGS: Array<[string, string]> = [
+        ["the colour picker", 'label="Folder Color"'],
+        ["the create-room dialog", 'labelledBy="space-create-room-title"'],
+        ["the add-room dialog", 'labelledBy="space-add-room-title"'],
+    ];
+
+    for (const [label, marker] of DIALOGS) {
+        it(`${label} still closes through closeModal`, () => {
+            const tag = modalDialogTag(spaceSidebar(), marker);
+            expect(
+                attributeExpression(tag, "onClose"),
+                `${label} no longer dismisses through closeModal — backdrop click AND Escape are both dead, so the dialog cannot be closed at all`,
+            ).toContain("closeModal");
+        });
+    }
 });
 
 /**
