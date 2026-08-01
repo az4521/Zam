@@ -174,12 +174,18 @@ import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import {
-    actionsForLevel,
     getRoomNotificationSettingForClient,
     isHighlightAction,
+    refreshCachedPushRules,
+    setDefaultPushRuleLevelForClient,
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
 } from "$lib/matrix/pushRules";
+import {
+    classifyPushRuleWriteError,
+    pushRuleFailureMessage,
+} from "$lib/utils/pushRuleWrite";
+import { createSerialQueue } from "$lib/utils/serialQueue";
 import { pushRulesState } from "$lib/stores/pushRules.svelte";
 import {
     fetchServerNotificationsForClient,
@@ -2867,6 +2873,48 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     },
 ];
 
+/**
+ * How long a push-rule write may hold the queue before later writes are let
+ * past it. Measured from the moment that write STARTS, so it bounds one
+ * write's own run rather than its wait in the line — N consecutively hung
+ * writes drain in N x this, never all at once. matrix-js-sdk attaches no abort
+ * signal (`localTimeoutMs` is set nowhere in `src`), so a request that never
+ * settles otherwise blocks every later push-rule write until the client is
+ * stopped. 30s matches the watchdog `leaveRoom` uses to stop waiting on the
+ * same class of hang.
+ */
+const PUSH_RULE_QUEUE_TIMEOUT_MS = 30_000;
+
+/**
+ * Every push-rule write below finishes by pulling the canonical rules back into
+ * the SDK's single shared `client.pushRules` cache, and the default-rule writes
+ * VERIFY themselves against that cache. Two writes in flight at once therefore
+ * corrupt each other: the first `GET /pushrules` can be issued before the second
+ * write lands yet resolve after it, so the first write is judged against the
+ * second one's state (a spurious "did not change" error for a change that
+ * worked) and its stale snapshot becomes the cache the settings UI reads back.
+ * That is a fake success through a different door, so all of them share ONE
+ * queue and no two ever interleave for longer than PUSH_RULE_QUEUE_TIMEOUT_MS.
+ * Each caller still gets its own outcome — `createSerialQueue` never lets one
+ * write's failure reach another's caller.
+ *
+ * The queue is bounded: a write still outstanding PUSH_RULE_QUEUE_TIMEOUT_MS
+ * after it starts stops holding the others up. Its own caller keeps awaiting
+ * the real request and still gets the real answer — the timeout buys liveness
+ * for later writes, it never invents an outcome for this one.
+ */
+const pushRuleWriteQueue = createSerialQueue({
+    timeoutMs: PUSH_RULE_QUEUE_TIMEOUT_MS,
+    // Diagnostic only. The queue advances before it calls this and swallows a
+    // throw from it, so a bad log line cannot hold later writes up.
+    onTimeout: () =>
+        console.warn(
+            "[push rules] a write has been in flight for",
+            PUSH_RULE_QUEUE_TIMEOUT_MS,
+            "ms — letting later writes past it",
+        ),
+});
+
 function getGlobalPushRules(): Record<string, any[]> | undefined {
     return (matrixClient as any)?.pushRules?.global as
         | Record<string, any[]>
@@ -2909,6 +2957,7 @@ function ruleHasSound(rule: any): boolean {
 }
 
 export function getDefaultPushRuleLevel(ruleId: string): PushRuleLevel {
+    void pushRulesState.revision;
     // Read whichever id actually exists (primary, then legacy fallback).
     const rule = findRuleWithFallback(ruleId);
     if (!rule || rule.enabled === false) return "off";
@@ -2950,99 +2999,65 @@ export async function setDefaultPushRuleLevel(
     level: PushRuleLevel,
 ): Promise<void> {
     if (!matrixClient) return;
+    const client = matrixClient;
 
-    const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
-    const defaultActions = ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
+    // Queued: the id resolution below reads the same cache a concurrent write
+    // would be refreshing, so it must run inside the queue too, not at call time.
+    return pushRuleWriteQueue.run(async () => {
+        const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
+        const defaultActions =
+            ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
 
-    // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
-    // .m.rule.roomnotif fallback): write to whichever id actually exists in this
-    // account's rules. If NEITHER exists, surface the error rather than silently
-    // pretending the change stuck.
-    const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
-    const hasFallbacks = (ruleDef?.fallbackRuleIds?.length ?? 0) > 0;
-    const targetId = existingId ?? ruleId;
+        // Dual-id rules (e.g. @room: primary .m.rule.is_room_mention, legacy
+        // .m.rule.roomnotif fallback): write to whichever id actually exists in
+        // this account's rules.
+        const existingId = candidateRuleIds(ruleId).find((id) => findRule(id));
+        const targetId = existingId ?? ruleId;
+        // Server-default rules (dotted IDs) cannot be created — only
+        // enabled/actions updated. Custom rules that don't exist yet must be
+        // created with addPushRule.
+        const isServerDefault = targetId.startsWith(".");
 
-    // Server-default rules (dotted IDs) cannot be created — only enabled/actions updated.
-    // Custom rules that don't exist yet must be created with addPushRule.
-    const isServerDefault = targetId.startsWith(".");
-
-    const createRule = async (actions: any[]) => {
-        const userId = matrixClient!.getUserId() ?? "";
-        const localpart = userId.startsWith("@")
-            ? userId.slice(1).split(":")[0]
-            : userId;
-        const conditions = ruleDef?.conditions?.map((c: any) =>
-            c.pattern === "SELF_USER_ID" ? { ...c, pattern: userId } : c,
-        );
-        const pattern =
-            ruleDef?.pattern === "USERNAME_LOCALPART"
-                ? localpart
-                : ruleDef?.pattern;
-        await matrixClient!.addPushRule("global", kind, targetId, {
-            actions,
-            conditions,
-            pattern,
-        });
-    };
-
-    if (level === "off") {
-        try {
-            await matrixClient.setPushRuleEnabled(
-                "global",
-                kind,
-                targetId,
-                false,
+        const createRule = async (actions: any[]) => {
+            const userId = client.getUserId() ?? "";
+            const localpart = userId.startsWith("@")
+                ? userId.slice(1).split(":")[0]
+                : userId;
+            const conditions = ruleDef?.conditions?.map((c: any) =>
+                c.pattern === "SELF_USER_ID" ? { ...c, pattern: userId } : c,
             );
-        } catch (err) {
-            if (!isServerDefault) {
-                await createRule(actionsForLevel(defaultActions, "silent"));
-                await matrixClient.setPushRuleEnabled(
-                    "global",
-                    kind,
-                    targetId,
-                    false,
-                );
-            } else if (hasFallbacks && !existingId) {
-                // Neither the primary nor the legacy @room id exists — surface
-                // the failure instead of faking success.
-                throw err;
-            }
-            // Other server-default rules: fall through, update local state optimistically.
-        }
-        const rule = findRule(targetId);
-        if (rule) rule.enabled = false;
-    } else {
-        const actions: any[] = actionsForLevel(defaultActions, level);
-        try {
-            await matrixClient.setPushRuleActions(
-                "global",
-                kind,
-                targetId,
+            const pattern =
+                ruleDef?.pattern === "USERNAME_LOCALPART"
+                    ? localpart
+                    : ruleDef?.pattern;
+            await client.addPushRule("global", kind, targetId, {
                 actions,
-            );
-            await matrixClient.setPushRuleEnabled(
-                "global",
-                kind,
+                conditions,
+                pattern,
+            });
+        };
+
+        try {
+            await setDefaultPushRuleLevelForClient(client, {
+                ruleId,
                 targetId,
-                true,
-            );
-        } catch (err) {
-            if (isServerDefault) {
-                if (hasFallbacks && !existingId) {
-                    // Neither @room id exists — surface, don't fake success.
-                    throw err;
-                }
-                // Other server-default rules: update local state optimistically only.
-            } else {
-                await createRule(actions);
-            }
+                kind,
+                level,
+                defaultActions,
+                label: ruleDef?.label ?? ruleId,
+                createRule: isServerDefault ? null : createRule,
+                readLevel: () => getDefaultPushRuleLevel(ruleId),
+                applyOptimistic: (actions) => {
+                    const rule = findRule(targetId);
+                    if (!rule) return;
+                    rule.enabled = level !== "off";
+                    if (level !== "off") rule.actions = actions;
+                },
+            });
+        } finally {
+            pushRulesState.revision++;
         }
-        const rule = findRule(targetId);
-        if (rule) {
-            rule.enabled = true;
-            rule.actions = actions;
-        }
-    }
+    });
 }
 
 // ── Per-room notification settings ────────────────────────────────────────
@@ -3060,15 +3075,32 @@ export async function setRoomNotificationSetting(
     setting: RoomNotificationSetting,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await setRoomNotificationSettingForClient(
-            matrixClient,
-            roomId,
-            setting,
-        );
-    } finally {
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await setRoomNotificationSettingForClient(client, roomId, setting);
+        } catch (error) {
+            // The settings panel toasts this message verbatim, and a raw
+            // MatrixError stringifies to "[403] Forbidden (https://…/_matrix/
+            // client/v3/pushrules/…)" — a URL and a status code are not an
+            // explanation. Translate it the same way the default-rule writes do,
+            // keeping the original in the console for diagnostics.
+            console.warn(
+                "[push rules] room notification write failed",
+                roomId,
+                error,
+            );
+            const room = client.getRoom(roomId);
+            throw new Error(
+                pushRuleFailureMessage(
+                    room ? getRoomDisplayName(room) : "this room",
+                    classifyPushRuleWriteError(error),
+                ),
+            );
+        } finally {
+            pushRulesState.revision++;
+        }
+    });
 }
 
 // ── Keyword highlight rules (content-kind push rules) ─────────────────────
@@ -3077,11 +3109,8 @@ export type { KeywordBehavior, KeywordRuleView } from "$lib/utils/keywordRules";
 
 /** Re-pull the canonical push-rule set into the SDK cache; never throws. */
 async function refreshPushRulesCache(): Promise<void> {
-    try {
-        await matrixClient?.getPushRules();
-    } catch (error) {
-        console.warn("Failed to refresh push rules cache", error);
-    }
+    if (!matrixClient) return;
+    await refreshCachedPushRules(matrixClient);
 }
 
 /** Reactive read: user keyword rules from the cached global.content set. */
@@ -3098,23 +3127,26 @@ export async function addKeywordRule(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
+    const client = matrixClient;
     // Dotted ids are reserved for server-default rules; a content rule whose
     // rule_id/pattern starts with "." would collide with them. Reject up front
     // so the error surfaces through the caller's catch (see NotificationSettings).
     if (pattern.startsWith(".")) {
         throw new Error("Keyword cannot start with '.'");
     }
-    try {
-        await matrixClient.addPushRule(
-            "global",
-            PushRuleKind.ContentSpecific,
-            pattern, // rule_id == pattern (SDK URL-encodes it)
-            { actions: keywordActions(behavior), pattern },
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.addPushRule(
+                "global",
+                PushRuleKind.ContentSpecific,
+                pattern, // rule_id == pattern (SDK URL-encodes it)
+                { actions: keywordActions(behavior), pattern },
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function setKeywordRuleBehavior(
@@ -3122,17 +3154,20 @@ export async function setKeywordRuleBehavior(
     behavior: KeywordBehavior,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.setPushRuleActions(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-            keywordActions(behavior),
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.setPushRuleActions(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+                keywordActions(behavior),
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function setKeywordRuleEnabled(
@@ -3140,31 +3175,37 @@ export async function setKeywordRuleEnabled(
     enabled: boolean,
 ): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.setPushRuleEnabled(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-            enabled,
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.setPushRuleEnabled(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+                enabled,
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export async function deleteKeywordRule(ruleId: string): Promise<void> {
     if (!matrixClient) return;
-    try {
-        await matrixClient.deletePushRule(
-            "global",
-            PushRuleKind.ContentSpecific,
-            ruleId,
-        );
-    } finally {
-        await refreshPushRulesCache();
-        pushRulesState.revision++;
-    }
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.deletePushRule(
+                "global",
+                PushRuleKind.ContentSpecific,
+                ruleId,
+            );
+        } finally {
+            await refreshPushRulesCache();
+            pushRulesState.revision++;
+        }
+    });
 }
 
 export function onAnyReceiptEvent(callback: () => void): () => void {
