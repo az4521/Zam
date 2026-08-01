@@ -137,6 +137,14 @@ import {
     isValidChildOrder,
 } from "$lib/utils/orderKey";
 import { lazyModule } from "$lib/utils/lazyModule";
+import {
+    sortSpaceChildIds,
+    type SpaceChildDescriptor,
+} from "$lib/utils/spaceChildren";
+import {
+    classifyRooms,
+    type RoomClassification,
+} from "$lib/utils/roomClassification";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
@@ -349,6 +357,9 @@ async function createAuthenticatedClient(opts: {
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
     matrixStore = null;
+    // Same reasoning as the media limit below: the outgoing client's memoized
+    // space-child lists must not be carried into the incoming account's session.
+    spaceChildCache.clear();
     // Drop the previous server's cached media-config upload limit — this funnel
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
@@ -876,6 +887,10 @@ export async function logout(): Promise<void> {
             matrixClient = null;
             matrixStore = null;
             clientGeneration = nextGeneration(clientGeneration);
+            // Memoized space-child ids belong to the account being released;
+            // the next account must not read them back (R3 clears this on the
+            // other two teardown paths for the same reason).
+            spaceChildCache.clear();
         }
     };
     if (client) {
@@ -936,6 +951,7 @@ export async function logout(): Promise<void> {
         if (outcome.localWipeOk && userId && deviceId) {
             forgetPendingWipe({ userId, deviceId });
         }
+<<<<<<< HEAD
         // The sequence reports what actually happened to the two things that
         // matter about signing out; discarding it would make a failed wipe or a
         // still-live token indistinguishable from a clean logout. Console only —
@@ -964,6 +980,9 @@ export function stopClient(): void {
     clientGeneration = nextGeneration(clientGeneration);
     matrixStore?.destroy().catch(() => {});
     matrixStore = null;
+    // Room ids are globally unique so a surviving entry could not be *wrong*,
+    // but it must not outlive the session it was built for.
+    spaceChildCache.clear();
 }
 
 const pendingLeaves = new Set<string>();
@@ -1096,35 +1115,78 @@ export function getSpaces(): Room[] {
     return getRooms().filter((r) => r.isSpaceRoom());
 }
 
-export function getSpaceChildIds(spaceId: string): string[] {
-    const space = matrixClient?.getRoom(spaceId);
-    if (!space) return [];
+// `m.space.child` ordering is recomputed constantly — SpaceSidebar's unread
+// badge walks every space (and every sub-space) on every unread tick, and each
+// walk sorts the child list twice. A state event is replaced, never edited, so
+// the list of current event ids is a complete signature: an added, removed,
+// re-ordered or re-via'd child always arrives as a NEW event with a new id.
+// The ONE in-place mutation the SDK performs is redaction, which keeps the id
+// and empties the content — signatureOf() marks that case explicitly.
+const spaceChildCache = new Map<string, { signature: string; ids: string[] }>();
 
+function spaceChildEvents(spaceId: string) {
+    const space = matrixClient?.getRoom(spaceId);
+    if (!space) return null;
     const events = space
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents("m.space.child");
-    const arr = Array.isArray(events) ? events : events ? [events] : [];
+    return Array.isArray(events) ? events : events ? [events] : [];
+}
 
-    return arr
-        .filter((e) => {
-            const content = e.getContent();
-            return content?.via?.length > 0;
-        })
-        .sort((a, b) => {
-            const ao: string | undefined = a.getContent()?.order;
-            const bo: string | undefined = b.getContent()?.order;
-            const byOrder = compareOrderLex(ao, bo);
-            if (byOrder !== 0) return byOrder;
-            // Equal/both-missing order: the spec's primary no-order tie-break is
-            // the child event's origin_server_ts ascending, then room ID for
-            // full stability.
-            const byTs = a.getTs() - b.getTs();
-            if (byTs !== 0) return byTs;
-            return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
-        })
-        .map((e) => e.getStateKey()!)
-        .filter(Boolean);
+/**
+ * Signature over the array the caller already holds — `getStateEvents(type)`
+ * builds a fresh array on every call, so the id-by-id walk must not re-fetch it.
+ */
+function signatureOf(events: MatrixEvent[]): string {
+    const parts: string[] = [];
+    for (const e of events) {
+        const id = e.getId();
+        // An event with no id would make two different states share a
+        // signature — refuse to sign rather than cache a wrong answer.
+        if (!id) return "";
+        // A redaction mutates the event IN PLACE and keeps its id (the SDK's
+        // MSC4293 ban handler does exactly this to state events), so the id
+        // alone would not move while `via` disappeared. isRedacted() is a
+        // property read — no getContent() — so the signature stays cheap.
+        parts.push(e.isRedacted() ? `${id}!` : id);
+    }
+    return parts.join("|");
+}
+
+/**
+ * Cheap identity of a space's child state. Empty string means "no space" or
+ * "not cacheable"; callers use it to decide whether derived data went stale.
+ */
+export function getSpaceChildSignature(spaceId: string): string {
+    const arr = spaceChildEvents(spaceId);
+    if (!arr) return "";
+    return signatureOf(arr);
+}
+
+export function getSpaceChildIds(spaceId: string): string[] {
+    const arr = spaceChildEvents(spaceId);
+    if (!arr) return [];
+
+    const signature = signatureOf(arr);
+    if (signature) {
+        const cached = spaceChildCache.get(spaceId);
+        if (cached && cached.signature === signature) return cached.ids;
+    }
+
+    const descriptors: SpaceChildDescriptor[] = arr.map((e) => {
+        const content = e.getContent();
+        return {
+            stateKey: e.getStateKey() ?? "",
+            via: content?.via,
+            order: content?.order,
+            ts: e.getTs(),
+        };
+    });
+    const ids = sortSpaceChildIds(descriptors);
+    // Callers treat this as read-only (verified at every call site).
+    if (signature) spaceChildCache.set(spaceId, { signature, ids });
+    return ids;
 }
 
 /**
@@ -1197,6 +1259,54 @@ export function getDirectRooms(): Room[] {
     return getRooms().filter(
         (r) => directIds.has(r.roomId) && !r.isSpaceRoom(),
     );
+}
+
+/**
+ * All six room buckets from ONE pass. `refreshRooms()` used to call
+ * getSpaces/getOrphanRooms/getDirectRooms/getInvitedRooms/getKnockedRooms/
+ * getRoomsInSpace separately, which meant four full scans of every room plus
+ * two independent derivations of every space's child list, on every sync.
+ * getSpaces/getOrphanRooms/getDirectRooms stay exported for their other
+ * callers (settings panes, SpaceSidebar, incomingCalls); getInvitedRooms and
+ * getKnockedRooms now have none in `src/` and are kept as SDK-boundary API.
+ */
+export function getRoomClassification(
+    activeSpaceId: string | null,
+): RoomClassification<Room> {
+    // Deliberately the UNFILTERED SDK list: getInvitedRooms/getKnockedRooms
+    // read it raw, and only the joined buckets go through the pendingLeaves
+    // filter that the exported getRooms() applies.
+    const all = matrixClient?.getRooms() ?? [];
+    const rooms = all.map((r) => ({
+        room: r,
+        roomId: r.roomId,
+        isSpace: r.isSpaceRoom(),
+        membership: r.getMyMembership(),
+        pendingLeave: pendingLeaves.has(r.roomId),
+    }));
+
+    // getOrphanRooms derives its child set from getSpaces(), which runs through
+    // the join + pendingLeaves filter — mirror that here or a leaving space
+    // would keep adopting its children.
+    const spaceChildIds = new Map<string, readonly string[]>();
+    for (const d of rooms) {
+        if (!d.isSpace || d.membership !== "join" || d.pendingLeave) continue;
+        spaceChildIds.set(d.roomId, getSpaceChildIds(d.roomId));
+    }
+
+    return classifyRooms({
+        rooms,
+        directIds: getDirectRoomIds(),
+        spaceChildIds,
+        // getRoomsInSpace() gates the children, NOT the space, so the active
+        // space's list must not go through the join filter above: a space we
+        // are leaving, or were removed from elsewhere, keeps listing its rooms
+        // until the view moves away. Costs one extra child-list read (memoized)
+        // when the active space is not joined.
+        activeSpaceChildIds: activeSpaceId
+            ? getSpaceChildIds(activeSpaceId)
+            : [],
+    });
 }
 
 // ── Room tags (favourites / low priority) ──────────────────────────────────
@@ -4028,19 +4138,32 @@ export interface SpaceChildInfo {
     isKnocked?: boolean;
 }
 
-// Spaces whose direct /hierarchy call failed this session — the periodic
-// refresh would otherwise re-attempt (and re-403) every couple of seconds
-// while the user browses an unjoined sub-space.
+// Spaces whose direct /hierarchy call failed this session — re-opening such a
+// space walks straight in through the parent instead of re-403ing first.
 const hierarchyDirectFailed = new Set<string>();
 
+/**
+ * The active space's child rooms, from /hierarchy (paginated), falling back to
+ * the parent space's deeper hierarchy when the server refuses the direct call.
+ *
+ * Returns `null` when the hierarchy could NOT be obtained — a failed request,
+ * or no client yet — and `[]` only when the space genuinely has no children.
+ * Callers must not overwrite a good hierarchy on `null`: `[]` would blank the
+ * sidebar AND be recorded as a successful refresh, arming the several-minute
+ * TTL against it. On `null` keep what is on screen; the caller retries on a
+ * later sync, subject to the failure backoff in utils/hierarchyRefresh.ts.
+ */
 export async function fetchSpaceHierarchy(
     spaceId: string,
     parentSpaceId?: string,
     // How many levels below parentSpaceId the drilled space sits — the
     // fallback must fetch one level deeper than that to see its children.
     drillDepth = 1,
-): Promise<SpaceChildInfo[]> {
-    if (!matrixClient) return [];
+): Promise<SpaceChildInfo[] | null> {
+    // No client yet is "could not fetch", not "this space is empty": returning
+    // [] here would be recorded as a successful refresh and blank the sidebar
+    // for the length of the TTL. The store's initial value is already [].
+    if (!matrixClient) return null;
 
     // Follow `next_batch` across pages so spaces with more than 200 rooms
     // populate fully (the SDK caps a single /hierarchy response at the given
@@ -4124,7 +4247,7 @@ export async function fetchSpaceHierarchy(
         // 200 rooms).
         if (!parentSpaceId) {
             console.error("Failed to fetch space hierarchy:", err);
-            return [];
+            return null;
         }
         hierarchyDirectFailed.add(spaceId);
         try {
@@ -4132,7 +4255,7 @@ export async function fetchSpaceHierarchy(
             const slice = extractSubspaceChildren(parent.rooms, spaceId);
             if (!slice) {
                 console.error("Failed to fetch space hierarchy:", err);
-                return [];
+                return null;
             }
             rooms = parent.rooms.filter((r) =>
                 slice.childIds.has(r["room_id"] as string),
@@ -4144,7 +4267,7 @@ export async function fetchSpaceHierarchy(
                 err,
                 parentErr,
             );
-            return [];
+            return null;
         }
     }
 

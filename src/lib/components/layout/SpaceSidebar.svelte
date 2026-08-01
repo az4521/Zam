@@ -240,6 +240,7 @@
         | { kind: "folder"; id: string; spaces: Room[] };
 
     const rootItems = $derived.by((): RootItem[] => {
+        void roomsState.roomsTick; // space names/avatars mutate in place
         const { order, folders } = roomsState.spaceLayout;
         const spacesInFolders = new Set(
             Object.values(folders).flatMap((f) => f.spaceIds),

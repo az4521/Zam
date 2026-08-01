@@ -78,13 +78,10 @@
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
     import {
-        getSpaces,
-        getOrphanRooms,
-        getDirectRooms,
+        getRoomClassification,
         getRoomsInSpace,
-        getInvitedRooms,
-        getKnockedRooms,
         getSpaceLayout,
+        getSpaceChildSignature,
         fetchSpaceHierarchy,
         scheduleJoinedRoomsReconcile,
         getRoom,
@@ -127,6 +124,14 @@
         shouldSuppressForActiveDevice,
         shouldWriteHeartbeat,
     } from "$lib/utils/activeSession";
+    import { sameOrder } from "$lib/utils/roomClassification";
+    import {
+        HIERARCHY_TTL_MS,
+        HIERARCHY_FAILURE_BACKOFF_MS,
+        hierarchyKey,
+        shouldFetchHierarchy,
+        hierarchyResultAction,
+    } from "$lib/utils/hierarchyRefresh";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
@@ -824,28 +829,141 @@
         }, 50);
     }
 
-    let hierarchyRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-    function scheduleHierarchyRefresh(spaceId: string) {
-        if (hierarchyRefreshTimer) return;
-        hierarchyRefreshTimer = setTimeout(() => {
-            hierarchyRefreshTimer = null;
-            if (roomsState.activeSpaceId !== spaceId) return;
-            fetchSpaceHierarchy(
-                spaceId,
-                roomsState.spaceDrillParentId ?? undefined,
-                roomsState.spaceDrillDepth || 1,
-            ).then((hierarchy) => {
-                if (roomsState.activeSpaceId === spaceId) {
-                    roomsState.spaceHierarchy = hierarchy;
+    // Hierarchy refresh: invalidate on real local state change + a TTL floor,
+    // with in-flight coalescing, request generations and a failure backoff.
+    // Master re-armed a 2 s timer from every sync, so an open space fetched
+    // (paginated) /hierarchy roughly every two seconds for as long as it
+    // stayed open.
+    let hierarchyGeneration = 0;
+    let hierarchyInFlightKey: string | null = null;
+    let hierarchyLastAppliedKey: string | null = null;
+    let hierarchyLastAppliedAt: number | null = null;
+    let hierarchyLastFailedKey: string | null = null;
+    let hierarchyLastFailedAt: number | null = null;
+
+    function requestHierarchy(spaceId: string, force: boolean) {
+        const parentSpaceId = roomsState.spaceDrillParentId ?? null;
+        const key = hierarchyKey({
+            spaceId,
+            parentSpaceId,
+            drillDepth: roomsState.spaceDrillDepth || 1,
+            childSignature: getSpaceChildSignature(spaceId),
+            parentSignature: parentSpaceId
+                ? getSpaceChildSignature(parentSpaceId)
+                : "",
+            // Cheap: the child list behind this is memoized by signature.
+            joinedChildCount: getRoomsInSpace(spaceId).length,
+        });
+        if (
+            !shouldFetchHierarchy({
+                key,
+                inFlightKey: hierarchyInFlightKey,
+                lastAppliedKey: hierarchyLastAppliedKey,
+                lastAppliedAt: hierarchyLastAppliedAt,
+                lastFailedKey: hierarchyLastFailedKey,
+                lastFailedAt: hierarchyLastFailedAt,
+                failureBackoffMs: HIERARCHY_FAILURE_BACKOFF_MS,
+                now: Date.now(),
+                ttlMs: HIERARCHY_TTL_MS,
+                force,
+            })
+        ) {
+            // A forced open that coalesced onto a live request for the same key
+            // still owns the spinner. Boot hits this every time: onMount's
+            // refreshRooms() registers its effect first and starts a SILENT
+            // background fetch, so without this the restored space shows no
+            // spinner and RoomList's "No rooms yet" flashes over the wait.
+            // Cannot strand — the request holding this key settles into apply
+            // or keep-previous, both of which clear the flag, and leaving for
+            // Home clears it too.
+            if (force && hierarchyInFlightKey === key)
+                roomsState.hierarchyLoading = true;
+            return;
+        }
+
+        const generation = ++hierarchyGeneration;
+        hierarchyInFlightKey = key;
+        // Only a user-driven open shows the spinner; a background TTL refresh
+        // must not flash one over data that is already on screen.
+        if (force) roomsState.hierarchyLoading = true;
+
+        fetchSpaceHierarchy(
+            spaceId,
+            parentSpaceId ?? undefined,
+            roomsState.spaceDrillDepth || 1,
+        )
+            .catch(() => null)
+            .then((hierarchy) => {
+                if (hierarchyInFlightKey === key) hierarchyInFlightKey = null;
+                const action = hierarchyResultAction({
+                    requestGeneration: generation,
+                    latestGeneration: hierarchyGeneration,
+                    requestSpaceId: spaceId,
+                    activeSpaceId: roomsState.activeSpaceId,
+                    failed: hierarchy === null,
+                });
+                // "drop": a newer request owns the loading flag — touch nothing.
+                if (action === "drop") return;
+                if (action === "apply") {
+                    roomsState.spaceHierarchy = hierarchy ?? [];
+                    hierarchyLastAppliedKey = key;
+                    hierarchyLastAppliedAt = Date.now();
+                    hierarchyLastFailedKey = null;
+                    hierarchyLastFailedAt = null;
+                } else {
+                    // "keep-previous": leave spaceHierarchy alone, arm the
+                    // failure backoff, and FORGET the applied key. Forgetting
+                    // is what makes the retry real: after an earlier successful
+                    // load of this same space the applied key is this very key,
+                    // so leaving it in place would block every later sync on
+                    // the TTL — a failed re-open (which starts from a blanked
+                    // spaceHierarchy) would show an empty browse list for five
+                    // minutes with no spinner and no error.
+                    hierarchyLastFailedKey = key;
+                    hierarchyLastFailedAt = Date.now();
+                    hierarchyLastAppliedKey = null;
+                    hierarchyLastAppliedAt = null;
                 }
+                roomsState.hierarchyLoading = false;
             });
-        }, 2000);
+    }
+
+    type RoomBucket =
+        | "spaces"
+        | "orphanRooms"
+        | "directRooms"
+        | "invitedRooms"
+        | "knockedRooms"
+        | "roomsInSpace";
+
+    /**
+     * Republish a bucket only when its contents actually changed. An
+     * element-wise identical array would invalidate every dependent for
+     * nothing — and `roomsState.roomsTick` still fires unconditionally at the
+     * end of `refreshRooms()`, so anything rendering in-place-mutated Room
+     * data still refreshes (this repo's reactivity contract, see CLAUDE.md).
+     *
+     * Compare against the STORE, never a private "last published" cache: four
+     * of the six buckets are also written from outside `refreshRooms()`
+     * (RoomList's optimistic leave filter and its space-change effect, the
+     * space-change `$effect` below, RoomSettings' `onUpdate`). A private cache
+     * would let a later identical computation be skipped against a store that
+     * had since diverged. Reading the store creates no dependency:
+     * `refreshRooms()` runs from a timeout, from `onMount`, or from an SDK
+     * account-data listener — never from inside a tracked effect.
+     */
+    function publishBucket(bucket: RoomBucket, next: Room[]): void {
+        if (!sameOrder(next, roomsState[bucket])) roomsState[bucket] = next;
     }
 
     function refreshRooms() {
         const layout = getSpaceLayout();
+        // Deliberately unconditional: SpaceSidebar's `rootItems` derived reads
+        // spaceLayout and leans on this reassignment to pick up renamed or
+        // re-avatared spaces. Do not dedupe it.
         roomsState.spaceLayout = layout;
-        const spaces = getSpaces();
+        const classification = getRoomClassification(roomsState.activeSpaceId);
+        const spaces = classification.spaces;
         if (layout.order.length) {
             // Build a flat ordered list of all space IDs (including those inside folders)
             const idIndex = new Map<string, number>();
@@ -864,14 +982,14 @@
                 return ai - bi;
             });
         }
-        roomsState.spaces = spaces;
-        roomsState.orphanRooms = getOrphanRooms();
-        roomsState.directRooms = getDirectRooms();
-        roomsState.invitedRooms = getInvitedRooms();
-        roomsState.knockedRooms = getKnockedRooms();
+        publishBucket("spaces", spaces);
+        publishBucket("orphanRooms", classification.orphanRooms);
+        publishBucket("directRooms", classification.directRooms);
+        publishBucket("invitedRooms", classification.invitedRooms);
+        publishBucket("knockedRooms", classification.knockedRooms);
         if (roomsState.activeSpaceId) {
-            roomsState.roomsInSpace = getRoomsInSpace(roomsState.activeSpaceId);
-            scheduleHierarchyRefresh(roomsState.activeSpaceId);
+            publishBucket("roomsInSpace", classification.roomsInSpace);
+            requestHierarchy(roomsState.activeSpaceId, false);
         }
         // The room list has just been rebuilt from the SDK, so this is the
         // earliest honest moment to settle a surface choice boot had to defer.
@@ -1281,21 +1399,19 @@
         roomsState.roomsInSpace = rooms;
 
         if (spaceId) {
-            roomsState.hierarchyLoading = true;
             // Opening a space is a natural moment to catch a joined child room
             // that incremental sync dropped (heals in place, no reload).
             scheduleJoinedRoomsReconcile();
-            fetchSpaceHierarchy(
-                spaceId,
-                roomsState.spaceDrillParentId ?? undefined,
-                roomsState.spaceDrillDepth || 1,
-            ).then((hierarchy) => {
-                // Only apply if the space hasn't changed while we were fetching
-                if (roomsState.activeSpaceId === spaceId) {
-                    roomsState.spaceHierarchy = hierarchy;
-                    roomsState.hierarchyLoading = false;
-                }
-            });
+            // The spinner is set inside requestHierarchy's force branch: a
+            // coalesced request returns early and must leave the flag exactly
+            // as it found it, or it would strand.
+            requestHierarchy(spaceId, true);
+        } else {
+            // Home requests no hierarchy, so no live request can own the flag
+            // here. Without this, leaving a space while its fetch is in flight
+            // strands the spinner (the result drops on the space check) and
+            // suppresses RoomList's "No rooms yet" hint.
+            roomsState.hierarchyLoading = false;
         }
     });
 
