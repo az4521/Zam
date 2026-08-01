@@ -21,6 +21,7 @@ const h = vi.hoisted(() => {
         ),
         isVideoRoom: vi.fn<(room: FakeRoom) => boolean>((r) => r.videoRoom),
         roomTypeIsKnown: vi.fn<(room: FakeRoom) => boolean>((r) => r.typeKnown),
+        markRoomPendingArrival: vi.fn<(roomId: string) => void>(),
     };
 });
 
@@ -29,6 +30,7 @@ vi.mock("$lib/matrix/client", () => ({
     getRoom: h.getRoom,
     isVideoRoom: h.isVideoRoom,
     roomTypeIsKnown: h.roomTypeIsKnown,
+    markRoomPendingArrival: h.markRoomPendingArrival,
 }));
 
 vi.mock("$lib/stores/settings.svelte", () => ({
@@ -83,6 +85,7 @@ beforeEach(() => {
     h.rooms.clear();
     localStorage.clear();
     interfaceState.callViewRoomId = null;
+    h.markRoomPendingArrival.mockClear();
 });
 
 describe("rooms store: surface choice on navigation", () => {
@@ -110,6 +113,30 @@ describe("rooms store: surface choice on navigation", () => {
         setActiveRoom(CHAT);
 
         expect(interfaceState.callViewRoomId).toBeNull();
+    });
+});
+
+describe("rooms store: pending-arrival marking", () => {
+    it("marks a room navigated to, so a room not yet in the store stays landable", () => {
+        // The create/join wrappers all resolve before the room reaches the
+        // client store and then call setActiveRoom — the funnel must claim it.
+        setActiveRoom(CHAT);
+
+        expect(h.markRoomPendingArrival).toHaveBeenCalledWith(CHAT);
+    });
+
+    it("does NOT mark the boot-restored room", () => {
+        // D2: a stale cached id must still be free to fall through the landing
+        // chain, which marking it here would defeat.
+        localStorage.setItem(
+            "matrix_last_room_by_space:@me:server",
+            JSON.stringify({ __home__: CHAT }),
+        );
+
+        reloadLastLocationFromStorage();
+
+        expect(roomsState.activeRoomId).toBe(CHAT);
+        expect(h.markRoomPendingArrival).not.toHaveBeenCalled();
     });
 });
 

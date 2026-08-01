@@ -11,6 +11,7 @@
     import ShareLocationDialog from "$lib/components/messages/ShareLocationDialog.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
+    import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
     import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
@@ -25,6 +26,7 @@
         bumpUnreadTick,
         reloadLastLocationFromStorage,
         resolvePendingSurface,
+        resolveLandingSurface,
     } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
@@ -863,6 +865,11 @@
         // The room list has just been rebuilt from the SDK, so this is the
         // earliest honest moment to settle a surface choice boot had to defer.
         resolvePendingSurface();
+        // Same reasoning as the line above: the room list is real now, so this
+        // is the first honest moment to replace an empty or stale main pane.
+        // Bumping the tick afterwards lets the new selection render in the
+        // same pass.
+        resolveLandingSurface();
         roomsState.roomsTick++;
     }
 
@@ -1441,6 +1448,11 @@
                         onMenuOpen={() => (interfaceState.leftOpen = true)}
                     />
                 {/if}
+            {:else if roomsState.activeSpaceId !== null}
+                <SpaceLandingPanel
+                    isMobile={interfaceState.isMobile}
+                    onMenuOpen={() => (interfaceState.leftOpen = true)}
+                />
             {:else}
                 <div
                     class="flex-1 flex flex-col items-center justify-center text-center p-8"
@@ -1452,18 +1464,31 @@
                             >#</span
                         >
                     </div>
-                    <h2
-                        class="text-2xl font-bold text-discord-textPrimary mb-2"
-                    >
-                        {roomsState.activeSpaceId === null
-                            ? "Select a room"
-                            : "Select a channel"}
-                    </h2>
-                    <p class="text-discord-textMuted max-w-sm">
-                        {roomsState.activeSpaceId === null
-                            ? "Choose a room or direct message from the sidebar to start chatting."
-                            : "Choose a channel from the list on the left to start chatting."}
-                    </p>
+                    <!-- Only a spaceless account is genuinely empty. With
+                         spaces joined, Home being empty just means every room
+                         lives in one — saying "no rooms yet" would be a lie. -->
+                    {#if roomsState.spaces.length === 0}
+                        <h2
+                            class="text-2xl font-bold text-discord-textPrimary mb-2"
+                        >
+                            No rooms yet
+                        </h2>
+                        <p class="text-discord-textMuted max-w-sm">
+                            Create a room or start a direct message to get
+                            going.
+                        </p>
+                    {:else}
+                        <h2
+                            class="text-2xl font-bold text-discord-textPrimary mb-2"
+                        >
+                            Nothing in Home
+                        </h2>
+                        <p class="text-discord-textMuted max-w-sm">
+                            All of your rooms live in spaces — open one to see
+                            them. Rooms and direct messages outside a space show
+                            up here.
+                        </p>
+                    {/if}
                     {#if interfaceState.isMobile}
                         <button
                             onclick={() => (interfaceState.leftOpen = true)}
