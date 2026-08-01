@@ -2731,8 +2731,9 @@ const PUSH_RULE_QUEUE_TIMEOUT_MS = 30_000;
  * second one's state (a spurious "did not change" error for a change that
  * worked) and its stale snapshot becomes the cache the settings UI reads back.
  * That is a fake success through a different door, so all of them share ONE
- * queue and no two ever interleave. Each caller still gets its own outcome —
- * `createSerialQueue` never lets one write's failure reach another's caller.
+ * queue and no two ever interleave for longer than PUSH_RULE_QUEUE_TIMEOUT_MS.
+ * Each caller still gets its own outcome — `createSerialQueue` never lets one
+ * write's failure reach another's caller.
  *
  * The queue is bounded: a write still outstanding PUSH_RULE_QUEUE_TIMEOUT_MS
  * after it starts stops holding the others up. Its own caller keeps awaiting
@@ -2741,8 +2742,8 @@ const PUSH_RULE_QUEUE_TIMEOUT_MS = 30_000;
  */
 const pushRuleWriteQueue = createSerialQueue({
     timeoutMs: PUSH_RULE_QUEUE_TIMEOUT_MS,
-    // Diagnostic only, and it must never throw: the queue calls this before it
-    // advances, so a throwing hook would wedge it for good.
+    // Diagnostic only. The queue advances before it calls this and swallows a
+    // throw from it, so a bad log line cannot hold later writes up.
     onTimeout: () =>
         console.warn(
             "[push rules] a write has been in flight for",

@@ -269,6 +269,41 @@ describe("createSerialQueue — timeoutMs", () => {
         expect(order).toEqual(["second-start", "second-end", "third"]);
     });
 
+    // The hook is a DIAGNOSTIC. Advancing the queue is the whole point of the
+    // timeout, so it must not be hostage to the hook: if `onTimeout` throws,
+    // the queue still lets the next task past — otherwise a bad log line
+    // re-admits the exact deadlock this timeout exists to remove.
+    it("still advances when the onTimeout hook throws", async () => {
+        const onTimeout = vi.fn(() => {
+            throw new Error("hook boom");
+        });
+        const queue = createSerialQueue({ timeoutMs: 1000, onTimeout });
+        const stuck = deferred<string>();
+        const ran: string[] = [];
+
+        const first = queue.run(async () => {
+            ran.push("first-start");
+            return stuck.promise;
+        });
+        const second = queue.run(async () => {
+            ran.push("second");
+            return "second-done";
+        });
+
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(onTimeout).toHaveBeenCalledTimes(1);
+        await expect(second).resolves.toBe("second-done");
+        expect(ran).toEqual(["first-start", "second"]);
+
+        // …and the queue is still usable afterwards, not left half-wedged.
+        await expect(queue.run(async () => "third")).resolves.toBe("third");
+
+        // The abandoned caller still gets its own real outcome.
+        stuck.resolve("late");
+        await expect(first).resolves.toBe("late");
+    });
+
     it("a rejecting task with a timeout set neither blocks nor fails the next one", async () => {
         const queue = createSerialQueue({ timeoutMs: 1000 });
         const ran: string[] = [];

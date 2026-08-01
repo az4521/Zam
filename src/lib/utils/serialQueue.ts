@@ -1,7 +1,8 @@
 // A minimal promise queue: tasks run strictly one at a time, in the order they
 // were handed over. Pure — no SDK, no globals beyond `setTimeout`/`clearTimeout`
-// (and those only when a timeout is configured) — so the ordering and the
-// failure semantics are unit-testable on their own.
+// (and those only when a timeout is configured) plus one `console.warn` on the
+// should-never-happen path where a caller's `onTimeout` hook throws — so the
+// ordering and the failure semantics are unit-testable on their own.
 
 export interface SerialQueue {
     /**
@@ -88,7 +89,6 @@ export function createSerialQueue(
             // `ReturnType<typeof setTimeout>`, never `number`: this project
             // type-checks against both the DOM and the node lib types.
             let timer: ReturnType<typeof setTimeout> | undefined;
-            let timedOut = false;
 
             // The clock starts inside the same job that starts the task, so it
             // measures that task's own run. Arming it at queue time instead
@@ -96,9 +96,17 @@ export function createSerialQueue(
             // whole backlog stampede out in parallel.
             const result = tail.then(() => {
                 timer = setTimeout(() => {
-                    timedOut = true;
-                    onTimeout?.();
+                    // Advance FIRST, and never let the hook's outcome decide
+                    // whether we do. `onTimeout` is a diagnostic; letting a
+                    // throw in it skip the advance would wedge the queue for
+                    // the rest of the session — the exact deadlock this
+                    // timeout exists to remove.
                     advance();
+                    try {
+                        onTimeout?.();
+                    } catch (err) {
+                        console.warn("[serialQueue] onTimeout hook threw", err);
+                    }
                 }, timeoutMs);
                 return task();
             });
@@ -110,9 +118,12 @@ export function createSerialQueue(
             // rejection without adopting it.
             const finish = () => {
                 clearTimeout(timer);
-                // Resolving twice is a no-op, but skipping it keeps the
-                // late-settle path from doing anything observable at all.
-                if (!timedOut) advance();
+                // Unconditional on purpose. If the timeout already fired, the
+                // queue has already moved on and resolving a second time is a
+                // no-op; guarding on a `timedOut` flag would only ever be able
+                // to WITHHOLD an advance, which is the one thing this queue
+                // must never do.
+                advance();
             };
             void result.then(finish, finish);
 
