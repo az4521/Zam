@@ -1012,6 +1012,63 @@ describe("live-location own-share engine", () => {
         expect(clearWatch).not.toHaveBeenCalled();
     });
 
+    it("does not adopt a beacon that landed after its session ended", async () => {
+        // The create round-trip is still out when the user flips to the
+        // add-account route: AppShell unmounts, the teardown sweeps a map this
+        // room is not in yet, and the beacon lands afterwards. Adopting it
+        // would hand the next session an ACTIVE record for the previous
+        // account's beacon, with no banner and nothing left to stop it.
+        const teardown = initLiveLocation();
+        let created: (v: { beaconInfoEventId: string }) => void = () => {};
+        h.startLiveBeacon.mockImplementationOnce(
+            () =>
+                new Promise<{ beaconInfoEventId: string }>((r) => {
+                    created = r;
+                }),
+        );
+
+        const pending = startShare(ROOM, 900000);
+        await flush();
+        teardown();
+        await flush();
+        initLiveLocation();
+
+        created({ beaconInfoEventId: "$late" });
+        await pending;
+
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(watchPosition).not.toHaveBeenCalled();
+        expect(h.sendLiveBeaconLocation).not.toHaveBeenCalled();
+        // Bailing without this write would only move the silent broadcast
+        // server-side, where it runs until the beacon times out.
+        expect(h.stopLiveBeacon).toHaveBeenCalledWith(ROOM, "$late");
+    });
+
+    it("publishes no beacon when the session ends during the permission prompt", async () => {
+        // Nothing has been created at this point, so the bail is total: no
+        // beacon_info, no stop, and no toast — the dialog that would have
+        // shown it went with the session.
+        const teardown = initLiveLocation();
+        let allow: (p: unknown) => void = () => {};
+        getCurrentPosition.mockImplementationOnce((s: any) => {
+            allow = s;
+        });
+
+        const pending = startShare(ROOM, 900000);
+        await flush();
+        teardown();
+        await flush();
+        initLiveLocation();
+
+        allow({ coords: { latitude: 1.5, longitude: -2.5 } });
+        await pending;
+
+        expect(h.startLiveBeacon).not.toHaveBeenCalled();
+        expect(h.stopLiveBeacon).not.toHaveBeenCalled();
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(h.showErrorToast).not.toHaveBeenCalled();
+    });
+
     it("takes the beacon event's deadline for a share it already holds", async () => {
         await startShare(ROOM, 900000);
         const eventExpiry = Date.now() + 600000;
@@ -1060,7 +1117,7 @@ describe("live-location own-share engine", () => {
         await pending;
 
         expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe("failed");
-        // Still on the books just short of the server's deadline…
+        // Still on the books just short of the beacon event's own deadline…
         await vi.advanceTimersByTimeAsync(599999);
         expect(isSharingLive(ROOM)).toBe(true);
         // …and retired on it, not five minutes later on our own clock.
@@ -1069,10 +1126,11 @@ describe("live-location own-share engine", () => {
     });
 
     it("drops a failed stop whose refreshed deadline has already passed", async () => {
-        // The same mid-flight refresh, but the server's deadline is behind us:
-        // the beacon is dead whatever became of our live:false, so there is
-        // nothing left to warn about. Judging that on the pre-await snapshot
-        // strands a "still sharing" banner for a beacon that has stopped.
+        // The same mid-flight refresh, but the beacon event's own deadline is
+        // behind us: the beacon is dead whatever became of our live:false, so
+        // there is nothing left to warn about. Judging that on the pre-await
+        // snapshot strands a "still sharing" banner for a beacon that has
+        // stopped.
         let onPrepared: () => void = () => {};
         h.onSyncPrepared.mockImplementation((cb: () => void) => {
             onPrepared = cb;
@@ -1123,6 +1181,35 @@ describe("live-location own-share engine", () => {
         expect(liveLocationState.beaconTick).toBeGreaterThan(before);
     });
 
+    it("does not blank a stale send's lastSentTs on the next session's record", async () => {
+        // A position send held open across the boundary: the record it points
+        // at belongs to the next session by the time it rejects, and an
+        // offline blip on the previous account's client says nothing about it.
+        let fail: (e: Error) => void = () => {};
+        h.sendLiveBeaconLocation.mockImplementationOnce(
+            () => new Promise<void>((_r, j) => (fail = j)),
+        );
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+
+        const teardown = initLiveLocation();
+        await startShare(ROOM, 900000);
+        const sentAt = liveLocationState.shares.get(ROOM)?.lastSentTs ?? null;
+        expect(sentAt).not.toBeNull();
+
+        teardown();
+        await flush();
+        initLiveLocation(); // adopts the record the hung stop left behind
+        const before = liveLocationState.beaconTick;
+
+        fail(new Error("offline"));
+        await flush();
+
+        expect(liveLocationState.shares.get(ROOM)?.lastSentTs).toBe(sentAt);
+        expect(liveLocationState.beaconTick).toBe(before);
+    });
+
     it("detaches the previous session's listeners when a new one begins", async () => {
         // Without a cleanup in between, the old session's subscriptions would
         // keep firing resume/retry work for an account that is gone.
@@ -1133,5 +1220,25 @@ describe("live-location own-share engine", () => {
         initLiveLocation();
 
         expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not re-invoke a retired session's unsubscribers", async () => {
+        // The handover empties the list as well as calling it. Left to grow,
+        // every boundary re-invokes every previous session's unsubscribers —
+        // benign only for as long as each one stays idempotent.
+        const unsubs: ReturnType<typeof vi.fn>[] = [];
+        h.onSyncReconnected.mockImplementation(() => {
+            const unsubscribe = vi.fn();
+            unsubs.push(unsubscribe);
+            return unsubscribe;
+        });
+
+        initLiveLocation();
+        initLiveLocation(); // retires session 1
+        initLiveLocation(); // retires session 2 — and only session 2
+
+        expect(unsubs[0]).toHaveBeenCalledTimes(1);
+        expect(unsubs[1]).toHaveBeenCalledTimes(1);
+        expect(unsubs[2]).not.toHaveBeenCalled();
     });
 });

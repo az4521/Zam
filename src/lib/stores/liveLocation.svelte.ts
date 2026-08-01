@@ -173,6 +173,11 @@ function onPosition(pos: GeolocationPosition) {
     const now = Date.now();
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
+    // The session issuing these sends. Their rejection handler runs after an
+    // await, and the records here outlive a logout, so a blip on the outgoing
+    // account's client must not write over a record the NEXT session has since
+    // adopted.
+    const epoch = sessionEpoch;
     for (const [roomId, share] of liveLocationState.shares) {
         if (share.stop) continue; // Stop pressed: publish nothing more.
         if (!shouldSendUpdate(share.lastSentTs, now)) continue;
@@ -191,6 +196,11 @@ function onPosition(pos: GeolocationPosition) {
                 // that interval must not be deleted as redundant. Making the
                 // label follow the store needs a $derived over lastSentTs
                 // alone, the way `ownStop` was split out of `ownShare`.
+                //
+                // Not while a newer session owns the record: `share` is a live
+                // reference into a map that survived the boundary, and our
+                // failure is a fact about a client that session never used.
+                if (!ownsSession(epoch, sessionEpoch)) return;
                 share.lastSentTs = null;
                 bump();
             },
@@ -232,6 +242,11 @@ export async function startShare(
     roomId: string,
     durationMs: number,
 ): Promise<void> {
+    // The session this share would belong to, captured before anything can
+    // await. Both round-trips below (the permission prompt, then the create)
+    // can outlive it: an account switch is an SPA route flip that unmounts
+    // AppShell while this function is still suspended.
+    const epoch = sessionEpoch;
     // A record here is not always a healthy share any more: a stop that the
     // server never acked is retained on purpose, and it outlives the Stop
     // click. Returning silently would leave the dialog closing with nothing
@@ -265,6 +280,10 @@ export async function startShare(
         );
         return;
     }
+    // The session ended while the prompt was up. Nothing has been published, so
+    // there is nothing to undo — and nothing to say either: the dialog that
+    // would have carried a toast went with the session.
+    if (!ownsSession(epoch, sessionEpoch)) return;
     let beaconInfoEventId: string;
     try {
         ({ beaconInfoEventId } = await startLiveBeacon(roomId, durationMs));
@@ -272,6 +291,21 @@ export async function startShare(
         showErrorToast(
             err instanceof Error ? err.message : "Couldn't start live location",
         );
+        return;
+    }
+    if (!ownsSession(epoch, sessionEpoch)) {
+        // The beacon landed after our session ended, so this record would have
+        // no owner: the teardown's sweep snapshotted the rooms BEFORE this one
+        // was among them, and the next session would inherit an ACTIVE record
+        // aimed at the previous account's beacon — publishing GPS with no
+        // banner and nothing left to stop it. Create nothing.
+        //
+        // Fire live:false anyway and ignore how it goes: bailing without it
+        // would only move the silent broadcast server-side, where it runs until
+        // the beacon times out (up to eight hours) instead of until this tab
+        // closes. Silent because the surface that would report either outcome
+        // has already gone.
+        void stopLiveBeacon(roomId, beaconInfoEventId).catch(() => {});
         return;
     }
     const expiresAt = Date.now() + durationMs;
@@ -463,6 +497,13 @@ function resumeOwnShares() {
             // own expiresAt was a second Date.now() taken after the create
             // round-trip, and the beacon's liveness is measured against the
             // event, not against that reading.
+            //
+            // Same caveat as onPosition's catch: the bump() below is a tick,
+            // not a re-render of this field. LiveLocationBanner renders
+            // `remainingLabel(ownShare.expiresAt, now)` off the same
+            // reference-stable ShareState, so what actually moves the label
+            // onto the new deadline is the component's own 15s `now` interval.
+            // The timer re-armed just below is what makes this write matter.
             share.expiresAt = action.expiresAt;
         }
         armExpiryTimer(action.roomId, action.expiresAt);
@@ -513,12 +554,20 @@ export function initLiveLocation(): () => void {
         //
         // The cost of that silence: an ACTIVE record inherited this way keeps
         // broadcasting under the new session, publishing GPS to the previous
-        // account's beacon with nothing left to stop it. Unreachable today —
-        // `+page.svelte` renders AppShell in a plain `{#if view === "shell"}`
-        // (destroy before create, no transition) and account switching reloads
-        // the page, so a mount can never precede the outgoing unmount. Make
-        // that swap keyed or transitioned and this becomes a real location
-        // leak: stop the inherited shares here instead of returning.
+        // account's beacon with nothing left to stop it. THIS route to one is
+        // unreachable today — `+page.svelte` renders AppShell in a plain
+        // `{#if view === "shell"}` (destroy before create, no transition) and
+        // account switching reloads the page, so a mount can never precede the
+        // outgoing unmount. Make that swap keyed or transitioned and it becomes
+        // a real location leak: stop the inherited shares here instead of
+        // returning.
+        //
+        // Read that narrowly: it says a SUPERSEDED CLEANUP cannot leave an
+        // active record behind, not that inherited active records are
+        // impossible. `startShare` reaches the same state with no mount
+        // ordering involved at all — its create round-trip settles after the
+        // teardown swept a map the room was not in yet — and it closes that
+        // half itself, with its own epoch check plus a best-effort live:false.
         if (!ownsSession(epoch, sessionEpoch)) return;
         detachListeners();
         void stopAllShares();
