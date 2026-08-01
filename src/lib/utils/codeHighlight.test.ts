@@ -30,6 +30,17 @@ describe("highlightCodeBlocks", () => {
         );
         expect(out).toContain("hljs");
         expect(out).toContain("hljs-keyword");
+        expect(out).toContain("hljs-number");
+        expect(out).toContain("const");
+    });
+
+    it("keeps source HTML escaped", () => {
+        const out = highlightCodeBlocks(
+            "<pre><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>",
+            hljs,
+        );
+        expect(out).not.toContain("<script>");
+        expect(out).toContain("&lt;");
     });
 
     it("auto-detects when no language is declared", () => {
@@ -38,6 +49,14 @@ describe("highlightCodeBlocks", () => {
             hljs,
         );
         expect(out).toContain("hljs");
+        // The auto-derived class, not just `hljs` — `classList.add("hljs")`
+        // runs for any non-null engine, so asserting it alone would pass
+        // against a junk one. hljs reads this snippet as ruby, not python;
+        // pinning the engine's real answer also kills the mutant that drops
+        // the `result.language &&` guard (which would emit
+        // `language-undefined` and satisfy a looser /language-\w+/ match).
+        expect(out).toContain("language-ruby");
+        expect(out).toContain("hljs-keyword");
     });
 
     it("uses the injected engine rather than a hard-wired one", () => {
@@ -52,6 +71,24 @@ describe("highlightCodeBlocks", () => {
         );
         expect(out).toContain("FAKE");
         expect(out).toContain("language-fakelang");
+    });
+
+    it("keeps the author's declared language even when detection disagrees", () => {
+        // `getLanguage` says it does not know "nope", so we fall through to
+        // highlightAuto — but the author still asked for a language, and
+        // relabelling their block with the detector's guess would be a lie.
+        // This is what pins the `&& !requested` clause.
+        const fake: HighlightEngine = {
+            getLanguage: () => null,
+            highlight: () => ({ value: "UNUSED" }),
+            highlightAuto: () => ({ value: "X", language: "fakelang" }),
+        };
+        const out = highlightCodeBlocks(
+            '<pre><code class="language-nope">x</code></pre>',
+            fake,
+        );
+        expect(out).toContain("language-nope");
+        expect(out).not.toContain("language-fakelang");
     });
 });
 
