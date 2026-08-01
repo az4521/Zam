@@ -46,7 +46,13 @@
         // participant (up to 4h — no MSC4140 on continuwuity). Leave first,
         // bounded so a hung leave can't block the switch.
         await Promise.race([
-            leaveVoiceCall(),
+            // Swallowed deliberately: leaveVoiceCall fans out to component
+            // subscriber callbacks and can re-throw a previous leave's
+            // rejection. A rejection here would skip switchActive() and the
+            // reload, stranding the switch — with the notification latch above
+            // already set, so the session continues with popups dead and no
+            // error anywhere. A failed leave is worth a ghost participant.
+            leaveVoiceCall().catch(() => {}),
             new Promise((resolve) => setTimeout(resolve, 3000)),
         ]);
         switchActive(userId);

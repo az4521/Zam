@@ -30,9 +30,13 @@ public class MainActivity extends BridgeActivity {
      *
      * The second argument is the account the notification was posted under, so
      * the web layer can refuse to open the room in a different session (audit
-     * PRIV-02). It is optional on both sides: this build omits it when the
-     * service could not name the account, and a web layer newer than the APK
-     * that calls it with one argument still routes.
+     * PRIV-02). The one-argument call is the backwards-compatibility path for
+     * an APK OLDER than the web layer: its PendingIntents carry only room_id,
+     * so the tap still routes (unattributed) against a newer web app. This
+     * build never attaches room_id without user_id — when the service cannot
+     * name the account it omits the room id too, so the notification shows but
+     * is not routable. The one-argument branch below is therefore only
+     * reachable from a PendingIntent created by a pre-update APK.
      */
     private void handleRoomIntent(Intent intent) {
         if (intent == null) return;

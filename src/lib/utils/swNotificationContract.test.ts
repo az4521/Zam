@@ -30,6 +30,9 @@ describe("static/sw.js notification contract", () => {
         expect(body).toContain("closeAllNotifications()");
         // The credentials must be gone before we spend time on notifications:
         // a rejection in the close path must not skip the token wipe.
+        // Presence first: the ordering assertion below passes vacuously on a
+        // deleted wipe (-1 < N), and this is the only thing pinning it.
+        expect(body).toContain('dbSet("accessToken", null)');
         expect(body.indexOf('dbSet("accessToken", null)')).toBeLessThan(
             body.indexOf("closeAllNotifications()"),
         );
@@ -56,7 +59,12 @@ describe("static/sw.js notification contract", () => {
 
     it("omits the room id when it has no identity, so an unattributable notification is not routable", () => {
         const fn = SW.slice(SW.indexOf("function notificationData("));
-        const body = fn.slice(0, fn.indexOf("\n}"));
+        const fnEnd = fn.indexOf("\n}");
+        // Same guard as the two above: on -1, slice(0, -1) would hand the rest
+        // of the file to the expects below and another function could satisfy
+        // them.
+        expect(fnEnd).toBeGreaterThan(0);
+        const body = fn.slice(0, fnEnd);
         expect(body).toMatch(/if\s*\(\s*!userId\s*\)\s*return\s*\{\s*\}/);
         // …and when it DOES have an identity, that identity is what gets
         // stamped. Without this, dropping `userId` from the returned object

@@ -1326,6 +1326,10 @@
             // to login and unmounts us with account A's SW notifications still
             // up. Clear before dropping the registration — after it, nobody can.
             clearServiceWorkerNotifications();
+            // Android's tray survives the unmount the same way, and it is the
+            // surface that shows a sender name and message text — leaving it up
+            // would sit account A's content above account B's session.
+            clearDeliveredNativeNotifications();
             unregisterPageSurface();
             unregisterSwSurface();
             unregisterNativeSurface();
