@@ -1168,6 +1168,78 @@
         </svg>
     </button>
 
+    <!-- Touch drag ghost -->
+    {#if touchDragActive && touchGhostId}
+        {@const ghostSpace = roomsState.spaces.find(
+            (s) => s.roomId === touchGhostId,
+        )}
+        <div
+            class="fixed z-[100] pointer-events-none w-12 h-12 rounded-xl shadow-2xl opacity-90"
+            style="left: {touchGhostX - 24}px; top: {touchGhostY -
+                24}px; transform: scale(1.15);"
+        >
+            {#if ghostSpace}
+                <Avatar
+                    src={getRoomAvatar(ghostSpace)}
+                    name={ghostSpace.name || "?"}
+                    size={48}
+                    rounded="none"
+                    class="rounded-xl w-full h-full"
+                />
+            {:else}
+                <div
+                    class="w-12 h-12 rounded-xl bg-discord-backgroundSecondary flex items-center justify-center"
+                >
+                    <svg
+                        class="w-6 h-6 text-discord-textMuted"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
+                        />
+                    </svg>
+                </div>
+            {/if}
+        </div>
+    {/if}
+
+    <!-- Settings button -->
+    <button
+        onclick={onSettingsClick}
+        class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0 mt-auto"
+        title="Settings"
+    >
+        <svg
+            class="w-6 h-6 text-discord-textSecondary group-hover:text-white transition-colors"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+        </svg>
+    </button>
+</nav>
+
+<Portal>
+    <!-- These four are portaled, not merely tidied out of the <nav>: on mobile
+         the sidebar lives inside AppShell's drawer, whose inline
+         `transform: translateX(…)` (present even at 0px) makes it the
+         containing block for `position: fixed`. Inside it, ModalDialog's
+         `fixed inset-0` layer covers the 312px drawer instead of the viewport,
+         so a tap beside the dialog dismissed the DRAWER while the dialog kept
+         claiming aria-modal over the whole app. -->
     <!-- Color picker dialog -->
     {#if colorPicker}
         <!-- The title is a <p>, not a heading, so the dialog is named directly
@@ -1276,42 +1348,6 @@
                 >
             </div>
         </ModalDialog>
-    {/if}
-
-    <!-- Touch drag ghost -->
-    {#if touchDragActive && touchGhostId}
-        {@const ghostSpace = roomsState.spaces.find(
-            (s) => s.roomId === touchGhostId,
-        )}
-        <div
-            class="fixed z-[100] pointer-events-none w-12 h-12 rounded-xl shadow-2xl opacity-90"
-            style="left: {touchGhostX - 24}px; top: {touchGhostY -
-                24}px; transform: scale(1.15);"
-        >
-            {#if ghostSpace}
-                <Avatar
-                    src={getRoomAvatar(ghostSpace)}
-                    name={ghostSpace.name || "?"}
-                    size={48}
-                    rounded="none"
-                    class="rounded-xl w-full h-full"
-                />
-            {:else}
-                <div
-                    class="w-12 h-12 rounded-xl bg-discord-backgroundSecondary flex items-center justify-center"
-                >
-                    <svg
-                        class="w-6 h-6 text-discord-textMuted"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
-                        />
-                    </svg>
-                </div>
-            {/if}
-        </div>
     {/if}
 
     <!-- Create room in space modal -->
@@ -1452,35 +1488,6 @@
         <RoomDirectory />
     {/if}
 
-    <!-- Settings button -->
-    <button
-        onclick={onSettingsClick}
-        class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0 mt-auto"
-        title="Settings"
-    >
-        <svg
-            class="w-6 h-6 text-discord-textSecondary group-hover:text-white transition-colors"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-        >
-            <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-        </svg>
-    </button>
-</nav>
-
-<Portal>
     {#if contextMenu}
         {@const cm = contextMenu}
         <button

@@ -329,3 +329,60 @@ describe("ModalDialog adoption — initial focus nomination", () => {
         ).toHaveLength(1);
     });
 });
+
+/**
+ * The four dialogs SpaceSidebar renders must sit inside its `<Portal>`, not
+ * inside its `<nav>`.
+ *
+ * WHY: on mobile the sidebar lives in AppShell's drawer, which always carries
+ * an inline `transform: translateX(…)` — even at 0px. A transform makes that
+ * element the containing block for `position: fixed` descendants, so
+ * ModalDialog's `fixed inset-0` layer and backdrop cover the 312px drawer
+ * instead of the viewport: a tap to the right of the drawer hits the DRAWER's
+ * backdrop and dismisses the drawer, while the dialog goes on claiming
+ * `aria-modal="true"` over a screen it does not actually cover.
+ *
+ * Textual, like the rest of this file, and for the same reason: SpaceSidebar
+ * calls into the live matrix-js-sdk client at module scope, so nothing in this
+ * repo can mount it. `Portal.test.ts` proves what a `<Portal>` DOES; this
+ * proves these four still ask for one.
+ */
+describe("SpaceSidebar dialogs are portaled out of the drawer", () => {
+    /** The text between the LAST `<Portal>` opening tag and its `</Portal>`. */
+    function portalRegion(src: string): string {
+        const text = normalize(src);
+        const open = text.lastIndexOf("<Portal>");
+        expect(
+            open,
+            "SpaceSidebar no longer renders a <Portal>",
+        ).toBeGreaterThan(-1);
+        const close = text.indexOf("</Portal>", open);
+        expect(close, "unclosed <Portal> in SpaceSidebar").toBeGreaterThan(
+            open,
+        );
+        return text.slice(open, close);
+    }
+
+    const MARKERS: Array<[string, string]> = [
+        ["the colour picker", "{#if colorPicker}"],
+        ["the create-room dialog", "{#if createRoomModal}"],
+        ["the add-room dialog", "{#if addRoomModal}"],
+        ["the room directory", "{#if exploreOpen}"],
+    ];
+
+    for (const [label, marker] of MARKERS) {
+        it(`${label} renders inside the Portal`, () => {
+            const src = spaceSidebar();
+            const text = normalize(src);
+            // Guard against a vacuous pass: the marker must exist exactly once,
+            // or "found in the portal region" could be true of a copy while the
+            // real one stayed in the nav.
+            const occurrences = text.split(marker).length - 1;
+            expect(occurrences, `${marker} should appear exactly once`).toBe(1);
+            expect(
+                portalRegion(src),
+                `${label} is outside SpaceSidebar's <Portal> — inside the <nav> its fixed layer is clipped to the mobile drawer and aria-modal lies`,
+            ).toContain(marker);
+        });
+    }
+});
