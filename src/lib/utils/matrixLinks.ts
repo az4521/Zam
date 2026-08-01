@@ -224,3 +224,19 @@ export function linkifyPlainText(escapedHtml: string): string {
         (_m, index: string) => anchors[Number(index)],
     );
 }
+
+/**
+ * The tooltip an anchor should carry, or null for "leave it alone".
+ *
+ * Only user links get one: the anchor text is usually a nickname, so the full
+ * user id is the useful disambiguation. Extracted from MessageItem so the rule
+ * is testable — the component now applies it per-anchor on hover/focus instead
+ * of sweeping every anchor in the row from a MutationObserver.
+ */
+export function matrixLinkTitle(
+    href: string | null | undefined,
+): string | null {
+    if (!href) return null;
+    const target = parseMatrixLink(href);
+    return target?.kind === "user" ? target.userId : null;
+}

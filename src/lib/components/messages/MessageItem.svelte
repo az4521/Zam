@@ -41,6 +41,7 @@
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
         parseMatrixLink,
+        matrixLinkTitle,
         mergeViaServers,
         linkifyPlainText,
         type MatrixLinkTarget,
@@ -63,9 +64,18 @@
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         sameShield,
+        shieldRefreshKey,
         shieldViewForEvent,
         type ShieldView,
     } from "$lib/utils/eventShield";
+    import {
+        sameThreadSummary,
+        type ThreadSummary,
+    } from "$lib/utils/threadModel";
+    import {
+        shouldRescanReplyTarget,
+        type CachedReplyTarget,
+    } from "$lib/utils/replyTargetLookup";
 
     import {
         messagesState,
@@ -109,6 +119,7 @@
         getDoubleTapReaction,
     } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
+    import { spoilers } from "$lib/actions/spoilers";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -438,9 +449,14 @@
     // tracked effect can register listener reads as dependencies and blow the
     // effect depth.
     let shield = $state<ShieldView | null>(null);
+    // The last shield inputs we actually fetched for. Plain `let`, NOT $state:
+    // like `lastThreadSummary` below, a memo cell written from inside a tracked
+    // scope must stay invisible to the reactivity graph. Component scope, not
+    // module scope — one row's verdict must never leak into another row.
+    let lastShieldKey: string | null = null;
     $effect(() => {
         void messagesState.timelineTick;
-        void securityState.securityTick;
+        const tick = securityState.securityTick;
         const encrypted = roomEncrypted;
         const id = eventId;
 
@@ -449,13 +465,33 @@
             // (referential equality), so this costs nothing on repeat ticks —
             // and reading `shield` here would make the effect depend on it.
             shield = null;
+            // A room can be switched ON: forget the key so the next encrypted
+            // pass refetches rather than trusting a pre-encryption verdict.
+            lastShieldKey = null;
             return;
         }
 
+        // timelineTick is bumped for EVERY timeline event and every decryption
+        // anywhere in the app, and there is one of these effects per rendered row.
+        // getEventShield deliberately does not memoize null results or local
+        // echoes, so an unguarded call re-hits the crypto layer per row per event.
+        // Skip when nothing that can move THIS row's shield has changed; the tick
+        // dependencies above stay exactly as they were.
+        const key = shieldRefreshKey({
+            eventId: id,
+            eventType,
+            status: event.status,
+            securityTick: tick,
+        });
+        if (key === lastShieldKey) return;
+        lastShieldKey = key;
+
         let cancelled = false;
+        let settled = false;
         untrack(() => {
             void getEventShield(event)
                 .then((info) => {
+                    settled = true;
                     // A late resolution must not overwrite a newer row's state.
                     if (cancelled || event.getId() !== id) return;
                     const next = shieldViewForEvent({
@@ -469,11 +505,20 @@
                     if (!sameShield(shield, next)) shield = next;
                 })
                 .catch(() => {
+                    settled = true;
                     if (!cancelled) shield = null;
+                    // A failed fetch must be retryable on the next real change.
+                    lastShieldKey = null;
                 });
         });
         return () => {
             cancelled = true;
+            // This teardown runs before every RE-RUN, not just on destroy. A
+            // tick landing mid-flight therefore cancels a fetch that was still
+            // going to produce this row's verdict — and with the key gate above
+            // the re-run would decline to retry, leaving the shield silently
+            // absent. Only remember a key whose fetch actually got to settle.
+            if (!settled) lastShieldKey = null;
         };
     });
 
@@ -568,10 +613,24 @@
             | string
             | undefined;
     });
-    const timelineReplyTarget = $derived(
-        (void messagesState.timelineTick,
-        inReplyToId ? findEventById(room, inReplyToId) : null),
-    );
+    // Finding the parent is a linear scan of the loaded timeline chunk, and this
+    // derived re-runs on every timelineTick for every reply on screen. A resolved
+    // target cannot change (same MatrixEvent reference; edits and redactions mutate
+    // it in place), so search only while we do not have one — the same
+    // resolve-once shape `fetchedReplyTarget` below already uses. Plain `let`, not
+    // $state: a memo cell written inside a $derived must stay out of the graph.
+    let cachedReplyTarget: CachedReplyTarget<MatrixEvent> | null = null;
+    const timelineReplyTarget = $derived.by(() => {
+        void messagesState.timelineTick;
+        if (!inReplyToId) return null;
+        if (shouldRescanReplyTarget(cachedReplyTarget, inReplyToId)) {
+            cachedReplyTarget = {
+                id: inReplyToId,
+                target: findEventById(room, inReplyToId) ?? null,
+            };
+        }
+        return cachedReplyTarget?.target ?? null;
+    });
     // Parents outside the loaded timeline window are fetched individually —
     // modern clients (gomuks & friends) omit the legacy "> quote" fallback,
     // so without this their replies render "Original message not loaded".
@@ -766,9 +825,21 @@
     // Root summary: this message is a thread ROOT iff other events reply to it.
     // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
     // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
-    const threadSummary = $derived(
-        (void roomsState.roomsTick, getThreadSummary(room, eventId)),
-    );
+    // getThreadSummary mints a fresh object every call, so returning it unchanged
+    // would dirty this row on EVERY sync — one row's chip re-rendering is nothing,
+    // but there is one of these per timeline row. Keep the previous reference when
+    // the value has not moved (same trick as `shield` above, commit 55a5936).
+    // Plain `let`, NOT $state: a memo cell written inside a $derived must stay
+    // invisible to the reactivity graph (writing $state there throws).
+    let lastThreadSummary: ThreadSummary | null = null;
+    const threadSummary = $derived.by(() => {
+        void roomsState.roomsTick;
+        const next = getThreadSummary(room, eventId);
+        if (lastThreadSummary && sameThreadSummary(lastThreadSummary, next))
+            return lastThreadSummary;
+        lastThreadSummary = next;
+        return next;
+    });
     const isThreadRoot = $derived(!isThreadReply && threadSummary.count > 0);
 
     // Extract http/https URLs from the plain body for link previews
@@ -889,29 +960,6 @@
         return linkifyPlainText(escaped).replace(/\n/g, "<br>");
     }
 
-    // Svelte action: make [data-mx-spoiler] spans toggle-reveal on click
-    function spoilers(node: HTMLElement) {
-        function setup() {
-            node.querySelectorAll<HTMLElement>("[data-mx-spoiler]").forEach(
-                (el) => {
-                    if (el.dataset.spoilerReady) return;
-                    el.dataset.spoilerReady = "1";
-                    el.addEventListener("click", () =>
-                        el.classList.toggle("revealed"),
-                    );
-                },
-            );
-        }
-        setup();
-        const observer = new MutationObserver(setup);
-        observer.observe(node, { childList: true, subtree: true });
-        return {
-            destroy() {
-                observer.disconnect();
-            },
-        };
-    }
-
     function sanitize(html: string): string {
         return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
     }
@@ -953,6 +1001,14 @@
     // mention anchors) in-app — user links open the profile card; room and
     // alias links join if needed, then switch rooms — instead of letting the
     // SPA navigate away to matrix.to.
+    //
+    // MessageItem is one instance per timeline row, so this used to carry a
+    // per-row MutationObserver: it swept the row for anchors on every mutation
+    // so that `{@html}` content replaced by an edit or a late decryption got
+    // decorated too. That job splits in two without an observer — one sweep
+    // covers the anchors present when the action runs, and delegated listeners
+    // cover anchors rendered later, resolving their target when the event
+    // fires. Clicks are delegated for the same reason.
     function matrixLinks(node: HTMLElement) {
         function onClick(e: MouseEvent) {
             if (e.defaultPrevented) return;
@@ -975,23 +1031,39 @@
             });
         }
         // Full-id tooltip on user links (the anchor text may be a nickname).
-        function decorate() {
-            node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) => {
-                if (a.dataset.matrixLinkReady) return;
-                const target = parseMatrixLink(a.getAttribute("href")!);
-                if (!target) return;
-                a.dataset.matrixLinkReady = "1";
-                if (target.kind === "user") a.title = target.userId;
-            });
+        // `data-matrix-link-ready` keeps the sweep and the delegated path from
+        // both writing the same anchor.
+        function decorateAnchor(anchor: HTMLElement) {
+            if (anchor.dataset.matrixLinkReady) return;
+            anchor.dataset.matrixLinkReady = "1";
+            const title = matrixLinkTitle(anchor.getAttribute("href"));
+            if (title) anchor.title = title;
         }
-        decorate();
-        const observer = new MutationObserver(decorate);
-        observer.observe(node, { childList: true, subtree: true });
+        // `pointerover` and `focusin` both bubble, so one listener each covers
+        // anchors that appear after this runs, at the moment a pointer or focus
+        // first reaches them.
+        function decorate(e: Event) {
+            const anchor = (e.target as Element | null)?.closest?.("a[href]");
+            if (!(anchor instanceof HTMLElement) || !node.contains(anchor))
+                return;
+            decorateAnchor(anchor);
+        }
+        // The anchors that exist now are decorated eagerly, not on first hover:
+        // a screen reader's browse mode walks the accessibility tree without
+        // dispatching pointer or focus events, so a title that is only written
+        // from those events never reaches it — and a pill mention, whose link
+        // text is a nickname, is exactly where the full id has to be announced.
+        node.querySelectorAll<HTMLAnchorElement>("a[href]").forEach((a) =>
+            decorateAnchor(a),
+        );
         node.addEventListener("click", onClick);
+        node.addEventListener("pointerover", decorate);
+        node.addEventListener("focusin", decorate);
         return {
             destroy() {
-                observer.disconnect();
                 node.removeEventListener("click", onClick);
+                node.removeEventListener("pointerover", decorate);
+                node.removeEventListener("focusin", decorate);
             },
         };
     }
