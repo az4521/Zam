@@ -150,6 +150,24 @@ describe("classifyRooms", () => {
         expect(result.directRooms).toEqual([]);
     });
 
+    it("keeps an invited or knocked SPACE out of the spaces bucket", () => {
+        // Master's getSpaces() filters getRooms(), which is join-only — an
+        // unaccepted space invite is an invite, not a space in the sidebar.
+        // Pins that the isSpace branch stays BELOW the membership guard.
+        const result = classifyRooms({
+            rooms: [
+                room("!isp:s", { isSpace: true, membership: "invite" }),
+                room("!ksp:s", { isSpace: true, membership: "knock" }),
+            ],
+            directIds: new Set(),
+            spaceChildIds: new Map(),
+            activeSpaceId: null,
+        });
+        expect(ids(result.invitedRooms)).toEqual(["!isp:s"]);
+        expect(ids(result.knockedRooms)).toEqual(["!ksp:s"]);
+        expect(result.spaces).toEqual([]);
+    });
+
     it("returns every bucket in the input rooms order", () => {
         // Master's buckets are all filters over matrixClient.getRooms(), so the
         // input order IS the contract. Ids are deliberately reverse-alphabetical
