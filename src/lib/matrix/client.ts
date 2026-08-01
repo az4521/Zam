@@ -125,6 +125,14 @@ import {
     isValidTagOrder,
     isValidChildOrder,
 } from "$lib/utils/orderKey";
+import {
+    sortSpaceChildIds,
+    type SpaceChildDescriptor,
+} from "$lib/utils/spaceChildren";
+import {
+    classifyRooms,
+    type RoomClassification,
+} from "$lib/utils/roomClassification";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
@@ -764,6 +772,9 @@ export function stopClient(): void {
     matrixClient = null;
     matrixStore?.destroy().catch(() => {});
     matrixStore = null;
+    // Room ids are globally unique so a surviving entry could not be *wrong*,
+    // but it must not outlive the session it was built for.
+    spaceChildCache.clear();
 }
 
 const pendingLeaves = new Set<string>();
@@ -805,35 +816,64 @@ export function getSpaces(): Room[] {
     return getRooms().filter((r) => r.isSpaceRoom());
 }
 
-export function getSpaceChildIds(spaceId: string): string[] {
-    const space = matrixClient?.getRoom(spaceId);
-    if (!space) return [];
+// `m.space.child` ordering is recomputed constantly — SpaceSidebar's unread
+// badge walks every space (and every sub-space) on every unread tick, and each
+// walk sorts the child list twice. State events are immutable, so the set of
+// event ids is a complete signature: an added, removed, re-ordered or re-via'd
+// child always arrives as a NEW event with a new id.
+const spaceChildCache = new Map<string, { signature: string; ids: string[] }>();
 
+function spaceChildEvents(spaceId: string) {
+    const space = matrixClient?.getRoom(spaceId);
+    if (!space) return null;
     const events = space
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents("m.space.child");
-    const arr = Array.isArray(events) ? events : events ? [events] : [];
+    return Array.isArray(events) ? events : events ? [events] : [];
+}
 
-    return arr
-        .filter((e) => {
-            const content = e.getContent();
-            return content?.via?.length > 0;
-        })
-        .sort((a, b) => {
-            const ao: string | undefined = a.getContent()?.order;
-            const bo: string | undefined = b.getContent()?.order;
-            const byOrder = compareOrderLex(ao, bo);
-            if (byOrder !== 0) return byOrder;
-            // Equal/both-missing order: the spec's primary no-order tie-break is
-            // the child event's origin_server_ts ascending, then room ID for
-            // full stability.
-            const byTs = a.getTs() - b.getTs();
-            if (byTs !== 0) return byTs;
-            return (a.getStateKey() ?? "") < (b.getStateKey() ?? "") ? -1 : 1;
-        })
-        .map((e) => e.getStateKey()!)
-        .filter(Boolean);
+/**
+ * Cheap identity of a space's child state. Empty string means "no space" or
+ * "not cacheable"; callers use it to decide whether derived data went stale.
+ */
+export function getSpaceChildSignature(spaceId: string): string {
+    const arr = spaceChildEvents(spaceId);
+    if (!arr) return "";
+    const parts: string[] = [];
+    for (const e of arr) {
+        const id = e.getId();
+        // An event with no id would make two different states share a
+        // signature — refuse to sign rather than cache a wrong answer.
+        if (!id) return "";
+        parts.push(id);
+    }
+    return parts.join("|");
+}
+
+export function getSpaceChildIds(spaceId: string): string[] {
+    const arr = spaceChildEvents(spaceId);
+    if (!arr) return [];
+
+    const signature = getSpaceChildSignature(spaceId);
+    if (signature) {
+        const cached = spaceChildCache.get(spaceId);
+        if (cached && cached.signature === signature) return cached.ids;
+    }
+
+    const descriptors: SpaceChildDescriptor[] = arr.map((e) => {
+        const content = e.getContent();
+        return {
+            stateKey: e.getStateKey() ?? "",
+            via: content?.via,
+            order: content?.order,
+            ts: e.getTs(),
+        };
+    });
+    const ids = sortSpaceChildIds(descriptors);
+    // Callers treat this as read-only (verified at every call site).
+    if (signature) spaceChildCache.set(spaceId, { signature, ids });
+    return ids;
 }
 
 /**
@@ -906,6 +946,45 @@ export function getDirectRooms(): Room[] {
     return getRooms().filter(
         (r) => directIds.has(r.roomId) && !r.isSpaceRoom(),
     );
+}
+
+/**
+ * All six room buckets from ONE pass. `refreshRooms()` used to call
+ * getSpaces/getOrphanRooms/getDirectRooms/getInvitedRooms/getKnockedRooms/
+ * getRoomsInSpace separately, which meant four full scans of every room plus
+ * two independent derivations of every space's child list, on every sync.
+ * The individual exports stay for their other callers.
+ */
+export function getRoomClassification(
+    activeSpaceId: string | null,
+): RoomClassification<Room> {
+    // Deliberately the UNFILTERED SDK list: getInvitedRooms/getKnockedRooms
+    // read it raw, and only the joined buckets go through the pendingLeaves
+    // filter that the exported getRooms() applies.
+    const all = matrixClient?.getRooms() ?? [];
+    const rooms = all.map((r) => ({
+        room: r,
+        roomId: r.roomId,
+        isSpace: r.isSpaceRoom(),
+        membership: r.getMyMembership(),
+        pendingLeave: pendingLeaves.has(r.roomId),
+    }));
+
+    // getOrphanRooms/getRoomsInSpace derive their child set from getSpaces(),
+    // which runs through the join + pendingLeaves filter — mirror that here or
+    // a leaving space would keep adopting its children.
+    const spaceChildIds = new Map<string, readonly string[]>();
+    for (const d of rooms) {
+        if (!d.isSpace || d.membership !== "join" || d.pendingLeave) continue;
+        spaceChildIds.set(d.roomId, getSpaceChildIds(d.roomId));
+    }
+
+    return classifyRooms({
+        rooms,
+        directIds: getDirectRoomIds(),
+        spaceChildIds,
+        activeSpaceId,
+    });
 }
 
 // ── Room tags (favourites / low priority) ──────────────────────────────────
