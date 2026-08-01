@@ -35,6 +35,7 @@
     } from "$lib/utils/profileCard";
     import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
+    import { createStaleGuard } from "$lib/utils/staleGuard";
     import {
         verificationState,
         verifyUser,
@@ -112,15 +113,31 @@
             : null,
     );
 
+    // The card retargets in place — clicking another avatar swaps
+    // profileCardState.userId without remounting — so a slow response can land
+    // on the wrong person. Trust and the action buttons get separate guards:
+    // they run concurrently and neither should supersede the other.
+    const trustRequests = createStaleGuard();
+    const actionRequests = createStaleGuard();
+
     async function loadTrust() {
         userTrust = null;
         if (isSelf || !userId || !isCryptoAvailable()) return;
-        userTrust = await getUserTrust(userId);
+        const target = userId;
+        const outcome = await trustRequests.run(() => getUserTrust(target));
+        // A late verdict for a user the card is no longer showing would paint
+        // one person's verification badge onto another's.
+        if (outcome.status !== "ok" || target !== userId) return;
+        userTrust = outcome.value;
     }
 
-    // Reset transient state whenever the card retargets or closes.
+    // Reset transient state whenever the card retargets or closes. Cancelling
+    // the guards is what stops the previous target's in-flight responses from
+    // writing into the state we just cleared.
     $effect(() => {
         void profileCardState.userId;
+        trustRequests.cancel();
+        actionRequests.cancel();
         pending = null;
         confirming = null;
         errorMsg = null;
@@ -137,13 +154,15 @@
     async function startVerifyUser() {
         pending = "verify";
         errorMsg = null;
-        try {
-            await verifyUser(userId);
-        } catch (e) {
+        const target = userId;
+        const outcome = await actionRequests.run(() => verifyUser(target));
+        if (outcome.status === "stale") return;
+        pending = null;
+        if (outcome.status === "error") {
             errorMsg =
-                e instanceof Error ? e.message : "Could not start verification";
-        } finally {
-            pending = null;
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not start verification";
         }
     }
 
@@ -177,28 +196,45 @@
     async function openDM() {
         pending = "message";
         errorMsg = null;
-        try {
-            const roomId = await createDirectMessage(userId);
-            closeProfileCard();
-            setActiveRoom(roomId);
-        } catch (e) {
-            errorMsg = e instanceof Error ? e.message : "Could not open DM";
-        } finally {
+        const target = userId;
+        const outcome = await actionRequests.run(() =>
+            createDirectMessage(target),
+        );
+        // The navigation itself is NOT gated on staleness — the user asked to
+        // open this person's DM and the room exists now either way. Only the
+        // card-local state is.
+        if (outcome.status === "ok") {
+            // Cleared before navigating: master's `finally` always cleared it,
+            // and the card is not remounted on close, so a skipped clear would
+            // leave the button spinning the next time this card opens.
             pending = null;
+            closeProfileCard();
+            setActiveRoom(outcome.value);
+            return;
         }
+        if (outcome.status === "stale") return;
+        pending = null;
+        errorMsg =
+            outcome.error instanceof Error
+                ? outcome.error.message
+                : "Could not open DM";
     }
 
     async function toggleBlock() {
         pending = "block";
         errorMsg = null;
-        try {
-            if (blocked) await unblockUser(userId);
-            else await blockUser(userId);
-        } catch (e) {
+        const target = userId;
+        const wasBlocked = blocked;
+        const outcome = await actionRequests.run(() =>
+            wasBlocked ? unblockUser(target) : blockUser(target),
+        );
+        if (outcome.status === "stale") return;
+        pending = null;
+        if (outcome.status === "error") {
             errorMsg =
-                e instanceof Error ? e.message : "Could not update block list";
-        } finally {
-            pending = null;
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not update block list";
         }
     }
 
@@ -209,16 +245,27 @@
         }
         pending = action;
         errorMsg = null;
-        try {
-            if (action === "kick") await kickUser(room.roomId, userId);
-            else await banUser(room.roomId, userId);
-            closeProfileCard();
-        } catch (e) {
-            errorMsg = e instanceof Error ? e.message : `Could not ${action}`;
-            confirming = null;
-        } finally {
+        const target = userId;
+        const targetRoomId = room.roomId;
+        const outcome = await actionRequests.run(() =>
+            action === "kick"
+                ? kickUser(targetRoomId, target)
+                : banUser(targetRoomId, target),
+        );
+        if (outcome.status === "ok") {
+            // See openDM: master's `finally` always cleared this and the card
+            // is not remounted on close.
             pending = null;
+            closeProfileCard();
+            return;
         }
+        if (outcome.status === "stale") return;
+        pending = null;
+        confirming = null;
+        errorMsg =
+            outcome.error instanceof Error
+                ? outcome.error.message
+                : `Could not ${action}`;
     }
 </script>
 
