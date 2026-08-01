@@ -58,13 +58,137 @@ function isValidHomeserverUrl(url) {
 	}
 }
 
+// ── Session record ──────────────────────────────────────────────────────────
+// Hand-written mirror of src/lib/utils/nativeSessionRecord.ts — this file is
+// copied verbatim into the build and cannot import TypeScript, so the rules
+// live here twice. Change one, change both.
+//
+// Homeserver, token and identity are ONE stored value because they are only
+// ever useful as one credential tuple. Four independently-written keys can
+// TEAR: an account switch, a logout racing a login, or a worker killed
+// mid-write leaves account A's bearer token paired with account B's homeserver,
+// and this worker then sends the one to the other (external audit SEC-01). One
+// key cannot tear — a reader gets the whole tuple or nothing.
+//
+// Every rejection below therefore means "this device has no credentials", never
+// a partially-populated tuple, and null identities fail OPEN downstream (i.e.
+// notify, don't inject) rather than building a garbage request out of junk.
+//
+// Unlike in the TypeScript copy, none of the container guards here are
+// belt-and-braces: dbGet() returns whatever structured clone stored, so a real
+// object, an array, a number or null can arrive where a string is expected.
+const SESSION_KEY = "matrix_session_record";
+const SESSION_VERSION = 1;
+// The WORKER's own pre-record IndexedDB keys — deliberately not the Capacitor
+// Preferences names in LEGACY_NATIVE_SESSION_KEYS, which are a different store
+// on a different platform. Swept so a stale token does not sit at rest forever,
+// but NEVER read back as a fallback: reading them is the bug. The access token
+// is first, so a sweep that dies partway through has already removed the
+// credential — and the presence probe in authReady can key off slot 0.
+const LEGACY_SESSION_KEYS = [
+	"accessToken",
+	"homeserverUrl",
+	"userId",
+	"deviceId",
+];
+
+function nonBlank(value) {
+	return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function validHomeserverUrl(value) {
+	const raw = nonBlank(value);
+	if (!raw) return null;
+	// Trim BEFORE certifying, and keep the TRIMMED value: new URL() silently
+	// tolerates surrounding whitespace, so "  https://hs  " would otherwise be
+	// stamped valid with its padding intact and then concatenated into request
+	// paths (mxGet does exactly that).
+	const url = raw.trim();
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+			return null;
+	} catch {
+		// Not absolute ("/_matrix", "matrix.example.org") → we would have no
+		// idea which server the token belongs to. Refuse the whole record.
+		return null;
+	}
+	// A DELIBERATE extra restriction layered on top of the mirror, not drift
+	// from it: the TS copy allows http: because a LAN homeserver works on
+	// native, but this worker has only ever injected auth against https and
+	// must keep doing so. Applied here so the writer and the reader agree —
+	// restricting only one of them would store records that never parse.
+	if (!isValidHomeserverUrl(url)) return null;
+	return url;
+}
+
+/** A Matrix user id, cheaply: the identity half of the tuple. */
+function validUserId(value) {
+	const id = nonBlank(value);
+	if (!id || !id.startsWith("@") || id.length < 2) return null;
+	return id;
+}
+
 /**
- * Only accept a non-empty string as an identity; anything else becomes null so
- * every downstream check fails open (i.e. notifies) instead of building a
- * garbage request path out of it.
+ * Strict parse of the stored record — anything unexpected yields null, i.e.
+ * "this device has no credentials", which every caller must treat as "contact
+ * no homeserver", never as "use what's there".
  */
-function asIdString(value) {
-	return typeof value === "string" && value.length > 0 ? value : null;
+function parseSessionRecord(raw) {
+	if (typeof raw !== "string" || raw.trim().length === 0) return null;
+	let parsed;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	// Arrays and JSON primitives are not records; typeof null === "object".
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+		return null;
+	// A record of another shape (older or newer) may mean something else by the
+	// same field names — refuse rather than guess.
+	if (parsed.v !== SESSION_VERSION) return null;
+	const homeserverUrl = validHomeserverUrl(parsed.homeserverUrl);
+	const accessToken = nonBlank(parsed.accessToken);
+	const userId = validUserId(parsed.userId);
+	if (!homeserverUrl || !accessToken || !userId) return null;
+	// deviceId is optional by design (no device id → this worker simply never
+	// suppresses), but a WRONG type means the record is corrupt, not partial.
+	const rawDevice = parsed.deviceId;
+	if (
+		rawDevice !== undefined &&
+		rawDevice !== null &&
+		typeof rawDevice !== "string"
+	)
+		return null;
+	return {
+		v: SESSION_VERSION,
+		homeserverUrl,
+		accessToken,
+		userId,
+		deviceId: nonBlank(rawDevice),
+	};
+}
+
+/**
+ * Build the record to store. Returns null — meaning "store nothing" — unless
+ * the whole credential tuple is present and well-formed: a three-field best
+ * effort is precisely the tear this record exists to make impossible.
+ */
+function buildSessionRecord(hs, token, user, device) {
+	const homeserverUrl = validHomeserverUrl(hs);
+	const accessToken = nonBlank(token);
+	const userId = validUserId(user);
+	if (!homeserverUrl || !accessToken || !userId) return null;
+	return JSON.stringify({
+		v: SESSION_VERSION,
+		homeserverUrl,
+		accessToken,
+		userId,
+		// Always present, explicitly null when unknown: an omitted key would be
+		// indistinguishable from a truncated record.
+		deviceId: nonBlank(device),
+	});
 }
 
 let accessToken = null;
@@ -90,10 +214,32 @@ let authFromMessage = false;
 let hideNotificationBody = false;
 
 const authReady = (async () => {
-	const storedToken = await dbGet("accessToken");
-	const storedHs = await dbGet("homeserverUrl");
-	const storedUser = await dbGet("userId");
-	const storedDevice = await dbGet("deviceId");
+	// ONE read for the whole credential tuple. It used to be four, which was
+	// four chances to read a torn set (see the record mirror above).
+	const storedRecord = await dbGet(SESSION_KEY);
+	// Fail open to today's behaviour: anything other than an explicit stored
+	// `true` (missing value, null, legacy junk) means "show bodies". Hydrated
+	// BEFORE the `authFromMessage` bail-out below — it is not part of the
+	// credential tuple, and returning early used to skip it entirely, leaving
+	// bodies visible when a SET_AUTH won the startup race. SET_NOTIF_PRIVACY
+	// still wins over this read: that handler awaits `authReady` first.
+	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
+	// Installs that predate the record still have the four per-key values at
+	// rest. They are NEVER read back — reading them is the bug — but they are
+	// swept so a stale token does not sit there forever. Slot 0 is the access
+	// token, so its absence means the sweep already happened (or never had
+	// anything to do): one extra read that costs nothing on every later start.
+	// `.catch()` because this is housekeeping, and housekeeping must not be
+	// able to fail the hydration that the push path depends on.
+	const legacyToken = await dbGet(LEGACY_SESSION_KEYS[0]).catch(() => null);
+	if (legacyToken != null) {
+		// Queued but deliberately NOT awaited: `authReady` gates the push
+		// display path, so it must never wait on a write — nor inherit its
+		// failure. Nothing reads these keys, so nothing waits on the result.
+		for (const key of LEGACY_SESSION_KEYS) {
+			queueWrite(() => dbSet(key, null)).catch(() => {});
+		}
+	}
 	// A SET_AUTH / CLEAR_AUTH message can land while these reads are in flight;
 	// it is by definition fresher than what IndexedDB held, so it wins.
 	// Overwriting it would leave the worker on a stale deviceId, which then
@@ -101,15 +247,15 @@ const authReady = (async () => {
 	// for the device that is actually running it (or resurrect an identity a
 	// logout just cleared).
 	if (authFromMessage) return;
-	if (isValidHomeserverUrl(storedHs)) {
-		accessToken = storedToken;
-		homeserverUrl = storedHs;
-		userId = asIdString(storedUser);
-		deviceId = asIdString(storedDevice);
+	// All four fields or none of them: a record that does not validate means
+	// "no credentials", never "use the parts that survived".
+	const session = parseSessionRecord(storedRecord);
+	if (session) {
+		accessToken = session.accessToken;
+		homeserverUrl = session.homeserverUrl;
+		userId = session.userId;
+		deviceId = session.deviceId;
 	}
-	// Fail open to today's behaviour: anything other than an explicit stored
-	// `true` (missing value, null, legacy junk) means "show bodies".
-	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
 })();
 
 self.addEventListener("message", (event) => {
@@ -122,22 +268,68 @@ self.addEventListener("message", (event) => {
 	event.waitUntil(
 		(async () => {
 			if (event.data?.type === "SET_AUTH") {
-				const { accessToken: token, homeserverUrl: hs } = event.data;
-				if (!isValidHomeserverUrl(hs)) return;
-				const user = asIdString(event.data.userId);
-				const device = asIdString(event.data.deviceId);
+				// Validate and normalise ONCE, then drive both memory and the
+				// write from that single result. Memory is what the fetch
+				// handler reads immediately and the record is what the next
+				// cold start reads; deriving both from one parse is what makes
+				// it impossible for them to describe different accounts.
+				//
+				// NEW COUPLING, introduced with the record: the identity is now
+				// load-bearing for EVERYTHING. SET_AUTH used to set accessToken
+				// and homeserverUrl even with no userId, so authenticated-media
+				// injection in the fetch handler worked without an identity;
+				// now a missing or malformed userId makes buildSessionRecord
+				// return null, which zeroes the whole tuple and kills media auth
+				// and push enrichment as well as active-session suppression.
+				// Unreachable today — createAuthenticatedClient() in
+				// src/lib/matrix/client.ts requires `userId: string`, so
+				// getUserId() is never null by the time initServiceWorker posts
+				// SET_AUTH. A future SSO/OIDC path that lands a token before the
+				// user id is known would trip it, and silently.
+				const record = buildSessionRecord(
+					event.data.homeserverUrl,
+					event.data.accessToken,
+					event.data.userId,
+					event.data.deviceId,
+				);
+				// Guaranteed non-null whenever `record` is: build and parse run
+				// the same checks over the same values.
+				const session = parseSessionRecord(record);
+				// Set even when the message carries no usable session. The page
+				// has told us what the current session IS; if that does not
+				// validate, the answer is "no credentials", not "keep using the
+				// previous account's" — and the startup read must not put an
+				// older identity back either.
 				authFromMessage = true;
-				accessToken = token;
-				homeserverUrl = hs;
-				userId = user;
-				deviceId = device;
+				accessToken = session ? session.accessToken : null;
+				homeserverUrl = session ? session.homeserverUrl : null;
+				userId = session ? session.userId : null;
+				deviceId = session ? session.deviceId : null;
 				// A new identity invalidates any cached heartbeat decision.
 				activeSessionCache = { fetchedAt: 0, value: null };
 				await queueWrite(async () => {
-					await dbSet("accessToken", token);
-					await dbSet("homeserverUrl", hs);
-					await dbSet("userId", user);
-					await dbSet("deviceId", device);
+					if (!record) {
+						// Nothing complete to store — and a PREVIOUS account's
+						// record must not be left where the next cold start
+						// would read it in place of the one we just refused.
+						await dbSet(SESSION_KEY, null);
+						return;
+					}
+					try {
+						// ONE write: IndexedDB gives us no transaction across
+						// keys, so the only way homeserver / token / identity
+						// cannot come apart is being a single value.
+						await dbSet(SESSION_KEY, record);
+					} catch (err) {
+						// A failed write must not leave the last account's
+						// tuple readable on the next cold start.
+						try {
+							await dbSet(SESSION_KEY, null);
+						} catch {
+							/* nothing more we can do */
+						}
+						throw err;
+					}
 				});
 			} else if (event.data?.type === "CLEAR_AUTH") {
 				// Logout / session expiry — forget the token so we stop injecting it,
@@ -149,10 +341,20 @@ self.addEventListener("message", (event) => {
 				deviceId = null;
 				activeSessionCache = { fetchedAt: 0, value: null };
 				await queueWrite(async () => {
-					await dbSet("accessToken", null);
-					await dbSet("homeserverUrl", null);
-					await dbSet("userId", null);
-					await dbSet("deviceId", null);
+					// The record holds the token, so it goes FIRST and alone:
+					// if anything below throws, the credential is already gone.
+					await dbSet(SESSION_KEY, null);
+					// Then the pre-record keys, each independently guarded so
+					// one failure cannot strand the copies after it — an
+					// upgraded install would otherwise keep a second copy of
+					// the token at rest right through logout.
+					for (const key of LEGACY_SESSION_KEYS) {
+						try {
+							await dbSet(key, null);
+						} catch {
+							/* best effort — the token is already gone */
+						}
+					}
 				});
 			} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
 				// Wait out startup hydration first: its stored read lands after this
@@ -367,11 +569,12 @@ async function shouldStayQuiet() {
 		// start and suppression would never apply. A rejected authReady is
 		// caught below → notify.
 		//
-		// Bounded: openDb() has no `onblocked` handler, so a blocked upgrade can
-		// leave authReady permanently pending. Waiting forever here would hang
-		// waitUntil and show NOTHING — fail closed, the one outcome this whole
-		// check must never produce. On timeout the identity reads below are
-		// null and we notify.
+		// Bounded regardless: openDb() rejects on `onblocked`, so the one known
+		// way authReady could hang is already closed, but ANY other cause of a
+		// never-settling authReady would hang waitUntil here and show NOTHING —
+		// fail closed, the one outcome this whole check must never produce. The
+		// race is the guarantee, not a workaround for a specific bug. On timeout
+		// the identity reads below are null and we notify.
 		await Promise.race([
 			authReady,
 			new Promise((resolve) => setTimeout(resolve, 3000)),

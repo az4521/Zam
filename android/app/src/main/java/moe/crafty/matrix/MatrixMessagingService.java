@@ -33,9 +33,10 @@ import java.util.Map;
  *
  * Sygnal pushes are "event_id_only" — they contain just event_id / room_id, no
  * content. To show a useful notification (sender, message, room icon) we call
- * the homeserver from here using the session mirrored into SharedPreferences by
- * the web layer (see src/lib/nativeSession.ts). If the session is missing or a
- * request fails, we fall back to a generic notification.
+ * the homeserver from here using the single session RECORD mirrored into
+ * SharedPreferences by the web layer (see src/lib/nativeSession.ts). If the
+ * record is missing or invalid, or a request fails, we fall back to a generic
+ * notification.
  *
  * Before enriching, we also read the `moe.crafty.matrix.active_session`
  * account-data blob: if a DIFFERENT device of this account was focused within
@@ -50,12 +51,15 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static final String CHANNEL_ID = "matrix_messages";
     private static final String CHANNEL_NAME = "Messages";
 
-    // Matches the Capacitor Preferences store + keys (nativeSession.ts).
+    // Matches the Capacitor Preferences store + the single session record
+    // written by src/lib/utils/nativeSessionRecord.ts (via nativeSession.ts).
+    // Both strings are hand-typed: KEY_SESSION must stay equal to
+    // NATIVE_SESSION_KEY there (and SESSION_KEY in static/sw.js).
     private static final String PREFS = "CapacitorStorage";
-    private static final String KEY_HS = "matrix_hs_url";
-    private static final String KEY_TOKEN = "matrix_access_token";
-    private static final String KEY_USER = "matrix_user_id";
-    private static final String KEY_DEVICE = "matrix_device_id";
+    private static final String KEY_SESSION = "matrix_session_record";
+    // Mirrors NATIVE_SESSION_VERSION. A record of any other version may mean
+    // something else by the same field names, so it is refused, not guessed at.
+    private static final int SESSION_VERSION = 1;
 
     // Active-session suppression (see shouldStayQuiet below).
     private static final String ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
@@ -121,11 +125,14 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         try {
             SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            String hs = prefs.getString(KEY_HS, null);
-            String token = prefs.getString(KEY_TOKEN, null);
-            String selfUserId = prefs.getString(KEY_USER, null);
-            String selfDeviceId = prefs.getString(KEY_DEVICE, null);
-            if (hs != null) hs = hs.replaceAll("/+$", "");
+            // ONE read for the whole credential tuple. It used to be four
+            // independent reads, which was four chances to pick up a torn set
+            // (see the record mirror below). Null → no usable credentials.
+            SessionRecord session = readSessionRecord(prefs);
+            String hs = session != null ? session.homeserverUrl : null;
+            String token = session != null ? session.accessToken : null;
+            String selfUserId = session != null ? session.userId : null;
+            String selfDeviceId = session != null ? session.deviceId : null;
 
             // Another device is demonstrably in use → stay quiet. Checked
             // before the enrichment fetches below so a suppressed push costs
@@ -139,7 +146,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // "false" → bodies stay visible, today's behaviour.
             boolean hideBody = "true".equals(prefs.getString(KEY_HIDE_BODY, "false"));
 
-            if (hs != null && token != null && roomId != null && eventId != null) {
+            // Same gate as before, one notch stricter: a non-null record
+            // guarantees BOTH hs and token are present and well-formed (and
+            // that they came from the same write), so no valid session can
+            // lose enrichment here.
+            if (session != null && roomId != null && eventId != null) {
                 // Room display name.
                 String roomName = fetchRoomName(hs, token, roomId);
                 if (roomName != null) title = roomName;
@@ -185,6 +196,173 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
 
         showNotification(title, text, roomId, largeIcon);
+    }
+
+    // ── Session record ──────────────────────────────────────────────────────
+
+    /**
+     * The mirrored web session: homeserver, token and identity as ONE value.
+     *
+     * Hand-written mirror of parseNativeSession() in
+     * src/lib/utils/nativeSessionRecord.ts (static/sw.js carries the third
+     * copy, as parseSessionRecord) — Java cannot import TypeScript, so keep all
+     * three in step. They were four independent SharedPreferences entries
+     * before: a torn write could pair one account's bearer token with another
+     * account's homeserver, and this service would then send A's token to B
+     * (external audit SEC-01).
+     *
+     * There is deliberately NO fallback to the old per-key entries. Reading
+     * them is the bug being fixed; an install that has not opened the app since
+     * updating simply falls back to the generic notification until it does,
+     * which is the safe direction.
+     */
+    private static final class SessionRecord {
+        final String homeserverUrl;
+        final String accessToken;
+        final String userId;
+        final String deviceId; // may be null — the reader then never suppresses
+
+        SessionRecord(String hs, String token, String user, String device) {
+            this.homeserverUrl = hs;
+            this.accessToken = token;
+            this.userId = user;
+            this.deviceId = device;
+        }
+    }
+
+    /**
+     * Mirrors nonBlankString(): a String with at least one non-whitespace
+     * character, returned UNTRIMMED (the token in particular is used verbatim).
+     * Anything that is not a String — a number, a nested object, absent,
+     * JSONObject.NULL — is "not present".
+     */
+    private static String nonBlankString(Object value) {
+        if (!(value instanceof String)) return null;
+        String s = (String) value;
+        return s.trim().isEmpty() ? null : s;
+    }
+
+    /**
+     * Mirrors validHomeserverUrl(): trim BEFORE certifying and keep the TRIMMED
+     * value. Every request below is built by concatenation (hs + "/_matrix/…"),
+     * so surrounding padding would become a malformed request against a
+     * wrong-looking host.
+     *
+     * http:// is accepted as well as https:// — a LAN homeserver works on
+     * native today, and this record only mirrors whatever the account already
+     * uses. static/sw.js layers an https-only check on top: that restriction is
+     * the WORKER's alone and is deliberately NOT copied here.
+     *
+     * This is a scheme-prefix test, not a WHATWG URL parse, so as well as being
+     * STRICTER in the one place noted inline below it is also LAXER in three
+     * known ways. All three are rejected by the new URL() the TS/JS copies use
+     * and accepted here:
+     *   - a space inside the host   — "https://ho st.com"
+     *   - an out-of-range port      — "https://hs.com:99999"
+     *   - a percent-encoded host    — "https://%2F"
+     * Unreachable today: serializeNativeSession() in
+     * src/lib/utils/nativeSessionRecord.ts is the ONLY producer of this record
+     * and it runs the same value through new URL() before storing it, so none
+     * of those shapes can be at rest for this method to read. Harmless if that
+     * ever changed: a bogus host just fails DNS, every fetch below throws, and
+     * the service falls back to the generic notification. Deliberately NOT
+     * validated here — the extra parsing would be dead code guarding a hole the
+     * writer already closes.
+     */
+    private static String validHomeserverUrl(Object value) {
+        String raw = nonBlankString(value);
+        if (raw == null) return null;
+        String url = raw.trim();
+        // new URL() in the TS/JS copies is case-insensitive about the scheme,
+        // so "HTTPS://hs" parses there and must parse here too. Locale.ROOT so
+        // no device locale can reinterpret these ASCII letters.
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        int hostStart;
+        if (lower.startsWith("https://")) hostStart = 8;
+        else if (lower.startsWith("http://")) hostStart = 7;
+        // Relative ("/_matrix") or bare ("matrix.example.org"): we would have
+        // no idea which server the token belongs to. Refuse the whole record.
+        else return null;
+        // The one place this method is STRICTER than the TS/JS copies, and it
+        // does NOT mirror new URL() — it deliberately diverges from it, in the
+        // safe direction. Verified empirically: new URL("https://") DOES throw,
+        // but new URL("https:///_matrix") SUCCEEDS, with "_matrix" as the host,
+        // so the WHATWG parser accepts an empty authority that this test
+        // refuses. Every request below is hs + "/_matrix/…", so accepting it
+        // would concatenate a bearer token into a hostless URL; refusing it
+        // costs at most the enrichment (fall back to the generic notification).
+        // A future maintainer "resyncing" the copies must NOT loosen this.
+        if (url.length() <= hostStart) return null;
+        char first = url.charAt(hostStart);
+        if (first == '/' || first == '?' || first == '#') return null;
+        return url;
+    }
+
+    /** Mirrors validUserId(): a Matrix user id, cheaply. */
+    private static String validUserId(Object value) {
+        String id = nonBlankString(value);
+        if (id == null || !id.startsWith("@") || id.length() < 2) return null;
+        return id;
+    }
+
+    /**
+     * Strict parse of the stored record — anything unexpected yields null, i.e.
+     * "this device has no credentials", which the caller must treat as "contact
+     * no homeserver", never as "use what's there". Never throws.
+     */
+    private static SessionRecord readSessionRecord(SharedPreferences prefs) {
+        String raw;
+        try {
+            // getString throws ClassCastException if anything ever stored a
+            // non-String under the key; a corrupt store must not kill the
+            // notification.
+            raw = prefs.getString(KEY_SESSION, null);
+        } catch (Exception e) {
+            return null;
+        }
+        if (raw == null || raw.trim().isEmpty()) return null;
+        try {
+            // Throws unless the whole string is one JSON OBJECT — an array or
+            // a bare primitive lands in the catch below, like the TS/JS copies'
+            // Array.isArray()/typeof guards.
+            JSONObject o = new JSONObject(raw);
+            // Strict, like the TS/JS copies: the opt* coercions would happily
+            // turn "1" (or 1.5) into a 1, while those copies compare with ===
+            // against the number 1 — so test the runtime type AND the exact
+            // value. NaN fails the comparison and is refused too.
+            Object version = o.opt("v");
+            if (!(version instanceof Number)) return null;
+            if (((Number) version).doubleValue() != (double) SESSION_VERSION) return null;
+
+            String hs = validHomeserverUrl(o.opt("homeserverUrl"));
+            String token = nonBlankString(o.opt("accessToken"));
+            String user = validUserId(o.opt("userId"));
+            // All or nothing. A half-filled record is exactly the failure the
+            // single-key record exists to make unrepresentable.
+            if (hs == null || token == null || user == null) return null;
+
+            // deviceId is optional by design (no device id → this service
+            // simply never suppresses), but a WRONG type means the record is
+            // corrupt, not partial. A JSON null arrives as the JSONObject.NULL
+            // singleton, NOT as a Java null, so it needs its own test — and it
+            // must resolve to "absent", not to "corrupt".
+            Object rawDevice = o.opt("deviceId");
+            String deviceId = null;
+            if (rawDevice instanceof String) {
+                deviceId = nonBlankString(rawDevice);
+            } else if (rawDevice != null && rawDevice != JSONObject.NULL) {
+                return null;
+            }
+
+            // Trailing-slash strip: exactly once, at the one point the URL
+            // enters this service, because every request below is
+            // hs + "/_matrix/…" and "https://hs/" would double the slash. No
+            // TS/JS counterpart — those copies do not build URLs this way.
+            // Cannot eat the host: a hostless URL was refused above.
+            return new SessionRecord(hs.replaceAll("/+$", ""), token, user, deviceId);
+        } catch (Exception e) {
+            return null; // not JSON, not an object, or anything unexpected
+        }
     }
 
     // ── Active-session suppression ──────────────────────────────────────────
