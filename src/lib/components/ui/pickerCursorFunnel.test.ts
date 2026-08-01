@@ -191,7 +191,7 @@ describe("the ASSIGNMENT matcher", () => {
         // destructuring assignment into a `$state` variable is not something
         // this guard should have to know: it is defended either way, because
         // the cost of defending it is one regex branch and the cost of being
-        // wrong about it is a permanently dead cursor nobody can see.
+        // wrong about it is a silently dead cursor nobody can see.
         "[selectedIndex] = [next]",
         "[selectedIndex, selectedKey] = [next, key]",
         "({ selectedIndex } = o)",

@@ -231,9 +231,13 @@
     //
     // This only holds while EVERY write to `selectedIndex` goes through
     // `moveCursor`, which records the identity next to the index. A missed
-    // assignment site leaves the cursor permanently and silently dead, so
-    // `pickerCursorFunnel.test.ts` reads this file and fails if a second
-    // assignment appears.
+    // assignment site leaves a stale key beside a fresh index, which reads as
+    // "nothing active": Left, Right, Home, End and Enter all no-op, and the
+    // next ArrowDown re-enters at 0, yanking whoever was mid-navigation back
+    // to the top of the list. The next `moveCursor` re-keys, so it does heal
+    // -- but it heals silently, and no other test in the suite can see it,
+    // which is why `pickerCursorFunnel.test.ts` reads this file and fails if
+    // a second assignment appears.
     const activeIndex = $derived(
         anchoredActiveIndex(selectedIndex, selectedKey, activeKeys),
     );
