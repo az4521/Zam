@@ -51,12 +51,27 @@ describe("highlightCodeBlocks", () => {
         expect(out).toContain("hljs");
         // The auto-derived class, not just `hljs` — `classList.add("hljs")`
         // runs for any non-null engine, so asserting it alone would pass
-        // against a junk one. hljs reads this snippet as ruby, not python;
-        // pinning the engine's real answer also kills the mutant that drops
-        // the `result.language &&` guard (which would emit
-        // `language-undefined` and satisfy a looser /language-\w+/ match).
+        // against a junk one. hljs reads this snippet as ruby, not python.
+        // This says nothing about the `result.language &&` guard: the real
+        // engine always names a language here, so dropping that guard leaves
+        // this case identical. The fake-engine test below is what pins it.
         expect(out).toContain("language-ruby");
         expect(out).toContain("hljs-keyword");
+    });
+
+    it("adds no language class when the engine detects nothing", () => {
+        // Auto-detection can come back without a language. Dropping the
+        // `result.language &&` guard would then stamp the block
+        // `language-undefined` — a class no stylesheet or reader wants.
+        const fake: HighlightEngine = {
+            getLanguage: () => null,
+            highlight: () => ({ value: "UNUSED" }),
+            highlightAuto: () => ({ value: "X" }),
+        };
+        const out = highlightCodeBlocks("<pre><code>x</code></pre>", fake);
+        expect(out).toContain("X");
+        expect(out).toContain("hljs");
+        expect(out).not.toContain("language-undefined");
     });
 
     it("uses the injected engine rather than a hard-wired one", () => {

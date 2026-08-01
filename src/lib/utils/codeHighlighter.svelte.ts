@@ -12,8 +12,11 @@ const highlighter = lazyModule(async () => {
 let chunkFetchFailed = false;
 
 // $state.raw: deep-proxying an opaque third-party object (highlight.js) is wrong.
-// Each proxied property access mints a fresh identity, which breaks cycle detection
-// in serializers and diagnostics. Use raw instead: the whole engine is replaced wholesale.
+// Svelte memoizes a child proxy per property, but there is no global object→proxy
+// cache, so one underlying object reached by two different property paths gets two
+// distinct proxies — which defeats identity-based cycle detection in serializers and
+// diagnostics walking a graph as self-referential as hljs. Use raw instead: the whole
+// engine is replaced wholesale.
 let engine = $state.raw<HighlightEngine | null>(null);
 
 /**
