@@ -5,9 +5,11 @@ import {
     shellCacheName,
     isStaleShellCache,
     SHELL_CACHE_PREFIX,
+    NAVIGATION_FALLBACK_URL,
     type ClassifyInput,
     type FetchKind,
 } from "./swCacheRouting";
+import { SHELL_EXTRA_URLS } from "./swPrecache";
 
 const ORIGIN = "https://chat.example.org";
 
@@ -99,6 +101,25 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        // `new URL` normalises `..` segments but does NOT decode `%2f`, so this
+        // pathname really does still start with `/_app/immutable/`. Some servers
+        // decode `%2F` before resolving, which would make a cache-first,
+        // Cache-API-stored `asset` verdict a `/_matrix/` response in disguise.
+        name: "percent-encoded traversal out of the asset prefix",
+        input: req({
+            url: `${ORIGIN}/_app/immutable/..%2f..%2f_matrix/client/v3/sync`,
+        }),
+        expected: "bypass",
+    },
+    {
+        // The rule is "no percent sign anywhere in the path", not "no %2f":
+        // a real Vite build asset filename never contains one, so rejecting the
+        // whole class costs nothing and leaves no encoding to be clever with.
+        name: "a percent-escaped filename is not a build asset",
+        input: req({ url: `${ORIGIN}/_app/immutable/chunks/a%20b.js` }),
+        expected: "bypass",
+    },
+    {
         name: "decoy prefix directory",
         input: req({ url: `${ORIGIN}/_app/immutableX/evil.js` }),
         expected: "bypass",
@@ -184,6 +205,26 @@ describe("parsePrecacheManifest", () => {
             expect(parsePrecacheManifest(c.raw)).toEqual(c.expected);
         });
     }
+});
+
+// Both of these constants get hand-copied into `static/sw.js`, so they are
+// pinned to literals rather than derived from themselves. Deriving the
+// expectation from the constant let either one drift silently: a changed
+// prefix means the activate sweep stops recognising the caches it wrote (they
+// accumulate forever), and a changed fallback URL means the offline
+// navigation fallback is a permanent cache miss — an app that looks online-only.
+describe("the constants mirrored into static/sw.js", () => {
+    it("pins the shell cache prefix", () => {
+        expect(SHELL_CACHE_PREFIX).toBe("zam-shell-");
+    });
+
+    it("pins the navigation fallback url", () => {
+        expect(NAVIGATION_FALLBACK_URL).toBe("/index.html");
+    });
+
+    it("precaches the navigation fallback, so it can actually be served", () => {
+        expect(SHELL_EXTRA_URLS).toContain(NAVIGATION_FALLBACK_URL);
+    });
 });
 
 describe("shellCacheName / isStaleShellCache", () => {

@@ -65,6 +65,15 @@ describe("extractStartupAssets", () => {
     });
 });
 
+/** `count` distinct startup assets, referenced the way index.html does it. */
+function htmlWithAssets(count: number): string {
+    return Array.from(
+        { length: count },
+        (_, i) =>
+            `<link href="/_app/immutable/chunks/c${i}.js" rel="modulepreload">`,
+    ).join("\n");
+}
+
 describe("buildPrecacheManifest", () => {
     it("is the shell extras plus the startup assets, deduped and sorted", () => {
         const manifest = buildPrecacheManifest(HTML);
@@ -80,13 +89,23 @@ describe("buildPrecacheManifest", () => {
         expect(manifest).toContain("/index.html");
     });
 
-    it("throws when the html references more than the bound (a windowing regression)", () => {
-        const many = Array.from(
-            { length: MAX_STARTUP_ASSETS + 1 },
-            (_, i) =>
-                `<link href="/_app/immutable/chunks/c${i}.js" rel="modulepreload">`,
-        ).join("\n");
-        expect(() => buildPrecacheManifest(many)).toThrow(/bound/i);
+    // The bound is asserted against LITERALS, deliberately. Phrased as
+    // `MAX_STARTUP_ASSETS + 1` the assertion moves with the constant, so
+    // raising the ceiling to 6000 — or flipping the `>` in the guard to `>=`
+    // — kept the whole suite green while the precache stopped being bounded
+    // in any meaningful sense (rubric item 8: that must FAIL a test).
+    it("pins the bound to 60, so a raised ceiling cannot pass silently", () => {
+        expect(MAX_STARTUP_ASSETS).toBe(60);
+    });
+
+    it("accepts exactly 60 startup assets", () => {
+        expect(() => buildPrecacheManifest(htmlWithAssets(60))).not.toThrow();
+    });
+
+    it("throws at 61 startup assets (a windowing regression)", () => {
+        expect(() => buildPrecacheManifest(htmlWithAssets(61))).toThrow(
+            /bound/i,
+        );
     });
 
     it("throws when the html references no build assets at all", () => {

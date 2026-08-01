@@ -57,7 +57,17 @@ export function classifyRequest(input: ClassifyInput): FetchKind {
 
     // `parsed.pathname` is already normalised by the URL parser, so a
     // `/_app/immutable/../_matrix/…` traversal has left the prefix by here.
-    if (parsed.pathname.startsWith(BUILD_ASSET_PREFIX)) return "asset";
+    if (parsed.pathname.startsWith(BUILD_ASSET_PREFIX)) {
+        // …but `new URL` normalises `..` segments only — it does NOT decode
+        // `%2f`, so `/_app/immutable/..%2f..%2f_matrix/client/v3/sync` keeps
+        // that pathname and still starts with the prefix. Servers that decode
+        // `%2F` before resolving would then hand us a `/_matrix/` response
+        // that we had classified cache-first and stored in the Cache API. A
+        // real Vite build asset filename never contains a percent sign, so
+        // requiring none closes the whole encoded-traversal class for free.
+        if (parsed.pathname.indexOf("%") !== -1) return "bypass";
+        return "asset";
+    }
 
     return "bypass";
 }
