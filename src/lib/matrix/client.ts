@@ -113,7 +113,11 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
 } from "$lib/utils/threadContent";
-import { belongsToMainTimeline, summarizeThread } from "$lib/utils/threadModel";
+import {
+    belongsToMainTimeline,
+    summarizeThread,
+    threadReplyRootId,
+} from "$lib/utils/threadModel";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
@@ -6037,6 +6041,18 @@ export interface DecryptedTimelineMeta {
     isLiveAppend: boolean;
     /** The ciphertext arrived before sync PREPARED (page-load backlog replay). */
     arrivedDuringInitialSync: boolean;
+    /**
+     * Root event id when the decrypted event is an `m.thread` reply, else null.
+     *
+     * Derived HERE rather than by the consumer because the relation may live in
+     * EITHER half of an encrypted event, depending on the sender: the wire
+     * content for clients that put it there (which is why `getRelation()` reads
+     * wire content at all), or the decrypted clear content for matrix-js-sdk
+     * senders, whose `makeEncrypted` replaces the wire content wholesale. So
+     * both halves are consulted, and `getEventThreadRootId()` — clear content
+     * only — is not sufficient here.
+     */
+    threadRootId: string | null;
 }
 
 /**
@@ -6068,7 +6084,11 @@ export function onDecryptedTimelineEvent(
     ) => void,
 ): () => void {
     if (!matrixClient) return () => {};
-    const pending = createBoundedIdMap<DecryptedTimelineMeta>();
+    // Only the facts knowable at CIPHERTEXT time: the thread root id is derived
+    // at decryption time (below), so the ciphertext handler is never forced to
+    // invent one.
+    const pending =
+        createBoundedIdMap<Omit<DecryptedTimelineMeta, "threadRootId">>();
 
     const onTimeline = (
         event: MatrixEvent,
@@ -6104,17 +6124,27 @@ export function onDecryptedTimelineEvent(
         // bypass — with that debug setting on, the ciphertext already went
         // through the normal path and the caller's already-notified check
         // suppresses this one).
-        // Relations are lifted OUT of the encrypted payload into the wire
-        // content (matrix-js-sdk models/event.js: "Relation info is lifted out
-        // of the encrypted content when sent to encrypted rooms"), so the
-        // cleartext accessors onTimelineEvent uses would miss an encrypted edit
-        // or thread reply. getRelation() reads wire content; fall back to the
-        // clear content for senders that also inline it.
+        // An encrypted event's relation can sit in either half, depending on
+        // the sender. Some clients leave `m.relates_to` in the wire content —
+        // that is what getRelation() reads, and why the SDK's isRelation()
+        // checks it. matrix-js-sdk senders do the opposite: makeEncrypted()
+        // swaps the whole wire content for the ciphertext, so the relation only
+        // reappears in the clear content once decrypted. Consult BOTH, or an
+        // encrypted edit or thread reply gets misfiled as a plain message.
         const relatesTo =
             event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
         const isReplacement = relatesTo?.rel_type === "m.replace";
         if (isReplacement) return;
-        if (!belongsToMainTimeline({ relatesTo, eventId })) return;
+        // NOT a filter any more (NOTIF-02). A thread reply used to be dropped
+        // here on the assumption that onThreadReplyEvent would carry it, but
+        // that subscription gates on the cleartext event type and an encrypted
+        // reply reads m.room.encrypted until this very moment — so the reply
+        // notified nowhere. Forward it with its root id and let the consumer
+        // apply the thread policy, which needs cleartext (mentions) anyway.
+        // threadReplyRootId is the classifier (the inverse of
+        // belongsToMainTimeline, pinned by its own tests) so a malformed
+        // self-referential m.thread relation stays a main-timeline event.
+        const threadRootId = threadReplyRootId({ relatesTo, eventId });
         const type = event.getType();
         if (
             type !== "m.room.message" &&
@@ -6124,7 +6154,7 @@ export function onDecryptedTimelineEvent(
             return;
         if (event.isRedacted()) return;
 
-        callback(event, room, meta);
+        callback(event, room, { ...meta, threadRootId });
     };
 
     matrixClient.on(RoomEvent.Timeline, onTimeline as never);

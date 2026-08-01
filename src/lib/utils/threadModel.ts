@@ -24,6 +24,23 @@ export function belongsToMainTimeline(params: {
     return true;
 }
 
+/**
+ * Root event id when a relation makes this event a thread REPLY, else null.
+ *
+ * The inverse of `belongsToMainTimeline`, extracted so the notification path's
+ * main-vs-thread classification is pinned by tests rather than living
+ * untestably inside the SDK wrapper. A malformed self-referential `m.thread`
+ * relation, or one with no `event_id`, is a main-timeline event and yields null
+ * — exactly what `belongsToMainTimeline` decides, by construction.
+ */
+export function threadReplyRootId(params: {
+    relatesTo: { rel_type?: string; event_id?: string } | undefined;
+    eventId: string;
+}): string | null {
+    if (belongsToMainTimeline(params)) return null;
+    return params.relatesTo?.event_id ?? null;
+}
+
 export interface ThreadSummary {
     count: number;
     latestEventId: string | null;

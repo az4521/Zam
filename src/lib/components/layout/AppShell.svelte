@@ -1001,10 +1001,13 @@
             if (!isLiveAppend) return;
             if (event.getSender() === getOwnUserId()) return;
 
-            // Thread replies are surfaced by the dedicated onThreadReplyEvent
-            // path below (participant/mention-gated). onTimelineEvent forwards
-            // them here too when settingsState.showAllEvents is on — skip so we
-            // don't double-notify the same reply.
+            // Thread replies are participant/mention-gated elsewhere: plaintext
+            // ones by onThreadReplyEvent below, encrypted ones by the decrypted
+            // path. Skip them here so we don't double-notify. KNOWN debug-only
+            // hole: this reads getOriginalContent, which is the WIRE content
+            // while undecrypted, so a ciphertext-only relation slips past — and
+            // with showAllEvents on the ciphertext then notifies ungated as
+            // "🔒 Encrypted message", its id suppressing the gated one.
             if (getEventThreadRootId(event)) return;
 
             const actions = getClient()?.getPushActionsForEvent(event);
@@ -1016,7 +1019,9 @@
 
         // Encrypted messages arrive as m.room.encrypted, which onTimelineEvent
         // filters out — so they only become notifiable once they decrypt. Same
-        // gate chain as above, re-run at that point.
+        // gate chain as above, re-run at that point. Thread replies come
+        // through here too (NOTIF-02): the plaintext thread path below cannot
+        // see them, because it gates on the cleartext type.
         const unsubDecryptedNotify = onDecryptedTimelineEvent(
             (event, room, meta) => {
                 bumpUnreadTick();
@@ -1025,7 +1030,8 @@
                 // during sync, so they MUST be recalculated now that the
                 // cleartext body and mentions are readable — otherwise a
                 // mention never highlights and the room's mute rule is applied
-                // to the wrong content.
+                // to the wrong content. This is also what makes the thread
+                // policy's `isMentioned` meaningful at all.
                 const actions = getClient()?.getPushActionsForEvent(
                     event,
                     true,
@@ -1037,8 +1043,15 @@
                             !!eventId && notifiedEventIds.has(eventId),
                         isLiveAppend: meta.isLiveAppend,
                         isOwnEvent: event.getSender() === getOwnUserId(),
-                        threadRootId: getEventThreadRootId(event),
+                        // From the wrapper, not getEventThreadRootId: for an
+                        // encrypted event the relation may live only in the
+                        // wire content, which that helper does not read.
+                        threadRootId: meta.threadRootId,
                         pushNotify: !!actions?.notify,
+                        isThreadParticipant: meta.threadRootId
+                            ? isThreadParticipant(room, meta.threadRootId)
+                            : false,
+                        isMentioned: !!(actions?.tweaks as any)?.highlight,
                     })
                 )
                     return;
@@ -1061,6 +1074,15 @@
             (event, room, isLiveAppend) => {
                 if (!isLiveAppend) return;
                 if (event.getSender() === getOwnUserId()) return;
+
+                // Both this path and the decrypted one can now admit a thread
+                // reply, so the shared id set — not a structural accident — is
+                // what guarantees exactly one notification per event. A
+                // plaintext reply can never have been notified before reaching
+                // here, so this only ever fires on an overlap.
+                const threadEventId = event.getId();
+                if (threadEventId && notifiedEventIds.has(threadEventId))
+                    return;
 
                 const actions = getClient()?.getPushActionsForEvent(event);
                 const notify = !!actions?.notify;

@@ -1,6 +1,10 @@
 // src/lib/utils/threadModel.test.ts
 import { describe, it, expect } from "vitest";
-import { belongsToMainTimeline, summarizeThread } from "./threadModel";
+import {
+    belongsToMainTimeline,
+    summarizeThread,
+    threadReplyRootId,
+} from "./threadModel";
 
 describe("belongsToMainTimeline", () => {
     it("keeps a plain message with no relation", () => {
@@ -62,6 +66,74 @@ describe("belongsToMainTimeline", () => {
                 eventId: "$x",
             }),
         ).toBe(true);
+    });
+});
+
+// The notification path's main-vs-thread classification used to live inline in
+// the SDK wrapper, where nothing could reach it: a reviewer deleted the
+// self-referential guard there and the whole suite stayed green. These pin it.
+describe("threadReplyRootId", () => {
+    it("returns the root id for a genuine m.thread reply", () => {
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.thread", event_id: "$root" },
+                eventId: "$reply",
+            }),
+        ).toBe("$root");
+    });
+
+    it("returns null for a self-referential m.thread relation", () => {
+        // A relation pointing at its own event is malformed, not a reply — it
+        // must stay a main-timeline event. Dropping this guard is the exact
+        // mutation the suite failed to catch before.
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.thread", event_id: "$self" },
+                eventId: "$self",
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for an m.thread relation with no event_id", () => {
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.thread" },
+                eventId: "$x",
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for an edit (m.replace)", () => {
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.replace", event_id: "$target" },
+                eventId: "$edit",
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for a reaction (m.annotation)", () => {
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.annotation", event_id: "$target" },
+                eventId: "$react",
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for a rich reply (m.reference)", () => {
+        expect(
+            threadReplyRootId({
+                relatesTo: { rel_type: "m.reference", event_id: "$target" },
+                eventId: "$ref",
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null when there is no relation at all", () => {
+        expect(
+            threadReplyRootId({ relatesTo: undefined, eventId: "$a" }),
+        ).toBeNull();
     });
 });
 
