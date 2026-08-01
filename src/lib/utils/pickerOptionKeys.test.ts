@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { emojiOptionKeys, stickerOptionKeys } from "./pickerOptionKeys";
+import { anchoredActiveIndex } from "./listboxAnchor";
+import { clampActiveIndex } from "./listboxNavigation";
 
 const custom = (
     packId: string,
@@ -83,5 +85,75 @@ describe("stickerOptionKeys", () => {
 
     it("returns an empty array for an empty list", () => {
         expect(stickerOptionKeys([])).toEqual([]);
+    });
+});
+
+describe("anchoring a picker cursor across a list rewrite", () => {
+    it("drops the active option when a sync inserts an emoji above the cursor", () => {
+        const before = [
+            custom("p", "aa"),
+            custom("p", "bb"),
+            custom("p", "cc"),
+        ];
+        const keysBefore = emojiOptionKeys(before);
+        // The user arrowed onto "bb".
+        const cursor = 1;
+        const anchor = keysBefore[cursor];
+        expect(anchoredActiveIndex(cursor, anchor, keysBefore)).toBe(1);
+
+        // A sync rewrites the pack, inserting one emoji at the FRONT. Index 1
+        // is still a real option, so a clamp sees nothing wrong.
+        const after = [custom("p", "zz"), ...before];
+        const keysAfter = emojiOptionKeys(after);
+        expect(clampActiveIndex(cursor, keysAfter.length)).toBe(1);
+
+        // The anchor refuses it: "bb" is no longer at index 1.
+        expect(anchoredActiveIndex(cursor, anchor, keysAfter)).toBe(-1);
+    });
+
+    it("does not chase the emoji to its new index", () => {
+        const before = emojiOptionKeys([custom("p", "aa"), custom("p", "bb")]);
+        const after = emojiOptionKeys([
+            custom("p", "zz"),
+            custom("p", "aa"),
+            custom("p", "bb"),
+        ]);
+        // "bb" moved from 1 to 2; the answer is "nothing active", not 2.
+        expect(anchoredActiveIndex(1, before[1], after)).toBe(-1);
+    });
+
+    it("keeps the cursor when the rewrite happens BELOW it", () => {
+        const before = emojiOptionKeys([custom("p", "aa"), custom("p", "bb")]);
+        const after = emojiOptionKeys([
+            custom("p", "aa"),
+            custom("p", "bb"),
+            custom("p", "cc"),
+        ]);
+        expect(anchoredActiveIndex(1, before[1], after)).toBe(1);
+    });
+
+    it("drops the active option when a sync inserts a sticker above the cursor", () => {
+        const before = [
+            { shortcode: "aa", mxcUrl: "mxc://h/aa" },
+            { shortcode: "bb", mxcUrl: "mxc://h/bb" },
+        ];
+        const keysBefore = stickerOptionKeys(before);
+        const anchor = keysBefore[1];
+        const keysAfter = stickerOptionKeys([
+            { shortcode: "zz", mxcUrl: "mxc://h/zz" },
+            ...before,
+        ]);
+        expect(clampActiveIndex(1, keysAfter.length)).toBe(1);
+        expect(anchoredActiveIndex(1, anchor, keysAfter)).toBe(-1);
+    });
+
+    it("drops the active option when a pack re-points a shortcode at a new image", () => {
+        const keysBefore = stickerOptionKeys([
+            { shortcode: "wave", mxcUrl: "mxc://h/old" },
+        ]);
+        const keysAfter = stickerOptionKeys([
+            { shortcode: "wave", mxcUrl: "mxc://h/new" },
+        ]);
+        expect(anchoredActiveIndex(0, keysBefore[0], keysAfter)).toBe(-1);
     });
 });

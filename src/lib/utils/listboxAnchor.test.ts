@@ -59,4 +59,17 @@ describe("anchoredActiveIndex", () => {
         const noAnchor = undefined as unknown as string | null;
         expect(anchoredActiveIndex(99, noAnchor, KEYS)).toBe(-1);
     });
+
+    it("reports nothing active for a negative cursor, whatever the keys hold", () => {
+        // GifPicker guarantees a null anchor whenever the index is negative, so
+        // this path is unreachable there today. Pinning it directly means the
+        // new EmojiPicker/StickerPicker callers cannot break it by holding a
+        // stale key next to an inactive index.
+        expect(anchoredActiveIndex(-1, null, KEYS)).toBe(-1);
+        expect(anchoredActiveIndex(-1, "a", KEYS)).toBe(-1);
+        // The LAST key specifically: a "negative wraps to the end" clamp -- the
+        // shape ArrowUp-from-nothing uses in `nextActiveIndex` -- would land on
+        // it and match, so the two anchors above cannot see that regression.
+        expect(anchoredActiveIndex(-1, KEYS[KEYS.length - 1], KEYS)).toBe(-1);
+    });
 });
