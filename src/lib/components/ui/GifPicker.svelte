@@ -407,7 +407,18 @@
          each tile a `row`, the GIF and its overlay controls `gridcell`s. It is
          deferred because it means adding wrapper elements inside a CSS
          `columns-[165px]` masonry -- a layout change that has to be seen in a
-         real browser, not reasoned about. -->
+         real browser, not reasoned about.
+
+         What this link added to that estimate: the roles can go on elements
+         that already exist -- the masonry div becomes `rowgroup`, each tile
+         wrapper becomes `row`, the option button becomes `gridcell`, and on the
+         favourites tab the overlay div is a second `gridcell` already. Only the
+         KLIPY tab's star button sits as a direct child of the tile with no
+         wrapper to promote. So the layout risk is smaller than "adding wrapper
+         elements" suggests -- but `role` changes cannot be verified by a test
+         here, and whether a browse-mode reader really does better with a
+         one-column grid than with the current listbox needs a real screen
+         reader, not a browser. -->
     <div
         bind:this={gridEl}
         onscroll={onGridScroll}
