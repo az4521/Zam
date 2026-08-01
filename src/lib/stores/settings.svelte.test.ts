@@ -1,12 +1,31 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { settingsState, setShowReadReceiptAvatars } from "./settings.svelte";
+import {
+    settingsState,
+    setShowReadReceiptAvatars,
+    setLinkPreviewMedia,
+} from "./settings.svelte";
+import { auth } from "$lib/stores/auth.svelte";
 
 const KEY = "settings:showReadReceiptAvatars";
 
-// The module-level store persists across tests — restore the default after each.
+/**
+ * A signed-in user id, for the "is not account-scoped" tests only.
+ *
+ * Those tests are worthless without one: `auth.userId` is null in this
+ * environment (nothing signs in, and vitest.config.ts has no setupFiles), and
+ * scopedKey(base, null) returns the BARE key — so an account-scoped writer
+ * would write to exactly the key they assert on and the regression would sail
+ * through. A real user id is what makes the scoped key observable.
+ */
+const SCOPED_USER = "@alice:example.org";
+
+// The module-level store persists across tests — restore the default after
+// each. auth.userId is reset here (not in a nested hook) so no test can leak a
+// signed-in user id into the next one, whichever describe set it.
 afterEach(() => {
     setShowReadReceiptAvatars(true);
     localStorage.removeItem(KEY);
+    auth.userId = null;
 });
 
 /**
@@ -48,6 +67,7 @@ describe("showReadReceiptAvatars", () => {
     });
 
     it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
         setShowReadReceiptAvatars(false);
         const keys = Object.keys(localStorage).filter((k) =>
             k.includes("showReadReceiptAvatars"),
@@ -59,6 +79,58 @@ describe("showReadReceiptAvatars", () => {
         const before = settingsState.privateReadReceipts;
         setShowReadReceiptAvatars(false);
         expect(settingsState.privateReadReceipts).toBe(before);
+    });
+});
+
+describe("linkPreviewMedia", () => {
+    const LP_KEY = "settings:linkPreviewMedia";
+
+    afterEach(() => {
+        setLinkPreviewMedia("all");
+        localStorage.removeItem(LP_KEY);
+    });
+
+    async function bootLinkPreviewWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(LP_KEY);
+        else localStorage.setItem(LP_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to 'all' so existing users see no change", async () => {
+        const fresh = await bootLinkPreviewWith(null);
+        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+    });
+
+    it("reads a stored value back at boot, so the choice survives a reload", async () => {
+        const fresh = await bootLinkPreviewWith("proxied");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("proxied");
+    });
+
+    it("falls back to the default when localStorage holds junk", async () => {
+        const fresh = await bootLinkPreviewWith("garbage");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+    });
+
+    it("writes the value under the device-global key", () => {
+        setLinkPreviewMedia("none");
+        expect(localStorage.getItem(LP_KEY)).toBe("none");
+        expect(settingsState.linkPreviewMedia).toBe("none");
+    });
+
+    it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
+        setLinkPreviewMedia("proxied");
+        const keys = Object.keys(localStorage).filter((k) =>
+            k.includes("linkPreviewMedia"),
+        );
+        expect(keys).toEqual([LP_KEY]);
+    });
+
+    it("normalizes a bad value passed to the setter", () => {
+        setLinkPreviewMedia("nonsense" as never);
+        expect(settingsState.linkPreviewMedia).toBe("all");
+        expect(localStorage.getItem(LP_KEY)).toBe("all");
     });
 });
 

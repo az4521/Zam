@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { getUrlPreview, type UrlPreview } from "$lib/matrix/client";
+    import {
+        getUrlPreview,
+        getHomeserverBaseUrl,
+        type UrlPreview,
+    } from "$lib/matrix/client";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import {
         favouritesState,
@@ -7,12 +11,38 @@
         addFavouriteGif,
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        allowsMediaAutoLoad,
+        allowsThirdPartyEmbed,
+    } from "$lib/utils/linkPreviewPolicy";
 
     interface Props {
         url: string;
     }
 
     let { url }: Props = $props();
+
+    // The homeserver we would proxy media through. Read once: the app hard-
+    // reloads on account switch, so this cannot go stale under us.
+    const hsBaseUrl = getHomeserverBaseUrl();
+
+    // "Load media" is remembered against the URL it was pressed for, NOT as a
+    // bare boolean reset from an $effect: an effect that both reads the policy
+    // and resets the flag would either loop or race the fetching effect, and a
+    // lost race means the third-party request we are trying to prevent fires
+    // anyway. Deriving it makes a URL change reset the reveal with no effect
+    // at all.
+    let revealedFor = $state<string | null>(null);
+    const revealed = $derived(revealedFor === url);
+    const policy = $derived(
+        revealed ? ("all" as const) : settingsState.linkPreviewMedia,
+    );
+    const embedsAllowed = $derived(allowsThirdPartyEmbed(policy));
+
+    function canLoad(mediaUrl: string | null | undefined): boolean {
+        return allowsMediaAutoLoad(policy, mediaUrl, hsBaseUrl);
+    }
 
     let preview = $state<UrlPreview | null>(null);
     let imageError = $state(false);
@@ -87,6 +117,7 @@
 
     $effect(() => {
         const currentUrl = url;
+        const allowEmbeds = embedsAllowed;
         preview = null;
         imageError = false;
         directEmbed = null;
@@ -94,18 +125,29 @@
         videoPlaying = false;
         videoThumbError = false;
 
-        const ytUrl = getYoutubeEmbedUrl(currentUrl);
+        // A response that lands after the URL or the policy moved on must not
+        // write itself back into state — otherwise flipping the setting to a
+        // stricter value could be undone by the request it just cancelled.
+        let cancelled = false;
+
+        const ytUrl = allowEmbeds ? getYoutubeEmbedUrl(currentUrl) : null;
         if (ytUrl) {
             directEmbed = { type: "youtube", embedUrl: ytUrl };
             return;
         }
 
-        // Twitter/X: use fxtwitter JSON API (has CORS headers)
-        const twitterApiUrl = getTwitterApiUrl(currentUrl);
+        // Twitter/X: use fxtwitter JSON API (has CORS headers). This is a
+        // request straight to a third party, so it needs the same consent as
+        // the media itself.
+        const twitterApiUrl = allowEmbeds ? getTwitterApiUrl(currentUrl) : null;
         if (twitterApiUrl) {
-            fetch(twitterApiUrl, { headers: { Accept: "application/json" } })
+            fetch(twitterApiUrl, {
+                headers: { Accept: "application/json" },
+                referrerPolicy: "no-referrer",
+            })
                 .then((r) => r.json())
                 .then((data: any) => {
+                    if (cancelled) return;
                     const tweet = data?.tweet;
                     if (!tweet) return;
                     tweetEmbed = {
@@ -120,14 +162,23 @@
                         ),
                     };
                 });
-            return;
+            return () => {
+                cancelled = true;
+            };
         }
 
+        // The homeserver's own preview endpoint — no third party is contacted,
+        // so this runs under every policy. Only its MEDIA is gated, below.
         getUrlPreview(currentUrl).then((data) => {
+            if (cancelled) return;
             if (data && (data.title || data.imageUrl || data.videoUrl)) {
                 preview = data;
             }
         });
+
+        return () => {
+            cancelled = true;
+        };
     });
 
     // Whether the preview carries page metadata (title/description/site name) as
@@ -150,6 +201,22 @@
             return false;
         }
     });
+
+    // A direct embed we declined to mount (YouTube/X) — known without fetching
+    // anything, so the button can appear immediately.
+    const blockedEmbed = $derived(
+        !embedsAllowed &&
+            (getYoutubeEmbedUrl(url) !== null ||
+                getTwitterApiUrl(url) !== null),
+    );
+    // Preview media the policy suppressed. `preview` is homeserver-sourced, so
+    // reading it here costs nothing.
+    const blockedMedia = $derived(
+        !!preview &&
+            ((!!preview.videoUrl && !canLoad(preview.videoUrl)) ||
+                (!!preview.imageUrl && !canLoad(preview.imageUrl))),
+    );
+    const showReveal = $derived(!revealed && (blockedEmbed || blockedMedia));
 </script>
 
 {#if directEmbed?.type === "youtube"}
@@ -241,6 +308,7 @@
                                     alt=""
                                     class="w-full max-h-72 object-contain rounded cursor-pointer bg-black/10"
                                     loading="lazy"
+                                    referrerpolicy="no-referrer"
                                     onclick={(e) => {
                                         e.preventDefault();
                                         lightboxTweetIndex = i;
@@ -274,10 +342,10 @@
         {/if}
     </div>
 {:else if preview}
-    {#if isGifSite && preview.videoUrl}
+    {#if isGifSite && preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- GIF-sharing sites: bare inline gif-style video -->
         {@render videoMedia()}
-    {:else if preview.videoUrl && hasMeta}
+    {:else if preview.videoUrl && hasMeta && canLoad(preview.videoUrl)}
         <!-- Rich video card: title/description alongside an embedded player
              (e.g. an fxtwitter/fixvx preview that carries og:video + og:title). -->
         <div class="mt-2">
@@ -313,10 +381,10 @@
                 </div>
             </div>
         </div>
-    {:else if preview.videoUrl}
+    {:else if preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- Direct video embed (no page metadata) -->
         {@render videoMedia()}
-    {:else if preview.imageUrl && !imageError && (!hasMeta || isGifSite)}
+    {:else if preview.imageUrl && !imageError && canLoad(preview.imageUrl) && (!hasMeta || isGifSite)}
         <!-- Direct image embed — same style as uploaded images -->
         <div class="relative inline-block group/media mt-1">
             <a
@@ -333,6 +401,7 @@
                     alt=""
                     class="max-w-sm max-h-72 rounded-lg object-contain cursor-pointer block"
                     loading="lazy"
+                    referrerpolicy="no-referrer"
                     onerror={() => (imageError = true)}
                 />
             </a>
@@ -418,7 +487,7 @@
 
                     <!-- Preview image -->
                     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-                    {#if preview.imageUrl && !imageError}
+                    {#if preview.imageUrl && !imageError && canLoad(preview.imageUrl)}
                         <!-- svelte-ignore a11y_click_events_have_key_events -->
                         <img
                             src={preview.imageUrl}
@@ -426,6 +495,7 @@
                             onerror={() => (imageError = true)}
                             class="max-w-full max-h-72 rounded mt-1 object-contain cursor-pointer"
                             loading="lazy"
+                            referrerpolicy="no-referrer"
                             onclick={(e) => {
                                 e.preventDefault();
                                 lightboxOpen = true;
@@ -434,7 +504,7 @@
                     {/if}
                 </div>
             </a>
-            {#if lightboxOpen && preview.imageUrl}
+            {#if lightboxOpen && preview.imageUrl && canLoad(preview.imageUrl)}
                 <Lightbox
                     src={preview.imageUrl}
                     alt=""
@@ -445,8 +515,41 @@
     {/if}
 {/if}
 
+{#if showReveal}
+    <button
+        type="button"
+        onclick={() => (revealedFor = url)}
+        class="mt-1 inline-flex items-center gap-1.5 rounded border border-discord-divider bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textSecondary transition-colors hover:text-discord-textPrimary hover:border-discord-accent/50"
+        title="Loading it contacts the site hosting it, which reveals your IP address"
+    >
+        <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+        >
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M2.036 12.322a1 1 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178a1 1 0 010 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+            />
+            <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+        </svg>
+        Load preview media
+    </button>
+{/if}
+
 {#snippet videoMedia()}
-    {#if preview?.videoUrl}
+    {#if preview?.videoUrl && canLoad(preview.videoUrl)}
+        {@const posterUrl = canLoad(preview.videoThumbnailUrl)
+            ? preview.videoThumbnailUrl
+            : undefined}
         <div class="relative inline-block group/media mt-1">
             {#if isGifSite}
                 <!-- GIF-sharing sites: play the video like a GIF — muted, looped,
@@ -458,7 +561,7 @@
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
                     src={preview.videoUrl}
-                    poster={preview.videoThumbnailUrl}
+                    poster={posterUrl}
                     class="max-w-sm max-h-72 rounded-lg block pointer-events-none"
                     autoplay
                     muted
@@ -467,13 +570,13 @@
                     disablepictureinpicture
                     preload="metadata"
                 ></video>
-            {:else if videoPlaying || !preview.videoThumbnailUrl || videoThumbError}
+            {:else if videoPlaying || !posterUrl || videoThumbError}
                 <!-- No usable thumbnail (or the user clicked play): show the video
                      itself rather than a placeholder card. -->
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
                     src={preview.videoUrl}
-                    poster={preview.videoThumbnailUrl}
+                    poster={posterUrl}
                     class="max-w-sm max-h-72 rounded-lg block"
                     controls
                     autoplay={videoPlaying}
@@ -488,10 +591,11 @@
                     onclick={() => (videoPlaying = true)}
                 >
                     <img
-                        src={preview.videoThumbnailUrl}
+                        src={posterUrl}
                         alt=""
                         class="w-full h-full object-cover"
                         loading="lazy"
+                        referrerpolicy="no-referrer"
                         onerror={() => (videoThumbError = true)}
                     />
                     <div
