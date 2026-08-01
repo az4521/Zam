@@ -45,7 +45,7 @@ src/
       client.ts                      -- THE SDK boundary
       crypto.ts                      -- the E2EE subsystem (deliberate exception)
       pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
-    stores/                          -- ~27 rune stores (see "Stores")
+    stores/                          -- the rune stores (see "Stores")
     components/
       layout/                        -- AppShell, LoginView, Splash, sidebars, panels, call UI
       messages/                      -- timeline item, composer, polls, location, voice
@@ -139,7 +139,9 @@ calls, live location, and the `on*` subscription helpers (each returning an unsu
 
 **Async ownership.** Anything in `client.ts` that awaits more than once must re-check that it still
 owns the client it started with — a stopped client's late callback must not act on its successor's
-state. The idiom is a generation token captured on entry and compared after each await.
+state. The idiom is the client reference captured on entry and compared by identity afterwards
+(`const client = matrixClient;` … `if (matrixClient === client)`). Most multi-await functions do
+**not** do this yet; the reconnect teardown is the precedent to copy.
 
 ## Stores
 
@@ -147,8 +149,8 @@ All Svelte 5 `$state`, living outside components in `src/lib/stores/`. The ones 
 
 - **`accounts.svelte.ts`** — the multi-account registry, persisted to
   `localStorage["matrix_accounts"]` as `{version, activeUserId, accounts:[{userId, accessToken,
-deviceId, homeserverUrl, displayName?, avatarUrl?}]}`. Defensively parsed: a bad version, a
-  non-array, or a dangling `activeUserId` resets to empty.
+deviceId, homeserverUrl, displayName?, avatarUrl?}]}`. Defensively parsed: a bad version or a
+  non-array resets to empty; a dangling `activeUserId` is nulled without dropping the accounts.
 - **`auth.svelte.ts`** — an in-memory mirror (`isAuthenticated`, `userId`, `syncState`, `error`, …).
   It persists **nothing** session-shaped; every write delegates to the registry
   (`saveSession`→`upsertAndActivate`, `clearSession`/`expireActiveSession`→`removeAccountById`).
@@ -207,10 +209,12 @@ triggered it.
 
 ## Keyboard and back-button handling
 
-Centralised in **`AppShell.svelte`**: `onWindowKeydown` behind the app's single
+Centralised in **`AppShell.svelte`**: `onWindowKeydown` behind the app's primary
 `<svelte:window onkeydown>`. Components do not register global key handlers; only element-scoped,
 focus-dependent editor bindings stay local (composer Enter-to-send and autocomplete arrows, modal
-Enter-to-submit, picker selection). `CallView` and `Lightbox` have their own scoped listeners.
+Enter-to-submit, picker selection). Two components take a global listener of their own — `CallView`
+(its own `<svelte:window onkeydown>`) and `Lightbox` (a `window.addEventListener`, deliberately
+arranged not to swallow the back-button `popstate`).
 
 - **Escape** → `dismissTopmost()` (sub-page → modal → sidebar).
 - **Ctrl+Shift+D** → toggle the debug panel.
@@ -274,9 +278,11 @@ A message whose push actions carry the `sound` tweak is "loud".
 
 1. The timeline subscriber in `AppShell` plays the ping and records every notifying event.
 2. The room — and every space/folder containing it — shows a red unread indicator.
-3. The message renders highlighted in the timeline.
-4. The inbox panel lists them, server-backed via `/notifications` when the homeserver supports it,
-   falling back to the local store.
+3. If the actions **also** carry the `highlight` tweak, the message renders highlighted in the
+   timeline. That is a distinct predicate on purpose — the default DM rule sets `sound` with no
+   `highlight`, so treating them as one painted every message in a DM as a mention.
+4. The inbox panel lists them, server-backed via `/notifications` once a probe succeeds; an
+   unknown, unsupported or errored probe all render the local store.
 5. Receipt events clear entries the user has now read.
 
 Page notifications, service-worker notifications and Android notifications are **three separate
@@ -309,13 +315,16 @@ worker has four jobs:
 
 It also mirrors, **by hand**, `src/lib/utils/activeSession.ts` (the account-data heartbeat that
 suppresses notifications on idle devices) — as does the Java service. Those three copies must move
-together; there are tests that read `static/sw.js` to pin the shared constants.
+together, and **nothing enforces it**: `activeSession.test.ts` pins the TypeScript constants so a
+change _there_ is loud, but no test reads `static/sw.js` or the Java service, and no gate compiles
+either of them.
 
 ### Multi-account
 
 `stores/accounts.svelte.ts` holds the registry; `utils/scopedStorage.ts` namespaces per-account
 keys; each account gets its own rust-crypto database. Switching accounts leaves any active call and
-then **hard-reloads**, so no cross-account store state can survive. One account syncs at a time.
+then navigates to `/` with `location.assign`, tearing down the whole module graph — so no
+cross-account store state can survive. One account syncs at a time.
 
 ### Settings
 
@@ -326,10 +335,10 @@ permission-dependent tab list.
 
 ### Updates
 
-Three runtimes collapse into one `UpdatePhase` union (`utils/updateStatus.ts`): the web build polls
-GitHub Releases against a build-time-injected version, desktop streams `electron-updater` events
-over IPC, and Android drives the custom APK plugin. `UpdateBanner.svelte` renders only the
-actionable phases.
+Three runtimes collapse into one `UpdatePhase` union (`utils/updateStatus.ts`): the web build checks
+GitHub Releases **on demand** against a build-time-injected version (`initUpdateWatch` is a no-op on
+web — there is no background poll), desktop streams `electron-updater` events over IPC, and Android
+drives the custom APK plugin. `UpdateBanner.svelte` renders only the actionable phases.
 
 ### Electron (`electron/main.cjs`)
 
@@ -353,7 +362,7 @@ taps into the web layer.
 Live location is MSC3672 beacons with throttled publishes and expiry timers
 (`stores/liveLocation.svelte.ts`, `utils/liveLocation.ts`), rendered on real Leaflet maps
 (`LocationMap.svelte`, `LiveLocationMapView.svelte`). Polls are MSC3381, parsed and tallied by the
-pure `utils/pollContent.ts`; both accept stable and unstable event names on read.
+pure `utils/pollContent.ts`, which accepts both stable and unstable poll event names on read.
 
 ## Security
 
@@ -396,14 +405,16 @@ file can leave every test green.
    Crypto goes in `crypto.ts`.
 2. **Subscribe via the `on*` helpers** and always call the returned unsubscribe in teardown.
 3. **When an SDK object mutates in place, bump a tick** and read it inside the relevant `$derived`.
-4. **Re-check ownership after every await** in long-lived async work — client generation for SDK
-   work, a destroyed flag or generation for component-scoped work (media capture especially).
+4. **Re-check ownership after every await** in long-lived async work — the captured client
+   reference for SDK work, a destroyed flag or a generation counter for component-scoped work
+   (media capture especially).
 5. **New popups/panels go through the slot system** and render from the slot — no ad-hoc `showX`
    booleans. Pass a `close` that resets your local data, and release with the `*IfOwner` helpers.
 6. **New global keyboard shortcuts go in `onWindowKeydown`** in `AppShell.svelte`, not in
    components.
-7. **Overlays that could be clipped use `<Portal>`**; desktop popovers use the `positionMenu`
-   action; touch context menus render as bottom sheets.
+7. **Overlays that could be clipped use `<Portal>`**; desktop popovers use the local `positionMenu`
+   action (currently duplicated in the three context-menu components); touch context menus render
+   as bottom sheets.
 8. **Never call an SDK send/receipt function unguarded inside a tracked `$effect`.** They
    synchronously synthesize local echo and fire app-level listeners, so listener reads become the
    effect's dependencies while listener writes retrigger it — `effect_update_depth_exceeded`, which

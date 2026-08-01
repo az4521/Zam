@@ -16,14 +16,14 @@ Messaging
 - threads, with a per-room thread list and threaded read receipts
 - reactions, custom emoji + sticker packs (MSC2545 `im.ponies`, room-level and personal), GIF picker (KLIPY, no API key needed)
 - polls (create, vote, close), voice messages with a real waveform, location + live location sharing on a Leaflet map
-- pinned messages, per-room message search, media/files browser, link previews, read receipts (public or private) and typing indicators
+- pinned messages, per-room message search, media/files browser (both have limits — see "things left to do"), link previews, read receipts (public or private) and typing indicators
 - per-room drafts that survive a room switch (in memory only — a reload drops them)
 
 Rooms & spaces
 
-- spaces with drag-and-drop folders, custom colours, and ordering that syncs across devices via account data
-- room directory, join by address, knocking, invites (incl. an invite panel with email invites — see the limits below)
-- room admin: name/topic/avatar, join rules, history visibility, aliases, power levels, kick/ban/unban, room upgrades
+- spaces with drag-and-drop folders (each folder takes a custom colour), and ordering that syncs across devices via account data
+- room directory, join by address, knocking, invites (incl. an invite panel with email invites — see "things left to do" below)
+- room admin: name/topic/avatar, join rules, history visibility, aliases, power levels, kick/ban/unban, room upgrades (rooms only, not spaces)
 - favourites / low-priority tags and manual room ordering
 
 Calls
@@ -40,8 +40,8 @@ App
 
 - multi-account (switching reloads the app; one account syncs at a time)
 - push notifications with a full push-rules UI, including keyword highlight rules and per-room overrides
-- themes and customization (colours, timestamp formats, timeline density) synced via account data
-- auto-update on Electron and Android; the web build checks and offers a reload
+- customization (light/dark theme, timestamp formats, double-tap actions) synced across devices via account data
+- auto-update on Electron and Android; the web build checks on request and offers a reload
 - installable PWA, Electron desktop build, Android APK
 
 things left to do:
@@ -49,17 +49,17 @@ things left to do:
 Rooms
 
 - Server admin tools (Synapse admin API)
-- Approving/denying knock requests (you can knock, but there's no admin UI for handling one)
+- Approving/denying knock requests (you can knock from join-by-address, though not from the room directory, and there's no admin UI for handling one)
 - Muting a user (power levels can't go negative here)
 
 User
 
 - SSO / OAuth login (password login only right now)
-- Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to "your homeserver has no identity server"
+- Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to telling you your homeserver hasn't got one
 
 Media
 
-- Listing encrypted attachments in the media/files browser (it says so in the panel — the enumerator needs an `mxc://` url and encrypted events don't have one)
+- Listing encrypted attachments in the media/files browser (it says so in the panel — the enumerator reads `content.url`, and encrypted events put theirs in `content.file`)
 - Searching encrypted rooms (search is server-side, so there are no results there), and searching across all rooms rather than one
 
 UI / Polish
@@ -89,7 +89,7 @@ there are three _optional_ services the client talks to. none of them are needed
 | service                                                                      | what it powers                             | default in this repo                                                                                                                                                                                                                                                     |
 | ---------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [Sygnal](https://github.com/matrix-org/sygnal) push gateway                  | Android FCM push, and browser/PWA web push | **falls back to `https://sygnal.crafty.moe`** (`src/lib/push.ts`, `src/lib/webPush.ts`). web push also falls back to a **public VAPID key** committed in `src/lib/webPush.ts`. so a fork you deploy unchanged will register pushers pointing at _this project's_ gateway |
-| LiveKit SFU + [lk-jwt-service](https://github.com/element-hq/lk-jwt-service) | voice/video calls                          | none. the SFU is discovered from the homeserver's `.well-known` (`org.matrix.msc4143.rtc_foci`); with none configured, joining a call fails with "No LiveKit focus available for this call"                                                                              |
+| LiveKit SFU + [lk-jwt-service](https://github.com/element-hq/lk-jwt-service) | voice/video calls                          | none. the SFU is discovered from an existing call member's advertised service url, or the homeserver's `.well-known` (`org.matrix.msc4143.rtc_foci`); with neither, joining a call fails with "No LiveKit focus available for this call"                                 |
 | identity server                                                              | invite-by-email                            | none, and nothing in the app configures one                                                                                                                                                                                                                              |
 
 to point push at your own gateway, set `VITE_PUSH_GATEWAY_URL` (and `VITE_VAPID_PUBLIC_KEY`) at build time — see [ANDROID_PUSH_SETUP.md](ANDROID_PUSH_SETUP.md), which also covers how to turn push off. leaving the vars unset does _not_ turn it off; that's what the fallbacks above are.

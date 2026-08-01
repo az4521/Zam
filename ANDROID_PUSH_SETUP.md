@@ -73,14 +73,18 @@ apps:
 ```
 
 Run Sygnal behind HTTPS so the homeserver can reach it, e.g.
-`https://sygnal.example.com/_matrix/push/v1/notify`.
+`https://sygnal.your-domain.example/_matrix/push/v1/notify`.
+
+> ⚠ Don't use the literal host `sygnal.example.com` in a real build. `push.ts` treats a gateway URL
+> containing that string as the "not configured" sentinel and skips the whole FCM stack — see
+> "Turning push off". Every example below uses `sygnal.your-domain.example` for that reason.
 
 ## 3. Point the app at Sygnal
 
 Set the gateway URL at build time (preferred):
 
 ```bash
-VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" npm run build
+VITE_PUSH_GATEWAY_URL="https://sygnal.your-domain.example/_matrix/push/v1/notify" npm run build
 ```
 
 In CI it's read from the repository **variable** `PUSH_GATEWAY_URL`
@@ -124,9 +128,12 @@ There is no single "push: off" switch. What each knob actually does:
   to the committed key rather than clearing it. To disable it you must edit the
   fallback in `src/lib/webPush.ts` to an empty string.
 - **Per user, at runtime:** both paths only ever run after the user grants the
-  browser/OS notification permission, and `unregisterPush` / `teardownWebPush`
-  delete the pusher on logout. A user who never grants permission never gets a
-  pusher registered.
+  browser/OS notification permission, so a user who never grants it never gets a
+  pusher registered. An **explicit logout** deletes both pushers
+  (`unregisterPush` + `teardownWebPush`). Note that **session expiry and account
+  switching do not** — expiry calls only `unregisterPush`, which is itself
+  no-op'd off native, so an expired browser/PWA session leaves its `webpush`
+  pusher registered on the homeserver until the account is logged out properly.
 
 ## Diagnostics
 
@@ -137,12 +144,13 @@ without a dev console. It surfaces:
   enabled;
 - the notification permission state and the FCM token (Android);
 - **the pushers the homeserver actually has** for this account (`GET /pushers`),
-  with each one's `app_id`, device display name and the gateway `data.url` — this
+  with each one's `app_id`, the gateway `data.url` and a truncated pushkey — this
   is the source of truth for "did we tell the homeserver about our gateway?";
 - a **Sygnal `/health` probe** derived from the configured notify endpoint (200
   means Sygnal loaded its app/FCM config);
-- web-push state: supported, configured, permission, whether a `PushManager`
-  subscription exists, and its endpoint.
+- web-push state (only rendered where web push is supported): whether the VAPID
+  key is set, the notification permission, whether a `PushManager` subscription
+  exists, and whether the homeserver holds a matching `webpush` pusher.
 
 ## Notes
 
@@ -167,8 +175,9 @@ without a dev console. It surfaces:
 - Tapping an Android notification deep-links to the room via
   `window.__matrixOpenRoom` (wired in `MainActivity.java`); the service worker's
   `notificationclick` handler focuses the app and opens the room.
-- `unregisterPush` removes the Android pusher on logout; `teardownWebPush`
-  removes the web pusher and unsubscribes the `PushManager`.
+- `unregisterPush` removes the Android pusher and `teardownWebPush` removes the
+  web pusher (and unsubscribes the `PushManager`) — on **explicit logout only**;
+  see "Turning push off" for what expiry and account switching do instead.
 - **Foreground** notifications on every platform come from the in-app
   Notification API while the client is running, and use no gateway at all.
 
@@ -194,7 +203,8 @@ npx web-push generate-vapid-keys
 
 Keep the **private** key for Sygnal; the **public** key goes to the app build.
 Sygnal wants the private key as a PKCS#8 PEM rather than the base64url string
-`web-push` prints — `node scripts/gen-vapid.mjs` does that conversion.
+`web-push` prints — `node scripts/gen-vapid.mjs <base64url-private-key>` does
+that conversion, writing `vapid_private_key.pem` into the current directory.
 
 ## 2. Add a `webpush` app to Sygnal
 
@@ -214,7 +224,7 @@ Set `VITE_VAPID_PUBLIC_KEY` (and `VITE_PUSH_GATEWAY_URL`) at build time:
 
 ```bash
 VITE_VAPID_PUBLIC_KEY="<public key>" \
-VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" \
+VITE_PUSH_GATEWAY_URL="https://sygnal.your-domain.example/_matrix/push/v1/notify" \
 npm run build
 ```
 
