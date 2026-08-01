@@ -21,6 +21,7 @@
     } from "$lib/stores/auth.svelte";
     import { switchActive } from "$lib/stores/accounts.svelte";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
+    import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
     import AppShell from "$lib/components/layout/AppShell.svelte";
     import Splash from "$lib/components/layout/Splash.svelte";
     import LoginView from "$lib/components/layout/LoginView.svelte";
@@ -60,6 +61,11 @@
     // the reactive {#if} swaps AppShell → LoginView, and LoginView surfaces
     // auth.error on mount.
     function handleSessionExpired() {
+        // Before anything tears down: the popups on screen belong to a session
+        // that no longer exists, and expiry returns to login IN PLACE — the
+        // next account signs in with them still up. First, too, because
+        // AppShell is what registered them and the view swap below unmounts it.
+        clearAllNotificationSurfaces();
         // Capture the expiring account's client + identity BEFORE teardown nulls
         // them, so we release its native/push/crypto resources the same way an
         // explicit logout does. Each call is guarded so a slow/throwing teardown
