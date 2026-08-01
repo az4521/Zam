@@ -2,194 +2,427 @@
 
 ## What this is
 
-A Discord-styled Matrix chat client. Despite the repo/folder name (`vue_matrix_client`), there is **no Vue** here — it's **SvelteKit + Svelte 5**. It builds to static files, runs in the browser, and is also packaged as an Android app via Capacitor with FCM push notifications.
+**Zam**, a Discord-styled Matrix chat client. It's **SvelteKit + Svelte 5**, builds to static
+files, and ships from that one build to four targets: the web, an installable PWA, an **Electron**
+desktop app, and an **Android** app via Capacitor.
+
+> This document describes responsibilities and data flows. It deliberately does **not** inventory
+> exports, file sizes or line counts — those drift within days and the previous version of this
+> file was wrong about most of them. When you need the current surface of a module, read the
+> module.
 
 ## Tech stack
 
-- **SvelteKit** with `adapter-static` (no SSR; single static build)
-- **Svelte 5** runes throughout (`$state`, `$derived`, `$effect`, `$props`, `{#snippet}`)
-- **TypeScript**
-- **Tailwind CSS**, Discord-inspired palette (`discord-background`, `discord-accent`, `discord-textMuted`, …)
-- **matrix-js-sdk** v34 — the only place the SDK is imported
-- **marked** (markdown), **@twemoji/api** (emoji), **@ruffle-rs/ruffle** (legacy Flash embeds)
-- **Capacitor** + **@capacitor/push-notifications** (Android/FCM)
+- **SvelteKit** with `adapter-static` — no SSR, single static build, SPA fallback `index.html`
+- **Svelte 5** runes throughout (`$state`, `$derived`, `$effect`, `$props`, `{#snippet}`) — no
+  `svelte/store`
+- **TypeScript**, **Tailwind CSS** (Discord-inspired palette), **Vitest** (jsdom)
+- **matrix-js-sdk v41** (`^41.9.0`) with the **rust-crypto** E2EE stack
+- **livekit-client** for MatrixRTC voice/video
+- **marked** + a hand-rolled Discord-flavoured markdown layer, **DOMPurify** for sanitization,
+  **@twemoji/api**, **leaflet** (location), **@ruffle-rs/ruffle** (legacy Flash embeds)
+- **Capacitor** (Android) + **electron-builder** (desktop)
 
 ## Top-level layout
 
 ```
 src/
+  app.html, app.css                  -- app.css also holds the light-theme token block
   routes/
-    +layout.svelte, +layout.ts        -- root layout; ssr=false, prerender=true
-    +page.svelte                       -- login screen
-    app/+page.svelte                   -- THE main 3-pane app + global keyboard/back handling
+    +layout.svelte, +layout.ts       -- ssr=false, prerender=true; global external-link
+                                        interception + Android long-press-to-copy
+    +page.svelte                     -- THE route: splash / login / shell switch, session
+                                        restore, session-expiry handling
+    app/+page.svelte                 -- legacy redirect stub -> "/" (stale bookmarks, cached
+                                        PWA start_url)
   lib/
-    config.ts                          -- DEFAULT_HOMESERVER
-    push.ts                            -- Capacitor/FCM push (no-op on web)
+    config.ts                        -- default homeserver per runtime
+    push.ts / webPush.ts             -- Android FCM push / browser+PWA VAPID web push
+    nativeSession.ts                 -- mirrors session creds into Android SharedPreferences
+    update.ts, desktopUpdater.ts, androidUpdater.ts   -- the three update runtimes
+    desktopScreenShare.ts            -- Electron desktopCapturer bridge
     matrix/
-      client.ts                        -- the matrix wrapper (~2200 lines, ~150 exports)
-    stores/
-      interface.svelte.ts              -- centralised UI state: modal/sidebar slots, keyboard hooks
-      auth.svelte.ts                   -- session (persisted to localStorage)
-      rooms.svelte.ts                  -- active space/room, layout, "tick" counters
-      messages.svelte.ts               -- per-room timeline cache + ticks
-      notifications.svelte.ts          -- "loud" (sound) notification tracking + inbox feed
-      favourites.svelte.ts             -- favourite GIFs (synced via account data)
+      client.ts                      -- THE SDK boundary
+      crypto.ts                      -- the E2EE subsystem (deliberate exception)
+      pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
+    stores/                          -- the rune stores (see "Stores")
     components/
-      layout/                          -- screen-region components
-      messages/                        -- message rendering + composer
-      ui/                              -- reusable atoms (Avatar, Portal, pickers, embeds)
-      debug/DebugPanel.svelte          -- dev inspector (Ctrl+Shift+D)
-    utils/                             -- markdown, formatters, twemoji, colors
-    data/emojis.ts                     -- unicode emoji catalog
-android/                               -- Capacitor Android shell
-capacitor.config.ts                    -- appId moe.crafty.matrix, webDir build
+      layout/                        -- AppShell, LoginView, Splash, sidebars, panels, call UI
+      messages/                      -- timeline item, composer, polls, location, voice
+      settings/                      -- the settings panels
+      ui/                            -- atoms: Avatar, Portal, pickers, Lightbox, toasts, maps
+      debug/                         -- DebugPanel (Ctrl+Shift+D)
+    utils/                           -- the pure-logic layer, each module with a colocated test
+    actions/                         -- focusTrap, longPress, resizeHandle, videoTrack
+    audio/                           -- device enumeration, mic/output meters, speaker test
+    data/emojis.ts                   -- unicode emoji catalog
+static/                              -- sw.js, manifest.webmanifest, icons, ruffle/, sounds/,
+                                        twemoji/
+electron/                            -- main.cjs, preload.cjs
+android/                             -- Capacitor shell + 3 custom Java classes
+scripts/                             -- gen-vapid.mjs (VAPID private key -> PKCS#8 PEM for Sygnal)
+svelte.config.js                     -- adapter-static, fallback index.html, prod-only CSP
+capacitor.config.ts                  -- appId moe.crafty.matrix, appName Zam, webDir build
 ```
+
+## Routing
+
+There is **one** auth-gated route.
+
+- **`/`** (`src/routes/+page.svelte`) decides what to render: `Splash` while a stored session is
+  being restored, `LoginView` when there is none, `AppShell` once sync is up. It owns session
+  restore, the add-account mode (`?add`), and `handleSessionExpired`, which returns to login **in
+  place** — no navigation.
+- **`/app`** is a redirect stub that `goto("/")`. It exists only for stale bookmarks and cached
+  PWA `start_url`s. Nothing new should point at it.
+
+The 3-pane application itself is a component: `src/lib/components/layout/AppShell.svelte`. It
+registers every subscriber, owns global keyboard and back-button handling, the mobile drawer, and
+all the `init*()` wiring.
 
 ## Data flow
 
 ```
-matrix-js-sdk client (singleton in client.ts)
-        |  emits sync / timeline / account-data / receipt / typing events
+matrix-js-sdk client (single module-level instance in client.ts)
+        |  emits sync / timeline / account-data / receipt / typing / crypto events
         v
 client.ts subscriber helpers (onTimelineEvent, onAccountData, onRoomUpdate, onAnyReceiptEvent, ...)
-        |  registered in routes/app/+page.svelte onMount
+        |  registered in AppShell.svelte onMount, torn down by the returned disposers
         v
-$state stores (rooms, messages, notifications, favourites, interface)
+$state stores (rooms, messages, notifications, voiceCall, interface, ...)
         |  Svelte 5 reactivity
         v
 components re-render
 ```
 
-**Tick pattern.** SDK objects mutate in place, which Svelte can't observe. Stores expose monotonic counters (`roomsState.unreadTick`, `roomsState.roomsTick`, `messagesState.reactionTick`, `messagesState.timelineTick`, `notificationsState.tick`). Event handlers bump a tick; components read it inside a `$derived` (e.g. `void roomsState.unreadTick`) so the derived re-runs even though the underlying object identity didn't change. This is the bridge between the SDK's event-driven model and Svelte's pull-based reactivity.
+**Tick pattern.** SDK objects mutate in place, which Svelte can't observe: the same `Room` object
+comes back from `getRoom()` with different contents, so a `$derived` that reads it never re-runs.
+Stores therefore expose monotonic counters. An event handler bumps a tick; a component reads it
+inside a `$derived` (`const members = $derived((void roomsState.roomsTick, getRoomMembers(room)))`)
+so the derived re-runs even though the underlying object identity didn't change. This is the bridge
+between the SDK's event-driven model and Svelte's pull-based reactivity, and it is load-bearing —
+kick/ban/rename/reaction/decryption refreshes all ride on it.
 
-## src/lib/matrix/client.ts (the core)
+The counters live next to the state they invalidate: `roomsState.unreadTick`/`roomsTick`,
+`messagesState.reactionTick`/`timelineTick` (the latter also swaps a decryption placeholder for
+real content when a UTD event decrypts late), `notificationsState.tick`,
+`voiceCallState.voiceTick`, `verificationState.verificationTick`, `securityState.securityTick`,
+`presenceState.presenceTick`, `liveLocationState.beaconTick`, and `pushRulesState.revision` (same
+idea, different name).
 
-The single module that imports `matrix-js-sdk`. Everything else calls these wrappers; components import only the `Room`/`MatrixEvent` *types* from the SDK, never the client. Roughly grouped:
+**Cost note:** a tick is a global invalidation. Every rendered row re-derives on every sync. Keep
+the tick _read_ — that's the correctness part — but make the resulting _write_ conditional when
+the derived is expensive.
 
-- **Lifecycle**: `getClient`, `login`, `register`, `reconnect`, `startSync`, `logout`, `stopClient`
-- **Rooms/spaces**: `getRooms`, `getRoom`, `getSpaces`, `getSpaceChildIds`, `getRoomsInSpace`, `getOrphanRooms`, `getDirectRooms`, `getInvitedRooms`, `fetchSpaceHierarchy`
-- **Creation/join**: `createRoom(name, topic, spaceId?)`, `createSpace`, `addRoomToSpace`, `canAddRoomToSpace`, `joinRoom`, `joinRoomByAlias`, `createDirectMessage`, `acceptInvite`, `rejectInvite`, `leaveRoom`
-- **Display**: `getRoomDisplayName`, `getRoomAvatar`, `getRoomTopic`, `getMemberName`, `getMemberAvatar`, `getRoomMembers`
-- **Messages**: `getTimelineMessages`, `getLatestTimelineEvent`, `sendTextMessage`, `sendFormattedMessage`, `sendReply`, `sendEdit`, `sendSticker`, `sendFile`, `deleteMessage`, `loadPreviousMessages`, `loadMessagesUntilEvent`, `loadContextAroundEvent`, `findEventById`, `fetchEventById`
-  - Note: `sendTextMessage` passes an explicit `null` threadId — the SDK's overload shim otherwise treats a body starting with `$` as a thread ID.
-- **Reactions/receipts/typing**: `getReactions`, `sendReaction`, `removeReaction`, `sendReadReceipt`, `getReadUpToEventId`, `getReceiptsForEvent`, `sendTyping`, `onTypingEvent`
-- **Unread + loud**: `getUnreadCount`, `getHighlightCount`, `getRoomUnreadInfo`, `isLoudEvent` (true when an event's push actions include the `sound` tweak)
-- **Notifications API**: `fetchServerNotifications(limit, from?)` — `GET /_matrix/client/v3/notifications`; returns `null` if the homeserver doesn't support it
-- **Push rules**: `DEFAULT_PUSH_RULES`, `PushRuleLevel = "loud" | "silent" | "off"`, `getDefaultPushRuleLevel`, `setDefaultPushRuleLevel` (handles server-default dotted rule IDs that reject creation), `RoomNotificationSetting = "default" | "all" | "mentions" | "mute"`, `getRoomNotificationSetting`, `setRoomNotificationSetting`
-- **Power levels / moderation**: `getMyPowerLevel`, `getRoomPowerLevels`, `setRoomPowerLevels`, `setUserPowerLevel`, `kickUser`, `banUser`, `unbanUser`, `getBannedMembers`
-- **Room admin**: `setRoomName`, `setRoomTopic`, `setRoomAvatar`, `getJoinRule`, `setJoinRule`, `getHistoryVisibility`, `setHistoryVisibility`, `pinMessage`, `unpinMessage`, `getPinnedEventIds`
-- **Custom emoji/stickers**: `getCustomEmojis`, `getCustomEmojiPacks`, `getCustomStickerPacks`
-- **Space layout** (custom account-data, folders + ordering): `SpaceLayout`, `getSpaceLayout`, `setSpaceLayout`, `getSpaceOrder`, `setSpaceOrder`
-- **Media**: `mxcToHttp`, `fetchAttachmentBlob`, `getContentType`, `uploadContent`, `getRawUrlPreview`, `getUrlPreview`
-- **Subscriptions** (each returns an unsubscribe fn): `onTimelineEvent`, `onLocalEchoUpdated`, `onEditEvent`, `onReactionEvent`, `onRedactionEvent`, `onReceiptEvent`, `onAnyReceiptEvent`, `onRoomUpdate`, `onAccountData`, `onSyncPrepared`, `onTypingEvent`
-- **Service worker** for media auth: `initServiceWorker`, `updateServiceWorkerAuth`
+## The SDK boundary
 
-## Stores (all Svelte 5 `$state`, live outside components)
+**`src/lib/matrix/client.ts` is the SDK boundary.** Components and stores call its exported
+wrappers; they import matrix-js-sdk _types_ only. It holds the single module-level client
+instance, and it is also the **LiveKit** boundary.
 
-- **`interface.svelte.ts`** — centralised UI state. See "Modal/sidebar system" below. Holds device flags (`isMobile`, `isTouchscreen`), the `leftOpen` mobile drawer flag, `lightboxOpen`, `selectedMessageId` (mobile message-action selection), `debugOpen`, `composerPicker`, `focusComposer`, and the two slot pairs `modal`/`modalClose` + `sidebar`/`sidebarClose`. Helpers: `openModal`, `closeModal`, `clearModal`, `openSidebar`, `closeSidebar`, `clearSidebar`, `openComposerPicker`.
-- **`auth.svelte.ts`** — `auth` (isAuthenticated, userId, accessToken, deviceId, homeserverUrl, syncState, error). Persisted to `localStorage["matrix_session"]`. `saveSession`, `loadStoredSession`, `clearSession`.
-- **`rooms.svelte.ts`** — `roomsState` (spaces, orphanRooms, directRooms, invitedRooms, activeSpaceId, activeRoomId, showInbox, roomsInSpace, spaceHierarchy, hierarchyLoading, unreadTick, roomsTick, spaceLayout). Active space/room persisted per-space in localStorage. `setActiveSpace`, `setActiveRoom`, `bumpUnreadTick`, `getActiveRoom`.
-- **`messages.svelte.ts`** — `messagesState.byRoom` = `Record<roomId, { events, isLoading, canLoadMore }>` (plain object for Svelte deep reactivity). `getMessages`, `setMessages`, `appendMessage`, `prependMessages`, plus `reactionTick`/`timelineTick`.
-- **`notifications.svelte.ts`** — tracks notifications, each flagged `loud` (sound-triggering) or silent. `notificationsState.byRoom` persisted to `localStorage["matrix_loud_notifications"]`. `markNotification`, `clearReadNotifications(room, userId)`, `hasLoudInRoom`, `hasLoudInSpace`, `getLoudEventIds`, `getAllNotifications`. Loud entries drive the red unread dots; the inbox panel shows both loud and silent.
-- **`favourites.svelte.ts`** — favourite GIFs via account data (`m.favourite_gifs`); `initFavourites()` reloads on sync/account-data.
+Sanctioned exceptions, all deliberate:
 
-## Components
+- **`src/lib/matrix/crypto.ts`** — the entire E2EE subsystem, sharing the client via `getClient()`.
+  Crypto work goes here, not in `client.ts`.
+- **`src/lib/matrix/pushRules.ts`** and **`notifications.ts`** — small push-adjacent modules that
+  import a few SDK enums.
+- Two components pull exactly one runtime enum each (`DebugPanel.svelte` → `EventType`,
+  `MessageItem.svelte` → `EventStatus`). Tolerated, not a pattern to copy.
 
-### layout/
-- **`SpaceSidebar.svelte`** (~1400 lines) — left rail of space icons + folders (collapse/expand, color via HSV picker, drag reorder; HTML5 drag on desktop, custom long-press touch drag on mobile). Home/Settings buttons. Space/folder context menus (Portal). Inline create-room / add-room modals.
-- **`RoomList.svelte`** — second pane: rooms in the active space (or DMs/orphans on home). Header `+` dropdown hosts `QuickActions` + Space Settings. Hover gear → room settings. Room context menu (right-click / long-press). Red dot when a room has a loud notification.
-- **`MessageArea.svelte`** (~1000 lines) — timeline + composer host. Owns the right-side panels (member list / pinned / notifications) via the `sidebar` slot, plus the mobile drawer drag animations for them. Top-bar buttons toggle the panels.
-- **`MemberList.svelte`**, **`PinnedMessagesPanel.svelte`**, **`NotificationsPanel.svelte`** — the three right-side panels. NotificationsPanel prefers `fetchServerNotifications` and falls back to the local `notificationsState` (clearable only in the fallback case).
-- **`AppSettings.svelte`** — account info, push-rule levels per category (Loud/Silent/Off + sound toggle), per-room overrides, logout.
-- **`RoomSettings.svelte`** — manage a room *or* space: name, topic, avatar, members, bans, power levels, join rule, history visibility.
-- **`QuickActions.svelte`** — New DM / Create Room / Create Space / Join by Address / Add Room to Space; behavior gated by whether a `spaceId` is set. Modal rendered through a Portal.
-- **`InboxPanel.svelte`** — pending invites.
-- **`ThreadPanel.svelte`** — thread replies (note: references some not-yet-implemented `client.ts` thread helpers; pre-existing type errors).
+Everything else in `src/` — 30-odd files — imports SDK types only. When adding an SDK capability,
+add a thin wrapper in `client.ts` first.
 
-### messages/
-- **`MessageItem.svelte`** (~1100 lines) — one event: sender/avatar/timestamp, markdown body, media, reactions, reply quoting, edit/delete, pin, reaction emoji picker. Yellow highlight when `isLoudEvent(event)`. Mobile long-press action sheet.
-- **`MessageInput.svelte`** (~1000 lines) — composer: send, file queue, mention autocomplete, `:emoji:` autocomplete, reply/edit, emoji/sticker/gif pickers. Registers `interfaceState.focusComposer`.
-- **`Reactions.svelte`**, **`LinkPreview.svelte`**.
+`client.ts` is large and grouped by concern: lifecycle, rooms/spaces, creation/join, display
+helpers, messages, threads, reactions/receipts/typing, unread + loud, notifications, push rules,
+power levels/moderation, room admin, custom emoji/sticker packs, space layout, media, MatrixRTC
+calls, live location, and the `on*` subscription helpers (each returning an unsubscribe function).
 
-### ui/
-- **`Avatar.svelte`**, **`Portal.svelte`** (appends node to `document.body` to escape stacking contexts), **`EmojiPicker.svelte`** / **`GifPicker.svelte`** / **`StickerPicker.svelte`**, **`Lightbox.svelte`**, **`FlashEmbed.svelte`** / **`SwfEmbed.svelte`** (Ruffle).
+**Async ownership.** Anything in `client.ts` that awaits more than once must re-check that it still
+owns the client it started with — a stopped client's late callback must not act on its successor's
+state. The idiom is the client reference captured on entry and compared by identity afterwards
+(`const client = matrixClient;` … `if (matrixClient === client)`). Most multi-await functions do
+**not** do this yet; the reconnect teardown is the precedent to copy.
 
-## Modal / sidebar system (the central UI pattern)
+## Stores
 
-All popups and panels are coordinated through two mutually-exclusive slots in `interfaceState`:
+All Svelte 5 `$state`, living outside components in `src/lib/stores/`. The ones you'll meet first:
 
-- **`modal`** (`ModalId | null`) + **`modalClose`** — exactly one popup at a time: app-settings, room-settings, quick-actions, room-menu, room-header-menu, space-menu, color-picker, create-room, add-room, reaction-picker, composer-picker, lightbox.
-- **`sidebar`** (`SidebarId | null`) + **`sidebarClose`** — exactly one side panel at a time: members, pinned, notifications.
+- **`accounts.svelte.ts`** — the multi-account registry, persisted to
+  `localStorage["matrix_accounts"]` as `{version, activeUserId, accounts:[{userId, accessToken,
+deviceId, homeserverUrl, displayName?, avatarUrl?}]}`. Defensively parsed: a bad version or a
+  non-array resets to empty; a dangling `activeUserId` is nulled without dropping the accounts.
+- **`auth.svelte.ts`** — an in-memory mirror (`isAuthenticated`, `userId`, `syncState`, `error`, …).
+  It persists **nothing** session-shaped; every write delegates to the registry
+  (`saveSession`→`upsertAndActivate`, `clearSession`/`expireActiveSession`→`removeAccountById`).
+  It owns only `matrix_last_homeserver`.
+- **`interface.svelte.ts`** — the central UI slot store. See below.
+- **`rooms.svelte.ts`** — spaces, orphan/direct/invited/knocked rooms, active space and room, space
+  drill state, space layout, and the two room ticks.
+- **`messages.svelte.ts`** — the per-room timeline cache (`byRoom`, a plain object for deep
+  reactivity) plus the timeline/reaction ticks.
+- **`notifications.svelte.ts`** — the notification inbox, each entry flagged loud (sound-triggering)
+  or silent, persisted per account.
+- **`settings.svelte.ts`** — the client preference layer: device-global settings and
+  account-scoped ones, backed by the `settings:*` localStorage namespace.
+- **`toasts.svelte.ts`** — the app's only generic failure surface. New user-visible error paths go
+  here rather than inventing another.
 
-Rules:
-- Components **render from the slot** (`{#if interfaceState.modal === "space-menu"}`) and keep only their *associated data* locally (coordinates, target Room, etc.), set just before calling the helper.
-- **`openModal(id, close)`** sets the slot and auto-runs the previous occupant's `close` first (enforcing one-at-a-time). **`closeModal()`** clears the slot and runs the close handler. **`clearModal(id)`** clears without re-running close (used by a component dismissed by its own means; e.g. Lightbox on unmount). Same trio for sidebars.
-- The `close` function a component passes is what resets its local data (`() => (contextMenu = null)`), so dismissal works no matter who triggers it.
+Plus focused stores for verification, security status, voice calls, incoming calls, live location
+and its map, composer drafts, GIF search, ignored users, presence, push-rule revisions, the update
+banner, the profile card, and the dialog-target stores (invite/location/poll).
 
-This is why opening, say, the QuickActions modal from the RoomList header dropdown automatically closes the dropdown: they occupy the same `modal` slot.
+**Never persist a session key by hand.** `matrix_session` (the pre-multi-account key) is read once
+at boot, migrated into the registry, and deleted. Per-account keys are namespaced `${base}:${userId}`
+by `src/lib/utils/scopedStorage.ts`, which also adopts and removes the pre-multi-account bare key on
+first scoped read.
 
-## Keyboard + back-button handling (centralised in routes/app/+page.svelte)
+## The UI slot system
 
-There is **one** `<svelte:window onkeydown>` for the whole app (`onWindowKeydown`). Components do **not** register global key handlers; only element-scoped, focus-dependent editor keybindings remain local (e.g. the composer's Enter-to-send / autocomplete arrows, message edit/delete-confirm keys, modal Enter-to-submit, picker selection arrows).
+`interfaceState` coordinates **three dismissal slots**, plus `callViewRoomId` (which flips a room
+between its timeline and the call UI):
 
-Global shortcuts in `onWindowKeydown`:
-- **Escape** → `dismissTopmost()`: close the open `modal`, else the open `sidebar`.
-- **Ctrl+Shift+D** → toggle `interfaceState.debugOpen` (DebugPanel reads it).
-- **Ctrl+E / Ctrl+S / Ctrl+G** → `openComposerPicker("emoji" | "sticker" | "gif")` when a room with a composer is visible.
-- **Type-to-focus**: a plain alphanumeric key (no Ctrl/Alt/Meta) focuses the composer via `interfaceState.focusComposer()` — skipped when a modal is open, when (on mobile) a sidebar/drawer is open, or when focus is already in an input/textarea/contenteditable. It does **not** `preventDefault`, so the triggering character lands in the now-focused composer.
+- **`subPage`** — a page layered _inside_ an open modal (the mobile settings drill-down).
+- **`modal`** — one `ModalId` at a time (app settings, room settings, quick actions, the various
+  context menus, pickers, lightbox, live map, …).
+- **`sidebar`** — one `SidebarId` at a time: `members`, `pinned`, `notifications`, `search`,
+  `threads`, `media`.
 
-Mobile **back button** (`popstate` + a pushed history "guard" entry):
-- Priority: dismiss `modal` → dismiss `sidebar` → open the left drawer (`leftOpen`) → real back navigation.
-- A reactive `$effect` calls `ensureBackGuard()` to keep a guard entry on the stack whenever there's something to intercept (a modal, a sidebar, or the drawer is closed). On Capacitor Android the hardware back button drives the same `popstate`.
+Each slot holds at most one owner, but **the slots are not exclusive of one another** — a sub-page
+exists precisely while its modal is also open. `dismissTopmost()` (and therefore Escape, and the
+mobile back button) walks them in order: sub-page → modal → sidebar.
 
-## Other recurring patterns
+**Ownership tokens.** `openModal(id, close)` / `openSidebar(id, close)` return an opaque
+`SlotToken`. Two properties make this safe:
 
-- **Portals for overlays.** Anything needing full-viewport coverage (context menus, dropdowns, modals) is wrapped in `<Portal>` so ancestor stacking contexts don't clip it. Touch context menus render as bottom sheets; pointer menus use a `positionMenu` action that measures the element and flips/clamps it to the viewport.
-- **Touch vs pointer dual rendering.** Context menus use a `touch: boolean` field + a shared `{#snippet menuContent()}` so the same markup serves a bottom sheet (touch) and a positioned popover (pointer). Touch is detected as `!(e instanceof MouseEvent)`.
-- **Enter-to-send physical-keyboard detection.** The composer sends on Enter only for a *physical* press: `!e.isComposing && e.keyCode !== 229` (229 = Android soft-keyboard/IME sentinel) **and** `!interfaceState.isMobile` (phones always newline + use the send button). Shift+Enter is always a newline.
-- **Mobile drawer.** `app/+page.svelte` animates a left-edge swipe drawer (SpaceSidebar + RoomList) via `drawerTranslate`, with direction detection and a release threshold. Swipe is gated off when a modal/sidebar/lightbox is open.
+1. The slot is released **before** the outgoing owner's `close()` runs, so a close handler executes
+   against an empty slot and cannot clobber the incoming owner. Re-entrant closes are no-ops.
+2. Holders release with `clearModalIfOwner(token)`, which does nothing if a newer owner has taken
+   the slot. A late unmount can therefore never null a slot someone else now owns.
 
-## Notifications
+The tokens are module-scope `let`s rather than `$state` fields **on purpose** — teardown paths read
+them, and a `$state` read from a tracked scope would register a reactive dependency.
 
-A message whose push actions include the `sound` tweak (see `isLoudEvent`) is a "loud" notification:
-1. `onTimelineEvent` in `+page.svelte` plays the ping (if enabled); it calls `markNotification` for every notifying event (loud or silent).
-2. The originating room — and every space/folder containing it — shows a **red** unread indicator (`hasLoudInRoom` / `hasLoudInSpace`).
-3. The message itself renders with a yellow highlight in the timeline.
-4. The notifications inbox panel lists them (server-backed when available).
-5. `onAnyReceiptEvent` calls `clearReadNotifications` to drop entries the user has now read.
+Components **render from the slot** (`{#if interfaceState.modal === "space-menu"}`) and keep only
+their associated data (coordinates, target room) local, set just before calling the helper. The
+`close` function you pass is what resets that local data, so dismissal works no matter who
+triggered it.
 
-## Push notifications
+## Keyboard and back-button handling
 
-- **Web**: browser Notification API from foreground sync events.
-- **Android (Capacitor + FCM via Sygnal)**: `src/lib/push.ts` `initPush(client)` (no-op off-native) requests permission, gets the FCM token, and registers an HTTP Matrix pusher pointing at a [Sygnal](https://github.com/matrix-org/sygnal) gateway. The homeserver POSTs to Sygnal (`POST /_matrix/push/v1/notify`), which forwards to FCM. Tapping a notification calls `navigateToRoom`. `PUSH_GATEWAY_URL` (build-time `VITE_PUSH_GATEWAY_URL`) / `APP_ID` in `push.ts` must match the Sygnal config (see `ANDROID_PUSH_SETUP.md`). `unregisterPush` runs on logout. There is no in-repo gateway — Sygnal is deployed separately.
+Centralised in **`AppShell.svelte`**: `onWindowKeydown` behind the app's primary
+`<svelte:window onkeydown>`. Components do not register global key handlers; only element-scoped,
+focus-dependent editor bindings stay local (composer Enter-to-send and autocomplete arrows, modal
+Enter-to-submit, picker selection). Two components take a global listener of their own — `CallView`
+(its own `<svelte:window onkeydown>`) and `Lightbox` (a `window.addEventListener`, deliberately
+arranged not to swallow the back-button `popstate`).
 
-## Service worker for media auth
+- **Escape** → `dismissTopmost()` (sub-page → modal → sidebar).
+- **Ctrl+Shift+D** → toggle the debug panel.
+- **Ctrl+E / Ctrl+S / Ctrl+G** → open the emoji/sticker/gif composer picker, when a room with a
+  composer is visible.
+- **Type-to-focus** — a plain alphanumeric key focuses the composer. Skipped when a modal is open,
+  when a sidebar or drawer is open on mobile, or when focus is already in an editable element. It
+  does **not** `preventDefault`, so the triggering character lands in the now-focused composer.
 
-Matrix `mxc://` media needs an `Authorization: Bearer` header that `<img src>` can't send. The service worker (`initServiceWorker` / `updateServiceWorkerAuth`) intercepts media fetches and injects the header; the token is refreshed on login/logout.
+Mobile **back button** (`popstate` plus a pushed history "guard" entry, or Capacitor's
+`App.backButton` on Android): dismiss the topmost slot → open the left drawer → real back
+navigation. A reactive `$effect` keeps the guard entry present whenever there is something to
+intercept.
 
-## Routing & persistence
+## Subsystems
 
-- `/` → login (`routes/+page.svelte`); on success navigates to `/app`.
-- `/app` → main UI; bootstraps the SDK, registers subscribers, owns global keyboard/back handling; redirects to `/` if unauthenticated.
-- `+layout.ts`: `ssr = false`, `prerender = true`.
-- localStorage keys: `matrix_session`, `matrix_last_space`, `matrix_last_room_by_space`, `notifSoundEnabled`, `matrix_loud_notifications`. Space layout (folders/order) and favourite GIFs persist via Matrix **account data** so they sync across devices.
+### E2EE (`src/lib/matrix/crypto.ts`)
+
+The whole encryption stack: rust-crypto init with a per-account IndexedDB prefix, device
+verification (SAS emoji and QR) behind a verification controller, cross-signing, secret storage
+(4S), and key backup/recovery. Booted from `client.ts` during client creation.
+
+Supporting cast: `stores/verification.svelte.ts` and `stores/security.svelte.ts`,
+`utils/{keyBackup,recoveryKey,cryptoStore,encryptionState,eventShield}.ts`,
+`settings/SecuritySettings.svelte`, `layout/VerificationModal.svelte`, `messages/EventShield.svelte`.
+
+**Landmine:** the SDK configures room encryption **only from the sync loop**. Any room state we
+inject out of band bypasses that, leaving a room the UI calls encrypted that crypto refuses to
+encrypt for. `ensureRoomCryptoConfigured(room)` replays the event through the same hook — call it
+after any out-of-band state injection, and gate on the encryptor map rather than
+`isEncryptionEnabledInRoom()` (the algorithm is persisted, so that call lies).
+
+**Attachments are not encrypted.** The upload path always emits a plaintext `mxc://` url, and
+incoming encrypted attachments cannot be rendered. This is a known gap, not an oversight to
+"fix" incidentally.
+
+### Voice/video calls (MatrixRTC + LiveKit)
+
+Real MSC4143 MatrixRTC, not legacy 1:1 WebRTC and not an Element Call widget. Membership is
+published as room state through the SDK's `matrixRTC` room session; media rides a
+**LiveKit SFU** discovered from an existing member's advertised service URL or the homeserver's
+`.well-known` (`org.matrix.msc4143.rtc_foci`), with a JWT obtained from an **lk-jwt-service** via
+an OpenID exchange. With no focus configured, joining throws — there is no fallback path.
+
+UI: `CallView`, `VoiceCallPanel`, `VideoTile`, `ActiveCallBanner`, `IncomingCallCard`,
+`CallParticipantMenu`, `ScreenSharePicker`. State: `stores/voiceCall.svelte.ts` and
+`stores/incomingCalls.svelte.ts`. Device handling lives in `lib/audio/`, track attachment in
+`actions/videoTrack.ts`.
+
+### Threads
+
+Real SDK threads. **`threadSupport: true` belongs in `startClient()`, not `createClient()`** — the
+latter silently ignores it and threads then look completely dead. The rules live in pure modules:
+`utils/threadModel.ts` (including the `belongsToMainTimeline` classification), `threadList.ts`,
+`threadUnread.ts`, `threadNotify.ts`, `threadContent.ts`. UI is `ThreadPanel.svelte` plus the
+`threads` sidebar slot (`ThreadsListPanel.svelte`).
+
+### Notifications
+
+A message whose push actions carry the `sound` tweak is "loud".
+
+1. The timeline subscriber in `AppShell` plays the ping and records every notifying event.
+2. The room — and every space/folder containing it — shows a red unread indicator.
+3. If the actions **also** carry the `highlight` tweak, the message renders highlighted in the
+   timeline. That is a distinct predicate on purpose — the default DM rule sets `sound` with no
+   `highlight`, so treating them as one painted every message in a DM as a mention.
+4. The inbox panel lists them, server-backed via `/notifications` once a probe succeeds; an
+   unknown, unsupported or errored probe all render the local store.
+5. Receipt events clear entries the user has now read.
+
+Page notifications, service-worker notifications and Android notifications are **three separate
+domains**. Anything that clears or routes a notification has to address all three, and a routing
+decision must check which account the notification belongs to.
+
+### Push
+
+Three paths — foreground (in-app Notification API), background web/PWA (VAPID web push →
+`static/sw.js`), and background Android (FCM → `MatrixMessagingService.java`). The two background
+paths need a Sygnal gateway, and **both have live fallbacks compiled in**. See
+`ANDROID_PUSH_SETUP.md`, which carries the wire shapes and the effective defaults.
+
+### Service worker (`static/sw.js`)
+
+`initServiceWorker()` lives in `client.ts` but is called from the route on login/restore. The
+worker has four jobs:
+
+1. **Auth store** — holds the access token in an IndexedDB `matrix-sw/auth` store, fed by
+   `postMessage` (`SET_AUTH` / `CLEAR_AUTH` / `SET_NOTIF_PRIVACY`). Writes are serialized through a
+   promise chain so concurrent handlers can't persist out of order.
+2. **Media auth** — Matrix media needs an `Authorization: Bearer` header that `<img src>` can't
+   send, so the worker injects it. Deliberately narrow: only pathnames under
+   `/_matrix/client/v1/media/`, only element-initiated requests, and only when no `Authorization`
+   header is already present, so the token can't leak onto other homeserver APIs.
+3. **A no-referrer proxy** for `video.twimg.com`.
+4. **Web push** — receives Sygnal's `event_id_only` payloads, re-fetches the event to build a real
+   notification, honours the mirrored "hide message text" privacy flag, and clears a room's
+   notification when the unread count reaches zero.
+
+It also mirrors, **by hand**, `src/lib/utils/activeSession.ts` (the account-data heartbeat that
+suppresses notifications on idle devices) — as does the Java service. Those three copies must move
+together, and **nothing enforces it**: `activeSession.test.ts` pins the TypeScript constants so a
+change _there_ is loud, but no test reads `static/sw.js` or the Java service, and no gate compiles
+either of them.
+
+### Multi-account
+
+`stores/accounts.svelte.ts` holds the registry; `utils/scopedStorage.ts` namespaces per-account
+keys; each account gets its own rust-crypto database. Switching accounts leaves any active call and
+then navigates to `/` with `location.assign`, tearing down the whole module graph — so no
+cross-account store state can survive. One account syncs at a time.
+
+### Settings
+
+`AppSettings.svelte` is a thin router over the panels in `components/settings/`. The pure
+`settingsNavView()` decides between three shapes — desktop (sidebar + panel), mobile list, and
+mobile detail (which owns the `subPage` slot). `utils/roomSettingsNav.ts` is the same pattern with a
+permission-dependent tab list.
+
+### Updates
+
+Three runtimes collapse into one `UpdatePhase` union (`utils/updateStatus.ts`): the web build checks
+GitHub Releases **on demand** against a build-time-injected version (`initUpdateWatch` is a no-op on
+web — there is no background poll), desktop streams `electron-updater` events over IPC, and Android
+drives the custom APK plugin. `UpdateBanner.svelte` renders only the actionable phases.
+
+### Electron (`electron/main.cjs`)
+
+Serves the static `build/` over a small local HTTP server with SPA fallback, on a **persisted
+port** — localStorage is origin-keyed and the session lives there, so a changing port would log the
+user out. Single window plus tray with close-to-tray, a single-instance lock, `electron-updater`
+with `autoDownload` off behind `updates:*` IPC, and screen-share via `setDisplayMediaRequestHandler`
+round-tripped to an in-app picker. `preload.cjs` exposes exactly `window.desktop = { showWindow,
+updates, screenShare }`.
+
+### Android native
+
+`MatrixMessagingService.java` is a `FirebaseMessagingService` that enriches data-only Sygnal pushes
+by calling the homeserver with the credentials `src/lib/nativeSession.ts` mirrors into
+SharedPreferences. `ApkUpdaterPlugin.java` is a custom Capacitor plugin that downloads an APK and
+hands it to the system installer. `MainActivity.java` registers the plugin and routes notification
+taps into the web layer.
+
+### Live location and polls
+
+Live location is MSC3672 beacons with throttled publishes and expiry timers
+(`stores/liveLocation.svelte.ts`, `utils/liveLocation.ts`), rendered on real Leaflet maps
+(`LocationMap.svelte`, `LiveLocationMapView.svelte`). Polls are MSC3381, parsed and tallied by the
+pure `utils/pollContent.ts`, which accepts both stable and unstable poll event names on read.
+
+## Security
+
+- **Untrusted HTML must be sanitized.** Other users' `formatted_body` and reaction keys are
+  rendered with `{@html}`; route everything through `sanitizeMatrixHtml()` (DOMPurify with a Matrix
+  allowlist) and never `{@html}` a raw reaction key. The plain-text path is safe only because it
+  escapes before converting — keep that invariant.
+- **A production-only CSP** (`svelte.config.js`) is the backstop. The load-bearing directive is
+  `script-src` without `unsafe-inline`. It is applied at build time only, so a dev-server test
+  proves nothing about it.
+- Never interpolate remote event content into a style string.
+
+## Testing
+
+Vitest under jsdom, with the Svelte plugin loaded so `.svelte.ts` rune stores compile — which means
+**stores are unit-testable**, not just plain utils. Tests are colocated as `<name>.test.ts` next to
+the module.
+
+The house rule is visible in the ratio: `src/lib/utils/` is overwhelmingly pure modules each with
+its own test file, and there are **no component tests at all**. **Extract the logic out of
+components and `client.ts` into a pure util, TDD it there, and verify the SDK/UI wiring live.** A
+consequence worth naming: component _wiring_ is unproven by the suite, so a mutation to a `.svelte`
+file can leave every test green.
 
 ## Build & deploy
 
-- `npm run dev` — Vite dev server.
-- `npm run build` — static output in `build/` (deploy anywhere; SPA, no backend). Refresh-on-deep-path needs SPA fallback (e.g. nginx `try_files $uri $uri/ /app.html;`).
-- `npm run check` — svelte-check. `npm run lint` — prettier + eslint.
+- `npm run dev` — Vite dev server. `npm run dev:https` serves over HTTPS on 5443, which is what
+  service-worker and web-push work needs.
+- `npm run build` — static output in `build/`. Deploy anywhere; SPA fallback is **`index.html`**
+  (e.g. nginx `try_files $uri $uri/ /index.html;`). This is also the only place the CSP is applied.
+- `npm run check` — svelte-check. `npm run test` — Vitest, run-once. `npm run format` — Prettier.
+- **`npm run lint` is broken** — there is no root ESLint flat config, so the `eslint .` half
+  errors. Prettier is the formatting source of truth. Don't try to "fix" lint.
 - Android: `npx cap sync android`, then build in Android Studio (`webDir` → `build/`).
-- Push gateway is a separate Node service needing Firebase credentials and reachability from the homeserver.
+- Desktop: `npm run electron:build` (electron-builder).
 
 ## Conventions for continuing development
 
-1. **Never import `matrix-js-sdk` outside `client.ts`.** Add a wrapper export. Components may import SDK *types* only.
+1. **Add SDK capabilities as thin wrappers in `client.ts`.** Components import SDK _types_ only.
+   Crypto goes in `crypto.ts`.
 2. **Subscribe via the `on*` helpers** and always call the returned unsubscribe in teardown.
 3. **When an SDK object mutates in place, bump a tick** and read it inside the relevant `$derived`.
-4. **New popups/panels go through the slot system** (`openModal`/`openSidebar`) and render from the slot — don't add ad-hoc `showX` booleans. Pass a `close` that resets your local data.
-5. **New global keyboard shortcuts go in `onWindowKeydown`** in `app/+page.svelte`, not in components. Keep focus-dependent editor keybindings local to their element.
-6. **Overlays that could be clipped use `<Portal>`**; desktop popovers use the `positionMenu` action.
-7. **Server-default push rules** (dotted IDs like `.m.rule.roomnotif`) can't be created via `addPushRule`; `setDefaultPushRuleLevel` already handles this by updating local state when the server rejects.
-8. **Svelte 5 only** — `$state`/`$derived`/`$effect`, no `svelte/store`.
-9. **The repo name is misleading** — there is no Vue anywhere.
+4. **Re-check ownership after every await** in long-lived async work — the captured client
+   reference for SDK work, a destroyed flag or a generation counter for component-scoped work
+   (media capture especially).
+5. **New popups/panels go through the slot system** and render from the slot — no ad-hoc `showX`
+   booleans. Pass a `close` that resets your local data, and release with the `*IfOwner` helpers.
+6. **New global keyboard shortcuts go in `onWindowKeydown`** in `AppShell.svelte`, not in
+   components.
+7. **Overlays that could be clipped use `<Portal>`**; desktop popovers use the local `positionMenu`
+   action (currently duplicated in the three context-menu components); touch context menus render
+   as bottom sheets.
+8. **Never call an SDK send/receipt function unguarded inside a tracked `$effect`.** They
+   synchronously synthesize local echo and fire app-level listeners, so listener reads become the
+   effect's dependencies while listener writes retrigger it — `effect_update_depth_exceeded`, which
+   freezes the whole component. Wrap in `untrack()` _and_ make the call idempotent.
+9. **Failures must surface.** Optimistic UI updates roll back on rejection, and the error goes to
+   the toast store. Never let a rejected write leave the UI claiming success.
+10. **Extract pure logic to `utils/` with a test**; keep components about rendering.
+11. **Svelte 5 only** — `$state`/`$derived`/`$effect`, no `svelte/store`. `{@const}` must be an
+    immediate child of a block, not of a plain element.
+12. **The timeline is a plain chronological flex column** — DOM order is visual order. Do not
+    reintroduce `flex-col-reverse`; it breaks cross-message text selection.

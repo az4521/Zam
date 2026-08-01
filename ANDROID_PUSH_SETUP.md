@@ -1,9 +1,27 @@
 # Push Notifications (Sygnal)
 
-Both platforms register a Matrix pusher with the homeserver pointing at
+Zam has **three** notification paths. Only two of them involve a push gateway;
+mixing them up is the usual source of confusion, so they are listed separately
+here.
+
+| path                            | when it fires                     | who displays it                                                                                          | needs Sygnal?                |
+| ------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **Foreground**                  | the app is open and syncing       | `new Notification(...)` from the sync handler in `AppShell.svelte` — for messages and for incoming calls | no                           |
+| **Background web / PWA**        | the tab is closed or backgrounded | `static/sw.js` `push` handler                                                                            | **yes** (`webpush` app)      |
+| **Background / killed Android** | the app is not running            | `MatrixMessagingService.java`                                                                            | **yes** (`gcm`/`fcm_v1` app) |
+
+The foreground path is guarded on `typeof Notification === "undefined"`, so it is
+the web/desktop path in practice — it only fires on Android if that WebView
+exposes the Notification API.
+
+The Capacitor plugin's `pushNotificationReceived` listener in `src/lib/push.ts`
+only writes to the console — it does **not** display anything. Anything a user
+actually sees while the app is open comes from the web layer's sync path, not
+from `push.ts`.
+
+The two background paths register a Matrix pusher with the homeserver pointing at
 **Sygnal** (<https://github.com/matrix-org/sygnal>), which fans out to the right
-transport. There are two independent paths with two different `app_id`s, served
-by the same Sygnal:
+transport. They use two different `app_id`s and can be served by the same Sygnal:
 
 - **Android app** (`moe.crafty.matrix`) → Sygnal **`gcm`/`fcm_v1`** app → FCM.
   Needs a Firebase project + `google-services.json`.
@@ -15,6 +33,20 @@ by the same Sygnal:
 Android: App (FCM token)  ─registers pusher─▶ Homeserver ─▶ Sygnal(gcm)     ─▶ FCM           ─▶ device
 PWA:     PushManager sub  ─registers pusher─▶ Homeserver ─▶ Sygnal(webpush) ─▶ browser push  ─▶ service worker
 ```
+
+## ⚠ Effective defaults — read before deploying a fork
+
+Neither gateway setting is "off by default". Both have a fallback baked into the
+source:
+
+- `src/lib/push.ts` — `PUSH_GATEWAY_URL` falls back to
+  `https://sygnal.crafty.moe/_matrix/push/v1/notify`.
+- `src/lib/webPush.ts` — the same gateway fallback, **plus** a committed public
+  VAPID key.
+
+So a build with no env vars set will happily register pushers pointing at this
+project's Sygnal instance. See "Turning push off" below for what actually
+disables it.
 
 ## 1. Firebase project
 
@@ -32,28 +64,33 @@ Follow the Sygnal docs. A minimal `sygnal.yaml` app entry for this client:
 
 ```yaml
 apps:
-  moe.crafty.matrix:
-    type: gcm
-    # FCM v1 with a service account (recommended):
-    api_version: v1
-    project_id: your-firebase-project-id
-    service_account_file: /path/to/service-account.json
+    moe.crafty.matrix:
+        type: gcm
+        # FCM v1 with a service account (recommended):
+        api_version: v1
+        project_id: your-firebase-project-id
+        service_account_file: /path/to/service-account.json
 ```
 
 Run Sygnal behind HTTPS so the homeserver can reach it, e.g.
-`https://sygnal.example.com/_matrix/push/v1/notify`.
+`https://sygnal.your-domain.example/_matrix/push/v1/notify`.
+
+> ⚠ Don't use the literal host `sygnal.example.com` in a real build. `push.ts` treats a gateway URL
+> containing that string as the "not configured" sentinel and skips the whole FCM stack — see
+> "Turning push off". Every example below uses `sygnal.your-domain.example` for that reason.
 
 ## 3. Point the app at Sygnal
 
 Set the gateway URL at build time (preferred):
 
 ```bash
-VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" npm run build
+VITE_PUSH_GATEWAY_URL="https://sygnal.your-domain.example/_matrix/push/v1/notify" npm run build
 ```
 
 In CI it's read from the repository **variable** `PUSH_GATEWAY_URL`
-(Settings → Secrets and variables → Actions → Variables). If unset, the app
-builds with push disabled.
+(Settings → Secrets and variables → Actions → Variables). If unset, the build
+falls back to the project gateway (see the warning above) — it does **not**
+disable push.
 
 Alternatively, edit the fallback in `src/lib/push.ts`.
 
@@ -72,30 +109,77 @@ the workflow (e.g. base64 in a secret, decoded before `npx cap sync`).
 
 1. Launch the app, log in, **grant the notification permission**.
 2. Confirm an HTTP pusher was registered with the homeserver pointing at your
-   Sygnal URL.
+   Sygnal URL. **Settings → Debug Info** does this for you (see "Diagnostics").
 3. Background the app and send a message from another account → notification
    appears. Tapping it opens the room.
 
+## Turning push off
+
+There is no single "push: off" switch. What each knob actually does:
+
+- **Android/FCM:** `src/lib/push.ts` treats a gateway URL containing
+  `sygnal.example.com` as "not configured" and skips the whole FCM stack. So
+  building with `VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/..."` is the
+  supported way to disable Android push. Not setting the variable at all does
+  the opposite of what you'd expect — it selects the project gateway.
+- **Web push:** there is currently **no build-time off switch**.
+  `webPushConfigured()` is `!!VAPID_PUBLIC_KEY`, and the key has a committed
+  fallback, so it is always true. Setting `VITE_VAPID_PUBLIC_KEY=""` falls back
+  to the committed key rather than clearing it. To disable it you must edit the
+  fallback in `src/lib/webPush.ts` to an empty string.
+- **Per user, at runtime:** both paths only ever run after the user grants the
+  browser/OS notification permission, so a user who never grants it never gets a
+  pusher registered. An **explicit logout** deletes both pushers
+  (`unregisterPush` + `teardownWebPush`). Note that **session expiry and account
+  switching do not** — expiry calls only `unregisterPush`, which is itself
+  no-op'd off native, so an expired browser/PWA session leaves its `webpush`
+  pusher registered on the homeserver until the account is logged out properly.
+
+## Diagnostics
+
+**Settings → Debug Info** is the fastest way to answer "is push actually set up?"
+without a dev console. It surfaces:
+
+- the gateway URL this build was compiled with, and whether push is considered
+  enabled;
+- the notification permission state and the FCM token (Android);
+- **the pushers the homeserver actually has** for this account (`GET /pushers`),
+  with each one's `app_id`, the gateway `data.url` and a truncated pushkey — this
+  is the source of truth for "did we tell the homeserver about our gateway?";
+- a **Sygnal `/health` probe** derived from the configured notify endpoint (200
+  means Sygnal loaded its app/FCM config);
+- web-push state (only rendered where web push is supported): whether the VAPID
+  key is set, the notification permission, whether a `PushManager` subscription
+  exists, and whether the homeserver holds a matching `webpush` pusher.
+
 ## Notes
 
-- Foreground notifications are handled in `src/lib/push.ts`.
-- **Background/killed notifications** are displayed by a native service,
+- **Background/killed Android notifications** are displayed by a native service,
   `MatrixMessagingService` (`android/app/src/main/java/moe/crafty/matrix/`).
-  Sygnal sends *data-only* FCM messages, and the Capacitor push plugin only
+  Sygnal sends _data-only_ FCM messages, and the Capacitor push plugin only
   shows a notification when the message contains a `notification` block — so
   without this service, backgrounded pushes arrive but are never displayed.
 - **Notification enrichment:** Sygnal's `event_id_only` pushes carry only IDs,
-  so the service calls the homeserver to fetch the message body, sender display
-  name, room name, and room avatar (shown as the large icon). It uses the
-  session (homeserver URL + access token) that the web layer mirrors into
-  native storage via `src/lib/nativeSession.ts` (`@capacitor/preferences` →
-  SharedPreferences `CapacitorStorage`). If the session is missing or a request
-  fails, it falls back to a generic "New message" notification.
-- Tapping a notification deep-links to the room via `window.__matrixOpenRoom`
-  (wired in `+page.svelte` / `MainActivity.java`).
-- `unregisterPush` removes the pusher on logout.
-- Web/desktop notifications don't use FCM/Sygnal at all — they use the in-app
-  Notification API while the client is running.
+  so both background paths call the homeserver to fetch the message body, sender
+  display name, room name, and room avatar. Android uses the session (homeserver
+  URL + access token) that the web layer mirrors into native storage via
+  `src/lib/nativeSession.ts` (`@capacitor/preferences` → SharedPreferences
+  `CapacitorStorage`); the service worker uses the copy the app posts into its
+  IndexedDB store. If the session is missing or a request fails, both fall back
+  to a generic "New message" notification.
+- **Active-session suppression:** both background paths check a shared
+  account-data heartbeat (`moe.crafty.matrix.active_session`, mirrored from
+  `src/lib/utils/activeSession.ts` into `static/sw.js` and the Java service) and
+  stay quiet when another device is actively in use. It fails open — when in
+  doubt, it notifies.
+- Tapping an Android notification deep-links to the room via
+  `window.__matrixOpenRoom` (wired in `MainActivity.java`); the service worker's
+  `notificationclick` handler focuses the app and opens the room.
+- `unregisterPush` removes the Android pusher and `teardownWebPush` removes the
+  web pusher (and unsubscribes the `PushManager`) — on **explicit logout only**;
+  see "Turning push off" for what expiry and account switching do instead.
+- **Foreground** notifications on every platform come from the in-app
+  Notification API while the client is running, and use no gateway at all.
 
 ### After changing native push code
 
@@ -118,15 +202,18 @@ npx web-push generate-vapid-keys
 ```
 
 Keep the **private** key for Sygnal; the **public** key goes to the app build.
+Sygnal wants the private key as a PKCS#8 PEM rather than the base64url string
+`web-push` prints — `node scripts/gen-vapid.mjs <base64url-private-key>` does
+that conversion, writing `vapid_private_key.pem` into the current directory.
 
 ## 2. Add a `webpush` app to Sygnal
 
 ```yaml
 apps:
-  moe.crafty.matrix.webpush:
-    type: webpush
-    vapid_private_key: "<private key>"
-    vapid_contact_email: you@example.com
+    moe.crafty.matrix.webpush:
+        type: webpush
+        vapid_private_key: "<private key>"
+        vapid_contact_email: you@example.com
 ```
 
 (Add this alongside the `moe.crafty.matrix` gcm app — both can coexist.)
@@ -137,13 +224,14 @@ Set `VITE_VAPID_PUBLIC_KEY` (and `VITE_PUSH_GATEWAY_URL`) at build time:
 
 ```bash
 VITE_VAPID_PUBLIC_KEY="<public key>" \
-VITE_PUSH_GATEWAY_URL="https://sygnal.example.com/_matrix/push/v1/notify" \
+VITE_PUSH_GATEWAY_URL="https://sygnal.your-domain.example/_matrix/push/v1/notify" \
 npm run build
 ```
 
 In CI these come from repository **variables** `VAPID_PUBLIC_KEY` and
-`PUSH_GATEWAY_URL`. If `VITE_VAPID_PUBLIC_KEY` is unset, web push is simply
-disabled (the app still works).
+`PUSH_GATEWAY_URL`. Leaving `VITE_VAPID_PUBLIC_KEY` unset does **not** disable
+web push — it falls back to the public key committed in `src/lib/webPush.ts`.
+See "Turning push off" above.
 
 ## 4. Use it
 
@@ -158,10 +246,24 @@ disabled (the app still works).
 ### How it works (code)
 
 - `src/lib/webPush.ts` — permission, `PushManager` subscription, and pusher
-  registration (`app_id` `moe.crafty.matrix.webpush`, pushkey = endpoint,
-  p256dh/auth keys in `data`).
+  registration. **The wire shape is not the obvious one:** Sygnal's `webpush`
+  pushkin treats the **p256dh key as the pushkey**, and reads the subscription
+  `endpoint` and `auth` secret out of `data`. So the registered pusher is:
+
+    ```
+    app_id  : moe.crafty.matrix.webpush
+    pushkey : <subscription p256dh key>          ← not the endpoint
+    data    : { url, format: "event_id_only", endpoint, auth, default_payload }
+    ```
+
+    (`teardownWebPush` deletes under both the p256dh key _and_ the endpoint, so
+    a pusher registered under either shape gets cleaned up on logout.)
+
 - `static/sw.js` — `push` and `notificationclick` handlers, with the same
-  homeserver-enrichment as the Android service.
+  homeserver-enrichment as the Android service, plus the "hide message text"
+  privacy flag and the active-session suppression described above. The same
+  worker also injects the media `Authorization` header for `<img src>` on
+  `/_matrix/client/v1/media/` requests.
 - Requires HTTPS and a registered service worker (already used for media auth).
 - iOS Safari supports web push only for apps **added to the Home Screen**
   (iOS 16.4+).
