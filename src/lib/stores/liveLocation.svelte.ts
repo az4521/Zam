@@ -179,8 +179,18 @@ function onPosition(pos: GeolocationPosition) {
         share.lastSentTs = now;
         sendLiveBeaconLocation(roomId, share.beaconInfoEventId, lat, lon).catch(
             () => {
-                // Offline blip: keep watching, retry on the next fix. The tick
-                // is what lets the banner's "last updated" label follow it.
+                // Offline blip: keep watching, retry on the next fix.
+                //
+                // The tick is published because every state write the UI can
+                // read is followed by one — NOT because it re-renders this
+                // field today. Both consumers (LiveLocationBanner,
+                // LiveLocationMapView) derive the whole ShareState, which stays
+                // reference-equal when we mutate it in place, so Svelte never
+                // invalidates them; the "last updated at …" label actually
+                // follows the banner's own 15s `now` interval, which is why
+                // that interval must not be deleted as redundant. Making the
+                // label follow the store needs a $derived over lastSentTs
+                // alone, the way `ownStop` was split out of `ownShare`.
                 share.lastSentTs = null;
                 bump();
             },
@@ -313,8 +323,9 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
     // time the write settles this room may hold a DIFFERENT share (teardown
     // swept it and the user started a new one) and `share` is a stale
     // reference into the old map. The DEADLINE is deliberately NOT snapshotted
-    // — a sync landing mid-write can move it onto the server's expiry, and the
-    // stale value would put the record's timer back on our clock.
+    // — a sync landing mid-write can move it onto the beacon event's own
+    // deadline, and the stale value would put the record's timer back on our
+    // separate reading.
     const stoppingId = share.beaconInfoEventId;
     const attempt = {};
     stopAttempts.set(roomId, attempt);
@@ -371,9 +382,9 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
 
     // Read the deadline off the record, not off a pre-await copy: `ourShare()`
     // has just re-proved this is the same record under the same beacon_info,
-    // and a sync-prepared resume may have moved it onto the server's expiry
-    // while we were writing. That value is the one the banner renders, so it
-    // must also be the one the record lives and dies by.
+    // and a sync-prepared resume may have moved it onto the beacon event's own
+    // deadline while we were writing. That value is the one the banner renders,
+    // so it must also be the one the record lives and dies by.
     const outcome = resolveStopFailure(current.expiresAt, Date.now());
     if (outcome.action === "drop") {
         dropShare(roomId);
@@ -443,7 +454,16 @@ function resumeOwnShares() {
             });
         } else {
             const share = liveLocationState.shares.get(action.roomId);
-            if (share) share.expiresAt = action.expiresAt;
+            // Unreachable today — a refresh is only planned for a room we were
+            // just found holding — but arming a timer for a record that isn't
+            // there would strand the entry: onExpiry bails on the missing
+            // record, so nothing would ever clear it out of expiryTimers.
+            if (!share) continue;
+            // Move onto the deadline the beacon_info event itself carries; our
+            // own expiresAt was a second Date.now() taken after the create
+            // round-trip, and the beacon's liveness is measured against the
+            // event, not against that reading.
+            share.expiresAt = action.expiresAt;
         }
         armExpiryTimer(action.roomId, action.expiresAt);
     }

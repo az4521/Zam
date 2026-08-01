@@ -77,10 +77,17 @@ export type ResumeAction =
  * already hold.
  *
  * A room we hold nothing for is added. A room we hold the SAME beacon_info for
- * takes the server's expiry: ours is `Date.now() + duration` from the moment we
- * started, and the server judges liveness from `origin_server_ts + timeout`, so
- * a local clock running fast would retire the record — and the banner warning
- * that we are still broadcasting — before the beacon actually died.
+ * takes the deadline carried by the event: the beacon is judged live against
+ * `m.beacon_info`'s own `org.matrix.msc3488.ts + timeout` (the SDK's liveness
+ * check, and `getOwnLiveBeacons`, both evaluate exactly that sum). Our record's
+ * `expiresAt` is a SECOND, independent `Date.now()` reading — `startShare`
+ * takes it after the create round-trip returns, while the SDK stamped the
+ * content before sending it — so it always sits slightly past the deadline the
+ * beacon is actually measured by. Adopting the event's value makes our record
+ * agree with the artefact everyone reads instead of with a private reading of
+ * our own clock. It is NOT a cross-device skew correction: that stamp is
+ * written by the sending client, and a beacon we hold a record for was sent by
+ * this device, so both numbers come from the same clock.
  *
  * A room we hold a DIFFERENT beacon_info for is left completely alone: that is
  * a share this session started, or one whose stop we are still chasing, and the
@@ -90,7 +97,8 @@ export type ResumeAction =
  *
  * A record whose stop is pending or failed is re-timed too, on purpose: its
  * expiry timer is the only thing that ever retires that banner, so it has to
- * point at the moment the SERVER stops broadcasting rather than at ours.
+ * point at the deadline the beacon is judged by rather than at our own later
+ * reading of it.
  */
 export function planResume(
     existing: Iterable<[string, ResumeRecord]>,

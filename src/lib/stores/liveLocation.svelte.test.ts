@@ -363,6 +363,26 @@ describe("live-location own-share engine", () => {
         expect(watchPosition).toHaveBeenCalled();
     });
 
+    it("arms the expiry backstop for a share resumed from state", async () => {
+        // A resumed record has to retire on its own deadline like any other:
+        // with no timer armed it would sit in the banner claiming to broadcast
+        // long after the beacon died, and nothing else would ever clear it.
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: ROOM,
+                beaconInfoEventId: "$b1",
+                expiresAt: Date.now() + 600000,
+            },
+        ]);
+
+        initLiveLocation();
+        expect(vi.getTimerCount()).toBe(1);
+
+        await vi.advanceTimersByTimeAsync(600000);
+
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
     it("stops every share on stopAllShares (logout)", async () => {
         await startShare("!a:s", 900000);
         await startShare("!b:s", 900000);
@@ -992,33 +1012,31 @@ describe("live-location own-share engine", () => {
         expect(clearWatch).not.toHaveBeenCalled();
     });
 
-    it("takes the server's expiry for a share it already holds", async () => {
+    it("takes the beacon event's deadline for a share it already holds", async () => {
         await startShare(ROOM, 900000);
-        const serverExpiry = Date.now() + 600000;
+        const eventExpiry = Date.now() + 600000;
         h.getOwnLiveBeacons.mockReturnValue([
-            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: serverExpiry },
+            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: eventExpiry },
         ]);
 
         initLiveLocation();
 
-        expect(liveLocationState.shares.get(ROOM)?.expiresAt).toBe(
-            serverExpiry,
-        );
+        expect(liveLocationState.shares.get(ROOM)?.expiresAt).toBe(eventExpiry);
         // Re-armed, not duplicated: two timers would fire onExpiry twice.
         expect(vi.getTimerCount()).toBe(1);
-        // …and the one timer points at the SERVER's deadline. A record left on
-        // the old client-clock timer would outlive the beacon by 5 minutes,
-        // which is the same lie the expiry itself was fixed for.
+        // …and the one timer points at the deadline the beacon is measured
+        // against, not at the separate reading we took when the share started.
         await vi.advanceTimersByTimeAsync(600000);
         expect(isSharingLive(ROOM)).toBe(false);
     });
 
-    it("retires a failed stop on the server's deadline, not the clock we started on", async () => {
+    it("retires a failed stop on the record's current deadline, not a pre-await copy", async () => {
         // A sync can land while the live:false write is still out and move the
-        // record onto the server's deadline. The rejection path re-arms the
-        // expiry backstop — the only thing that ever retires a failed stop's
-        // banner — so it must read the deadline the record now carries, not the
-        // one captured before the await, or the banner and the timer disagree.
+        // record onto the beacon event's own deadline. The rejection path
+        // re-arms the expiry backstop — the only thing that ever retires a
+        // failed stop's banner — so it must read the deadline the record now
+        // carries, not the one captured before the await, or the banner and
+        // the timer disagree.
         let onPrepared: () => void = () => {};
         h.onSyncPrepared.mockImplementation((cb: () => void) => {
             onPrepared = cb;
@@ -1026,7 +1044,7 @@ describe("live-location own-share engine", () => {
         });
         initLiveLocation();
         await startShare(ROOM, 900000);
-        const serverExpiry = Date.now() + 600000;
+        const eventExpiry = Date.now() + 600000;
         let fail: (e: Error) => void = () => {};
         h.stopLiveBeacon.mockImplementationOnce(
             () => new Promise<void>((_r, j) => (fail = j)),
@@ -1035,7 +1053,7 @@ describe("live-location own-share engine", () => {
         const pending = stopShare(ROOM);
         await flush();
         h.getOwnLiveBeacons.mockReturnValue([
-            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: serverExpiry },
+            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: eventExpiry },
         ]);
         onPrepared();
         fail(new Error("offline"));
@@ -1084,9 +1102,12 @@ describe("live-location own-share engine", () => {
         expect(vi.getTimerCount()).toBe(0);
     });
 
-    it("re-renders when a position send fails", async () => {
-        // lastSentTs drives the banner's "last updated" label; mutating it
-        // without a tick leaves the label lying about how fresh the share is.
+    it("publishes a tick when a position send fails", async () => {
+        // A tick, NOT a re-render: both consumers derive the whole ShareState,
+        // which is reference-stable across an in-place mutation, so the "last
+        // updated at …" label follows the banner's own 15s clock until someone
+        // splits lastSentTs into its own $derived. This pins the store half of
+        // that contract — every UI-readable write is followed by a tick.
         await startShare(ROOM, 900000);
         h.sendLiveBeaconLocation.mockRejectedValueOnce(new Error("offline"));
         vi.advanceTimersByTime(60000);

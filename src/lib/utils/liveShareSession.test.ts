@@ -78,10 +78,11 @@ describe("planResume", () => {
         expect(planResume(existing, [beacon])).toEqual([]);
     });
 
-    it("takes the server's expiry over our own clock's", () => {
-        // Ours came from Date.now() + duration at start; the server judges from
-        // origin_server_ts + timeout. A fast local clock would otherwise retire
-        // the record — and its banner — while the beacon is still broadcasting.
+    it("takes the deadline the event carries over our own later reading", () => {
+        // The beacon is judged live against its own content stamp + timeout.
+        // Our record's expiresAt is a separate Date.now() taken after the
+        // create round-trip, so it sits past that deadline; adopting the
+        // event's value keeps the record honest about what is being measured.
         const existing: [
             string,
             { beaconInfoEventId: string; expiresAt: number },
