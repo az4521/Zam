@@ -15,6 +15,54 @@ interface ResizeOpts extends PickerSizeOpts {
     minH?: number;
 }
 
+/** One arrow press. */
+export const RESIZE_STEP_PX = 24;
+/** One Shift+arrow press, for crossing the range without holding a key down. */
+export const RESIZE_STEP_LARGE_PX = 96;
+
+/**
+ * Size delta for one keyboard resize press, or null when the key is not ours.
+ *
+ * The grip is top-left on a bottom-right-anchored panel, and the pointer drag
+ * computes `start.w + (start.x - e.clientX)` — moving the grip LEFT grows the
+ * width, UP grows the height. The keyboard has to agree with that or the same
+ * control means opposite things to a mouse and a keyboard. Pure: no DOM.
+ */
+export function resizeKeyDelta(
+    key: string,
+    shiftKey: boolean,
+): { dw: number; dh: number } | null {
+    const step = shiftKey ? RESIZE_STEP_LARGE_PX : RESIZE_STEP_PX;
+    switch (key) {
+        case "ArrowLeft":
+            return { dw: step, dh: 0 };
+        case "ArrowRight":
+            return { dw: -step, dh: 0 };
+        case "ArrowUp":
+            return { dw: 0, dh: step };
+        case "ArrowDown":
+            return { dw: 0, dh: -step };
+        default:
+            return null;
+    }
+}
+
+/**
+ * Clamps a size into its bounds. The maximum is applied last so that a maximum
+ * below the minimum (a chat area narrower than the picker's floor) still wins —
+ * overflowing the visible area would put the grip itself out of reach.
+ */
+export function clampSize(
+    w: number,
+    h: number,
+    b: { minW: number; minH: number; maxW: number; maxH: number },
+): { w: number; h: number } {
+    return {
+        w: Math.min(b.maxW, Math.max(b.minW, w)),
+        h: Math.min(b.maxH, Math.max(b.minH, h)),
+    };
+}
+
 export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
     const panel = node.parentElement;
     if (!panel) return;
@@ -51,10 +99,33 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
             return null;
         }
     }
+    // The size we last applied. This — NOT `panel.offsetWidth` — is the single
+    // source of truth for the drag origin and for persistence: offsetWidth is a
+    // rounded integer (so repeated small steps would drift) and it is 0 in
+    // jsdom, which would make every test here silently meaningless.
+    const current = { w: 0, h: 0 };
+
     function apply(w: number, h: number) {
         const max = maxSize();
-        panel!.style.width = Math.min(max.w, Math.max(minW, w)) + "px";
-        panel!.style.height = Math.min(max.h, Math.max(minH, h)) + "px";
+        const next = clampSize(w, h, {
+            minW,
+            minH,
+            maxW: max.w,
+            maxH: max.h,
+        });
+        current.w = next.w;
+        current.h = next.h;
+        panel!.style.width = next.w + "px";
+        panel!.style.height = next.h + "px";
+    }
+
+    function persist() {
+        try {
+            localStorage.setItem(opts.storageKey + ":w", String(current.w));
+            localStorage.setItem(opts.storageKey + ":h", String(current.h));
+        } catch {
+            /* ignore (private mode / storage full) */
+        }
     }
 
     const initial = resolvePickerSize(readNum, opts);
@@ -65,8 +136,8 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
         start = {
             x: e.clientX,
             y: e.clientY,
-            w: panel!.offsetWidth,
-            h: panel!.offsetHeight,
+            w: current.w,
+            h: current.h,
         };
         node.setPointerCapture(e.pointerId);
         e.preventDefault();
@@ -79,24 +150,26 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
     function up() {
         if (!start) return;
         start = null;
-        try {
-            localStorage.setItem(
-                opts.storageKey + ":w",
-                String(panel!.offsetWidth),
-            );
-            localStorage.setItem(
-                opts.storageKey + ":h",
-                String(panel!.offsetHeight),
-            );
-        } catch {
-            /* ignore (private mode / storage full) */
-        }
+        persist();
+    }
+
+    // Keyboard resizing (A11Y-12). Routed through the SAME apply()/persist() as
+    // the drag so the two can never clamp or store differently. Only the four
+    // arrows are claimed; everything else (Escape, Tab, Enter) bubbles on to the
+    // picker panel's own keydown untouched.
+    function onKeydown(e: KeyboardEvent) {
+        const delta = resizeKeyDelta(e.key, e.shiftKey);
+        if (!delta) return;
+        e.preventDefault();
+        apply(current.w + delta.dw, current.h + delta.dh);
+        persist();
     }
 
     node.addEventListener("pointerdown", down);
     node.addEventListener("pointermove", move);
     node.addEventListener("pointerup", up);
     node.addEventListener("pointercancel", up);
+    node.addEventListener("keydown", onKeydown);
 
     return {
         destroy() {
@@ -104,6 +177,7 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
             node.removeEventListener("pointermove", move);
             node.removeEventListener("pointerup", up);
             node.removeEventListener("pointercancel", up);
+            node.removeEventListener("keydown", onKeydown);
         },
     };
 }

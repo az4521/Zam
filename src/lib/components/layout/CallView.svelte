@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { tick } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import {
         MessageSquare,
@@ -12,6 +13,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        EllipsisVertical,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -42,6 +44,7 @@
         showChatView,
         openModal,
         clearModalIfOwner,
+        interfaceState,
     } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -117,6 +120,71 @@
     }
     function isLocalIdentity(identity: string): boolean {
         return identity.slice(0, identity.lastIndexOf(":")) === auth.userId;
+    }
+
+    // A tile's primary action lives on its wrapper <div> (click, contextmenu,
+    // long-press). The keyboard/AT affordance is a real, empty <button>
+    // stretched over the tile — a real button so Enter *and* Space activate it
+    // natively (Space on a focused button never scrolls the page) and so we add
+    // no keydown handler that could shadow the window-level Escape that clears
+    // the spotlight.
+    //
+    // `pointer-events-none` is load-bearing, not decoration: VideoTile renders
+    // its own Fullscreen <button> at bottom-right (and a <video>), so an overlay
+    // that took part in hit-testing would sit on top of it and silently swallow
+    // fullscreen, click-to-spotlight, right-click and long-press. Keeping it out
+    // of hit-testing leaves every pointer gesture byte-identical to before;
+    // keyboard and assistive-tech activation dispatch the click straight at the
+    // button, which needs no hit-test. The ring is white (never the accent —
+    // that colour already means "speaking/spotlighted" on these tiles) over a
+    // 40% scrim so it still reads 3:1 against an all-white shared screen.
+    const TILE_OVERLAY_BTN =
+        "absolute inset-0 z-10 pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white focus-visible:bg-black/40";
+    // The per-participant menu trigger: always visible (never hover-gated, or a
+    // keyboard user could never reach it) and never gated on pointer type — a
+    // visible affordance beats a long-press gesture nobody can discover. It
+    // passes `interfaceState.isTouchscreen` as the menu's `touch` flag, not a
+    // hardcoded false: the same device must not get a positioned popover (with
+    // an <input type="range"> in it) from a tap on this button and a BottomSheet
+    // from a long-press on the tile behind it. No
+    // aria-haspopup: CallParticipantMenu renders a focus-trapped <div> of
+    // buttons (a BottomSheet on touch) with neither role="menu" nor
+    // role="dialog", and a popup role we cannot honour is worse than none.
+    const TILE_MENU_BTN =
+        "absolute z-20 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
+
+    // focusTile() is a toggle, so the label has to say which way it goes.
+    function spotlightLabel(key: string, label: string): string {
+        return voiceCallState.focusedTileKey === key
+            ? `Exit spotlight for ${label}`
+            : `Spotlight ${label}`;
+    }
+
+    // Spotlighting and un-spotlighting both flip `{#if focusedTile}`, which
+    // tears down the entire tile subtree — including whichever overlay button
+    // was just activated. Focus would fall back to <body>, dumping a keyboard
+    // user at the top of the document and making them Tab through the whole
+    // sidebar to get back into the call. Land them on the tiles container
+    // instead: `tabindex="-1"` keeps it out of the tab order (it is a landing
+    // spot, not a stop) while still accepting focus, and Tab from there
+    // continues into the freshly rendered tiles.
+    //
+    // Both paths funnel through here so the five call sites cannot drift.
+    // Only the overlay buttons call these: the wrapper <div>s own the pointer
+    // (the overlays are `pointer-events-none`), so a mouse click never takes
+    // this path and never moves focus.
+    let tilesEl = $state<HTMLDivElement | undefined>();
+    async function keepFocusInTiles(): Promise<void> {
+        await tick();
+        tilesEl?.focus();
+    }
+    function spotlightTile(key: string): void {
+        focusTile(key);
+        void keepFocusInTiles();
+    }
+    function backToGrid(): void {
+        clearFocus();
+        void keepFocusInTiles();
     }
 
     function onKeydown(e: KeyboardEvent): void {
@@ -215,7 +283,15 @@
     </div>
 
     <!-- Tiles -->
-    <div class="flex-1 min-h-0 p-4 flex flex-col gap-3">
+    <!-- `tabindex="-1"`, not "0": this is the focus landing spot for a
+         spotlight toggle that unmounts the button doing the toggling (see
+         keepFocusInTiles above), NOT a new tab stop — it adds nothing to the
+         tab order and traps nothing. -->
+    <div
+        bind:this={tilesEl}
+        tabindex="-1"
+        class="flex-1 min-h-0 p-4 flex flex-col gap-3"
+    >
         {#if participants.length === 0 && screenTiles.length === 0}
             <div
                 class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
@@ -225,10 +301,13 @@
             </div>
         {:else if focusedTile}
             <!-- Spotlight: the focused stream fills the view -->
+            <!-- The wrapper keeps click-anywhere-to-go-back for the pointer, so
+                 both ignores below stay live; the keyboard path is the overlay
+                 button (and Escape, handled on <svelte:window> above). -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <div
-                class="flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
+                class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
                 onclick={clearFocus}
                 title="Back to grid"
             >
@@ -239,6 +318,15 @@
                         isLocalIdentity(focusedTile.identity) &&
                         settingsState.mirrorCamera}
                 />
+                <button
+                    type="button"
+                    class={TILE_OVERLAY_BTN}
+                    aria-label="Back to grid"
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        backToGrid();
+                    }}
+                ></button>
             </div>
             <!-- Filmstrip: everyone else, small, along the bottom -->
             <div
@@ -260,6 +348,18 @@
                             label={tileLabel(t.identity, t.source)}
                             compact
                         />
+                        <button
+                            type="button"
+                            class={TILE_OVERLAY_BTN}
+                            aria-label={spotlightLabel(
+                                t.key,
+                                tileLabel(t.identity, t.source),
+                            )}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                spotlightTile(t.key);
+                            }}
+                        ></button>
                     </div>
                 {/each}
                 {#each participants as p (p.userId)}
@@ -304,6 +404,15 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
+                            <button
+                                type="button"
+                                class={TILE_OVERLAY_BTN}
+                                aria-label={spotlightLabel(cam.key, name)}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    spotlightTile(cam.key);
+                                }}
+                            ></button>
                         {:else}
                             <Avatar
                                 src={avatar}
@@ -312,6 +421,25 @@
                                 size={36}
                             />
                         {/if}
+                        <button
+                            type="button"
+                            class="{TILE_MENU_BTN} top-0.5 right-0.5 p-1"
+                            title={`Options for ${name}`}
+                            aria-label={`Options for ${name}`}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                const r =
+                                    e.currentTarget.getBoundingClientRect();
+                                openParticipantMenu(
+                                    p.userId,
+                                    r.right,
+                                    r.bottom,
+                                    interfaceState.isTouchscreen,
+                                );
+                            }}
+                        >
+                            <EllipsisVertical size={14} />
+                        </button>
                     </div>
                 {/each}
             </div>
@@ -334,6 +462,18 @@
                             tile={t}
                             label={tileLabel(t.identity, t.source)}
                         />
+                        <button
+                            type="button"
+                            class={TILE_OVERLAY_BTN}
+                            aria-label={spotlightLabel(
+                                t.key,
+                                tileLabel(t.identity, t.source),
+                            )}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                spotlightTile(t.key);
+                            }}
+                        ></button>
                     </div>
                 {/each}
 
@@ -379,6 +519,15 @@
                                 mirror={isLocalIdentity(identity) &&
                                     settingsState.mirrorCamera}
                             />
+                            <button
+                                type="button"
+                                class={TILE_OVERLAY_BTN}
+                                aria-label={spotlightLabel(cam.key, name)}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    spotlightTile(cam.key);
+                                }}
+                            ></button>
                             {#if muted.has(p.userId) && !speaking.has(p.userId)}
                                 <div
                                     class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
@@ -410,6 +559,25 @@
                                 >
                             </div>
                         {/if}
+                        <button
+                            type="button"
+                            class="{TILE_MENU_BTN} top-2 right-2 p-1.5"
+                            title={`Options for ${name}`}
+                            aria-label={`Options for ${name}`}
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                const r =
+                                    e.currentTarget.getBoundingClientRect();
+                                openParticipantMenu(
+                                    p.userId,
+                                    r.right,
+                                    r.bottom,
+                                    interfaceState.isTouchscreen,
+                                );
+                            }}
+                        >
+                            <EllipsisVertical size={16} />
+                        </button>
                     </div>
                 {/each}
             </div>

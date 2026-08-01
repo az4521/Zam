@@ -186,16 +186,17 @@
 >
     {#if !interfaceState.isTouchscreen}
         <!-- Resize grip (top-left; panel grows up-and-left from the composer) -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div
+        <button
+            type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 transition-opacity"
-            title="Drag to resize"
+            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            title="Drag or use arrow keys to resize"
+            aria-label="Resize picker"
         >
             <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
                 <path d="M2 2h5v1.5H3.5V7H2V2z" />
             </svg>
-        </div>
+        </button>
     {/if}
     {#if interfaceState.isTouchscreen}
         <!-- Outer picker tabs (Emoji / Stickers / GIFs) -->

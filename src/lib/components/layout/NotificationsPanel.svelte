@@ -187,14 +187,33 @@
                     {@const name = room
                         ? getMemberName(room, n.sender)
                         : n.sender}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
+                    <!--
+                        A real <button>, not a role: activation is the browser's
+                        (Enter and Space both reach the same `onclick`), and the
+                        card renders only text, spans and an avatar image — no
+                        nested link or control to swallow.
+                        `block w-full text-left` restores the <div>'s layout,
+                        which the UA button styles would otherwise shrink-wrap
+                        and centre.
+
+                        The purpose is an sr-only span INSIDE the button, never
+                        `aria-label`: aria-label (accname step 2C) outranks
+                        name-from-content (2F), so labelling the button would
+                        suppress the sender, timestamp, room and body preview
+                        entirely — a screen reader would hear the purpose and
+                        nothing else. As a child it *prefixes* the content
+                        instead. Same pattern as RoomHeaderOverflowMenu's badge
+                        announcements. `sr-only` is position:absolute, so it is
+                        out of flow and cannot disturb the card's layout.
+                    -->
+                    <button
+                        type="button"
                         onclick={() => jump(n.roomId, n.eventId)}
-                        class="p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 {n.read
+                        class="block w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
                             ? 'border-discord-warning/30 opacity-60'
                             : 'border-discord-warning/70'}"
                     >
+                        <span class="sr-only">Jump to message:</span>
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
                                 src={avatarUrl}
@@ -219,7 +238,7 @@
                         >
                             {n.body || "(message)"}
                         </p>
-                    </div>
+                    </button>
                 {/each}
             </div>
         {/if}
