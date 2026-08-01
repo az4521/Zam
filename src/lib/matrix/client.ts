@@ -275,6 +275,9 @@ async function createAuthenticatedClient(opts: {
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
     matrixStore = null;
+    // Same reasoning as the media limit below: the outgoing client's memoized
+    // space-child lists must not be carried into the incoming account's session.
+    spaceChildCache.clear();
     // Drop the previous server's cached media-config upload limit — this funnel
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
@@ -764,6 +767,7 @@ export async function logout(): Promise<void> {
     if (matrixClient === client) {
         matrixClient = null;
         matrixStore = null;
+        spaceChildCache.clear();
     }
 }
 
@@ -818,9 +822,11 @@ export function getSpaces(): Room[] {
 
 // `m.space.child` ordering is recomputed constantly — SpaceSidebar's unread
 // badge walks every space (and every sub-space) on every unread tick, and each
-// walk sorts the child list twice. State events are immutable, so the set of
-// event ids is a complete signature: an added, removed, re-ordered or re-via'd
-// child always arrives as a NEW event with a new id.
+// walk sorts the child list twice. A state event is replaced, never edited, so
+// the list of current event ids is a complete signature: an added, removed,
+// re-ordered or re-via'd child always arrives as a NEW event with a new id.
+// The ONE in-place mutation the SDK performs is redaction, which keeps the id
+// and empties the content — signatureOf() marks that case explicitly.
 const spaceChildCache = new Map<string, { signature: string; ids: string[] }>();
 
 function spaceChildEvents(spaceId: string) {
@@ -834,28 +840,40 @@ function spaceChildEvents(spaceId: string) {
 }
 
 /**
+ * Signature over the array the caller already holds — `getStateEvents(type)`
+ * builds a fresh array on every call, so the id-by-id walk must not re-fetch it.
+ */
+function signatureOf(events: MatrixEvent[]): string {
+    const parts: string[] = [];
+    for (const e of events) {
+        const id = e.getId();
+        // An event with no id would make two different states share a
+        // signature — refuse to sign rather than cache a wrong answer.
+        if (!id) return "";
+        // A redaction mutates the event IN PLACE and keeps its id (the SDK's
+        // MSC4293 ban handler does exactly this to state events), so the id
+        // alone would not move while `via` disappeared. isRedacted() is a
+        // property read — no getContent() — so the signature stays cheap.
+        parts.push(e.isRedacted() ? `${id}!` : id);
+    }
+    return parts.join("|");
+}
+
+/**
  * Cheap identity of a space's child state. Empty string means "no space" or
  * "not cacheable"; callers use it to decide whether derived data went stale.
  */
 export function getSpaceChildSignature(spaceId: string): string {
     const arr = spaceChildEvents(spaceId);
     if (!arr) return "";
-    const parts: string[] = [];
-    for (const e of arr) {
-        const id = e.getId();
-        // An event with no id would make two different states share a
-        // signature — refuse to sign rather than cache a wrong answer.
-        if (!id) return "";
-        parts.push(id);
-    }
-    return parts.join("|");
+    return signatureOf(arr);
 }
 
 export function getSpaceChildIds(spaceId: string): string[] {
     const arr = spaceChildEvents(spaceId);
     if (!arr) return [];
 
-    const signature = getSpaceChildSignature(spaceId);
+    const signature = signatureOf(arr);
     if (signature) {
         const cached = spaceChildCache.get(spaceId);
         if (cached && cached.signature === signature) return cached.ids;
