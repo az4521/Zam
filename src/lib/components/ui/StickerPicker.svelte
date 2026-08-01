@@ -143,8 +143,8 @@
     // naming `…-option-12` -- an unchanged reference, so nothing is
     // re-announced -- while aria-selected has quietly slid to a different
     // sticker and Enter sends it. Anchoring on the sticker's identity makes
-    // that read as "nothing active" instead, which costs one arrow keystroke to
-    // re-enter and never sends a stranger.
+    // that read as "nothing active" instead, which bounces the cursor to the
+    // top of the list on the next arrow key and never sends a stranger.
     //
     // This only holds while EVERY write to `selectedIndex` goes through
     // `moveCursor`, which records the identity next to the index. A missed

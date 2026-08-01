@@ -226,8 +226,8 @@
     // naming `…-option-40` -- an unchanged reference, so nothing is
     // re-announced -- while aria-selected has quietly slid to a different
     // emoji and Enter inserts it. Anchoring on the emoji's identity makes that
-    // read as "nothing active" instead, which costs one arrow keystroke to
-    // re-enter and never inserts a stranger.
+    // read as "nothing active" instead, which bounces the cursor to the top of
+    // the list on the next arrow key and never inserts a stranger.
     //
     // This only holds while EVERY write to `selectedIndex` goes through
     // `moveCursor`, which records the identity next to the index. A missed
