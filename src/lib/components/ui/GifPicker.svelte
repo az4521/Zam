@@ -464,9 +464,16 @@
                                  visible there instead of revealing on hover.
                                  focus-within matters too: these stay focusable
                                  while transparent, so without it a keyboard
-                                 user focuses a control they cannot see. -->
+                                 user focuses a control they cannot see.
+                                 Arrow navigation moves aria-activedescendant,
+                                 NOT DOM focus (options are tabindex="-1"), so
+                                 neither variant fires for it -- the selected
+                                 tile has to reveal its controls explicitly or a
+                                 keyboard user gets a selection ring and nothing
+                                 to act on. -->
                             <div
-                                class="absolute top-1 right-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen
+                                class="absolute top-1 right-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen ||
+                                activeIndex === idx
                                     ? 'opacity-100'
                                     : 'opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
                             >
@@ -602,7 +609,9 @@
                                     r.url,
                                 )
                                     ? 'text-discord-warning opacity-100'
-                                    : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
+                                    : activeIndex === idx
+                                      ? 'text-white opacity-100'
+                                      : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
                             >
                                 <svg
                                     class="w-3.5 h-3.5"
