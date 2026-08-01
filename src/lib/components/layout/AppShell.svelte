@@ -854,8 +854,19 @@
                 ttlMs: HIERARCHY_TTL_MS,
                 force,
             })
-        )
+        ) {
+            // A forced open that coalesced onto a live request for the same key
+            // still owns the spinner. Boot hits this every time: onMount's
+            // refreshRooms() registers its effect first and starts a SILENT
+            // background fetch, so without this the restored space shows no
+            // spinner and RoomList's "No rooms yet" flashes over the wait.
+            // Cannot strand — the request holding this key settles into apply
+            // or keep-previous, both of which clear the flag, and leaving for
+            // Home clears it too.
+            if (force && hierarchyInFlightKey === key)
+                roomsState.hierarchyLoading = true;
             return;
+        }
 
         const generation = ++hierarchyGeneration;
         hierarchyInFlightKey = key;
@@ -887,12 +898,18 @@
                     hierarchyLastFailedKey = null;
                     hierarchyLastFailedAt = null;
                 } else {
-                    // "keep-previous": leave spaceHierarchy alone and record no
-                    // applied key, so the next sync retries rather than waiting
-                    // out the TTL — but arm the failure backoff, or "the next
-                    // sync" would mean every sync.
+                    // "keep-previous": leave spaceHierarchy alone, arm the
+                    // failure backoff, and FORGET the applied key. Forgetting
+                    // is what makes the retry real: after an earlier successful
+                    // load of this same space the applied key is this very key,
+                    // so leaving it in place would block every later sync on
+                    // the TTL — a failed re-open (which starts from a blanked
+                    // spaceHierarchy) would show an empty browse list for five
+                    // minutes with no spinner and no error.
                     hierarchyLastFailedKey = key;
                     hierarchyLastFailedAt = Date.now();
+                    hierarchyLastAppliedKey = null;
+                    hierarchyLastAppliedAt = null;
                 }
                 roomsState.hierarchyLoading = false;
             });
