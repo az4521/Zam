@@ -6,7 +6,11 @@ import { containsCodeBlock, type HighlightEngine } from "./codeHighlight";
  *  actually contains a code block is rendered. */
 const highlighter = lazyModule(async () => {
     const mod = await import("highlight.js/lib/common");
-    return mod.default as unknown as HighlightEngine;
+    // Deliberately uncast: hljs is assignable to HighlightEngine as-is, so
+    // the `engine = mod` assignment below still type-checks that highlight.js
+    // matches the structural interface we wrote against. `as unknown as`
+    // would launder away the only compile-time notice of an API drift.
+    return mod.default;
 });
 
 let chunkFetchFailed = false;
