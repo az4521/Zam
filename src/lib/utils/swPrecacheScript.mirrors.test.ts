@@ -115,6 +115,56 @@ describe("scripts/sw-precache-lib.mjs mirrors src/lib/utils/swPrecache.ts", () =
         expect(new Set(digests.slice(0, 3)).size).toBe(3);
     });
 
+    it("agrees on the build-relative path of every entry", () => {
+        for (const url of [
+            "/",
+            "/index.html",
+            "/favicon.svg",
+            "/_app/immutable/entry/app.CpkcrxVc.js",
+            "//evil.com/x.js",
+        ]) {
+            expect(mjs.precacheEntryPath(url)).toBe(ts.precacheEntryPath(url));
+        }
+    });
+
+    // The transform that ACTUALLY runs at build time. Three mutations in the
+    // old runner (a bare-array manifest, a deleted token-count guard, a deleted
+    // write-back) survived the entire suite; the first two now live here, where
+    // both copies are executed and compared.
+    const SW_TEMPLATE = [
+        'const SW_PRECACHE_MANIFEST_JSON = "__SW_PRECACHE_MANIFEST__";',
+        'const SW_SHELL_VERSION = "__SW_SHELL_VERSION__";',
+    ].join("\n");
+
+    const INJECT_CASES: Array<[string, string, string]> = [
+        ["the real shell document", SW_TEMPLATE, HTML],
+        ["heavy + hostile references", SW_TEMPLATE, HEAVY_HTML],
+        ["a source with no tokens at all", "const x = 1;", HTML],
+        [
+            "a source carrying each token twice",
+            `${SW_TEMPLATE}\n${SW_TEMPLATE}`,
+            HTML,
+        ],
+        ["html with no build assets", SW_TEMPLATE, "<html></html>"],
+        ["html one over the bound", SW_TEMPLATE, htmlWithAssets(61)],
+    ];
+
+    it.each(INJECT_CASES)(
+        "injectPrecache agrees on %s",
+        (_name, swSource, html) => {
+            const run = (
+                fn: (s: string, h: string, v: string) => string,
+            ): { ok: true; value: string } | { ok: false; message: string } => {
+                try {
+                    return { ok: true, value: fn(swSource, html, "0.11.7") };
+                } catch (e) {
+                    return { ok: false, message: (e as Error).message };
+                }
+            };
+            expect(run(mjs.injectPrecache)).toEqual(run(ts.injectPrecache));
+        },
+    );
+
     it("keeps the runtime copy's precache bounded to the startup set", () => {
         const manifest = mjs.buildPrecacheManifest(HEAVY_HTML);
         expect(manifest.join("\n")).not.toMatch(/wasm|twemoji|ruffle/);

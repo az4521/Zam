@@ -24,10 +24,13 @@ const APP_ORIGIN = self.location.origin;
 //     other asset), and every deploy discards it: a frequent deployer gets a
 //     cold offline shell again after each one.
 //
-// The two constants below are replaced, quotes included, by the
-// `zam-sw-precache` Vite plugin in vite.config.ts. In dev this file is served
-// verbatim, so they stay as literal placeholders and EVERY offline path
-// (including the activate-time sweep) turns itself off.
+// The two constants below are replaced, quotes included, by
+// scripts/sw-precache.mjs — a post-build node step (`npm run build` runs it
+// after `vite build`), NOT a Vite plugin: a plugin's first `closeBundle`
+// firing predates adapter-static writing `build/`. vite.config.ts is not
+// involved. In dev this file is served verbatim, so they stay as literal
+// placeholders and EVERY offline path (including the activate-time sweep)
+// turns itself off.
 const SW_PRECACHE_MANIFEST_JSON = "__SW_PRECACHE_MANIFEST__";
 const SW_SHELL_VERSION = "__SW_SHELL_VERSION__";
 
@@ -148,20 +151,88 @@ const SW_SHELL_CACHE = swShellCacheName(SW_SHELL_VERSION);
 // and a single stalled connection would hold install open until the browser's
 // own event timeout rejects it. A failed install on a FIRST registration means
 // no active worker at all — no web push. Same Promise.race idiom as
-// shouldStayQuiet() below. Second-order: initServiceWorker() (client.ts) awaits
-// navigator.serviceWorker.ready before posting SET_AUTH, so a slow precache
-// widens the window where authenticated media requests carry no token and
-// <img> elements 401.
-const SW_PRECACHE_TIMEOUT_MS = 15000;
+// shouldStayQuiet() below.
+//
+// 8 s is a TRADE-OFF, not a safety margin. initServiceWorker() (client.ts)
+// awaits navigator.serviceWorker.ready before posting SET_AUTH, and this race
+// sits inside install's waitUntil — so on a first-ever registration over a
+// slow link every authenticated <img> renders 401-broken for as long as this
+// number. Longer finishes the precache on worse connections (a timed-out item
+// is simply not precached; it still caches on demand during the session).
+// Shorter unblocks the media token sooner. 8 s covers ~140 KB of shell on a
+// bad mobile link while keeping the worst-case broken-avatar window to about
+// the length of a sync.
+const SW_PRECACHE_TIMEOUT_MS = 8000;
+
+/** Does this response carry an HTML body? */
+function swIsHtmlResponse(response) {
+	const contentType =
+		(response && response.headers && response.headers.get("Content-Type")) ||
+		"";
+	return contentType.trim().toLowerCase().startsWith("text/html");
+}
+
+// Any base works: only the pathname is read, and an absolute URL ignores it.
+// Deliberately NOT APP_ORIGIN — this region is executed standalone by
+// swOfflineShell.mirrors.test.ts and may not touch worker globals.
+const SW_URL_PARSE_BASE = "https://sw.invalid";
+
+/**
+ * Which precache entries may legitimately answer with HTML: the shell document,
+ * under both of its Cache API keys. Everything else in the manifest is a build
+ * asset, a manifest or an icon, for which an HTML body means the adapter-static
+ * SPA fallback answered instead of the real file.
+ */
+function swUrlMayBeHtml(url) {
+	let pathname;
+	try {
+		pathname = new URL(String(url), SW_URL_PARSE_BASE).pathname;
+	} catch (e) {
+		return false;
+	}
+	return pathname === "/" || pathname === SW_NAVIGATION_FALLBACK_URL;
+}
+
+/**
+ * THE acceptance gate for anything that enters the shell cache — used by both
+ * the install-time precache and the runtime cache-first path, so the two can
+ * never drift.
+ *
+ * Store only a complete, first-party, non-HTML 200. `ok` is the tempting wrong
+ * test: it is true for 204 and 206 as well, and a partial or empty body must
+ * never stand in for the whole asset. An opaque cross-origin response must not
+ * either, and a redirected response is by definition not the URL we asked for.
+ *
+ * The HTML rule is the one that matters most here. This app is adapter-static
+ * with `fallback: index.html`, so the HOST answers an unknown path with
+ * index.html and a 200 text/html. During a non-atomic deploy, or behind a CDN
+ * edge holding the new sw.js but not the new chunk, a current-hash
+ * `/_app/immutable/x.js` briefly misses and gets that fallback — and installs
+ * cluster in exactly that window. Storing it would serve HTML for that chunk
+ * for the life of this cache version, the module script would fail its MIME
+ * check, and no reload could clear it (cache-first never re-asks). `/` and
+ * `/index.html` are the only entries for which HTML is the correct body.
+ */
+function swMayStoreAssetResponse(response, url) {
+	if (!response) return false;
+	if (response.status !== 200) return false;
+	if (response.type !== "basic") return false;
+	if (response.redirected) return false;
+	if (swIsHtmlResponse(response)) return swUrlMayBeHtml(url);
+	return true;
+}
 
 /**
  * Fill the shell cache on install.
  *
- * Deliberately per-item `cache.add()` rather than the bulk API: that one is
- * all-or-nothing, so one 404 or one flaky asset would reject install and the
- * worker would never activate — and this worker's primary duty is web push,
- * which predates offline support by far. Offline is additive and is never
- * allowed to break it.
+ * Deliberately per-item, and an explicit fetch + gate + `cache.put()` rather
+ * than `cache.add()`: `add` stores whatever the server returned on ANY 2xx,
+ * which is precisely how the SPA-fallback HTML above gets baked in under a
+ * `.js` key. The bulk add-all API is worse still — all-or-nothing, so one 404
+ * or one flaky asset would reject install and the worker would never activate.
+ * This worker's primary duty is web push, which predates offline support by
+ * far; offline is additive and is never allowed to break it. Hence the per-item
+ * `.catch()`: a rejected or refused entry must not abandon its siblings.
  *
  * `cache: "reload"` on each request bypasses the HTTP cache so we cannot bake
  * a stale copy of the shell we just deployed.
@@ -169,12 +240,22 @@ const SW_PRECACHE_TIMEOUT_MS = 15000;
 async function swPrecacheShell(deps = {}) {
 	try {
 		const cacheStorage = deps.caches || caches;
+		const doFetch = deps.fetch || fetch;
 		const urls = deps.urls || SW_PRECACHE_URLS;
 		const cache = await cacheStorage.open(deps.cacheName || SW_SHELL_CACHE);
 		await Promise.race([
 			Promise.all(
+				// An async IIFE, so a SYNCHRONOUS throw (a bad Request, a fetch
+				// that throws rather than rejects) becomes a rejection this
+				// item's own .catch() absorbs. Thrown out of the map callback it
+				// would escape to the outer try and abandon every sibling.
 				urls.map((url) =>
-					cache.add(new Request(url, { cache: "reload" })).catch(() => {}),
+					(async () => {
+						const request = new Request(url, { cache: "reload" });
+						const response = await doFetch(request);
+						if (!swMayStoreAssetResponse(response, url)) return;
+						await cache.put(request, response);
+					})().catch(() => {}),
 				),
 			),
 			new Promise((resolve) => setTimeout(resolve, SW_PRECACHE_TIMEOUT_MS)),
@@ -266,29 +347,21 @@ async function swAssetCacheFirst(request, deps = {}) {
 		cache = null;
 	}
 	if (!cache) return doFetch(request);
-	const hit = await cache.match(request).catch(() => null);
-	if (hit) return hit;
+	// `ignoreVary`, for the same reason the navigate path gives: the shell was
+	// precached by a WORKER fetch (`Accept: */*`) while a <link rel=stylesheet>
+	// asks with `Accept: text/css,*/*;q=0.1`. A host that answers `Vary: Accept`
+	// would make the precached root CSS permanently unmatchable and the offline
+	// shell would boot unstyled.
+	const hit = await cache
+		.match(request, { ignoreVary: true })
+		.catch(() => null);
+	// A HIT whose body is HTML was poisoned by an older build (see
+	// swMayStoreAssetResponse) — an `/_app/immutable/` asset is never HTML.
+	// Treat it as a miss so the entry self-heals on the next online load
+	// instead of white-screening the app forever.
+	if (hit && !swIsHtmlResponse(hit)) return hit;
 	const response = await doFetch(request);
-	// Store only a complete, first-party, non-HTML 200. A 206 partial or an
-	// opaque cross-origin response must never stand in for the whole asset —
-	// and neither must HTML: this app is adapter-static with
-	// `fallback: index.html`, so the HOST answers an unknown path with
-	// index.html and a 200 text/html. During a non-atomic deploy, or behind a
-	// stale CDN edge, a current-hash `/_app/immutable/x.js` can briefly miss
-	// and get that fallback; storing it would serve HTML for that chunk for the
-	// rest of this cache version's life, and no reload can clear it (cache-first
-	// never re-asks). An `/_app/immutable/` asset is never HTML, and a
-	// redirected response is by definition not the URL we asked for.
-	const contentType =
-		(response && response.headers && response.headers.get("Content-Type")) ||
-		"";
-	if (
-		response &&
-		response.status === 200 &&
-		response.type === "basic" &&
-		!response.redirected &&
-		!contentType.trim().toLowerCase().startsWith("text/html")
-	) {
+	if (swMayStoreAssetResponse(response, request && request.url)) {
 		cache.put(request, response.clone()).catch(() => {});
 	}
 	return response;

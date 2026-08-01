@@ -8,7 +8,13 @@ import {
     NAVIGATION_FALLBACK_URL,
 } from "./swCacheRouting";
 import { CLASSIFY_CASES, MANIFEST_CASES } from "./swCacheRouting.test";
-import { PRECACHE_MANIFEST_TOKEN, SHELL_VERSION_TOKEN } from "./swPrecache";
+import {
+    PRECACHE_MANIFEST_TOKEN,
+    SHELL_VERSION_TOKEN,
+    buildPrecacheManifest,
+    injectPrecache,
+    precacheVersion,
+} from "./swPrecache";
 
 // static/sw.js is hand-written and un-bundled, so it hand-mirrors
 // swCacheRouting.ts. Regex-spotting that copy would pass against a worker
@@ -113,9 +119,23 @@ interface FakeResponse {
     redirected: boolean;
     headers: { get(name: string): string | null };
     clone(): FakeResponse;
+    /** Set by `cache.put()` on the exact object it was handed — see below. */
+    bodyUsed: boolean;
     tag: string;
 }
 
+/**
+ * A response whose `clone()` returns a DISTINCT object, and whose body a
+ * `cache.put()` consumes.
+ *
+ * Both halves are load-bearing. A `clone()` that returns `this` makes the
+ * canonical Cache API bug invisible: in a real browser `cache.put()` locks the
+ * body stream, so `cache.put(request, response)` (no clone) hands the caller a
+ * disturbed response and EVERY build asset fails to load — while a self-
+ * returning fake keeps every assertion green. `bodyUsed` is what lets the tests
+ * below state the real requirement: the object handed to the page is not the
+ * object that was stored, and it was never consumed.
+ */
 function response(
     over: Partial<{
         status: number;
@@ -127,19 +147,21 @@ function response(
 ): FakeResponse {
     const contentType = over.contentType ?? "application/javascript";
     const status = over.status ?? 200;
-    const res: FakeResponse = {
+    const make = (): FakeResponse => ({
         status,
         ok: status >= 200 && status < 300,
         type: over.type ?? "basic",
         redirected: over.redirected ?? false,
         tag: over.tag ?? "network",
+        bodyUsed: false,
         headers: {
             get: (name: string) =>
                 name.toLowerCase() === "content-type" ? contentType : null,
         },
-        clone: () => res,
-    };
-    return res;
+        // A fresh object every time, exactly like the real thing.
+        clone: () => make(),
+    });
+    return make();
 }
 
 function keyOf(request: unknown): string {
@@ -148,45 +170,38 @@ function keyOf(request: unknown): string {
         : (request as { url: string }).url;
 }
 
+// No `add()` on purpose. `cache.add()` stores whatever the server answered on
+// ANY 2xx, with no content-type check — the exact hole this branch closes on
+// the install path — so a regression back to it must not quietly work here:
+// with no such method the per-item catch swallows the TypeError and the "what
+// got stored" assertions below fail.
 interface FakeCache {
     entries: Map<string, FakeResponse>;
     putCalls: Array<{ key: string; response: FakeResponse }>;
-    addCalls: Array<{ key: string; init: unknown }>;
     matchCalls: Array<{ key: string; options: unknown }>;
-    addImpl: (key: string) => Promise<void>;
     match(
         request: unknown,
         options?: unknown,
     ): Promise<FakeResponse | undefined>;
     put(request: unknown, res: FakeResponse): Promise<void>;
-    add(request: unknown): Promise<void>;
 }
 
 function makeCache(): FakeCache {
     const cache: FakeCache = {
         entries: new Map(),
         putCalls: [],
-        addCalls: [],
         matchCalls: [],
-        addImpl: async () => {},
         async match(request, options) {
             cache.matchCalls.push({ key: keyOf(request), options });
             return cache.entries.get(keyOf(request));
         },
         async put(request, res) {
+            // Real `put()` locks the body stream of the response it is given.
+            // Modelled, so handing it the response we also return to the page
+            // is observable.
+            res.bodyUsed = true;
             cache.putCalls.push({ key: keyOf(request), response: res });
             cache.entries.set(keyOf(request), res);
-        },
-        async add(request) {
-            cache.addCalls.push({
-                key: keyOf(request),
-                init: (request as FakeRequest).init,
-            });
-            await cache.addImpl(keyOf(request));
-            cache.entries.set(
-                keyOf(request),
-                response({ tag: keyOf(request) }),
-            );
         },
     };
     return cache;
@@ -307,6 +322,26 @@ describe("static/sw.js swAssetCacheFirst", () => {
         expect(doFetch).not.toHaveBeenCalled();
     });
 
+    it("ignores Vary on the cache lookup", async () => {
+        // The precache fetches with `Accept: */*`; a <link rel=stylesheet>
+        // asks with `Accept: text/css,*/*;q=0.1`. A host that answers
+        // `Vary: Accept` would make the precached root CSS permanently
+        // unmatchable and the offline shell would boot UNSTYLED.
+        const caches = fakeCaches();
+        const cache = await caches.open(CACHE);
+        const doFetch = vi.fn(async () => response({ tag: "net" }));
+
+        await runtime.swAssetCacheFirst(new FakeRequest(ASSET_URL), {
+            caches,
+            fetch: doFetch,
+            cacheName: CACHE,
+        });
+
+        expect(cache.matchCalls).toEqual([
+            { key: ASSET_URL, options: { ignoreVary: true } },
+        ]);
+    });
+
     it("stores a complete 200 basic asset response", async () => {
         const caches = fakeCaches();
         const net = response({ tag: "net" });
@@ -324,7 +359,55 @@ describe("static/sw.js swAssetCacheFirst", () => {
         expect(out).toBe(net);
         const cache = await caches.open(CACHE);
         expect(cache.putCalls.map((c) => c.key)).toEqual([ASSET_URL]);
-        expect(cache.putCalls[0].response).toBe(net);
+        expect(cache.putCalls[0].response.tag).toBe("net");
+    });
+
+    it("stores a CLONE, so the page's copy is never the consumed one", async () => {
+        // The canonical Cache API bug: `cache.put(request, response)` locks the
+        // response's body stream, so the object handed back to the page is
+        // disturbed and every build asset fails to load. Dropping `.clone()`
+        // must fail here.
+        const caches = fakeCaches();
+        const net = response({ tag: "net" });
+        const doFetch = vi.fn(async () => net);
+
+        const out = await runtime.swAssetCacheFirst(
+            new FakeRequest(ASSET_URL),
+            { caches, fetch: doFetch, cacheName: CACHE },
+        );
+
+        const cache = await caches.open(CACHE);
+        expect(out).toBe(net);
+        expect(cache.putCalls[0].response).not.toBe(net);
+        expect(cache.putCalls[0].response.bodyUsed).toBe(true);
+        // The one that matters: what the page got still has its body.
+        expect(net.bodyUsed).toBe(false);
+    });
+
+    it("treats an HTML cache HIT as a miss, so a poisoned entry self-heals", async () => {
+        // An entry stored by an OLDER build (before the write-side gate) can
+        // hold the adapter-static SPA fallback under a `.js` key. Cache-first
+        // would serve that HTML forever — the module script fails its MIME
+        // check and no reload can clear it. Falling through to the network is
+        // the only way out.
+        const caches = fakeCaches();
+        const cache = await caches.open(CACHE);
+        cache.entries.set(
+            ASSET_URL,
+            response({ tag: "poison", contentType: "text/html" }),
+        );
+        const net = response({ tag: "net" });
+        const doFetch = vi.fn(async () => net);
+
+        const out = await runtime.swAssetCacheFirst(
+            new FakeRequest(ASSET_URL),
+            { caches, fetch: doFetch, cacheName: CACHE },
+        );
+
+        expect(out).toBe(net);
+        expect(doFetch).toHaveBeenCalledTimes(1);
+        // …and the good response replaces the poison.
+        expect(cache.entries.get(ASSET_URL)?.tag).toBe("net");
     });
 
     // Each of these is its own test so a mutation to the storage gate names the
@@ -510,7 +593,15 @@ describe("static/sw.js swNavigateNetworkFirst", () => {
 describe("static/sw.js swPrecacheShell", () => {
     const URLS = ["/", "/index.html", "/_app/immutable/entry/app.js"];
 
-    // Every test here drives the 15 s bound, so no real timer is ever left
+    /** The per-url network the precache sees. Defaults to a good asset 200. */
+    function fetcher(
+        impl: (url: string) => Promise<FakeResponse> | FakeResponse = (url) =>
+            response({ tag: url }),
+    ) {
+        return vi.fn(async (request: FakeRequest) => impl(request.url));
+    }
+
+    // Every test here drives the install bound, so no real timer is ever left
     // pending behind a resolved test.
     beforeEach(() => {
         vi.useFakeTimers();
@@ -529,14 +620,20 @@ describe("static/sw.js swPrecacheShell", () => {
         const slow = new Promise<void>((r) => {
             releaseSlow = r;
         });
-        cache.addImpl = async (key) => {
-            if (key === "/index.html") throw new Error("404");
-            if (key === "/_app/immutable/entry/app.js") await slow;
-        };
+        const doFetch = fetcher(async (url) => {
+            if (url === "/index.html") throw new Error("404");
+            if (url === "/_app/immutable/entry/app.js") await slow;
+            return response({ tag: url });
+        });
 
         let settled = false;
         const pending = runtime
-            .swPrecacheShell({ caches, cacheName: CACHE, urls: URLS })
+            .swPrecacheShell({
+                caches,
+                fetch: doFetch,
+                cacheName: CACHE,
+                urls: URLS,
+            })
             .then(() => {
                 settled = true;
             });
@@ -557,15 +654,95 @@ describe("static/sw.js swPrecacheShell", () => {
 
     it("requests every url with cache: reload", async () => {
         const caches = fakeCaches();
-        const cache = await caches.open(CACHE);
+        const doFetch = fetcher();
 
-        await runtime.swPrecacheShell({ caches, cacheName: CACHE, urls: URLS });
+        await runtime.swPrecacheShell({
+            caches,
+            fetch: doFetch,
+            cacheName: CACHE,
+            urls: URLS,
+        });
 
-        expect(cache.addCalls.map((c) => c.key)).toEqual(URLS);
-        for (const call of cache.addCalls) {
-            expect(call.init).toEqual({ cache: "reload" });
+        const requests = doFetch.mock.calls.map(([r]) => r);
+        expect(requests.map((r) => r.url)).toEqual(URLS);
+        for (const request of requests) {
+            expect(request.init).toEqual({ cache: "reload" });
         }
     });
+
+    it("never stores an html spa-fallback body under a build-asset url", async () => {
+        // The write-side twin of swAssetCacheFirst's gate, and the one that
+        // actually bites in the field: installs cluster in the minutes after a
+        // deploy, which is exactly when a non-atomic upload (or a CDN edge
+        // holding the new sw.js but not the new chunk) answers a current-hash
+        // chunk with index.html and a 200 text/html. `cache.add()` stores that
+        // without a murmur; cache-first then serves HTML for that chunk for the
+        // life of this cache version and NO reload can clear it.
+        const caches = fakeCaches();
+        const cache = await caches.open(CACHE);
+        const doFetch = fetcher((url) =>
+            response({
+                tag: url,
+                contentType: url.startsWith("/_app/")
+                    ? "text/html; charset=utf-8"
+                    : "text/html",
+            }),
+        );
+
+        await runtime.swPrecacheShell({
+            caches,
+            fetch: doFetch,
+            cacheName: CACHE,
+            urls: URLS,
+        });
+
+        // …while the shell DOCUMENT, which is legitimately html under both of
+        // its keys, is still precached — refusing it would disable the whole
+        // offline navigation fallback.
+        expect([...cache.entries.keys()].sort()).toEqual(["/", "/index.html"]);
+    });
+
+    const PRECACHE_REFUSED: Array<{
+        name: string;
+        over: Parameters<typeof response>[0];
+    }> = [
+        { name: "a 206 partial", over: { status: 206 } },
+        { name: "a 204 with no body", over: { status: 204 } },
+        {
+            name: "a 404 body the host returned as a page",
+            over: { status: 404 },
+        },
+        { name: "a redirected response", over: { redirected: true } },
+        { name: "an opaque cross-origin response", over: { type: "opaque" } },
+    ];
+
+    for (const c of PRECACHE_REFUSED) {
+        it(`never precaches ${c.name}`, async () => {
+            const caches = fakeCaches();
+            const cache = await caches.open(CACHE);
+            const doFetch = fetcher((url) =>
+                url === "/_app/immutable/entry/app.js"
+                    ? response({ ...c.over, tag: url })
+                    : response({ tag: url }),
+            );
+
+            await runtime.swPrecacheShell({
+                caches,
+                fetch: doFetch,
+                cacheName: CACHE,
+                urls: URLS,
+            });
+
+            expect(cache.entries.has("/_app/immutable/entry/app.js")).toBe(
+                false,
+            );
+            // The refusal is per item: its siblings are still precached.
+            expect([...cache.entries.keys()].sort()).toEqual([
+                "/",
+                "/index.html",
+            ]);
+        });
+    }
 
     it("resolves on a bound instead of hanging install forever", async () => {
         // No timeout here means a single stalled connection holds install open
@@ -574,12 +751,16 @@ describe("static/sw.js swPrecacheShell", () => {
         // and no SET_AUTH, because initServiceWorker() awaits
         // navigator.serviceWorker.ready before posting the media token.
         const caches = fakeCaches();
-        const cache = await caches.open(CACHE);
-        cache.addImpl = () => new Promise<void>(() => {}); // never settles
+        const doFetch = fetcher(() => new Promise<FakeResponse>(() => {})); // never settles
 
         let settled = false;
         const pending = runtime
-            .swPrecacheShell({ caches, cacheName: CACHE, urls: URLS })
+            .swPrecacheShell({
+                caches,
+                fetch: doFetch,
+                cacheName: CACHE,
+                urls: URLS,
+            })
             .then(() => {
                 settled = true;
             });
@@ -592,18 +773,43 @@ describe("static/sw.js swPrecacheShell", () => {
     });
 
     it("keeps the bound short enough to matter", () => {
+        // Pinned to a LITERAL: this race sits inside install's waitUntil and
+        // initServiceWorker() awaits navigator.serviceWorker.ready before
+        // posting SET_AUTH, so this number IS the worst-case window in which
+        // authenticated media renders 401-broken on a first registration.
+        // Phrased against the constant, raising it back to 15 s would pass.
         expect(runtime.SW_PRECACHE_TIMEOUT_MS).toBeGreaterThan(0);
-        expect(runtime.SW_PRECACHE_TIMEOUT_MS).toBeLessThanOrEqual(15000);
+        expect(runtime.SW_PRECACHE_TIMEOUT_MS).toBeLessThanOrEqual(8000);
     });
 
     it("never rejects when the Cache API is hostile", async () => {
         await expect(
             runtime.swPrecacheShell({
                 caches: throwingCaches,
+                fetch: fetcher(),
                 cacheName: CACHE,
                 urls: URLS,
             }),
         ).resolves.toBeUndefined();
+    });
+
+    it("never rejects when fetch itself throws synchronously", async () => {
+        const caches = fakeCaches();
+        const doFetch = vi.fn(() => {
+            throw new TypeError("Failed to fetch");
+        });
+
+        await expect(
+            runtime.swPrecacheShell({
+                caches,
+                fetch: doFetch,
+                cacheName: CACHE,
+                urls: URLS,
+            }),
+        ).resolves.toBeUndefined();
+        // Every item was still attempted: a sync throw from one must not
+        // abandon its siblings.
+        expect(doFetch).toHaveBeenCalledTimes(URLS.length);
     });
 });
 
@@ -652,6 +858,23 @@ interface WorkerPrelude {
     SW_PRECACHE_URLS: string[] | null;
 }
 
+/** Boot the enablement prelude out of an arbitrary sw.js source. */
+function bootPreludeFrom(swSource: string, cacheApi: unknown): WorkerPrelude {
+    const start = swSource.indexOf(PRELUDE_START);
+    const end = swSource.indexOf(PRELUDE_END);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    // The prelude spans the mirrored region (it sits between the constants and
+    // the enablement flag), so this evaluates the routing helpers too. `caches`
+    // arrives as a parameter so the Cache-API half of the flag is exercised
+    // rather than accidentally satisfied by the test environment.
+    return new Function(
+        "caches",
+        `${swSource.slice(start, end + PRELUDE_END.length)}
+        return { SW_OFFLINE_ENABLED, SW_SHELL_CACHE, SW_PRECACHE_URLS };`,
+    )(cacheApi) as WorkerPrelude;
+}
+
 function bootPrelude(
     manifestJson: string,
     version: string,
@@ -661,22 +884,13 @@ function bootPrelude(
     opts: { cacheApi?: unknown } = {},
 ): WorkerPrelude {
     const cacheApi = "cacheApi" in opts ? opts.cacheApi : fakeCaches();
-    const start = SW_SOURCE.indexOf(PRELUDE_START);
-    const end = SW_SOURCE.indexOf(PRELUDE_END);
-    expect(start).toBeGreaterThan(-1);
-    expect(end).toBeGreaterThan(start);
-    // The prelude spans the mirrored region (it sits between the constants and
-    // the enablement flag), so this evaluates the routing helpers too. `caches`
-    // arrives as a parameter so the Cache-API half of the flag is exercised
-    // rather than accidentally satisfied by the test environment.
-    const source = SW_SOURCE.slice(start, end + PRELUDE_END.length)
-        .replace(`"${PRECACHE_MANIFEST_TOKEN}"`, JSON.stringify(manifestJson))
-        .replace(`"${SHELL_VERSION_TOKEN}"`, JSON.stringify(version));
-    return new Function(
-        "caches",
-        `${source}
-        return { SW_OFFLINE_ENABLED, SW_SHELL_CACHE, SW_PRECACHE_URLS };`,
-    )(cacheApi) as WorkerPrelude;
+    return bootPreludeFrom(
+        SW_SOURCE.replace(
+            `"${PRECACHE_MANIFEST_TOKEN}"`,
+            JSON.stringify(manifestJson),
+        ).replace(`"${SHELL_VERSION_TOKEN}"`, JSON.stringify(version)),
+        cacheApi,
+    );
 }
 
 const INJECTED_MANIFEST = '["/","/index.html"]';
@@ -743,5 +957,46 @@ describe("static/sw.js build-time contract", () => {
 
     it("never bulk-adds, which would fail install on one bad asset", () => {
         expect(SW_SOURCE).not.toContain("addAll");
+    });
+});
+
+// The end-to-end seam: the REAL injector run over the REAL worker source, then
+// booted. Everything else in this file substitutes the tokens by hand, which
+// leaves the actual build step — the one whose failure ships a green build with
+// zero offline support — proved by nothing. In particular, emitting the
+// manifest as a bare ARRAY rather than a quoted JS string literal exits 0,
+// keeps every other test green, and turns the whole feature off.
+const BUILT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<link rel="icon" href="/favicon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link href="/_app/immutable/entry/start.vIgh-Gbe.js" rel="modulepreload">
+<link href="/_app/immutable/entry/app.CpkcrxVc.js" rel="modulepreload">
+<link href="/_app/immutable/assets/0.Cyikkxvy.css" rel="stylesheet">
+</head>
+<body></body>
+</html>`;
+
+describe("static/sw.js after the real build-time injection", () => {
+    it("boots with offline enabled, the real manifest and a real cache name", () => {
+        const injected = injectPrecache(SW_SOURCE, BUILT_HTML, "0.11.7");
+        const prelude = bootPreludeFrom(injected, fakeCaches());
+
+        expect(prelude.SW_OFFLINE_ENABLED).toBe(true);
+        expect(prelude.SW_PRECACHE_URLS).toEqual(
+            buildPrecacheManifest(BUILT_HTML),
+        );
+        expect(prelude.SW_SHELL_CACHE).toBe(
+            SHELL_CACHE_PREFIX +
+                precacheVersion("0.11.7", buildPrecacheManifest(BUILT_HTML)),
+        );
+    });
+
+    it("leaves no placeholder assignment behind", () => {
+        const injected = injectPrecache(SW_SOURCE, BUILT_HTML, "0.11.7");
+        // The `raw.startsWith("__SW_")` guard inside the worker survives, and
+        // must: this looks only for a whole `__SW_…__` token.
+        expect(injected).not.toMatch(/__SW_[A-Z_]*__/);
     });
 });

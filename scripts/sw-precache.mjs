@@ -22,13 +22,18 @@
  * it and re-precache. Silent on success so `npm run build` still ends with the
  * adapter's own "✔ done"; throws on anything unexpected, because an
  * un-injected worker ships zero offline support and looks completely normal.
+ *
+ * This file is deliberately nothing but I/O: read, check the files exist,
+ * write. The whole transform lives in `sw-precache-lib.mjs` (pure, mirrored
+ * from `src/lib/utils/swPrecache.ts`, unit-tested), because a build script is
+ * the one place a silent mutation survives everything — a corrupt injection
+ * still exits 0 and still ends with "✔ done".
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
     buildPrecacheManifest,
-    precacheVersion,
-    PRECACHE_MANIFEST_TOKEN,
-    SHELL_VERSION_TOKEN,
+    injectPrecache,
+    precacheEntryPath,
 } from "./sw-precache-lib.mjs";
 
 const rootDir = new URL("../", import.meta.url);
@@ -39,22 +44,20 @@ const pkg = JSON.parse(readFileSync(new URL("package.json", rootDir), "utf-8"));
 const html = readFileSync(new URL("index.html", buildDir), "utf-8");
 const sw = readFileSync(swUrl, "utf-8");
 
-for (const token of [PRECACHE_MANIFEST_TOKEN, SHELL_VERSION_TOKEN]) {
-    const count = sw.split(`"${token}"`).length - 1;
-    if (count !== 1) {
-        throw new Error(
-            `zam-sw-precache: expected exactly one "${token}" in build/sw.js, found ${count}`,
-        );
-    }
+// SHELL_EXTRA_URLS is a hardcoded list and the worker swallows per-URL precache
+// failures by design (one 404 must never fail install), so a deleted
+// `static/favicon.svg` would otherwise leave a green build precaching 16 of 17
+// entries — forever, and silently. This is the only check that can catch it,
+// because it is the only step that can see the filesystem.
+const missing = buildPrecacheManifest(html).filter(
+    (url) => !existsSync(new URL(precacheEntryPath(url), buildDir)),
+);
+if (missing.length > 0) {
+    throw new Error(
+        `zam-sw-precache: ${missing.length} precache entr${
+            missing.length === 1 ? "y is" : "ies are"
+        } missing from build/: ${missing.join(", ")}`,
+    );
 }
 
-const urls = buildPrecacheManifest(html);
-const shellVersion = precacheVersion(pkg.version, urls);
-// Replacer functions, so a `$&`/`$1` sequence in a hashed filename could never
-// be interpreted as a substitution.
-const injected = sw
-    .replace(`"${PRECACHE_MANIFEST_TOKEN}"`, () =>
-        JSON.stringify(JSON.stringify(urls)),
-    )
-    .replace(`"${SHELL_VERSION_TOKEN}"`, () => JSON.stringify(shellVersion));
-writeFileSync(swUrl, injected);
+writeFileSync(swUrl, injectPrecache(sw, html, pkg.version));

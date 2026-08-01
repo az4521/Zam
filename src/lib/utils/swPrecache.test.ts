@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     extractStartupAssets,
     buildPrecacheManifest,
+    injectPrecache,
+    precacheEntryPath,
     precacheVersion,
     SHELL_EXTRA_URLS,
     MAX_STARTUP_ASSETS,
@@ -138,5 +140,113 @@ describe("precacheVersion", () => {
         const v = precacheVersion("0.11.7", ["/a.js"]);
         expect(v.startsWith("0.11.7-")).toBe(true);
         expect(v).toMatch(/^[A-Za-z0-9.\-]+$/);
+    });
+});
+
+describe("precacheEntryPath", () => {
+    it("maps / to the SPA fallback document adapter-static writes", () => {
+        expect(precacheEntryPath("/")).toBe("index.html");
+    });
+
+    it("makes every other entry build-relative", () => {
+        expect(precacheEntryPath("/index.html")).toBe("index.html");
+        expect(precacheEntryPath("/favicon.svg")).toBe("favicon.svg");
+        expect(precacheEntryPath("/_app/immutable/entry/app.js")).toBe(
+            "_app/immutable/entry/app.js",
+        );
+    });
+
+    it("never resolves outside the build dir on a protocol-relative entry", () => {
+        // `new URL("//evil.com/x.js", buildDir)` would leave the directory
+        // entirely; stripping every leading slash keeps the check honest.
+        expect(precacheEntryPath("//evil.com/x.js")).toBe("evil.com/x.js");
+    });
+
+    it("gives a usable relative path for every real manifest entry", () => {
+        for (const url of buildPrecacheManifest(HTML)) {
+            const path = precacheEntryPath(url);
+            expect(path.length).toBeGreaterThan(0);
+            expect(path.startsWith("/")).toBe(false);
+        }
+    });
+});
+
+// The two placeholder lines from static/sw.js, verbatim in shape. The real
+// worker source is run through the same function by
+// swOfflineShell.mirrors.test.ts; this keeps the failure modes isolated.
+const SW_TEMPLATE = [
+    'const SW_PRECACHE_MANIFEST_JSON = "__SW_PRECACHE_MANIFEST__";',
+    'const SW_SHELL_VERSION = "__SW_SHELL_VERSION__";',
+].join("\n");
+
+/** Evaluate an injected worker prelude and read the two constants back. */
+function evaluate(source: string): {
+    SW_PRECACHE_MANIFEST_JSON: unknown;
+    SW_SHELL_VERSION: unknown;
+} {
+    return new Function(
+        `${source}
+        return { SW_PRECACHE_MANIFEST_JSON, SW_SHELL_VERSION };`,
+    )();
+}
+
+describe("injectPrecache", () => {
+    it("emits the manifest as a quoted JS STRING literal, not a bare array", () => {
+        // The mutation this exists for: `.replace(token, () =>
+        // JSON.stringify(urls))` injects `["/","/index.html",…]` — valid JS,
+        // build exits 0, `npm run build` still prints "✔ done", and the
+        // worker's swParsePrecacheManifest() rejects the non-string so
+        // SW_OFFLINE_ENABLED is false and the entire feature is off.
+        const evaluated = evaluate(injectPrecache(SW_TEMPLATE, HTML, "0.11.7"));
+
+        expect(typeof evaluated.SW_PRECACHE_MANIFEST_JSON).toBe("string");
+        expect(
+            JSON.parse(evaluated.SW_PRECACHE_MANIFEST_JSON as string),
+        ).toEqual(buildPrecacheManifest(HTML));
+    });
+
+    it("emits the shell version as a quoted string", () => {
+        const evaluated = evaluate(injectPrecache(SW_TEMPLATE, HTML, "0.11.7"));
+        expect(evaluated.SW_SHELL_VERSION).toBe(
+            precacheVersion("0.11.7", buildPrecacheManifest(HTML)),
+        );
+    });
+
+    it("leaves no placeholder token behind", () => {
+        expect(injectPrecache(SW_TEMPLATE, HTML, "0.11.7")).not.toMatch(
+            /__SW_[A-Z_]*__/,
+        );
+    });
+
+    it("throws when a token is missing (renamed, or already injected)", () => {
+        // Loud, because the alternative is shipping a worker with zero offline
+        // support that looks completely normal.
+        expect(() => injectPrecache("const x = 1;", HTML, "0.11.7")).toThrow(
+            /zam-sw-precache.*found 0/,
+        );
+    });
+
+    it("throws when only one of the two tokens is present", () => {
+        expect(() =>
+            injectPrecache(
+                'const SW_PRECACHE_MANIFEST_JSON = "__SW_PRECACHE_MANIFEST__";',
+                HTML,
+                "0.11.7",
+            ),
+        ).toThrow(/SHELL_VERSION.*found 0/);
+    });
+
+    it("throws when a token appears twice", () => {
+        // `String.replace` would rewrite only the first, leaving a half-injected
+        // worker whose second copy still reads as a placeholder.
+        expect(() =>
+            injectPrecache(`${SW_TEMPLATE}\n${SW_TEMPLATE}`, HTML, "0.11.7"),
+        ).toThrow(/zam-sw-precache.*found 2/);
+    });
+
+    it("propagates the manifest guards rather than emitting an empty shell", () => {
+        expect(() =>
+            injectPrecache(SW_TEMPLATE, "<html></html>", "0.11.7"),
+        ).toThrow(/no .*assets/i);
     });
 });
