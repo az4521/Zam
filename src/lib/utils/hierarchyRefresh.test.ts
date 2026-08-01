@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     HIERARCHY_TTL_MS,
+    HIERARCHY_FAILURE_BACKOFF_MS,
     hierarchyKey,
     shouldFetchHierarchy,
     hierarchyResultAction,
@@ -13,6 +14,7 @@ const key = (over: Partial<Parameters<typeof hierarchyKey>[0]> = {}) =>
         drillDepth: 1,
         childSignature: "$a",
         parentSignature: "",
+        joinedChildCount: 2,
         ...over,
     });
 
@@ -24,6 +26,9 @@ const decide = (
         inFlightKey: null,
         lastAppliedKey: "k",
         lastAppliedAt: 1000,
+        lastFailedKey: null,
+        lastFailedAt: null,
+        failureBackoffMs: HIERARCHY_FAILURE_BACKOFF_MS,
         now: 1000,
         ttlMs: HIERARCHY_TTL_MS,
         force: false,
@@ -34,6 +39,15 @@ describe("hierarchyKey", () => {
     it("changes when the local child state changes", () => {
         expect(key({ childSignature: "$a" })).not.toBe(
             key({ childSignature: "$a|$b" }),
+        );
+    });
+
+    it("changes when the space itself changes", () => {
+        // A space whose child state cannot be signed signs as "" — without the
+        // space id in the key, two such spaces would share a key and a forced
+        // open of one would coalesce onto the other's in-flight request.
+        expect(key({ spaceId: "!a:s", childSignature: "" })).not.toBe(
+            key({ spaceId: "!b:s", childSignature: "" }),
         );
     });
 
@@ -50,6 +64,14 @@ describe("hierarchyKey", () => {
         );
     });
 
+    it("changes when a child room is joined or left on another device", () => {
+        // isJoined is baked into the response at fetch time and no m.space.child
+        // event fires for a join, so the joined count is the only local signal.
+        expect(key({ joinedChildCount: 2 })).not.toBe(
+            key({ joinedChildCount: 3 }),
+        );
+    });
+
     it("is stable for identical inputs", () => {
         expect(key()).toBe(key());
     });
@@ -61,6 +83,18 @@ describe("hierarchyKey", () => {
         expect(key({ childSignature: "", parentSignature: "$p" })).not.toBe(
             key({ childSignature: "$p", parentSignature: "" }),
         );
+    });
+});
+
+describe("the timing constants", () => {
+    it("keeps the TTL a real floor, not master's two-second cadence", () => {
+        // Every other test feeds the constant back in as ttlMs, so this is the
+        // only thing pinning the value — and the value IS the fix.
+        expect(HIERARCHY_TTL_MS).toBeGreaterThanOrEqual(60_000);
+    });
+
+    it("keeps the failure backoff longer than the sync cadence", () => {
+        expect(HIERARCHY_FAILURE_BACKOFF_MS).toBeGreaterThanOrEqual(5_000);
     });
 });
 
@@ -103,6 +137,51 @@ describe("shouldFetchHierarchy", () => {
 
     it("does start a fetch when a DIFFERENT key is in flight", () => {
         expect(decide({ force: true, inFlightKey: "other" })).toBe(true);
+    });
+
+    it("does not retry a failed key before the backoff elapses", () => {
+        // Without the backoff this would fetch — the key changed.
+        expect(
+            decide({
+                lastAppliedKey: "other",
+                lastFailedKey: "k",
+                lastFailedAt: 1000,
+                now: 1000 + HIERARCHY_FAILURE_BACKOFF_MS - 1,
+            }),
+        ).toBe(false);
+    });
+
+    it("retries a failed key once the backoff elapses", () => {
+        expect(
+            decide({
+                lastAppliedKey: "other",
+                lastFailedKey: "k",
+                lastFailedAt: 1000,
+                now: 1000 + HIERARCHY_FAILURE_BACKOFF_MS,
+            }),
+        ).toBe(true);
+    });
+
+    it("lets a forced open retry immediately despite the backoff", () => {
+        expect(
+            decide({
+                force: true,
+                lastFailedKey: "k",
+                lastFailedAt: 1000,
+                now: 1001,
+            }),
+        ).toBe(true);
+    });
+
+    it("does not hold back a different key after another key failed", () => {
+        expect(
+            decide({
+                lastAppliedKey: "other",
+                lastFailedKey: "a different key",
+                lastFailedAt: 1000,
+                now: 1001,
+            }),
+        ).toBe(true);
     });
 });
 
