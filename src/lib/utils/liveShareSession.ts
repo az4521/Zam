@@ -87,6 +87,10 @@ export type ResumeAction =
  * server's view of it is simply older than ours. The stop state is never part
  * of the plan — `stop` records exist precisely because our live:false has not
  * landed, so the server reporting the beacon live is expected, not news.
+ *
+ * A record whose stop is pending or failed is re-timed too, on purpose: its
+ * expiry timer is the only thing that ever retires that banner, so it has to
+ * point at the moment the SERVER stops broadcasting rather than at ours.
  */
 export function planResume(
     existing: Iterable<[string, ResumeRecord]>,

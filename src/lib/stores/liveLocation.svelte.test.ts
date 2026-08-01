@@ -105,9 +105,11 @@ beforeEach(() => {
     h.canShareLiveBeacon.mockReturnValue(true);
     h.getRoom.mockImplementation((id: string) => ({ roomId: id }));
     h.getOwnLiveBeacons.mockReturnValue([]);
-    // Tests that capture the reconnect callback install their own
-    // implementation; restore the inert default so it can't leak forward.
+    // Tests that capture the reconnect or sync-prepared callback install their
+    // own implementation; restore the inert defaults so they can't leak forward
+    // (clearAllMocks clears calls, not implementations).
     h.onSyncReconnected.mockImplementation((_cb: () => void) => () => {});
+    h.onSyncPrepared.mockImplementation((_cb: () => void) => () => {});
     geoSuccess = null;
     geoError = null;
     stubNavigator.geolocation = geolocation;
@@ -1009,6 +1011,77 @@ describe("live-location own-share engine", () => {
         // which is the same lie the expiry itself was fixed for.
         await vi.advanceTimersByTimeAsync(600000);
         expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("retires a failed stop on the server's deadline, not the clock we started on", async () => {
+        // A sync can land while the live:false write is still out and move the
+        // record onto the server's deadline. The rejection path re-arms the
+        // expiry backstop — the only thing that ever retires a failed stop's
+        // banner — so it must read the deadline the record now carries, not the
+        // one captured before the await, or the banner and the timer disagree.
+        let onPrepared: () => void = () => {};
+        h.onSyncPrepared.mockImplementation((cb: () => void) => {
+            onPrepared = cb;
+            return () => {};
+        });
+        initLiveLocation();
+        await startShare(ROOM, 900000);
+        const serverExpiry = Date.now() + 600000;
+        let fail: (e: Error) => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((_r, j) => (fail = j)),
+        );
+
+        const pending = stopShare(ROOM);
+        await flush();
+        h.getOwnLiveBeacons.mockReturnValue([
+            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: serverExpiry },
+        ]);
+        onPrepared();
+        fail(new Error("offline"));
+        await pending;
+
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe("failed");
+        // Still on the books just short of the server's deadline…
+        await vi.advanceTimersByTimeAsync(599999);
+        expect(isSharingLive(ROOM)).toBe(true);
+        // …and retired on it, not five minutes later on our own clock.
+        await vi.advanceTimersByTimeAsync(1);
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("drops a failed stop whose refreshed deadline has already passed", async () => {
+        // The same mid-flight refresh, but the server's deadline is behind us:
+        // the beacon is dead whatever became of our live:false, so there is
+        // nothing left to warn about. Judging that on the pre-await snapshot
+        // strands a "still sharing" banner for a beacon that has stopped.
+        let onPrepared: () => void = () => {};
+        h.onSyncPrepared.mockImplementation((cb: () => void) => {
+            onPrepared = cb;
+            return () => {};
+        });
+        initLiveLocation();
+        await startShare(ROOM, 900000);
+        let fail: (e: Error) => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((_r, j) => (fail = j)),
+        );
+
+        const pending = stopShare(ROOM);
+        await flush();
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: ROOM,
+                beaconInfoEventId: "$b1",
+                expiresAt: Date.now() - 1,
+            },
+        ]);
+        onPrepared();
+        fail(new Error("offline"));
+        await pending;
+
+        expect(isSharingLive(ROOM)).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
     });
 
     it("re-renders when a position send fails", async () => {

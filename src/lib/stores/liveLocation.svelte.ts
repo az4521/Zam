@@ -309,12 +309,13 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
     );
     if (!share || decision.action !== "send") return;
 
-    // Identity + deadline of the record we are stopping, taken before the
-    // await: by the time the write settles this room may hold a DIFFERENT
-    // share (teardown swept it and the user started a new one) and `share` is
-    // a stale reference into the old map.
+    // Identity of the record we are stopping, taken before the await: by the
+    // time the write settles this room may hold a DIFFERENT share (teardown
+    // swept it and the user started a new one) and `share` is a stale
+    // reference into the old map. The DEADLINE is deliberately NOT snapshotted
+    // — a sync landing mid-write can move it onto the server's expiry, and the
+    // stale value would put the record's timer back on our clock.
     const stoppingId = share.beaconInfoEventId;
-    const expiresAt = share.expiresAt;
     const attempt = {};
     stopAttempts.set(roomId, attempt);
     share.stop = { phase: "stopping", error: null };
@@ -368,7 +369,12 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
         return;
     }
 
-    const outcome = resolveStopFailure(expiresAt, Date.now());
+    // Read the deadline off the record, not off a pre-await copy: `ourShare()`
+    // has just re-proved this is the same record under the same beacon_info,
+    // and a sync-prepared resume may have moved it onto the server's expiry
+    // while we were writing. That value is the one the banner renders, so it
+    // must also be the one the record lives and dies by.
+    const outcome = resolveStopFailure(current.expiresAt, Date.now());
     if (outcome.action === "drop") {
         dropShare(roomId);
         return;
@@ -376,7 +382,7 @@ async function attemptStop(roomId: string, toast: boolean): Promise<void> {
     current.stop = { phase: "failed", error: outcome.error };
     // Belt and braces: a retained record must always own exactly one timer
     // aimed at the beacon's real death, or its banner would never retire.
-    armExpiryTimer(roomId, expiresAt);
+    armExpiryTimer(roomId, current.expiresAt);
     bump();
     if (toast) showErrorToast(outcome.error);
 }
