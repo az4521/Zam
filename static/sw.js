@@ -2,6 +2,211 @@ const DB_NAME = "matrix-sw";
 const DB_STORE = "auth";
 const APP_ORIGIN = self.location.origin;
 
+// ── Offline app shell (audit PWA-01) ────────────────────────────────────────
+// The offline contract, in full:
+//   Guaranteed offline — the shell (`/`, `/index.html`, the entry/start
+//     chunks, the root CSS, the manifest and icons) plus every
+//     `/_app/immutable/` asset the browser successfully fetched during a
+//     previous ONLINE session.
+//   Never offline — anything under `/_matrix/`, remote media, /twemoji/,
+//     /ruffle/, /sounds/, and any lazy chunk never once fetched online.
+//   Never stale — navigations always try the network first; the cache answers
+//     only when the network throws.
+//   Updates — every deploy injects a different manifest + version below, so
+//     this file's BYTES differ, so the browser installs the new worker,
+//     precaches the new shell and deletes older `zam-shell-*` caches on
+//     activate. `reloadToLatest()` in src/lib/update.ts keeps working: its
+//     `fetch(location.href, {cache:"reload"})` is not a navigation request and
+//     is classified `bypass`.
+//
+// The two constants below are replaced, quotes included, by the
+// `zam-sw-precache` Vite plugin in vite.config.ts. In dev this file is served
+// verbatim, so they stay as literal placeholders and EVERY offline path
+// (including the activate-time sweep) turns itself off.
+const SW_PRECACHE_MANIFEST_JSON = "__SW_PRECACHE_MANIFEST__";
+const SW_SHELL_VERSION = "__SW_SHELL_VERSION__";
+
+// #region mirrored:swCacheRouting
+// Hand-written mirror of src/lib/utils/swCacheRouting.ts — this file is not
+// bundled and cannot import it. Change one, change both;
+// swOfflineShell.mirrors.test.ts executes this region against that module's
+// own case table.
+const SW_SHELL_CACHE_PREFIX = "zam-shell-";
+const SW_BUILD_ASSET_PREFIX = "/_app/immutable/";
+const SW_NAVIGATION_FALLBACK_URL = "/index.html";
+
+function swClassifyRequest(input) {
+	if (input.method !== "GET") return "bypass";
+	if (input.hasAuthHeader) return "bypass";
+	let parsed;
+	try {
+		parsed = new URL(input.url);
+	} catch {
+		return "bypass";
+	}
+	if (parsed.origin !== input.appOrigin) return "bypass";
+	if (input.mode === "navigate" || input.destination === "document")
+		return "navigate";
+	// `startsWith`, never `includes`: the prefix must open the path, or a
+	// homeserver route that merely CONTAINS it would be stored cache-first.
+	if (parsed.pathname.startsWith(SW_BUILD_ASSET_PREFIX)) {
+		// `new URL` normalises `..` segments but does NOT decode `%2f`, so
+		// `/_app/immutable/..%2f..%2f_matrix/client/v3/sync` keeps a pathname
+		// that still starts with the prefix while a server that decodes `%2F`
+		// before resolving would answer it with `/_matrix/` content — which we
+		// would then have classified cache-first and stored. A real Vite build
+		// asset filename never contains a percent sign, so requiring none
+		// closes the whole encoded-traversal class for free.
+		if (parsed.pathname.indexOf("%") !== -1) return "bypass";
+		return "asset";
+	}
+	return "bypass";
+}
+
+function swParsePrecacheManifest(raw) {
+	if (typeof raw !== "string") return null;
+	if (raw.startsWith("__SW_")) return null;
+	let value;
+	try {
+		value = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	if (!Array.isArray(value)) return null;
+	const urls = value.filter(
+		(u) => typeof u === "string" && u.startsWith("/") && !u.startsWith("//"),
+	);
+	return urls.length > 0 ? urls : null;
+}
+
+function swShellCacheName(version) {
+	return SW_SHELL_CACHE_PREFIX + version;
+}
+
+function swIsStaleShellCache(name, currentName) {
+	return (
+		typeof name === "string" &&
+		name.startsWith(SW_SHELL_CACHE_PREFIX) &&
+		name !== currentName
+	);
+}
+// #endregion mirrored:swCacheRouting
+
+const SW_PRECACHE_URLS = swParsePrecacheManifest(SW_PRECACHE_MANIFEST_JSON);
+// Both halves must be injected. A version left as the placeholder would make
+// swShellCacheName() return a garbage name that the activate sweep would then
+// treat as "current", deleting every real shell cache on every start.
+const SW_OFFLINE_ENABLED =
+	SW_PRECACHE_URLS !== null && !SW_SHELL_VERSION.startsWith("__SW_");
+const SW_SHELL_CACHE = swShellCacheName(SW_SHELL_VERSION);
+
+/**
+ * Fill the shell cache on install.
+ *
+ * Deliberately per-item `cache.add()` rather than the bulk API: that one is
+ * all-or-nothing, so one 404 or one flaky asset would reject install and the
+ * worker would never activate — and this worker's primary duty is web push,
+ * which predates offline support by far. Offline is additive and is never
+ * allowed to break it.
+ *
+ * `cache: "reload"` on each request bypasses the HTTP cache so we cannot bake
+ * a stale copy of the shell we just deployed.
+ */
+async function swPrecacheShell() {
+	try {
+		const cache = await caches.open(SW_SHELL_CACHE);
+		await Promise.all(
+			SW_PRECACHE_URLS.map((url) =>
+				cache.add(new Request(url, { cache: "reload" })).catch(() => {}),
+			),
+		);
+	} catch (e) {
+		// No Cache API, quota exhausted, private mode — offline is simply
+		// unavailable this session. Never fatal.
+	}
+}
+
+/** Drop shell caches from previous builds. Prefix-scoped: never touches a cache we did not create. */
+async function swSweepStaleCaches() {
+	try {
+		const names = await caches.keys();
+		await Promise.all(
+			names
+				.filter((name) => swIsStaleShellCache(name, SW_SHELL_CACHE))
+				.map((name) => caches.delete(name).catch(() => {})),
+		);
+	} catch (e) {
+		/* nothing to sweep */
+	}
+}
+
+/**
+ * Network-FIRST for documents. The cache is only ever the offline fallback,
+ * which is what keeps this from fighting the app's own update path: an online
+ * user always gets the freshly deployed index.html.
+ *
+ * This path READS the cache and never writes to it — deliberately. A
+ * same-origin document navigation to a `/_matrix/…` URL classifies `navigate`,
+ * so this is the last route by which a `/_matrix/` response could land in the
+ * Cache API. No `cache.put()` here means it never can.
+ */
+async function swNavigateNetworkFirst(request) {
+	try {
+		return await fetch(request);
+	} catch (err) {
+		const cache = await caches.open(SW_SHELL_CACHE).catch(() => null);
+		if (!cache) throw err;
+		const cached =
+			(await cache
+				.match(request, { ignoreSearch: true })
+				.catch(() => null)) ||
+			(await cache.match(SW_NAVIGATION_FALLBACK_URL).catch(() => null));
+		if (cached) return cached;
+		throw err;
+	}
+}
+
+/**
+ * Cache-FIRST for /_app/immutable/. Those filenames are content-hashed, so a
+ * hit can never be stale. A miss is fetched and stored — that is what makes a
+ * cold offline start work after one online session without precaching the
+ * 48.7 MB build.
+ */
+async function swAssetCacheFirst(request) {
+	const cache = await caches.open(SW_SHELL_CACHE).catch(() => null);
+	if (!cache) return fetch(request);
+	const hit = await cache.match(request).catch(() => null);
+	if (hit) return hit;
+	const response = await fetch(request);
+	// 200-only: a 206 partial or an opaque cross-origin response must never be
+	// stored as if it were the whole asset.
+	if (response && response.status === 200 && response.type === "basic") {
+		cache.put(request, response.clone()).catch(() => {});
+	}
+	return response;
+}
+
+/**
+ * The offline layer's entry point. Returns null — never a Response, never a
+ * rejected promise — for everything it does not own, so the twimg and
+ * media-auth branches below keep their behaviour and `respondWith` is never
+ * called twice for one event.
+ */
+function swOfflineShellResponse(request) {
+	if (!SW_OFFLINE_ENABLED) return null;
+	const kind = swClassifyRequest({
+		method: request.method,
+		mode: request.mode,
+		destination: request.destination,
+		url: request.url,
+		appOrigin: APP_ORIGIN,
+		hasAuthHeader: request.headers.has("Authorization"),
+	});
+	if (kind === "navigate") return swNavigateNetworkFirst(request);
+	if (kind === "asset") return swAssetCacheFirst(request);
+	return null;
+}
+
 function openDb() {
 	return new Promise((resolve, reject) => {
 		const req = indexedDB.open(DB_NAME, 1);
@@ -168,6 +373,16 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+	// Offline app shell first (audit PWA-01). Returns null for everything it
+	// does not own — navigations and /_app/immutable/ GETs only — so the twimg
+	// and media-auth branches below are unchanged and respondWith is never
+	// called twice for one event.
+	const shell = swOfflineShellResponse(event.request);
+	if (shell) {
+		event.respondWith(shell);
+		return;
+	}
+
 	const url = event.request.url;
 
 	let parsedUrl;
@@ -522,7 +737,16 @@ self.addEventListener("notificationclick", (event) => {
 	);
 });
 
-self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("install", (event) => {
+	self.skipWaiting();
+	if (!SW_OFFLINE_ENABLED) return;
+	event.waitUntil(swPrecacheShell());
+});
 self.addEventListener("activate", (event) =>
-	event.waitUntil(self.clients.claim()),
+	event.waitUntil(
+		Promise.all([
+			self.clients.claim(),
+			SW_OFFLINE_ENABLED ? swSweepStaleCaches() : Promise.resolve(),
+		]),
+	),
 );

@@ -125,6 +125,20 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        // The prefix test must be `startsWith`, not `includes`. `new URL`
+        // normalises the `..` in the traversal case above out of the prefix
+        // entirely (`/_app/immutable/../_matrix/x` → `/_app/_matrix/x`), so
+        // that case cannot tell the two apart — this one can, and a homeserver
+        // that serves media under a path like this would otherwise be stored
+        // in the Cache API cache-first.
+        name: "the asset prefix appearing mid-path is not a build asset",
+        input: req({
+            url: `${ORIGIN}/_matrix/client/v1/media/download/x/_app/immutable/y.js`,
+            destination: "image",
+        }),
+        expected: "bypass",
+    },
+    {
         name: "the worker script itself",
         input: req({ url: `${ORIGIN}/sw.js`, destination: "" }),
         expected: "bypass",
