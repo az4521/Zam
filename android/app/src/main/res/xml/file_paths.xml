@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Scope for ${applicationId}.fileprovider. Its only consumer is
+     ApkUpdaterPlugin, which grants the OS package installer read access to the
+     downloaded APK — so this exposes exactly that one private directory and
+     nothing else (audit SEC-02). -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <cache-path name="apk_update" path="apk-update/" />
 </paths>

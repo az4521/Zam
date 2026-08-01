@@ -86,9 +86,38 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Verify APK signature
         run: |
-          APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
-          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort | tail -n1)
-          "$APKSIGNER" verify --print-certs "$APK" || echo "WARNING: APK is not signed — set the ANDROID_KEYSTORE_* secrets."
+          set -euo pipefail
+          # Both lookups are written so the friendly "not found" branches below
+          # stay REACHABLE under `set -euo pipefail`:
+          #   * the directory guards keep a missing directory from making find
+          #     exit non-zero, which would kill the step before the branch runs;
+          #   * `-print -quit` lets find itself stop at the first APK, so there
+          #     is no `| head` to close the pipe early and abort with SIGPIPE
+          #     (141) on a build that ever produces more than one APK.
+          # `tail -n1` reads its whole input, so that pipeline has no early-exit
+          # stage and is safe to keep as-is.
+          APK_DIR=android/app/build/outputs/apk/release
+          APK=""
+          if [ -d "$APK_DIR" ]; then
+            APK=$(find "$APK_DIR" -name '*.apk' -print -quit)
+          fi
+          if [ -z "$APK" ]; then
+            echo "::error::No release APK was produced."
+            exit 1
+          fi
+          BUILD_TOOLS="${ANDROID_SDK_ROOT:-}/build-tools"
+          APKSIGNER=""
+          if [ -d "$BUILD_TOOLS" ]; then
+            APKSIGNER=$(find "$BUILD_TOOLS" -name apksigner | sort | tail -n1)
+          fi
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found in $BUILD_TOOLS."
+            exit 1
+          fi
+          # Hard failure by design: in-app updates pin the signer certificate,
+          # so an unsigned or unverifiable APK must never reach a release.
+          # Set the ANDROID_KEYSTORE_* repository secrets to sign the build.
+          "$APKSIGNER" verify --print-certs "$APK"
       - name: Stage APK with version
         run: |
           mkdir -p release-files

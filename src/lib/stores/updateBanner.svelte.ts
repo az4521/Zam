@@ -17,7 +17,7 @@ import {
     onDesktopUpdateStatus,
 } from "$lib/desktopUpdater";
 import { isAndroidUpdater, downloadApk, installApk } from "$lib/androidUpdater";
-import { pickApkAsset } from "$lib/utils/androidUpdate";
+import { pickApkAsset, versionCodeFromSemver } from "$lib/utils/androidUpdate";
 import { checkForUpdate, openReleasePage } from "$lib/update";
 import { settingsState } from "$lib/stores/settings.svelte";
 
@@ -95,7 +95,10 @@ async function androidFlow(force: boolean): Promise<void> {
             return;
         }
         setStatus({ phase: "downloading", version: info.latest, percent: 0 });
-        const path = await downloadApk(url, (percent) =>
+        // Floor = the version the user was shown, so native also refuses a
+        // rolled-back-but-still-signed archive.
+        const minVersionCode = versionCodeFromSemver(info.latest ?? "");
+        const path = await downloadApk(url, minVersionCode, (percent) =>
             setStatus({ phase: "downloading", percent }),
         );
         updateBannerState.apkPath = path;
@@ -129,8 +132,21 @@ export async function runBannerAction(): Promise<void> {
             desktopRestartToInstall();
             break;
         case "install":
+            // `apkPath` stays the "a download completed" marker; it is no
+            // longer passed — native installs its own private download.
             if (updateBannerState.apkPath) {
-                await installApk(updateBannerState.apkPath);
+                try {
+                    await installApk();
+                } catch (e) {
+                    // Native rejects for real reasons now (signer mismatch,
+                    // version floor, nothing staged), so this branch fires.
+                    // Route it through the same error phase androidFlow uses
+                    // rather than leaving an unhandled rejection.
+                    setStatus({
+                        phase: "error",
+                        message: (e as Error)?.message ?? "Install failed",
+                    });
+                }
             }
             break;
         case "download":

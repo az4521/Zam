@@ -16,10 +16,17 @@ export interface ApkDownloadProgress {
 /** Native plugin surface (implemented in ApkUpdaterPlugin.java). */
 export interface ApkUpdaterPlugin {
     /** Download the APK at `url` to app-private storage, emitting
-     *  `downloadProgress` events; resolves with the stored file path. */
-    downloadApk(options: { url: string }): Promise<{ path: string }>;
-    /** Hand the downloaded APK at `path` to the OS package installer. */
-    installApk(options: { path: string }): Promise<void>;
+     *  `downloadProgress` events; resolves with the stored file path.
+     *  `minVersionCode` is the versionCode of the release the user was offered;
+     *  native refuses an archive below it (0 = no floor). */
+    downloadApk(options: {
+        url: string;
+        minVersionCode: number;
+    }): Promise<{ path: string }>;
+    /** Hand the verified downloaded APK to the OS package installer. Takes no
+     *  path: native re-derives its own private file so a compromised renderer
+     *  cannot choose what gets installed. */
+    installApk(): Promise<void>;
     /** Whether this app may request package installs (API 26+ unknown-sources). */
     canInstall(): Promise<{ granted: boolean }>;
     /** Open the system "Install unknown apps" settings screen for this app. */
@@ -42,9 +49,14 @@ export function isAndroidUpdater(): boolean {
 /**
  * Download the APK, reporting progress via `onProgress` (0–100). Resolves with
  * the on-device file path. Callers guard with `isAndroidUpdater()` first.
+ *
+ * `minVersionCode` is the floor native verification enforces: pass the
+ * versionCode of the release the user was actually offered, so a stale
+ * (still-correctly-signed) archive is refused too.
  */
 export async function downloadApk(
     url: string,
+    minVersionCode: number,
     onProgress?: (percent: number) => void,
 ): Promise<string> {
     let handle: PluginListenerHandle | null = null;
@@ -54,16 +66,16 @@ export async function downloadApk(
         );
     }
     try {
-        const { path } = await ApkUpdater.downloadApk({ url });
+        const { path } = await ApkUpdater.downloadApk({ url, minVersionCode });
         return path;
     } finally {
         await handle?.remove();
     }
 }
 
-/** Fire the OS package installer for a downloaded APK. */
-export async function installApk(path: string): Promise<void> {
-    await ApkUpdater.installApk({ path });
+/** Fire the OS package installer for the verified downloaded APK. */
+export async function installApk(): Promise<void> {
+    await ApkUpdater.installApk();
 }
 
 /** Whether the app may install packages (false → route to unknown-sources). */

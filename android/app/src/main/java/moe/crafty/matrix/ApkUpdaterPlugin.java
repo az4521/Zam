@@ -2,6 +2,10 @@ package moe.crafty.matrix;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -15,11 +19,17 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Custom Capacitor plugin that downloads a release APK and hands it to the OS
@@ -27,6 +37,15 @@ import java.net.URL;
  * cannot self-install silently — the realistic ceiling is auto-download, then a
  * single user "Install" tap in the system installer UI. See the design spec:
  * docs/superpowers/specs/2026-07-24-android-apk-updater-design.md.
+ *
+ * Authenticity (audit SEC-02) is established HERE, not in the renderer: the
+ * renderer only ever proposes a URL and a version floor. Before the installer
+ * is shown the archive must be (a) fetched over https from an allowlisted
+ * GitHub host, redirects included, (b) this exact package, (c) a strictly
+ * higher versionCode than the installed build, and (d) signed by the same
+ * certificate as the installed build. Rotating the signing key therefore
+ * breaks in-app updates for existing installs — that is a deliberate,
+ * accepted trade (owner decision, 2026-07-30).
  *
  * NOT compiled/verified overnight (no Gradle in the CI gate). Written to spec,
  * mirrors the existing native style (MatrixMessagingService.java), and is
@@ -39,35 +58,102 @@ public class ApkUpdaterPlugin extends Plugin {
     private static final int READ_TIMEOUT = 30000;
     private static final String APK_MIME = "application/vnd.android.package-archive";
 
+    /** Subdirectory of the app-private cache the FileProvider exposes
+     *  (res/xml/file_paths.xml). Nothing else may be written here. */
+    private static final String UPDATE_DIR = "apk-update";
+    /** Where downloadApk writes. The renderer can cause bytes to land here at
+     *  any moment, so this file is never the one handed to the installer. */
+    private static final String UPDATE_FILE = "update.apk";
+    /** The pre-2026-07-30 download path: update.apk directly in the cache
+     *  ROOT, before downloads moved into UPDATE_DIR. A frozen historical
+     *  literal — deliberately NOT written in terms of UPDATE_FILE, which is
+     *  free to be renamed without changing what old installs left behind. */
+    private static final String LEGACY_CACHE_FILE = "update.apk";
+    /** Prefix of the per-attempt staged archives installApk verifies and
+     *  installs. downloadApk never WRITES to a name with this prefix (it may
+     *  only delete one), and every install attempt mints a fresh name, so no
+     *  staged path is ever written twice — see newStagedFile(). */
+    private static final String STAGED_PREFIX = "staged-";
+
+    /** Redirect hops we will follow. GitHub uses one hop to its asset CDN. */
+    private static final int MAX_REDIRECTS = 5;
+    /** Hard ceiling on a downloaded archive; the real APK is ~30 MB. */
+    private static final long MAX_APK_BYTES = 300L * 1024L * 1024L;
+    /** Exact host the initial URL must use. Matched with equals(), never
+     *  contains()/indexOf() — "github.com.evil.tld" must not pass. */
+    private static final String PRIMARY_HOST = "github.com";
+    /** Suffix of the CDN hosts GitHub redirects release downloads to. The
+     *  LEADING DOT is load-bearing: it anchors the match to a label boundary,
+     *  so "evilgithubusercontent.com" cannot satisfy it. Never drop it. */
+    private static final String CDN_HOST_SUFFIX = ".githubusercontent.com";
+
     /**
-     * Download the APK at `url` to app-private cache storage, emitting
-     * `downloadProgress` events ({ percent }). Resolves { path } (the absolute
-     * file path) once complete. Network IO runs on a background thread so it
-     * never blocks the WebView / main thread.
+     * The archive the most recent install attempt staged, so that retrying
+     * after the user dismisses the system installer reuses it instead of
+     * staging again. Written on Capacitor's single plugin thread (installApk)
+     * and cleared from downloadApk's worker thread, so it is volatile: the
+     * only cross-thread operations are a whole-reference read and a
+     * whole-reference write, which need visibility but no mutual exclusion.
+     */
+    private volatile File stagedApk;
+
+    /** Makes a staged filename unique even if nanoTime is coarse. */
+    private final AtomicLong stagedSeq = new AtomicLong();
+
+    /**
+     * Download the APK at `url` to app-private storage, emitting
+     * `downloadProgress` events ({ percent }), verify it, and resolve
+     * { path }. Network IO runs on a background thread so it never blocks the
+     * WebView / main thread. Any verification failure rejects AND deletes the
+     * file.
      */
     @PluginMethod
     public void downloadApk(final PluginCall call) {
         final String url = call.getString("url");
         if (url == null || url.isEmpty()) {
+            // Clear the slate here too, not just on the worker thread: leaving
+            // an earlier verified APK behind lets a later installApk() install
+            // a version the UI never named.
+            //noinspection ResultOfMethodCallIgnored
+            updateFile().delete();
+            clearStagedFiles();
             call.reject("Missing download url");
             return;
         }
+        final int minVersionCode = call.getInt("minVersionCode", 0);
         new Thread(() -> {
+            File outFile = updateFile();
             HttpURLConnection conn = null;
             try {
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(CONNECT_TIMEOUT);
-                conn.setReadTimeout(READ_TIMEOUT);
-                conn.setInstanceFollowRedirects(true);
-                conn.connect();
+                // Never reuse a previous attempt's bytes, downloaded or
+                // staged: a fresh download supersedes whatever is on disk.
+                //noinspection ResultOfMethodCallIgnored
+                outFile.delete();
+                clearStagedFiles();
+                deleteLegacyCacheApk();
+                File dir = outFile.getParentFile();
+                if (dir != null && !dir.exists() && !dir.mkdirs()) {
+                    call.reject("Could not prepare the download folder");
+                    return;
+                }
+
+                conn = openAllowlisted(url);
+                if (conn == null) {
+                    call.reject("Refused: the update came from an unexpected location");
+                    return;
+                }
                 if (conn.getResponseCode() / 100 != 2) {
                     call.reject("Download failed (HTTP " + conn.getResponseCode() + ")");
                     return;
                 }
-                final int total = conn.getContentLength();
-                // App-private cache; the existing FileProvider
-                // (moe.crafty.matrix.fileprovider) exposes cache-path ".".
-                File outFile = new File(getContext().getCacheDir(), "update.apk");
+                // getContentLengthLong() is API 24 = our minSdk. The int form
+                // truncates to -1 above 2 GB, which would silently disable
+                // BOTH the pre-flight ceiling and the cut-short check below.
+                final long total = conn.getContentLengthLong();
+                if (total > MAX_APK_BYTES) {
+                    call.reject("Refused: the update is implausibly large");
+                    return;
+                }
                 long readBytes = 0;
                 int lastPercent = -1;
                 try (InputStream in = conn.getInputStream();
@@ -75,8 +161,12 @@ public class ApkUpdaterPlugin extends Plugin {
                     byte[] buf = new byte[8192];
                     int n;
                     while ((n = in.read(buf)) != -1) {
-                        out.write(buf, 0, n);
                         readBytes += n;
+                        if (readBytes > MAX_APK_BYTES) {
+                            throw new IllegalStateException(
+                                "the update is implausibly large");
+                        }
+                        out.write(buf, 0, n);
                         if (total > 0) {
                             int percent = (int) (readBytes * 100 / total);
                             if (percent != lastPercent) {
@@ -88,10 +178,30 @@ public class ApkUpdaterPlugin extends Plugin {
                         }
                     }
                 }
+                if (total > 0 && readBytes != total) {
+                    // Delete BEFORE rejecting: reject() resolves the JS
+                    // promise, and a renderer that retries synchronously must
+                    // not be able to observe the truncated file.
+                    //noinspection ResultOfMethodCallIgnored
+                    outFile.delete();
+                    call.reject("Download was cut short — try again");
+                    return;
+                }
+
+                String problem = verifyApk(outFile, minVersionCode);
+                if (problem != null) {
+                    //noinspection ResultOfMethodCallIgnored
+                    outFile.delete();
+                    call.reject("Refused: " + problem);
+                    return;
+                }
+
                 JSObject ret = new JSObject();
                 ret.put("path", outFile.getAbsolutePath());
                 call.resolve(ret);
             } catch (Exception e) {
+                //noinspection ResultOfMethodCallIgnored
+                outFile.delete();
                 call.reject("Download failed: " + e.getMessage(), e);
             } finally {
                 if (conn != null) conn.disconnect();
@@ -100,23 +210,71 @@ public class ApkUpdaterPlugin extends Plugin {
     }
 
     /**
-     * Hand the downloaded APK to the OS package installer via a content:// URI
-     * from the existing FileProvider. The installer UI opens; the user taps
-     * Install. Requires REQUEST_INSTALL_PACKAGES (manifest) + the unknown-apps
-     * permission on API 26+ (see canInstall / openUnknownSourcesSettings).
+     * Hand the verified downloaded APK to the OS package installer via a
+     * content:// URI from the FileProvider. The installer UI opens; the user
+     * taps Install. Requires REQUEST_INSTALL_PACKAGES (manifest) + the
+     * unknown-apps permission on API 26+ (see canInstall /
+     * openUnknownSourcesSettings).
+     *
+     * Takes NO caller-supplied path: the file is re-derived here and
+     * re-verified, so a compromised renderer cannot pick what is installed.
+     * The re-verification is NOT redundant with downloadApk's — this is the
+     * only method that reaches startActivity, so it must not trust that any
+     * earlier call checked anything.
+     *
+     * The archive is MOVED to a staged file before it is verified, never
+     * after, and every attempt mints its OWN staged filename. downloadApk
+     * writes only to update.apk and no staged name is ever written twice, so
+     * from the rename onwards nothing OTHER THAN the very download that
+     * produced this file can still change its bytes: a download still in
+     * flight holds an open FileOutputStream on that inode and keeps appending
+     * through the rename, which the OS installer's own signature check then
+     * rejects. No DIFFERENT archive can ever take the place of the one
+     * verifyApk read and the installer will later open — which matters
+     * because the installer opens its content:// URI asynchronously, long
+     * after this method has returned.
      */
     @PluginMethod
     public void installApk(final PluginCall call) {
-        final String path = call.getString("path");
-        if (path == null || path.isEmpty()) {
-            call.reject("Missing apk path");
-            return;
-        }
         try {
-            File apk = new File(path);
+            File downloaded = updateFile();
+            File staged;
+            if (downloaded.isFile()) {
+                // A fresh download: move it, atomically and BEFORE looking at
+                // it, to a filename no attempt has used before. Renaming onto
+                // a shared name would republish that path with unverified
+                // bytes while an earlier attempt's installer may still be
+                // about to open it.
+                File target = newStagedFile();
+                if (!downloaded.renameTo(target)) {
+                    call.reject("Could not stage the update");
+                    return;
+                }
+                stagedApk = target;
+                staged = target;
+            } else {
+                // No new download, so this is a retry after the user
+                // dismissed the system installer. Reuse the file the previous
+                // attempt already staged — deliberately never re-renaming
+                // onto it, which is what keeps its bytes immutable.
+                staged = stagedApk;
+            }
+            if (staged == null || !staged.isFile()) {
+                call.reject("No downloaded update to install");
+                return;
+            }
+            // Only now verify, and only ever the staged copy.
+            String problem = verifyApk(staged, 0);
+            if (problem != null) {
+                //noinspection ResultOfMethodCallIgnored
+                staged.delete();
+                stagedApk = null;
+                call.reject("Refused: " + problem);
+                return;
+            }
             Context ctx = getContext();
             Uri uri = FileProvider.getUriForFile(
-                ctx, ctx.getPackageName() + ".fileprovider", apk);
+                ctx, ctx.getPackageName() + ".fileprovider", staged);
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, APK_MIME);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -162,6 +320,283 @@ public class ApkUpdaterPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Could not open settings: " + e.getMessage(), e);
+        }
+    }
+
+    /** The one path this plugin ever downloads to. */
+    private File updateFile() {
+        return new File(updateDir(), UPDATE_FILE);
+    }
+
+    /**
+     * A staged path this plugin has never used before. Same directory as
+     * updateFile(), so Task 4's narrowed FileProvider scope still covers it
+     * and the rename between them stays within one filesystem (i.e. atomic).
+     *
+     * Uniqueness is the security property, not a nicety: a reused path could
+     * be republished with unverified bytes under a content:// URI an earlier,
+     * still-pending installer is about to open. nanoTime gives cross-process
+     * uniqueness, the counter gives it within a process even if the clock is
+     * coarse, and the exists() loop is the backstop that makes it total. The
+     * loop terminates because the counter strictly increases every pass.
+     */
+    private File newStagedFile() {
+        File dir = updateDir();
+        File f;
+        do {
+            f = new File(dir, STAGED_PREFIX + System.nanoTime()
+                + "-" + stagedSeq.incrementAndGet() + ".apk");
+        } while (f.exists());
+        return f;
+    }
+
+    /**
+     * Forget and delete every staged archive. Only ever unlinks: an unlink
+     * cannot change the bytes behind a descriptor an installer has already
+     * opened, so the worst this can do to a pending install is make its open
+     * fail — an honest error, never a substitution. Writing to a staged name
+     * would be a different matter, and nothing here ever does.
+     */
+    private void clearStagedFiles() {
+        stagedApk = null;
+        File[] existing = updateDir().listFiles();
+        if (existing == null) return;
+        for (File f : existing) {
+            if (f.getName().startsWith(STAGED_PREFIX)) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        }
+    }
+
+    private File updateDir() {
+        return new File(getContext().getCacheDir(), UPDATE_DIR);
+    }
+
+    /**
+     * Best-effort cleanup of the download path this plugin used before
+     * 2026-07-30, when downloads moved from the cache ROOT into UPDATE_DIR.
+     * Nothing ever deleted the old file, so every device that installed an
+     * earlier build carries ~30 MB of dead cache forever.
+     *
+     * This is housekeeping, not security: it only ever unlinks, failure is
+     * ignored, and the target is cacheDir/update.apk — NOT updateFile(), which
+     * now lives one directory deeper. Safe to delete this method once no
+     * install predating 2026-07-30 is plausibly still in the field.
+     */
+    private void deleteLegacyCacheApk() {
+        try {
+            File legacy = new File(getContext().getCacheDir(), LEGACY_CACHE_FILE);
+            if (legacy.isFile()) {
+                //noinspection ResultOfMethodCallIgnored
+                legacy.delete();
+            }
+        } catch (Exception ignored) {
+            // Never fail a download over cache housekeeping.
+        }
+    }
+
+    /**
+     * Open `url`, following redirects by hand so every hop is re-checked
+     * against the https + host allowlist. Returns a connected connection, or
+     * null when a hop is not allowed / too many hops.
+     *
+     * The hop index is passed to the check, not just used to bound the loop:
+     * hop 0 is the renderer-supplied URL and is held to a stricter host rule
+     * than the redirect targets are. See isAllowedUrl.
+     */
+    private HttpURLConnection openAllowlisted(String url) throws Exception {
+        String current = url;
+        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            URL parsed = new URL(current);
+            if (!isAllowedUrl(parsed, hop)) return null;
+            HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
+            // Anything that leaves this block without handing `conn` to the
+            // caller must disconnect it — including a throwing connect() /
+            // getResponseCode(), whose connection the caller cannot see and
+            // so could never clean up itself.
+            boolean handedOff = false;
+            try {
+                conn.setConnectTimeout(CONNECT_TIMEOUT);
+                conn.setReadTimeout(READ_TIMEOUT);
+                conn.setInstanceFollowRedirects(false);
+                conn.connect();
+                int code = conn.getResponseCode();
+                if (code == HttpURLConnection.HTTP_MOVED_PERM
+                    || code == HttpURLConnection.HTTP_MOVED_TEMP
+                    || code == HttpURLConnection.HTTP_SEE_OTHER
+                    || code == 307
+                    || code == 308) {
+                    String location = conn.getHeaderField("Location");
+                    if (location == null || location.isEmpty()) return null;
+                    current = new URL(parsed, location).toString();
+                    continue;
+                }
+                handedOff = true;
+                return conn;
+            } finally {
+                if (!handedOff) conn.disconnect();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * https, no credentials, default port, and a host allowed AT THIS HOP.
+     *
+     * The host rule tightens at hop 0. Hop 0 is the URL the renderer handed
+     * us, and it must be PRIMARY_HOST exactly; the `*.githubusercontent.com`
+     * CDN is reachable only as a REDIRECT TARGET (hop >= 1), which is the only
+     * place GitHub ever sends us there. Accepting the CDN suffix at hop 0 too
+     * would let a compromised renderer name raw.githubusercontent.com — which
+     * serves any user's repository content — and so park up to MAX_APK_BYTES
+     * of attacker-chosen bytes in our cache before verifyApk rejects them.
+     *
+     * Host matching is dot-boundary anchored on purpose (equals for the
+     * primary host, a dot-prefixed suffix for the CDN) — a substring test
+     * would accept attacker-controlled lookalikes.
+     *
+     * Deliberately looser on the PATH than the renderer-side predicate in
+     * src/lib/utils/androidUpdate.ts, which also rejects percent-encoded
+     * traversal (%2e/%2f/%5c). GitHub's asset CDN hands back opaque, heavily
+     * encoded paths, so mirroring those TS rules here would break real
+     * downloads. The desync is safe: the path never reaches the filesystem
+     * (we always write to our own updateFile()), and authenticity comes from
+     * the signer/package/version check, not from the URL.
+     */
+    private boolean isAllowedUrl(URL u, int hop) {
+        if (!"https".equalsIgnoreCase(u.getProtocol())) return false;
+        if (u.getUserInfo() != null) return false;
+        int port = u.getPort();
+        if (port != -1 && port != 443) return false;
+        String host = u.getHost();
+        if (host == null) return false;
+        host = host.toLowerCase(Locale.ROOT);
+        if (hop == 0) return host.equals(PRIMARY_HOST);
+        return host.equals(PRIMARY_HOST) || host.endsWith(CDN_HOST_SUFFIX);
+    }
+
+    /**
+     * Verify the downloaded archive really is a newer build of THIS app signed
+     * by the same key. Returns null when it passes, otherwise a short reason
+     * suitable for the UI.
+     *
+     * `minVersionCode` (0 = none) is the versionCode of the release the user
+     * was offered; it blocks a signed-but-older asset being substituted.
+     */
+    @SuppressWarnings("deprecation")
+    private String verifyApk(File apk, int minVersionCode) {
+        if (!hasZipMagic(apk)) return "the download is not an app package";
+
+        Context ctx = getContext();
+        PackageManager pm = ctx.getPackageManager();
+        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            ? PackageManager.GET_SIGNING_CERTIFICATES
+            : PackageManager.GET_SIGNATURES;
+
+        PackageInfo downloaded = pm.getPackageArchiveInfo(apk.getAbsolutePath(), flags);
+        if (downloaded == null) return "the download is not an app package";
+        if (!ctx.getPackageName().equals(downloaded.packageName)) {
+            return "the download is a different app";
+        }
+
+        PackageInfo installed;
+        try {
+            installed = pm.getPackageInfo(ctx.getPackageName(), flags);
+        } catch (PackageManager.NameNotFoundException e) {
+            return "could not read the installed app";
+        }
+
+        long newCode = versionCodeOf(downloaded);
+        long ownCode = versionCodeOf(installed);
+        // The effective floor is max(ownCode, minVersionCode). This first
+        // check is UNCONDITIONAL and strict (>, never >=): the renderer's
+        // number can only ever make the requirement stricter, never looser,
+        // so a compromised webview passing 0 or a low value cannot license a
+        // rollback or a same-version reinstall.
+        if (newCode <= ownCode) return "the download is not a newer version";
+        // minVersionCode == 0 legitimately means "no floor supplied" — a
+        // non-semver release tag, or a genuine 0.0.0 build. It means neither
+        // "reject everything" nor "skip version checking": the unconditional
+        // newCode > ownCode test above still stands on its own.
+        if (minVersionCode > 0 && newCode < minVersionCode) {
+            return "the download is older than the offered release";
+        }
+
+        Set<String> newSigners = signerDigests(downloaded);
+        Set<String> ownSigners = signerDigests(installed);
+        // Empty means unsigned or unreadable on either side. Checked BEFORE
+        // equals() so two empty sets can never compare equal into a pass.
+        if (newSigners.isEmpty() || ownSigners.isEmpty()) {
+            return "the download is not signed";
+        }
+        if (!newSigners.equals(ownSigners)) {
+            return "the download is signed by a different key";
+        }
+        return null;
+    }
+
+    /** Cheap sanity check that the file starts with a zip local-file header. */
+    private boolean hasZipMagic(File f) {
+        try (InputStream in = new FileInputStream(f)) {
+            byte[] magic = new byte[4];
+            int read = 0;
+            while (read < 4) {
+                int n = in.read(magic, read, 4 - read);
+                if (n == -1) return false;
+                read += n;
+            }
+            return magic[0] == 0x50 && magic[1] == 0x4B
+                && magic[2] == 0x03 && magic[3] == 0x04;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private long versionCodeOf(PackageInfo info) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return info.getLongVersionCode();
+        }
+        return info.versionCode;
+    }
+
+    /**
+     * SHA-256 of every signing certificate, as lowercase hex. An empty set
+     * means "unsigned or unreadable", which callers treat as a failure.
+     */
+    @SuppressWarnings("deprecation")
+    private Set<String> signerDigests(PackageInfo info) {
+        Set<String> out = new TreeSet<>();
+        Signature[] signatures = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            SigningInfo signingInfo = info.signingInfo;
+            if (signingInfo != null) {
+                signatures = signingInfo.getApkContentsSigners();
+            }
+        } else {
+            signatures = info.signatures;
+        }
+        if (signatures == null) return out;
+        for (Signature s : signatures) {
+            if (s == null) continue;
+            String hex = sha256Hex(s.toByteArray());
+            if (hex != null) out.add(hex);
+        }
+        return out;
+    }
+
+    private String sha256Hex(byte[] data) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
         }
     }
 }

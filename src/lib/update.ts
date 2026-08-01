@@ -7,7 +7,13 @@
 // the OS browser), where the user can grab the new installer/APK.
 
 import { Capacitor } from "@capacitor/core";
-import type { ReleaseAsset } from "$lib/utils/androidUpdate";
+// GitHub repo to check for releases — shared with the APK download allowlist
+// (`isTrustedApkUrl`) so the release API URL and the allowlist can't drift.
+import {
+    GITHUB_OWNER,
+    GITHUB_REPO,
+    type ReleaseAsset,
+} from "$lib/utils/androidUpdate";
 
 /** Current build version (from package.json via the Vite `define`). */
 export const APP_VERSION: string =
@@ -22,10 +28,6 @@ export const APP_VERSION: string =
 export const CAN_INSTALL_UPDATE: boolean =
     Capacitor.isNativePlatform() ||
     (typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent));
-
-// GitHub repo to check for releases. Change if the project moves.
-const GITHUB_OWNER = "az4521";
-const GITHUB_REPO = "Zam";
 
 const LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
 
