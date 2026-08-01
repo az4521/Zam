@@ -29,7 +29,7 @@ Rooms & spaces
 Calls
 
 - voice + video group calls over MatrixRTC (MSC4143) with LiveKit, screen sharing on web and desktop, incoming-call cards, per-participant volume
-- **needs server-side infrastructure** — see "what you have to run yourself" below
+- **needs server-side infrastructure** — see "serving it" below
 
 Encryption
 
