@@ -84,6 +84,7 @@
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
+    import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
@@ -419,6 +420,14 @@
         isMobile ? ((MEMBER_WIDTH - memberTranslate) / MEMBER_WIDTH) * 0.5 : 0,
     );
 
+    // Right-hand drawer: it parks at +MEMBER_WIDTH when closed and opens at 0.
+    // It stays mounted while closed, so without this a hardware keyboard tabs
+    // into invisible controls (audit A11Y-02). Same notion as the box-shadow
+    // gate in the markup (`memberTranslate >= MEMBER_WIDTH`).
+    const memberDrawerClosed = $derived(
+        isOffCanvasClosed(memberTranslate, MEMBER_WIDTH),
+    );
+
     function memberDragMove(e: TouchEvent) {
         if (!memberDragPending && !isMemberDragging) return;
         const touch = e.touches[0];
@@ -518,6 +527,13 @@
 
     const pinnedBackdropOpacity = $derived(
         isMobile ? ((PINNED_WIDTH - pinnedTranslate) / PINNED_WIDTH) * 0.5 : 0,
+    );
+
+    // Right-hand drawer: parks at +PINNED_WIDTH when closed, opens at 0. Same
+    // notion as the box-shadow gate in the markup
+    // (`pinnedTranslate >= PINNED_WIDTH`).
+    const rightPanelClosed = $derived(
+        isOffCanvasClosed(pinnedTranslate, PINNED_WIDTH),
     );
 
     function pinnedDragMove(e: TouchEvent) {
@@ -1643,6 +1659,8 @@
             PINNED_WIDTH
                 ? ''
                 : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
+            inert={rightPanelClosed}
+            aria-hidden={rightPanelClosed ? "true" : undefined}
         >
             {#if showNotificationsPanel}
                 <NotificationsPanel
@@ -1719,6 +1737,8 @@
             MEMBER_WIDTH
                 ? ''
                 : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
+            inert={memberDrawerClosed}
+            aria-hidden={memberDrawerClosed ? "true" : undefined}
         >
             <MemberList {room} />
         </div>

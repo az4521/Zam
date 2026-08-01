@@ -54,8 +54,15 @@ export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
 
     function focusFirst() {
         const items = focusableWithin(node);
-        if (items.length > 0) {
-            items[0].focus();
+        // A dialog can nominate the control the user actually came for (its
+        // search field, not its close button) with `data-autofocus`. Selecting
+        // it here rather than in a component `$effect` avoids racing this
+        // rAF-deferred call, which would otherwise always win and land focus
+        // on whatever happens to be first in DOM order.
+        const nominated = items.find((el) => el.hasAttribute("data-autofocus"));
+        const first = nominated ?? items[0];
+        if (first) {
+            first.focus();
         } else {
             node.setAttribute("tabindex", "-1");
             node.focus();
