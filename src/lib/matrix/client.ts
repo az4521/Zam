@@ -2711,6 +2711,18 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
 ];
 
 /**
+ * How long a push-rule write may hold the queue before later writes are let
+ * past it. Measured from the moment that write STARTS, so it bounds one
+ * write's own run rather than its wait in the line — N consecutively hung
+ * writes drain in N x this, never all at once. matrix-js-sdk attaches no abort
+ * signal (`localTimeoutMs` is set nowhere in `src`), so a request that never
+ * settles otherwise blocks every later push-rule write until the client is
+ * stopped. 30s matches the watchdog `leaveRoom` uses to stop waiting on the
+ * same class of hang.
+ */
+const PUSH_RULE_QUEUE_TIMEOUT_MS = 30_000;
+
+/**
  * Every push-rule write below finishes by pulling the canonical rules back into
  * the SDK's single shared `client.pushRules` cache, and the default-rule writes
  * VERIFY themselves against that cache. Two writes in flight at once therefore
@@ -2721,8 +2733,23 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
  * That is a fake success through a different door, so all of them share ONE
  * queue and no two ever interleave. Each caller still gets its own outcome —
  * `createSerialQueue` never lets one write's failure reach another's caller.
+ *
+ * The queue is bounded: a write still outstanding PUSH_RULE_QUEUE_TIMEOUT_MS
+ * after it starts stops holding the others up. Its own caller keeps awaiting
+ * the real request and still gets the real answer — the timeout buys liveness
+ * for later writes, it never invents an outcome for this one.
  */
-const pushRuleWriteQueue = createSerialQueue();
+const pushRuleWriteQueue = createSerialQueue({
+    timeoutMs: PUSH_RULE_QUEUE_TIMEOUT_MS,
+    // Diagnostic only, and it must never throw: the queue calls this before it
+    // advances, so a throwing hook would wedge it for good.
+    onTimeout: () =>
+        console.warn(
+            "[push rules] a write has been in flight for",
+            PUSH_RULE_QUEUE_TIMEOUT_MS,
+            "ms — letting later writes past it",
+        ),
+});
 
 function getGlobalPushRules(): Record<string, any[]> | undefined {
     return (matrixClient as any)?.pushRules?.global as
