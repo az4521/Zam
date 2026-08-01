@@ -287,15 +287,18 @@
         }
     }
 
-    const title = $derived(
-        roomsState.activeSpaceId === null
+    // Space names mutate in place on the live Room object, so depend on the
+    // tick — roomsState.spaces is no longer reassigned on every sync.
+    const title = $derived.by(() => {
+        void roomsState.roomsTick;
+        return roomsState.activeSpaceId === null
             ? "Home"
             : roomsState.spaces.find(
                   (s) => s.roomId === roomsState.activeSpaceId,
               )?.name ||
                   roomsState.spaceDrillName ||
-                  "Space",
-    );
+                  "Space";
+    });
 
     const visibleRooms = $derived(
         roomsState.activeSpaceId === null

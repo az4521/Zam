@@ -76,12 +76,8 @@
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
     import {
-        getSpaces,
-        getOrphanRooms,
-        getDirectRooms,
+        getRoomClassification,
         getRoomsInSpace,
-        getInvitedRooms,
-        getKnockedRooms,
         getSpaceLayout,
         fetchSpaceHierarchy,
         scheduleJoinedRoomsReconcile,
@@ -125,6 +121,7 @@
         shouldSuppressForActiveDevice,
         shouldWriteHeartbeat,
     } from "$lib/utils/activeSession";
+    import { sameOrder } from "$lib/utils/roomClassification";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import { previewForEvent } from "$lib/utils/encryptionState";
@@ -829,10 +826,42 @@
         }, 2000);
     }
 
+    type RoomBucket =
+        | "spaces"
+        | "orphanRooms"
+        | "directRooms"
+        | "invitedRooms"
+        | "knockedRooms"
+        | "roomsInSpace";
+
+    /**
+     * Republish a bucket only when its contents actually changed. An
+     * element-wise identical array would invalidate every dependent for
+     * nothing — and `roomsState.roomsTick` still fires unconditionally at the
+     * end of `refreshRooms()`, so anything rendering in-place-mutated Room
+     * data still refreshes (this repo's reactivity contract, see CLAUDE.md).
+     *
+     * Compare against the STORE, never a private "last published" cache: four
+     * of the six buckets are also written from outside `refreshRooms()`
+     * (RoomList's optimistic leave filter and its space-change effect, the
+     * space-change `$effect` below, RoomSettings' `onUpdate`). A private cache
+     * would let a later identical computation be skipped against a store that
+     * had since diverged. Reading the store creates no dependency:
+     * `refreshRooms()` runs from a timeout, from `onMount`, or from an SDK
+     * account-data listener — never from inside a tracked effect.
+     */
+    function publishBucket(bucket: RoomBucket, next: Room[]): void {
+        if (!sameOrder(next, roomsState[bucket])) roomsState[bucket] = next;
+    }
+
     function refreshRooms() {
         const layout = getSpaceLayout();
+        // Deliberately unconditional: SpaceSidebar's `rootItems` derived reads
+        // spaceLayout and leans on this reassignment to pick up renamed or
+        // re-avatared spaces. Do not dedupe it.
         roomsState.spaceLayout = layout;
-        const spaces = getSpaces();
+        const classification = getRoomClassification(roomsState.activeSpaceId);
+        const spaces = classification.spaces;
         if (layout.order.length) {
             // Build a flat ordered list of all space IDs (including those inside folders)
             const idIndex = new Map<string, number>();
@@ -851,13 +880,13 @@
                 return ai - bi;
             });
         }
-        roomsState.spaces = spaces;
-        roomsState.orphanRooms = getOrphanRooms();
-        roomsState.directRooms = getDirectRooms();
-        roomsState.invitedRooms = getInvitedRooms();
-        roomsState.knockedRooms = getKnockedRooms();
+        publishBucket("spaces", spaces);
+        publishBucket("orphanRooms", classification.orphanRooms);
+        publishBucket("directRooms", classification.directRooms);
+        publishBucket("invitedRooms", classification.invitedRooms);
+        publishBucket("knockedRooms", classification.knockedRooms);
         if (roomsState.activeSpaceId) {
-            roomsState.roomsInSpace = getRoomsInSpace(roomsState.activeSpaceId);
+            publishBucket("roomsInSpace", classification.roomsInSpace);
             scheduleHierarchyRefresh(roomsState.activeSpaceId);
         }
         // The room list has just been rebuilt from the SDK, so this is the

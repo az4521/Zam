@@ -79,9 +79,17 @@
         return renderEmoji(emoji, "picker-twemoji");
     }
 
-    const customPacks = $derived(
-        getCustomEmojiPacks(roomsState.activeSpaceId, roomsState.spaces, room),
-    );
+    // Pack data lives in room state that mutates in place, so this must depend
+    // on the tick, not on roomsState.spaces being reassigned (it no longer is
+    // when the space set has not actually changed).
+    const customPacks = $derived.by(() => {
+        void roomsState.roomsTick;
+        return getCustomEmojiPacks(
+            roomsState.activeSpaceId,
+            roomsState.spaces,
+            room,
+        );
+    });
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 
     const tabs = $derived([
