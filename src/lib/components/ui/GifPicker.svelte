@@ -409,13 +409,24 @@
          `columns-[165px]` masonry -- a layout change that has to be seen in a
          real browser, not reasoned about.
 
-         What this link added to that estimate: the roles can go on elements
-         that already exist -- the masonry div becomes `rowgroup`, each tile
-         wrapper becomes `row`, the option button becomes `gridcell`, and on the
-         favourites tab the overlay div is a second `gridcell` already. Only the
-         KLIPY tab's star button sits as a direct child of the tile with no
-         wrapper to promote. So the layout risk is smaller than "adding wrapper
-         elements" suggests -- but `role` changes cannot be verified by a test
+         What this link added to that estimate: every element that would need
+         a role already exists. The masonry div becomes `rowgroup`, each tile
+         wrapper becomes `row`, the option button becomes `gridcell`. Counting
+         the rest of the cells, because the first pass under-counted them: a
+         favourites tile has THREE more direct children, not one -- the overlay
+         div of edit/remove buttons, the tags caption, and (while editing) the
+         tag-editor div wrapping the <input> -- so a favourites row is a
+         four-cell row, at most three of them present at once, since the
+         caption and the editor are mutually exclusive. A KLIPY tile is a
+         two-cell row, and its star button is a direct child with no wrapper,
+         so the button itself would carry the `gridcell`. Unhoused either way:
+         the "Loading…" status line and the load-more retry button flagged
+         above. They sit beside the group, not in it, and `grid` owns only
+         `row` / `rowgroup`, so the move leaves them exactly as homeless as the
+         listbox does -- they would have to become rows of their own or move
+         outside the container. So the layout risk is still smaller than
+         "adding wrapper elements" suggests -- no new DOM, just more roles than
+         first counted -- but `role` changes cannot be verified by a test
          here, and whether a browse-mode reader really does better with a
          one-column grid than with the current listbox needs a real screen
          reader, not a browser. -->
