@@ -143,7 +143,11 @@
         clearAllNotificationSurfaces,
     } from "$lib/utils/notificationSurfaces";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
-    import { initPush, unregisterPush } from "$lib/push";
+    import {
+        initPush,
+        unregisterPush,
+        clearDeliveredNativeNotifications,
+    } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
     import {
         syncNativeSession,
@@ -1047,6 +1051,11 @@
         const unregisterSwSurface = registerNotificationSurface(
             clearServiceWorkerNotifications,
         );
+        // Android's notifications are posted by native Java, so nothing the
+        // page closes can reach them — this is the only path that can.
+        const unregisterNativeSurface = registerNotificationSurface(
+            clearDeliveredNativeNotifications,
+        );
 
         const mq = window.matchMedia("(max-width: 767px)");
         const pq = window.matchMedia("(pointer: coarse)");
@@ -1283,6 +1292,7 @@
             closeAllPostedNotifications();
             unregisterPageSurface();
             unregisterSwSurface();
+            unregisterNativeSurface();
             unsubRooms();
             unsubTimeline();
             unsubDecryptedNotify();

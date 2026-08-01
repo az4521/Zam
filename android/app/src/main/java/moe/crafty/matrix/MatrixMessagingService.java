@@ -422,7 +422,29 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (roomId != null) intent.putExtra("room_id", roomId);
+
+        // Stamp the account this was posted under so the web layer can refuse
+        // to open it in a different session (audit PRIV-02). With no stored
+        // identity we cannot attribute the notification, so we deliberately do
+        // NOT attach a room id: it still shows, but tapping it only opens the
+        // app instead of deep-linking whoever is signed in now into a room
+        // from a session we cannot name.
+        //
+        // Read here rather than threaded in from onMessageReceived: the read
+        // there lives inside the enrichment try/catch, so a failure before it
+        // would drop the stamp for a session we can still name. Same store and
+        // key as everywhere else in this file (nativeSession.ts mirrors them),
+        // guarded because showNotification() is called OUTSIDE that try and a
+        // throw here would cost the whole notification.
+        String postedBy = null;
+        try {
+            SharedPreferences notifPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            postedBy = notifPrefs.getString(KEY_USER, null);
+        } catch (Throwable ignored) {}
+        if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
+            intent.putExtra("room_id", roomId);
+            intent.putExtra("user_id", postedBy);
+        }
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
