@@ -97,6 +97,7 @@ import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
+import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -1548,18 +1549,20 @@ export async function sendFile(
 ): Promise<void> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
-    // over-limit file fails fast with a clear toast instead of a 413 mid-upload.
+    // over-limit file fails fast instead of a 413 mid-upload. This REJECTS
+    // rather than resolving: resolving read to the composer as "sent" and made
+    // the queued file disappear unsent (audit MEDIA-02). The caller owns the
+    // toast — FileTooLargeError's message is already user-facing copy.
     const maxUploadSize = await getMediaUploadSizeLimit();
     // A successor account may own the slot now: its server's limit is not this
-    // file's limit, and the toast below would land in its UI.
+    // file's limit, and the rejection below would surface in its UI.
     ownedClientOrThrow(owner);
-    if (maxUploadSize !== null && file.size > maxUploadSize) {
-        showErrorToast(
-            `File exceeds the server's ${Math.round(
-                maxUploadSize / 1024 / 1024,
-            )} MB upload limit`,
+    if (exceedsUploadLimit(file.size, maxUploadSize)) {
+        throw new FileTooLargeError(
+            file.name,
+            file.size,
+            maxUploadSize as number,
         );
-        return;
     }
     const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
         file,
