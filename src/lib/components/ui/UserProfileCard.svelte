@@ -40,6 +40,7 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
+    import { createStaleGuard } from "$lib/utils/staleGuard";
     import {
         verificationState,
         verifyUser,
@@ -117,23 +118,36 @@
             : null,
     );
 
+    // The card retargets in place — clicking another avatar swaps
+    // profileCardState.userId without remounting — so a slow response can land
+    // on the wrong person. Trust and the action buttons get separate guards:
+    // they run concurrently and neither should supersede the other.
+    const trustRequests = createStaleGuard();
+    const actionRequests = createStaleGuard();
+
     async function loadTrust() {
         userTrust = null;
         if (isSelf || !userId || !isCryptoAvailable()) return;
-        userTrust = await getUserTrust(userId);
+        const target = userId;
+        const outcome = await trustRequests.run(() => getUserTrust(target));
+        // A late verdict for a user the card is no longer showing would paint
+        // one person's verification badge onto another's.
+        if (outcome.status !== "ok" || target !== userId) return;
+        userTrust = outcome.value;
     }
 
-    // Bumped every time the card retargets or closes, so an action still in
-    // flight can tell its result is stale. Comparing user ids at resolve time
-    // instead would not be sticky: A → B → close (or A → B → A) makes the
-    // comparison match again and lets the stale result through. Plain `let`,
-    // not $state — it is only read from async handlers, never from markup.
-    let cardGeneration = 0;
-
-    // Reset transient state whenever the card retargets or closes.
+    // Reset transient state whenever the card retargets or closes. Cancelling
+    // the guards is what stops the previous target's in-flight responses from
+    // writing into the state we just cleared.
+    //
+    // (Item 10 carried an equivalent ad-hoc `cardGeneration` counter here; it
+    // is dropped in favour of the shared createStaleGuard, which the block and
+    // kick/ban handlers on this card already use. Two mechanisms for one job
+    // is how one of them rots.)
     $effect(() => {
         void profileCardState.userId;
-        cardGeneration++;
+        trustRequests.cancel();
+        actionRequests.cancel();
         pending = null;
         confirming = null;
         errorMsg = null;
@@ -150,28 +164,18 @@
     async function startVerifyUser() {
         pending = "verify";
         errorMsg = null;
-        // Same wait as openDM, and the same staleness problem: verifyUser ->
-        // startUserVerification creates a DM if there isn't one, so this can sit
-        // for up to 15s while the card retargets. Pin the generation so A's
-        // result cannot write A's error over B's card or clear B's pending.
-        //
-        // Its own success path is deliberately NOT gated: the verification modal
-        // is opened by verifyUser itself (verification.svelte:100), and by then
-        // the request is already on the other user's device. Suppressing the
-        // modal would strand a live request with no UI to finish it — worse than
-        // a modal the user has to dismiss.
-        const requested = userId;
-        const generation = cardGeneration;
-        const stale = () => generation !== cardGeneration;
-        try {
-            await verifyUser(requested);
-        } catch (e) {
-            if (stale()) return;
+        // verifyUser -> startUserVerification creates a DM if there isn't one,
+        // so this can sit for up to 15s while the card retargets. The guard is
+        // what stops A's error landing on B's card or clearing B's pending.
+        const target = userId;
+        const outcome = await actionRequests.run(() => verifyUser(target));
+        if (outcome.status === "stale") return;
+        pending = null;
+        if (outcome.status === "error") {
             errorMsg =
-                e instanceof Error ? e.message : "Could not start verification";
-        } finally {
-            // Leave the new target's own pending state alone.
-            if (!stale()) pending = null;
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not start verification";
         }
     }
 
@@ -224,51 +228,61 @@
     async function openDM() {
         pending = "message";
         errorMsg = null;
-        // The card is a singleton: it can retarget to another user while this
-        // is in flight, and creating a DM now waits for the new room to reach
-        // the SDK store (up to 15s). The retarget $effect clears `pending` but
-        // cannot cancel the request, so pin the card generation we asked from
-        // and drop a result that lands after the card moved on — otherwise we'd
-        // open the PREVIOUS contact's DM, or show their error, over whoever is
-        // on screen now.
-        const requested = userId;
-        const generation = cardGeneration;
-        const stale = () => generation !== cardGeneration;
-        try {
+        const target = userId;
+        // Captured inside the work callback, NOT from the outcome: `run`
+        // reports "stale" however a superseded call settled, so reading the
+        // room id off the outcome would silently drop the navigation when the
+        // card is dismissed or retargeted mid-create. master navigated
+        // unconditionally and the room exists either way — the user asked for
+        // this person's DM, so take them there. Only the card-local state is
+        // gated on staleness.
+        let createdRoomId: string | undefined;
+        const outcome = await actionRequests.run(async () => {
             const { roomId, followUp } = await createDirectMessage(
-                requested,
+                target,
                 shouldEncryptNewDm({
                     cryptoReady: isCryptoAvailable(),
                     setting: settingsState.encryptNewDms,
                 }),
             );
-            // Surfaced before the staleness bail: a failed m.direct write is an
-            // account-level outcome, not a property of this card's request, so
-            // it must be reported even if the user has moved on.
+            // Surfaced inside the callback, so it reports even on the stale
+            // path: a failed m.direct write is an account-level outcome, not a
+            // property of this card's request.
             surfaceFollowUp(followUp);
-            if (stale()) return;
+            createdRoomId = roomId;
+        });
+        if (createdRoomId !== undefined) {
             closeProfileCard();
-            setActiveRoom(roomId);
-        } catch (e) {
-            if (stale()) return;
-            errorMsg = e instanceof Error ? e.message : "Could not open DM";
-        } finally {
-            // Leave the new target's own pending state alone.
-            if (!stale()) pending = null;
+            setActiveRoom(createdRoomId);
+        }
+        if (outcome.status === "stale") return;
+        // Cleared on the success path too: master's `finally` always cleared
+        // it, and the card is not remounted on close, so a skipped clear would
+        // leave the button spinning the next time this card opens.
+        pending = null;
+        if (outcome.status === "error") {
+            errorMsg =
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not open DM";
         }
     }
 
     async function toggleBlock() {
         pending = "block";
         errorMsg = null;
-        try {
-            if (blocked) await unblockUser(userId);
-            else await blockUser(userId);
-        } catch (e) {
+        const target = userId;
+        const wasBlocked = blocked;
+        const outcome = await actionRequests.run(() =>
+            wasBlocked ? unblockUser(target) : blockUser(target),
+        );
+        if (outcome.status === "stale") return;
+        pending = null;
+        if (outcome.status === "error") {
             errorMsg =
-                e instanceof Error ? e.message : "Could not update block list";
-        } finally {
-            pending = null;
+                outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Could not update block list";
         }
     }
 
@@ -279,16 +293,27 @@
         }
         pending = action;
         errorMsg = null;
-        try {
-            if (action === "kick") await kickUser(room.roomId, userId);
-            else await banUser(room.roomId, userId);
-            closeProfileCard();
-        } catch (e) {
-            errorMsg = e instanceof Error ? e.message : `Could not ${action}`;
-            confirming = null;
-        } finally {
+        const target = userId;
+        const targetRoomId = room.roomId;
+        const outcome = await actionRequests.run(() =>
+            action === "kick"
+                ? kickUser(targetRoomId, target)
+                : banUser(targetRoomId, target),
+        );
+        if (outcome.status === "ok") {
+            // See openDM: master's `finally` always cleared this and the card
+            // is not remounted on close.
             pending = null;
+            closeProfileCard();
+            return;
         }
+        if (outcome.status === "stale") return;
+        pending = null;
+        confirming = null;
+        errorMsg =
+            outcome.error instanceof Error
+                ? outcome.error.message
+                : `Could not ${action}`;
     }
 </script>
 
