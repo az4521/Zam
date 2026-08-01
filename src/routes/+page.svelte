@@ -13,10 +13,11 @@
     } from "$lib/matrix/client";
     import { unregisterPush } from "$lib/push";
     import { clearNativeSession } from "$lib/nativeSession";
-    // `deleteCryptoStore` is deliberately NOT imported here: session expiry must
-    // never wipe the crypto store (user decision, 2026-07-30 — only an explicit
-    // logout does). Item 20's boot retry is still wanted, so it finishes a wipe
-    // that an explicit logout started and IndexedDB blocked.
+    // The crypto-store delete helper is deliberately NOT imported here: session
+    // expiry must never wipe the crypto store (user decision, 2026-07-30 — only
+    // an explicit logout does), and sessionTeardown.test.ts asserts on this
+    // file's source text to keep it that way. The boot retry below IS wanted: it
+    // finishes a wipe that an explicit logout started and IndexedDB blocked.
     import { retryPendingCryptoWipes } from "$lib/matrix/crypto";
     import {
         auth,

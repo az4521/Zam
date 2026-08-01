@@ -221,6 +221,17 @@ import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import {
+    createPendingFollowUps,
+    isRoomGone,
+    runFollowUp,
+    runFollowUpBounded,
+    strandedDmRoom,
+    NO_FOLLOW_UP,
+    type RoomCreationResult,
+    type RoomFollowUp,
+    type RoomFollowUpTask,
+} from "$lib/utils/roomCreationOutcome";
+import {
     ACTIVE_SESSION_KEY,
     buildHeartbeat,
     parseActiveSession,
@@ -232,6 +243,11 @@ import {
 } from "$lib/utils/videoRoom";
 
 export type { ActiveSessionHeartbeat };
+export type {
+    RoomCreationResult,
+    RoomFollowUp,
+    RoomFollowUpTask,
+} from "$lib/utils/roomCreationOutcome";
 export type { RoomNotificationSetting } from "$lib/matrix/pushRules";
 export type {
     ServerNotification,
@@ -338,6 +354,15 @@ async function createAuthenticatedClient(opts: {
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
     mediaUploadSizePromise = null;
+    // NOT dead code. Room-creation follow-ups are remembered per session, and
+    // one sign-out path does NOT reload the page: session expiry
+    // (`handleSessionExpired` in routes/+page.svelte) swaps to the login view
+    // IN PLACE, so the next sign-in runs in this same JS realm. Account A's
+    // stranded DM record would then still be here — and `findDm` keys on the
+    // partner id alone — so account B opening a DM with the same partner would
+    // be handed A's room id, have it written into B's `m.direct`, and be
+    // dropped into a room B cannot open, for the rest of the page session.
+    pendingFollowUps.reset();
 
     const indexedDB = getIndexedDBFactory();
     const store = indexedDB
@@ -4355,13 +4380,79 @@ async function settleCreatedRoom(roomId: string): Promise<void> {
     }
 }
 
+// Follow-ups that failed after their room was already created, kept in memory
+// for the session. Two readers, and only two: `createDirectMessage` looks up a
+// stranded DM so an immediate retry reuses that room instead of creating a
+// second one plus a second invite (the TX-01 duplicate), and `runFollowUp`
+// clears the entry once a retry lands.
+//
+// It does NOT dedupe room creation generally: nothing reads a `space-link`
+// entry back out, so re-running "Create room" after a failed space link still
+// makes a second room. A named room has no dedupe key — two rooms with the same
+// name are a legitimate thing to want — so there is nothing to match on.
+//
+// Exactly ONE registry per module: a per-call one would never see the earlier
+// failure it exists for.
+const pendingFollowUps = createPendingFollowUps();
+
+/**
+ * Write `m.direct` for a DM room.
+ *
+ * `addToMDirect` is what makes this IDEMPOTENT, and idempotence is the whole
+ * reason a retry is safe to offer: this function is re-run by
+ * `retryRoomFollowUp`, and an "unconfirmed" write may already have landed on
+ * the server, so the same (userId, roomId) pair is written twice by design.
+ * Do NOT inline it back to `[...(cur[userId] ?? []), roomId]` — that appends
+ * unconditionally, so every retry grows the list, and a room listed twice in
+ * `m.direct` is a DM shown twice in the sidebar with no way for the user to
+ * clear it. (No unit test guards this; `client.ts` has no test harness.)
+ */
+async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
+        | Record<string, string[]>
+        | undefined;
+    await matrixClient.setAccountData(
+        EventType.Direct,
+        addToMDirect(cur, userId, roomId),
+    );
+}
+
+/** Perform one follow-up write. Both variants are idempotent. */
+async function performFollowUp(task: RoomFollowUpTask): Promise<void> {
+    if (task.kind === "space-link") {
+        await addRoomToSpace(task.spaceId, task.roomId);
+        return;
+    }
+    await writeDmDirectory(task.userId, task.roomId);
+}
+
+/**
+ * Retry ONE follow-up that failed after its room was created — the recovery
+ * path for a partially-successful creation. Never creates a room.
+ *
+ * Bounded, and ONLY here. `setAccountData` awaits the `/sync` remote echo after
+ * its PUT with no timeout of its own (matrix-js-sdk 41), so when sync is wedged
+ * — precisely the condition that failed the write in the first place — an
+ * unbounded retry never resolves: the toast that carried the button has already
+ * expired, so the user is left with no recovery affordance AND no signal.
+ * The first attempt inside createRoom/createDirectMessage is deliberately left
+ * unbounded: it runs while the user is still watching the creation form, and
+ * bounding it would change creation latency behaviour for everyone.
+ */
+export async function retryRoomFollowUp(
+    task: RoomFollowUpTask,
+): Promise<RoomFollowUp> {
+    return runFollowUpBounded(task, performFollowUp, pendingFollowUps);
+}
+
 export async function createRoom(
     name: string,
     topic: string,
     spaceId?: string,
     encrypt = false,
     videoRoom = false,
-): Promise<string> {
+): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error("Not logged in");
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
@@ -4382,7 +4473,18 @@ export async function createRoom(
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
-    if (spaceId) await addRoomToSpace(spaceId, roomId);
+    // The room now EXISTS. A failed space link must not be reported as a
+    // failed creation — that is what makes the user retry into a duplicate.
+    const followUp = spaceId
+        ? await runFollowUp(
+              { kind: "space-link", roomId, spaceId },
+              performFollowUp,
+              pendingFollowUps,
+          )
+        : NO_FOLLOW_UP;
+    // Supersedes a bare getRoom()+scrollback: createRoom is a bare POST, so the
+    // store does not hold this room yet and scrollback would find nothing to
+    // backfill. This waits for it to arrive, configures crypto, then backfills.
     await settleCreatedRoom(roomId);
     // Scheduled AFTER the wait, and that ordering is what makes it safe — do
     // not hoist it. The reconcile diffs the server's joined list against the
@@ -4394,7 +4496,7 @@ export async function createRoom(
     // makes that the exception, not the default. Rare, not impossible: on a
     // NEW_ROOM_SYNC_TIMEOUT_MS timeout getRoom() is still null here.
     scheduleJoinedRoomsReconcile();
-    return roomId;
+    return { roomId, followUp };
 }
 
 export async function createSpace(
@@ -4473,7 +4575,7 @@ export async function searchUserDirectory(
 }
 
 /** In-flight DM creates, keyed by active account + contact. See below. */
-const dmCreatesByUser = createInFlightByKey<string>();
+const dmCreatesByUser = createInFlightByKey<RoomCreationResult>();
 
 /**
  * Open (or reuse) the DM with `userId`.
@@ -4498,7 +4600,7 @@ const dmCreatesByUser = createInFlightByKey<string>();
 export function createDirectMessage(
     userId: string,
     encrypt = false,
-): Promise<string> {
+): Promise<RoomCreationResult> {
     // Keyed by ACTIVE ACCOUNT + contact, never the contact alone. Switching
     // account inside the wait would otherwise let the new account join the old
     // one's create and open a room it is not even a member of. Scoping the key
@@ -4516,7 +4618,7 @@ export function createDirectMessage(
 async function openDirectMessage(
     userId: string,
     encrypt: boolean,
-): Promise<string> {
+): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists. An existing DM keeps its own
     // encryption state — we never change it here (encryption is irreversible).
@@ -4526,7 +4628,40 @@ async function openDirectMessage(
     if (existing?.[userId]?.length) {
         const existingRoomId = existing[userId][0];
         if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
-            return existingRoomId;
+            return { roomId: existingRoomId, followUp: NO_FOLLOW_UP };
+    }
+    // A DM whose m.direct write failed earlier this session is NOT in m.direct,
+    // so the check above cannot see it. Retry that write against the existing
+    // room rather than creating a second room (and a second invite).
+    //
+    // isRoomGone answers "definitively gone", not "usable" — see its own doc
+    // for why an unseen room must NOT count as gone.
+    //
+    // The deliberate trade, stated plainly: if the room really was created but
+    // /sync never delivers it (a correlated server degradation — the same
+    // outage that failed the m.direct write can also stall sync), membership
+    // stays undefined forever, isRoomGone stays false, and every later
+    // createDirectMessage for this partner hands back a room the user cannot
+    // open. They are soft-locked out of DMing that person until they reload,
+    // which drops the registry. That is the right side to err on: the failure
+    // mode is one unusable room in one page session, recovered by a reload,
+    // versus silently minting duplicate rooms and duplicate invites — which is
+    // permanent, visible to the other user, and cannot be undone by a reload.
+    const stranded = strandedDmRoom(pendingFollowUps, userId, (id) =>
+        isRoomGone(matrixClient?.getRoom(id)?.getMyMembership()),
+    );
+    if (stranded) {
+        const followUp = await runFollowUp(
+            stranded,
+            performFollowUp,
+            pendingFollowUps,
+        );
+        // Same warm-up the fresh-creation path does: this room is about to be
+        // opened, and without it the timeline starts empty until /sync fills
+        // it. Best-effort — a failed backfill must not fail the reuse.
+        const room = matrixClient.getRoom(stranded.roomId);
+        if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+        return { roomId: stranded.roomId, followUp };
     }
     const initialState = encryptionInitialState(encrypt);
     const result = await matrixClient.createRoom({
@@ -4540,15 +4675,22 @@ async function openDirectMessage(
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
-    // Update m.direct account data so the room shows in DMs
-    const dmData: Record<string, string[]> = { ...(existing ?? {}) };
-    dmData[userId] = [...(dmData[userId] ?? []), roomId];
-    await matrixClient.setAccountData(EventType.Direct, dmData);
+    // The room and the invite are already on the server. A failed m.direct
+    // write only means the room is not FILED as a DM yet — say exactly that.
+    // Goes through runFollowUp/writeDmDirectory rather than an inline
+    // setAccountData: the inline form appends unconditionally, so a retry lists
+    // the room twice in m.direct and the DM appears twice in the sidebar.
+    const followUp = await runFollowUp(
+        { kind: "dm-account-data", roomId, userId },
+        performFollowUp,
+        pendingFollowUps,
+    );
     // Do not resolve until the room is real and crypto knows about it: the
     // caller opens this room immediately, and the SDK sends PLAINTEXT into a
-    // room it does not yet hold.
+    // room it does not yet hold. Supersedes a bare getRoom()+scrollback for the
+    // same reason as the fresh-creation path above.
     await settleCreatedRoom(roomId);
-    return roomId;
+    return { roomId, followUp };
 }
 
 /**

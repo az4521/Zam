@@ -12,7 +12,9 @@
         kickUser,
         banUser,
         createDirectMessage,
+        retryRoomFollowUp,
     } from "$lib/matrix/client";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { menuGates } from "$lib/utils/callMenu";
     import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -128,6 +130,25 @@
         };
     }
 
+    // A created room whose follow-up write failed (or timed out unconfirmed):
+    // the room is real, so we open it and offer a retry of ONLY the failed
+    // step. Reporting a failure here would send the user back to the form to
+    // create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        // Deliberately silent on success — this store is an ERROR surface (red,
+        // role="alert"), and a landed follow-up is already visible without it:
+        // the DM moves into the DM list.
+        if (followUp.status === "none" || followUp.status === "ok") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
+            // back as its own "unconfirmed" toast instead of hanging forever
+            // with the affordance already expired.
+            run: () => void retryRoomFollowUp(task).then(surfaceFollowUp),
+        });
+    }
+
     // Close before opening the card: openProfileCard() claims the single modal
     // slot, so opening it first and closing afterwards would shut the card.
     const onProfile = (e: MouseEvent) => {
@@ -138,15 +159,15 @@
     const onMessage = act(
         "message",
         async () => {
-            setActiveRoom(
-                await createDirectMessage(
-                    userId,
-                    shouldEncryptNewDm({
-                        cryptoReady: isCryptoAvailable(),
-                        setting: settingsState.encryptNewDms,
-                    }),
-                ),
+            const { roomId, followUp } = await createDirectMessage(
+                userId,
+                shouldEncryptNewDm({
+                    cryptoReady: isCryptoAvailable(),
+                    setting: settingsState.encryptNewDms,
+                }),
             );
+            surfaceFollowUp(followUp);
+            setActiveRoom(roomId);
         },
         "Could not open a direct message",
     );

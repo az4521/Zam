@@ -7,7 +7,10 @@
         knockRoom,
         canAddRoomToSpace,
         getRoom,
+        retryRoomFollowUp,
     } from "$lib/matrix/client";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
@@ -50,6 +53,25 @@
     let notice = $state("");
     let noticeRoomId = $state<string | null>(null);
 
+    // A created room whose follow-up write failed (or timed out unconfirmed):
+    // the room is real, so we open it and offer a retry of ONLY the failed
+    // step. Reporting a failure here would send the user back to the form to
+    // create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        // Deliberately silent on success — this store is an ERROR surface (red,
+        // role="alert"), and a landed follow-up is already visible without it:
+        // the DM moves into the DM list, the room appears in the space.
+        if (followUp.status === "none" || followUp.status === "ok") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
+            // back as its own "unconfirmed" toast instead of hanging forever
+            // with the affordance already expired.
+            run: () => void retryRoomFollowUp(task).then(surfaceFollowUp),
+        });
+    }
+
     async function startDm(userId: string) {
         error = "";
         notice = "";
@@ -60,8 +82,29 @@
                 cryptoReady,
                 setting: encrypt,
             });
-            const roomId = await createDirectMessage(userId, wantEncrypted);
-            if (wantEncrypted && !isRoomEncrypted(getRoom(roomId))) {
+            const { roomId, followUp } = await createDirectMessage(
+                userId,
+                wantEncrypted,
+            );
+            surfaceFollowUp(followUp);
+            // The notice is about REUSING an existing plaintext DM, so it must
+            // only fire when one was actually reused. `status === "none"` is
+            // exactly that signal: the existing-joined-DM early return is
+            // createDirectMessage's ONLY path that skips a follow-up — a fresh
+            // creation and a stranded-room reuse both run one and come back
+            // "ok" or "failed".
+            //
+            // Without that gate a freshly created ENCRYPTED DM tripped it too:
+            // the SDK's createRoom is a bare POST that stores no Room, so
+            // getRoom() is null until /sync and isRoomEncrypted(null) is false.
+            // The user got "you already have an unencrypted DM" while the toast
+            // said the DM had just been created — and the picker stayed open,
+            // the one path on this branch that could still create a second room.
+            if (
+                followUp.status === "none" &&
+                wantEncrypted &&
+                !isRoomEncrypted(getRoom(roomId))
+            ) {
                 notice =
                     "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
                 noticeRoomId = roomId;
@@ -120,14 +163,17 @@
         loading = true;
         try {
             let roomId: string;
+            let followUp: RoomFollowUp = { status: "none" };
             if (mode === "create-room") {
-                roomId = await createRoom(
+                const created = await createRoom(
                     input1.trim(),
                     input2.trim(),
                     spaceId,
                     cryptoReady && encrypt,
                     videoRoom,
                 );
+                roomId = created.roomId;
+                followUp = created.followUp;
             } else if (mode === "create-space") {
                 roomId = await createSpace(input1.trim(), input2.trim());
             } else {
@@ -139,6 +185,7 @@
                 }
                 roomId = await joinRoomByAlias(alias);
             }
+            surfaceFollowUp(followUp);
             setActiveRoom(roomId);
             close();
         } catch (e: any) {

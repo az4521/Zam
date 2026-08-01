@@ -1046,3 +1046,97 @@ describe("deleteCryptoStore", () => {
         expect(readPendingWipes()).toEqual([]);
     });
 });
+
+describe("startUserVerification", () => {
+    // Minimal VerificationRequest stand-in: only what createVerificationController
+    // touches while wrapping it (it calls advance() once, synchronously).
+    function makeRequest() {
+        return {
+            transactionId: "txn-1",
+            phase: 1,
+            verifier: undefined,
+            on: vi.fn(),
+            otherPartySupportsMethod: () => false,
+            otherUserId: "@them:example.org",
+            otherDeviceId: null,
+            isSelfVerification: false,
+            initiatedByMe: true,
+        };
+    }
+
+    function makeVerificationClient(
+        requestVerificationDM: ReturnType<typeof vi.fn>,
+    ) {
+        return {
+            initRustCrypto: h.initRustCrypto,
+            on: vi.fn(),
+            off: vi.fn(),
+            getCrypto: () => ({
+                onCryptoEvent: h.onCryptoEvent,
+                roomEncryptors: h.roomEncryptors,
+                requestVerificationDM,
+            }),
+        };
+    }
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    // The room id, not the whole creation result: createDirectMessage returns
+    // `{roomId, followUp}` since TX-01, and handing that object to the SDK would
+    // silently start verification against a bogus room.
+    it("passes the created room's id to requestVerificationDM", async () => {
+        const requestVerificationDM = vi.fn(() =>
+            Promise.resolve(makeRequest()),
+        );
+        const mod = await import("./crypto");
+        const client = makeVerificationClient(requestVerificationDM);
+        h.getClient.mockReturnValue(client);
+        h.createDirectMessage.mockResolvedValue({
+            roomId: "!dm:example.org",
+            followUp: { status: "ok" },
+        });
+
+        const controller = await mod.startUserVerification("@them:example.org");
+
+        expect(requestVerificationDM).toHaveBeenCalledWith(
+            "@them:example.org",
+            "!dm:example.org",
+        );
+        expect(controller.id).toBe("txn-1");
+    });
+
+    // A failed m.direct write leaves the room unfiled, not unusable — the
+    // verification must still start in it rather than being reported as a
+    // failed creation (which is what makes the user create a duplicate DM).
+    it("still starts verification when the m.direct follow-up failed", async () => {
+        const requestVerificationDM = vi.fn(() =>
+            Promise.resolve(makeRequest()),
+        );
+        const mod = await import("./crypto");
+        const client = makeVerificationClient(requestVerificationDM);
+        h.getClient.mockReturnValue(client);
+        h.createDirectMessage.mockResolvedValue({
+            roomId: "!dm:example.org",
+            followUp: {
+                status: "failed",
+                task: {
+                    kind: "dm-account-data",
+                    roomId: "!dm:example.org",
+                    userId: "@them:example.org",
+                },
+                message: "The direct message was created, but…",
+            },
+        });
+
+        await expect(
+            mod.startUserVerification("@them:example.org"),
+        ).resolves.toBeTruthy();
+        expect(requestVerificationDM).toHaveBeenCalledWith(
+            "@them:example.org",
+            "!dm:example.org",
+        );
+    });
+});

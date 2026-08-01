@@ -917,7 +917,10 @@ export async function startUserVerification(
     if (!crypto) {
         throw new Error("Encryption is not ready on this session");
     }
-    const roomId = await createDirectMessage(userId);
+    // Only the room id matters here — verification rides in the room itself.
+    // A failed m.direct write leaves the room unfiled, not unusable; it stays
+    // pending so the next DM open retries it (see retryRoomFollowUp).
+    const { roomId } = await createDirectMessage(userId);
     const request = await crypto.requestVerificationDM(userId, roomId);
     return createVerificationController(request);
 }

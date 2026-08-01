@@ -21,9 +21,12 @@
         getUserPowerLevel,
         getRoomPowerLevels,
         createDirectMessage,
+        retryRoomFollowUp,
         kickUser,
         banUser,
     } from "$lib/matrix/client";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import {
         presenceDot,
         presenceDotClass,
@@ -199,6 +202,25 @@
         }
     }
 
+    // A created room whose follow-up write failed (or timed out unconfirmed):
+    // the room is real, so we open it and offer a retry of ONLY the failed
+    // step. Reporting a failure here would send the user back to the form to
+    // create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        // Deliberately silent on success — this store is an ERROR surface (red,
+        // role="alert"), and a landed follow-up is already visible without it:
+        // the DM moves into the DM list.
+        if (followUp.status === "none" || followUp.status === "ok") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
+            // back as its own "unconfirmed" toast instead of hanging forever
+            // with the affordance already expired.
+            run: () => void retryRoomFollowUp(task).then(surfaceFollowUp),
+        });
+    }
+
     async function openDM() {
         pending = "message";
         errorMsg = null;
@@ -213,13 +235,17 @@
         const generation = cardGeneration;
         const stale = () => generation !== cardGeneration;
         try {
-            const roomId = await createDirectMessage(
+            const { roomId, followUp } = await createDirectMessage(
                 requested,
                 shouldEncryptNewDm({
                     cryptoReady: isCryptoAvailable(),
                     setting: settingsState.encryptNewDms,
                 }),
             );
+            // Surfaced before the staleness bail: a failed m.direct write is an
+            // account-level outcome, not a property of this card's request, so
+            // it must be reported even if the user has moved on.
+            surfaceFollowUp(followUp);
             if (stale()) return;
             closeProfileCard();
             setActiveRoom(roomId);

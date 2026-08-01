@@ -15,6 +15,17 @@
                 class="pointer-events-auto flex items-center gap-3 max-w-[90vw] sm:max-w-md rounded-lg border-l-4 border-discord-danger bg-discord-backgroundTertiary text-discord-textPrimary text-sm shadow-lg px-4 py-2.5"
             >
                 <span class="min-w-0 break-words">{toast.message}</span>
+                {#if toast.action}
+                    <button
+                        type="button"
+                        class="shrink-0 px-2 py-1 rounded bg-discord-messageHover text-discord-textPrimary text-xs hover:bg-discord-accent hover:text-white transition-colors"
+                        onclick={() => {
+                            const action = toast.action;
+                            dismissToast(toast.id);
+                            action?.run();
+                        }}>{toast.action.label}</button
+                    >
+                {/if}
                 <button
                     class="shrink-0 text-discord-textMuted hover:text-discord-textPrimary transition-colors"
                     onclick={() => dismissToast(toast.id)}

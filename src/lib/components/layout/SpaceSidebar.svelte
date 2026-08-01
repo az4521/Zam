@@ -22,6 +22,7 @@
         getRoomShareLink,
         markRoomAsRead,
         createRoom as createRoomFn,
+        retryRoomFollowUp,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
         type RoomNotificationSetting,
@@ -38,8 +39,10 @@
         hasLoudInSpace,
     } from "$lib/stores/notifications.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { mapWithConcurrency } from "$lib/utils/async";
+    import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
 
     function getSpaceNotifs(
         spaceId: string,
@@ -593,18 +596,38 @@
         exploreOpen = true;
     }
 
+    // A created room whose follow-up write failed (or timed out unconfirmed):
+    // the room is real, so we open it and offer a retry of ONLY the failed
+    // step. Reporting a failure here would send the user back to the form to
+    // create a duplicate (TX-01).
+    function surfaceFollowUp(followUp: RoomFollowUp) {
+        // Deliberately silent on success — this store is an ERROR surface (red,
+        // role="alert"), and a landed follow-up is already visible without it:
+        // the room appears in the space, the DM moves into the DM list.
+        if (followUp.status === "none" || followUp.status === "ok") return;
+        const task = followUp.task;
+        showErrorToast(followUp.message, {
+            label: "Retry",
+            // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
+            // back as its own "unconfirmed" toast instead of hanging forever
+            // with the affordance already expired.
+            run: () => void retryRoomFollowUp(task).then(surfaceFollowUp),
+        });
+    }
+
     async function submitCreateRoom() {
         if (!createRoomModal) return;
         modalError = "";
         modalLoading = true;
         try {
-            const roomId = await createRoomFn(
+            const { roomId, followUp } = await createRoomFn(
                 modalInput1.trim(),
                 modalInput2.trim(),
                 createRoomModal.spaceId,
                 false,
                 modalVideoRoom,
             );
+            surfaceFollowUp(followUp);
             setActiveRoom(roomId);
             closeModal();
         } catch (e: any) {
