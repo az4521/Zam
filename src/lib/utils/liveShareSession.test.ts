@@ -38,4 +38,12 @@ describe("adoptInheritedStop", () => {
         const stop: StopState = { phase: "failed", error: "custom copy" };
         expect(adoptInheritedStop(stop)).toBe(stop);
     });
+
+    it("does not mutate the record it was handed", () => {
+        // The inherited object is aliased by the store's $state map and by
+        // whatever previous-session continuation still holds a reference to it.
+        const stop: StopState = { phase: "stopping", error: null };
+        adoptInheritedStop(stop);
+        expect(stop).toEqual({ phase: "stopping", error: null });
+    });
 });
