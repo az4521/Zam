@@ -12,11 +12,9 @@
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { scrollBehavior } from "$lib/utils/motionPreference";
-    import {
-        clampActiveIndex,
-        nextActiveIndex,
-        optionId,
-    } from "$lib/utils/listboxNavigation";
+    import { nextActiveIndex, optionId } from "$lib/utils/listboxNavigation";
+    import { anchoredActiveIndex } from "$lib/utils/listboxAnchor";
+    import { emojiOptionKeys } from "$lib/utils/pickerOptionKeys";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -44,6 +42,10 @@
     let tabBarEl: HTMLDivElement | undefined = $state();
     let searchEl: HTMLInputElement | undefined = $state();
     let selectedIndex = $state(-1);
+    // The identity of the option `selectedIndex` was placed on. See
+    // `moveCursor` below and utils/listboxAnchor.ts for why an index alone is
+    // not enough.
+    let selectedKey = $state<string | null>(null);
 
     // Unique per mounted instance: the composer can hold a popover picker while
     // the touch drawer holds another, and duplicate DOM ids would silently aim
@@ -138,7 +140,7 @@
     // Reset selection when search changes
     $effect(() => {
         search; // track
-        selectedIndex = -1;
+        moveCursor(-1);
     });
 
     // Flat ordered list of all items for keyboard navigation
@@ -191,6 +193,9 @@
         return items;
     });
 
+    // Identity of every option, in render order — the anchor's key list.
+    const activeKeys = $derived(emojiOptionKeys(flatItems));
+
     // Start index of each section in the flat list
     const sectionOffsets = $derived.by((): Map<string, number> => {
         const offsets = new Map<string, number>();
@@ -211,28 +216,26 @@
         return offsets;
     });
 
-    // `selectedIndex` forced back into range, and nothing more than that. A
-    // custom pack that SHRINKS under an open picker (a sync can rewrite the
-    // room's emote state) leaves the index pointing past the end of the list,
-    // and an out-of-range cursor must read as "nothing active" rather than
-    // steer the keys or the ARIA.
+    // The cursor, but only while the option it was placed on is still sitting
+    // at that index.
     //
-    // What a clamp cannot see is the same list rewritten *within* range: if
-    // that sync instead INSERTS an emoji at the front of a pack, index 40 is
-    // still a real option, so aria-activedescendant goes on naming
-    // `…-option-40` -- an unchanged reference, so nothing is re-announced --
-    // while aria-selected has quietly slid to a different emoji. The cure is
-    // the key anchor in `anchoredActiveIndex` (utils/listboxAnchor.ts), which
-    // GifPicker already uses. It is not applied here yet because it needs
-    // every write to the cursor in this file funnelled through a single setter
-    // that records the emoji's identity next to its index, and one missed
-    // assignment site would leave the cursor permanently and silently dead --
-    // worse, and far more likely, than the residual bug it removes ("Enter
-    // inserts the neighbouring emoji after a rare mid-session pack rewrite",
-    // which is visible on screen and deletable). There is no component-test
-    // harness for this picker to catch a missed site.
+    // A clamp alone rescues a cursor that has fallen OUT of range, which is all
+    // a list needs if it only ever shrinks. It cannot see the same list
+    // rewritten *within* range: if a sync INSERTS an emoji at the front of a
+    // pack, index 40 is still a real option, so aria-activedescendant goes on
+    // naming `…-option-40` -- an unchanged reference, so nothing is
+    // re-announced -- while aria-selected has quietly slid to a different
+    // emoji and Enter inserts it. Anchoring on the emoji's identity makes that
+    // read as "nothing active" instead, which costs one arrow keystroke to
+    // re-enter and never inserts a stranger.
+    //
+    // This only holds while EVERY write to `selectedIndex` goes through
+    // `moveCursor`, which records the identity next to the index. A missed
+    // assignment site leaves the cursor permanently and silently dead, so
+    // `pickerCursorFunnel.test.ts` reads this file and fails if a second
+    // assignment appears.
     const activeIndex = $derived(
-        clampActiveIndex(selectedIndex, flatItems.length),
+        anchoredActiveIndex(selectedIndex, selectedKey, activeKeys),
     );
 
     // True exactly when the box below is really rendering options. The three
@@ -258,7 +261,7 @@
 
     // Auto-reveal lazy section and scroll selected item into view
     $effect(() => {
-        const idx = selectedIndex;
+        const idx = activeIndex;
         if (idx < 0 || idx >= flatItems.length) return;
         const item = flatItems[idx];
 
@@ -330,23 +333,26 @@
         // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
     }
 
+    /** The ONLY place `selectedIndex` may be assigned. See `activeIndex`. */
+    function moveCursor(next: number) {
+        selectedIndex = next;
+        selectedKey = next >= 0 ? (activeKeys[next] ?? null) : null;
+    }
+
     function onSearchKeydown(e: KeyboardEvent) {
         if (e.key === "ArrowDown") {
             e.preventDefault();
-            if (selectedIndex === -1) {
-                if (flatItems.length > 0) selectedIndex = 0;
+            if (activeIndex === -1) {
+                if (flatItems.length > 0) moveCursor(0);
             } else {
-                selectedIndex = Math.min(
-                    selectedIndex + cols,
-                    flatItems.length - 1,
-                );
+                moveCursor(Math.min(activeIndex + cols, flatItems.length - 1));
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            if (selectedIndex < cols) {
-                selectedIndex = -1;
+            if (activeIndex < cols) {
+                moveCursor(-1);
             } else {
-                selectedIndex -= cols;
+                moveCursor(activeIndex - cols);
             }
         } else if (e.key === "ArrowRight" && activeIndex >= 0) {
             // A step of one along the flat list is exactly a listbox's
@@ -354,30 +360,24 @@
             // with `loop: false`, because walking off the last emoji has
             // always stopped there rather than wrapping to the first.
             e.preventDefault();
-            selectedIndex = nextActiveIndex(
-                activeIndex,
-                flatItems.length,
-                "ArrowDown",
-                { loop: false },
+            moveCursor(
+                nextActiveIndex(activeIndex, flatItems.length, "ArrowDown", {
+                    loop: false,
+                }),
             );
         } else if (e.key === "ArrowLeft" && activeIndex >= 0) {
             e.preventDefault();
-            selectedIndex = nextActiveIndex(
-                activeIndex,
-                flatItems.length,
-                "ArrowUp",
-                { loop: false },
+            moveCursor(
+                nextActiveIndex(activeIndex, flatItems.length, "ArrowUp", {
+                    loop: false,
+                }),
             );
         } else if ((e.key === "Home" || e.key === "End") && activeIndex >= 0) {
             // Only once the user is actually navigating the grid: this is an
             // editable text field, so with nothing selected Home/End still
             // belong to the caret and hijacking them would strand it mid-word.
             e.preventDefault();
-            selectedIndex = nextActiveIndex(
-                activeIndex,
-                flatItems.length,
-                e.key,
-            );
+            moveCursor(nextActiveIndex(activeIndex, flatItems.length, e.key));
         } else if (e.key === "Enter" && activeIndex >= 0) {
             // `activeIndex`, like every branch above: a raw `selectedIndex`
             // left past the end by a shrinking pack indexes `undefined` here
@@ -576,12 +576,12 @@
                             title={e.shortcode}
                             id={optionId(listId, globalIdx)}
                             role="option"
-                            aria-selected={selectedIndex === globalIdx}
+                            aria-selected={activeIndex === globalIdx}
                             aria-label={e.shortcode}
                             tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={selectedIndex === globalIdx}
-                            class:ring-discord-accent={selectedIndex ===
+                            class:ring-2={activeIndex === globalIdx}
+                            class:ring-discord-accent={activeIndex ===
                                 globalIdx}
                         >
                             <img
@@ -617,12 +617,12 @@
                             title={e.name}
                             id={optionId(listId, globalIdx)}
                             role="option"
-                            aria-selected={selectedIndex === globalIdx}
+                            aria-selected={activeIndex === globalIdx}
                             aria-label={e.name}
                             tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={selectedIndex === globalIdx}
-                            class:ring-discord-accent={selectedIndex ===
+                            class:ring-2={activeIndex === globalIdx}
+                            class:ring-discord-accent={activeIndex ===
                                 globalIdx}
                         >
                             {@html emojiHtml(e.emoji)}
@@ -658,12 +658,12 @@
                                     title={e.shortcode}
                                     id={optionId(listId, globalIdx)}
                                     role="option"
-                                    aria-selected={selectedIndex === globalIdx}
+                                    aria-selected={activeIndex === globalIdx}
                                     aria-label={e.shortcode}
                                     tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={selectedIndex === globalIdx}
-                                    class:ring-discord-accent={selectedIndex ===
+                                    class:ring-2={activeIndex === globalIdx}
+                                    class:ring-discord-accent={activeIndex ===
                                         globalIdx}
                                 >
                                     <img
@@ -711,12 +711,12 @@
                                     title={e.name}
                                     id={optionId(listId, globalIdx)}
                                     role="option"
-                                    aria-selected={selectedIndex === globalIdx}
+                                    aria-selected={activeIndex === globalIdx}
                                     aria-label={e.name}
                                     tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={selectedIndex === globalIdx}
-                                    class:ring-discord-accent={selectedIndex ===
+                                    class:ring-2={activeIndex === globalIdx}
+                                    class:ring-discord-accent={activeIndex ===
                                         globalIdx}
                                 >
                                     {@html emojiHtml(e.emoji)}
