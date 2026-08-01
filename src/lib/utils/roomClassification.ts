@@ -22,9 +22,20 @@ export interface ClassificationInput<T> {
     rooms: RoomDescriptor<T>[];
     /** Room ids named by `m.direct` account data. */
     directIds: ReadonlySet<string>;
-    /** JOINED spaces only, space id → ordered child room ids. */
+    /**
+     * JOINED spaces only, space id → ordered child room ids. This feeds the
+     * orphan test ONLY: master's `getOrphanRooms` derives its child set from
+     * `getSpaces()`, which is join-filtered, so the children of a space we are
+     * leaving (or were removed from) really are orphans.
+     */
     spaceChildIds: ReadonlyMap<string, readonly string[]>;
-    activeSpaceId: string | null;
+    /**
+     * Ordered child ids of the ACTIVE space, whatever our membership in that
+     * space is — master's `getRoomsInSpace()` gates the children, never the
+     * space itself, so a space you are leaving still lists its rooms until the
+     * view moves away. Empty when nothing is active.
+     */
+    activeSpaceChildIds: readonly string[];
 }
 
 export interface RoomClassification<T> {
@@ -39,7 +50,7 @@ export interface RoomClassification<T> {
 export function classifyRooms<T>(
     input: ClassificationInput<T>,
 ): RoomClassification<T> {
-    const { rooms, directIds, spaceChildIds, activeSpaceId } = input;
+    const { rooms, directIds, spaceChildIds, activeSpaceChildIds } = input;
 
     const childOfSomeSpace = new Set<string>();
     for (const ids of spaceChildIds.values()) {
@@ -70,14 +81,12 @@ export function classifyRooms<T>(
     }
 
     const roomsInSpace: T[] = [];
-    if (activeSpaceId) {
-        for (const id of spaceChildIds.get(activeSpaceId) ?? []) {
-            const d = byId.get(id);
-            if (!d) continue;
-            if (d.isSpace) continue;
-            if (d.membership !== "join" || d.pendingLeave) continue;
-            roomsInSpace.push(d.room);
-        }
+    for (const id of activeSpaceChildIds) {
+        const d = byId.get(id);
+        if (!d) continue;
+        if (d.isSpace) continue;
+        if (d.membership !== "join" || d.pendingLeave) continue;
+        roomsInSpace.push(d.room);
     }
 
     return {

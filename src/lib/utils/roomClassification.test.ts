@@ -34,7 +34,7 @@ describe("classifyRooms", () => {
             rooms: [room("!a:s"), room("!b:s")],
             directIds: new Set(),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.orphanRooms)).toEqual(["!a:s", "!b:s"]);
     });
@@ -48,7 +48,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map([["!sp:s", ["!b:s"]]]),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.orphanRooms)).toEqual(["!a:s"]);
     });
@@ -58,7 +58,7 @@ describe("classifyRooms", () => {
             rooms: [room("!a:s"), room("!dm:s")],
             directIds: new Set(["!dm:s"]),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.orphanRooms)).toEqual(["!a:s"]);
         expect(ids(result.directRooms)).toEqual(["!dm:s"]);
@@ -72,7 +72,7 @@ describe("classifyRooms", () => {
             rooms: [room("!dm:s"), room("!sp:s", { isSpace: true })],
             directIds: new Set(["!dm:s"]),
             spaceChildIds: new Map([["!sp:s", ["!dm:s"]]]),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.directRooms)).toEqual(["!dm:s"]);
         expect(result.orphanRooms).toEqual([]);
@@ -88,7 +88,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map([["!parent:s", ["!sub:s"]]]),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.spaces)).toEqual(["!parent:s", "!sub:s"]);
         expect(result.orphanRooms).toEqual([]);
@@ -99,7 +99,7 @@ describe("classifyRooms", () => {
             rooms: [room("!sp:s", { isSpace: true })],
             directIds: new Set(["!sp:s"]),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(result.directRooms).toEqual([]);
         expect(ids(result.spaces)).toEqual(["!sp:s"]);
@@ -114,7 +114,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(["!dm:s"]),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(result.orphanRooms).toEqual([]);
         expect(result.spaces).toEqual([]);
@@ -129,7 +129,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.invitedRooms)).toEqual(["!i:s"]);
         expect(ids(result.knockedRooms)).toEqual(["!k:s"]);
@@ -143,7 +143,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(result.orphanRooms).toEqual([]);
         expect(result.spaces).toEqual([]);
@@ -161,7 +161,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.invitedRooms)).toEqual(["!isp:s"]);
         expect(ids(result.knockedRooms)).toEqual(["!ksp:s"]);
@@ -187,7 +187,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(["!z-dm:s", "!a-dm:s"]),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(ids(result.spaces)).toEqual(["!z-sp:s", "!a-sp:s"]);
         expect(ids(result.directRooms)).toEqual(["!z-dm:s", "!a-dm:s"]);
@@ -205,7 +205,7 @@ describe("classifyRooms", () => {
             ],
             directIds: new Set(),
             spaceChildIds: new Map([["!sp:s", ["!a:s", "!b:s"]]]),
-            activeSpaceId: "!sp:s",
+            activeSpaceChildIds: ["!a:s", "!b:s"],
         });
         expect(ids(result.roomsInSpace)).toEqual(["!a:s", "!b:s"]);
     });
@@ -226,7 +226,13 @@ describe("classifyRooms", () => {
                     ["!gone:s", "!invited:s", "!leaving:s", "!sub:s", "!ok:s"],
                 ],
             ]),
-            activeSpaceId: "!sp:s",
+            activeSpaceChildIds: [
+                "!gone:s",
+                "!invited:s",
+                "!leaving:s",
+                "!sub:s",
+                "!ok:s",
+            ],
         });
         expect(ids(result.roomsInSpace)).toEqual(["!ok:s"]);
     });
@@ -236,9 +242,44 @@ describe("classifyRooms", () => {
             rooms: [room("!a:s")],
             directIds: new Set(),
             spaceChildIds: new Map([["!sp:s", ["!a:s"]]]),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(result.roomsInSpace).toEqual([]);
+    });
+
+    it("lists the rooms of an active space we are not joined to", () => {
+        // Master's getRoomsInSpace() reads the space's child state directly and
+        // gates only the CHILDREN, so leaving a space (or being removed from it
+        // on another device) does not blank the channel list while it is still
+        // the active space. spaceChildIds is joined-spaces-only and would not
+        // contain this space at all.
+        const result = classifyRooms({
+            rooms: [
+                room("!sp:s", { isSpace: true, pendingLeave: true }),
+                room("!a:s"),
+            ],
+            directIds: new Set(),
+            spaceChildIds: new Map(),
+            activeSpaceChildIds: ["!a:s"],
+        });
+        expect(ids(result.roomsInSpace)).toEqual(["!a:s"]);
+    });
+
+    it("still counts the children of a space we are leaving as orphans", () => {
+        // The other half of the split: master's getOrphanRooms() builds its
+        // child set from getSpaces(), which IS join-filtered, so those same
+        // children are orphans even while the space is on screen. Verified
+        // against master@5016125 getOrphanRooms/getSpaces.
+        const result = classifyRooms({
+            rooms: [
+                room("!sp:s", { isSpace: true, pendingLeave: true }),
+                room("!a:s"),
+            ],
+            directIds: new Set(),
+            spaceChildIds: new Map(),
+            activeSpaceChildIds: ["!a:s"],
+        });
+        expect(ids(result.orphanRooms)).toEqual(["!a:s"]);
     });
 
     it("carries the opaque room object through, not the descriptor", () => {
@@ -247,7 +288,7 @@ describe("classifyRooms", () => {
             rooms: [r],
             directIds: new Set(),
             spaceChildIds: new Map(),
-            activeSpaceId: null,
+            activeSpaceChildIds: [],
         });
         expect(result.orphanRooms[0]).toBe(r.room);
     });

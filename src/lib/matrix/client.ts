@@ -990,9 +990,9 @@ export function getRoomClassification(
         pendingLeave: pendingLeaves.has(r.roomId),
     }));
 
-    // getOrphanRooms/getRoomsInSpace derive their child set from getSpaces(),
-    // which runs through the join + pendingLeaves filter — mirror that here or
-    // a leaving space would keep adopting its children.
+    // getOrphanRooms derives its child set from getSpaces(), which runs through
+    // the join + pendingLeaves filter — mirror that here or a leaving space
+    // would keep adopting its children.
     const spaceChildIds = new Map<string, readonly string[]>();
     for (const d of rooms) {
         if (!d.isSpace || d.membership !== "join" || d.pendingLeave) continue;
@@ -1003,7 +1003,14 @@ export function getRoomClassification(
         rooms,
         directIds: getDirectRoomIds(),
         spaceChildIds,
-        activeSpaceId,
+        // getRoomsInSpace() gates the children, NOT the space, so the active
+        // space's list must not go through the join filter above: a space we
+        // are leaving, or were removed from elsewhere, keeps listing its rooms
+        // until the view moves away. Costs one extra child-list read (memoized)
+        // when the active space is not joined.
+        activeSpaceChildIds: activeSpaceId
+            ? getSpaceChildIds(activeSpaceId)
+            : [],
     });
 }
 
