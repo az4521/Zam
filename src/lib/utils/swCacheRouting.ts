@@ -50,6 +50,15 @@ export function classifyRequest(input: ClassifyInput): FetchKind {
     }
     if (parsed.origin !== input.appOrigin) return "bypass";
 
+    // Before the navigate check, deliberately. `mode === "navigate"` is also
+    // true for <iframe>/<frame>/<embed>/<object>, and the worker's media-auth
+    // branch admits exactly those destinations — so against a same-origin
+    // homeserver a sub-resource navigation to a `/_matrix/` URL would be
+    // claimed as a document, lose its Authorization header (401) and, once the
+    // network failed, be answered with the cached index.html. Nothing under
+    // `/_matrix/` is ever ours, whatever shape the request arrives in.
+    if (parsed.pathname.includes("/_matrix/")) return "bypass";
+
     // `mode` is the reliable signal; `destination` covers the browsers that
     // report a document fetch without navigate mode.
     if (input.mode === "navigate" || input.destination === "document")

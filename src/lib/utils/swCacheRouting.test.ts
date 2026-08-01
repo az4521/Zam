@@ -139,6 +139,34 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        // `mode: "navigate"` is also what an <iframe>/<frame>/<embed>/<object>
+        // sub-resource sends, and the worker's media-auth branch admits exactly
+        // those destinations. Against a same-origin homeserver such a request
+        // would otherwise be claimed as a document: stripped of its
+        // Authorization header (401) and, offline, answered with the cached app
+        // shell at a /_matrix/ URL. The /_matrix/ check must therefore come
+        // BEFORE the navigate check.
+        name: "a navigation to a /_matrix/ url is still not ours",
+        input: req({
+            mode: "navigate",
+            destination: "document",
+            url: `${ORIGIN}/_matrix/client/v1/media/download/x/y`,
+        }),
+        expected: "bypass",
+    },
+    {
+        // Pins the ORDER of the navigate and asset checks: swapping them would
+        // make this cache-first, so a document response would be `cache.put()`
+        // under a build-asset URL. Documents are network-first, always.
+        name: "a navigation whose path looks like a build asset is still a navigation",
+        input: req({
+            mode: "navigate",
+            destination: "document",
+            url: `${ORIGIN}/_app/immutable/entry/app.js`,
+        }),
+        expected: "navigate",
+    },
+    {
         name: "the worker script itself",
         input: req({ url: `${ORIGIN}/sw.js`, destination: "" }),
         expected: "bypass",

@@ -18,6 +18,11 @@ const APP_ORIGIN = self.location.origin;
 //     activate. `reloadToLatest()` in src/lib/update.ts keeps working: its
 //     `fetch(location.href, {cache:"reload"})` is not a navigation request and
 //     is classified `bypass`.
+//   Cost — the runtime asset cache is version-scoped (`zam-shell-<version>`),
+//     so a warmed one holds roughly 6 MB PER BUILD (the 5.5 MB crypto WASM is
+//     served from `/_app/immutable/assets/` and is cached on demand like any
+//     other asset), and every deploy discards it: a frequent deployer gets a
+//     cold offline shell again after each one.
 //
 // The two constants below are replaced, quotes included, by the
 // `zam-sw-precache` Vite plugin in vite.config.ts. In dev this file is served
@@ -45,6 +50,14 @@ function swClassifyRequest(input) {
 		return "bypass";
 	}
 	if (parsed.origin !== input.appOrigin) return "bypass";
+	// Before the navigate check, deliberately. `mode === "navigate"` is also
+	// true for <iframe>/<frame>/<embed>/<object>, and this worker's media-auth
+	// branch admits exactly those destinations — so against a same-origin
+	// homeserver a sub-resource navigation to a `/_matrix/` URL would be
+	// claimed as a document, lose its Authorization header (401) and, once the
+	// network failed, be answered with the cached index.html. Nothing under
+	// `/_matrix/` is ever ours, whatever shape the request arrives in.
+	if (parsed.pathname.includes("/_matrix/")) return "bypass";
 	if (input.mode === "navigate" || input.destination === "document")
 		return "navigate";
 	// `startsWith`, never `includes`: the prefix must open the path, or a
@@ -92,13 +105,54 @@ function swIsStaleShellCache(name, currentName) {
 }
 // #endregion mirrored:swCacheRouting
 
+// Is there a Cache API at all? Firefox private browsing has historically
+// thrown SecurityError on the `caches` PROPERTY ACCESS (not just on open()),
+// and Chrome throws when the user blocks all site data — so even `typeof
+// caches` can throw here. Unguarded at module scope that would kill the whole
+// worker, push included, which is the one thing offline support may never
+// break. Any failure just means "no offline this session".
+function swCacheApiAvailable() {
+	try {
+		return typeof caches !== "undefined" && caches !== null;
+	} catch (e) {
+		return false;
+	}
+}
+
 const SW_PRECACHE_URLS = swParsePrecacheManifest(SW_PRECACHE_MANIFEST_JSON);
 // Both halves must be injected. A version left as the placeholder would make
 // swShellCacheName() return a garbage name that the activate sweep would then
 // treat as "current", deleting every real shell cache on every start.
 const SW_OFFLINE_ENABLED =
-	SW_PRECACHE_URLS !== null && !SW_SHELL_VERSION.startsWith("__SW_");
+	swCacheApiAvailable() &&
+	SW_PRECACHE_URLS !== null &&
+	!SW_SHELL_VERSION.startsWith("__SW_");
 const SW_SHELL_CACHE = swShellCacheName(SW_SHELL_VERSION);
+
+// #region mirrored:swOfflineRuntime
+// The four functions that actually touch the Cache API. Each takes its ambient
+// dependencies through an optional `deps` bag — `caches`, `fetch`, the cache
+// name, the precache list — so the call sites below pass nothing (the
+// fallbacks bind the real globals) while swOfflineShell.mirrors.test.ts can
+// EXECUTE this region in isolation against a fake Cache API. Regex-spotting
+// these four is worthless: swapping `status === 200` for `response.ok` or
+// dropping a `.catch()` changes real behaviour and no source assertion notices.
+//
+// The fallbacks are read per call and, where the Cache API is concerned,
+// INSIDE the try — never in a parameter default. A parameter default that
+// throws rejects an async function's promise just like a body throw, and a
+// rejected promise handed to event.respondWith() is a NetworkError the browser
+// does NOT retry on the network.
+
+// Install must not hang: ~17 `cache: "reload"` fetches sit inside waitUntil,
+// and a single stalled connection would hold install open until the browser's
+// own event timeout rejects it. A failed install on a FIRST registration means
+// no active worker at all — no web push. Same Promise.race idiom as
+// shouldStayQuiet() below. Second-order: initServiceWorker() (client.ts) awaits
+// navigator.serviceWorker.ready before posting SET_AUTH, so a slow precache
+// widens the window where authenticated media requests carry no token and
+// <img> elements 401.
+const SW_PRECACHE_TIMEOUT_MS = 15000;
 
 /**
  * Fill the shell cache on install.
@@ -112,14 +166,19 @@ const SW_SHELL_CACHE = swShellCacheName(SW_SHELL_VERSION);
  * `cache: "reload"` on each request bypasses the HTTP cache so we cannot bake
  * a stale copy of the shell we just deployed.
  */
-async function swPrecacheShell() {
+async function swPrecacheShell(deps = {}) {
 	try {
-		const cache = await caches.open(SW_SHELL_CACHE);
-		await Promise.all(
-			SW_PRECACHE_URLS.map((url) =>
-				cache.add(new Request(url, { cache: "reload" })).catch(() => {}),
+		const cacheStorage = deps.caches || caches;
+		const urls = deps.urls || SW_PRECACHE_URLS;
+		const cache = await cacheStorage.open(deps.cacheName || SW_SHELL_CACHE);
+		await Promise.race([
+			Promise.all(
+				urls.map((url) =>
+					cache.add(new Request(url, { cache: "reload" })).catch(() => {}),
+				),
 			),
-		);
+			new Promise((resolve) => setTimeout(resolve, SW_PRECACHE_TIMEOUT_MS)),
+		]);
 	} catch (e) {
 		// No Cache API, quota exhausted, private mode — offline is simply
 		// unavailable this session. Never fatal.
@@ -127,13 +186,15 @@ async function swPrecacheShell() {
 }
 
 /** Drop shell caches from previous builds. Prefix-scoped: never touches a cache we did not create. */
-async function swSweepStaleCaches() {
+async function swSweepStaleCaches(deps = {}) {
 	try {
-		const names = await caches.keys();
+		const cacheStorage = deps.caches || caches;
+		const currentName = deps.cacheName || SW_SHELL_CACHE;
+		const names = await cacheStorage.keys();
 		await Promise.all(
 			names
-				.filter((name) => swIsStaleShellCache(name, SW_SHELL_CACHE))
-				.map((name) => caches.delete(name).catch(() => {})),
+				.filter((name) => swIsStaleShellCache(name, currentName))
+				.map((name) => cacheStorage.delete(name).catch(() => {})),
 		);
 	} catch (e) {
 		/* nothing to sweep */
@@ -146,21 +207,35 @@ async function swSweepStaleCaches() {
  * user always gets the freshly deployed index.html.
  *
  * This path READS the cache and never writes to it — deliberately. A
- * same-origin document navigation to a `/_matrix/…` URL classifies `navigate`,
- * so this is the last route by which a `/_matrix/` response could land in the
- * Cache API. No `cache.put()` here means it never can.
+ * same-origin document navigation classifies `navigate`, so leaving out
+ * `cache.put()` is what keeps a document response out of the Cache API.
  */
-async function swNavigateNetworkFirst(request) {
+async function swNavigateNetworkFirst(request, deps = {}) {
+	const doFetch = deps.fetch || fetch;
 	try {
-		return await fetch(request);
+		return await doFetch(request);
 	} catch (err) {
-		const cache = await caches.open(SW_SHELL_CACHE).catch(() => null);
+		let cache = null;
+		try {
+			cache = await (deps.caches || caches).open(
+				deps.cacheName || SW_SHELL_CACHE,
+			);
+		} catch (e) {
+			cache = null;
+		}
 		if (!cache) throw err;
+		// `ignoreVary` on both lookups: the shell was precached by a WORKER
+		// fetch, which sends `Accept: */*`, while a real navigation sends
+		// `Accept: text/html,…`. A host that answers with `Vary: Accept` would
+		// make both matches miss and offline support would silently do nothing
+		// — the user just gets the browser's error page.
 		const cached =
 			(await cache
-				.match(request, { ignoreSearch: true })
+				.match(request, { ignoreSearch: true, ignoreVary: true })
 				.catch(() => null)) ||
-			(await cache.match(SW_NAVIGATION_FALLBACK_URL).catch(() => null));
+			(await cache
+				.match(SW_NAVIGATION_FALLBACK_URL, { ignoreVary: true })
+				.catch(() => null));
 		if (cached) return cached;
 		throw err;
 	}
@@ -172,19 +247,53 @@ async function swNavigateNetworkFirst(request) {
  * cold offline start work after one online session without precaching the
  * 48.7 MB build.
  */
-async function swAssetCacheFirst(request) {
-	const cache = await caches.open(SW_SHELL_CACHE).catch(() => null);
-	if (!cache) return fetch(request);
+async function swAssetCacheFirst(request, deps = {}) {
+	const doFetch = deps.fetch || fetch;
+	// The `caches` read lives inside the try, and the try catches a THROW as
+	// well as a rejection: Firefox private browsing has thrown SecurityError on
+	// the property access itself and Chrome throws when all site data is
+	// blocked. `await caches.open(…).catch(() => null)` only handles the
+	// rejection; a synchronous throw would reject this function's promise,
+	// event.respondWith() would turn that into a NetworkError, and the browser
+	// does NOT then fall back to the network — every build asset would fail and
+	// the user would get a white screen on a perfectly good connection.
+	let cache = null;
+	try {
+		cache = await (deps.caches || caches).open(
+			deps.cacheName || SW_SHELL_CACHE,
+		);
+	} catch (e) {
+		cache = null;
+	}
+	if (!cache) return doFetch(request);
 	const hit = await cache.match(request).catch(() => null);
 	if (hit) return hit;
-	const response = await fetch(request);
-	// 200-only: a 206 partial or an opaque cross-origin response must never be
-	// stored as if it were the whole asset.
-	if (response && response.status === 200 && response.type === "basic") {
+	const response = await doFetch(request);
+	// Store only a complete, first-party, non-HTML 200. A 206 partial or an
+	// opaque cross-origin response must never stand in for the whole asset —
+	// and neither must HTML: this app is adapter-static with
+	// `fallback: index.html`, so the HOST answers an unknown path with
+	// index.html and a 200 text/html. During a non-atomic deploy, or behind a
+	// stale CDN edge, a current-hash `/_app/immutable/x.js` can briefly miss
+	// and get that fallback; storing it would serve HTML for that chunk for the
+	// rest of this cache version's life, and no reload can clear it (cache-first
+	// never re-asks). An `/_app/immutable/` asset is never HTML, and a
+	// redirected response is by definition not the URL we asked for.
+	const contentType =
+		(response && response.headers && response.headers.get("Content-Type")) ||
+		"";
+	if (
+		response &&
+		response.status === 200 &&
+		response.type === "basic" &&
+		!response.redirected &&
+		!contentType.trim().toLowerCase().startsWith("text/html")
+	) {
 		cache.put(request, response.clone()).catch(() => {});
 	}
 	return response;
 }
+// #endregion mirrored:swOfflineRuntime
 
 /**
  * The offline layer's entry point. Returns null — never a Response, never a
