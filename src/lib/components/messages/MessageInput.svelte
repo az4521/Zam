@@ -76,6 +76,7 @@
     import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
 
     interface Props {
         roomId: string;
@@ -1075,7 +1076,7 @@
                     e.key === "PageUp"
                         ? -scrollEl.clientHeight * 0.85
                         : scrollEl.clientHeight * 0.85,
-                behavior: "smooth",
+                behavior: scrollBehavior(),
             });
         }
 

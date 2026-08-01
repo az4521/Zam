@@ -11,6 +11,10 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
+    import { nextActiveIndex, optionId } from "$lib/utils/listboxNavigation";
+    import { anchoredActiveIndex } from "$lib/utils/listboxAnchor";
+    import { emojiOptionKeys } from "$lib/utils/pickerOptionKeys";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -38,6 +42,16 @@
     let tabBarEl: HTMLDivElement | undefined = $state();
     let searchEl: HTMLInputElement | undefined = $state();
     let selectedIndex = $state(-1);
+    // The identity of the option `selectedIndex` was placed on. See
+    // `moveCursor` below and utils/listboxAnchor.ts for why an index alone is
+    // not enough.
+    let selectedKey = $state<string | null>(null);
+
+    // Unique per mounted instance: the composer can hold a popover picker while
+    // the touch drawer holds another, and duplicate DOM ids would silently aim
+    // one instance's aria-controls / aria-activedescendant at the other's
+    // elements.
+    const listId = $props.id();
 
     // Responsive columns: fit as many ~40px cells as the width allows, so
     // widening the panel shows MORE emojis instead of spreading 6 apart.
@@ -69,7 +83,7 @@
             `[data-tabid="${activeTab}"]`,
         );
         btn?.scrollIntoView({
-            behavior: "smooth",
+            behavior: scrollBehavior(),
             inline: "nearest",
             block: "nearest",
         });
@@ -126,7 +140,7 @@
     // Reset selection when search changes
     $effect(() => {
         search; // track
-        selectedIndex = -1;
+        moveCursor(-1);
     });
 
     // Flat ordered list of all items for keyboard navigation
@@ -179,6 +193,9 @@
         return items;
     });
 
+    // Identity of every option, in render order — the anchor's key list.
+    const activeKeys = $derived(emojiOptionKeys(flatItems));
+
     // Start index of each section in the flat list
     const sectionOffsets = $derived.by((): Map<string, number> => {
         const offsets = new Map<string, number>();
@@ -199,9 +216,56 @@
         return offsets;
     });
 
+    // The cursor, but only while the option it was placed on is still sitting
+    // at that index.
+    //
+    // A clamp alone rescues a cursor that has fallen OUT of range, which is all
+    // a list needs if it only ever shrinks. It cannot see the same list
+    // rewritten *within* range: if a sync INSERTS an emoji at the front of a
+    // pack, index 40 is still a real option, so aria-activedescendant goes on
+    // naming `…-option-40` -- an unchanged reference, so nothing is
+    // re-announced -- while aria-selected has quietly slid to a different
+    // emoji and Enter inserts it. Anchoring on the emoji's identity makes that
+    // read as "nothing active" instead, which bounces the cursor to the top of
+    // the list on the next arrow key and never inserts a stranger.
+    //
+    // This only holds while EVERY write to `selectedIndex` goes through
+    // `moveCursor`, which records the identity next to the index. A missed
+    // assignment site leaves a stale key beside a fresh index, which reads as
+    // "nothing active": Left, Right, Home, End and Enter all no-op, and the
+    // next ArrowDown re-enters at 0, yanking whoever was mid-navigation back
+    // to the top of the list. The next `moveCursor` re-keys, so it does heal
+    // -- but it heals silently, and no other test in the suite can see it,
+    // which is why `pickerCursorFunnel.test.ts` reads this file and fails if
+    // a second assignment appears.
+    const activeIndex = $derived(
+        anchoredActiveIndex(selectedIndex, selectedKey, activeKeys),
+    );
+
+    // True exactly when the box below is really rendering options. The three
+    // claims that a popup exists -- the container's `listbox` role and the
+    // combobox's aria-expanded / aria-controls -- all read this one value, so
+    // they cannot drift apart. With no options the container is a plain div,
+    // which is what lets its "No results" text be read as ordinary page
+    // content instead of a non-`option` child of a listbox that browse mode
+    // routinely drops.
+    const hasOptions = $derived(flatItems.length > 0);
+
+    // aria-activedescendant may only name an element that is really in the DOM.
+    // A selected emoji whose section the lazy reveal has not rendered yet has
+    // no option element, so report nothing active until the effect below
+    // reveals it -- one flush later -- rather than emit a dangling reference.
+    // Search results are never lazy, so in search mode the id always resolves.
+    const activeOptionId = $derived.by(() => {
+        if (activeIndex < 0) return undefined;
+        if (!search && !revealedSections.has(flatItems[activeIndex].sectionId))
+            return undefined;
+        return optionId(listId, activeIndex);
+    });
+
     // Auto-reveal lazy section and scroll selected item into view
     $effect(() => {
-        const idx = selectedIndex;
+        const idx = activeIndex;
         if (idx < 0 || idx >= flatItems.length) return;
         const item = flatItems[idx];
 
@@ -232,7 +296,10 @@
             `[data-section="${id}"]`,
         );
         if (el)
-            scrollEl.scrollTo({ top: el.offsetTop - 4, behavior: "smooth" });
+            scrollEl.scrollTo({
+                top: el.offsetTop - 4,
+                behavior: scrollBehavior(),
+            });
     }
 
     function onScroll() {
@@ -270,33 +337,63 @@
         // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
     }
 
+    /** The ONLY place `selectedIndex` may be assigned. See `activeIndex`.
+     *
+     *  Reads the `activeKeys` `$derived`, so this belongs in event handlers: a
+     *  `next >= 0` call from inside a tracked `$effect` would silently give
+     *  that effect `activeKeys -> flatItems -> search` as dependencies. (The
+     *  search-reset effect gets away with it only because `-1` short-circuits
+     *  the read.) Wrap in `untrack` if an effect ever genuinely needs this. */
+    function moveCursor(next: number) {
+        selectedIndex = next;
+        selectedKey = next >= 0 ? (activeKeys[next] ?? null) : null;
+    }
+
     function onSearchKeydown(e: KeyboardEvent) {
         if (e.key === "ArrowDown") {
             e.preventDefault();
-            if (selectedIndex === -1) {
-                if (flatItems.length > 0) selectedIndex = 0;
+            if (activeIndex === -1) {
+                if (flatItems.length > 0) moveCursor(0);
             } else {
-                selectedIndex = Math.min(
-                    selectedIndex + cols,
-                    flatItems.length - 1,
-                );
+                moveCursor(Math.min(activeIndex + cols, flatItems.length - 1));
             }
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            if (selectedIndex < cols) {
-                selectedIndex = -1;
+            if (activeIndex < cols) {
+                moveCursor(-1);
             } else {
-                selectedIndex -= cols;
+                moveCursor(activeIndex - cols);
             }
-        } else if (e.key === "ArrowRight" && selectedIndex >= 0) {
+        } else if (e.key === "ArrowRight" && activeIndex >= 0) {
+            // A step of one along the flat list is exactly a listbox's
+            // ArrowDown, so the horizontal keys borrow that arithmetic --
+            // with `loop: false`, because walking off the last emoji has
+            // always stopped there rather than wrapping to the first.
             e.preventDefault();
-            if (selectedIndex + 1 < flatItems.length) selectedIndex++;
-        } else if (e.key === "ArrowLeft" && selectedIndex >= 0) {
+            moveCursor(
+                nextActiveIndex(activeIndex, flatItems.length, "ArrowDown", {
+                    loop: false,
+                }),
+            );
+        } else if (e.key === "ArrowLeft" && activeIndex >= 0) {
             e.preventDefault();
-            if (selectedIndex > 0) selectedIndex--;
-        } else if (e.key === "Enter" && selectedIndex >= 0) {
+            moveCursor(
+                nextActiveIndex(activeIndex, flatItems.length, "ArrowUp", {
+                    loop: false,
+                }),
+            );
+        } else if ((e.key === "Home" || e.key === "End") && activeIndex >= 0) {
+            // Only once the user is actually navigating the grid: this is an
+            // editable text field, so with nothing selected Home/End still
+            // belong to the caret and hijacking them would strand it mid-word.
             e.preventDefault();
-            const item = flatItems[selectedIndex];
+            moveCursor(nextActiveIndex(activeIndex, flatItems.length, e.key));
+        } else if (e.key === "Enter" && activeIndex >= 0) {
+            // `activeIndex`, like every branch above: a raw `selectedIndex`
+            // left past the end by a shrinking pack indexes `undefined` here
+            // and throws on `.kind`, aborting the handler mid-keystroke.
+            e.preventDefault();
+            const item = flatItems[activeIndex];
             if (item.kind === "custom") pickCustom(item.data);
             else pick(item.data.emoji);
         }
@@ -383,6 +480,12 @@
             bind:value={search}
             placeholder="Search emoji…"
             onkeydown={onSearchKeydown}
+            role="combobox"
+            aria-label="Search emoji"
+            aria-expanded={hasOptions}
+            aria-controls={hasOptions ? `${listId}-listbox` : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={activeOptionId}
             class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
@@ -441,10 +544,20 @@
         </div>
     {/if}
 
-    <!-- Scrollable area -->
+    <!-- Scrollable area. One listbox owns every section: `role="group"` is a
+         legal child of a listbox, so the four grids stay one navigable list
+         instead of four listboxes the virtual cursor could not cross.
+         The role is dropped when there is nothing to navigate -- a search that
+         matches no emoji -- so the "No results" line inside is a paragraph in
+         the page rather than a stray non-`option` child of a listbox, and the
+         combobox stops advertising an expanded popup it cannot fill. The `id`
+         stays unconditional; only aria-controls is dropped alongside. -->
     <div
         bind:this={scrollEl}
         onscroll={onScroll}
+        id="{listId}-listbox"
+        role={hasOptions ? "listbox" : undefined}
+        aria-label={hasOptions ? "Emoji" : undefined}
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
         {#if search}
@@ -461,6 +574,8 @@
                 </p>
                 <div
                     class="grid gap-1 mb-2"
+                    role="group"
+                    aria-label="Custom"
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchCustom as e, li (e.packId + ":" + e.shortcode)}
@@ -470,9 +585,14 @@
                             data-item-index={globalIdx}
                             onclick={() => pickCustom(e)}
                             title={e.shortcode}
+                            id={optionId(listId, globalIdx)}
+                            role="option"
+                            aria-selected={activeIndex === globalIdx}
+                            aria-label={e.shortcode}
+                            tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={selectedIndex === globalIdx}
-                            class:ring-discord-accent={selectedIndex ===
+                            class:ring-2={activeIndex === globalIdx}
+                            class:ring-discord-accent={activeIndex ===
                                 globalIdx}
                         >
                             <img
@@ -495,6 +615,8 @@
                 {/if}
                 <div
                     class="grid gap-1"
+                    role="group"
+                    aria-label="Standard"
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchStandard as e, li (e.name)}
@@ -504,9 +626,14 @@
                             data-item-index={globalIdx}
                             onclick={() => pick(e.emoji)}
                             title={e.name}
+                            id={optionId(listId, globalIdx)}
+                            role="option"
+                            aria-selected={activeIndex === globalIdx}
+                            aria-label={e.name}
+                            tabindex="-1"
                             class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={selectedIndex === globalIdx}
-                            class:ring-discord-accent={selectedIndex ===
+                            class:ring-2={activeIndex === globalIdx}
+                            class:ring-discord-accent={activeIndex ===
                                 globalIdx}
                         >
                             {@html emojiHtml(e.emoji)}
@@ -527,6 +654,10 @@
                     {#if revealedSections.has(pack.id)}
                         <div
                             class="grid gap-1 mb-2"
+                            role="group"
+                            aria-label={pack.id === "user"
+                                ? "My Emojis"
+                                : pack.name}
                             style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                         >
                             {#each pack.emojis as e, li (pack.id + ":" + e.shortcode)}
@@ -536,9 +667,14 @@
                                     data-item-index={globalIdx}
                                     onclick={() => pickCustom(e)}
                                     title={e.shortcode}
+                                    id={optionId(listId, globalIdx)}
+                                    role="option"
+                                    aria-selected={activeIndex === globalIdx}
+                                    aria-label={e.shortcode}
+                                    tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={selectedIndex === globalIdx}
-                                    class:ring-discord-accent={selectedIndex ===
+                                    class:ring-2={activeIndex === globalIdx}
+                                    class:ring-discord-accent={activeIndex ===
                                         globalIdx}
                                 >
                                     <img
@@ -573,6 +709,8 @@
                     {#if revealedSections.has(cat.id)}
                         <div
                             class="grid gap-1 mb-2"
+                            role="group"
+                            aria-label={cat.name}
                             style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                         >
                             {#each cat.emojis as e, li (e.name)}
@@ -582,9 +720,14 @@
                                     data-item-index={globalIdx}
                                     onclick={() => pick(e.emoji)}
                                     title={e.name}
+                                    id={optionId(listId, globalIdx)}
+                                    role="option"
+                                    aria-selected={activeIndex === globalIdx}
+                                    aria-label={e.name}
+                                    tabindex="-1"
                                     class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={selectedIndex === globalIdx}
-                                    class:ring-discord-accent={selectedIndex ===
+                                    class:ring-2={activeIndex === globalIdx}
+                                    class:ring-discord-accent={activeIndex ===
                                         globalIdx}
                                 >
                                     {@html emojiHtml(e.emoji)}

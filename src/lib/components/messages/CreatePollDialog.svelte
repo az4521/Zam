@@ -137,7 +137,7 @@
                 <button
                     type="button"
                     onclick={addAnswer}
-                    class="self-start mt-1 text-sm font-medium text-discord-accent hover:text-discord-accentHover transition-colors"
+                    class="self-start mt-1 text-sm font-medium text-discord-accent hover:text-discord-accentHover hover:underline transition-colors"
                 >
                     + Add option
                 </button>

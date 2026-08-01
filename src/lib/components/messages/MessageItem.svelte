@@ -121,6 +121,7 @@
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -895,7 +896,12 @@
         editText = body();
         isEditing = true;
         tick().then(() => {
-            rootEl?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            // `scrollBehavior()` rather than a hardcoded "smooth": item 18 made
+            // programmatic scrolling honour prefers-reduced-motion.
+            rootEl?.scrollIntoView({
+                behavior: scrollBehavior(),
+                block: "nearest",
+            });
             // The action bar is `display:none` while `isEditing` (it must not
             // stay pinned open for the whole edit session), so activating Edit
             // from the keyboard unmounts the very button that holds focus and

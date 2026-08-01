@@ -1356,11 +1356,13 @@
 
 {#if !auth.isAuthenticated}
     <div
+        role="status"
         class="flex items-center justify-center bg-discord-backgroundTertiary"
         style="min-height: 100dvh;"
     >
         <div class="flex items-center gap-3 text-discord-textMuted">
             <div
+                aria-hidden="true"
                 class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
             ></div>
             <span>Redirecting…</span>
@@ -1376,6 +1378,8 @@
         <!-- Sync state banner -->
         {#if auth.syncState !== "PREPARED" && auth.syncState !== "SYNCING"}
             <div
+                role="status"
+                aria-live="polite"
                 class="absolute top-0 left-0 right-0 z-50 bg-discord-warning/90 text-discord-backgroundTertiary text-sm font-medium text-center py-1.5"
             >
                 {#if auth.syncState === "ERROR"}

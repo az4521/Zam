@@ -13,6 +13,7 @@
         getLatestTimelineEvent,
         onTimelineEvent,
         onEventDecrypted,
+        onDecryptedTimelineEvent,
         onLocalEchoUpdated,
         onSyncPrepared,
         onReactionEvent,
@@ -103,6 +104,14 @@
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
+    import {
+        ANNOUNCE_DEBOUNCE_MS,
+        EMPTY_ANNOUNCER,
+        drainAnnouncement,
+        recordArrival,
+        shouldAnnounceDecrypted,
+    } from "$lib/utils/liveAnnouncer";
 
     // Shared empty list for the avatars-off path — one allocation instead of a
     // fresh [] per message. Taking this branch also means receiptTick is never
@@ -335,7 +344,10 @@
         stopScrollIntoView();
         intervalId = setInterval(
             () =>
-                target.scrollIntoView({ behavior: "smooth", block: "center" }),
+                target.scrollIntoView({
+                    behavior: scrollBehavior(),
+                    block: "center",
+                }),
             50,
         );
         target.classList.remove("message-highlight");
@@ -843,6 +855,50 @@
         }
     }
 
+    // Screen-reader announcer for arriving messages (A11Y-06). $state.raw: the
+    // reducer replaces the value wholesale and signals "nothing to say" by
+    // returning the identical object — a deep proxy would break that identity
+    // check and restart the debounce timer forever.
+    let announcerState = $state.raw(EMPTY_ANNOUNCER);
+    let announcement = $state("");
+    let announceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Queue one live arrival for the polite region below the timeline. Called
+    // from SDK subscription callbacks, NOT from an `$effect`: an effect that
+    // both read and wrote this state would re-enter itself.
+    function queueArrivalAnnouncement(event: MatrixEvent) {
+        const arrivedBody = event.getContent()?.body;
+        const next = recordArrival(announcerState, {
+            eventId: event.getId() ?? "",
+            sender: event.sender?.name ?? event.getSender() ?? "Someone",
+            isOwn: event.getSender() === auth.userId,
+            // showAllEvents lets non-message events through, where `body` may
+            // be missing or not a string.
+            body: typeof arrivedBody === "string" ? arrivedBody : "",
+        });
+        // Identity check, not equality: an unchanged state means the message
+        // was dropped (own echo, duplicate), so the in-flight burst timer must
+        // keep running untouched.
+        if (next === announcerState) return;
+        announcerState = next;
+        clearTimeout(announceTimer);
+        announceTimer = setTimeout(() => {
+            const drained = drainAnnouncement(announcerState);
+            announcerState = drained.state;
+            // A live region only speaks when its text CHANGES, so two
+            // identical summaries in a row ("2 new messages from Alice"
+            // twice) would leave the second silent. Toggle a ZERO WIDTH SPACE
+            // (U+200B) rather than a normal space: the browser's a11y layer
+            // normalises whitespace before comparing the region's text, so a
+            // trailing space may not register as a change at all. U+200B
+            // survives that normalisation and is not spoken.
+            announcement =
+                drained.text && drained.text === announcement
+                    ? `${drained.text}\u200b`
+                    : drained.text;
+        }, ANNOUNCE_DEBOUNCE_MS);
+    }
+
     // Subscribe to new live timeline events (incoming and confirmed own messages)
     $effect(() => {
         const currentRoomId = roomId; // capture for closure
@@ -856,6 +912,7 @@
                     if (isAtBottom) {
                         tick().then(() => scrollToBottom(false));
                     }
+                    queueArrivalAnnouncement(event);
                 } else {
                     // Mid-timeline insertion (thread reply moved to the main
                     // timeline, out-of-order related event). appendMessage would
@@ -868,7 +925,31 @@
                 }
             },
         );
-        return unsub;
+        // An encrypted message reaches the timeline as `m.room.encrypted`, a
+        // type onTimelineEvent filters out, so the announcer above never sees
+        // it — and new DMs default to encrypted, so that is most traffic.
+        // onDecryptedTimelineEvent replays the SAME liveness signal the
+        // plaintext path gates on (the SDK's `data.liveEvent`, recorded when
+        // the ciphertext hit the timeline, backfill already excluded there),
+        // plus a sync-completion flag. So a scrollback or key-backup decrypt
+        // of history cannot reach the announcer. The reducer dedupes by event
+        // id, so an event both paths see is still announced once.
+        const unsubDecryptedAnnounce = onDecryptedTimelineEvent(
+            (event, eventRoom, meta) => {
+                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                if (!shouldAnnounceDecrypted(meta)) return;
+                queueArrivalAnnouncement(event);
+            },
+        );
+        return () => {
+            unsub();
+            unsubDecryptedAnnounce();
+            // Room switch or unmount: drop the pending burst rather than
+            // announcing the previous room's messages in this one.
+            clearTimeout(announceTimer);
+            announcerState = EMPTY_ANNOUNCER;
+            announcement = "";
+        };
     });
 
     // Incoming encrypted messages reach the live timeline as `m.room.encrypted`
@@ -1003,7 +1084,7 @@
         if (!scrollEl) return;
         scrollEl.scrollTo({
             top: scrollEl.scrollHeight,
-            behavior: instant ? "instant" : "smooth",
+            behavior: scrollBehavior(instant ? "instant" : "smooth"),
         });
         markAsReadIfDisplayable();
     }
@@ -1374,12 +1455,19 @@
         <ActiveCallBanner {room} />
         <LiveLocationBanner {room} />
 
-        <!-- Messages scrollable area -->
+        <!-- Messages scrollable area. aria-live="off" is load-bearing: role="log"
+             implies aria-live="polite", and backfill replaces the whole messages
+             array, so an implicit live region would re-announce the entire
+             visible history on every scroll-up. Arrivals are announced by the
+             dedicated sr-only region after this container instead. -->
         <div
             bind:this={scrollEl}
             onscroll={onScroll}
             onwheel={stopScrollIntoView}
             ontouchstart={stopScrollIntoView}
+            role="log"
+            aria-label="Message timeline"
+            aria-live="off"
             class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{isAtBottom
                 ? ' *:[overflow-anchor:none]'
                 : ''}"
@@ -1544,6 +1632,18 @@
                     ? '![overflow-anchor:auto] '
                     : ''}h-px flex-shrink-0"
             ></div>
+        </div>
+
+        <!-- Polite announcer for arriving messages. A sibling of the timeline,
+             never a child: a live region inside role="log" is announced twice.
+             Debounced upstream so a burst is one utterance. -->
+        <div
+            class="sr-only"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+        >
+            {announcement}
         </div>
 
         <!-- Scroll to bottom button -->

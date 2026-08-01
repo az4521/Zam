@@ -1,0 +1,75 @@
+import { describe, it, expect } from "vitest";
+import { anchoredActiveIndex } from "./listboxAnchor";
+
+const KEYS = ["a", "b", "c"];
+
+describe("anchoredActiveIndex", () => {
+    it("keeps the cursor while the anchored option is still at that index", () => {
+        expect(anchoredActiveIndex(1, "b", KEYS)).toBe(1);
+    });
+
+    it("keeps a cursor on the first and the last option", () => {
+        expect(anchoredActiveIndex(0, "a", KEYS)).toBe(0);
+        expect(anchoredActiveIndex(2, "c", KEYS)).toBe(2);
+    });
+
+    it("drops the cursor when the whole list was replaced under it", () => {
+        // A debounced search landing, or a tab flip: index 1 is still in range,
+        // so clamping alone would have left a cursor on someone else's item.
+        expect(anchoredActiveIndex(1, "b", ["x", "y", "z"])).toBe(-1);
+    });
+
+    it("drops the cursor when the anchored option shifted position", () => {
+        // "a" was removed, so "b" is now index 0 and index 1 holds "c".
+        expect(anchoredActiveIndex(1, "b", ["b", "c"])).toBe(-1);
+    });
+
+    it("does not re-point the cursor at wherever the anchor moved to", () => {
+        // "c" is still in the list, at index 2. Following it would move the
+        // selection without re-announcing it, which is the bug, not the fix.
+        expect(anchoredActiveIndex(1, "c", KEYS)).toBe(-1);
+    });
+
+    it("reports nothing active for an empty list", () => {
+        expect(anchoredActiveIndex(0, "a", [])).toBe(-1);
+    });
+
+    it("reports nothing active when the index fell off the end", () => {
+        expect(anchoredActiveIndex(3, "c", KEYS)).toBe(-1);
+    });
+
+    it("reports nothing active when there is no anchor", () => {
+        expect(anchoredActiveIndex(1, null, KEYS)).toBe(-1);
+    });
+
+    it("does not match an undefined anchor one step past the last option", () => {
+        // The exact boundary the clamp defends: `keys.length` is the first
+        // index that is no longer an option, and `keys[3]` is `undefined` just
+        // like the anchor, so an off-by-one clamp (`keys.length + 1`) would
+        // compare `undefined === undefined` and call index 3 active.
+        const noAnchor = undefined as unknown as string | null;
+        expect(anchoredActiveIndex(3, noAnchor, KEYS)).toBe(-1);
+    });
+
+    it("does not match an out-of-range index against an undefined anchor", () => {
+        // A caller that built its anchor from `keys[i]` without an `?? null`
+        // holds `undefined` once `i` runs off the end — and `keys[99]` is
+        // `undefined` too, so an unclamped comparison would call that stale
+        // cursor active and let Enter fire on nothing.
+        const noAnchor = undefined as unknown as string | null;
+        expect(anchoredActiveIndex(99, noAnchor, KEYS)).toBe(-1);
+    });
+
+    it("reports nothing active for a negative cursor, whatever the keys hold", () => {
+        // GifPicker guarantees a null anchor whenever the index is negative, so
+        // this path is unreachable there today. Pinning it directly means the
+        // new EmojiPicker/StickerPicker callers cannot break it by holding a
+        // stale key next to an inactive index.
+        expect(anchoredActiveIndex(-1, null, KEYS)).toBe(-1);
+        expect(anchoredActiveIndex(-1, "a", KEYS)).toBe(-1);
+        // The LAST key specifically: a "negative wraps to the end" clamp -- the
+        // shape ArrowUp-from-nothing uses in `nextActiveIndex` -- would land on
+        // it and match, so the two anchors above cannot see that regression.
+        expect(anchoredActiveIndex(-1, KEYS[KEYS.length - 1], KEYS)).toBe(-1);
+    });
+});
