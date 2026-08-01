@@ -34,6 +34,7 @@
         type SessionStartupState,
     } from "$lib/utils/sessionStartup";
     import { releaseSessionResources } from "$lib/utils/sessionTeardown";
+    import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
     import AppShell from "$lib/components/layout/AppShell.svelte";
     import Splash from "$lib/components/layout/Splash.svelte";
     import LoginView from "$lib/components/layout/LoginView.svelte";
@@ -166,12 +167,22 @@
     // the reactive {#if} swaps AppShell → LoginView, and LoginView surfaces
     // auth.error on mount. Stays SYNCHRONOUS: nothing here may be awaited.
     function handleSessionExpired() {
+        // Before anything tears down: the popups on screen belong to a session
+        // that no longer exists, and expiry returns to login IN PLACE — the
+        // next account signs in with them still up. First, too, because
+        // AppShell is what registered them and the view swap below unmounts it.
+        clearAllNotificationSurfaces();
         // Capture the expiring account's client BEFORE teardown nulls it, so
-        // its push registration can still be released.
+        // its push registration can still be released. Each call below is
+        // guarded, so a slow or throwing teardown can NEVER block the return to
+        // login.
         //
         // Its crypto store is NOT released here, and that is the point: expiry
         // is not a sign-out. See `sessionTeardown.ts` — a spurious
-        // M_UNKNOWN_TOKEN must not destroy key material.
+        // M_UNKNOWN_TOKEN must not destroy key material. (R4's note here read
+        // "release its native/push/crypto resources the same way an explicit
+        // logout does"; that was written against master and stopped being true
+        // when the expiry wipe was removed.)
         const client = getClient();
 
         // Invalidate any startup in flight FIRST: one that resolves after this

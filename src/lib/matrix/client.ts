@@ -951,7 +951,6 @@ export async function logout(): Promise<void> {
         if (outcome.localWipeOk && userId && deviceId) {
             forgetPendingWipe({ userId, deviceId });
         }
-<<<<<<< HEAD
         // The sequence reports what actually happened to the two things that
         // matter about signing out; discarding it would make a failed wipe or a
         // still-live token indistinguishable from a clean logout. Console only —
@@ -2316,6 +2315,23 @@ export function clearServiceWorkerAuth(): void {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.ready
         .then((reg) => reg.active?.postMessage({ type: "CLEAR_AUTH" }))
+        .catch(() => {});
+}
+
+/**
+ * Ask the service worker to take its notifications down without touching its
+ * stored credentials — the account-switch case, where the next account's boot
+ * re-sends SET_AUTH and a CLEAR_AUTH in between would just race it.
+ *
+ * Synchronous and void-returning on purpose: this is registered as a
+ * notification surface, and the registry can only isolate a SYNCHRONOUS throw.
+ * A returned promise would sail past its try/catch, so the rejection is
+ * swallowed here instead.
+ */
+export function clearServiceWorkerNotifications(): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) => reg.active?.postMessage({ type: "CLEAR_NOTIFICATIONS" }))
         .catch(() => {});
 }
 

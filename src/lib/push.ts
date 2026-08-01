@@ -212,6 +212,29 @@ export async function unregisterPush(
     await PushNotifications.removeAllListeners();
 }
 
+/**
+ * Take every delivered Android notification down.
+ *
+ * On Android the notifications the user actually sees are posted by
+ * MatrixMessagingService (native Java), so none of the page's own close
+ * machinery can reach them — nothing in src/ could take a native notification
+ * down before this. Capacitor's implementation is NotificationManager
+ * .cancelAll(), which covers exactly those.
+ *
+ * Deliberately separate from unregisterPush: that one returns early when the
+ * push gateway is a placeholder or the device id is missing, and neither has
+ * anything to do with whether there are notifications on screen.
+ *
+ * Synchronous and fire-and-forget on purpose: this is registered as a
+ * notification surface, and the registry's try/catch cannot catch a rejected
+ * promise — hence the .catch() here — while an awaited teardown call could
+ * hang the way out of a session.
+ */
+export function clearDeliveredNativeNotifications(): void {
+    if (!Capacitor.isNativePlatform()) return;
+    PushNotifications.removeAllDeliveredNotifications().catch(() => {});
+}
+
 // ── Diagnostics queries (used by Settings → Debug Info) ─────────────────────
 
 export interface RegisteredPusher {

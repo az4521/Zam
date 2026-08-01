@@ -258,6 +258,50 @@ const authReady = (async () => {
 	}
 })();
 
+/**
+ * Take down every notification this service worker posted.
+ *
+ * Unscoped on purpose: the tag-scoped close further down handles "this room
+ * is now read", but on the way out of a session there is no room to scope to
+ * — leaving a signed-out user's message text on screen is audit finding
+ * PRIV-02. `getNotifications()` only ever returns this registration's own
+ * notifications, so the page's `new Notification(...)` popups are NOT covered
+ * here; AppShell closes those itself.
+ */
+function closeAllNotifications() {
+	try {
+		return self.registration
+			.getNotifications()
+			.then((list) => {
+				for (const n of list) {
+					try {
+						n.close();
+					} catch (e) {
+						/* already gone */
+					}
+				}
+			})
+			.catch(() => {});
+	} catch (e) {
+		return Promise.resolve();
+	}
+}
+
+/**
+ * What a notification carries for its click handler.
+ *
+ * With no identity we cannot say whose message this is, so we deliberately
+ * post a notification that is NOT routable — it still shows (web push is
+ * userVisibleOnly, something must appear) but clicking it only focuses the
+ * app. That is what lets the page fail OPEN on an unstamped notification
+ * without reopening PRIV-02: nothing this build posts is both routable and
+ * unattributable.
+ */
+function notificationData(roomId) {
+	if (!userId) return {};
+	return roomId ? { roomId: roomId, userId: userId } : { userId: userId };
+}
+
 self.addEventListener("message", (event) => {
 	// Only accept messages from the app's own origin
 	if (event.origin !== APP_ORIGIN) return;
@@ -356,6 +400,14 @@ self.addEventListener("message", (event) => {
 						}
 					}
 				});
+				// Credentials are gone; now take the notifications that were
+				// posted under them off the screen.
+				await closeAllNotifications();
+			} else if (event.data?.type === "CLEAR_NOTIFICATIONS") {
+				// An account switch keeps a valid session (the next account's
+				// boot re-sends SET_AUTH), so it must not clear auth — but the
+				// previous account's notifications still have to go.
+				await closeAllNotifications();
 			} else if (event.data?.type === "SET_NOTIF_PRIVACY") {
 				// Wait out startup hydration first: its stored read lands after this
 				// handler starts and would otherwise clobber the newer value with the
@@ -701,7 +753,7 @@ self.addEventListener("push", (event) => {
 				badge: "/favicon_foreground.png",
 				tag: n.roomId || undefined,
 				renotify: true,
-				data: { roomId: n.roomId },
+				data: notificationData(n.roomId),
 			});
 		})(),
 	);
@@ -709,7 +761,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
-	const roomId = event.notification.data && event.notification.data.roomId;
+	const data = event.notification.data || {};
+	const roomId = data.roomId;
+	// The account this notification was posted under, so the page can refuse
+	// to open the room in a session that is not the one that posted it.
+	const postedBy = data.userId;
 	event.waitUntil(
 		self.clients
 			.matchAll({ type: "window", includeUncontrolled: true })
@@ -718,7 +774,11 @@ self.addEventListener("notificationclick", (event) => {
 					if ("focus" in client) {
 						client.focus();
 						if (roomId)
-							client.postMessage({ type: "OPEN_ROOM", roomId });
+							client.postMessage({
+								type: "OPEN_ROOM",
+								roomId: roomId,
+								userId: postedBy,
+							});
 						return;
 					}
 				}
