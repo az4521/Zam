@@ -9,7 +9,8 @@ const highlighter = lazyModule(async () => {
     // Deliberately uncast: hljs is assignable to HighlightEngine as-is, so
     // the `engine = mod` assignment below still type-checks that highlight.js
     // matches the structural interface we wrote against. `as unknown as`
-    // would launder away the only compile-time notice of an API drift.
+    // would hide the structural check from production code; the test file
+    // also type-checks the real engine.
     return mod.default;
 });
 
