@@ -348,20 +348,83 @@ describe("ModalDialog adoption — initial focus nomination", () => {
  * proves these four still ask for one.
  */
 describe("SpaceSidebar dialogs are portaled out of the drawer", () => {
-    /** The text between the LAST `<Portal>` opening tag and its `</Portal>`. */
-    function portalRegion(src: string): string {
+    const OPEN = "<Portal>";
+    const CLOSE = "</Portal>";
+
+    /**
+     * Every `<Portal>` … `</Portal>` region in the file, in source order.
+     *
+     * This used to anchor on `lastIndexOf("<Portal>")` and that was wrong in
+     * BOTH directions, confirmed by mutating the file:
+     *   - a second Portal NESTED around the four dialogs left all four green,
+     *     because `lastIndexOf` simply retargeted onto the inner one;
+     *   - a second Portal appended as a SIBLING after the existing one turned
+     *     all four red, because `lastIndexOf` retargeted onto the new, empty
+     *     one — even though the dialogs were still correctly portaled.
+     *
+     * The second is the one that would actually bite: a sibling Portal is a
+     * perfectly legitimate future edit (portaling the touch-drag ghost is an
+     * open follow-up), and a suite that goes red on a correct change is a suite
+     * people learn to edit around. So the regions are enumerated and the claim
+     * becomes "the marker is inside SOME Portal", which is the real behavioural
+     * requirement — any Portal re-parents to `<body>` and therefore out of the
+     * drawer's transform. Nesting is caught separately, by name, below.
+     *
+     * `</Portal>` cannot be mistaken for an opening tag (`</P` ≠ `<P`), and
+     * `readComponent` has already stripped the comments that talk about it.
+     */
+    function portalRegions(src: string): string[] {
         const text = normalize(src);
-        const open = text.lastIndexOf("<Portal>");
+        const regions: string[] = [];
+        for (let open = text.indexOf(OPEN); open !== -1; ) {
+            const close = text.indexOf(CLOSE, open);
+            expect(close, "unclosed <Portal> in SpaceSidebar").toBeGreaterThan(
+                open,
+            );
+            regions.push(text.slice(open, close));
+            open = text.indexOf(OPEN, close + CLOSE.length);
+        }
         expect(
-            open,
+            regions.length,
             "SpaceSidebar no longer renders a <Portal>",
-        ).toBeGreaterThan(-1);
-        const close = text.indexOf("</Portal>", open);
-        expect(close, "unclosed <Portal> in SpaceSidebar").toBeGreaterThan(
-            open,
-        );
-        return text.slice(open, close);
+        ).toBeGreaterThan(0);
+        return regions;
     }
+
+    // The hole the enumeration above deliberately leaves open, closed here
+    // instead — and closed more precisely than "the file contains exactly one
+    // Portal" would, which would have reddened on the legitimate sibling case.
+    //
+    // Nesting is never intended: `Portal` appends its OWN wrapper <div> to
+    // document.body, so a nested pair strands two wrappers there, one of them
+    // empty, and nothing throws — the dialogs are still out of the drawer, so
+    // no other assertion in this file or in Portal.test.ts would notice.
+    it("never nests one <Portal> inside another", () => {
+        const tokens = Array.from(
+            normalize(spaceSidebar()).matchAll(/<\/?Portal>/g),
+        );
+        expect(
+            tokens.length,
+            "SpaceSidebar no longer renders a <Portal>",
+        ).toBeGreaterThan(0);
+        let depth = 0;
+        for (const token of tokens) {
+            if (token[0] === OPEN) {
+                depth++;
+                expect(
+                    depth,
+                    "SpaceSidebar nests a <Portal> inside another <Portal> — that strands an extra wrapper <div> on <body> and makes the region checks below ambiguous",
+                ).toBeLessThanOrEqual(1);
+            } else {
+                depth--;
+                expect(
+                    depth,
+                    "SpaceSidebar closes a </Portal> it never opened",
+                ).toBeGreaterThanOrEqual(0);
+            }
+        }
+        expect(depth, "unclosed <Portal> in SpaceSidebar").toBe(0);
+    });
 
     const MARKERS: Array<[string, string]> = [
         ["the colour picker", "{#if colorPicker}"],
@@ -379,10 +442,14 @@ describe("SpaceSidebar dialogs are portaled out of the drawer", () => {
             // real one stayed in the nav.
             const occurrences = text.split(marker).length - 1;
             expect(occurrences, `${marker} should appear exactly once`).toBe(1);
+            // Exactly one region, not "at least one": the marker occurs once
+            // and the regions are disjoint by construction, so 1 means inside a
+            // Portal and 0 means outside every one of them.
             expect(
-                portalRegion(src),
+                portalRegions(src).filter((region) => region.includes(marker))
+                    .length,
                 `${label} is outside SpaceSidebar's <Portal> — inside the <nav> its fixed layer is clipped to the mobile drawer and aria-modal lies`,
-            ).toContain(marker);
+            ).toBe(1);
         });
     }
 });
