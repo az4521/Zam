@@ -1,3 +1,20 @@
+/** What a tapped notification wants to open, and who posted it. */
+export interface NotificationRouteTarget {
+    /** The room the notification wants to open. */
+    roomId?: string | null;
+    /** The account that posted it, when the poster recorded one. */
+    userId?: string | null;
+}
+
+export interface NotificationRouteSession {
+    /** The account signed in right now, or null/undefined when signed out. */
+    userId?: string | null;
+}
+
+export type NotificationRouteDecision =
+    | { action: "navigate"; roomId: string }
+    | { action: "drop"; reason: "no-room" | "signed-out" | "other-account" };
+
 /**
  * Should a notification tap open a room in the session that is live RIGHT NOW?
  *
@@ -17,22 +34,6 @@
  * is handled at POST time instead: a surface with no identity omits the room
  * id entirely, so its notification is not routable in the first place.
  */
-export interface NotificationRouteTarget {
-    /** The room the notification wants to open. */
-    roomId?: string | null;
-    /** The account that posted it, when the poster recorded one. */
-    userId?: string | null;
-}
-
-export interface NotificationRouteSession {
-    /** The account signed in right now, or null/undefined when signed out. */
-    userId?: string | null;
-}
-
-export type NotificationRouteDecision =
-    | { action: "navigate"; roomId: string }
-    | { action: "drop"; reason: "no-room" | "signed-out" | "other-account" };
-
 export function decideNotificationRoute(
     target: NotificationRouteTarget,
     session: NotificationRouteSession,
