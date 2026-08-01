@@ -5,7 +5,7 @@
     "main": "electron/main.cjs",
     "scripts": {
         "dev": "vite dev",
-        "build": "vite build",
+        "build": "vite build && node scripts/sw-precache.mjs",
         "preview": "vite preview",
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
