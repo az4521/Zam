@@ -193,6 +193,11 @@ import {
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
+    forgetPendingWipe,
+    rememberPendingWipe,
+} from "$lib/utils/pendingCryptoWipe";
+import { runLogoutSequence } from "$lib/utils/logoutSequence";
+import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     ENCRYPTION_ALGORITHM,
     encryptionInitialState,
@@ -814,43 +819,95 @@ export function onSyncPrepared(callback: () => void): () => void {
 export async function logout(): Promise<void> {
     const client = matrixClient;
     const owner = client ? captureOwnership(client, clientGeneration) : null;
+    // Only release the module slot if we still own it — a successor account's
+    // client may have been created (via reconnect) while the awaits were in
+    // flight. Bumping the generation on release invalidates every ownership
+    // token this client handed out (LIFE-02). Kept as a closure because the
+    // logout sequence releases on `onLocalWipeSettled`, BEFORE the invalidation
+    // is awaited: a hung POST /logout must not leave the slot pointing at a
+    // stopped client (CRYPTO-04).
+    const releaseSlot = () => {
+        if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
+            matrixClient = null;
+            matrixStore = null;
+            clientGeneration = nextGeneration(clientGeneration);
+        }
+    };
     if (client) {
-        try {
-            // stopClient=true; invalidates the token server-side.
-            await client.logout(true);
-        } catch {
-            // ignore errors on logout
+        const userId = client.getUserId();
+        const deviceId = client.getDeviceId();
+        // Remember the wipe BEFORE attempting it. `clearStores()` hangs forever
+        // when another tab holds the crypto IndexedDB open (its `onblocked`
+        // handler only logs), and AppShell's 4s window then reloads the page
+        // with the key material still on disk — writing the marker afterwards
+        // would never run in exactly the case it exists for.
+        if (userId && deviceId) {
+            rememberPendingWipe({
+                userId,
+                deviceId,
+                cryptoDbPrefix: getCryptoDbName(userId, deviceId),
+            });
         }
         // Wipe the persisted sync store AND the per-account rust-crypto store
         // so the next user on this device can't recover the previous account's
         // cached rooms/messages or its key material from IndexedDB. The crypto
         // store is keyed by cryptoDatabasePrefix (see initCrypto); pass the
         // same prefix so clearStores() finds and deletes it.
-        try {
-            const userId = client.getUserId();
-            const deviceId = client.getDeviceId();
-            await client.clearStores(
-                userId && deviceId
-                    ? {
-                          cryptoDatabasePrefix: getCryptoDbName(
-                              userId,
-                              deviceId,
-                          ),
-                      }
-                    : undefined,
-            );
-        } catch {
-            // ignore
+        //
+        // The wipe is NOT sequenced behind `logout(true)`: AppShell reloads
+        // after 4s, and a hung POST /logout used to eat the whole window and
+        // leave the crypto store on disk. `logout(true)` stops the client and
+        // aborts in-flight requests synchronously, so dispatching it first
+        // (without awaiting) is enough to make clearStores() legal.
+        //
+        // But we do still await that dispatched request after the wipe, so the
+        // rest of AppShell's 4s window (`Promise.race([logout(), 4000ms])` —
+        // the bound on this whole function) goes on invalidating the token
+        // server-side instead of being cut short by the reload. Resolving as
+        // soon as the wipe finished would leave a live access token behind.
+        const outcome = await runLogoutSequence({
+            invalidateSession: () => client.logout(true),
+            // Without both ids there is no per-account prefix to pass, and
+            // clearStores() falls back to the SDK's own default prefix — so the
+            // sync store still goes, but the per-account crypto store is only
+            // wiped when we know both ids (always true for a logged-in client).
+            wipeLocalStores: () =>
+                client.clearStores(
+                    userId && deviceId
+                        ? {
+                              cryptoDatabasePrefix: getCryptoDbName(
+                                  userId,
+                                  deviceId,
+                              ),
+                          }
+                        : undefined,
+                ),
+            // Runs before the invalidation is awaited, so a hung POST /logout
+            // can't leave the module slot pointing at a stopped client.
+            onLocalWipeSettled: releaseSlot,
+        });
+        // Only a wipe that actually completed retires the marker; a failed or
+        // blocked one must stay for the next boot to finish.
+        if (outcome.localWipeOk && userId && deviceId) {
+            forgetPendingWipe({ userId, deviceId });
         }
-    }
-    // Only release the module slot if we still own it — a successor account's
-    // client may have been created (via reconnect) while the awaits were in
-    // flight. Bumping the generation on release invalidates every ownership
-    // token this client handed out.
-    if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
-        matrixClient = null;
-        matrixStore = null;
-        clientGeneration = nextGeneration(clientGeneration);
+        // The sequence reports what actually happened to the two things that
+        // matter about signing out; discarding it would make a failed wipe or a
+        // still-live token indistinguishable from a clean logout. Console only —
+        // AppShell reloads the page right after this, so there is no surface
+        // left to render on, and the log survives the reload.
+        if (!outcome.localWipeOk) {
+            console.warn(
+                "[matrix] logout: clearing local stores failed — this account's cached sync store and its rust-crypto store (message keys) may still be on this device",
+            );
+        }
+        if (outcome.invalidationStarted && !outcome.invalidationOk) {
+            console.warn(
+                "[matrix] logout: the server did not confirm the sign-out — this session's access token may still be live; it can be revoked from Settings on another session",
+            );
+        }
+    } else {
+        releaseSlot();
     }
 }
 

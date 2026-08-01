@@ -42,6 +42,14 @@ import type {
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import {
+    cryptoDbNames,
+    readPendingWipes,
+    rememberPendingWipe,
+    writePendingWipes,
+    wipesToRetry,
+    type PendingWipe,
+} from "$lib/utils/pendingCryptoWipe";
 import { readScoped } from "$lib/utils/scopedStorage";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
 import { passphraseParams } from "$lib/utils/recoveryPassphrase";
@@ -52,6 +60,7 @@ import {
     type QrMethodOptions,
 } from "$lib/utils/qrVerification";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
+import type { SecurityRead } from "$lib/utils/securityStatusView";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
@@ -314,13 +323,79 @@ export function isRoomEncrypted(room: Room | null | undefined): boolean {
     }
 }
 
+/** How long a single deleteDatabase gets before we call it blocked. Boot
+ *  never waits on the sweep, but an unbounded wait would keep the request
+ *  and its closure alive for the life of the page. */
+const DELETE_DB_TIMEOUT_MS = 5000;
+
+export type DeleteDbOutcome = "deleted" | "failed" | "blocked";
+
+/**
+ * `indexedDB.deleteDatabase`, bounded and honest about which of the three
+ * things happened. The SDK's own version (`client.js:736`) leaves `onblocked`
+ * as a log-only handler, so its promise never settles — that is the bug this
+ * whole module exists for, and it must not be reproduced here.
+ *
+ * "blocked" means another connection still holds the database: nothing was
+ * deleted and the caller must keep its record. Exported for unit tests.
+ */
+export function deleteDatabaseWithOutcome(
+    factory: IDBFactory,
+    name: string,
+    timeoutMs: number,
+): Promise<DeleteDbOutcome> {
+    return new Promise<DeleteDbOutcome>((resolve) => {
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = (outcome: DeleteDbOutcome) => {
+            if (settled) return;
+            settled = true;
+            if (timer !== undefined) clearTimeout(timer);
+            resolve(outcome);
+        };
+        try {
+            const req = factory.deleteDatabase(name);
+            req.onsuccess = () => finish("deleted");
+            // Private-mode Firefox rejects every delete, even of a database
+            // that does not exist; there is nothing to do but report it.
+            req.onerror = () => finish("failed");
+            req.onblocked = () => finish("blocked");
+            timer = setTimeout(() => finish("blocked"), timeoutMs);
+        } catch {
+            finish("failed");
+        }
+    });
+}
+
+function getIndexedDB(): IDBFactory | null {
+    try {
+        return globalThis.indexedDB ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/** Deletes both databases for a prefix; true only if BOTH are really gone. */
+async function deleteCryptoDbs(
+    factory: IDBFactory,
+    prefix: string,
+): Promise<boolean> {
+    const outcomes = await Promise.all(
+        cryptoDbNames(prefix).map((name) =>
+            deleteDatabaseWithOutcome(factory, name, DELETE_DB_TIMEOUT_MS),
+        ),
+    );
+    return outcomes.every((o) => o === "deleted");
+}
+
 /**
  * Best-effort wipe of a NON-active account's rust-crypto IndexedDB when it is
  * removed from this device (the account has no live client, so `clearStores`
  * isn't available). Deletes the same two databases the SDK's `clearStores`
  * targets, keyed by the per-account prefix — so it can only ever touch that
  * account's stores, never the active session's. Failures are ignored (private
- * browsing rejects deleteDatabase; a missing DB is a no-op).
+ * browsing rejects deleteDatabase; a missing DB is a no-op) but recorded, so
+ * the next boot can finish a wipe another tab blocked.
  *
  * The active account's own sign-out already wipes its crypto store via
  * `client.clearStores({ cryptoDatabasePrefix })` in `logout()`.
@@ -329,33 +404,99 @@ export async function deleteCryptoStore(
     userId: string,
     deviceId: string,
 ): Promise<void> {
-    let indexedDB: IDBFactory | undefined;
-    try {
-        indexedDB = globalThis.indexedDB;
-    } catch {
-        return;
+    const factory = getIndexedDB();
+    if (!factory) return;
+    const cryptoDbPrefix = getCryptoDbName(userId, deviceId);
+    const deleted = await deleteCryptoDbs(factory, cryptoDbPrefix);
+    if (!deleted) {
+        // Blocked by another tab, or refused: leave a marker so the next boot
+        // finishes it. Resolving here regardless keeps this function's
+        // never-rejects contract for its two callers.
+        rememberPendingWipe({ userId, deviceId, cryptoDbPrefix });
     }
-    if (!indexedDB) return;
-    const prefix = getCryptoDbName(userId, deviceId);
-    const names = [
-        `${prefix}::matrix-sdk-crypto`,
-        `${prefix}::matrix-sdk-crypto-meta`,
-    ];
-    await Promise.all(
-        names.map(
-            (name) =>
-                new Promise<void>((resolve) => {
-                    try {
-                        const req = indexedDB.deleteDatabase(name);
-                        req.onsuccess = () => resolve();
-                        req.onerror = () => resolve();
-                        req.onblocked = () => resolve();
-                    } catch {
-                        resolve();
-                    }
-                }),
-        ),
-    );
+}
+
+/**
+ * Whether a record's delete target is the one its own identity implies.
+ *
+ * The live-session guard (`wipesToRetry`) matches on user + device, but the
+ * irreversible call takes `cryptoDbPrefix` — a string read verbatim off
+ * localStorage, which the parser only checks is non-empty. A record whose
+ * prefix does not derive from its own ids therefore aims the delete at a
+ * database the guard never inspected, which could be the ACTIVE account's
+ * crypto store. Corruption, a hand-edited entry, an extension, or a future
+ * change to `getCryptoDbName` all produce exactly that.
+ *
+ * Mismatched records are SKIPPED AND KEPT, the same rule as a live session: we
+ * never delete on a guess, and we never claim a wipe finished that didn't.
+ */
+function prefixMatchesIdentity(wipe: PendingWipe): boolean {
+    return wipe.cryptoDbPrefix === getCryptoDbName(wipe.userId, wipe.deviceId);
+}
+
+let sweepInFlight = false;
+
+/**
+ * Finish any crypto-store wipe a previous sign-out could not complete.
+ *
+ * `clearStores()` never resolves when another tab holds the rust-crypto
+ * IndexedDB open (matrix-js-sdk's `req.onblocked` only logs), and the logout
+ * reload wins that race — so the plaintext key material of a signed-out
+ * account can survive on disk. This re-issues those deletes at boot.
+ *
+ * Never touches a session still known to this device, never blocks boot, and
+ * never rejects. Records whose deletes are STILL blocked are kept for the next
+ * boot rather than reported as done. Call it fire-and-forget.
+ *
+ * Nothing awaits it, but it is not instant: records are swept serially, so the
+ * worst case is `MAX_PENDING_WIPES` (16) × 2 databases × `DELETE_DB_TIMEOUT_MS`
+ * ≈ 160s holding `sweepInFlight`, during which a second call is a no-op. Only a
+ * store that never fires an event at all gets anywhere near that.
+ *
+ * An EMPTY `liveSessions` means "no session on this device is live", i.e. every
+ * recorded wipe is eligible — and `loadRegistry()` fails open to `[]` on a
+ * corrupt `matrix_accounts`, so that is a reachable state, not a hypothetical.
+ * What bounds the damage there is `prefixMatchesIdentity`: a record can only
+ * ever delete the two databases its own user id and device id name.
+ */
+export async function retryPendingCryptoWipes(
+    liveSessions: Array<{ userId: string; deviceId?: string | null }>,
+): Promise<void> {
+    if (sweepInFlight) return;
+    sweepInFlight = true;
+    try {
+        const stored = readPendingWipes();
+        if (stored.length === 0) return;
+        const factory = getIndexedDB();
+        if (!factory) return;
+        const targets = wipesToRetry(stored, liveSessions).filter(
+            prefixMatchesIdentity,
+        );
+        if (targets.length === 0) return;
+        const finished: typeof targets = [];
+        for (const wipe of targets) {
+            if (await deleteCryptoDbs(factory, wipe.cryptoDbPrefix)) {
+                finished.push(wipe);
+            }
+        }
+        if (finished.length === 0) return;
+        // Re-read: another tab may have written since, and a wipe we just
+        // finished must not resurrect its list.
+        const remaining = readPendingWipes().filter(
+            (w) =>
+                !finished.some(
+                    (f) => f.userId === w.userId && f.deviceId === w.deviceId,
+                ),
+        );
+        writePendingWipes(remaining);
+    } catch (e) {
+        // Boot must never fail on a best-effort cleanup — but this is the one
+        // place in the sweep that does something irreversible, so a silent
+        // no-op would leave live-verify no signal at all that it gave up.
+        console.warn("[matrix] pending crypto wipe sweep failed", e);
+    } finally {
+        sweepInFlight = false;
+    }
 }
 
 /**
@@ -1094,6 +1235,24 @@ export async function setupRecovery(
 }
 
 /**
+ * `resetEncryption()` succeeded but minting the replacement recovery did not:
+ * the old recovery key and backup are already gone, so retrying the
+ * DESTRUCTIVE half is never right — only `setupRecovery()` may be retried.
+ */
+export class RecoverySetupIncompleteError extends Error {
+    constructor(message: string, options?: { cause?: unknown }) {
+        super(message, options);
+        this.name = "RecoverySetupIncompleteError";
+    }
+}
+
+export function isRecoverySetupIncomplete(
+    error: unknown,
+): error is RecoverySetupIncompleteError {
+    return error instanceof RecoverySetupIncompleteError;
+}
+
+/**
  * Reset recovery when the recovery key has been lost. Wipes the existing setup
  * ({@link CryptoApi.resetEncryption}: resets cross-signing, removes the old 4S
  * default key, deletes backups, creates a fresh backup) then sets up recovery
@@ -1115,18 +1274,32 @@ export async function resetRecovery(
     }
 
     // 1. Tear down the old (unusable) recovery. UIA-guarded → password dance.
+    //    A failure HERE is reported as-is: from outside we cannot tell whether
+    //    it destroyed anything, and re-running the reset is the only sane
+    //    retry (it is idempotent on an already-reset account).
     await crypto.resetEncryption(makeUiaPasswordCallback(userId, password));
 
     // 2. Set up fresh from the clean slate. bootstrapCrossSigning inside is a
     //    no-op now (resetEncryption just re-established it, so no re-upload/UIA),
     //    and a new recovery key is minted + returned for the UI to show once.
-    return setupRecovery(password, passphrase);
+    //    Past this line the OLD recovery is gone, so a failure is not a plain
+    //    retryable error — the caller must repair, not reset again (CRYPTO-01).
+    try {
+        return await setupRecovery(password, passphrase);
+    } catch (error) {
+        throw new RecoverySetupIncompleteError(
+            error instanceof Error && error.message.trim().length > 0
+                ? error.message
+                : "Your old recovery was reset, but setting up the new one failed.",
+            { cause: error },
+        );
+    }
 }
 
 /** Plain view-model of the account's crypto/security posture, for the UI. */
 export interface SecurityStatus {
-    /** rust-crypto initialised on this session. */
-    available: boolean;
+    /** Outcome of this read: ok, crypto-not-ready, or the read itself failed. */
+    read: SecurityRead;
     /** Cross-signing identity is set up and usable. */
     crossSigningReady: boolean;
     /** Cross-signing private keys are stored (encrypted) in secret storage. */
@@ -1142,7 +1315,7 @@ export interface SecurityStatus {
 }
 
 const EMPTY_SECURITY_STATUS: SecurityStatus = {
-    available: false,
+    read: "unavailable",
     crossSigningReady: false,
     privateKeysInSecretStorage: false,
     secretStorageReady: false,
@@ -1154,7 +1327,13 @@ const EMPTY_SECURITY_STATUS: SecurityStatus = {
 /**
  * Read the account's cross-signing + secret-storage posture as a plain
  * view-model. Re-read whenever `securityState.securityTick` bumps. Never throws:
- * degrades to the empty status when crypto isn't ready or a read fails.
+ * the outcome of the read is reported in `read` instead.
+ *
+ * Callers MUST branch on `read` before believing the rest: on `"error"` (and on
+ * `"unavailable"`) every other field is an all-false placeholder, NOT a fact
+ * about the account. Treating `"error"` as "nothing is set up" is exactly the
+ * bug this field exists to prevent — it invites the user to set up (or reset)
+ * recovery on top of keys that are working fine (audit CRYPTO-02).
  */
 export async function getSecurityStatus(): Promise<SecurityStatus> {
     const client = getClient();
@@ -1187,7 +1366,7 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             thisDeviceVerified = dev?.crossSigningVerified ?? false;
         }
         return {
-            available: true,
+            read: "ok",
             crossSigningReady,
             privateKeysInSecretStorage: crossStatus.privateKeysInSecretStorage,
             secretStorageReady,
@@ -1196,7 +1375,9 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             thisDeviceVerified,
         };
     } catch {
-        return { ...EMPTY_SECURITY_STATUS, available: true };
+        // The read failed — say so. The all-false payload underneath is a
+        // placeholder the caller must not read as the account's posture.
+        return { ...EMPTY_SECURITY_STATUS, read: "error" };
     }
 }
 
@@ -1208,8 +1389,8 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
 
 /** Plain view-model of the account's key-backup posture, for the UI. */
 export interface BackupStatus {
-    /** rust-crypto initialised on this session. */
-    available: boolean;
+    /** Outcome of this read: ok, crypto-not-ready, or the read itself failed. */
+    read: SecurityRead;
     /** The server holds a key backup for this account. */
     exists: boolean;
     /** This session is actively backing up to it (its backup key is loaded). */
@@ -1227,7 +1408,7 @@ export interface BackupStatus {
 }
 
 const EMPTY_BACKUP_STATUS: BackupStatus = {
-    available: false,
+    read: "unavailable",
     exists: false,
     active: false,
     trusted: false,
@@ -1240,7 +1421,11 @@ const EMPTY_BACKUP_STATUS: BackupStatus = {
 /**
  * Read the account's key-backup posture as a plain view-model. Re-read whenever
  * `securityState.securityTick` bumps (KeyBackup* CryptoEvents drive it). Never
- * throws: degrades to the empty status when crypto isn't ready or a read fails.
+ * throws: the outcome of the read is reported in `read` instead.
+ *
+ * Callers MUST branch on `read` before believing the rest: on `"error"` (and on
+ * `"unavailable"`) `exists: false` means "we don't know", not "this account has
+ * no backup" — rendering it as the latter is the CRYPTO-02 bug.
  */
 export async function getBackupStatus(): Promise<BackupStatus> {
     const crypto = getClient()?.getCrypto();
@@ -1258,7 +1443,7 @@ export async function getBackupStatus(): Promise<BackupStatus> {
             matchesDecryptionKey = trust.matchesDecryptionKey;
         }
         return {
-            available: true,
+            read: "ok",
             exists: info != null,
             active: activeVersion != null,
             trusted,
@@ -1268,7 +1453,8 @@ export async function getBackupStatus(): Promise<BackupStatus> {
             version: info?.version ?? activeVersion ?? null,
         };
     } catch {
-        return { ...EMPTY_BACKUP_STATUS, available: true };
+        // The read failed — say so. `exists: false` below means "unknown".
+        return { ...EMPTY_BACKUP_STATUS, read: "error" };
     }
 }
 

@@ -3,12 +3,14 @@
         getSecurityStatus,
         setupRecovery,
         resetRecovery,
+        isRecoverySetupIncomplete,
         getBackupStatus,
         unlockWithRecoveryKey,
         unlockWithPassphrase,
         type SecurityStatus,
         type BackupStatus,
         type UnlockResult,
+        type RecoverySetupResult,
     } from "$lib/matrix/crypto";
     import { securityState } from "$lib/stores/security.svelte";
     import {
@@ -28,6 +30,16 @@
         passphraseIssue,
         MIN_PASSPHRASE_LENGTH,
     } from "$lib/utils/recoveryPassphrase";
+    import {
+        securityPanelView,
+        type SecurityRead,
+    } from "$lib/utils/securityStatusView";
+    import {
+        nextResetPhase,
+        resetPhaseView,
+        type ResetEvent,
+        type ResetPhase,
+    } from "$lib/utils/recoveryReset";
 
     // The Set-up-recovery wizard is a small linear state machine:
     //   idle → password (collect account password for the UIA-guarded upload)
@@ -35,7 +47,12 @@
     //        → done.
     type Step = "idle" | "password" | "working" | "show" | "done";
 
+    // Read outcomes are tracked separately from the payload so a transient
+    // failure can't masquerade as "nothing is set up": on a failed read we keep
+    // the last good payload on screen and mark it stale (audit CRYPTO-02).
     let status = $state<SecurityStatus | null>(null);
+    let statusRead = $state<SecurityRead | null>(null);
+    let backupRead = $state<SecurityRead | null>(null);
     let step = $state<Step>("idle");
     let password = $state("");
     let recoveryKey = $state("");
@@ -61,13 +78,18 @@
     );
 
     // Reset-recovery sub-flow, offered from the "Recovery is set up" panel for a
-    // user who lost their key: confirm → password → working, then hands off into
-    // step="show" with the freshly-minted key (reusing the show screen above).
-    type ResetStep = "idle" | "confirm" | "password" | "working";
-    let resetStep = $state<ResetStep>("idle");
+    // user who lost their key: confirm → password → destroying, then hands off
+    // into step="show" with the freshly-minted key (reusing the show screen
+    // above). The phases live in a pure machine because the flow straddles a
+    // destructive boundary — see recoveryReset.ts and `repair` below.
+    let resetStep = $state<ResetPhase>("idle");
+    const resetView = $derived(resetPhaseView(resetStep));
+
+    function advanceReset(event: ResetEvent) {
+        resetStep = nextResetPhase(resetStep, event);
+    }
 
     const recoveryDone = $derived(status?.secretStorageReady ?? false);
-    const canSetUp = $derived((status?.available ?? false) && !recoveryDone);
 
     // ── Layer 3: enter-recovery-key → verify this session & restore history ──
     //   idle → entry (paste key) → working (restoring, with progress) → done.
@@ -133,6 +155,28 @@
             : [],
     );
 
+    // Is what's on screen a reading that actually landed, and may we offer the
+    // destructive affordances on top of it? `hasLastGood` is simply "a payload
+    // is retained", because `loadStatus` only ever stores one from a successful
+    // read — a failed read never overwrites it.
+    const panel = $derived(
+        securityPanelView({
+            read: statusRead,
+            backupRead,
+            secretStorageReady: status?.secretStorageReady ?? false,
+            defaultKeyId: status?.defaultKeyId ?? null,
+            thisDeviceVerified: status?.thisDeviceVerified ?? false,
+            backupExists: backup?.exists ?? false,
+            backupActive: backup?.active ?? false,
+            hasLastGood: status !== null,
+        }),
+    );
+    // The status rows show either a fresh reading or a retained one flagged as
+    // stale. They are NOT rendered from a failed read's all-false placeholder:
+    // "Not set up" over working keys is the bug (audit CRYPTO-02).
+    const showRows = $derived(panel.authoritative || panel.stale);
+    const canSetUp = $derived(panel.allowDestructive && !recoveryDone);
+
     // Recovery is set up on the account (a 4S default key exists), so this
     // session can be unlocked with the recovery key.
     const recoverySetUp = $derived(
@@ -143,17 +187,35 @@
     // exists but this session isn't trusted yet, or a backup exists that this
     // session isn't connected to. Not shown on the session that just set up.
     const needsUnlock = $derived(
-        (status?.available ?? false) &&
+        panel.authoritative &&
             recoverySetUp &&
             (!(status?.thisDeviceVerified ?? false) ||
                 ((backup?.exists ?? false) && !(backup?.active ?? false))),
     );
 
+    // loadStatus runs from the tick-driven $effect below and from every flow
+    // that finishes, so two runs can overlap — and the later-RESOLVING run is
+    // not necessarily the later-STARTING one. Stamp each run and let only the
+    // newest one write, or an older reading can clobber a newer one (worst
+    // case: re-marking a good read as failed and hiding the panel).
+    let loadSeq = 0;
+
     async function loadStatus() {
-        [status, backup] = await Promise.all([
+        const seq = ++loadSeq;
+        const [nextStatus, nextBackup] = await Promise.all([
             getSecurityStatus(),
             getBackupStatus(),
         ]);
+        if (seq !== loadSeq) return;
+        statusRead = nextStatus.read;
+        backupRead = nextBackup.read;
+        // Only a successful read may replace what's on screen. On "error" the
+        // payload's all-false fields are noise, and on "unavailable" they say
+        // nothing about the ACCOUNT (only about this session's crypto) — either
+        // one overwriting a good reading is how "No backup"/"Not set up" ends up
+        // rendered over working keys, with Reset recovery offered underneath.
+        if (nextStatus.read === "ok") status = nextStatus;
+        if (nextBackup.read === "ok") backup = nextBackup;
     }
 
     // Initial load + refresh whenever crypto state changes (securityTick bumps
@@ -236,40 +298,91 @@
     function beginReset() {
         error = "";
         password = "";
-        resetStep = "confirm";
+        advanceReset({ type: "begin" });
     }
 
     async function runReset() {
-        if (setupBlocked || resetStep === "working") return;
+        if (setupBlocked || resetView.busy || !resetView.allowsDestroy) return;
         error = "";
-        resetStep = "working";
+        advanceReset({ type: "submit" });
+        let result: RecoverySetupResult;
         try {
-            const result = await resetRecovery(
+            result = await resetRecovery(
                 password,
                 usePassphrase ? passphrase : undefined,
             );
-            keyHasPassphrase = result.hasPassphrase;
-            recoveryKey = result.recoveryKey;
-            password = "";
-            passphrase = "";
-            usePassphrase = false;
-            saved = false;
-            copied = false;
-            resetStep = "idle";
-            // Hand off to the shared show-key screen with the NEW key.
-            step = "show";
         } catch (e) {
             error = e instanceof Error ? e.message : "Could not reset recovery";
-            resetStep = "password";
+            // Which half failed decides where the user lands. A failure past the
+            // destructive step must never return to a submit that re-runs it
+            // (audit CRYPTO-01) — that is the whole point of `repair`.
+            advanceReset({
+                type: isRecoverySetupIncomplete(e)
+                    ? "failed-after-destroy"
+                    : "failed-before-destroy",
+            });
+            return;
         }
+        // Outside the try on purpose: only the CALL can tell us which half
+        // failed. A throw in the success handoff would otherwise classify as
+        // "failed before destroy" and put the user back on the destructive
+        // submit after a destroy that actually succeeded.
+        finishResetSuccess(result);
+    }
+
+    /**
+     * Repair after a reset that destroyed the old recovery and then failed to
+     * mint a new one. Runs the SETUP half only — never `resetRecovery` again.
+     */
+    async function runRepair() {
+        if (setupBlocked || resetView.busy || !resetView.allowsRepair) return;
+        error = "";
+        advanceReset({ type: "submit" });
+        let result: RecoverySetupResult;
+        try {
+            result = await setupRecovery(
+                password,
+                usePassphrase ? passphrase : undefined,
+            );
+        } catch (e) {
+            error =
+                e instanceof Error
+                    ? e.message
+                    : "Could not finish setting up recovery";
+            // Still no recovery on the account, so stay put: `repair` is the only
+            // honest place to be, and the machine refuses anything else.
+            advanceReset({ type: "failed-after-destroy" });
+            return;
+        }
+        // Same asymmetry as `runReset`: a throw from the handoff is not the
+        // setup call failing, and must not be reported as one.
+        finishResetSuccess(result);
+    }
+
+    function finishResetSuccess(result: RecoverySetupResult) {
+        keyHasPassphrase = result.hasPassphrase;
+        recoveryKey = result.recoveryKey;
+        password = "";
+        passphrase = "";
+        usePassphrase = false;
+        saved = false;
+        copied = false;
+        advanceReset({ type: "succeeded" });
+        // Hand off to the shared show-key screen with the NEW key.
+        step = "show";
     }
 
     function cancelReset() {
+        // Belt-and-braces: no control calls this while blocking (the repair panel
+        // deliberately renders none), and the machine absorbs `cancel` there
+        // anyway — but wiping the typed password and the error out from under an
+        // incomplete reset would be its own small betrayal.
+        if (resetView.blocking) return;
         password = "";
         passphrase = "";
         usePassphrase = false;
         error = "";
-        resetStep = "idle";
+        advanceReset({ type: "cancel" });
     }
 
     function beginUnlock() {
@@ -325,6 +438,15 @@
     }
 </script>
 
+<!-- One wording, every place a retained reading is shown: anything rendered from
+     `status`/`backup` after a read stopped landing is a past reading, not a
+     current claim about the account (audit CRYPTO-02). -->
+{#snippet staleMarker()}
+    <p class="text-xs text-discord-textMuted py-1.5">
+        Showing the last reading that loaded — it may be out of date.
+    </p>
+{/snippet}
+
 {#snippet statusRow(
     label: string,
     ok: boolean,
@@ -353,14 +475,19 @@
         </p>
     </div>
 
-    <!-- Status rows -->
+    <!-- Status rows. Rendered only from a reading that actually landed: a
+         failed read shows the notice below instead, because the all-false
+         placeholder underneath it is indistinguishable from a fresh account. -->
     <section class="rounded bg-discord-backgroundTertiary px-4 py-2">
-        {#if status}
+        {#if status && showRows}
+            {#if panel.stale}
+                {@render staleMarker()}
+            {/if}
             {@render statusRow(
                 "End-to-end encryption",
-                status.available,
+                statusRead === "ok",
                 "Active",
-                "Unavailable",
+                "Unknown",
             )}
             {@render statusRow(
                 "Cross-signing",
@@ -392,12 +519,18 @@
                 "Verified",
                 "Unverified",
             )}
-        {:else}
+        {:else if panel.state === "loading"}
             <p class="text-xs text-discord-textMuted py-1.5">
                 Loading encryption status…
             </p>
+        {:else}
+            <!-- Deliberately NOT the rows above: we don't know this account's
+                 posture, and "Not set up" would claim we do. -->
+            <p class="text-xs text-discord-textMuted py-1.5">
+                Encryption status unknown on this session.
+            </p>
         {/if}
-        {#if status}
+        {#if status && showRows}
             <p class="text-[11px] text-discord-textMuted pt-1 pb-1.5">
                 Recovery key ID: <span class="font-mono"
                     >{secretStorageKeyLabel(status.defaultKeyId)}</span
@@ -406,11 +539,8 @@
         {/if}
     </section>
 
-    {#if status && !status.available}
-        <p class="text-xs text-discord-textMuted">
-            End-to-end encryption could not start on this session, so recovery
-            can't be set up here. Encrypted rooms will show placeholders.
-        </p>
+    {#if panel.notice}
+        <p class="text-xs text-discord-textMuted">{panel.notice}</p>
     {/if}
 
     <!-- Set-up-recovery wizard -->
@@ -418,7 +548,13 @@
          secretStorageReady → true (via securityTick), which makes canSetUp false.
          Without this, the freshly-minted key's "save it" screen would unmount the
          instant setup finishes and the user would never see their recovery key. -->
-    {#if canSetUp || step === "show"}
+    <!-- `&& !resetView.blocking` / `|| resetView.blocking` below: once a reset has
+         destroyed the old recovery, the panel that says so must survive whatever
+         a tick-driven read reports next. The reading that FOLLOWS a successful
+         destroy is "this account has no recovery", which would otherwise swap in
+         the Set-up wizard — non-destructive, but its Cancel walks away from an
+         account with nothing to recover with, and the explanation is gone. -->
+    {#if (canSetUp || step === "show") && !resetView.blocking}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
@@ -559,24 +695,55 @@
                 <p class="text-sm text-discord-danger">{error}</p>
             {/if}
         </section>
-    {:else if step === "done" || recoveryDone}
+    {:else if step === "done" || recoveryDone || resetView.blocking}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >
-            <div class="space-y-1">
-                <p class="text-sm font-medium text-discord-textPrimary">
-                    Recovery is set up
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    Your cross-signing keys and a key backup are stored securely
-                    on the server, protected by your recovery key.
-                </p>
-            </div>
+            <!-- The repair branch below lives in this same section, so this
+                 header cannot be unconditional: "Recovery is set up" directly
+                 above "the new recovery wasn't created" (and a status row
+                 reading "Recovery (secure backup): Not set up") is three
+                 statements on one security surface, and the reassuring one is
+                 the false one. -->
+            {#if !resetView.blocking}
+                <div class="space-y-1">
+                    <p class="text-sm font-medium text-discord-textPrimary">
+                        Recovery is set up
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Your cross-signing keys and a key backup are stored
+                        securely on the server, protected by your recovery key.
+                    </p>
+                    <!-- This panel renders from the RETAINED payload, so when the
+                         latest read didn't land it is a past reading like the rows
+                         above — not a current claim that recovery is fine. -->
+                    {#if panel.stale}
+                        {@render staleMarker()}
+                    {/if}
+                </div>
+            {:else}
+                <!-- No stale marker here: this state is asserted from what the
+                     reset itself did on this session, not from a read. -->
+                <div class="space-y-1">
+                    <p class="text-sm font-medium text-discord-textPrimary">
+                        Recovery is not set up
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        This account has no recovery key and no key backup until
+                        you finish the step below.
+                    </p>
+                </div>
+            {/if}
 
             {#if resetStep === "idle"}
+                <!-- Reset destroys the current recovery key and backup. It is
+                     offered ONLY on top of a reading that landed: on a failed
+                     read we might be looking at a retained/blank posture, and
+                     the notice above already says so. -->
                 <button
                     onclick={beginReset}
-                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary"
+                    disabled={!panel.allowDestructive}
+                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary disabled:opacity-50 disabled:no-underline"
                     >Lost your recovery key? Reset recovery</button
                 >
             {:else if resetStep === "confirm"}
@@ -589,7 +756,7 @@
                     </p>
                     <div class="flex gap-2">
                         <button
-                            onclick={() => (resetStep = "password")}
+                            onclick={() => advanceReset({ type: "confirmed" })}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm"
                             >Continue</button
                         >
@@ -600,18 +767,27 @@
                         >
                     </div>
                 </div>
-            {:else if resetStep === "password" || resetStep === "working"}
+            {:else if resetView.blocking}
+                <!-- The destructive half succeeded and the replacement never
+                     landed, so this account has NO recovery right now. Its own
+                     copy (not the generic error, which reads as "try that again"),
+                     its own submit — `runRepair` runs the SETUP half alone — and
+                     no cancel: re-running the reset from here would wipe a second
+                     time, and leaving quietly strands the account (CRYPTO-01). -->
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-xs text-discord-textMuted">
-                        Confirm your account password to reset recovery.
+                    <p class="text-xs text-discord-warning">
+                        Your old recovery key and backup were reset, but the new
+                        recovery wasn't created. Finish setting it up now — your
+                        messages can't be recovered on a new session until you
+                        do.
                     </p>
                     <input
                         type="password"
                         bind:value={password}
                         placeholder="Account password"
-                        disabled={resetStep === "working"}
+                        disabled={resetView.busy}
                         onkeydown={(e) =>
-                            e.key === "Enter" && password && runReset()}
+                            e.key === "Enter" && password && runRepair()}
                         class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                     />
                     <label
@@ -620,7 +796,7 @@
                         <input
                             type="checkbox"
                             bind:checked={usePassphrase}
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
                             class="mt-0.5"
                         />
                         <span
@@ -635,7 +811,65 @@
                             bind:value={passphrase}
                             placeholder="Recovery passphrase"
                             autocomplete="new-password"
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                        {#if passphraseError}
+                            <p class="text-xs text-discord-danger">
+                                {passphraseError}
+                            </p>
+                        {:else}
+                            <p class="text-xs text-discord-textMuted">
+                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
+                                reset it for you.
+                            </p>
+                        {/if}
+                    {/if}
+                    <button
+                        onclick={runRepair}
+                        disabled={resetView.busy || setupBlocked}
+                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        >{resetView.busy
+                            ? "Working…"
+                            : "Finish setting up recovery"}</button
+                    >
+                </div>
+            {:else if resetStep === "password" || resetStep === "destroying"}
+                <div class="space-y-2 pt-3 border-t border-discord-divider">
+                    <p class="text-xs text-discord-textMuted">
+                        Confirm your account password to reset recovery.
+                    </p>
+                    <input
+                        type="password"
+                        bind:value={password}
+                        placeholder="Account password"
+                        disabled={resetView.busy}
+                        onkeydown={(e) =>
+                            e.key === "Enter" && password && runReset()}
+                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                    />
+                    <label
+                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                    >
+                        <input
+                            type="checkbox"
+                            bind:checked={usePassphrase}
+                            disabled={resetView.busy}
+                            class="mt-0.5"
+                        />
+                        <span
+                            >Also let me unlock with a passphrase I choose
+                            (optional — your recovery key still works and is
+                            still shown).</span
+                        >
+                    </label>
+                    {#if usePassphrase}
+                        <input
+                            type="password"
+                            bind:value={passphrase}
+                            placeholder="Recovery passphrase"
+                            autocomplete="new-password"
+                            disabled={resetView.busy}
                             class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                         {#if passphraseError}
@@ -652,15 +886,15 @@
                     <div class="flex gap-2">
                         <button
                             onclick={runReset}
-                            disabled={resetStep === "working" || setupBlocked}
+                            disabled={resetView.busy || setupBlocked}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
-                            >{resetStep === "working"
+                            >{resetView.busy
                                 ? "Resetting…"
                                 : "Reset & create new key"}</button
                         >
                         <button
                             onclick={cancelReset}
-                            disabled={resetStep === "working"}
+                            disabled={resetView.busy}
                             class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
                             >Cancel</button
                         >
@@ -674,8 +908,12 @@
         </section>
     {/if}
 
-    <!-- Message-history backup + restore-on-this-session (Layer 3) -->
-    {#if status?.available && backup}
+    <!-- Message-history backup + restore-on-this-session (Layer 3).
+         Gated on an authoritative read: `backupBadge`/`backupSummaryLabel` would
+         otherwise say "No backup" from a failed read's `exists: false`, which
+         means "we don't know" — and that line is what talks users into resetting
+         recovery they still have (audit CRYPTO-02). The notice above covers it. -->
+    {#if panel.authoritative && backup}
         <section
             class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
         >

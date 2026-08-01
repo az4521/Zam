@@ -4,6 +4,8 @@
         verificationState,
         acceptIncoming,
         declineIncoming,
+        isAcceptingRequest,
+        acceptRequestError,
     } from "$lib/stores/verification.svelte";
     import { verificationRequestMessageView } from "$lib/utils/verificationMessage";
 
@@ -33,15 +35,21 @@
         }),
     );
 
-    let busy = $state(false);
+    // Accept state comes from the store so this card and the stacked one show
+    // the same truth, and so it survives the timeline recycling this component
+    // while accept() is still in flight.
+    const busy = $derived(
+        (void verificationState.verificationTick,
+        controller ? isAcceptingRequest(controller) : false),
+    );
+    const acceptError = $derived(
+        (void verificationState.verificationTick,
+        controller ? acceptRequestError(controller) : null),
+    );
+
     async function accept() {
-        if (busy || !controller) return;
-        busy = true;
-        try {
-            await acceptIncoming(controller);
-        } finally {
-            busy = false;
-        }
+        if (!controller) return;
+        await acceptIncoming(controller);
     }
 </script>
 
@@ -57,12 +65,22 @@
         <p class="truncate text-sm font-medium text-discord-textPrimary">
             {view.heading}
         </p>
-        <p class="truncate text-xs text-discord-textMuted">{view.subtitle}</p>
+        {#if acceptError}
+            <p class="text-xs text-discord-danger">{acceptError}</p>
+        {:else}
+            <p class="truncate text-xs text-discord-textMuted">
+                {view.subtitle}
+            </p>
+        {/if}
     </div>
     {#if view.showActions && controller}
+        <!-- Never disabled while an accept is in flight: nothing bounds accept()
+             client-side, so declining (which drops the card AND frees the
+             store's one-at-a-time gate) is the only way out of a hung one short
+             of a reload. -->
         <button
             type="button"
-            class="rounded px-2.5 py-1 text-xs text-discord-textPrimary transition-colors bg-discord-messageHover hover:bg-discord-danger/20 hover:text-discord-danger"
+            class="rounded px-2.5 py-1 text-xs text-discord-textPrimary transition-colors bg-discord-messageHover hover:bg-discord-danger/20 hover:text-discord-danger disabled:opacity-60"
             onclick={() => declineIncoming(controller)}
         >
             Decline

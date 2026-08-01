@@ -13,13 +13,18 @@
     } from "$lib/matrix/client";
     import { unregisterPush } from "$lib/push";
     import { clearNativeSession } from "$lib/nativeSession";
+    // `deleteCryptoStore` is deliberately NOT imported here: session expiry must
+    // never wipe the crypto store (user decision, 2026-07-30 — only an explicit
+    // logout does). Item 20's boot retry is still wanted, so it finishes a wipe
+    // that an explicit logout started and IndexedDB blocked.
+    import { retryPendingCryptoWipes } from "$lib/matrix/crypto";
     import {
         auth,
         saveSession,
         loadStoredSession,
         expireActiveSession,
     } from "$lib/stores/auth.svelte";
-    import { switchActive } from "$lib/stores/accounts.svelte";
+    import { accountsState, switchActive } from "$lib/stores/accounts.svelte";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
     import {
         IDLE_SESSION_STARTUP,
@@ -196,6 +201,17 @@
     }
 
     onMount(() => {
+        // Finish any crypto-store wipe a previous logout could not complete
+        // (another tab held the IndexedDB open, so the delete was blocked and
+        // the reload won). Fire-and-forget: boot must never wait on it. Every
+        // account still on this device is passed through so the sweep can
+        // never delete a store that is still in use.
+        retryPendingCryptoWipes(
+            accountsState.registry.accounts.map((a) => ({
+                userId: a.userId,
+                deviceId: a.deviceId,
+            })),
+        ).catch(() => {});
         // The synchronous `restoring` flag already decided splash-vs-login for
         // the first paint; here we run the actual async restore when it applies.
         const stored = loadStoredSession();

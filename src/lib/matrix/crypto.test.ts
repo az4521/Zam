@@ -1,4 +1,23 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
+import {
+    deleteCryptoStore,
+    deleteDatabaseWithOutcome,
+    retryPendingCryptoWipes,
+} from "./crypto";
+import {
+    PENDING_WIPE_KEY,
+    serializePendingWipes,
+    readPendingWipes,
+} from "$lib/utils/pendingCryptoWipe";
+import { getCryptoDbName } from "$lib/utils/cryptoStore";
 
 // Regression cover for the "Cannot encrypt event in unconfigured room" bug
 // (2026-07-25, cross-server DM with a federated homeserver).
@@ -417,6 +436,237 @@ describe("getEventShield", () => {
     });
 });
 
+// A failed read used to come back as "available, and nothing is set up" — the
+// same shape a brand-new account has — so Settings offered "Set up recovery"
+// and "Reset recovery" over working keys (audit CRYPTO-02). The read outcome is
+// now reported in `read`, and these tests hold that distinction open.
+describe("posture reads report their outcome", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    /** Client stand-in whose crypto layer answers the posture/backup reads. */
+    function makeStatusClient(cryptoOverrides: Record<string, unknown> = {}) {
+        return {
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            secretStorage: { getKey: () => Promise.resolve(null) },
+            getCrypto: () => ({
+                isCrossSigningReady: () => Promise.resolve(true),
+                getCrossSigningStatus: () =>
+                    Promise.resolve({ privateKeysInSecretStorage: true }),
+                isSecretStorageReady: () => Promise.resolve(true),
+                getSecretStorageStatus: () =>
+                    Promise.resolve({ defaultKeyId: "key1" }),
+                getDeviceVerificationStatus: () =>
+                    Promise.resolve({ crossSigningVerified: true }),
+                getKeyBackupInfo: () =>
+                    Promise.resolve({ version: "3", count: 12 }),
+                getActiveSessionBackupVersion: () => Promise.resolve("3"),
+                isKeyBackupTrusted: () =>
+                    Promise.resolve({
+                        trusted: true,
+                        matchesDecryptionKey: true,
+                    }),
+                ...cryptoOverrides,
+            }),
+        };
+    }
+
+    it("getSecurityStatus reports ok on a read that landed", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(makeStatusClient());
+        const status = await mod.getSecurityStatus();
+        expect(status.read).toBe("ok");
+        expect(status.secretStorageReady).toBe(true);
+        expect(status.defaultKeyId).toBe("key1");
+    });
+
+    it("getSecurityStatus reports error — never ok — when a read throws", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                isSecretStorageReady: () =>
+                    Promise.reject(new Error("IndexedDB is gone")),
+            }),
+        );
+        const status = await mod.getSecurityStatus();
+        expect(status.read).toBe("error");
+        // The payload below a failed read is a placeholder, so the ONLY thing
+        // that keeps it from reading as "brand-new account" is `read`.
+        expect(status.secretStorageReady).toBe(false);
+    });
+
+    it("getSecurityStatus reports unavailable when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        expect((await mod.getSecurityStatus()).read).toBe("unavailable");
+    });
+
+    it("getBackupStatus reports ok on a read that landed", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(makeStatusClient());
+        const backup = await mod.getBackupStatus();
+        expect(backup.read).toBe("ok");
+        expect(backup.exists).toBe(true);
+        expect(backup.active).toBe(true);
+    });
+
+    it("getBackupStatus reports error — never ok — when a read throws", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                getKeyBackupInfo: () =>
+                    Promise.reject(new Error("backup read blew up")),
+            }),
+        );
+        const backup = await mod.getBackupStatus();
+        expect(backup.read).toBe("error");
+        // `exists: false` here means "we don't know", not "no backup".
+        expect(backup.exists).toBe(false);
+    });
+
+    it("getBackupStatus reports unavailable when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        expect((await mod.getBackupStatus()).read).toBe("unavailable");
+    });
+});
+
+// `resetRecovery` destroys the old recovery key and backup BEFORE it mints the
+// replacement, so "it threw" is two completely different situations: a failure
+// in the first half leaves the account as it was and the reset is the right
+// retry, while a failure in the second half leaves the account with NO recovery
+// and re-running the reset would wipe again. The caller can't tell them apart
+// from outside, so the second one gets its own error type (audit CRYPTO-01).
+describe("resetRecovery reports which half failed", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    /**
+     * Client stand-in for the reset path: `resetEncryption` plus the three
+     * crypto calls `setupRecovery` makes afterwards. Every one is overridable
+     * so a test can fail exactly one of them.
+     */
+    function makeResetClient(cryptoOverrides: Record<string, unknown> = {}) {
+        const calls: string[] = [];
+        const client = {
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            getCrypto: () => ({
+                resetEncryption: vi.fn(() => {
+                    calls.push("resetEncryption");
+                    return Promise.resolve();
+                }),
+                bootstrapCrossSigning: vi.fn(() => {
+                    calls.push("bootstrapCrossSigning");
+                    return Promise.resolve();
+                }),
+                createRecoveryKeyFromPassphrase: vi.fn(() => {
+                    calls.push("createRecoveryKeyFromPassphrase");
+                    return Promise.resolve({
+                        encodedPrivateKey: "EsTNEWKEY",
+                        keyInfo: {},
+                    });
+                }),
+                bootstrapSecretStorage: vi.fn(() => {
+                    calls.push("bootstrapSecretStorage");
+                    return Promise.resolve();
+                }),
+                ...cryptoOverrides,
+            }),
+        };
+        return { client, calls };
+    }
+
+    it("mints and returns a new recovery key when both halves succeed", async () => {
+        const mod = await import("./crypto");
+        const { client, calls } = makeResetClient();
+        h.getClient.mockReturnValue(client);
+
+        await expect(mod.resetRecovery("pw")).resolves.toEqual({
+            recoveryKey: "EsTNEWKEY",
+            hasPassphrase: false,
+        });
+        // Destroy first, then set up — the ordering the whole hazard rests on.
+        expect(calls[0]).toBe("resetEncryption");
+        expect(calls).toContain("bootstrapSecretStorage");
+    });
+
+    it("flags a failure AFTER the destructive step as an incomplete setup", async () => {
+        const mod = await import("./crypto");
+        const cause = new Error("secret storage upload rejected");
+        const { client, calls } = makeResetClient({
+            bootstrapSecretStorage: () => Promise.reject(cause),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+
+        // The destruction did happen, so this must NOT look like a plain
+        // retryable error: the only safe retry is the setup half alone.
+        expect(calls).toContain("resetEncryption");
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(true);
+        expect(error).toBeInstanceOf(mod.RecoverySetupIncompleteError);
+        // The underlying reason survives for the UI to show...
+        expect(error.message).toBe("secret storage upload rejected");
+        // ...and so does the original, for logs.
+        expect(error.cause).toBe(cause);
+    });
+
+    it("falls back to plain copy when the inner failure has no message", async () => {
+        const mod = await import("./crypto");
+        const { client } = makeResetClient({
+            bootstrapSecretStorage: () => Promise.reject(new Error("   ")),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(true);
+        expect(error.message).toBe(
+            "Your old recovery was reset, but setting up the new one failed.",
+        );
+    });
+
+    it("leaves a failure BEFORE the destructive step an ordinary error", async () => {
+        const mod = await import("./crypto");
+        const { client, calls } = makeResetClient({
+            resetEncryption: () =>
+                Promise.reject(new Error("Incorrect password")),
+        });
+        h.getClient.mockReturnValue(client);
+
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+
+        expect(error.message).toBe("Incorrect password");
+        // Nothing was destroyed and nothing was set up, so re-running the reset
+        // is the right retry — the UI must not be pushed into repair.
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(false);
+        expect(calls).not.toContain("bootstrapCrossSigning");
+    });
+
+    it("does not mistake an unrelated error for an incomplete setup", async () => {
+        const mod = await import("./crypto");
+        expect(mod.isRecoverySetupIncomplete(new Error("nope"))).toBe(false);
+        expect(mod.isRecoverySetupIncomplete("nope")).toBe(false);
+        expect(mod.isRecoverySetupIncomplete(null)).toBe(false);
+    });
+
+    it("refuses before touching anything when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => undefined,
+        });
+        const error = await mod.resetRecovery("pw").catch((e) => e);
+        expect(error.message).toBe("Encryption is not ready on this session");
+        expect(mod.isRecoverySetupIncomplete(error)).toBe(false);
+    });
+});
+
 describe("SECURITY_EVENTS trust wiring", () => {
     beforeEach(() => {
         vi.resetModules();
@@ -431,5 +681,346 @@ describe("SECURITY_EVENTS trust wiring", () => {
         const subscribed = client.on.mock.calls.map((c) => c[0]);
         expect(subscribed).toContain("userTrustStatusChanged");
         expect(subscribed).toContain("crypto.devicesUpdated");
+    });
+});
+
+// A fake IDBFactory: each name is scripted with the event to fire. "hang"
+// fires nothing, which is exactly what a blocked delete does in the SDK.
+type FakeMode = "success" | "error" | "blocked" | "hang" | "throw";
+
+function fakeIndexedDB(
+    modes: Record<string, FakeMode>,
+    fallback: FakeMode = "success",
+    // Fires as the delete is issued, so a test can simulate another tab
+    // writing to the record list in the middle of a sweep.
+    onDelete?: (name: string) => void,
+) {
+    const seen: string[] = [];
+    const factory = {
+        deleteDatabase(name: string) {
+            seen.push(name);
+            onDelete?.(name);
+            const mode = modes[name] ?? fallback;
+            if (mode === "throw") throw new Error("nope");
+            const req: Record<string, (() => void) | null> = {
+                onsuccess: null,
+                onerror: null,
+                onblocked: null,
+            };
+            queueMicrotask(() => {
+                if (mode === "success") req.onsuccess?.();
+                if (mode === "error") req.onerror?.();
+                if (mode === "blocked") req.onblocked?.();
+            });
+            return req;
+        },
+    };
+    return { factory: factory as unknown as IDBFactory, seen };
+}
+
+const PREFIX = "matrix-client:%40a%3Aexample.org:DEV1:crypto";
+const pending = {
+    userId: "@a:example.org",
+    deviceId: "DEV1",
+    cryptoDbPrefix: PREFIX,
+};
+
+/** A well-formed record: prefix derived from its own ids, as the wipe path
+ *  writes it. `pending` above pins the literal that must produce. */
+const wipeFor = (userId: string, deviceId: string) => ({
+    userId,
+    deviceId,
+    cryptoDbPrefix: getCryptoDbName(userId, deviceId),
+});
+const dbsOf = (w: { cryptoDbPrefix: string }) => [
+    `${w.cryptoDbPrefix}::matrix-sdk-crypto`,
+    `${w.cryptoDbPrefix}::matrix-sdk-crypto-meta`,
+];
+
+describe("deleteDatabaseWithOutcome", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("reports a completed delete", async () => {
+        const { factory } = fakeIndexedDB({});
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("deleted");
+    });
+
+    it("reports a rejected delete without throwing", async () => {
+        const { factory } = fakeIndexedDB({ db: "error" });
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("failed");
+    });
+
+    it("reports a blocked delete as blocked, not as done", async () => {
+        const { factory } = fakeIndexedDB({ db: "blocked" });
+        await expect(
+            deleteDatabaseWithOutcome(factory, "db", 50),
+        ).resolves.toBe("blocked");
+    });
+
+    it("gives up on a delete that never settles, so boot can never hang", async () => {
+        const { factory } = fakeIndexedDB({ db: "hang" });
+        await expect(deleteDatabaseWithOutcome(factory, "db", 5)).resolves.toBe(
+            "blocked",
+        );
+    });
+
+    it("reports a throwing factory as failed", async () => {
+        const { factory } = fakeIndexedDB({ db: "throw" });
+        await expect(deleteDatabaseWithOutcome(factory, "db", 5)).resolves.toBe(
+            "failed",
+        );
+    });
+});
+
+describe("retryPendingCryptoWipes", () => {
+    beforeEach(() => localStorage.clear());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it("deletes both databases and clears the record when they are gone", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([
+            `${PREFIX}::matrix-sdk-crypto`,
+            `${PREFIX}::matrix-sdk-crypto-meta`,
+        ]);
+        expect(readPendingWipes()).toEqual([]);
+    });
+
+    it("KEEPS the record when a delete is still blocked", async () => {
+        const { factory } = fakeIndexedDB({
+            [`${PREFIX}::matrix-sdk-crypto`]: "blocked",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // "blocked" is not the only way a delete fails to delete: private-mode
+    // Firefox REJECTS every deleteDatabase, even for a database that does not
+    // exist. Retiring the record on an errored delete would drop the marker
+    // while the plaintext key material is still on disk — the exact outcome
+    // this module exists to prevent — so only "deleted" may retire it.
+    it("KEEPS the record when the deletes are rejected rather than blocked", async () => {
+        const { factory, seen } = fakeIndexedDB({}, "error");
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        // It really tried — this is a kept record, not a skipped one.
+        expect(seen).toEqual(dbsOf(pending));
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("KEEPS the record when only one of the two databases could be deleted", async () => {
+        // Half a wipe is not a wipe: the meta database still names the store.
+        const { factory, seen } = fakeIndexedDB({
+            [dbsOf(pending)[1]]: "error",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual(dbsOf(pending));
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("never touches the store of a session still known to this device", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([
+            { userId: pending.userId, deviceId: pending.deviceId },
+        ]);
+
+        expect(seen).toEqual([]);
+        // Skipped, not dropped: it must still be there when that session goes.
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("resolves without touching storage when there is nothing to do", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        await expect(retryPendingCryptoWipes([])).resolves.toBeUndefined();
+        expect(seen).toEqual([]);
+    });
+
+    it("resolves when there is no IndexedDB at all", async () => {
+        vi.stubGlobal("indexedDB", undefined);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+        await expect(retryPendingCryptoWipes([])).resolves.toBeUndefined();
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // The live-session guard matches on user + device, but the delete takes the
+    // stored prefix. A record whose prefix does not derive from its own ids
+    // aims the irreversible call at a database the guard never looked at —
+    // possibly the ACTIVE account's store. It must never be issued.
+    it("refuses a record whose prefix does not match its own ids", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        const forged = {
+            userId: "@a:example.org",
+            deviceId: "DEV1",
+            cryptoDbPrefix: "matrix-client:%40live%3Aexample.org:LIVE:crypto",
+        };
+        localStorage.setItem(PENDING_WIPE_KEY, serializePendingWipes([forged]));
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([]);
+        // Skipped, not dropped — the same rule as a live session.
+        expect(readPendingWipes()).toEqual([forged]);
+    });
+
+    it("sweeps every record, and retires only the device that is really gone", async () => {
+        const gone = wipeFor("@a:example.org", "DEV1");
+        const stillBlocked = wipeFor("@a:example.org", "DEV2");
+        // Blocked record FIRST: a sweep that only ever handles the head of the
+        // list would leave the deletable one untouched.
+        const { factory, seen } = fakeIndexedDB({
+            [dbsOf(stillBlocked)[0]]: "blocked",
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([stillBlocked, gone]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        expect(seen).toEqual([...dbsOf(stillBlocked), ...dbsOf(gone)]);
+        // Same user, different device: retiring DEV1 must not retire DEV2's
+        // still-owed wipe.
+        expect(readPendingWipes()).toEqual([stillBlocked]);
+    });
+
+    it("keeps a record another tab wrote while the sweep was running", async () => {
+        const other = wipeFor("@b:example.org", "DEV9");
+        let injected = false;
+        const { factory } = fakeIndexedDB({}, "success", () => {
+            if (injected) return;
+            injected = true;
+            // Another tab signs out mid-sweep and appends its own record.
+            localStorage.setItem(
+                PENDING_WIPE_KEY,
+                serializePendingWipes([pending, other]),
+            );
+        });
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await retryPendingCryptoWipes([]);
+
+        // Our finished wipe is retired against the CURRENT list, not the stale
+        // copy we started from — the newcomer's key material is still owed.
+        expect(readPendingWipes()).toEqual([other]);
+    });
+
+    // Boot calls this fire-and-forget; a second caller (a re-render, a second
+    // account restoring) must not re-issue deletes that are already in flight.
+    it("is a no-op while a sweep is already running", async () => {
+        const { factory, seen } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+        localStorage.setItem(
+            PENDING_WIPE_KEY,
+            serializePendingWipes([pending]),
+        );
+
+        await Promise.all([
+            retryPendingCryptoWipes([]),
+            retryPendingCryptoWipes([]),
+        ]);
+
+        expect(seen).toEqual([
+            `${PREFIX}::matrix-sdk-crypto`,
+            `${PREFIX}::matrix-sdk-crypto-meta`,
+        ]);
+    });
+});
+
+describe("deleteCryptoStore", () => {
+    beforeEach(() => localStorage.clear());
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        localStorage.clear();
+    });
+
+    it("records a pending wipe when the delete does not complete", async () => {
+        const { factory } = fakeIndexedDB({}, "blocked");
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    // A rejected delete leaves the store exactly as intact as a blocked one
+    // does (private-mode Firefox rejects every deleteDatabase), so it has to
+    // leave the same marker behind for the next boot.
+    it("records a pending wipe when the delete is rejected outright", async () => {
+        const { factory } = fakeIndexedDB({}, "error");
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("records a pending wipe when only one of the two deletes succeeds", async () => {
+        const { factory } = fakeIndexedDB({
+            [`${PREFIX}::matrix-sdk-crypto-meta`]: "error",
+        });
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([pending]);
+    });
+
+    it("records nothing when both databases are gone", async () => {
+        const { factory } = fakeIndexedDB({});
+        vi.stubGlobal("indexedDB", factory);
+
+        await deleteCryptoStore("@a:example.org", "DEV1");
+
+        expect(readPendingWipes()).toEqual([]);
     });
 });
