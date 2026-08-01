@@ -971,7 +971,9 @@ export function getDirectRooms(): Room[] {
  * getSpaces/getOrphanRooms/getDirectRooms/getInvitedRooms/getKnockedRooms/
  * getRoomsInSpace separately, which meant four full scans of every room plus
  * two independent derivations of every space's child list, on every sync.
- * The individual exports stay for their other callers.
+ * getSpaces/getOrphanRooms/getDirectRooms stay exported for their other
+ * callers (settings panes, SpaceSidebar, incomingCalls); getInvitedRooms and
+ * getKnockedRooms now have none in `src/` and are kept as SDK-boundary API.
  */
 export function getRoomClassification(
     activeSpaceId: string | null,
@@ -3767,18 +3769,27 @@ export interface SpaceChildInfo {
     isKnocked?: boolean;
 }
 
-// Spaces whose direct /hierarchy call failed this session — the periodic
-// refresh would otherwise re-attempt (and re-403) every couple of seconds
-// while the user browses an unjoined sub-space.
+// Spaces whose direct /hierarchy call failed this session — re-opening such a
+// space walks straight in through the parent instead of re-403ing first.
 const hierarchyDirectFailed = new Set<string>();
 
+/**
+ * The active space's child rooms, from /hierarchy (paginated), falling back to
+ * the parent space's deeper hierarchy when the server refuses the direct call.
+ *
+ * Returns `null` when the fetch FAILED and `[]` when the space genuinely has
+ * no children. Callers must not overwrite a good hierarchy on `null`: since the
+ * 2 s poll was removed there is no second chance for several minutes.
+ */
 export async function fetchSpaceHierarchy(
     spaceId: string,
     parentSpaceId?: string,
     // How many levels below parentSpaceId the drilled space sits — the
     // fallback must fetch one level deeper than that to see its children.
     drillDepth = 1,
-): Promise<SpaceChildInfo[]> {
+): Promise<SpaceChildInfo[] | null> {
+    // Not a fetch failure: with no client there is nothing to show, and
+    // showing nothing is right.
     if (!matrixClient) return [];
 
     // Follow `next_batch` across pages so spaces with more than 200 rooms
@@ -3863,7 +3874,7 @@ export async function fetchSpaceHierarchy(
         // 200 rooms).
         if (!parentSpaceId) {
             console.error("Failed to fetch space hierarchy:", err);
-            return [];
+            return null;
         }
         hierarchyDirectFailed.add(spaceId);
         try {
@@ -3871,7 +3882,7 @@ export async function fetchSpaceHierarchy(
             const slice = extractSubspaceChildren(parent.rooms, spaceId);
             if (!slice) {
                 console.error("Failed to fetch space hierarchy:", err);
-                return [];
+                return null;
             }
             rooms = parent.rooms.filter((r) =>
                 slice.childIds.has(r["room_id"] as string),
@@ -3883,7 +3894,7 @@ export async function fetchSpaceHierarchy(
                 err,
                 parentErr,
             );
-            return [];
+            return null;
         }
     }
 
