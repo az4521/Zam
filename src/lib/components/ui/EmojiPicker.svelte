@@ -333,7 +333,13 @@
         // Ctrl+E/S/G picker switching is handled globally in +page.svelte.
     }
 
-    /** The ONLY place `selectedIndex` may be assigned. See `activeIndex`. */
+    /** The ONLY place `selectedIndex` may be assigned. See `activeIndex`.
+     *
+     *  Reads the `activeKeys` `$derived`, so this belongs in event handlers: a
+     *  `next >= 0` call from inside a tracked `$effect` would silently give
+     *  that effect `activeKeys -> flatItems -> search` as dependencies. (The
+     *  search-reset effect gets away with it only because `-1` short-circuits
+     *  the read.) Wrap in `untrack` if an effect ever genuinely needs this. */
     function moveCursor(next: number) {
         selectedIndex = next;
         selectedKey = next >= 0 ? (activeKeys[next] ?? null) : null;
