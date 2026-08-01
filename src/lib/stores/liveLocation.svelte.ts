@@ -23,6 +23,7 @@ import {
     STOP_WATCHDOG_MS,
     type StopState,
 } from "$lib/utils/liveShareStop";
+import { ownsSession, adoptInheritedStop } from "$lib/utils/liveShareSession";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
 export interface ShareState {
@@ -46,6 +47,20 @@ const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
  *  its hands off. Kept out of ShareState: it is bookkeeping, not view data. */
 const stopAttempts = new Map<string, object>();
 let watchId: number | null = null;
+
+/** Which login session owns this module's state. Everything here is module
+ *  scope, so it survives a logout: AppShell unmounts and remounts against the
+ *  SAME map, while the outgoing session's teardown writes are still in flight.
+ *  Async work captures this number and refuses to mutate anything once it has
+ *  moved. */
+let sessionEpoch = 0;
+/** Unsubscribers owned by the CURRENT session only. */
+let sessionUnsubs: (() => void)[] = [];
+
+function detachListeners() {
+    sessionUnsubs.forEach((u) => u());
+    sessionUnsubs = [];
+}
 
 function bump() {
     liveLocationState.beaconTick++;
@@ -378,6 +393,7 @@ export async function retryPendingStops(): Promise<void> {
 
 /** Best-effort stop of every active share (logout / account switch). */
 export async function stopAllShares(): Promise<void> {
+    const epoch = sessionEpoch;
     // Snapshot the rooms we are responsible for BEFORE the await. Logout fires
     // this without awaiting it, so the next account's sync can resume a
     // genuinely live beacon while our writes are still settling — re-reading
@@ -385,6 +401,11 @@ export async function stopAllShares(): Promise<void> {
     // really broadcasting, which is LOC-01 pointing the other way.
     const rooms = Array.from(liveLocationState.shares.keys());
     await Promise.allSettled(rooms.map((r) => attemptStop(r, false)));
+    // A new session took the state over while we were writing. These records
+    // are no longer ours to forget: the new session's resume SKIPPED these
+    // rooms precisely because the records were still here, so dropping them now
+    // leaves a live beacon with no record and no banner anywhere.
+    if (!ownsSession(epoch, sessionEpoch)) return;
     // Teardown: this module's state outlives the session, so a retained
     // stop-failure record would surface in the NEXT account's UI referring to a
     // beacon it cannot touch. Drop whatever survived the attempts.
@@ -392,8 +413,6 @@ export async function stopAllShares(): Promise<void> {
         dropShare(roomId);
     }
 }
-
-let unsubs: (() => void)[] = [];
 
 function resumeOwnShares() {
     for (const b of getOwnLiveBeacons()) {
@@ -413,18 +432,47 @@ function resumeOwnShares() {
     bump();
 }
 
+/**
+ * Hand this module's state over to a new login session.
+ *
+ * Three things have to happen before the new session reads anything:
+ * detach the previous session's listeners (its cleanup may never run, or may
+ * run after this); release every outstanding stop attempt, which is what makes
+ * the old session's post-await work inert — `ourShare()` already refuses to
+ * touch a room it no longer owns; and adopt the records themselves, because a
+ * stop left in flight can never be confirmed here.
+ */
+function beginSession(): number {
+    detachListeners();
+    sessionEpoch++;
+    stopAttempts.clear();
+    for (const share of liveLocationState.shares.values()) {
+        share.stop = adoptInheritedStop(share.stop);
+    }
+    bump();
+    return sessionEpoch;
+}
+
 /** Wire beacon reactivity + auto-resume. Call once after login; returns cleanup. */
 export function initLiveLocation(): () => void {
-    unsubs.push(onBeaconUpdate(() => bump()));
-    unsubs.push(onSyncPrepared(() => resumeOwnShares()));
+    const epoch = beginSession();
+    sessionUnsubs.push(onBeaconUpdate(() => bump()));
+    sessionUnsubs.push(onSyncPrepared(() => resumeOwnShares()));
     // A stop that failed while offline is retried the moment sync is healthy
     // again — otherwise the beacon stays live until it times out, and the
     // realistic cause of a failed stop is exactly that lost connection.
-    unsubs.push(onSyncReconnected(() => void retryPendingStops()));
+    sessionUnsubs.push(onSyncReconnected(() => void retryPendingStops()));
     resumeOwnShares();
+    let disposed = false;
     return () => {
-        unsubs.forEach((u) => u());
-        unsubs = [];
+        if (disposed) return;
+        disposed = true;
+        // A cleanup that lost its session — remount ordered before unmount, or
+        // a stale reference called twice — must do nothing at all: its
+        // listeners were detached by beginSession, and stopping the current
+        // session's shares here would be a logout nobody asked for.
+        if (!ownsSession(epoch, sessionEpoch)) return;
+        detachListeners();
         void stopAllShares();
     };
 }

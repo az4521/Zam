@@ -843,4 +843,132 @@ describe("live-location own-share engine", () => {
 
         expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
+
+    it("does not let a teardown delete the next session's live beacon", async () => {
+        // The headline failure. Teardown's live:false write is still in flight
+        // when the next session mounts; the next session's resume deliberately
+        // skips the room BECAUSE the record is still there. If the teardown then
+        // sweeps it, a genuinely broadcasting beacon has no record and no banner.
+        const teardown = initLiveLocation();
+        await startShare(ROOM, 900000);
+        let ack: () => void = () => {};
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>((r) => (ack = r)),
+        );
+
+        teardown();
+        await flush();
+
+        h.getOwnLiveBeacons.mockReturnValue([
+            {
+                roomId: ROOM,
+                beaconInfoEventId: "$b1",
+                expiresAt: Date.now() + 900000,
+            },
+        ]);
+        initLiveLocation();
+        expect(isSharingLive(ROOM)).toBe(true);
+
+        ack();
+        await flush();
+
+        expect(isSharingLive(ROOM)).toBe(true);
+    });
+
+    it("hands an inherited in-flight stop over as retryable, not frozen", async () => {
+        // "stopping" disables Stop, and the write that phase refers to belongs to
+        // a client this session cannot watch settle: left alone the row would sit
+        // on a dead button until the beacon expired.
+        const teardown = initLiveLocation();
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+
+        teardown();
+        await flush();
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe(
+            "stopping",
+        );
+
+        initLiveLocation();
+
+        expect(liveLocationState.shares.get(ROOM)?.stop?.phase).toBe("failed");
+        expect(liveLocationState.shares.get(ROOM)?.stop?.error).toBe(
+            STOP_FAILED_MESSAGE,
+        );
+    });
+
+    it("lets the next session re-drive a stop the previous one left in flight", async () => {
+        // The adopted record must be a real retry candidate, not just cosmetics:
+        // the reconnect sweep picks up "failed", never "stopping".
+        let onReconnect: () => void = () => {};
+        h.onSyncReconnected.mockImplementation((cb: () => void) => {
+            onReconnect = cb;
+            return () => {};
+        });
+        const teardown = initLiveLocation();
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockImplementationOnce(
+            () => new Promise<void>(() => {}),
+        );
+        teardown();
+        await flush();
+
+        initLiveLocation();
+        h.stopLiveBeacon.mockResolvedValueOnce(undefined);
+        onReconnect();
+        await flush();
+
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("still clears everything it attempted when no new session follows", async () => {
+        // The guard must not turn teardown into a no-op: with nobody taking over,
+        // a retained record would surface in whatever mounts next.
+        const teardown = initLiveLocation();
+        await startShare(ROOM, 900000);
+        h.stopLiveBeacon.mockRejectedValueOnce(new Error("offline"));
+
+        teardown();
+        await flush();
+
+        expect(liveLocationState.shares.size).toBe(0);
+    });
+
+    it("keeps the live session's listeners when a superseded teardown fires", async () => {
+        // A cleanup can run after the next mount (destroy/mount ordering is not
+        // guaranteed across a route flip). Running it against the live session
+        // would be a logout nobody asked for.
+        const unsubscribe = vi.fn();
+        h.onSyncReconnected.mockImplementation(() => unsubscribe);
+
+        const stale = initLiveLocation();
+        initLiveLocation();
+        unsubscribe.mockClear();
+        await startShare(ROOM, 900000);
+
+        stale();
+        await flush();
+
+        expect(unsubscribe).not.toHaveBeenCalled();
+        expect(isSharingLive(ROOM)).toBe(true);
+        expect(h.stopLiveBeacon).not.toHaveBeenCalled();
+        // The watch belongs to the session that is still broadcasting: a
+        // superseded cleanup releasing it would silently stop the position
+        // updates while the banner still claimed the share was live.
+        expect(clearWatch).not.toHaveBeenCalled();
+    });
+
+    it("detaches the previous session's listeners when a new one begins", async () => {
+        // Without a cleanup in between, the old session's subscriptions would
+        // keep firing resume/retry work for an account that is gone.
+        const unsubscribe = vi.fn();
+        h.onSyncReconnected.mockImplementation(() => unsubscribe);
+
+        initLiveLocation();
+        initLiveLocation();
+
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
 });
