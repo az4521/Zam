@@ -108,6 +108,7 @@
         publishActiveSession,
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
+        clearServiceWorkerNotifications,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -136,6 +137,11 @@
         appendPostedEventId,
         type PostedNotificationEntry,
     } from "$lib/utils/notificationDismiss";
+    import { decideNotificationRoute } from "$lib/utils/notificationRouting";
+    import {
+        registerNotificationSurface,
+        clearAllNotificationSurfaces,
+    } from "$lib/utils/notificationSurfaces";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import { initPush, unregisterPush } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
@@ -496,6 +502,26 @@
         }
     }
 
+    /**
+     * Route a notification tap, but only into the session that posted it.
+     *
+     * A notification outlives its session: it survives an explicit logout's
+     * reload, an account switch's reload, and — worst — a session expiry,
+     * which swaps to the login view IN PLACE, so this closure is still alive
+     * when the user signs in as somebody else. Audit finding PRIV-02.
+     */
+    function routeNotificationTap(roomId: string, postedBy?: string | null) {
+        const decision = decideNotificationRoute(
+            { roomId, userId: postedBy },
+            { userId: auth.userId },
+        );
+        if (decision.action !== "navigate") return;
+        // window.focus() alone cannot un-hide a tray-hidden Electron window;
+        // restoreAppWindow() prefers the preload bridge.
+        restoreAppWindow();
+        navigateToRoom(decision.roomId);
+    }
+
     // Show an OS desktop notification via the Web Notification API. Works in the
     // browser and in Electron (which maps it to a native notification) with no
     // push service. Suppressed when the user is already viewing that room in a
@@ -518,6 +544,9 @@
             return;
         const sender = getMemberName(room, event.getSender() ?? "");
         const eventId = event.getId();
+        // The account this popup belongs to, captured at POST time: the click
+        // can land in a completely different session.
+        const postedBy = auth.userId;
         try {
             const n = new Notification(getRoomDisplayName(room), {
                 body: notificationBody({
@@ -541,10 +570,7 @@
                 renotify: true,
             } as NotificationOptions & { renotify?: boolean });
             n.onclick = () => {
-                // window.focus() alone cannot un-hide a tray-hidden Electron
-                // window; restoreAppWindow() prefers the preload bridge.
-                restoreAppWindow();
-                navigateToRoom(room.roomId);
+                routeNotificationTap(room.roomId, postedBy);
             };
             // The user dismissing it themselves must drop it from the map, or
             // a later close() would target a dead notification forever.
@@ -707,6 +733,40 @@
     // the call stops ringing.
     const notifiedCalls = new Map<string, Notification | null>();
 
+    /**
+     * Close every notification this page posted. The way out of a session —
+     * logout, expiry, account switch — must not leave a signed-out user's
+     * message text on screen with a live deep link under it.
+     *
+     * Delete from the map BEFORE close(), the same order closeRoomNotifications
+     * uses: close() fires onclose, which mutates the map we are walking. The
+     * key snapshots are what make that safe; do not iterate the live Maps.
+     *
+     * Declared below both Maps on purpose: the function declaration hoists but
+     * the `const` Maps do not, and this only ever runs at teardown time.
+     */
+    function closeAllPostedNotifications() {
+        for (const roomId of [...postedRoomNotifications.keys()]) {
+            const entry = postedRoomNotifications.get(roomId);
+            if (!entry) continue;
+            postedRoomNotifications.delete(roomId);
+            try {
+                entry.notification.close();
+            } catch {
+                /* already gone — nothing to do */
+            }
+        }
+        for (const roomId of [...notifiedCalls.keys()]) {
+            const notification = notifiedCalls.get(roomId);
+            notifiedCalls.delete(roomId);
+            try {
+                notification?.close();
+            } catch {
+                /* already gone */
+            }
+        }
+    }
+
     function notifyIncomingCall(roomId: string): Notification | undefined {
         if (
             typeof Notification === "undefined" ||
@@ -718,6 +778,7 @@
         if (!room) return;
         const partnerId = getDMPartnerId(room);
         const name = partnerId ? getMemberName(room, partnerId) : "Someone";
+        const postedBy = auth.userId;
         try {
             const n = new Notification(`${name} is calling`, {
                 body: "Incoming call",
@@ -726,8 +787,7 @@
                 tag: `call:${roomId}`,
             });
             n.onclick = () => {
-                restoreAppWindow();
-                navigateToRoom(roomId);
+                routeNotificationTap(roomId, postedBy);
             };
             return n;
         } catch {
@@ -957,19 +1017,36 @@
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
-        (window as any).__matrixOpenRoom = (roomId: string) => {
-            if (roomId) navigateToRoom(roomId);
+        // The second argument is the account MatrixMessagingService posted
+        // under; it is optional so an APK older than this change still works
+        // (an unstamped tap routes, which is safe because a build that cannot
+        // name the account no longer attaches a room id at all).
+        (window as any).__matrixOpenRoom = (
+            roomId: string,
+            userId?: string,
+        ) => {
+            if (roomId) routeNotificationTap(roomId, userId);
         };
 
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
             if (e.data?.type === "OPEN_ROOM" && e.data.roomId) {
-                navigateToRoom(e.data.roomId);
+                routeNotificationTap(e.data.roomId, e.data.userId);
             }
         };
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.addEventListener("message", onSwMessage);
         }
+
+        // One call from logout / expiry / account switch has to take all three
+        // notification surfaces down; the page's handles are private to this
+        // component, so it registers its own closer rather than exporting them.
+        const unregisterPageSurface = registerNotificationSurface(
+            closeAllPostedNotifications,
+        );
+        const unregisterSwSurface = registerNotificationSurface(
+            clearServiceWorkerNotifications,
+        );
 
         const mq = window.matchMedia("(max-width: 767px)");
         const pq = window.matchMedia("(pointer: coarse)");
@@ -1200,6 +1277,12 @@
             // Deferred notifications must not land after teardown/logout.
             for (const t of pendingNotifyTimers) window.clearTimeout(t);
             pendingNotifyTimers.clear();
+            // Close what we posted before dropping the handles: an expiry
+            // unmounts this component in place and the popups would otherwise
+            // outlive the session with a live onclick closure attached.
+            closeAllPostedNotifications();
+            unregisterPageSurface();
+            unregisterSwSurface();
             unsubRooms();
             unsubTimeline();
             unsubDecryptedNotify();
@@ -1268,6 +1351,10 @@
         loggingOut = true;
         // A live call must not survive logout.
         leaveCall();
+        // Take the notifications down FIRST: everything below is bounded by a
+        // 4s race and then a reload, and a notification left up outlives all
+        // of it — with the previous account's sender and message text on it.
+        clearAllNotificationSurfaces();
         const client = getClient();
         // Fire the network teardown in the background — don't let a slow/hung
         // request (common on mobile) block the UI from logging out locally.
