@@ -51,3 +51,68 @@ export function adoptInheritedStop(stop: StopState | null): StopState | null {
     }
     return stop;
 }
+
+export interface ResumeRecord {
+    beaconInfoEventId: string;
+    expiresAt: number;
+}
+
+export interface ResumeBeacon {
+    roomId: string;
+    beaconInfoEventId: string;
+    expiresAt: number;
+}
+
+export type ResumeAction =
+    | {
+          kind: "add";
+          roomId: string;
+          beaconInfoEventId: string;
+          expiresAt: number;
+      }
+    | { kind: "refresh"; roomId: string; expiresAt: number };
+
+/**
+ * Reconcile the beacons the homeserver reports live against the records we
+ * already hold.
+ *
+ * A room we hold nothing for is added. A room we hold the SAME beacon_info for
+ * takes the server's expiry: ours is `Date.now() + duration` from the moment we
+ * started, and the server judges liveness from `origin_server_ts + timeout`, so
+ * a local clock running fast would retire the record — and the banner warning
+ * that we are still broadcasting — before the beacon actually died.
+ *
+ * A room we hold a DIFFERENT beacon_info for is left completely alone: that is
+ * a share this session started, or one whose stop we are still chasing, and the
+ * server's view of it is simply older than ours. The stop state is never part
+ * of the plan — `stop` records exist precisely because our live:false has not
+ * landed, so the server reporting the beacon live is expected, not news.
+ */
+export function planResume(
+    existing: Iterable<[string, ResumeRecord]>,
+    beacons: Iterable<ResumeBeacon>,
+): ResumeAction[] {
+    const have = new Map(existing);
+    const actions: ResumeAction[] = [];
+    for (const beacon of beacons) {
+        const current = have.get(beacon.roomId);
+        if (!current) {
+            actions.push({
+                kind: "add",
+                roomId: beacon.roomId,
+                beaconInfoEventId: beacon.beaconInfoEventId,
+                expiresAt: beacon.expiresAt,
+            });
+            continue;
+        }
+        if (current.beaconInfoEventId !== beacon.beaconInfoEventId) continue;
+        if (current.expiresAt !== beacon.expiresAt) {
+            actions.push({
+                kind: "refresh",
+                roomId: beacon.roomId,
+                expiresAt: beacon.expiresAt,
+            });
+        }
+    }
+    return actions;
+}

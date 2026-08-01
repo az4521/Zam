@@ -990,6 +990,45 @@ describe("live-location own-share engine", () => {
         expect(clearWatch).not.toHaveBeenCalled();
     });
 
+    it("takes the server's expiry for a share it already holds", async () => {
+        await startShare(ROOM, 900000);
+        const serverExpiry = Date.now() + 600000;
+        h.getOwnLiveBeacons.mockReturnValue([
+            { roomId: ROOM, beaconInfoEventId: "$b1", expiresAt: serverExpiry },
+        ]);
+
+        initLiveLocation();
+
+        expect(liveLocationState.shares.get(ROOM)?.expiresAt).toBe(
+            serverExpiry,
+        );
+        // Re-armed, not duplicated: two timers would fire onExpiry twice.
+        expect(vi.getTimerCount()).toBe(1);
+        // …and the one timer points at the SERVER's deadline. A record left on
+        // the old client-clock timer would outlive the beacon by 5 minutes,
+        // which is the same lie the expiry itself was fixed for.
+        await vi.advanceTimersByTimeAsync(600000);
+        expect(isSharingLive(ROOM)).toBe(false);
+    });
+
+    it("re-renders when a position send fails", async () => {
+        // lastSentTs drives the banner's "last updated" label; mutating it
+        // without a tick leaves the label lying about how fresh the share is.
+        await startShare(ROOM, 900000);
+        h.sendLiveBeaconLocation.mockRejectedValueOnce(new Error("offline"));
+        vi.advanceTimersByTime(60000);
+
+        driveFix(2, 3);
+        // AFTER the synchronous loop, so this measures only the rejection's own
+        // tick: onPosition already bumps once per fix, which would make the
+        // assertion below pass with or without the fix.
+        const before = liveLocationState.beaconTick;
+        await flush();
+
+        expect(liveLocationState.shares.get(ROOM)?.lastSentTs).toBeNull();
+        expect(liveLocationState.beaconTick).toBeGreaterThan(before);
+    });
+
     it("detaches the previous session's listeners when a new one begins", async () => {
         // Without a cleanup in between, the old session's subscriptions would
         // keep firing resume/retry work for an account that is gone.

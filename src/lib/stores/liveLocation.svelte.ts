@@ -23,7 +23,11 @@ import {
     STOP_WATCHDOG_MS,
     type StopState,
 } from "$lib/utils/liveShareStop";
-import { ownsSession, adoptInheritedStop } from "$lib/utils/liveShareSession";
+import {
+    ownsSession,
+    adoptInheritedStop,
+    planResume,
+} from "$lib/utils/liveShareSession";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
 export interface ShareState {
@@ -175,8 +179,10 @@ function onPosition(pos: GeolocationPosition) {
         share.lastSentTs = now;
         sendLiveBeaconLocation(roomId, share.beaconInfoEventId, lat, lon).catch(
             () => {
-                // Offline blip: keep watching, retry on the next fix.
+                // Offline blip: keep watching, retry on the next fix. The tick
+                // is what lets the banner's "last updated" label follow it.
                 share.lastSentTs = null;
+                bump();
             },
         );
     }
@@ -415,18 +421,25 @@ export async function stopAllShares(): Promise<void> {
 }
 
 function resumeOwnShares() {
-    for (const b of getOwnLiveBeacons()) {
-        // A room with a pending/failed stop is already in the map and must NOT
-        // be reset to an active share — its beacon is live precisely because
-        // our stop has not landed yet.
-        if (liveLocationState.shares.has(b.roomId)) continue;
-        liveLocationState.shares.set(b.roomId, {
-            beaconInfoEventId: b.beaconInfoEventId,
-            expiresAt: b.expiresAt,
-            lastSentTs: null,
-            stop: null,
-        });
-        armExpiryTimer(b.roomId, b.expiresAt);
+    // A room with a pending/failed stop keeps its record and its phase: its
+    // beacon is live precisely because our stop has not landed yet, so the
+    // server reporting it live is not news. planResume never touches `stop`.
+    for (const action of planResume(
+        liveLocationState.shares.entries(),
+        getOwnLiveBeacons(),
+    )) {
+        if (action.kind === "add") {
+            liveLocationState.shares.set(action.roomId, {
+                beaconInfoEventId: action.beaconInfoEventId,
+                expiresAt: action.expiresAt,
+                lastSentTs: null,
+                stop: null,
+            });
+        } else {
+            const share = liveLocationState.shares.get(action.roomId);
+            if (share) share.expiresAt = action.expiresAt;
+        }
+        armExpiryTimer(action.roomId, action.expiresAt);
     }
     if (hasActiveBroadcast()) ensureWatch();
     bump();
