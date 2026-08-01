@@ -128,6 +128,34 @@ describe("ModalDialog semantics", () => {
         );
     });
 
+    // Regression guard for a LATENT trap, not a live bug: every current adopter
+    // passes a position utility (`relative`, or `absolute` in AccountSwitcher),
+    // so nothing today exercises this path. `z-index` is inert on
+    // `position: static`, so a caller passing a sizing-only `panelClass` — and
+    // the `relative` fallback only applies when the prop is OMITTED — would get
+    // a panel painting under the `absolute inset-0` backdrop, which then eats
+    // every click on it while the dialog looks perfectly normal.
+    //
+    // WHAT THIS CANNOT PROVE: jsdom has no layout or paint engine, so nothing
+    // here can observe stacking order or a swallowed click. This is a
+    // class-name assertion standing in for the CSS behaviour — a proxy, not
+    // proof. That `-z-10` reaches the built stylesheet at all is proved by
+    // grepping `npm run build`'s CSS, not by this file.
+    it("keeps the backdrop below a panel that brings no position utility", () => {
+        render({ onClose: vi.fn(), panelClass: "w-80 rounded bg-white" });
+        const backdrop = target.querySelector<HTMLButtonElement>(
+            'button[aria-label="Close dialog"]',
+        );
+        expect(
+            backdrop,
+            "the dialog no longer renders a backdrop button",
+        ).not.toBeNull();
+        expect(
+            [...backdrop!.classList],
+            "the backdrop lost its negative z-index — a panel without a position utility will now paint underneath it and swallow every click",
+        ).toContain("-z-10");
+    });
+
     // The panel's position utility belongs to the caller. `relative` and
     // `absolute` are the same Tailwind group, so a utility baked into the
     // shell would win or lose against a caller's override on CSS source order

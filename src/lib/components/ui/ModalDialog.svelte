@@ -65,10 +65,26 @@
   that also owns Escape and restores focus to the opener on destroy.
 -->
 <div class="fixed inset-0 {layerClass}">
+    <!--
+      `-z-10`, not "panel wins on z-index": `z-index` is inert on
+      `position: static`, so a caller passing a sizing-only `panelClass` (the
+      prop's fallback `relative` only applies when it is OMITTED) would get a
+      panel painting UNDER this backdrop, which then swallows every click while
+      looking perfectly normal. Sending the backdrop into the negative-z phase
+      of this layer's stacking context puts it below in-flow content too, so the
+      panel is above it either way. Current adopters (`relative z-10`, and
+      AccountSwitcher's `absolute z-10`) keep the exact stack they have today.
+
+      This depends on the layer above forming a stacking context, which it does:
+      every `layerClass` in the repo carries a z-index (`z-50` by default,
+      `z-[90]` for ForwardMessageDialog) on a `fixed` box. Drop the z-index from
+      `layerClass` and the negative-z backdrop escapes to an ancestor stacking
+      context and disappears behind the app.
+    -->
     <button
         type="button"
         aria-label={closeLabel}
-        class="absolute inset-0 {backdropClass}"
+        class="absolute inset-0 -z-10 {backdropClass}"
         onclick={onClose}
     ></button>
     <!--
