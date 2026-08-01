@@ -8,6 +8,7 @@ import {
     getEnableEncryptionState,
     matchesEnableEncryptionConfirmation,
     encryptionInitialState,
+    shouldEncryptNewDm,
 } from "./roomEncryption";
 
 describe("constants", () => {
@@ -19,8 +20,8 @@ describe("constants", () => {
         expect(ROOM_ENCRYPTION_EVENT_TYPE).toBe("m.room.encryption");
     });
 
-    it("defaults new DMs to unencrypted", () => {
-        expect(DEFAULT_ENCRYPT_DMS).toBe(false);
+    it("defaults new DMs to encrypted (user decision, 2026-07-30)", () => {
+        expect(DEFAULT_ENCRYPT_DMS).toBe(true);
     });
 });
 
@@ -136,5 +137,34 @@ describe("encryptionInitialState", () => {
 
     it("returns undefined when not encrypting", () => {
         expect(encryptionInitialState(false)).toBeUndefined();
+    });
+});
+
+describe("shouldEncryptNewDm", () => {
+    it("encrypts when crypto is up and the setting is on", () => {
+        expect(shouldEncryptNewDm({ cryptoReady: true, setting: true })).toBe(
+            true,
+        );
+    });
+
+    it("does not encrypt when the user turned the setting off", () => {
+        expect(shouldEncryptNewDm({ cryptoReady: true, setting: false })).toBe(
+            false,
+        );
+    });
+
+    // Creating an encrypted room this session's crypto layer cannot encrypt for
+    // would produce a DM that renders as secure and refuses every send, and
+    // encryption is irreversible — so a dead crypto layer always wins.
+    it("does not encrypt when crypto failed to start, even with the setting on", () => {
+        expect(shouldEncryptNewDm({ cryptoReady: false, setting: true })).toBe(
+            false,
+        );
+    });
+
+    it("does not encrypt when crypto is down and the setting is off", () => {
+        expect(shouldEncryptNewDm({ cryptoReady: false, setting: false })).toBe(
+            false,
+        );
     });
 });

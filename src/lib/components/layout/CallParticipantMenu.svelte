@@ -14,6 +14,9 @@
         createDirectMessage,
     } from "$lib/matrix/client";
     import { menuGates } from "$lib/utils/callMenu";
+    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import { settingsState } from "$lib/stores/settings.svelte";
+    import { isCryptoAvailable } from "$lib/matrix/crypto";
     import {
         setUserVolume,
         setUserLocalMute,
@@ -91,13 +94,27 @@
         });
     }
 
+    // Which act() is in flight, so the menu can disable itself and say so —
+    // same idiom as UserProfileCard's `pending`. The menu only closes once the
+    // action settles, and creating a DM now waits for the new room to reach the
+    // SDK store (up to 15s), so an unguarded second click would run the action
+    // twice: two concurrent createDirectMessage calls can both miss the
+    // existing-DM check and leave the user with two DM rooms for one contact.
+    type MenuAction = "message" | "block" | "kick" | "ban";
+    let pending = $state<MenuAction | null>(null);
+
     // `fallback` may be a thunk so it can read live derived state (e.g. `name`)
     // at failure time rather than capturing it when the handler is built.
     function act(
+        id: MenuAction,
         fn: () => Promise<unknown>,
         fallback: string | (() => string),
     ) {
         return async () => {
+            // Belt-and-braces with the disabled attribute: this closes the
+            // window before Svelte has flushed `pending` to the DOM.
+            if (pending !== null) return;
+            pending = id;
             try {
                 await fn();
             } catch (err) {
@@ -105,6 +122,7 @@
                     typeof fallback === "function" ? fallback() : fallback;
                 showErrorToast(matrixErrorMessage(err, msg));
             } finally {
+                pending = null;
                 onClose();
             }
         };
@@ -117,18 +135,33 @@
         onClose();
         openProfileCard(userId, anchor);
     };
-    const onMessage = act(async () => {
-        setActiveRoom(await createDirectMessage(userId));
-    }, "Could not open a direct message");
+    const onMessage = act(
+        "message",
+        async () => {
+            setActiveRoom(
+                await createDirectMessage(
+                    userId,
+                    shouldEncryptNewDm({
+                        cryptoReady: isCryptoAvailable(),
+                        setting: settingsState.encryptNewDms,
+                    }),
+                ),
+            );
+        },
+        "Could not open a direct message",
+    );
     const onToggleBlock = act(
+        "block",
         async () => (blocked ? unblockUser(userId) : blockUser(userId)),
         "Could not update the block list",
     );
     const onKick = act(
+        "kick",
         () => kickUser(room.roomId, userId),
         () => `Could not kick ${name}`,
     );
     const onBan = act(
+        "ban",
         () => banUser(room.roomId, userId),
         () => `Could not ban ${name}`,
     );
@@ -143,8 +176,9 @@
     {#if !isSelf}
         <button
             onclick={onMessage}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
-            >Message</button
+            disabled={pending !== null}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors disabled:opacity-50"
+            >{pending === "message" ? "Opening…" : "Message"}</button
         >
 
         <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -183,8 +217,13 @@
 
         <button
             onclick={onToggleBlock}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
-            >{blocked ? "Unblock" : "Block"}</button
+            disabled={pending !== null}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors disabled:opacity-50"
+            >{pending === "block"
+                ? "Saving…"
+                : blocked
+                  ? "Unblock"
+                  : "Block"}</button
         >
 
         {#if gates.canKick || gates.canBan}
@@ -193,15 +232,17 @@
         {#if gates.canKick}
             <button
                 onclick={onKick}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate"
-                >Kick {name}</button
+                disabled={pending !== null}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                >{pending === "kick" ? "Kicking…" : `Kick ${name}`}</button
             >
         {/if}
         {#if gates.canBan}
             <button
                 onclick={onBan}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate"
-                >Ban {name}</button
+                disabled={pending !== null}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                >{pending === "ban" ? "Banning…" : `Ban ${name}`}</button
             >
         {/if}
     {/if}

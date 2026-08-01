@@ -13,12 +13,16 @@ export const ENCRYPTION_ALGORITHM = "m.megolm.v1.aes-sha2";
 export const ROOM_ENCRYPTION_EVENT_TYPE = "m.room.encryption";
 
 /**
- * Default for the "Encrypt new direct messages" setting. OFF for v1: this
- * client is brand-new to E2EE and defaulting ON would silently make new DMs
- * unreadable to contacts whose clients aren't set up. Flip to `true` to change
- * the default. (This is the L4 spec's ⚑ decision lever.)
+ * Default for the "Encrypt new direct messages" setting: ON. New DMs are
+ * encrypted unless the account explicitly turned the setting off (user
+ * decision, 2026-07-30 — taken deliberately, over a recommendation to wait for
+ * the tuwunel federation pass).
+ *
+ * This is only the fallback for an account that has never touched the toggle:
+ * `settings.svelte.ts` persists an explicit choice per account, so flipping
+ * this constant never overrides anyone's stored preference.
  */
-export const DEFAULT_ENCRYPT_DMS = false;
+export const DEFAULT_ENCRYPT_DMS = true;
 
 /** Word the user must type to confirm the irreversible enable-encryption step. */
 export const ENABLE_ENCRYPTION_CONFIRM_PHRASE = "ENABLE";
@@ -117,4 +121,24 @@ export function encryptionInitialState(
             content: { algorithm: ENCRYPTION_ALGORITHM },
         },
     ];
+}
+
+/** Inputs to the "should this new DM be encrypted?" question. */
+export interface NewDmEncryptionInput {
+    /** Whether rust-crypto started successfully on this session. */
+    cryptoReady: boolean;
+    /** The account's "Encrypt new direct messages" setting. */
+    setting: boolean;
+}
+
+/**
+ * Whether a DM about to be created should be created encrypted.
+ *
+ * Both conditions are required. Encryption is irreversible, so creating an
+ * encrypted room while this session's crypto layer is down would leave a DM
+ * that reads as secure in the UI and rejects every send — a worse outcome than
+ * an unencrypted DM the user can upgrade later.
+ */
+export function shouldEncryptNewDm(input: NewDmEncryptionInput): boolean {
+    return input.cryptoReady && input.setting;
 }

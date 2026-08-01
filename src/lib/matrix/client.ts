@@ -192,6 +192,8 @@ import {
     isRoomEncrypted,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { waitForRoomArrival } from "$lib/utils/roomArrival";
+import { createInFlightByKey } from "$lib/utils/inFlightByKey";
 import {
     forgetPendingWipe,
     rememberPendingWipe,
@@ -4193,6 +4195,112 @@ const CALL_POWER_LEVEL_EVENTS = {
     "m.rtc.member": 0,
 };
 
+/**
+ * How long to wait for a just-created room to reach the SDK store via /sync.
+ * Generous: the cost of overshooting is a spinner, the cost of giving up early
+ * is a room the caller cannot configure crypto for.
+ */
+const NEW_ROOM_SYNC_TIMEOUT_MS = 15_000;
+
+/**
+ * Wait (bounded) for a room we just created to arrive over /sync.
+ *
+ * `createRoom` is a bare POST — the SDK stores no Room and emits no
+ * ClientEvent.Room — so `getRoom()` is null when it resolves. That matters in
+ * two ways. Sending into an unknown room skips encryption entirely
+ * (`encryptEventIfNeeded` opens with `if (!room) return`), so a message meant
+ * for a brand-new encrypted DM goes out in PLAINTEXT, with no error and no
+ * local echo. And the Room object is what `scrollback` and
+ * `ensureRoomCryptoConfigured` both need.
+ *
+ * Resolves null rather than rejecting on every reachable failure — timeout, a
+ * broken emitter, no client — and never leaves the listener or the timer
+ * behind, so the caller behaves exactly as it does today. The one path that
+ * could still escape is a throw from the teardown itself, which sits in the
+ * `finally` outside the `catch`; `off` only rejects a listener that is not a
+ * function, and this one is a const arrow, so `settleCreatedRoom` contains it
+ * rather than this function paying for a second try/catch to cover it.
+ */
+async function awaitCreatedRoom(roomId: string): Promise<Room | null> {
+    const client = matrixClient;
+    if (!client) return null;
+    const handle = waitForRoomArrival<Room>(roomId, client.getRoom(roomId));
+    // Already in the store: nothing was attached, so there is nothing to detach.
+    if (handle.settled()) return handle.result;
+
+    const onRoom = (room: Room) => handle.onRoomArrived(room.roomId, room);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        // Subscribe INSIDE the try: if `on` lands and `setTimeout` then throws,
+        // the finally is the only thing that takes the listener back off.
+        client.on(ClientEvent.Room, onRoom);
+        timer = setTimeout(() => handle.onTimeout(), NEW_ROOM_SYNC_TIMEOUT_MS);
+        return await handle.result;
+    } catch (err) {
+        // The room exists on the server either way — a wait that broke must not
+        // turn a successful create into a rejected one.
+        console.warn(`[matrix] waiting for created room ${roomId} failed`, err);
+        return null;
+    } finally {
+        if (timer !== undefined) clearTimeout(timer);
+        client.off(ClientEvent.Room, onRoom);
+    }
+}
+
+/**
+ * Settle a room this client just created: wait for it to land, configure crypto
+ * for it, and backfill. Best-effort throughout — a room that never arrives is
+ * still a room the caller can open, and the failure surfaces at send time
+ * exactly as it does today.
+ *
+ * NEVER rejects, and that is load-bearing rather than tidy: both creators await
+ * this AFTER the server has already committed the room, so a rejection here
+ * would report a create that succeeded as a failure and strand the user with a
+ * room they were told they do not have. Every step below is guarded.
+ *
+ * Configuring crypto here is belt-and-braces, and cheap: the sync loop runs its
+ * own `onCryptoEvent` (matrix-js-sdk `sync.js:1194-1200`) strictly BEFORE it
+ * emits `ClientEvent.Room` (`:1243`), so on the happy path the encryptor already
+ * exists by the time the wait resolves and `ensureRoomCryptoConfigured` costs
+ * one map lookup.
+ *
+ * It is NOT a cure for the federated-stub case CLAUDE.md documents: that helper
+ * returns early on a room with no `m.room.encryption` state event, which is
+ * exactly what a stub is, so it only does anything once `seedRoomStateIfMissing`
+ * has injected the state.
+ */
+async function settleCreatedRoom(roomId: string): Promise<void> {
+    // Captured before the wait: an account switch mid-wait swaps the module
+    // global, and backfilling this room belongs to the client that created it.
+    const client = matrixClient;
+    // `.catch` and not a bare await: awaitCreatedRoom resolves null on every
+    // reachable failure, but its listener teardown sits outside its own catch.
+    const room = await awaitCreatedRoom(roomId).catch(() => null);
+    if (!room) {
+        console.warn(
+            `[matrix] created room ${roomId} did not arrive over sync in time`,
+        );
+        return;
+    }
+    // Guarded despite crypto.ts's own try/catch: that one wraps the hook call
+    // only, while the `room.getLiveTimeline().getState(...)` read that feeds it
+    // sits outside, so a room without live timeline state throws straight
+    // through.
+    try {
+        await ensureRoomCryptoConfigured(room);
+    } catch (err) {
+        console.warn(`[matrix] could not configure crypto for ${roomId}`, err);
+    }
+    // Backfill is a bonus, not a contract. `scrollback` does synchronous work
+    // before it hands back a promise, so `.catch()` alone would not hold a
+    // throw — and a create that already succeeded must never reject here.
+    try {
+        await client?.scrollback(room, 30);
+    } catch {
+        /* no history is survivable; the room still opens */
+    }
+}
+
 export async function createRoom(
     name: string,
     topic: string,
@@ -4221,8 +4329,16 @@ export async function createRoom(
     });
     const roomId = result.room_id;
     if (spaceId) await addRoomToSpace(spaceId, roomId);
-    const room = matrixClient.getRoom(roomId);
-    if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    await settleCreatedRoom(roomId);
+    // Scheduled AFTER the wait, and that ordering is what makes it safe — do
+    // not hoist it. The reconcile diffs the server's joined list against the
+    // store and escalates a room it cannot materialize to clearCacheAndReload:
+    // stop the client, delete IndexedDB, reload. It cannot materialize this one
+    // — joinRoom returns a Room built by SyncApi.createRoom that is never
+    // stored, so getRoom() stays null. Master scheduled it without waiting at
+    // all, so the reconcile could run while the room was absent; waiting first
+    // makes that the exception, not the default. Rare, not impossible: on a
+    // NEW_ROOM_SYNC_TIMEOUT_MS timeout getRoom() is still null here.
     scheduleJoinedRoomsReconcile();
     return roomId;
 }
@@ -4302,9 +4418,50 @@ export async function searchUserDirectory(
     return { users, limited: res.limited };
 }
 
-export async function createDirectMessage(
+/** In-flight DM creates, keyed by active account + contact. See below. */
+const dmCreatesByUser = createInFlightByKey<string>();
+
+/**
+ * Open (or reuse) the DM with `userId`.
+ *
+ * Concurrent calls for the same contact are collapsed onto the first one. They
+ * have to be: the reuse check below reads `m.direct` account data that a
+ * simultaneous create has not written yet, so two overlapping calls both miss
+ * it and create two DM rooms for one contact — and with encryption now on by
+ * default but overridable, possibly one encrypted and one not. The UI cannot
+ * prevent this on its own; a component guard dies with the component, and the
+ * call menu unmounts the moment its backdrop is clicked.
+ *
+ * Two consequences, both deliberate:
+ * - The key is released when the call SETTLES, failure included. A rejected
+ *   promise left in the map would fail every later attempt for that contact
+ *   for the rest of the session.
+ * - A joiner's `encrypt` argument is IGNORED — it gets the first caller's room,
+ *   with the first caller's encryption choice. That is the honest trade for not
+ *   creating a second room; the alternative is exactly the bug above. In
+ *   practice the surfaces all read the same setting, so they agree.
+ */
+export function createDirectMessage(
     userId: string,
     encrypt = false,
+): Promise<string> {
+    // Keyed by ACTIVE ACCOUNT + contact, never the contact alone. Switching
+    // account inside the wait would otherwise let the new account join the old
+    // one's create and open a room it is not even a member of. Scoping the key
+    // beats clearing the map on teardown: the module client is replaced from
+    // three separate paths (`stopClient`, `logout`, `createAuthenticatedClient`)
+    // and missing any one of them reproduces exactly that bug, whereas a key
+    // that no longer matches simply cannot be joined. A leftover entry needs no
+    // cleanup — it releases itself when its own promise settles.
+    const ownUserId = matrixClient?.getUserId() ?? "";
+    return dmCreatesByUser.run(`${ownUserId}|${userId}`, () =>
+        openDirectMessage(userId, encrypt),
+    );
+}
+
+async function openDirectMessage(
+    userId: string,
+    encrypt: boolean,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists. An existing DM keeps its own
@@ -4333,8 +4490,10 @@ export async function createDirectMessage(
     const dmData: Record<string, string[]> = { ...(existing ?? {}) };
     dmData[userId] = [...(dmData[userId] ?? []), roomId];
     await matrixClient.setAccountData(EventType.Direct, dmData);
-    const room = matrixClient.getRoom(roomId);
-    if (room) await matrixClient.scrollback(room, 30).catch(() => {});
+    // Do not resolve until the room is real and crypto knows about it: the
+    // caller opens this room immediately, and the SDK sends PLAINTEXT into a
+    // room it does not yet hold.
+    await settleCreatedRoom(roomId);
     return roomId;
 }
 

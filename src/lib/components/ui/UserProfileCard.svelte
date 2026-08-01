@@ -33,6 +33,8 @@
         popoutPosition,
         summarizeMutualRooms,
     } from "$lib/utils/profileCard";
+    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
     import {
@@ -118,9 +120,17 @@
         userTrust = await getUserTrust(userId);
     }
 
+    // Bumped every time the card retargets or closes, so an action still in
+    // flight can tell its result is stale. Comparing user ids at resolve time
+    // instead would not be sticky: A → B → close (or A → B → A) makes the
+    // comparison match again and lets the stale result through. Plain `let`,
+    // not $state — it is only read from async handlers, never from markup.
+    let cardGeneration = 0;
+
     // Reset transient state whenever the card retargets or closes.
     $effect(() => {
         void profileCardState.userId;
+        cardGeneration++;
         pending = null;
         confirming = null;
         errorMsg = null;
@@ -137,13 +147,28 @@
     async function startVerifyUser() {
         pending = "verify";
         errorMsg = null;
+        // Same wait as openDM, and the same staleness problem: verifyUser ->
+        // startUserVerification creates a DM if there isn't one, so this can sit
+        // for up to 15s while the card retargets. Pin the generation so A's
+        // result cannot write A's error over B's card or clear B's pending.
+        //
+        // Its own success path is deliberately NOT gated: the verification modal
+        // is opened by verifyUser itself (verification.svelte:100), and by then
+        // the request is already on the other user's device. Suppressing the
+        // modal would strand a live request with no UI to finish it — worse than
+        // a modal the user has to dismiss.
+        const requested = userId;
+        const generation = cardGeneration;
+        const stale = () => generation !== cardGeneration;
         try {
-            await verifyUser(userId);
+            await verifyUser(requested);
         } catch (e) {
+            if (stale()) return;
             errorMsg =
                 e instanceof Error ? e.message : "Could not start verification";
         } finally {
-            pending = null;
+            // Leave the new target's own pending state alone.
+            if (!stale()) pending = null;
         }
     }
 
@@ -177,14 +202,33 @@
     async function openDM() {
         pending = "message";
         errorMsg = null;
+        // The card is a singleton: it can retarget to another user while this
+        // is in flight, and creating a DM now waits for the new room to reach
+        // the SDK store (up to 15s). The retarget $effect clears `pending` but
+        // cannot cancel the request, so pin the card generation we asked from
+        // and drop a result that lands after the card moved on — otherwise we'd
+        // open the PREVIOUS contact's DM, or show their error, over whoever is
+        // on screen now.
+        const requested = userId;
+        const generation = cardGeneration;
+        const stale = () => generation !== cardGeneration;
         try {
-            const roomId = await createDirectMessage(userId);
+            const roomId = await createDirectMessage(
+                requested,
+                shouldEncryptNewDm({
+                    cryptoReady: isCryptoAvailable(),
+                    setting: settingsState.encryptNewDms,
+                }),
+            );
+            if (stale()) return;
             closeProfileCard();
             setActiveRoom(roomId);
         } catch (e) {
+            if (stale()) return;
             errorMsg = e instanceof Error ? e.message : "Could not open DM";
         } finally {
-            pending = null;
+            // Leave the new target's own pending state alone.
+            if (!stale()) pending = null;
         }
     }
 

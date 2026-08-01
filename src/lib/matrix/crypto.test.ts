@@ -65,14 +65,19 @@ function makeRoom(encryptionEvent: unknown, roomId = ROOM_ID) {
 }
 
 function makeClient() {
+    // ONE crypto object per client, not a fresh literal per getCrypto() call: a
+    // test that stubs a crypto method (see the isEncryptionEnabledInRoom gate
+    // test) has to be stubbing the same object the code under test reads, or the
+    // assertion is vacuous.
+    const cryptoObj: Record<string, unknown> = {
+        onCryptoEvent: h.onCryptoEvent,
+        roomEncryptors: h.roomEncryptors,
+    };
     return {
         initRustCrypto: h.initRustCrypto,
         on: vi.fn(),
         off: vi.fn(),
-        getCrypto: () => ({
-            onCryptoEvent: h.onCryptoEvent,
-            roomEncryptors: h.roomEncryptors,
-        }),
+        getCrypto: () => cryptoObj,
     };
 }
 
@@ -162,6 +167,23 @@ describe("ensureRoomCryptoConfigured", () => {
         await mod.ensureRoomCryptoConfigured(makeRoom({ e: 1 }) as never);
 
         expect(h.onCryptoEvent).not.toHaveBeenCalled();
+    });
+
+    // The gate MUST be the in-memory roomEncryptors map, never
+    // isEncryptionEnabledInRoom(): the room's algorithm is persisted in the
+    // crypto store, so that call answers "yes, encrypted" for a room whose
+    // encryptor — rebuilt from sync every session — was never created. Gating on
+    // it would skip exactly the rooms that need configuring.
+    it("configures a room the crypto store already calls encrypted", async () => {
+        const client = makeClient();
+        const crypto = client.getCrypto() as unknown as Record<string, unknown>;
+        crypto.isEncryptionEnabledInRoom = vi.fn(() => Promise.resolve(true));
+        h.getClient.mockReturnValue(client);
+
+        const event = { fake: "m.room.encryption event" };
+        await mod.ensureRoomCryptoConfigured(makeRoom(event) as never);
+
+        expect(h.onCryptoEvent).toHaveBeenCalledTimes(1);
     });
 });
 
