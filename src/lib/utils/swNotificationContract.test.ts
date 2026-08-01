@@ -32,10 +32,20 @@ describe("static/sw.js notification contract", () => {
         // a rejection in the close path must not skip the token wipe.
         // Presence first: the ordering assertion below passes vacuously on a
         // deleted wipe (-1 < N), and this is the only thing pinning it.
-        expect(body).toContain('dbSet("accessToken", null)');
-        expect(body.indexOf('dbSet("accessToken", null)')).toBeLessThan(
+        //
+        // Targets the RECORD, not `dbSet("accessToken", null)`: SEC-01 replaced
+        // the four per-key writes with one versioned record, and the record is
+        // what holds the token now, so it is written first and alone. The
+        // legacy per-key wipe still runs after it (LEGACY_SESSION_KEYS), but it
+        // is a cleanup for upgraded installs — pinning the ordering on it would
+        // pin the wrong thing.
+        expect(body).toContain("dbSet(SESSION_KEY, null)");
+        expect(body.indexOf("dbSet(SESSION_KEY, null)")).toBeLessThan(
             body.indexOf("closeAllNotifications()"),
         );
+        // The pre-record copies must still be cleared, or an upgraded install
+        // keeps a second copy of the token at rest right through logout.
+        expect(body).toContain("LEGACY_SESSION_KEYS");
     });
 
     it("accepts a notification-only clear, for an account switch that keeps auth", () => {

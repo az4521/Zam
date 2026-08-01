@@ -361,6 +361,13 @@ describe("drawer inert wiring — polarity", () => {
 
     it("has no aria-hidden bindings beyond the three drawers", () => {
         expect(ariaHiddenBindings(appShell())).toEqual([
+            // Static, ALWAYS-hidden, and deliberately so: the decorative
+            // spinner in the "Redirecting…" block (A11Y-13). Its polarity is
+            // unconditional because the element carries no information — the
+            // sibling <span>Redirecting…</span> inside role="status" is what a
+            // screen reader announces. Unlike the drawer bindings below it must
+            // NOT become conditional; if it ever does, that is a bug.
+            'aria-hidden="true"',
             'aria-hidden={leftDrawerClosed ? "true" : undefined}',
         ]);
         expect(ariaHiddenBindings(messageArea())).toEqual([

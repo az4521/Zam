@@ -135,8 +135,11 @@ describe("linkPreviewMedia", () => {
 });
 
 const ENCRYPT_DMS_KEY = "settings:encryptNewDms";
-const SCOPED_USER = "@precedence:example.org";
-const SCOPED_ENCRYPT_DMS_KEY = `${ENCRYPT_DMS_KEY}:${SCOPED_USER}`;
+// Distinct from the SCOPED_USER above (R7's link-preview suite): both suites
+// landed in this file from different branches and each asserts on its own
+// account-scoped key, so they must not share an id.
+const ENCRYPT_SCOPED_USER = "@precedence:example.org";
+const SCOPED_ENCRYPT_DMS_KEY = `${ENCRYPT_DMS_KEY}:${ENCRYPT_SCOPED_USER}`;
 
 /**
  * Same trick as bootWith above, for the account-scoped encryption setting. In a
@@ -203,7 +206,7 @@ describe("encryptNewDms", () => {
         vi.resetModules();
         const fresh = await import("./settings.svelte");
         const { auth } = await import("./auth.svelte");
-        auth.userId = SCOPED_USER;
+        auth.userId = ENCRYPT_SCOPED_USER;
         try {
             fresh.reloadAccountSettings();
             expect(fresh.settingsState.encryptNewDms).toBe(false);
