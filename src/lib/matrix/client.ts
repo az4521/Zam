@@ -38,16 +38,14 @@ import type {
     Beacon,
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
-import {
-    Room as LivekitRoom,
-    RoomEvent as LivekitRoomEvent,
-    Track as LivekitTrack,
-    type RemoteTrack,
-    type RemoteTrackPublication,
-    type RemoteParticipant,
-    type LocalParticipant,
-    type TrackPublication,
-} from "livekit-client";
+import type * as LivekitClient from "livekit-client";
+type LivekitModule = typeof import("livekit-client");
+type LivekitRoom = LivekitClient.Room;
+type RemoteTrack = LivekitClient.RemoteTrack;
+type RemoteTrackPublication = LivekitClient.RemoteTrackPublication;
+type RemoteParticipant = LivekitClient.RemoteParticipant;
+type LocalParticipant = LivekitClient.LocalParticipant;
+type TrackPublication = LivekitClient.TrackPublication;
 import {
     callEndedMembershipMessage,
     pickLivekitTransport,
@@ -138,6 +136,7 @@ import {
     isValidTagOrder,
     isValidChildOrder,
 } from "$lib/utils/orderKey";
+import { lazyModule } from "$lib/utils/lazyModule";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
 import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
@@ -7157,10 +7156,21 @@ export function onVoiceSessionsChanged(cb: () => void): () => void {
     };
 }
 
+/** livekit-client is ~half a megabyte of WebRTC that a text-only session
+ *  never touches. It is fetched when a call starts; every value use in
+ *  this file is inside the call region, and the loaded namespace is
+ *  carried on ActiveVoiceCall so those uses cannot outrun the fetch. */
+const livekit = lazyModule<LivekitModule>(() => import("livekit-client"));
+
 interface ActiveVoiceCall {
     roomId: string;
     session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
     lkRoom: LivekitRoom;
+    /** The loaded livekit-client namespace. Held here rather than read from
+     *  a module global so the synchronous helpers below cannot reach for a
+     *  Track enum before the chunk exists — an ActiveVoiceCall can only be
+     *  constructed after the await. */
+    lk: LivekitModule;
     audioEls: Set<HTMLAudioElement>;
     /** identity ("@user:server:DEVICE") → that publication's elements, so a
      *  per-user volume can be applied without disturbing anyone else. */
@@ -7271,7 +7281,7 @@ const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
  *  `deviceId` for a stopped track — both fail quiet (no notice). */
 function activeCameraDeviceId(call: ActiveVoiceCall): string | null {
     const track = call.lkRoom.localParticipant.getTrackPublication(
-        LivekitTrack.Source.Camera,
+        call.lk.Track.Source.Camera,
     )?.videoTrack?.mediaStreamTrack;
     return track?.getSettings().deviceId ?? null;
 }
@@ -7368,7 +7378,10 @@ export function onVideoTracksChanged(
 
 /** Walk a LiveKit room's participants and collect subscribed video tracks as
  *  normalized inputs for buildVideoTiles(). */
-function currentVideoInputs(lkRoom: LivekitRoom): VideoPublicationInput[] {
+function currentVideoInputs(
+    lk: LivekitModule,
+    lkRoom: LivekitRoom,
+): VideoPublicationInput[] {
     const out: VideoPublicationInput[] = [];
     const addFrom = (
         p: RemoteParticipant | LocalParticipant,
@@ -7384,12 +7397,12 @@ function currentVideoInputs(lkRoom: LivekitRoom): VideoPublicationInput[] {
             // the avatar / disappears instead of freezing on a black frame.
             if (
                 (pub as TrackPublication).isMuted ||
-                track.streamState === LivekitTrack.StreamState.Paused
+                track.streamState === lk.Track.StreamState.Paused
             )
                 continue;
             let source: VideoSource | null = null;
-            if (pub.source === LivekitTrack.Source.Camera) source = "camera";
-            else if (pub.source === LivekitTrack.Source.ScreenShare)
+            if (pub.source === lk.Track.Source.Camera) source = "camera";
+            else if (pub.source === lk.Track.Source.ScreenShare)
                 source = "screenshare";
             if (!source) continue;
             out.push({
@@ -7493,6 +7506,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const room = matrixClient.getRoom(roomId);
     if (!room) throw new Error("Unknown room");
     const seq = ++voiceJoinSeq;
+    // Start the chunk fetch now so it overlaps leaveVoiceCallInternal(), the
+    // mic permission prompt and configuredRtcFoci(); it is awaited just
+    // before the Room is constructed. The no-op catch only stops an
+    // unhandled rejection if we bail out before that await — awaiting this
+    // same promise below still throws.
+    const livekitLoad = livekit.load();
+    livekitLoad.catch(() => {});
     await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
 
@@ -7515,7 +7535,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
-    const lkRoom = new LivekitRoom({
+    const lk = await livekitLoad;
+    if (seq !== voiceJoinSeq) return; // superseded while loading livekit
+    const lkRoom = new lk.Room({
         audioCaptureDefaults: {
             deviceId: settingsState.audioInputDeviceId ?? undefined,
             noiseSuppression: settingsState.noiseSuppression,
@@ -7561,6 +7583,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         roomId,
         session,
         lkRoom,
+        lk,
         audioEls: new Set(),
         elsByIdentity: new Map(),
         onMmError,
@@ -7612,13 +7635,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         if (seq !== voiceJoinSeq) return;
 
         lkRoom.on(
-            LivekitRoomEvent.TrackSubscribed,
+            lk.RoomEvent.TrackSubscribed,
             (
                 track: RemoteTrack,
                 _pub: RemoteTrackPublication,
                 participant: RemoteParticipant,
             ) => {
-                if (track.kind !== LivekitTrack.Kind.Audio) return;
+                if (track.kind !== lk.Track.Kind.Audio) return;
                 if (activeVoice !== call) {
                     // Call already superseded/left — don't attach at all.
                     track.detach().forEach((el) => el.remove());
@@ -7638,7 +7661,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 document.body.appendChild(el);
             },
         );
-        lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+        lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
             for (const el of track.detach()) {
                 const audioEl = el as HTMLAudioElement;
                 call.audioEls.delete(audioEl);
@@ -7649,7 +7672,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 el.remove();
             }
         });
-        lkRoom.on(LivekitRoomEvent.ActiveSpeakersChanged, (speakers) => {
+        lkRoom.on(lk.RoomEvent.ActiveSpeakersChanged, (speakers) => {
             if (activeVoice !== call) return;
             const ids = speakers.map((p) => p.identity);
             for (const cb of activeSpeakerSubscribers) cb(ids);
@@ -7667,40 +7690,40 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             }
             for (const cb of participantMuteSubscribers) cb(muted);
         };
-        lkRoom.on(LivekitRoomEvent.TrackMuted, notifyMutes);
-        lkRoom.on(LivekitRoomEvent.TrackUnmuted, notifyMutes);
+        lkRoom.on(lk.RoomEvent.TrackMuted, notifyMutes);
+        lkRoom.on(lk.RoomEvent.TrackUnmuted, notifyMutes);
         // A participant arriving already muted fires neither event. Separate
         // from the TrackSubscribed handler above so each stays focused.
-        lkRoom.on(LivekitRoomEvent.TrackSubscribed, notifyMutes);
-        lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyMutes);
+        lkRoom.on(lk.RoomEvent.TrackSubscribed, notifyMutes);
+        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, notifyMutes);
         const notifyVideo = () => {
             if (activeVoice !== call) return;
-            const tiles = buildVideoTiles(currentVideoInputs(lkRoom));
+            const tiles = buildVideoTiles(currentVideoInputs(lk, lkRoom));
             for (const cb of videoTracksSubscribers) cb(tiles);
         };
-        lkRoom.on(LivekitRoomEvent.TrackSubscribed, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.TrackUnsubscribed, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.LocalTrackPublished, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.LocalTrackUnpublished, notifyVideo);
+        lkRoom.on(lk.RoomEvent.TrackSubscribed, notifyVideo);
+        lkRoom.on(lk.RoomEvent.TrackUnsubscribed, notifyVideo);
+        lkRoom.on(lk.RoomEvent.LocalTrackPublished, notifyVideo);
+        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, notifyVideo);
         // Camera off = track.mute(), not unpublish — recompute on mute/unmute
         // too, so the tile drops to the avatar (and returns) as it toggles.
-        lkRoom.on(LivekitRoomEvent.TrackMuted, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.TrackUnmuted, notifyVideo);
+        lkRoom.on(lk.RoomEvent.TrackMuted, notifyVideo);
+        lkRoom.on(lk.RoomEvent.TrackUnmuted, notifyVideo);
         // A remote stopping a share can surface as a bare TrackUnpublished
         // (no TrackUnsubscribed, if the track was already detached) or as an
         // SFU stream-state pause — recompute on both so their tile clears.
-        lkRoom.on(LivekitRoomEvent.TrackUnpublished, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.TrackStreamStateChanged, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.ParticipantDisconnected, notifyVideo);
-        lkRoom.on(LivekitRoomEvent.Reconnecting, () => {
+        lkRoom.on(lk.RoomEvent.TrackUnpublished, notifyVideo);
+        lkRoom.on(lk.RoomEvent.TrackStreamStateChanged, notifyVideo);
+        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, notifyVideo);
+        lkRoom.on(lk.RoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("reconnecting");
         });
-        lkRoom.on(LivekitRoomEvent.Reconnected, () => {
+        lkRoom.on(lk.RoomEvent.Reconnected, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("connected");
         });
-        lkRoom.on(LivekitRoomEvent.Disconnected, () => {
+        lkRoom.on(lk.RoomEvent.Disconnected, () => {
             // SFU kicked us or the connection died for good — tear down
             // fully and tell the user. User-initiated leaves null
             // activeVoice first, so this only fires on genuine drops.
@@ -7710,19 +7733,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 void leaveVoiceCall();
             }
         });
-        lkRoom.on(LivekitRoomEvent.AudioPlaybackStatusChanged, () => {
+        lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => {
             if (activeVoice !== call) return;
             setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
         });
         let silenceNotified = false;
-        lkRoom.on(LivekitRoomEvent.LocalAudioSilenceDetected, () => {
+        lkRoom.on(lk.RoomEvent.LocalAudioSilenceDetected, () => {
             if (activeVoice !== call || silenceNotified) return;
             silenceNotified = true;
             notifyVoiceNotice(
                 "Your microphone appears silent — check your input device",
             );
         });
-        lkRoom.on(LivekitRoomEvent.MediaDevicesError, (e: Error) => {
+        lkRoom.on(lk.RoomEvent.MediaDevicesError, (e: Error) => {
             if (activeVoice !== call) return;
             // LiveKit emits this BEFORE it rethrows the getUserMedia/
             // getDisplayMedia rejection, so it also fires on every ordinary
@@ -7932,8 +7955,10 @@ export async function setVoiceCaptureConstraints(c: {
     echoCancellation: boolean;
     autoGainControl: boolean;
 }): Promise<void> {
-    const track = activeVoice?.lkRoom.localParticipant.getTrackPublication(
-        LivekitTrack.Source.Microphone,
+    const call = activeVoice;
+    if (!call) return;
+    const track = call.lkRoom.localParticipant.getTrackPublication(
+        call.lk.Track.Source.Microphone,
     )?.audioTrack;
     if (!track) return;
     await track.restartTrack({ ...c }).catch(() => {});

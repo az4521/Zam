@@ -100,6 +100,7 @@
         highlightCodeBlocks,
         mapOutsideCode,
     } from "$lib/utils/codeHighlight";
+    import { highlighterFor } from "$lib/utils/codeHighlighter.svelte";
     import {
         isFavouriteGif,
         addFavouriteGif,
@@ -881,7 +882,13 @@
         const emojiRendered = mapOutsideCode(html, (fragment) =>
             renderHtml(fragment, "twemoji"),
         );
-        return highlightCodeBlocks(emojiRendered);
+        // highlighterFor() is null until the highlight.js chunk lands; the
+        // read subscribes this render to its arrival, which re-runs this
+        // expression and recolours an already-painted code block.
+        return highlightCodeBlocks(
+            emojiRendered,
+            highlighterFor(emojiRendered),
+        );
     }
 
     $effect(() => {
