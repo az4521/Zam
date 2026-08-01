@@ -9,7 +9,12 @@ const highlighter = lazyModule(async () => {
     return mod.default as unknown as HighlightEngine;
 });
 
-let engine = $state<HighlightEngine | null>(null);
+let chunkFetchFailed = false;
+
+// $state.raw: deep-proxying an opaque third-party object (highlight.js) is wrong.
+// Each proxied property access mints a fresh identity, which breaks cycle detection
+// in serializers and diagnostics. Use raw instead: the whole engine is replaced wholesale.
+let engine = $state.raw<HighlightEngine | null>(null);
 
 /**
  * The loaded highlighter, or null while it is still on its way.
@@ -32,7 +37,15 @@ export function highlighterFor(html: string): HighlightEngine | null {
             })
             // A failed chunk fetch leaves code blocks plain rather than
             // breaking the message; lazyModule keeps it retryable, and the
-            // next code block rendered tries again.
-            .catch(() => {});
+            // next code block rendered tries again. Warn once per session so
+            // users with blocked chunk networks know code blocks are degraded.
+            .catch(() => {
+                if (!chunkFetchFailed) {
+                    chunkFetchFailed = true;
+                    console.warn(
+                        "highlight.js chunk failed to load; code blocks will display without syntax highlighting",
+                    );
+                }
+            });
     return null;
 }
