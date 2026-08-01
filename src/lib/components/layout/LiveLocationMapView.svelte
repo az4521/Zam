@@ -16,6 +16,7 @@
     } from "$lib/stores/liveLocation.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { remainingLabel, updatedAgoLabel } from "$lib/utils/liveLocation";
+    import { stopStatusLabel, stopButtonLabel } from "$lib/utils/liveShareStop";
     import { timeOnly } from "$lib/utils/timeFormat";
     import { beaconMarkers } from "$lib/utils/liveLocationMap";
     import { mapLinkFor } from "$lib/utils/location";
@@ -38,6 +39,14 @@
     const me = getOwnUserId();
     const ownShare = $derived(
         (void liveLocationState.beaconTick, shareStateFor(room.roomId)),
+    );
+    // Derived separately from `ownShare` on purpose — see the same comment in
+    // LiveLocationBanner: the ShareState object is mutated in place, so reading
+    // `ownShare.stop` would never re-render, while `stop` itself is a fresh
+    // object on every phase change and therefore does invalidate.
+    const ownStop = $derived(
+        (void liveLocationState.beaconTick,
+        shareStateFor(room.roomId)?.stop ?? null),
     );
     const markers = $derived.by((): MapMarkerInput[] => {
         void liveLocationState.beaconTick;
@@ -118,8 +127,15 @@
                 <span
                     class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-danger animate-pulse"
                 ></span>
-                <span class="text-discord-textPrimary">
-                    Sharing live location · {remainingLabel(
+                <!-- Same three states as the banner: stopping / stop-failed /
+                     sharing. A failed stop reads as an error because the
+                     beacon really is still broadcasting. -->
+                <span
+                    class={ownStop?.phase === "failed"
+                        ? "font-semibold text-discord-danger"
+                        : "text-discord-textPrimary"}
+                >
+                    {stopStatusLabel(ownStop) ?? "Sharing live location"} · {remainingLabel(
                         ownShare.expiresAt,
                         now,
                     )}
@@ -132,12 +148,16 @@
                         )})
                     </span>
                 {/if}
+                <!-- Disabled only for the in-flight write, which always
+                     resolves (ack, rejection, or the expiry backstop). The
+                     idle label stays this view's wordier "Stop sharing". -->
                 <button
                     type="button"
+                    disabled={ownStop?.phase === "stopping"}
                     onclick={() => stopShare(room.roomId)}
-                    class="ml-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                    class="ml-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    Stop sharing
+                    {ownStop ? stopButtonLabel(ownStop) : "Stop sharing"}
                 </button>
             </div>
         {/if}

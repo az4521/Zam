@@ -173,6 +173,7 @@ import {
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
+import { isSyncRecovery } from "$lib/utils/liveShareStop";
 import {
     getRoomNotificationSettingForClient,
     isHighlightAction,
@@ -819,6 +820,18 @@ export function onSyncPrepared(callback: () => void): () => void {
     if (!matrixClient) return () => {};
     const handler = (state: string) => {
         if (state === "PREPARED") callback();
+    };
+    matrixClient.on(ClientEvent.Sync, handler as never);
+    return () => matrixClient?.off(ClientEvent.Sync, handler as never);
+}
+
+/** Fires when the sync loop recovers from an error/reconnecting state — i.e.
+ *  we are talking to the homeserver again. Used to re-drive writes that failed
+ *  while offline. Returns an unsubscribe. */
+export function onSyncReconnected(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (state: string, prevState: string | null) => {
+        if (isSyncRecovery(state, prevState)) callback();
     };
     matrixClient.on(ClientEvent.Sync, handler as never);
     return () => matrixClient?.off(ClientEvent.Sync, handler as never);

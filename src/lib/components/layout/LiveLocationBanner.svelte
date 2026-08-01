@@ -13,6 +13,7 @@
     } from "$lib/stores/liveLocation.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { remainingLabel, updatedAgoLabel } from "$lib/utils/liveLocation";
+    import { stopStatusLabel, stopButtonLabel } from "$lib/utils/liveShareStop";
     import { timeOnly } from "$lib/utils/timeFormat";
     import LiveLocationMapView from "$lib/components/layout/LiveLocationMapView.svelte";
     import { untrack } from "svelte";
@@ -66,6 +67,16 @@
     const ownShare = $derived(
         (void liveLocationState.beaconTick, shareStateFor(room.roomId)),
     );
+    // The stop phase MUST be derived on its own, not read as `ownShare.stop`:
+    // `shareStateFor` hands back the same ShareState object the store mutates in
+    // place, so that derived stays reference-equal on every bump and Svelte
+    // never invalidates its dependents (the button would sit on "Stop" while
+    // the write was in flight). `stop` is replaced wholesale on each phase
+    // change, so a derived over it does change identity and does propagate.
+    const ownStop = $derived(
+        (void liveLocationState.beaconTick,
+        shareStateFor(room.roomId)?.stop ?? null),
+    );
     const others = $derived(
         (void liveLocationState.beaconTick,
         void roomsState.roomsTick,
@@ -81,12 +92,17 @@
     >
         <span class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-danger"
         ></span>
+        <!-- A stop that is in flight or was rejected must say so: the beacon is
+             still live on the server until it acks, and a failed stop reads as
+             an error, not as a healthy share. -->
         <button
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
-            class="text-left text-discord-textPrimary hover:underline"
+            class="text-left hover:underline {ownStop?.phase === 'failed'
+                ? 'font-semibold text-discord-danger'
+                : 'text-discord-textPrimary'}"
             title="Open map"
-            >Sharing live location · {remainingLabel(
+            >{stopStatusLabel(ownStop) ?? "Sharing live location"} · {remainingLabel(
                 ownShare.expiresAt,
                 now,
             )}{ownShare.lastSentTs
@@ -100,12 +116,17 @@
         >
             Map
         </button>
+        <!-- Disabled only while the write is genuinely in flight; that phase
+             always ends (ack, rejection, or the beacon's expiry timer), so the
+             user is never left with a dead button. A failed stop is clickable
+             again — that is the retry path. -->
         <button
             type="button"
+            disabled={ownStop?.phase === "stopping"}
             onclick={() => stopShare(room.roomId)}
-            class="rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            class="rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-            Stop
+            {stopButtonLabel(ownStop)}
         </button>
     </div>
 {:else if others.length > 0}
