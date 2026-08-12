@@ -27,9 +27,11 @@
         getOwnServerName,
         getMyPowerLevel,
         getRoomPowerLevels,
+        sendThreadReply,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
+    import { composerThreadKey } from "$lib/utils/threadContent";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -90,6 +92,8 @@
          *  root and this fires with its event id so the caller can open it. */
         onThreadCreated?: (rootEventId: string) => void;
         scrollEl?: HTMLElement;
+        threadRootId?: string | null;
+        composerKey?: string;
     }
 
     let {
@@ -102,14 +106,19 @@
         onRequestEditLast,
         onThreadCreated,
         scrollEl,
+        threadRootId = null,
+        composerKey,
     }: Props = $props();
+
+    const effComposerKey = $derived(composerKey ?? roomId);
+    const isThread = $derived(threadRootId != null);
 
     let text = $state("");
     let isSending = $state(false);
     // Queued attachments live in a per-room store, not here: this component
     // stays mounted across room switches, so a local queue followed the user
     // into the next room and Send posted the file there (audit UX-01).
-    const fileQueue = $derived(getFileQueue(roomId));
+    const fileQueue = $derived(getFileQueue(effComposerKey));
     let textareaEl: HTMLDivElement | undefined = $state();
     let renderingComposer = false;
 
@@ -124,13 +133,15 @@
     let createThreadArmed = $state(false);
 
     // Expose a focus hook so the global "type to focus" shortcut (+page) can
-    // focus this composer.
+    // focus this composer. Only the main composer claims the global hook.
     $effect(() => {
-        interfaceState.focusComposer = () => textareaEl?.focus();
-        return () => {
-            if (interfaceState.focusComposer)
-                interfaceState.focusComposer = null;
-        };
+        if (!isThread) {
+            interfaceState.focusComposer = () => textareaEl?.focus();
+            return () => {
+                if (interfaceState.focusComposer)
+                    interfaceState.focusComposer = null;
+            };
+        }
     });
     let fileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
@@ -486,13 +497,19 @@
         interfaceState.modal === "composer-actions",
     );
     const showEmojiPicker = $derived(
-        composerPickerOpen && interfaceState.composerPicker === "emoji",
+        composerPickerOpen &&
+            interfaceState.composerPicker === "emoji" &&
+            interfaceState.composerPickerOwner === effComposerKey,
     );
     const showStickerPicker = $derived(
-        composerPickerOpen && interfaceState.composerPicker === "sticker",
+        composerPickerOpen &&
+            interfaceState.composerPicker === "sticker" &&
+            interfaceState.composerPickerOwner === effComposerKey,
     );
     const showGifPicker = $derived(
-        composerPickerOpen && interfaceState.composerPicker === "gif",
+        composerPickerOpen &&
+            interfaceState.composerPicker === "gif" &&
+            interfaceState.composerPickerOwner === effComposerKey,
     );
     // Mirrors the send button's own disabled condition so the button can go
     // accent-coloured the moment the message becomes sendable.
@@ -535,7 +552,7 @@
         if (!anyPickerOpen()) {
             textareaFocusedBeforePicker = document.activeElement === textareaEl;
         }
-        openComposerPicker(which);
+        openComposerPicker(which, effComposerKey);
     }
 
     function closePicker(
@@ -557,9 +574,11 @@
     const composerPlaceholder = $derived(
         disabled
             ? "Select a room to start chatting"
-            : replyToEvent
-              ? `Reply to ${replyToEvent.getSender()}...`
-              : `Message #${roomName}`,
+            : isThread
+              ? "Reply in thread..."
+              : replyToEvent
+                ? `Reply to ${replyToEvent.getSender()}...`
+                : `Message #${roomName}`,
     );
 
     // Focus textarea when reply is set
@@ -672,15 +691,16 @@
         tick().then(() => renderComposer(caretOffset));
     }
 
-    // Per-room draft. Keyed on roomId so it re-runs both when the room switches
+    // Per-room draft. Keyed on effComposerKey so it re-runs both when the room switches
     // (this component stays mounted) and when it unmounts/remounts (flipping to
-    // the call view unmounts MessageArea). The body loads the incoming room's
-    // draft; the cleanup saves the outgoing room's draft (Svelte runs cleanup
-    // before the re-run, so leaving A saves A before B loads, and destroy saves
-    // the current room). untrack() keeps the effect tracking only roomId — never
-    // `text` or the drafts store — so it never reloads what the user is typing.
+    // the call view unmounts MessageArea), AND when switching between main/thread.
+    // The body loads the incoming composer instance's draft; the cleanup saves the
+    // outgoing instance's draft (Svelte runs cleanup before the re-run, so leaving
+    // A saves A before B loads, and destroy saves the current instance).
+    // untrack() keeps the effect tracking only effComposerKey — never `text` or
+    // the drafts store — so it never reloads what the user is typing.
     $effect(() => {
-        const id = roomId;
+        const key = effComposerKey;
         // A channel switch should close the mobile keyboard. The same
         // contenteditable stays mounted across rooms, so otherwise it can
         // retain focus while the incoming room's draft is restored.
@@ -692,12 +712,12 @@
         // An armed "create thread" must not carry over to another room either.
         createThreadArmed = false;
         untrack(() => {
-            const draft = getDraft(id);
+            const draft = getDraft(key);
             text = draft?.text ?? "";
             pendingMentions = new Map(draft?.mentions ?? []);
             tick().then(() => renderComposer(text.length));
         });
-        return () => setDraft(id, text, pendingMentions);
+        return () => setDraft(key, text, pendingMentions);
     });
 
     function splitUserAndReason(arg: string): {
@@ -818,7 +838,7 @@
                 slashQuery = null;
                 mentionQuery = null;
                 pendingMentions = new Map();
-                clearDraft(roomId);
+                clearDraft(effComposerKey);
                 renderComposer(0);
             } catch (err) {
                 showErrorToast(matrixErrorMessage(err, "Command failed"));
@@ -834,7 +854,7 @@
         if (command.kind === "dialog") {
             text = "";
             slashQuery = null;
-            clearDraft(roomId);
+            clearDraft(effComposerKey);
             renderComposer(0);
             if (command.name === "poll") openCreatePollDialog(roomId);
             else if (command.name === "location")
@@ -858,7 +878,7 @@
         emojiQuery = null;
         slashQuery = null;
         pendingMentions = new Map();
-        clearDraft(roomId);
+        clearDraft(effComposerKey);
         renderComposer(0);
 
         try {
@@ -872,6 +892,7 @@
                     body,
                     formatted?.html ?? undefined,
                     mentions,
+                    isThread ? { rootEventId: threadRootId! } : undefined,
                 );
             } else if (usePlain) {
                 await sendTextMessage(roomId, body);
@@ -970,9 +991,10 @@
 
         isSending = true;
         // Everything below targets the room the user pressed Send in — a room
-        // switch mid-upload must not retarget a send, a queue removal or a
-        // draft write.
+        // or thread switch mid-upload must not retarget a send, a queue removal,
+        // or a draft write.
         const targetRoomId = roomId;
+        const targetComposerKey = effComposerKey;
         // Snapshot the composer text too, before anything can mutate it: a
         // caption commit that lands after the user typed on must not wipe the
         // new sentence (nor yank the caret back to 0).
@@ -1005,28 +1027,43 @@
                         ? { user_ids: mentionedUserIds }
                         : undefined;
                 let sentEventId: string;
-                if (replyToEvent) {
-                    sentEventId = await sendReply(
+                if (isThread) {
+                    // Thread replies always route via sendThreadReply (no reply-to-
+                    // within-thread in v1 — replyToEvent is not passed in thread mode).
+                    await sendThreadReply(
                         targetRoomId,
+                        threadRootId!,
                         trimmed,
-                        replyToEvent,
+                        mentions,
                         html ?? undefined,
-                        mentions,
-                    );
-                    onCancelReply?.();
-                } else if (html) {
-                    sentEventId = await sendFormattedMessage(
-                        targetRoomId,
-                        trimmed,
-                        html,
-                        mentions,
                     );
                 } else {
-                    sentEventId = await sendTextMessage(targetRoomId, trimmed);
-                }
-                if (createThreadArmed) {
-                    createThreadArmed = false;
-                    onThreadCreated?.(sentEventId);
+                    if (replyToEvent) {
+                        sentEventId = await sendReply(
+                            targetRoomId,
+                            trimmed,
+                            replyToEvent,
+                            html ?? undefined,
+                            mentions,
+                        );
+                        onCancelReply?.();
+                    } else if (html) {
+                        sentEventId = await sendFormattedMessage(
+                            targetRoomId,
+                            trimmed,
+                            html,
+                            mentions,
+                        );
+                    } else {
+                        sentEventId = await sendTextMessage(
+                            targetRoomId,
+                            trimmed,
+                        );
+                    }
+                    if (createThreadArmed) {
+                        createThreadArmed = false;
+                        onThreadCreated?.(sentEventId);
+                    }
                 }
             }
             // Commit each file as it lands: a failure halfway must leave the
@@ -1036,20 +1073,32 @@
                 (item, i) => {
                     if (useCaption && i === 0 && formatted) {
                         const { html, mentionedUserIds } = formatted;
-                        return sendFile(targetRoomId, item.file, {
-                            body: trimmed,
-                            formattedBody: html ?? undefined,
-                            mentions:
-                                mentionedUserIds.length > 0
-                                    ? { user_ids: mentionedUserIds }
-                                    : undefined,
-                        });
+                        return sendFile(
+                            targetRoomId,
+                            item.file,
+                            {
+                                body: trimmed,
+                                formattedBody: html ?? undefined,
+                                mentions:
+                                    mentionedUserIds.length > 0
+                                        ? { user_ids: mentionedUserIds }
+                                        : undefined,
+                            },
+                            isThread
+                                ? { rootEventId: threadRootId! }
+                                : undefined,
+                        );
                     }
-                    return sendFile(targetRoomId, item.file);
+                    return sendFile(
+                        targetRoomId,
+                        item.file,
+                        undefined,
+                        isThread ? { rootEventId: threadRootId! } : undefined,
+                    );
                 },
                 (item, i) => {
                     // The store revokes the preview URL as it drops the item.
-                    removeQueuedFile(targetRoomId, item.id);
+                    removeQueuedFile(targetComposerKey, item.id);
                     // The caption rode on the first file — it's only safely
                     // sent once that file is.
                     if (useCaption && i === 0)
@@ -1224,7 +1273,11 @@
         if (isSending || disabled) return;
         isSending = true;
         try {
-            await sendSticker(roomId, sticker);
+            await sendSticker(
+                roomId,
+                sticker,
+                isThread ? { rootEventId: threadRootId! } : undefined,
+            );
         } catch (err) {
             console.error("Failed to send sticker:", err);
         } finally {
@@ -1238,12 +1291,12 @@
         const previewUrl = file.type.startsWith("image/")
             ? URL.createObjectURL(file)
             : null;
-        addQueuedFile(roomId, file, name, previewUrl);
+        addQueuedFile(effComposerKey, file, name, previewUrl);
         textareaEl?.focus();
     }
 
     function removeFromQueue(id: string) {
-        removeQueuedFile(roomId, id);
+        removeQueuedFile(effComposerKey, id);
     }
 
     /** Model length of the current selection ("" when collapsed). */
@@ -1575,7 +1628,7 @@
     {/if}
 
     <!-- Armed "create thread" banner: mirrors the reply banner pattern -->
-    {#if createThreadArmed}
+    {#if createThreadArmed && !isThread}
         <div
             class="flex items-center justify-between gap-2 px-3 py-1.5 bg-discord-backgroundSecondary rounded-t-lg text-xs text-discord-textMuted"
         >
@@ -1646,7 +1699,7 @@
                                     : undefined}
                                 onShareLocation={() =>
                                     openShareLocationDialog(roomId)}
-                                onCreateThread={onThreadCreated
+                                onCreateThread={onThreadCreated && !isThread
                                     ? () => (createThreadArmed = true)
                                     : undefined}
                             />
@@ -1666,7 +1719,7 @@
                                     : undefined}
                                 onShareLocation={() =>
                                     openShareLocationDialog(roomId)}
-                                onCreateThread={onThreadCreated
+                                onCreateThread={onThreadCreated && !isThread
                                     ? () => (createThreadArmed = true)
                                     : undefined}
                             />
