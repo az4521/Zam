@@ -133,7 +133,8 @@ import {
     rebalancedKeys,
     rebalancedNumbers,
     OrderRebalanceError,
-    isValidTagOrder,
+    resolveTagOrderInput,
+    type TagOrderInput,
     isValidChildOrder,
 } from "$lib/utils/orderKey";
 import { lazyModule } from "$lib/utils/lazyModule";
@@ -1336,23 +1337,21 @@ export async function setRoomTag(
  *  - a finite number → clamped into the spec's `[0, 1]` range;
  *  - anything non-numeric → throw (the `m.tag` order is spec'd as a number, so
  *    a non-numeric raw value is a user error the caller surfaces).
+ * Returns the resolved action so the caller can surface a `clamped` adjustment
+ * (e.g. "5" → 1) instead of silently changing the user's value.
  */
 export async function setRoomTagOrderRaw(
     roomId: string,
     tag: string,
     raw: string,
-): Promise<void> {
-    const trimmed = raw.trim();
-    if (trimmed === "") {
+): Promise<TagOrderInput> {
+    const resolution = resolveTagOrderInput(raw);
+    if (resolution.kind === "clear") {
         await setRoomTag(roomId, tag);
-        return;
+    } else {
+        await setRoomTag(roomId, tag, resolution.value);
     }
-    const n = Number(trimmed);
-    if (!Number.isFinite(n)) {
-        throw new Error("Tag order must be a number between 0 and 1");
-    }
-    const clamped = isValidTagOrder(n) ? n : Math.min(1, Math.max(0, n));
-    await setRoomTag(roomId, tag, clamped);
+    return resolution;
 }
 
 export async function deleteRoomTag(

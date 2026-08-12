@@ -641,11 +641,16 @@
                     viaOf(room.roomId),
                 );
             } else {
-                await setRoomTagOrderRaw(
+                const result = await setRoomTagOrderRaw(
                     room.roomId,
                     section === "favourite" ? TAG_FAVOURITE : TAG_LOWPRIORITY,
                     raw,
                 );
+                if (result.kind === "set" && result.clamped) {
+                    showErrorToast(
+                        `Order must be between 0 and 1 — used ${result.value} instead.`,
+                    );
+                }
             }
             applyReorderReactivity(section);
         } catch (err) {
