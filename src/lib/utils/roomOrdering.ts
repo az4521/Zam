@@ -77,3 +77,27 @@ export function tagUpdatesForToggle(
     if (tag in tags) return { add: null, remove: [tag] };
     return { add: tag, remove: opposite in tags ? [opposite] : [] };
 }
+
+export interface TagOrderRestore {
+    roomId: string;
+    order: number | string | undefined;
+}
+
+/**
+ * Undo plan for a serial tag-order rebalance that failed partway through.
+ * Given the room list the rebalance renumbered, the order each room had BEFORE
+ * it ran, and how many rooms were successfully re-tagged, produce the restore
+ * operations — the applied rooms only, in REVERSE order so the section returns
+ * to its pre-rebalance state. Rooms past `appliedCount` were never touched.
+ */
+export function tagOrderRollback(
+    roomIds: string[],
+    originalOrders: (number | string | undefined)[],
+    appliedCount: number,
+): TagOrderRestore[] {
+    const ops: TagOrderRestore[] = [];
+    for (let i = Math.min(appliedCount, roomIds.length) - 1; i >= 0; i--) {
+        ops.push({ roomId: roomIds[i], order: originalOrders[i] });
+    }
+    return ops;
+}

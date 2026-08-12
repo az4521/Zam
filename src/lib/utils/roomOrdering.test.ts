@@ -6,6 +6,7 @@ import {
     groupRoomsByTag,
     sortRoomsByTag,
     tagUpdatesForToggle,
+    tagOrderRollback,
     type RoomTagMap,
 } from "./roomOrdering";
 
@@ -242,5 +243,33 @@ describe("tagUpdatesForToggle — which tags to set/delete on toggle", () => {
             add: TAG_FAVOURITE,
             remove: [],
         });
+    });
+});
+
+describe("tagOrderRollback", () => {
+    it("returns nothing when no writes were applied", () => {
+        expect(tagOrderRollback(["a", "b"], [0.1, 0.2], 0)).toEqual([]);
+    });
+
+    it("restores only the applied rooms, in reverse order", () => {
+        expect(
+            tagOrderRollback(["a", "b", "c", "d"], [0.1, 0.2, 0.3, 0.4], 2),
+        ).toEqual([
+            { roomId: "b", order: 0.2 },
+            { roomId: "a", order: 0.1 },
+        ]);
+    });
+
+    it("preserves undefined and string original orders", () => {
+        expect(tagOrderRollback(["a", "b"], [undefined, "0.5"], 2)).toEqual([
+            { roomId: "b", order: "0.5" },
+            { roomId: "a", order: undefined },
+        ]);
+    });
+
+    it("clamps appliedCount to the list length", () => {
+        expect(tagOrderRollback(["a"], [0.1], 5)).toEqual([
+            { roomId: "a", order: 0.1 },
+        ]);
     });
 });
