@@ -347,6 +347,19 @@
         }
     }
 
+    // The room prop can swap under a mounted dialog, so an upgrade confirm or
+    // error opened for one room must not carry into the next. Depend only on
+    // room.roomId; write inside untrack so the reset cannot retrigger itself
+    // (the effect-update-depth landmine).
+    $effect(() => {
+        void room.roomId;
+        untrack(() => {
+            upgradeShowConfirm = false;
+            upgrading = false;
+            upgradeError = "";
+        });
+    });
+
     // ── Access tab ─────────────────────────────────────────────────────────────
     let joinRule = $state(untrack(() => getJoinRule(room)));
     let historyVisibility = $state(untrack(() => getHistoryVisibility(room)));
