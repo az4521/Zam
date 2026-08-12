@@ -222,7 +222,7 @@
 {#if directEmbed?.type === "youtube"}
     <iframe
         src={directEmbed.embedUrl}
-        class="mt-1 w-full max-w-sm aspect-video rounded-lg"
+        class="mt-1 w-full max-w-lg aspect-video rounded-lg"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
         loading="lazy"
@@ -232,7 +232,7 @@
     <!-- svelte-ignore a11y_media_has_caption -->
     <video
         src={directEmbed.videoUrl}
-        class="max-w-sm max-h-72 rounded-lg mt-1 block"
+        class="max-w-lg max-h-96 rounded-lg mt-1 block"
         controls
         preload="metadata"
     ></video>
@@ -399,7 +399,7 @@
                 <img
                     src={preview.imageUrl}
                     alt=""
-                    class="max-w-sm max-h-72 rounded-lg object-contain cursor-pointer block"
+                    class="max-w-lg max-h-96 rounded-lg object-contain cursor-pointer block"
                     loading="lazy"
                     referrerpolicy="no-referrer"
                     onerror={() => (imageError = true)}
@@ -562,7 +562,7 @@
                 <video
                     src={preview.videoUrl}
                     poster={posterUrl}
-                    class="max-w-sm max-h-72 rounded-lg block pointer-events-none"
+                    class="max-w-lg max-h-96 rounded-lg block pointer-events-none"
                     autoplay
                     muted
                     loop
@@ -577,7 +577,7 @@
                 <video
                     src={preview.videoUrl}
                     poster={posterUrl}
-                    class="max-w-sm max-h-72 rounded-lg block"
+                    class="max-w-lg max-h-96 rounded-lg block"
                     controls
                     autoplay={videoPlaying}
                     preload={videoPlaying ? "auto" : "metadata"}
@@ -586,8 +586,8 @@
                 <button
                     type="button"
                     aria-label="Play video"
-                    class="relative max-w-sm w-full max-h-72 rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
-                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 18rem;`}
+                    class="relative max-w-lg w-full max-h-96 rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
+                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
                     onclick={() => (videoPlaying = true)}
                 >
                     <img
