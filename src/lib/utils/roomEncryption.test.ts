@@ -9,6 +9,8 @@ import {
     matchesEnableEncryptionConfirmation,
     encryptionInitialState,
     shouldEncryptNewDm,
+    PLAINTEXT_DM_REUSE_WARNING,
+    shouldWarnPlaintextDmReuse,
 } from "./roomEncryption";
 
 describe("constants", () => {
@@ -166,5 +168,53 @@ describe("shouldEncryptNewDm", () => {
         expect(shouldEncryptNewDm({ cryptoReady: false, setting: false })).toBe(
             false,
         );
+    });
+});
+
+describe("shouldWarnPlaintextDmReuse", () => {
+    it("warns when an existing plaintext DM is reused and the user wanted encryption", () => {
+        expect(
+            shouldWarnPlaintextDmReuse({
+                followUpStatus: "none",
+                wantEncrypted: true,
+                roomEncrypted: false,
+            }),
+        ).toBe(true);
+    });
+
+    it("does not warn when the reused room is already encrypted", () => {
+        expect(
+            shouldWarnPlaintextDmReuse({
+                followUpStatus: "none",
+                wantEncrypted: true,
+                roomEncrypted: true,
+            }),
+        ).toBe(false);
+    });
+
+    it("does not warn when the user didn't want encryption", () => {
+        expect(
+            shouldWarnPlaintextDmReuse({
+                followUpStatus: "none",
+                wantEncrypted: false,
+                roomEncrypted: false,
+            }),
+        ).toBe(false);
+    });
+
+    it("does not warn on a fresh creation (a follow-up ran, so status !== none)", () => {
+        for (const followUpStatus of ["ok", "failed", "unconfirmed"]) {
+            expect(
+                shouldWarnPlaintextDmReuse({
+                    followUpStatus,
+                    wantEncrypted: true,
+                    roomEncrypted: false,
+                }),
+            ).toBe(false);
+        }
+    });
+
+    it("exposes non-empty shared warning copy", () => {
+        expect(PLAINTEXT_DM_REUSE_WARNING.length).toBeGreaterThan(0);
     });
 });
