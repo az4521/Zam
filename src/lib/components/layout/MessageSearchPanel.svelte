@@ -383,8 +383,21 @@
             </p>
         {:else if rows.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                No results for “{searched}”.
+                {hasMore
+                    ? "No matches in the results loaded so far."
+                    : 'No results for "' + searched + '".'}
             </p>
+            {#if hasMore}
+                <div class="p-2">
+                    <button
+                        onclick={loadMore}
+                        disabled={loadingMore}
+                        class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                    >
+                        {loadingMore ? "Loading…" : "Load more"}
+                    </button>
+                </div>
+            {/if}
         {:else}
             <p class="text-xs text-discord-textMuted px-4 mt-2">
                 {resultCount} result{resultCount === 1 ? "" : "s"}
