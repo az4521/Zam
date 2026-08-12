@@ -456,7 +456,6 @@
     let aliasesLoaded = $state(false);
     let aliasBusy = $state(false);
     let aliasError = $state("");
-    let aliasNotice = $state("");
     let newAliasLocalpart = $state("");
     let canonicalContent = $state<CanonicalAliasContent>({});
     let mainAliasChoice = $state("");
@@ -519,7 +518,6 @@
         if (aliasBusy || !newAliasCheck.valid) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         const alias = buildAlias(localpart, ownServer);
         try {
             await createRoomAlias(alias, room.roomId);
@@ -537,7 +535,6 @@
         if (aliasBusy) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         try {
             // Unpublish first: a canonical alias pointing at a deleted mapping
             // advertises an address nobody can resolve.
@@ -550,7 +547,7 @@
             // mapping alone would strand m.room.canonical_alias on a dead address.
             if (next && !canSetCanonicalAlias) {
                 aliasError =
-                    "This address is published as the room's main address and you don't have permission to unpublish it, so it can't be removed. Ask a room admin.";
+                    "This address is published as one of the room's addresses and you don't have permission to unpublish it, so it can't be removed. Ask a room admin.";
                 return;
             }
             if (next) {
@@ -580,7 +577,6 @@
         if (aliasBusy || choice === (canonicalContent.alias ?? null)) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         const prev = canonicalContent;
         try {
             const next = buildCanonicalAliasContent({
@@ -1429,11 +1425,6 @@
                                         class="text-sm text-discord-danger mt-1"
                                     >
                                         {aliasError}
-                                    </p>{/if}
-                                {#if aliasNotice}<p
-                                        class="text-xs text-discord-textMuted mt-1"
-                                    >
-                                        {aliasNotice}
                                     </p>{/if}
                             </div>
 
