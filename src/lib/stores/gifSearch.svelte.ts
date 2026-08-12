@@ -5,6 +5,11 @@ import {
     type GifKind,
     type GifResult,
 } from "$lib/utils/klipy";
+import {
+    gifCacheKey,
+    canReuseGifResults,
+    GIF_CACHE_TTL_MS,
+} from "$lib/utils/gifCache";
 
 const DEBOUNCE_MS = 350;
 
@@ -22,6 +27,12 @@ export const gifSearchState = new GifSearchState();
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let requestSeq = 0; // stale-response guard: only the newest request may write
+
+// Reopen cache: the (kind, query) and time of the last successful page-1 load.
+// The store's `items` already survive unmount; these let loadGifs skip the
+// redundant refetch when the surviving set is still fresh for the same key.
+let cachedKey: string | null = null;
+let cachedAt = 0;
 
 function urlFor(kind: GifKind, query: string, page: number): string {
     const q = query.trim();
@@ -57,6 +68,10 @@ async function run(
         }
         gifSearchState.page = page;
         gifSearchState.exhausted = !hasNext;
+        // Mark the now-displayed set reusable on reopen. Recorded on appended
+        // pages too so an actively-scrolled list stays fresh under the same key.
+        cachedKey = gifCacheKey(kind, query);
+        cachedAt = Date.now();
     } catch {
         if (seq !== requestSeq) return;
         gifSearchState.error = "Couldn't reach KLIPY — try again.";
@@ -71,6 +86,27 @@ export function loadGifs(kind: GifKind, query: string): void {
     if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
+    }
+    // Reopening the picker (or switching back to the GIFs tab) within the TTL
+    // reuses the results still in the store instead of refetching — no network
+    // round-trip and no "Loading…" flash. Bump requestSeq so any request still
+    // in flight can't overwrite the reused set when it resolves.
+    if (
+        canReuseGifResults({
+            requestedKey: gifCacheKey(kind, query),
+            cachedKey,
+            cachedAt,
+            now: Date.now(),
+            ttlMs: GIF_CACHE_TTL_MS,
+            itemCount: gifSearchState.items.length,
+        })
+    ) {
+        requestSeq++;
+        gifSearchState.kind = kind;
+        gifSearchState.query = query;
+        gifSearchState.loading = false;
+        gifSearchState.error = null;
+        return;
     }
     void run(kind, query, 1, false);
 }
