@@ -258,7 +258,13 @@
 
     function commit(s: { completion: string }) {
         if (!activeToken) return;
-        const r = applySuggestion(inputEl!.value, activeToken, s.completion);
+        const spaceAfter = activeToken.kind !== "operator";
+        const r = applySuggestion(
+            inputEl!.value,
+            activeToken,
+            s.completion,
+            spaceAfter,
+        );
         term = r.text;
         activeToken = null;
         // Restore focus + caret after the autocomplete cycle.

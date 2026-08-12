@@ -92,4 +92,10 @@ describe("applySuggestion", () => {
         expect(r.text).toBe("has:image  lunch");
         expect(r.caret).toBe("has:image ".length);
     });
+    it("omits the trailing space when spaceAfter is false (operator completion)", () => {
+        const token = activeSearchToken("fr", 2)!;
+        const r = applySuggestion("fr", token, "from:", false);
+        expect(r.text).toBe("from:");
+        expect(r.caret).toBe("from:".length);
+    });
 });

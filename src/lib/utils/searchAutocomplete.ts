@@ -76,14 +76,20 @@ export function operatorSuggestions(query: string): string[] {
     return SEARCH_OPERATORS.filter((op) => op.startsWith(q));
 }
 
-/** Replace the active token with `completion` plus a trailing space; the caret
- *  lands after the space so the user can keep typing. */
+/** Replace the active token with `completion` plus an optional trailing space;
+ *  the caret lands after the space (or after the completion if spaceAfter=false)
+ *  so the user can keep typing. */
 export function applySuggestion(
     input: string,
     token: ActiveSearchToken,
     completion: string,
+    spaceAfter = true,
 ): { text: string; caret: number } {
+    const tail = spaceAfter ? " " : "";
     const text =
-        input.slice(0, token.start) + completion + " " + input.slice(token.end);
-    return { text, caret: token.start + completion.length + 1 };
+        input.slice(0, token.start) +
+        completion +
+        tail +
+        input.slice(token.end);
+    return { text, caret: token.start + completion.length + tail.length };
 }
