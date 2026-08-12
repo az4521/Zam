@@ -161,6 +161,10 @@
                             (v: any) => v.url as string,
                         ),
                     };
+                })
+                .catch((err) => {
+                    if (cancelled) return;
+                    console.error("Twitter preview fetch failed:", err);
                 });
             return () => {
                 cancelled = true;
@@ -169,12 +173,17 @@
 
         // The homeserver's own preview endpoint — no third party is contacted,
         // so this runs under every policy. Only its MEDIA is gated, below.
-        getUrlPreview(currentUrl).then((data) => {
-            if (cancelled) return;
-            if (data && (data.title || data.imageUrl || data.videoUrl)) {
-                preview = data;
-            }
-        });
+        getUrlPreview(currentUrl)
+            .then((data) => {
+                if (cancelled) return;
+                if (data && (data.title || data.imageUrl || data.videoUrl)) {
+                    preview = data;
+                }
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.error("URL preview fetch failed:", err);
+            });
 
         return () => {
             cancelled = true;

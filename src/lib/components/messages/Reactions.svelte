@@ -6,6 +6,8 @@
         removeReaction,
         mxcToHttp,
     } from "$lib/matrix/client";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { matrixErrorMessage } from "$lib/utils/knock";
     import { renderEmoji, isEmojiOnly } from "$lib/utils/twemoji";
 
     interface Props {
@@ -74,7 +76,14 @@
                 console.error("Failed to remove reaction:", err);
             }
         } else {
-            await sendReaction(room.roomId, eventId, key);
+            try {
+                await sendReaction(room.roomId, eventId, key);
+            } catch (err) {
+                console.error("Failed to send reaction:", err);
+                showErrorToast(
+                    matrixErrorMessage(err, "Could not add reaction"),
+                );
+            }
         }
     }
 
