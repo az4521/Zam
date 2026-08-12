@@ -929,18 +929,23 @@
      *  draft nor the visible buffer is ours to wipe once the user has moved on
      *  from the text we sent. See shouldClearStoredDraft and
      *  shouldClearComposerAfterSend. */
-    function clearComposerAfterSend(forRoomId: string, textAtSend: string) {
+    function clearComposerAfterSend(forKey: string, textAtSend: string) {
+        // `forKey` is the composer INSTANCE key (roomId for the main composer,
+        // the thread key for a thread composer): drafts are stored per instance,
+        // and the "did the user move on" identity check compares the current
+        // instance key against the one the send captured. For the main composer
+        // effComposerKey === roomId, so this is identical to keying on roomId.
         if (
             shouldClearStoredDraft({
-                storedText: getDraft(forRoomId)?.text ?? null,
+                storedText: getDraft(forKey)?.text ?? null,
                 textAtSend,
             })
         )
-            clearDraft(forRoomId);
+            clearDraft(forKey);
         if (
             !shouldClearComposerAfterSend({
-                currentRoomId: roomId,
-                targetRoomId: forRoomId,
+                currentRoomId: effComposerKey,
+                targetRoomId: forKey,
                 currentText: text,
                 textAtSend,
             })
@@ -1017,7 +1022,7 @@
         // A caption has no local echo until its upload finishes, so that case
         // clears on success instead (below) and the text survives a failure.
         if (trimmed && !useCaption)
-            clearComposerAfterSend(targetRoomId, textAtSend);
+            clearComposerAfterSend(targetComposerKey, textAtSend);
 
         try {
             if (trimmed && formatted && !useCaption) {
@@ -1102,7 +1107,7 @@
                     // The caption rode on the first file — it's only safely
                     // sent once that file is.
                     if (useCaption && i === 0)
-                        clearComposerAfterSend(targetRoomId, textAtSend);
+                        clearComposerAfterSend(targetComposerKey, textAtSend);
                 },
             );
             // Snap scroll to bottom after input shrinks — prevents content from drifting up
