@@ -532,7 +532,15 @@
                 canonicalContent,
                 alias,
             );
-            if (next && canSetCanonicalAlias) {
+            // Refuse the whole removal when this address is still the canonical/
+            // alt address and we lack permission to unpublish it — deleting the
+            // mapping alone would strand m.room.canonical_alias on a dead address.
+            if (next && !canSetCanonicalAlias) {
+                aliasError =
+                    "This address is published as the room's main address and you don't have permission to unpublish it, so it can't be removed. Ask a room admin.";
+                return;
+            }
+            if (next) {
                 await setCanonicalAliasContent(room.roomId, next);
                 canonicalContent = next;
                 mainAliasChoice = next.alias ?? "";
@@ -546,10 +554,6 @@
             // that no longer exists. Snap back to what is actually published.
             if (mainAliasChoice === alias)
                 mainAliasChoice = canonicalContent.alias ?? "";
-            if (next && !canSetCanonicalAlias) {
-                aliasNotice =
-                    "Removed, but this address is still published for the room — someone with permission needs to unpublish it.";
-            }
         } catch (e: any) {
             aliasError =
                 e?.data?.error ?? e?.message ?? "Could not remove that address";
