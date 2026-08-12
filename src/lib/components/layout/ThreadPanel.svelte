@@ -4,7 +4,6 @@
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import {
         getThreadMessages,
-        sendThreadReply,
         paginateThreadBack,
         onThreadEvent,
         onLocalEchoUpdated,
@@ -12,16 +11,12 @@
         getMemberAvatar,
         findEventById,
         markThreadRead,
-        getRoomMembers,
-        getOwnUserId,
-        getCustomEmojis,
     } from "$lib/matrix/client";
-    import { auth } from "$lib/stores/auth.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { timeOnly } from "$lib/utils/timeFormat";
     import { stripBodyFallback } from "$lib/utils/replyFallback";
-    import { buildFormattedBody } from "$lib/utils/messageBody";
-    import { roomsState } from "$lib/stores/rooms.svelte";
+    import MessageInput from "$lib/components/messages/MessageInput.svelte";
+    import { composerThreadKey } from "$lib/utils/threadContent";
 
     interface Props {
         room: Room;
@@ -42,19 +37,9 @@
     }: Props = $props();
 
     let scrollEl: HTMLDivElement | undefined = $state();
-    let text = $state("");
-    let isSending = $state(false);
-    let textareaEl: HTMLTextAreaElement | undefined = $state();
     let threadTick = $state(0);
     let loadingOlder = $state(false);
     let noMoreOlder = $state(false);
-
-    // Mention autocomplete (textarea-flavoured; mirrors MessageInput)
-    let mentionQuery = $state<string | null>(null); // null = popup closed
-    let mentionStart = $state(0); // index of "@" in `text`
-    let mentionSelectedIdx = $state(0);
-    // Map of "@label" → userId for mentions inserted in the current reply
-    let pendingMentions = $state(new Map<string, string>());
 
     function bump() {
         threadTick++;
@@ -110,26 +95,6 @@
     });
     const rootTs = $derived(rootEvent?.getTs() ?? 0);
 
-    const mentionCandidates = $derived.by(() => {
-        if (mentionQuery === null || !room) return [];
-        const q = mentionQuery.toLowerCase();
-        const ownId = getOwnUserId();
-        return getRoomMembers(room)
-            .filter((m) => m.userId !== ownId)
-            .filter(
-                (m) =>
-                    m.userId.toLowerCase().includes(q) ||
-                    (m.rawDisplayName ?? "").toLowerCase().includes(q),
-            )
-            .slice(0, 8);
-    });
-
-    $effect(() => {
-        // Clamp selection when the candidate list changes
-        if (mentionSelectedIdx >= mentionCandidates.length)
-            mentionSelectedIdx = 0;
-    });
-
     // Subscribe to thread events
     $effect(() => {
         const unsub = onThreadEvent(bump);
@@ -171,133 +136,6 @@
         const curr = events[index];
         if (prev.getSender() !== curr.getSender()) return true;
         return curr.getTs() - prev.getTs() > 5 * 60 * 1000;
-    }
-
-    function detectMentionQuery() {
-        const pos = textareaEl?.selectionStart ?? text.length;
-        const before = text.slice(0, pos);
-        const m = before.match(/@(\S*)$/);
-        if (m) {
-            mentionQuery = m[1];
-            mentionStart = pos - m[0].length;
-        } else {
-            mentionQuery = null;
-        }
-    }
-
-    // The text shown after "@": normally the display name, but if another member
-    // shares that display name it's ambiguous, so fall back to the full MXID.
-    function mentionLabelFor(member: {
-        userId: string;
-        rawDisplayName?: string;
-    }): string {
-        const name = member.rawDisplayName?.trim();
-        if (name && room) {
-            const sharing = getRoomMembers(room).filter(
-                (m) =>
-                    (m.rawDisplayName ?? "").trim().toLowerCase() ===
-                    name.toLowerCase(),
-            );
-            if (sharing.length <= 1) return name;
-        } else if (name) {
-            return name;
-        }
-        return member.userId.replace(/^@/, "");
-    }
-
-    function commitMention(member: {
-        userId: string;
-        rawDisplayName?: string;
-    }) {
-        const label = mentionLabelFor(member);
-        const after = text.slice(
-            mentionStart + 1 + (mentionQuery?.length ?? 0),
-        );
-        const before = text.slice(0, mentionStart);
-        text = before + "@" + label + " " + after.replace(/^\S*/, "");
-        pendingMentions = new Map([
-            ...pendingMentions,
-            ["@" + label, member.userId],
-        ]);
-        mentionQuery = null;
-        tick().then(() => {
-            const pos = mentionStart + 1 + label.length + 1;
-            textareaEl?.focus();
-            textareaEl?.setSelectionRange(pos, pos);
-        });
-    }
-
-    async function send() {
-        const trimmed = text.trim();
-        if (!trimmed || isSending) return;
-        isSending = true;
-        const formatted = buildFormattedBody(trimmed, {
-            mentions: pendingMentions,
-            customEmojis: getCustomEmojis(room, roomsState.activeSpaceId),
-        });
-        const mentions =
-            formatted.mentionedUserIds.length > 0
-                ? { user_ids: formatted.mentionedUserIds }
-                : undefined;
-        try {
-            await sendThreadReply(
-                room.roomId,
-                rootEventId,
-                trimmed,
-                mentions,
-                formatted.html ?? undefined,
-            );
-            text = "";
-            pendingMentions = new Map();
-            mentionQuery = null;
-            if (textareaEl) textareaEl.style.height = "auto";
-        } catch (err) {
-            console.error("Failed to send thread reply:", err);
-        } finally {
-            isSending = false;
-            textareaEl?.focus();
-        }
-    }
-
-    function onKeydown(e: KeyboardEvent) {
-        // Mention popup nav — MUST precede the Enter-to-send branch so
-        // Enter/Tab commits the highlighted mention instead of sending.
-        if (mentionQuery !== null && mentionCandidates.length > 0) {
-            if (e.key === "ArrowUp") {
-                e.preventDefault();
-                mentionSelectedIdx =
-                    (mentionSelectedIdx - 1 + mentionCandidates.length) %
-                    mentionCandidates.length;
-                return;
-            }
-            if (e.key === "ArrowDown") {
-                e.preventDefault();
-                mentionSelectedIdx =
-                    (mentionSelectedIdx + 1) % mentionCandidates.length;
-                return;
-            }
-            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
-                e.preventDefault();
-                const member = mentionCandidates[mentionSelectedIdx];
-                if (member) commitMention(member);
-                return;
-            }
-            if (e.key === "Escape") {
-                mentionQuery = null;
-                return;
-            }
-        }
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
-        }
-    }
-
-    function onInput() {
-        if (!textareaEl) return;
-        textareaEl.style.height = "auto";
-        textareaEl.style.height = Math.min(textareaEl.scrollHeight, 160) + "px";
-        detectMentionQuery();
     }
 </script>
 
@@ -414,75 +252,13 @@
     </div>
 
     <!-- Reply input -->
-    <div class="px-3 pb-4 pt-2 flex-shrink-0">
-        {#if mentionQuery !== null && mentionCandidates.length > 0}
-            <div
-                class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg max-h-48 overflow-y-auto"
-            >
-                {#each mentionCandidates as member, i}
-                    <button
-                        onpointerdown={(e) => {
-                            e.preventDefault();
-                            commitMention(member);
-                        }}
-                        onpointerenter={() => (mentionSelectedIdx = i)}
-                        class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
-                        class:bg-discord-messageHover={i === mentionSelectedIdx}
-                    >
-                        <Avatar
-                            src={getMemberAvatar(room, member.userId)}
-                            name={member.rawDisplayName || member.userId}
-                            id={member.userId}
-                            size={24}
-                        />
-                        <span
-                            class="text-sm text-discord-textPrimary font-medium truncate"
-                        >
-                            {member.rawDisplayName || member.userId}
-                        </span>
-                        <span class="text-xs text-discord-textMuted truncate">
-                            {member.userId}
-                        </span>
-                    </button>
-                {/each}
-            </div>
-        {/if}
-        <div
-            class="flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-3 py-2 border border-transparent focus-within:border-discord-accent/30 transition-colors"
-        >
-            <textarea
-                bind:this={textareaEl}
-                bind:value={text}
-                onkeydown={onKeydown}
-                oninput={onInput}
-                placeholder="Reply in thread…"
-                rows="1"
-                class="flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted resize-none outline-none text-sm leading-relaxed max-h-40 overflow-y-auto"
-            ></textarea>
-            <button
-                onclick={send}
-                disabled={!text.trim() || isSending}
-                class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Send reply"
-            >
-                {#if isSending}
-                    <div
-                        class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"
-                    ></div>
-                {:else}
-                    <svg
-                        class="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
-                {/if}
-            </button>
-        </div>
-        <p class="text-xs text-discord-textMuted mt-1 px-1">
-            <kbd class="font-mono">Enter</kbd> to send &middot;
-            <kbd class="font-mono">Shift+Enter</kbd> for new line
-        </p>
+    <div class="flex-shrink-0">
+        <MessageInput
+            roomId={room.roomId}
+            roomName={room.name ?? ""}
+            {room}
+            threadRootId={rootEventId}
+            composerKey={composerThreadKey(room.roomId, rootEventId)}
+        />
     </div>
 </div>
