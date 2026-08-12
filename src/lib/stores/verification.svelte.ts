@@ -42,6 +42,9 @@ export const verificationState = new VerificationStore();
  */
 const ACCEPT_BUSY_TEXT = "Finishing another verification first. Try again.";
 
+/** controller.id -> the store's unsubscribe for its bump subscription. */
+const trackers = new Map<string, () => void>();
+
 function bump(): void {
     verificationState.verificationTick++;
 }
@@ -69,21 +72,42 @@ function isTerminal(controller: VerificationController): boolean {
 }
 
 /**
- * Subscribe a controller so its changes bump the tick. `onChange` runs after
- * the bump for extra bookkeeping (e.g. pruning a finished incoming card).
+ * Subscribe a controller so its changes bump the tick. Replaces any existing
+ * subscription for the same controller (promotion re-tracks), so a controller
+ * is never double-subscribed. The store now OWNS the unsubscribe.
  */
 function track(
     controller: VerificationController,
     onChange?: () => void,
-): () => void {
-    return controller.subscribe(() => {
+): void {
+    untrack(controller);
+    const unsub = controller.subscribe(() => {
         bump();
         onChange?.();
     });
+    trackers.set(controller.id, unsub);
+}
+
+/** Drop the store's bump subscription for a controller (does NOT dispose it). */
+function untrack(controller: VerificationController): void {
+    const unsub = trackers.get(controller.id);
+    if (unsub) {
+        unsub();
+        trackers.delete(controller.id);
+    }
+}
+
+/** Untrack AND tear down the controller's own SDK listeners — it's finished. */
+function disposeController(controller: VerificationController): void {
+    untrack(controller);
+    controller.dispose();
 }
 
 /** Drop an incoming request from the queue (does not cancel it). */
-function removeIncoming(controller: VerificationController): void {
+function removeIncoming(
+    controller: VerificationController,
+    { dispose = true }: { dispose?: boolean } = {},
+): void {
     verificationState.incoming = verificationState.incoming.filter(
         (c) => c.id !== controller.id,
     );
@@ -97,6 +121,8 @@ function removeIncoming(controller: VerificationController): void {
     // the session; Decline is the only escape hatch from a hung accept, so it
     // must stay live (see the cards) and it must free the gate.
     releaseAccepting(controller.id);
+    if (dispose) disposeController(controller);
+    else untrack(controller); // promotion: keep SDK listeners, re-tracked by setActive
 }
 
 function clearAcceptError(id: string): void {
@@ -168,6 +194,8 @@ function addIncoming(controller: VerificationController): void {
 }
 
 function setActive(controller: VerificationController): void {
+    const prev = verificationState.active;
+    if (prev && prev.id !== controller.id) disposeController(prev);
     verificationState.active = controller;
     track(controller);
     bump();
@@ -267,7 +295,7 @@ export async function acceptIncoming(
     }
     // Re-filters the CURRENT queue by id, so a request that arrived while
     // accept() was in flight keeps its card.
-    removeIncoming(controller);
+    removeIncoming(controller, { dispose: false });
     setActive(controller);
     return true;
 }
@@ -288,7 +316,10 @@ export function closeActive(): void {
     // The modal is the other surface `acceptErrors` is written for, so closing
     // it is the only thing that can clear an entry recorded against the active
     // flow (its card is long gone from the queue).
-    if (controller) clearAcceptError(controller.id);
+    if (controller) {
+        clearAcceptError(controller.id);
+        disposeController(controller);
+    }
     verificationState.active = null;
     bump();
 }

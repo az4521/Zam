@@ -587,6 +587,8 @@ export interface VerificationController {
     confirmReciprocate(): void;
     /** Deny the reciprocate prompt (they did not scan our code). */
     denyReciprocate(): void;
+    /** Tear down SDK listeners and clear subscriptions. Call when finished. */
+    dispose(): void;
 }
 
 let verificationCounter = 0;
@@ -630,6 +632,10 @@ function createVerificationController(
     let startRequested = false;
     let verifierHooked = false;
     let hookedVerifier: Verifier | null = null;
+    let onShowSas: ((callbacks: ShowSasCallbacks) => void) | null = null;
+    let onShowReciprocateQr: ((callbacks: ShowQrCodeCallbacks) => void) | null =
+        null;
+    let onVerifierCancel: (() => void) | null = null;
     // The user has answered the "they scanned my code" prompt. Needed because
     // the SDK NEVER clears its own `callbacks` once the QR has been scanned
     // (rust-crypto/verification.js assigns it and nothing ever nulls it), so
@@ -698,15 +704,18 @@ function createVerificationController(
         // A method is now settled, so any earlier failure (e.g. a premature
         // "show my code") is stale — don't let it linger over the live flow.
         qrError = null;
-        verifier.on(VerifierEvent.ShowSas, (callbacks) => {
+        onShowSas = (callbacks: ShowSasCallbacks) => {
             sasCallbacks = callbacks;
             emit();
-        });
-        verifier.on(VerifierEvent.ShowReciprocateQr, (callbacks) => {
+        };
+        onShowReciprocateQr = (callbacks: ShowQrCodeCallbacks) => {
             reciprocateCallbacks = callbacks;
             emit();
-        });
-        verifier.on(VerifierEvent.Cancel, () => emit());
+        };
+        onVerifierCancel = () => emit();
+        verifier.on(VerifierEvent.ShowSas, onShowSas);
+        verifier.on(VerifierEvent.ShowReciprocateQr, onShowReciprocateQr);
+        verifier.on(VerifierEvent.Cancel, onVerifierCancel);
         // The prompt can fire before we attach — the SDK builds the verifier
         // straight from an inbound `.start` — so read anything already pending
         // before kicking off verify(). The Change handler covers the late half.
@@ -753,7 +762,7 @@ function createVerificationController(
         }
     };
 
-    request.on(VerificationRequestEvent.Change, () => {
+    const onRequestChange = () => {
         advance();
         // The verifier's own change callback re-emits Change onto the request,
         // so by the time we get here its callbacks are set even when the
@@ -762,7 +771,8 @@ function createVerificationController(
         // "they scanned my code" confirm button never appears.
         syncVerifierCallbacks();
         emit();
-    });
+    };
+    request.on(VerificationRequestEvent.Change, onRequestChange);
     // The request may already be past `Requested` when we wrap it.
     advance();
 
@@ -882,6 +892,21 @@ function createVerificationController(
             emit();
             if (callbacks) callbacks.cancel();
             else void request.cancel();
+        },
+        dispose: () => {
+            request.off(VerificationRequestEvent.Change, onRequestChange);
+            if (hookedVerifier) {
+                if (onShowSas)
+                    hookedVerifier.off(VerifierEvent.ShowSas, onShowSas);
+                if (onShowReciprocateQr)
+                    hookedVerifier.off(
+                        VerifierEvent.ShowReciprocateQr,
+                        onShowReciprocateQr,
+                    );
+                if (onVerifierCancel)
+                    hookedVerifier.off(VerifierEvent.Cancel, onVerifierCancel);
+            }
+            subscribers.clear();
         },
     };
 }

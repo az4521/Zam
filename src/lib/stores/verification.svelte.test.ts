@@ -31,6 +31,7 @@ type Fake = {
     cancel: () => void;
     view: () => { phase: number };
     subscribe: (cb: () => void) => () => void;
+    dispose: () => void;
 };
 
 function fakeController(id: string, accept: () => Promise<void>): Fake {
@@ -42,6 +43,7 @@ function fakeController(id: string, accept: () => Promise<void>): Fake {
         cancel: vi.fn(),
         view: () => ({ phase: fake.phase }),
         subscribe: () => () => {},
+        dispose: vi.fn(),
     };
     return fake;
 }
