@@ -1132,13 +1132,14 @@ describe("startUserVerification", () => {
             Promise.resolve(makeRequest()),
         );
         const mod = await import("./crypto");
-        h.getClient.mockReturnValue(
-            makeVerificationClient(requestVerificationDM),
-        );
+        const client = makeVerificationClient(requestVerificationDM);
+        h.getClient.mockReturnValue(client);
         h.createDirectMessage.mockResolvedValue({
             roomId: "!dm:example.org",
             followUp: { status: "ok" },
         });
+        // Initialize crypto so isCryptoAvailable() returns true
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
 
         await mod.startUserVerification("@them:example.org");
 
@@ -1154,13 +1155,14 @@ describe("startUserVerification", () => {
             Promise.resolve(makeRequest()),
         );
         const mod = await import("./crypto");
-        h.getClient.mockReturnValue(
-            makeVerificationClient(requestVerificationDM),
-        );
+        const client = makeVerificationClient(requestVerificationDM);
+        h.getClient.mockReturnValue(client);
         h.createDirectMessage.mockResolvedValue({
             roomId: "!dm:example.org",
             followUp: { status: "ok" },
         });
+        // Initialize crypto so isCryptoAvailable() returns true
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
 
         await mod.startUserVerification("@them:example.org");
 

@@ -100,8 +100,21 @@
         }
     }
 
-    function noMatch() {
-        verificationState.active?.mismatch();
+    async function noMatch() {
+        if (busy) return;
+        busy = true;
+        errorMsg = null;
+        try {
+            verificationState.active?.mismatch();
+            confirmed = true;
+        } catch (e) {
+            errorMsg =
+                e instanceof Error
+                    ? e.message
+                    : "Could not report the mismatch";
+        } finally {
+            busy = false;
+        }
     }
 
     async function openShowQr() {

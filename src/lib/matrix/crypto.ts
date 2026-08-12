@@ -40,7 +40,10 @@ import type {
     ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
-import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
+import {
+    ROOM_ENCRYPTION_EVENT_TYPE,
+    shouldEncryptNewDm,
+} from "$lib/utils/roomEncryption";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
@@ -805,7 +808,9 @@ function createVerificationController(
         },
         mismatch: () => sasCallbacks?.mismatch(),
         cancel: () => {
-            void request.cancel();
+            void request.cancel().catch((e) => {
+                verificationFailureText(e, "Could not cancel the verification");
+            });
         },
         startSas,
         showQrCode: async () => {
@@ -883,15 +888,31 @@ function createVerificationController(
             reciprocateSettled = true;
             reciprocateCallbacks = null;
             emit();
-            callbacks?.confirm();
+            try {
+                callbacks?.confirm();
+            } catch (e) {
+                verificationFailureText(e, "Could not confirm the QR match");
+            }
         },
         denyReciprocate: () => {
             const callbacks = reciprocateCallbacks;
             reciprocateSettled = true;
             reciprocateCallbacks = null;
             emit();
-            if (callbacks) callbacks.cancel();
-            else void request.cancel();
+            if (callbacks) {
+                try {
+                    callbacks.cancel();
+                } catch (e) {
+                    verificationFailureText(e, "Could not cancel the QR match");
+                }
+            } else {
+                void request.cancel().catch((e) => {
+                    verificationFailureText(
+                        e,
+                        "Could not cancel the verification",
+                    );
+                });
+            }
         },
         dispose: () => {
             request.off(VerificationRequestEvent.Change, onRequestChange);
@@ -957,7 +978,10 @@ export async function startUserVerification(
     // getCrypto() was falsy), so the setting is the only remaining question.
     const { roomId } = await createDirectMessage(
         userId,
-        settingsState.encryptNewDms,
+        shouldEncryptNewDm({
+            cryptoReady: isCryptoAvailable(),
+            setting: settingsState.encryptNewDms,
+        }),
     );
     const request = await crypto.requestVerificationDM(userId, roomId);
     return createVerificationController(request);
