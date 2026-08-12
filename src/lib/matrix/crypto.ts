@@ -41,6 +41,7 @@ import type {
 } from "matrix-js-sdk/lib/crypto-api";
 import { getClient, createDirectMessage } from "$lib/matrix/client";
 import { ROOM_ENCRYPTION_EVENT_TYPE } from "$lib/utils/roomEncryption";
+import { settingsState } from "$lib/stores/settings.svelte";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import {
     cryptoDbNames,
@@ -920,7 +921,19 @@ export async function startUserVerification(
     // Only the room id matters here — verification rides in the room itself.
     // A failed m.direct write leaves the room unfiled, not unusable; it stays
     // pending so the next DM open retries it (see retryRoomFollowUp).
-    const { roomId } = await createDirectMessage(userId);
+    //
+    // Create it honouring the account's "encrypt new DMs" setting. The spec does
+    // NOT require the verification channel to be encrypted — SAS is secure over
+    // cleartext (MSC2241: "key verification does not rely on secrecy"). But this
+    // DM becomes the CANONICAL DM with the contact (createDirectMessage dedupes
+    // on account+contact), so leaving it plaintext while the setting is on would
+    // hand the user a permanent unencryptable chat room the next "Message" click
+    // silently reuses. Crypto readiness is already proven above (we threw if
+    // getCrypto() was falsy), so the setting is the only remaining question.
+    const { roomId } = await createDirectMessage(
+        userId,
+        settingsState.encryptNewDms,
+    );
     const request = await crypto.requestVerificationDM(userId, roomId);
     return createVerificationController(request);
 }

@@ -38,11 +38,22 @@ const h = vi.hoisted(() => ({
     ),
     initRustCrypto: vi.fn(() => Promise.resolve()),
     roomEncryptors: {} as Record<string, unknown>,
+    // The account's "encrypt new DMs" preference, read by startUserVerification
+    // so a verification DM honours the same default the message UIs use. A
+    // getter (below) reads this live, so a test can flip it before importing.
+    encryptNewDms: true,
 }));
 
 vi.mock("$lib/matrix/client", () => ({
     getClient: h.getClient,
     createDirectMessage: h.createDirectMessage,
+}));
+vi.mock("$lib/stores/settings.svelte", () => ({
+    settingsState: {
+        get encryptNewDms() {
+            return h.encryptNewDms;
+        },
+    },
 }));
 vi.mock("$lib/stores/messages.svelte", () => ({ bumpTimelineTick: vi.fn() }));
 vi.mock("$lib/stores/security.svelte", () => ({ bumpSecurityTick: vi.fn() }));
@@ -1106,6 +1117,57 @@ describe("startUserVerification", () => {
             "!dm:example.org",
         );
         expect(controller.id).toBe("txn-1");
+    });
+
+    // The DM verification rides in becomes the CANONICAL DM with this contact
+    // (createDirectMessage dedupes on account+contact). With "encrypt new DMs"
+    // on, it must be created encrypted — otherwise a later plain "Message" click
+    // reuses a plaintext room the setting promised to encrypt, and encryption
+    // cannot be added after the fact. The spec does not require the verification
+    // channel itself to be encrypted (SAS is secure over cleartext); this is
+    // about the room the user is left chatting in.
+    it("creates the verification DM encrypted when the account default applies", async () => {
+        h.encryptNewDms = true;
+        const requestVerificationDM = vi.fn(() =>
+            Promise.resolve(makeRequest()),
+        );
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeVerificationClient(requestVerificationDM),
+        );
+        h.createDirectMessage.mockResolvedValue({
+            roomId: "!dm:example.org",
+            followUp: { status: "ok" },
+        });
+
+        await mod.startUserVerification("@them:example.org");
+
+        expect(h.createDirectMessage).toHaveBeenCalledWith(
+            "@them:example.org",
+            true,
+        );
+    });
+
+    it("creates the verification DM unencrypted when the user opted out", async () => {
+        h.encryptNewDms = false;
+        const requestVerificationDM = vi.fn(() =>
+            Promise.resolve(makeRequest()),
+        );
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeVerificationClient(requestVerificationDM),
+        );
+        h.createDirectMessage.mockResolvedValue({
+            roomId: "!dm:example.org",
+            followUp: { status: "ok" },
+        });
+
+        await mod.startUserVerification("@them:example.org");
+
+        expect(h.createDirectMessage).toHaveBeenCalledWith(
+            "@them:example.org",
+            false,
+        );
     });
 
     // A failed m.direct write leaves the room unfiled, not unusable — the
