@@ -63,6 +63,7 @@
         shouldClearComposerAfterSend,
         shouldClearStoredDraft,
     } from "$lib/utils/composerClear";
+    import { insertMention } from "$lib/utils/mentionInsert";
     import {
         parseSlashCommand,
         matchSlashCommands,
@@ -303,12 +304,15 @@
         rawDisplayName?: string;
     }) {
         const label = mentionLabelFor(member);
-        const after = text.slice(
-            mentionStart + 1 + (mentionQuery?.length ?? 0),
-        );
-        const before = text.slice(0, mentionStart);
-        // Insert pill: "@" + label + trailing space
-        text = before + "@" + label + " " + after.replace(/^\S*/, "");
+        // Splice the pill in, consuming the partly-typed name and keeping exactly
+        // one space before any following text (no double space mid-sentence).
+        const inserted = insertMention({
+            text,
+            mentionStart,
+            queryLength: mentionQuery?.length ?? 0,
+            label,
+        });
+        text = inserted.text;
         // Record keyed by the full inserted token (incl. "@") so distinct users
         // who happen to share a display name map to distinct, unambiguous keys.
         pendingMentions = new Map([
@@ -317,8 +321,7 @@
         ]);
         mentionQuery = null;
         tick().then(() => {
-            const newPos = mentionStart + 1 + label.length + 1;
-            renderComposer(newPos);
+            renderComposer(inserted.caret);
             textareaEl?.focus();
         });
     }
