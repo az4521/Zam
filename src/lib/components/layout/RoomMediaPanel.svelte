@@ -421,5 +421,30 @@
                 ? () => step(1)
                 : undefined}
         />
+    {:else}
+        <!-- mediaViewerItem resolved to nothing (bad mxc / signed-out media
+             endpoint): without this branch the tile click set viewerIndex but
+             nothing rendered, so the click looked dead. Show a dismissable
+             notice instead of silently no-op'ing. -->
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Media could not be loaded"
+        >
+            <div
+                class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
+            >
+                <p class="text-sm text-discord-textPrimary mb-4">
+                    Could not load this media.
+                </p>
+                <button
+                    onclick={() => (viewerIndex = null)}
+                    class="px-4 py-1.5 text-sm rounded bg-discord-accent text-white hover:opacity-90 transition-opacity"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
     {/if}
 {/if}
