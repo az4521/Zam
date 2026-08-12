@@ -441,6 +441,11 @@
     // ── Access tab: published addresses (separate directory calls) ─────────────
     let localAliases = $state<string[]>([]);
     let aliasesLoaded = $state(false);
+    // Adding a local alias only appends to `localAliases` and never touches the
+    // canonical-alias state, so it gets its own busy flag: a slow directory add
+    // no longer freezes Remove / Set-main (and vice-versa). Remove + Set-main
+    // both mutate `canonicalContent`, so they stay serialized on `aliasBusy`.
+    let addAliasBusy = $state(false);
     let aliasBusy = $state(false);
     let aliasError = $state("");
     let aliasNotice = $state("");
@@ -503,8 +508,8 @@
 
     async function addAlias() {
         const localpart = newAliasLocalpart.trim();
-        if (aliasBusy || !newAliasCheck.valid) return;
-        aliasBusy = true;
+        if (addAliasBusy || !newAliasCheck.valid) return;
+        addAliasBusy = true;
         aliasError = "";
         aliasNotice = "";
         const alias = buildAlias(localpart, ownServer);
@@ -516,7 +521,7 @@
             aliasError =
                 e?.data?.error ?? e?.message ?? "Could not add that address";
         } finally {
-            aliasBusy = false;
+            addAliasBusy = false;
         }
     }
 
@@ -1372,7 +1377,7 @@
                                             type="text"
                                             bind:value={newAliasLocalpart}
                                             placeholder="my-room"
-                                            disabled={aliasBusy}
+                                            disabled={addAliasBusy}
                                             onkeydown={(e) => {
                                                 if (
                                                     e.key === "Enter" &&
@@ -1393,7 +1398,7 @@
                                         >
                                         <button
                                             onclick={addAlias}
-                                            disabled={aliasBusy ||
+                                            disabled={addAliasBusy ||
                                                 !ownServer ||
                                                 !newAliasCheck.valid}
                                             class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
