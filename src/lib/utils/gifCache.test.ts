@@ -37,9 +37,9 @@ describe("canReuseGifResults", () => {
     });
 
     it("does NOT reuse across a different tab/query (key mismatch)", () => {
-        expect(
-            canReuseGifResults({ ...base, requestedKey: "gifs\ncat" }),
-        ).toBe(false);
+        expect(canReuseGifResults({ ...base, requestedKey: "gifs\ncat" })).toBe(
+            false,
+        );
     });
 
     it("does NOT reuse before any load has recorded a key", () => {

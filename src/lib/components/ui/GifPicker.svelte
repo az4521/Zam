@@ -490,6 +490,7 @@
                                     alt=""
                                     class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
+                                    decoding="async"
                                 />
                             </button>
                             <!-- Touchscreens have no hover, so the controls stay
@@ -622,6 +623,7 @@
                                     alt=""
                                     class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
+                                    decoding="async"
                                     style={gifAspectRatioStyle(
                                         r.width,
                                         r.height,
