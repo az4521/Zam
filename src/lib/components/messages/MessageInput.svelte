@@ -894,6 +894,18 @@
                     mentions,
                     isThread ? { rootEventId: threadRootId! } : undefined,
                 );
+            } else if (isThread) {
+                // In a thread, every message-producing slash command must land
+                // in the thread — otherwise /plain, /shrug, /spoiler etc. would
+                // silently escape to the main timeline. usePlain bypasses
+                // markdown (no formatted body).
+                await sendThreadReply(
+                    roomId,
+                    threadRootId!,
+                    body,
+                    mentions,
+                    usePlain ? undefined : (formatted?.html ?? undefined),
+                );
             } else if (usePlain) {
                 await sendTextMessage(roomId, body);
             } else if (formatted?.html) {
@@ -1696,7 +1708,7 @@
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
                                     openCreatePollDialog(roomId)}
-                                onRecordVoice={voiceSupported
+                                onRecordVoice={voiceSupported && !isThread
                                     ? () => {
                                           closeModal();
                                           voiceRecorderOpen = true;
@@ -1716,7 +1728,7 @@
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
                                     openCreatePollDialog(roomId)}
-                                onRecordVoice={voiceSupported
+                                onRecordVoice={voiceSupported && !isThread
                                     ? () => {
                                           closeModal();
                                           voiceRecorderOpen = true;
