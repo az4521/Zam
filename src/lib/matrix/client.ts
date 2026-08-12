@@ -1311,6 +1311,12 @@ export function getRoomClassification(
 
 // ── Room tags (favourites / low priority) ──────────────────────────────────
 
+// Rooms with a favourite/low-priority toggle currently in flight. The local
+// tag state only refreshes over sync, so a second toggle fired before the first
+// round-trip lands reads stale tags and can interleave delete/set into a
+// both-or-neither state — drop the re-entrant click instead.
+const roomTagToggleInFlight = new Set<string>();
+
 /** Read a room's tags from local synced state (no HTTP round-trip). */
 export function getRoomTags(roomId: string): RoomTagMap {
     return (matrixClient?.getRoom(roomId)?.tags ?? {}) as RoomTagMap;
@@ -1371,9 +1377,18 @@ export async function toggleRoomTag(
     toggle: "favourite" | "lowPriority",
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    const { add, remove } = tagUpdatesForToggle(getRoomTags(roomId), toggle);
-    for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
-    if (add) await matrixClient.setRoomTag(roomId, add, {});
+    if (roomTagToggleInFlight.has(roomId)) return;
+    roomTagToggleInFlight.add(roomId);
+    try {
+        const { add, remove } = tagUpdatesForToggle(
+            getRoomTags(roomId),
+            toggle,
+        );
+        for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
+        if (add) await matrixClient.setRoomTag(roomId, add, {});
+    } finally {
+        roomTagToggleInFlight.delete(roomId);
+    }
 }
 
 /**
