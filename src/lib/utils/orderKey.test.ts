@@ -12,6 +12,7 @@ import {
     rebalancedNumbers,
     isValidTagOrder,
     isValidChildOrder,
+    resolveTagOrderInput,
 } from "./orderKey";
 
 // Every char of a spec-legal key must sit in the printable-ASCII digit range.
@@ -548,6 +549,59 @@ describe("isValidTagOrder — raw m.tag order validation", () => {
         expect(isValidTagOrder(NaN)).toBe(false);
         expect(isValidTagOrder(Infinity)).toBe(false);
         expect(isValidTagOrder(-Infinity)).toBe(false);
+    });
+});
+
+describe("resolveTagOrderInput — raw m.tag order → action + clamp flag", () => {
+    it("clears the order for a blank / whitespace-only value", () => {
+        expect(resolveTagOrderInput("")).toEqual({ kind: "clear" });
+        expect(resolveTagOrderInput("   ")).toEqual({ kind: "clear" });
+    });
+
+    it("sets an in-range value without clamping", () => {
+        expect(resolveTagOrderInput("0")).toEqual({
+            kind: "set",
+            value: 0,
+            clamped: false,
+        });
+        expect(resolveTagOrderInput("0.5")).toEqual({
+            kind: "set",
+            value: 0.5,
+            clamped: false,
+        });
+        expect(resolveTagOrderInput("1")).toEqual({
+            kind: "set",
+            value: 1,
+            clamped: false,
+        });
+    });
+
+    it("clamps an above-range value to 1 and flags it", () => {
+        expect(resolveTagOrderInput("5")).toEqual({
+            kind: "set",
+            value: 1,
+            clamped: true,
+        });
+    });
+
+    it("clamps a below-range value to 0 and flags it", () => {
+        expect(resolveTagOrderInput("-2")).toEqual({
+            kind: "set",
+            value: 0,
+            clamped: true,
+        });
+    });
+
+    it("trims surrounding whitespace before parsing", () => {
+        expect(resolveTagOrderInput("  0.25  ")).toEqual({
+            kind: "set",
+            value: 0.25,
+            clamped: false,
+        });
+    });
+
+    it("throws for a non-numeric value", () => {
+        expect(() => resolveTagOrderInput("abc")).toThrow(/between 0 and 1/);
     });
 });
 
