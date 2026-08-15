@@ -94,3 +94,68 @@ describe("buildFormattedBody", () => {
         expect(r.mentionedUserIds).toEqual(["@a:hs"]);
     });
 });
+
+describe("buildFormattedBody — typed @user:server mentions (memberIds)", () => {
+    it("notifies and links a typed MXID that is a room member", () => {
+        const r = buildFormattedBody("ping @_ooye_mystravil:matrix.hs hi", {
+            mentions: new Map(),
+            customEmojis: [],
+            memberIds: new Set(["@_ooye_mystravil:matrix.hs"]),
+        });
+        expect(r.mentionedUserIds).toEqual(["@_ooye_mystravil:matrix.hs"]);
+        expect(r.html).toContain(
+            '<a href="https://matrix.to/#/@_ooye_mystravil:matrix.hs">@_ooye_mystravil:matrix.hs</a>',
+        );
+    });
+
+    it("ignores a typed MXID that is NOT a member (no accidental pings)", () => {
+        const r = buildFormattedBody("mailing @nobody:elsewhere.hs", {
+            mentions: new Map(),
+            customEmojis: [],
+            memberIds: new Set(["@someone:matrix.hs"]),
+        });
+        expect(r.mentionedUserIds).toEqual([]);
+        expect(r.html ?? "").not.toContain("matrix.to");
+    });
+
+    it("leaves typed MXIDs alone when no memberIds are supplied (legacy)", () => {
+        const r = buildFormattedBody("@alice:hs", {
+            mentions: new Map(),
+            customEmojis: [],
+        });
+        expect(r.mentionedUserIds).toEqual([]);
+        expect(r.html ?? "").not.toContain("matrix.to");
+    });
+
+    it("peels trailing sentence punctuation off the MXID", () => {
+        const r = buildFormattedBody("cc @alice:hs.tld, thanks", {
+            mentions: new Map(),
+            customEmojis: [],
+            memberIds: new Set(["@alice:hs.tld"]),
+        });
+        expect(r.mentionedUserIds).toEqual(["@alice:hs.tld"]);
+        expect(r.html).toContain(
+            '<a href="https://matrix.to/#/@alice:hs.tld">@alice:hs.tld</a>,',
+        );
+    });
+
+    it("dedupes when the same user is both a pill and a typed MXID", () => {
+        const r = buildFormattedBody("hi @alice and @alice:hs", {
+            mentions: new Map([["@alice", "@alice:hs"]]),
+            customEmojis: [],
+            memberIds: new Set(["@alice:hs"]),
+        });
+        expect(r.mentionedUserIds).toEqual(["@alice:hs"]);
+    });
+
+    it("notifies both a pill mention and a separate typed member", () => {
+        const r = buildFormattedBody("@alice ping @bob:hs", {
+            mentions: new Map([["@alice", "@alice:hs"]]),
+            customEmojis: [],
+            memberIds: new Set(["@bob:hs"]),
+        });
+        expect(new Set(r.mentionedUserIds)).toEqual(
+            new Set(["@alice:hs", "@bob:hs"]),
+        );
+    });
+});

@@ -11,6 +11,15 @@ export interface FormattedBodyInput {
     mentions: Map<string, string>;
     /** Custom emoji available for :shortcode: substitution (from getCustomEmojis). */
     customEmojis: EmojiSubstitution[];
+    /**
+     * Room member userIds. A bare "@user:server" the sender TYPED (rather than
+     * inserting via the autocomplete pill) is mentioned and linkified only when
+     * it matches a member here. Without this a hand-typed mention never lands in
+     * m.mentions.user_ids, so the target is never notified — the "can't ping the
+     * bridged user from Zam, only from Cinny" report. Element/Cinny notify on
+     * typed MXIDs too. Omitted → typed MXIDs are left alone (legacy behaviour).
+     */
+    memberIds?: Set<string>;
 }
 
 export interface FormattedBodyResult {
@@ -49,11 +58,38 @@ export function buildFormattedBody(
         }
     }
 
+    // Combine the explicit (pill) mentions with any bare "@user:server" the
+    // sender typed that resolves to a room member — otherwise a hand-typed
+    // mention never reaches m.mentions.user_ids and the target isn't notified.
+    const mentions = new Map(input.mentions);
+    if (input.memberIds && input.memberIds.size) {
+        const already = new Set(mentions.values());
+        for (const match of plain.matchAll(/@\S+/g)) {
+            let token = match[0];
+            if (!token.includes(":")) continue;
+            // A trailing ")", ".", ",", etc. is sentence punctuation, not part
+            // of the MXID (server names contain dots), so peel it back until the
+            // token matches a real member id.
+            while (token.length > 1 && !input.memberIds.has(token)) {
+                if (!/[.,!?;:)\]}"']$/.test(token)) break;
+                token = token.slice(0, -1);
+            }
+            if (
+                input.memberIds.has(token) &&
+                !mentions.has(token) &&
+                !already.has(token)
+            ) {
+                mentions.set(token, token);
+                already.add(token);
+            }
+        }
+    }
+
     // Replace @-mention tokens with Matrix mention links. Keys already
     // include the leading "@". The negative lookahead matches whole tokens
     // only, so "@alice" doesn't match inside "@alice:hs" or "@alicia".
     const mentionedUserIds: string[] = [];
-    for (const [token, userId] of input.mentions) {
+    for (const [token, userId] of mentions) {
         const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const pattern = `${escaped}(?![\\w:.-])`;
         if (new RegExp(pattern).test(plain)) {
