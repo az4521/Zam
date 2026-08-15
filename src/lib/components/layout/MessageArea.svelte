@@ -134,6 +134,10 @@
     // present" / "Searching…" pills always clear the input, however tall it
     // grows with multi-line drafts, replies or the attachment drawer.
     let composerHeight = $state(0);
+    // True while the composer is showing a mention/emoji/slash suggestion list.
+    // The "jump to present" pill is hidden under it (Discord-style: the list
+    // takes that space — you're not jumping back mid-mention).
+    let composerAutocompleteOpen = $state(false);
     let isAtBottom = $state(true);
     let loadingOlder = $state(false);
     // Shared by backfillFromTop and recoverScrollback. Not a plain boolean: a
@@ -1650,8 +1654,9 @@
             {announcement}
         </div>
 
-        <!-- Scroll to bottom button -->
-        {#if !isAtBottom && !isContextView && messages.length > 0}
+        <!-- Scroll to bottom button. Hidden while a composer suggestion list is
+             open so it doesn't fight the autocomplete for the same space. -->
+        {#if !isAtBottom && !isContextView && messages.length > 0 && !composerAutocompleteOpen}
             <div
                 class="absolute left-0 right-0 flex justify-center z-10 pointer-events-none"
                 style="bottom: {composerHeight + 12}px;"
@@ -1727,6 +1732,7 @@
         <div bind:clientHeight={composerHeight} class="flex-shrink-0">
             <MessageInput
                 bind:this={messageInputEl}
+                bind:autocompleteOpen={composerAutocompleteOpen}
                 {roomId}
                 {roomName}
                 {room}
