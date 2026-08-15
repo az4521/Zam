@@ -130,6 +130,10 @@
     let bottomAnchorEl: HTMLDivElement | undefined = $state();
     let topSentinelEl: HTMLDivElement | undefined = $state();
     let messageInputEl: ReturnType<typeof MessageInput> | undefined = $state();
+    // Measured composer height (padding included) so the floating "Jump to
+    // present" / "Searching…" pills always clear the input, however tall it
+    // grows with multi-line drafts, replies or the attachment drawer.
+    let composerHeight = $state(0);
     let isAtBottom = $state(true);
     let loadingOlder = $state(false);
     // Shared by backfillFromTop and recoverScrollback. Not a plain boolean: a
@@ -1649,7 +1653,8 @@
         <!-- Scroll to bottom button -->
         {#if !isAtBottom && !isContextView && messages.length > 0}
             <div
-                class="absolute bottom-24 left-0 right-0 flex justify-center z-10 pointer-events-none"
+                class="absolute left-0 right-0 flex justify-center z-10 pointer-events-none"
+                style="bottom: {composerHeight + 12}px;"
             >
                 <button
                     onpointerdown={(e) => e.preventDefault()}
@@ -1673,7 +1678,8 @@
         <!-- Searching for unloaded message indicator -->
         {#if jumpingToEventId}
             <div
-                class="absolute bottom-24 left-0 right-0 flex justify-center z-10 pointer-events-none"
+                class="absolute left-0 right-0 flex justify-center z-10 pointer-events-none"
+                style="bottom: {composerHeight + 12}px;"
             >
                 <div
                     class="bg-discord-backgroundSecondary text-discord-textMuted px-3 py-1.5 rounded-full shadow-lg text-sm border border-discord-divider flex items-center gap-2"
@@ -1716,20 +1722,23 @@
             </div>
         {/if}
 
-        <!-- Message input -->
-        <MessageInput
-            bind:this={messageInputEl}
-            {roomId}
-            {roomName}
-            {room}
-            {replyToEvent}
-            {scrollEl}
-            onCancelReply={() => {
-                replyToEvent = null;
-            }}
-            onRequestEditLast={requestEditLastMessage}
-            onThreadCreated={openThread}
-        />
+        <!-- Message input. Wrapped so its rendered height can be measured and
+             the floating pills above can be offset to clear it. -->
+        <div bind:clientHeight={composerHeight} class="flex-shrink-0">
+            <MessageInput
+                bind:this={messageInputEl}
+                {roomId}
+                {roomName}
+                {room}
+                {replyToEvent}
+                {scrollEl}
+                onCancelReply={() => {
+                    replyToEvent = null;
+                }}
+                onRequestEditLast={requestEditLastMessage}
+                onThreadCreated={openThread}
+            />
+        </div>
     </div>
 
     <!-- Debug panel (Ctrl+Shift+D to toggle) -->

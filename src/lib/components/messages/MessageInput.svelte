@@ -79,7 +79,14 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
-    import { Loader2 } from "lucide-svelte";
+    import {
+        Loader2,
+        Plus,
+        ImagePlay,
+        Sticker,
+        Smile,
+        SendHorizontal,
+    } from "lucide-svelte";
 
     interface Props {
         roomId: string;
@@ -1664,13 +1671,7 @@
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Add"
                 >
-                    <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                    </svg>
+                    <Plus size={20} />
                 </button>
                 {#if showActionsMenu}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1765,15 +1766,7 @@
                         : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Favourite GIFs"
                 >
-                    <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5.5v9l6-4.5-6-4.5z"
-                        />
-                    </svg>
+                    <ImagePlay size={20} />
                 </button>
                 {#if showGifPicker}
                     <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
@@ -1823,15 +1816,7 @@
                     title="Stickers"
                     {disabled}
                 >
-                    <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M3 3h18v12l-4 4H3V3z" opacity=".87" /><path
-                            d="M17 15v4l4-4h-4z"
-                        />
-                    </svg>
+                    <Sticker size={20} />
                 </button>
                 {#if showStickerPicker}
                     <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
@@ -1875,16 +1860,7 @@
                     title="Emoji"
                     {disabled}
                 >
-                    <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            fill-rule="evenodd"
-                            d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
-                        />
-                    </svg>
+                    <Smile size={20} />
                 </button>
                 {#if showEmojiPicker}
                     <!-- Backdrop to close picker on outside click -->
@@ -1936,13 +1912,7 @@
                         class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
                     ></div>
                 {:else}
-                    <svg
-                        class="w-5 h-5"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
+                    <SendHorizontal size={20} />
                 {/if}
             </button>
         </div>
