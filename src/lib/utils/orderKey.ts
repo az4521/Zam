@@ -36,6 +36,36 @@ export function isValidTagOrder(v: number): boolean {
 }
 
 /**
+ * The resolved action for a raw, user-typed `m.tag` order string: either clear
+ * the order, or set a clamped value. `clamped` is true when the parsed number
+ * fell outside the spec's `[0, 1]` range and was pulled into it — the caller can
+ * surface that so the adjustment isn't silent.
+ */
+export type TagOrderInput =
+    | { kind: "clear" }
+    | { kind: "set"; value: number; clamped: boolean };
+
+/**
+ * Resolve a raw, user-supplied `m.tag` order string into a write action:
+ *  - blank / whitespace-only → clear the order (keep the tag);
+ *  - a finite number → set it, clamped into the spec's `[0, 1]` range, flagging
+ *    when the clamp actually changed the value;
+ *  - anything non-numeric → throw (the `m.tag` order is spec'd as a number).
+ * Pure sibling of `setRoomTagOrderRaw`'s side-effecting write, so the clamp
+ * decision is unit-testable and callers can react to `clamped`.
+ */
+export function resolveTagOrderInput(raw: string): TagOrderInput {
+    const trimmed = raw.trim();
+    if (trimmed === "") return { kind: "clear" };
+    const n = Number(trimmed);
+    if (!Number.isFinite(n)) {
+        throw new Error("Tag order must be a number between 0 and 1");
+    }
+    if (isValidTagOrder(n)) return { kind: "set", value: n, clamped: false };
+    return { kind: "set", value: Math.min(1, Math.max(0, n)), clamped: true };
+}
+
+/**
  * True when `s` is a spec-legal `m.space.child` `order`: at most
  * `ORDER_MAX_LEN` characters, every one printable ASCII (`\x20`–`\x7E`).
  * The empty string is valid (it clears the order). Used to gate raw,
