@@ -150,6 +150,13 @@ ipcMain.on("show-window", showWindow);
 // observes streamed `updates:status` events shaped
 // `{ phase, percent?, version?, message? }`.
 
+// Persisted "automatic updates" preference, seeded from the renderer at boot
+// (updates:set-auto). It governs ONLY the background launch check: when ON that
+// check may auto-download. Every user-initiated check from Settings is manual
+// and never auto-downloads — the renderer offers a "Download & install" choice
+// and only then asks for the download.
+let autoUpdatePref = false;
+
 // Post a status object to the current window (reassigned by createWindow).
 function sendUpdateStatus(payload) {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -171,9 +178,13 @@ function mapUpdateError(err) {
 }
 
 // Kick off a check without ever letting a throw escape (sync throw or
-// rejected promise both become an error/unsupported status).
-function runUpdateCheck() {
+// rejected promise both become an error/unsupported status). A `manual` check
+// (user pressed "Check for updates") NEVER auto-downloads — it just reports
+// "available" so the renderer can offer a download choice. Only the background
+// launch check honours the persisted auto-update preference.
+function runUpdateCheck(manual) {
     if (!app.isPackaged) return;
+    autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();
         if (p && typeof p.catch === "function") {
@@ -212,12 +223,16 @@ function setupAutoUpdater() {
         sendUpdateStatus(mapUpdateError(err));
     });
 
-    // First check ~10s after launch so it never blocks or races startup.
-    setTimeout(runUpdateCheck, 10000);
+    // First check ~10s after launch so it never blocks or races startup. This
+    // is the ONLY background check, and the one that may auto-download (when the
+    // persisted preference is on).
+    setTimeout(() => runUpdateCheck(false), 10000);
 }
 
 // Renderer → main. Every handler is inert in dev (guarded on app.isPackaged).
-ipcMain.on("updates:check", runUpdateCheck);
+// A check from Settings is always manual: it reports "available" but does not
+// download until the user confirms via updates:download.
+ipcMain.on("updates:check", () => runUpdateCheck(true));
 
 ipcMain.on("updates:download", () => {
     if (!app.isPackaged) return;
@@ -233,7 +248,9 @@ ipcMain.on("updates:download", () => {
 
 ipcMain.on("updates:set-auto", (_e, enabled) => {
     if (!app.isPackaged) return;
-    autoUpdater.autoDownload = !!enabled;
+    // Stored, not applied to autoDownload directly: each check sets autoDownload
+    // from its own manual/background context (a manual check always stays off).
+    autoUpdatePref = !!enabled;
 });
 
 ipcMain.on("updates:quit-and-install", () => {

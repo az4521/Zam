@@ -41,7 +41,7 @@ export interface UpdateStatusView {
  * omits the `(v…)` fragment rather than printing `(undefined)`.
  */
 export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
-    const { phase, autoEnabled, percent, version, message, platform } = input;
+    const { phase, percent, version, message, platform } = input;
 
     const versionSuffix = version ? ` (v${version})` : "";
     const clampedPercent = Math.max(0, Math.min(100, Math.round(percent ?? 0)));
@@ -66,18 +66,11 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             };
 
         case "available":
-            // When auto-update is on, electron-updater begins the download the
-            // moment an update is found — reflect that instead of offering a
-            // manual download button.
-            if (autoEnabled) {
-                return {
-                    label: "Downloading update…",
-                    action: "none",
-                    actionLabel: "",
-                    busy: true,
-                    percent: null,
-                };
-            }
+            // A found update always offers an explicit download choice — the
+            // download only starts once the user confirms. Background
+            // auto-download (when the preference is on) is driven solely by the
+            // launch check in the main process and surfaces as "downloading",
+            // so it never lands here as a stuck "available".
             return {
                 label: `Update available${versionSuffix}`,
                 action: "download",
