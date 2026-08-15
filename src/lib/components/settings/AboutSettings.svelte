@@ -118,7 +118,7 @@
         }
     }
 
-    async function androidCheck(): Promise<void> {
+    async function androidCheck(manual = false): Promise<void> {
         androidStatus = { ...androidStatus, phase: "checking" };
         try {
             const result = await checkForUpdate();
@@ -136,9 +136,11 @@
                 phase: "available",
                 version: result.latest,
             };
-            // Auto-download when the toggle is on (still ends in a manual
-            // Install tap — Android can't self-install a sideloaded APK).
-            if (settingsState.autoUpdateEnabled) {
+            // Auto-download only on a background (app-open) check when the
+            // toggle is on — a manual "Check for updates" tap stays confirm-
+            // gated: it just shows the "Download" choice. (Android still ends in
+            // a manual Install tap; it can't self-install a sideloaded APK.)
+            if (!manual && settingsState.autoUpdateEnabled) {
                 await androidDownload();
             }
         } catch (checkError) {
@@ -206,7 +208,7 @@
     function runAndroidAction(): void {
         switch (androidView.action) {
             case "check":
-                void androidCheck();
+                void androidCheck(true);
                 break;
             case "download":
                 void androidDownload();
@@ -221,15 +223,12 @@
     }
 
     function onToggleAuto(next: boolean): void {
+        // The toggle governs only whether a BACKGROUND check auto-downloads;
+        // it never kicks off a download for an already-found update. A pending
+        // "available" keeps its explicit "Download & install" choice, so
+        // flipping this setting never starts an unconfirmed download.
         setAutoUpdateEnabled(next);
         desktopSetAutoDownload(next);
-        // Android has no background downloader — turning auto ON while an
-        // update is already found must actually start the download, or the
-        // view model's "available + autoEnabled → Downloading…" state would
-        // lie (nothing would be running).
-        if (next && isAndroidUpdater() && androidStatus.phase === "available") {
-            void androidDownload();
-        }
     }
 
     function clearCache() {

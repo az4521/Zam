@@ -40,7 +40,7 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         expect(view.label).not.toContain("(v");
     });
 
-    it("available + autoEnabled → auto-download already started (busy, no action)", () => {
+    it("available + autoEnabled → still offers an explicit download choice (confirm-gated)", () => {
         expect(
             updateStatusView({
                 phase: "available",
@@ -48,10 +48,10 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
                 version: "1.2.0",
             }),
         ).toEqual({
-            label: "Downloading update…",
-            action: "none",
-            actionLabel: "",
-            busy: true,
+            label: "Update available (v1.2.0)",
+            action: "download",
+            actionLabel: "Download & install",
+            busy: false,
             percent: null,
         });
     });
