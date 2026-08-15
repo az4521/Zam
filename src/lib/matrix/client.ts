@@ -103,6 +103,7 @@ import {
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
+import { firstReusableDmRoom } from "$lib/utils/dmReuse";
 import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
 import {
     countReactions,
@@ -4871,11 +4872,15 @@ async function openDirectMessage(
     const existing = matrixClient
         .getAccountData(EventType.Direct)
         ?.getContent() as Record<string, string[]> | undefined;
-    if (existing?.[userId]?.length) {
-        const existingRoomId = existing[userId][0];
-        if (matrixClient.getRoom(existingRoomId)?.getMyMembership() === "join")
-            return { roomId: existingRoomId, followUp: NO_FOLLOW_UP };
-    }
+    // Reuse the first room we are actually JOINED to — never blindly [0]. A
+    // stale first entry (a DM the user left/forgot, or a federated room whose
+    // state never synced so the client doesn't hold it) has no "join"
+    // membership; checking only [0] made a dead first entry skip a live DM at
+    // [1+] and mint a duplicate room on every open. See utils/dmReuse.
+    const reusable = firstReusableDmRoom(existing?.[userId], (id) =>
+        matrixClient?.getRoom(id)?.getMyMembership(),
+    );
+    if (reusable) return { roomId: reusable, followUp: NO_FOLLOW_UP };
     // A DM whose m.direct write failed earlier this session is NOT in m.direct,
     // so the check above cannot see it. Retry that write against the existing
     // room rather than creating a second room (and a second invite).
