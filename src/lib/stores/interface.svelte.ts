@@ -72,6 +72,10 @@ export const interfaceState = $state({
     debugOpen: false,
     /** Which composer picker the "composer-picker" modal is showing. */
     composerPicker: null as "emoji" | "sticker" | "gif" | null,
+    /** Which composer instance owns the open picker (its `composerKey`). Lets
+     *  a thread composer and the main composer coexist without both rendering
+     *  the single global picker slot. Defaults to "main" for the sole composer. */
+    composerPickerOwner: null as string | null,
     /** Focuses the message composer, if one is mounted (set by MessageInput). */
     focusComposer: null as null | (() => void),
 
@@ -104,18 +108,30 @@ let nextSlotToken = 1;
 let modalToken: SlotToken = 0;
 let sidebarToken: SlotToken = 0;
 
-/** Open (or toggle off) a composer emoji/sticker/gif picker. */
-export function openComposerPicker(kind: "emoji" | "sticker" | "gif"): void {
+/** Open (or toggle off) a composer emoji/sticker/gif picker. `owner` is the
+ *  claiming composer's key (defaults to "main"): a re-click by the SAME owner
+ *  on the SAME kind toggles it off, but a different owner claiming the same
+ *  kind switches ownership (so a thread composer opening emoji while the main
+ *  composer's emoji is open moves the picker to the thread, not closes it). */
+export function openComposerPicker(
+    kind: "emoji" | "sticker" | "gif",
+    owner: string = "main",
+): void {
     if (
         interfaceState.modal === "composer-picker" &&
-        interfaceState.composerPicker === kind
+        interfaceState.composerPicker === kind &&
+        interfaceState.composerPickerOwner === owner
     ) {
         closeModal();
         return;
     }
-    // Claim first: the outgoing owner's close nulls `composerPicker`.
-    openModal("composer-picker", () => (interfaceState.composerPicker = null));
+    // Claim first: the outgoing owner's close nulls `composerPicker` + owner.
+    openModal("composer-picker", () => {
+        interfaceState.composerPicker = null;
+        interfaceState.composerPickerOwner = null;
+    });
     interfaceState.composerPicker = kind;
+    interfaceState.composerPickerOwner = owner;
 }
 
 /**

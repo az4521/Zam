@@ -111,6 +111,7 @@ import {
 import {
     buildThreadReplyContent,
     isThreadReplyContent,
+    withThreadRelation,
 } from "$lib/utils/threadContent";
 import {
     belongsToMainTimeline,
@@ -1632,6 +1633,22 @@ export async function sendThreadReply(
     await matrixClient.sendMessage(roomId, content as never);
 }
 
+/**
+ * Resolve the m.thread relation params for decorating a NON-text send (file,
+ * sticker, emote) so it lands in the thread rooted at `rootEventId`. Mirrors
+ * sendThreadReply's latest-event resolution (is_falling_back reply pointer).
+ */
+function threadRelationParams(
+    roomId: string,
+    rootEventId: string,
+): { rootEventId: string; latestEventId?: string } {
+    const room = matrixClient?.getRoom(roomId) ?? undefined;
+    const latestEventId =
+        (room && getThreadSummary(room, rootEventId).latestEventId) ||
+        rootEventId;
+    return { rootEventId, latestEventId };
+}
+
 /** Paginate older replies in a thread's own timeline. Returns whether more
  * events were fetched. No-op (false) if the SDK Thread isn't built yet. */
 export async function paginateThreadBack(
@@ -1885,6 +1902,7 @@ export async function sendFile(
     roomId: string,
     file: File,
     caption?: MediaCaption,
+    thread?: { rootEventId: string },
 ): Promise<void> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
@@ -1965,7 +1983,13 @@ export async function sendFile(
         }
     }
 
-    await ownedClientOrThrow(owner).sendMessage(roomId, content as never);
+    const finalContent = thread
+        ? withThreadRelation(
+              content,
+              threadRelationParams(roomId, thread.rootEventId),
+          )
+        : content;
+    await ownedClientOrThrow(owner).sendMessage(roomId, finalContent as never);
 }
 
 /**
@@ -2199,9 +2223,10 @@ export async function sendEmote(
     body: string,
     formattedBody?: string,
     mentions?: { user_ids?: string[]; room?: boolean },
+    thread?: { rootEventId: string },
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.sendMessage(roomId, {
+    const content: Record<string, unknown> = {
         msgtype: "m.emote",
         body,
         ...(formattedBody
@@ -2211,7 +2236,14 @@ export async function sendEmote(
               }
             : {}),
         "m.mentions": mentions ?? {},
-    } as never);
+    };
+    const finalContent = thread
+        ? withThreadRelation(
+              content,
+              threadRelationParams(roomId, thread.rootEventId),
+          )
+        : content;
+    await matrixClient.sendMessage(roomId, finalContent as never);
 }
 
 /** Forward a message or sticker as a fresh event in another joined room. */
@@ -6693,16 +6725,24 @@ export async function removeSpaceChild(
 export async function sendSticker(
     roomId: string,
     sticker: CustomSticker,
+    thread?: { rootEventId: string },
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not connected");
-    await matrixClient.sendEvent(roomId, "m.sticker" as any, {
+    const content: Record<string, unknown> = {
         body: sticker.body || sticker.shortcode,
         url: sticker.mxcUrl,
         info: sticker.info ?? {},
         // Always present (spec recommendation) so the receiver skips legacy
         // body-scan push rules; a sticker never carries intentional mentions.
         "m.mentions": {},
-    });
+    };
+    const finalContent = thread
+        ? withThreadRelation(
+              content,
+              threadRelationParams(roomId, thread.rootEventId),
+          )
+        : content;
+    await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
 }
 
 export function onReactionEvent(

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildThreadReplyContent, isThreadReplyContent } from "./threadContent";
+import {
+    buildThreadReplyContent,
+    isThreadReplyContent,
+    withThreadRelation,
+    composerThreadKey,
+} from "./threadContent";
 
 describe("isThreadReplyContent — thread-membership predicate", () => {
     const forRoot = (
@@ -95,5 +100,58 @@ describe("buildThreadReplyContent — spec-compliant m.thread relation", () => {
         const c = buildThreadReplyContent({ rootEventId: "$r", text: "hi" });
         expect("m.mentions" in c).toBe(true);
         expect(c["m.mentions"]).toEqual({});
+    });
+});
+
+describe("withThreadRelation — decorate arbitrary content for a thread", () => {
+    it("attaches the m.thread relation with latest as the in_reply_to fallback", () => {
+        const out = withThreadRelation(
+            { msgtype: "m.image", body: "pic.png", url: "mxc://x" },
+            { rootEventId: "$root", latestEventId: "$latest" },
+        );
+        expect(out["m.relates_to"]).toEqual({
+            rel_type: "m.thread",
+            event_id: "$root",
+            is_falling_back: true,
+            "m.in_reply_to": { event_id: "$latest" },
+        });
+        // original fields preserved
+        expect(out.msgtype).toBe("m.image");
+        expect(out.url).toBe("mxc://x");
+    });
+
+    it("falls back the in_reply_to to the root when latestEventId is absent", () => {
+        const out = withThreadRelation(
+            { msgtype: "m.text", body: "hi" },
+            { rootEventId: "$root" },
+        );
+        expect(out["m.relates_to"]["m.in_reply_to"].event_id).toBe("$root");
+    });
+
+    it("does not mutate the input object", () => {
+        const input = { msgtype: "m.sticker", body: "s" };
+        withThreadRelation(input, { rootEventId: "$root" });
+        expect("m.relates_to" in input).toBe(false);
+    });
+
+    it("replaces a pre-existing m.relates_to (thread membership wins)", () => {
+        const out = withThreadRelation(
+            {
+                msgtype: "m.text",
+                body: "x",
+                "m.relates_to": { rel_type: "m.annotation" },
+            },
+            { rootEventId: "$root", latestEventId: "$l" },
+        );
+        expect(out["m.relates_to"].rel_type).toBe("m.thread");
+    });
+});
+
+describe("composerThreadKey — instance key for thread draft/queue scoping", () => {
+    it("namespaces per room + root", () => {
+        expect(composerThreadKey("!r:s", "$root")).toBe("!r:s::thread::$root");
+    });
+    it("differs from the bare roomId (the main composer key)", () => {
+        expect(composerThreadKey("!r:s", "$root")).not.toBe("!r:s");
     });
 });

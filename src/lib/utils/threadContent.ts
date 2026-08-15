@@ -58,16 +58,10 @@ export function buildThreadReplyContent(
     const { rootEventId, latestEventId, text, formattedText, mentions } =
         params;
 
-    const content: ThreadReplyContent = {
-        msgtype: "m.text",
-        body: text,
-        "m.relates_to": {
-            rel_type: "m.thread",
-            event_id: rootEventId,
-            is_falling_back: true,
-            "m.in_reply_to": { event_id: latestEventId ?? rootEventId },
-        },
-    };
+    const content = withThreadRelation(
+        { msgtype: "m.text" as const, body: text },
+        { rootEventId, latestEventId },
+    ) as ThreadReplyContent;
     if (formattedText !== undefined) {
         content.format = "org.matrix.custom.html";
         content.formatted_body = formattedText;
@@ -76,4 +70,40 @@ export function buildThreadReplyContent(
     // disables the legacy body-scan push rules on the receiving server.
     content["m.mentions"] = mentions ?? {};
     return content;
+}
+
+/** Namespaced composer instance key for a thread's draft/file-queue scoping. */
+export function composerThreadKey(roomId: string, rootEventId: string): string {
+    return `${roomId}::thread::${rootEventId}`;
+}
+
+/**
+ * Attach the spec-compliant `m.thread` relation (MSC3440) to an arbitrary
+ * message content, returning a NEW object (the input is never mutated). Any
+ * pre-existing `m.relates_to` is replaced — a thread reply's thread membership
+ * takes precedence. Used to thread files, stickers and emotes, which share the
+ * same relation shape as a text reply.
+ */
+export function withThreadRelation<T extends Record<string, unknown>>(
+    content: T,
+    params: { rootEventId: string; latestEventId?: string },
+): T & {
+    "m.relates_to": {
+        rel_type: "m.thread";
+        event_id: string;
+        is_falling_back: true;
+        "m.in_reply_to": { event_id: string };
+    };
+} {
+    return {
+        ...content,
+        "m.relates_to": {
+            rel_type: "m.thread",
+            event_id: params.rootEventId,
+            is_falling_back: true,
+            "m.in_reply_to": {
+                event_id: params.latestEventId ?? params.rootEventId,
+            },
+        },
+    };
 }
