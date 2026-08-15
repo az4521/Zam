@@ -212,6 +212,15 @@
     let downY = 0;
     let moved = false; // distinguishes a tap from a drag/pinch
 
+    // Double-tap (mihon/tachiyomi style): the first double-tap zooms in at the
+    // point, the next resets. A single tap does nothing. The old code toggled on
+    // every single tap, so a quick double tap zoomed in then straight back out.
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    const DOUBLE_TAP_MS = 300;
+    const DOUBLE_TAP_DIST = 40;
+
     const MIN_SCALE = 1;
     const MAX_SCALE = 8;
 
@@ -305,14 +314,28 @@
         if (pointers.size > 0) return;
         lastDist = 0;
 
-        // A clean tap (no drag, no pinch) toggles 1x ↔ 2x at the tap point.
+        // Zoom only on a DOUBLE tap: the first zooms in at the tap point, the
+        // next resets. A single tap does nothing, so the gesture no longer
+        // zooms-in-then-out on a quick double tap.
         if (!moved && !wasPinch) {
-            if (scale > 1) {
-                scale = 1;
-                tx = 0;
-                ty = 0;
+            const now = e.timeStamp;
+            const isDoubleTap =
+                now - lastTapTime < DOUBLE_TAP_MS &&
+                Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) <
+                    DOUBLE_TAP_DIST;
+            if (isDoubleTap) {
+                if (scale > 1) {
+                    scale = 1;
+                    tx = 0;
+                    ty = 0;
+                } else {
+                    zoomAt(2, e.clientX, e.clientY);
+                }
+                lastTapTime = 0; // consumed — a third tap starts a new pair
             } else {
-                zoomAt(2, e.clientX, e.clientY);
+                lastTapTime = now;
+                lastTapX = e.clientX;
+                lastTapY = e.clientY;
             }
         }
     }
@@ -338,7 +361,13 @@
     // (internal/client/dom/elements/events.js), so the inner handlers run
     // FIRST and the walk still stops here, before the message row's own
     // delegated onclick.
-    function containClicks(e: MouseEvent) {
+    //
+    // The same containment is needed for `dblclick` (desktop) and `touchend`
+    // (mobile): MessageItem runs its "double-tap to react/like" action off those
+    // two events, and Svelte 5 delegates both, so a tap in the viewer would
+    // otherwise bubble up and like the message underneath. Wired as delegated
+    // ondblclick/ontouchend on the same root so the replay walk stops here too.
+    function containClicks(e: Event) {
         e.stopPropagation();
     }
 
@@ -381,6 +410,8 @@
     class="fixed inset-0 z-[9998] overflow-hidden"
     style="touch-action: none;"
     onclick={containClicks}
+    ondblclick={containClicks}
+    ontouchend={containClicks}
 >
     <!-- Backdrop: clicking outside the media closes the viewer. -->
     <button
