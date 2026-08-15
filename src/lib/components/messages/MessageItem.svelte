@@ -10,7 +10,7 @@
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import EventShield from "./EventShield.svelte";
-    import { Forward, Lock } from "lucide-svelte";
+    import { Forward, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -1273,6 +1273,9 @@
                 }}
             >
                 <span class="sr-only">Jump to the replied-to message:</span>
+                <Reply
+                    class="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0 self-center"
+                />
                 <div
                     class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
                 ></div>
@@ -1403,7 +1406,7 @@
                         <img
                             src={thumb}
                             alt={mediaFilename}
-                            class="max-w-sm w-full max-h-72 rounded-lg object-contain cursor-pointer block"
+                            class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
                             loading="lazy"
                         />
                     </a>
@@ -1501,16 +1504,16 @@
                         autoplay
                         playsinline
                         preload="auto"
-                        class="max-w-sm w-full max-h-72 rounded-lg mt-1 block"
+                        class="max-w-lg w-full max-h-96 rounded-lg mt-1 block"
                         onerror={() => (videoFailed = true)}
                     ></video>
                 {/key}
             {:else}
                 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
                 <div
-                    class="relative max-w-sm w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
+                    class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
                     style={videoThumbnailUrl && !videoThumbFailed
-                        ? `aspect-ratio: ${videoAspectRatio}; max-height: 18rem;`
+                        ? `aspect-ratio: ${videoAspectRatio}; max-height: 24rem;`
                         : ""}
                     onclick={playVideo}
                 >

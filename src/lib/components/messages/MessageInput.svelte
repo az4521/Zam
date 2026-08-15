@@ -57,8 +57,10 @@
         getFileQueue,
         addQueuedFile,
         removeQueuedFile,
+        clearFileQueue,
     } from "$lib/stores/composerFileQueue.svelte";
     import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
+    import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
     import {
         shouldClearComposerAfterSend,
         shouldClearStoredDraft,
@@ -77,6 +79,7 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
+    import { Loader2 } from "lucide-svelte";
 
     interface Props {
         roomId: string;
@@ -106,6 +109,10 @@
 
     let text = $state("");
     let isSending = $state(false);
+    // In-flight attachment send, scoped to the room the send targeted so a
+    // room switch mid-upload doesn't show room A's "sending" note in room B.
+    let sendingFileCount = $state(0);
+    let sendingRoomId = $state<string | null>(null);
     // Queued attachments live in a per-room store, not here: this component
     // stays mounted across room switches, so a local queue followed the user
     // into the next room and Send posted the file there (audit UX-01).
@@ -979,6 +986,16 @@
         // new sentence (nor yank the caret back to 0).
         const textAtSend = text;
         const filesToSend = fileQueue.slice();
+        // Clear the drawer up front so in-flight attachments don't look
+        // attached to the next message the user starts composing. The files
+        // are already snapshotted in filesToSend; a failure restores only the
+        // unsent ones below. clearFileQueue revokes the preview URLs it owns —
+        // restore recreates fresh ones.
+        if (filesToSend.length > 0) {
+            clearFileQueue(targetRoomId);
+            sendingRoomId = targetRoomId;
+            sendingFileCount = filesToSend.length;
+        }
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
         const formatted = trimmed ? buildFormattedBody(trimmed) : null;
@@ -998,6 +1015,7 @@
         if (trimmed && !useCaption)
             clearComposerAfterSend(targetRoomId, textAtSend);
 
+        const sentIds = new Set<string>();
         try {
             if (trimmed && formatted && !useCaption) {
                 const { html, mentionedUserIds } = formatted;
@@ -1049,8 +1067,9 @@
                     return sendFile(targetRoomId, item.file);
                 },
                 (item, i) => {
-                    // The store revokes the preview URL as it drops the item.
-                    removeQueuedFile(targetRoomId, item.id);
+                    // The drawer was already cleared optimistically; just record
+                    // the success so a later failure won't restore this file.
+                    sentIds.add(item.id);
                     // The caption rode on the first file — it's only safely
                     // sent once that file is.
                     if (useCaption && i === 0)
@@ -1063,8 +1082,23 @@
         } catch (err) {
             console.error("Failed to send:", err);
             showErrorToast(matrixErrorMessage(err, "Failed to send"));
+            // Restore ONLY the files that were not successfully sent — an
+            // already-sent file must never come back (would duplicate on the
+            // next send: audit MEDIA-03). The optimistic clear revoked the
+            // originals' preview URLs, so recreate them the same way enqueueFile
+            // does. Restore targets the room the send was for, not the room the
+            // user may have switched to.
+            const toRestore = filesToRestoreAfterSend(filesToSend, sentIds);
+            for (const item of toRestore) {
+                const previewUrl = item.file.type.startsWith("image/")
+                    ? URL.createObjectURL(item.file)
+                    : null;
+                addQueuedFile(targetRoomId, item.file, item.name, previewUrl);
+            }
         } finally {
             isSending = false;
+            sendingFileCount = 0;
+            sendingRoomId = null;
             textareaEl?.focus();
         }
     }
@@ -1410,6 +1444,19 @@
         onchange={onFileSelected}
     />
 
+    <!-- In-flight attachment send indicator (drawer was cleared optimistically) -->
+    {#if sendingRoomId === roomId && sendingFileCount > 0}
+        <div
+            class="flex items-center gap-2 mb-2 text-xs text-discord-textMuted"
+        >
+            <Loader2 class="w-3.5 h-3.5 animate-spin" />
+            <span
+                >Sending {sendingFileCount} attachment{sendingFileCount === 1
+                    ? ""
+                    : "s"}…</span
+            >
+        </div>
+    {/if}
     <!-- File queue preview -->
     {#if fileQueue.length > 0}
         <div class="flex gap-2 mb-2 overflow-x-auto pb-1">
