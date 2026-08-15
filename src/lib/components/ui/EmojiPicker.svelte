@@ -90,7 +90,10 @@
     });
 
     function emojiHtml(emoji: string): string {
-        return renderEmoji(emoji, "picker-twemoji");
+        // Defer the fetch/decode of grid emoji: a category can hold ~150, and
+        // eager-loading every one on open makes them visibly pop in. The tab
+        // strip (a handful, all on screen) stays eager below.
+        return renderEmoji(emoji, "picker-twemoji", { lazy: true });
     }
 
     // Pack data lives in room state that mutates in place, so this must depend
