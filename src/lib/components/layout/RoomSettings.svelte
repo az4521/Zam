@@ -347,6 +347,19 @@
         }
     }
 
+    // The room prop can swap under a mounted dialog, so an upgrade confirm or
+    // error opened for one room must not carry into the next. Depend only on
+    // room.roomId; write inside untrack so the reset cannot retrigger itself
+    // (the effect-update-depth landmine).
+    $effect(() => {
+        void room.roomId;
+        untrack(() => {
+            upgradeShowConfirm = false;
+            upgrading = false;
+            upgradeError = "";
+        });
+    });
+
     // ── Access tab ─────────────────────────────────────────────────────────────
     let joinRule = $state(untrack(() => getJoinRule(room)));
     let historyVisibility = $state(untrack(() => getHistoryVisibility(room)));
@@ -443,7 +456,6 @@
     let aliasesLoaded = $state(false);
     let aliasBusy = $state(false);
     let aliasError = $state("");
-    let aliasNotice = $state("");
     let newAliasLocalpart = $state("");
     let canonicalContent = $state<CanonicalAliasContent>({});
     let mainAliasChoice = $state("");
@@ -506,7 +518,6 @@
         if (aliasBusy || !newAliasCheck.valid) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         const alias = buildAlias(localpart, ownServer);
         try {
             await createRoomAlias(alias, room.roomId);
@@ -524,7 +535,6 @@
         if (aliasBusy) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         try {
             // Unpublish first: a canonical alias pointing at a deleted mapping
             // advertises an address nobody can resolve.
@@ -532,7 +542,15 @@
                 canonicalContent,
                 alias,
             );
-            if (next && canSetCanonicalAlias) {
+            // Refuse the whole removal when this address is still the canonical/
+            // alt address and we lack permission to unpublish it — deleting the
+            // mapping alone would strand m.room.canonical_alias on a dead address.
+            if (next && !canSetCanonicalAlias) {
+                aliasError =
+                    "This address is published as one of the room's addresses and you don't have permission to unpublish it, so it can't be removed. Ask a room admin.";
+                return;
+            }
+            if (next) {
                 await setCanonicalAliasContent(room.roomId, next);
                 canonicalContent = next;
                 mainAliasChoice = next.alias ?? "";
@@ -546,10 +564,6 @@
             // that no longer exists. Snap back to what is actually published.
             if (mainAliasChoice === alias)
                 mainAliasChoice = canonicalContent.alias ?? "";
-            if (next && !canSetCanonicalAlias) {
-                aliasNotice =
-                    "Removed, but this address is still published for the room — someone with permission needs to unpublish it.";
-            }
         } catch (e: any) {
             aliasError =
                 e?.data?.error ?? e?.message ?? "Could not remove that address";
@@ -563,7 +577,6 @@
         if (aliasBusy || choice === (canonicalContent.alias ?? null)) return;
         aliasBusy = true;
         aliasError = "";
-        aliasNotice = "";
         const prev = canonicalContent;
         try {
             const next = buildCanonicalAliasContent({
@@ -1412,11 +1425,6 @@
                                         class="text-sm text-discord-danger mt-1"
                                     >
                                         {aliasError}
-                                    </p>{/if}
-                                {#if aliasNotice}<p
-                                        class="text-xs text-discord-textMuted mt-1"
-                                    >
-                                        {aliasNotice}
                                     </p>{/if}
                             </div>
 

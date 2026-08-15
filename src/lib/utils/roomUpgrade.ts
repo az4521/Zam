@@ -69,6 +69,24 @@ export interface RoomUpgradeState {
 export function getRoomUpgradeState(
     input: RoomUpgradeStateInput,
 ): RoomUpgradeState {
+    // The server's advertised default SHOULD always be one of the available
+    // versions, but a malformed capabilities response could offer a default the
+    // server would then reject on upgrade. When the default is non-empty and we
+    // have a populated available list that does not contain it, don't offer the
+    // upgrade (an empty available list means "not advertised" → skip the check).
+    if (
+        input.defaultVersion !== "" &&
+        input.availableVersions.length > 0 &&
+        !input.availableVersions.includes(input.defaultVersion)
+    ) {
+        return {
+            available: false,
+            reason: "The server's recommended room version isn't available.",
+            recommendedVersion: input.currentVersion,
+            isCurrentLatest: false,
+        };
+    }
+
     const recommendedVersion =
         input.defaultVersion !== ""
             ? input.defaultVersion

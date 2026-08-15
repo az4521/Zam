@@ -121,6 +121,7 @@ import type { ThreadSummary } from "$lib/utils/threadModel";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
     tagUpdatesForToggle,
+    tagOrderRollback,
     TAG_FAVOURITE,
     TAG_LOWPRIORITY,
     type RoomTagMap,
@@ -1311,6 +1312,12 @@ export function getRoomClassification(
 
 // ── Room tags (favourites / low priority) ──────────────────────────────────
 
+// Rooms with a favourite/low-priority toggle currently in flight. The local
+// tag state only refreshes over sync, so a second toggle fired before the first
+// round-trip lands reads stale tags and can interleave delete/set into a
+// both-or-neither state — drop the re-entrant click instead.
+const roomTagToggleInFlight = new Set<string>();
+
 /** Read a room's tags from local synced state (no HTTP round-trip). */
 export function getRoomTags(roomId: string): RoomTagMap {
     return (matrixClient?.getRoom(roomId)?.tags ?? {}) as RoomTagMap;
@@ -1371,9 +1378,18 @@ export async function toggleRoomTag(
     toggle: "favourite" | "lowPriority",
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    const { add, remove } = tagUpdatesForToggle(getRoomTags(roomId), toggle);
-    for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
-    if (add) await matrixClient.setRoomTag(roomId, add, {});
+    if (roomTagToggleInFlight.has(roomId)) return;
+    roomTagToggleInFlight.add(roomId);
+    try {
+        const { add, remove } = tagUpdatesForToggle(
+            getRoomTags(roomId),
+            toggle,
+        );
+        for (const tag of remove) await matrixClient.deleteRoomTag(roomId, tag);
+        if (add) await matrixClient.setRoomTag(roomId, add, {});
+    } finally {
+        roomTagToggleInFlight.delete(roomId);
+    }
 }
 
 /**
@@ -1442,8 +1458,28 @@ export async function reorderRoomTag(
     list.splice(insertAt, 0, roomId);
 
     const orders = rebalancedNumbers(list.length);
-    for (let i = 0; i < list.length; i++) {
-        await setRoomTag(list[i], tag, orders[i]);
+    // Snapshot the orders we are about to overwrite so a mid-loop failure can
+    // be rolled back instead of leaving the section half-renumbered.
+    const originalOrders = list.map(
+        (id) => getRoomTags(id)[tag]?.order as number | string | undefined,
+    );
+    let appliedCount = 0;
+    try {
+        for (let i = 0; i < list.length; i++) {
+            await setRoomTag(list[i], tag, orders[i]);
+            appliedCount = i + 1;
+        }
+    } catch (e) {
+        for (const op of tagOrderRollback(list, originalOrders, appliedCount)) {
+            // Best-effort: a failed rollback write is logged, not thrown — the
+            // original error is what the caller must see.
+            try {
+                await setRoomTag(op.roomId, tag, op.order);
+            } catch (rollbackErr) {
+                console.error("Failed to roll back tag order", rollbackErr);
+            }
+        }
+        throw e;
     }
 }
 

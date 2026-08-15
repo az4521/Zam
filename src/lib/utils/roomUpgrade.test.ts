@@ -120,4 +120,44 @@ describe("getRoomUpgradeState", () => {
         });
         expect(s.available).toBe(true);
     });
+
+    it("refuses when the server's default version is not in availableVersions", () => {
+        const s = getRoomUpgradeState({
+            currentVersion: "9",
+            defaultVersion: "99",
+            availableVersions: ["1", "9", "10", "11"],
+            myPowerLevel: 100,
+            tombstonePowerLevel: 50,
+        });
+        expect(s.available).toBe(false);
+        expect(s.reason).toBe(
+            "The server's recommended room version isn't available.",
+        );
+        expect(s.recommendedVersion).toBe("9");
+        expect(s.isCurrentLatest).toBe(false);
+    });
+
+    it("still upgrades when the default IS in availableVersions", () => {
+        const s = getRoomUpgradeState({
+            currentVersion: "9",
+            defaultVersion: "11",
+            availableVersions: ["1", "9", "10", "11"],
+            myPowerLevel: 100,
+            tombstonePowerLevel: 50,
+        });
+        expect(s.available).toBe(true);
+        expect(s.recommendedVersion).toBe("11");
+    });
+
+    it("skips the availableVersions check when the server advertised none", () => {
+        const s = getRoomUpgradeState({
+            currentVersion: "9",
+            defaultVersion: "11",
+            availableVersions: [],
+            myPowerLevel: 100,
+            tombstonePowerLevel: 50,
+        });
+        expect(s.available).toBe(true);
+        expect(s.recommendedVersion).toBe("11");
+    });
 });
