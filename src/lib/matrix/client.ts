@@ -104,6 +104,7 @@ import { receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import { firstReusableDmRoom } from "$lib/utils/dmReuse";
+import { pickDmRoomVersion } from "$lib/utils/dmRoomVersion";
 import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
 import {
     countReactions,
@@ -4991,6 +4992,21 @@ async function openDirectMessage(
         return { roomId: stranded.roomId, followUp };
     }
     const initialState = encryptionInitialState(getEncrypt());
+    // A cross-server DM created at the homeserver's newest default room version
+    // can have its invite rejected by the invitee's server (v12's m.room.create
+    // fails federated invite validation on some servers → the invite never
+    // lands and the DM presents as an "Empty room"). Cap cross-server DMs at a
+    // federation-safe version; same-server DMs keep the server default.
+    const rv = await getRoomVersionCapability().catch(() => ({
+        default: "",
+        available: [] as string[],
+    }));
+    const roomVersion = pickDmRoomVersion({
+        inviteeUserId: userId,
+        ownUserId: matrixClient.getUserId() ?? "",
+        available: rv.available,
+        default: rv.default,
+    });
     const result = await matrixClient.createRoom({
         invite: [userId],
         is_direct: true,
@@ -4999,6 +5015,7 @@ async function openDirectMessage(
         power_level_content_override: {
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
+        ...(roomVersion ? { room_version: roomVersion } : {}),
         ...(initialState ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
