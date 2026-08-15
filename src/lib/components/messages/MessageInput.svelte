@@ -546,19 +546,20 @@
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
     }
 
-    const replyTargetName = $derived(
-        replyToEvent
-            ? getMemberName(
-                  { getMember: () => null } as never,
-                  replyToEvent.getSender() ?? "",
-              )
-            : null,
-    );
+    const replyTargetName = $derived.by(() => {
+        // roomsTick so a late member load / display-name change re-resolves the
+        // name — a live Room mutation in place won't otherwise re-run this and
+        // the preview would be stuck on the raw @mxid.
+        void roomsState.roomsTick;
+        if (!replyToEvent) return null;
+        const sender = replyToEvent.getSender() ?? "";
+        return room ? getMemberName(room, sender) : sender;
+    });
     const composerPlaceholder = $derived(
         disabled
             ? "Select a room to start chatting"
             : replyToEvent
-              ? `Reply to ${replyToEvent.getSender()}...`
+              ? `Reply to ${replyTargetName}...`
               : `Message #${roomName}`,
     );
 
@@ -1381,7 +1382,7 @@
             </svg>
             <div class="flex-1 min-w-0 text-xs">
                 <span class="text-discord-accent font-semibold">
-                    Replying to {replyToEvent.getSender()}
+                    Replying to {replyTargetName}
                 </span>
                 <span class="text-discord-textMuted ml-2 truncate"
                     >{getReplyPreview()}</span
