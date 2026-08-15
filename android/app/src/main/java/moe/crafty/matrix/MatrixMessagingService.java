@@ -610,14 +610,16 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         //
         // Read here rather than threaded in from onMessageReceived: the read
         // there lives inside the enrichment try/catch, so a failure before it
-        // would drop the stamp for a session we can still name. Same store and
-        // key as everywhere else in this file (nativeSession.ts mirrors them),
-        // guarded because showNotification() is called OUTSIDE that try and a
-        // throw here would cost the whole notification.
+        // would drop the stamp for a session we can still name. Reads the single
+        // session record (readSessionRecord) — the same source every other read
+        // in this file uses — not the deprecated per-field legacy keys; guarded
+        // because showNotification() is called OUTSIDE that try and a throw here
+        // would cost the whole notification.
         String postedBy = null;
         try {
             SharedPreferences notifPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            postedBy = notifPrefs.getString(KEY_USER, null);
+            SessionRecord postedSession = readSessionRecord(notifPrefs);
+            postedBy = postedSession != null ? postedSession.userId : null;
         } catch (Throwable ignored) {}
         if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
             intent.putExtra("room_id", roomId);
