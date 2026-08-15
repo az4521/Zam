@@ -13,7 +13,11 @@
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
-    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import {
+        shouldEncryptNewDm,
+        shouldWarnPlaintextDmReuse,
+        PLAINTEXT_DM_REUSE_WARNING,
+    } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -102,12 +106,13 @@
             // said the DM had just been created — and the picker stayed open,
             // the one path on this branch that could still create a second room.
             if (
-                followUp.status === "none" &&
-                wantEncrypted &&
-                !isRoomEncrypted(getRoom(roomId))
+                shouldWarnPlaintextDmReuse({
+                    followUpStatus: followUp.status,
+                    wantEncrypted,
+                    roomEncrypted: isRoomEncrypted(getRoom(roomId)),
+                })
             ) {
-                notice =
-                    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
+                notice = PLAINTEXT_DM_REUSE_WARNING;
                 noticeRoomId = roomId;
                 loading = false;
                 return;

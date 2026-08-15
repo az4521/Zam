@@ -142,3 +142,40 @@ export interface NewDmEncryptionInput {
 export function shouldEncryptNewDm(input: NewDmEncryptionInput): boolean {
     return input.cryptoReady && input.setting;
 }
+
+/**
+ * Warning shown when a "Message" action reuses an EXISTING plaintext DM while
+ * the user has "encrypt new DMs" on. Reuse deliberately never upgrades the
+ * room (encryption is irreversible), so the only cue is the absence of a lock —
+ * easy to miss. Shared by all three DM entry points.
+ */
+export const PLAINTEXT_DM_REUSE_WARNING =
+    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
+
+/** Inputs to "should we warn that this DM is an un-upgraded plaintext reuse?". */
+export interface PlaintextDmReuseInput {
+    /**
+     * The DM open's follow-up status. `"none"` is the ONLY value that means an
+     * existing joined DM was reused (createDirectMessage's early return is the
+     * sole path that skips a follow-up); a fresh create always runs one.
+     */
+    followUpStatus: string;
+    /** Whether the caller asked for an encrypted DM (`shouldEncryptNewDm(...)`). */
+    wantEncrypted: boolean;
+    /** Whether the resolved room is actually encrypted right now. */
+    roomEncrypted: boolean;
+}
+
+/**
+ * Whether to warn the user that they were dropped into an un-upgraded plaintext
+ * DM despite wanting encryption. See {@link PLAINTEXT_DM_REUSE_WARNING}.
+ */
+export function shouldWarnPlaintextDmReuse(
+    input: PlaintextDmReuseInput,
+): boolean {
+    return (
+        input.followUpStatus === "none" &&
+        input.wantEncrypted &&
+        !input.roomEncrypted
+    );
+}

@@ -13,12 +13,17 @@
         banUser,
         createDirectMessage,
         retryRoomFollowUp,
+        getRoom,
     } from "$lib/matrix/client";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { menuGates } from "$lib/utils/callMenu";
-    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import {
+        shouldEncryptNewDm,
+        shouldWarnPlaintextDmReuse,
+        PLAINTEXT_DM_REUSE_WARNING,
+    } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { isCryptoAvailable } from "$lib/matrix/crypto";
+    import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         setUserVolume,
         setUserLocalMute,
@@ -159,14 +164,24 @@
     const onMessage = act(
         "message",
         async () => {
+            const wantEncrypted = shouldEncryptNewDm({
+                cryptoReady: isCryptoAvailable(),
+                setting: settingsState.encryptNewDms,
+            });
             const { roomId, followUp } = await createDirectMessage(
                 userId,
-                shouldEncryptNewDm({
-                    cryptoReady: isCryptoAvailable(),
-                    setting: settingsState.encryptNewDms,
-                }),
+                wantEncrypted,
             );
             surfaceFollowUp(followUp);
+            if (
+                shouldWarnPlaintextDmReuse({
+                    followUpStatus: followUp.status,
+                    wantEncrypted,
+                    roomEncrypted: isRoomEncrypted(getRoom(roomId)),
+                })
+            ) {
+                showErrorToast(PLAINTEXT_DM_REUSE_WARNING);
+            }
             setActiveRoom(roomId);
         },
         "Could not open a direct message",

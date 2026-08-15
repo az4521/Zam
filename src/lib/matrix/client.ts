@@ -208,6 +208,7 @@ import {
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
 import { createInFlightByKey } from "$lib/utils/inFlightByKey";
+import { dmDedupeKey, createDmEncryptIntent } from "$lib/utils/dmDedupe";
 import {
     forgetPendingWipe,
     rememberPendingWipe,
@@ -4822,6 +4823,8 @@ export async function searchUserDirectory(
 
 /** In-flight DM creates, keyed by active account + contact. See below. */
 const dmCreatesByUser = createInFlightByKey<RoomCreationResult>();
+/** Per-contact "wants encryption?" so a racing caller can't pin a DM plaintext. */
+const dmEncryptIntent = createDmEncryptIntent();
 
 /**
  * Open (or reuse) the DM with `userId`.
@@ -4847,23 +4850,25 @@ export function createDirectMessage(
     userId: string,
     encrypt = false,
 ): Promise<RoomCreationResult> {
-    // Keyed by ACTIVE ACCOUNT + contact, never the contact alone. Switching
-    // account inside the wait would otherwise let the new account join the old
-    // one's create and open a room it is not even a member of. Scoping the key
-    // beats clearing the map on teardown: the module client is replaced from
-    // three separate paths (`stopClient`, `logout`, `createAuthenticatedClient`)
-    // and missing any one of them reproduces exactly that bug, whereas a key
-    // that no longer matches simply cannot be joined. A leftover entry needs no
-    // cleanup — it releases itself when its own promise settles.
     const ownUserId = matrixClient?.getUserId() ?? "";
-    return dmCreatesByUser.run(`${ownUserId}|${userId}`, () =>
-        openDirectMessage(userId, encrypt),
+    const key = dmDedupeKey(ownUserId, userId);
+    // A null key means the owner id isn't known yet: deduping on a degenerate
+    // key would let a pre-whoami call and a post-whoami call mint two rooms.
+    if (!key) throw new Error("Not logged in");
+    dmEncryptIntent.raise(key, encrypt);
+    return dmCreatesByUser.run(key, () =>
+        // Read the intent at create time (below, in openDirectMessage) so a
+        // `true` raised by a later concurrent caller before the room is built
+        // still wins; clear it once this create settles.
+        openDirectMessage(userId, () =>
+            dmEncryptIntent.resolve(key, encrypt),
+        ).finally(() => dmEncryptIntent.clear(key)),
     );
 }
 
 async function openDirectMessage(
     userId: string,
-    encrypt: boolean,
+    getEncrypt: () => boolean,
 ): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error("Not logged in");
     // Reuse existing DM room if one exists. An existing DM keeps its own
@@ -4909,7 +4914,7 @@ async function openDirectMessage(
         if (room) await matrixClient.scrollback(room, 30).catch(() => {});
         return { roomId: stranded.roomId, followUp };
     }
-    const initialState = encryptionInitialState(encrypt);
+    const initialState = encryptionInitialState(getEncrypt());
     const result = await matrixClient.createRoom({
         invite: [userId],
         is_direct: true,

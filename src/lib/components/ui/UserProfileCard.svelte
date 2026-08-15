@@ -24,6 +24,7 @@
         retryRoomFollowUp,
         kickUser,
         banUser,
+        getRoom,
     } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
@@ -36,9 +37,17 @@
         popoutPosition,
         summarizeMutualRooms,
     } from "$lib/utils/profileCard";
-    import { shouldEncryptNewDm } from "$lib/utils/roomEncryption";
+    import {
+        shouldEncryptNewDm,
+        shouldWarnPlaintextDmReuse,
+        PLAINTEXT_DM_REUSE_WARNING,
+    } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { isCryptoAvailable, getUserTrust } from "$lib/matrix/crypto";
+    import {
+        isCryptoAvailable,
+        getUserTrust,
+        isRoomEncrypted,
+    } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
     import { createStaleGuard } from "$lib/utils/staleGuard";
     import {
@@ -237,21 +246,34 @@
         // this person's DM, so take them there. Only the card-local state is
         // gated on staleness.
         let createdRoomId: string | undefined;
+        const wantEncrypted = shouldEncryptNewDm({
+            cryptoReady: isCryptoAvailable(),
+            setting: settingsState.encryptNewDms,
+        });
+        let followUpStatus = "none";
         const outcome = await actionRequests.run(async () => {
             const { roomId, followUp } = await createDirectMessage(
                 target,
-                shouldEncryptNewDm({
-                    cryptoReady: isCryptoAvailable(),
-                    setting: settingsState.encryptNewDms,
-                }),
+                wantEncrypted,
             );
             // Surfaced inside the callback, so it reports even on the stale
             // path: a failed m.direct write is an account-level outcome, not a
             // property of this card's request.
             surfaceFollowUp(followUp);
             createdRoomId = roomId;
+            followUpStatus = followUp.status;
         });
         if (createdRoomId !== undefined) {
+            // Warn BEFORE navigating away (the toast survives the unmount).
+            if (
+                shouldWarnPlaintextDmReuse({
+                    followUpStatus,
+                    wantEncrypted,
+                    roomEncrypted: isRoomEncrypted(getRoom(createdRoomId)),
+                })
+            ) {
+                showErrorToast(PLAINTEXT_DM_REUSE_WARNING);
+            }
             closeProfileCard();
             setActiveRoom(createdRoomId);
         }
