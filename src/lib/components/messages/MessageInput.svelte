@@ -106,6 +106,10 @@
         scrollEl?: HTMLElement;
         threadRootId?: string | null;
         composerKey?: string;
+        /** Bound out to the parent: true while a mention/emoji/slash suggestion
+         *  list is showing, so it can hide the "jump to present" pill under it
+         *  (Discord-style). */
+        autocompleteOpen?: boolean;
     }
 
     let {
@@ -120,6 +124,7 @@
         scrollEl,
         threadRootId = null,
         composerKey,
+        autocompleteOpen = $bindable(false),
     }: Props = $props();
 
     const effComposerKey = $derived(composerKey ?? roomId);
@@ -416,6 +421,17 @@
 
     $effect(() => {
         if (slashSelectedIdx >= slashCandidates.length) slashSelectedIdx = 0;
+    });
+
+    // True while any suggestion list (mention/emoji/slash) is actually showing.
+    // Bound out so the parent hides the "jump to present" pill under it.
+    const anyAutocompleteOpen = $derived(
+        (mentionQuery !== null && mentionCandidates.length > 0) ||
+            (emojiQuery !== null && emojiCandidates.length > 0) ||
+            (slashQuery !== null && slashCandidates.length > 0),
+    );
+    $effect(() => {
+        autocompleteOpen = anyAutocompleteOpen;
     });
 
     function detectSlashQuery() {
