@@ -22,6 +22,8 @@
     import { stripBodyFallback } from "$lib/utils/replyFallback";
     import { buildFormattedBody } from "$lib/utils/messageBody";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { matrixErrorMessage } from "$lib/utils/knock";
 
     interface Props {
         room: Room;
@@ -253,6 +255,7 @@
             if (textareaEl) textareaEl.style.height = "auto";
         } catch (err) {
             console.error("Failed to send thread reply:", err);
+            showErrorToast(matrixErrorMessage(err, "Could not send reply"));
         } finally {
             isSending = false;
             textareaEl?.focus();

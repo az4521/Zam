@@ -123,6 +123,10 @@
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
     import { scrollBehavior } from "$lib/utils/motionPreference";
+    import {
+        audioPlaybackMode,
+        audioStatusLabel,
+    } from "$lib/utils/audioPlayback";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
 
@@ -657,9 +661,14 @@
             return;
         }
         let cancelled = false;
-        fetchSingleEvent(room.roomId, id).then((ev) => {
-            if (!cancelled) fetchedReplyTarget = ev;
-        });
+        fetchSingleEvent(room.roomId, id)
+            .then((ev) => {
+                if (!cancelled) fetchedReplyTarget = ev;
+            })
+            .catch((err) => {
+                if (!cancelled) fetchedReplyTarget = null;
+                console.error("Failed to fetch reply target:", err);
+            });
         return () => {
             cancelled = true;
         };
@@ -767,6 +776,17 @@
     let audioClicked = $state(false);
     let audioBlobUrl = $state<string | null>(null);
     let audioLoading = $state(false);
+    let audioFailed = $state(false);
+    // Bumped by the Retry affordance to re-run the load effect (toggling
+    // audioClicked can't: false→true in one handler nets to no change).
+    let audioAttempt = $state(0);
+    const audioMode = $derived(
+        audioPlaybackMode({
+            hasBlob: !!audioBlobUrl,
+            loading: audioLoading,
+            failed: audioFailed,
+        }),
+    );
     // Voice message (MSC3245): render a waveform + length instead of a bare
     // audio row. Null for ordinary uploaded audio files.
     const voiceMsg = $derived(
@@ -774,10 +794,12 @@
     );
 
     $effect(() => {
+        void audioAttempt; // re-run when the user retries a failed load
         if (!audioClicked || msgtype !== "m.audio") return;
         const httpUrl = mxcToHttp(content?.url as string);
         if (!httpUrl) return;
         audioLoading = true;
+        audioFailed = false;
         let objectUrl: string | null = null;
         fetchAttachmentBlob(httpUrl)
             .then((url) => {
@@ -787,6 +809,7 @@
             })
             .catch(() => {
                 audioLoading = false;
+                audioFailed = true;
             });
         return () => {
             if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -1580,7 +1603,13 @@
                     <!-- svelte-ignore a11y_consider_explicit_label -->
                     <button
                         onclick={() => {
-                            if (!audioBlobUrl) audioClicked = true;
+                            if (audioBlobUrl) return;
+                            if (audioFailed) {
+                                audioFailed = false;
+                                audioAttempt++;
+                            } else {
+                                audioClicked = true;
+                            }
                         }}
                         class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
                         disabled={audioLoading}
@@ -1622,8 +1651,12 @@
                                 class="w-full h-8"
                             ></audio>
                         {:else}
-                            <p class="text-discord-textMuted text-xs">
-                                {audioLoading ? "Loading…" : "Click to play"}
+                            <p
+                                class="text-xs {audioMode === 'failed'
+                                    ? 'text-discord-danger'
+                                    : 'text-discord-textMuted'}"
+                            >
+                                {audioStatusLabel(audioMode)}
                             </p>
                         {/if}
                     </div>
