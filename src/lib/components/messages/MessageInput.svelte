@@ -10,6 +10,7 @@
         getMemberName,
         getMemberAvatar,
         getRoomMembers,
+        loadRoomMembersIfNeeded,
         getCustomEmojis,
         mxcToHttp,
         sendTyping,
@@ -169,8 +170,22 @@
     let mentionSelectedIdx = $state(0);
     // Map of displayName → userId for mentions inserted in the current message
     let pendingMentions = $state(new Map<string, string>());
+    // Bumped once the room's full member list is loaded so the autocomplete can
+    // re-derive with it. With lazy-loaded members, getRoomMembers only returns
+    // members already seen in sync (e.g. anyone who has spoken) — so a bridge
+    // ghost or quiet member is missing from @-autocomplete until we ask the SDK
+    // to load the rest. Idempotent: loadMembersIfNeeded no-ops once loaded.
+    let memberTick = $state(0);
+    $effect(() => {
+        if (mentionQuery === null || !room) return;
+        const r = room;
+        loadRoomMembersIfNeeded(r)
+            .then(() => untrack(() => memberTick++))
+            .catch(() => {});
+    });
 
     const mentionCandidates = $derived.by(() => {
+        void memberTick;
         if (mentionQuery === null || !room) return [];
         const q = mentionQuery.toLowerCase();
         const ownId = getOwnUserId();
@@ -613,6 +628,9 @@
         return buildBody(plain, {
             mentions: pendingMentions,
             customEmojis: getCustomEmojis(room, roomsState.activeSpaceId),
+            memberIds: room
+                ? new Set(getRoomMembers(room).map((m) => m.userId))
+                : undefined,
         });
     }
 
