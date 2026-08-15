@@ -156,6 +156,8 @@ import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
+import { collectSpaceDescendantRoomIds } from "$lib/utils/spaceDescendants";
+import { mapWithConcurrency } from "$lib/utils/async";
 import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import {
     needsStateSeed,
@@ -4152,6 +4154,29 @@ export async function markRoomAsRead(roomId: string): Promise<void> {
     const events = room.getLiveTimeline().getEvents();
     const last = events[events.length - 1];
     if (last) await sendReadReceipt(last);
+}
+
+/**
+ * Mark every joined room inside a space as read, walking sub-spaces
+ * recursively. `markRoomAsRead(spaceId)` alone only receipts the space's own
+ * (state-only) timeline and leaves every child room unread — the visible bug
+ * behind "mark as read on a space does nothing". The room set here mirrors
+ * SpaceSidebar's unread aggregation, so the space's badge clears. Each
+ * `markRoomAsRead` is idempotent (skips rooms already at their latest event),
+ * and the fan-out is bounded so a large space doesn't burst dozens of
+ * receipt round-trips at once.
+ */
+export async function markSpaceAsRead(spaceId: string): Promise<void> {
+    if (!matrixClient) return;
+    const roomIds = collectSpaceDescendantRoomIds(
+        spaceId,
+        (id) => getRoomsInSpace(id).map((r) => r.roomId),
+        (id) =>
+            getSpaceChildIds(id).filter(
+                (cid) => matrixClient?.getRoom(cid)?.isSpaceRoom() ?? false,
+            ),
+    );
+    await mapWithConcurrency(roomIds, 6, (id) => markRoomAsRead(id));
 }
 
 /** A shareable matrix.to link: canonical alias if set, else room id + our homeserver as via. */

@@ -21,7 +21,7 @@
         canAddRoomToSpace,
         canInviteToRoom,
         getRoomShareLink,
-        markRoomAsRead,
+        markSpaceAsRead,
         createRoom as createRoomFn,
         retryRoomFollowUp,
         getRoomNotificationSetting,
@@ -587,7 +587,7 @@
     }
     async function handleMarkSpaceRead(spaceId: string) {
         closeModal();
-        await markRoomAsRead(spaceId);
+        await markSpaceAsRead(spaceId);
     }
 
     let exploreOpen = $state(false);
