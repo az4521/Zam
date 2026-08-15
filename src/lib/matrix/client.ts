@@ -4024,11 +4024,15 @@ export async function loadContextAroundEvent(
 export async function searchRoomMessages(
     roomId: string,
     term: string,
+    filter?: { rooms?: string[]; senders?: string[]; contains_url?: boolean },
 ): Promise<ISearchResults | null> {
     if (!matrixClient) return null;
     return matrixClient.searchRoomEvents({
         term,
-        filter: { rooms: [roomId] },
+        // Keep the room scope even if a caller passes a filter without `rooms`;
+        // buildServerSearchFilter already includes it, so the spread is a no-op
+        // in that case and adds the operator-derived `senders`/`contains_url`.
+        filter: { rooms: [roomId], ...filter },
     });
 }
 

@@ -2,6 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
     buildSnippetSegments,
     isSearchUnsupportedError,
+    parseSearchQuery,
+    buildServerSearchFilter,
+    matchesParsedQuery,
+    parsedQueryNeedsClientRefine,
+    isFullMxid,
+    type SearchEventMeta,
 } from "./messageSearch";
 
 describe("buildSnippetSegments — split a body into highlightable segments", () => {
@@ -123,4 +129,189 @@ describe("isSearchUnsupportedError — detect servers without /search", () => {
         expect(isSearchUnsupportedError("M_UNRECOGNIZED")).toBe(false);
         expect(isSearchUnsupportedError({})).toBe(false);
     });
+});
+
+const meta = (o: Partial<SearchEventMeta>): SearchEventMeta => ({
+    sender: "@a:x",
+    msgtype: "m.text",
+    body: "",
+    isVoice: false,
+    ...o,
+});
+
+describe("parseSearchQuery", () => {
+    it("returns all-free-text for a plain query", () => {
+        expect(parseSearchQuery("hello world")).toEqual({
+            term: "hello world",
+            senders: [],
+            has: [],
+        });
+    });
+    it("extracts from: and has: and keeps free text", () => {
+        expect(parseSearchQuery("from:@bob:x has:image lunch")).toEqual({
+            term: "lunch",
+            senders: ["@bob:x"],
+            has: ["image"],
+        });
+    });
+    it("does NOT treat a URL as an operator", () => {
+        const p = parseSearchQuery("look https://example.com/a:b");
+        expect(p.senders).toEqual([]);
+        expect(p.has).toEqual([]);
+        expect(p.term).toBe("look https://example.com/a:b");
+    });
+    it("keeps an invalid has: value as free text", () => {
+        const p = parseSearchQuery("has:sticker cat");
+        expect(p.has).toEqual([]);
+        expect(p.term).toBe("has:sticker cat");
+    });
+    it("drops an empty from: and empty has: from free text", () => {
+        const p = parseSearchQuery("from: has: hi");
+        expect(p).toEqual({ term: "hi", senders: [], has: [] });
+    });
+    it("dedupes repeated operators, preserves order", () => {
+        const p = parseSearchQuery("from:@a:x from:@a:x has:image has:image");
+        expect(p.senders).toEqual(["@a:x"]);
+        expect(p.has).toEqual(["image"]);
+    });
+    it("collects multiple distinct senders and has values", () => {
+        const p = parseSearchQuery("from:@a:x from:@b:y has:image has:video");
+        expect(p.senders).toEqual(["@a:x", "@b:y"]);
+        expect(p.has).toEqual(["image", "video"]);
+    });
+    it("is case-insensitive on the operator key and has value", () => {
+        const p = parseSearchQuery("FROM:@a:x HAS:Image");
+        expect(p.senders).toEqual(["@a:x"]);
+        expect(p.has).toEqual(["image"]);
+    });
+    it("collapses to empty term when only operators are present", () => {
+        expect(parseSearchQuery("from:@a:x has:link").term).toBe("");
+    });
+});
+
+describe("isFullMxid", () => {
+    it("accepts a full mxid", () =>
+        expect(isFullMxid("@bob:example.com")).toBe(true));
+    it("rejects a partial", () => expect(isFullMxid("bob")).toBe(false));
+    it("rejects @user with no server", () =>
+        expect(isFullMxid("@bob")).toBe(false));
+});
+
+describe("buildServerSearchFilter", () => {
+    it("always scopes to the room", () => {
+        expect(buildServerSearchFilter("!r:x", parseSearchQuery("hi"))).toEqual(
+            {
+                rooms: ["!r:x"],
+            },
+        );
+    });
+    it("sends full-mxid senders but not partials", () => {
+        const f = buildServerSearchFilter(
+            "!r:x",
+            parseSearchQuery("from:@a:x from:bob"),
+        );
+        expect(f.senders).toEqual(["@a:x"]);
+    });
+    it("omits senders when none are full mxids", () => {
+        const f = buildServerSearchFilter("!r:x", parseSearchQuery("from:bob"));
+        expect(f.senders).toBeUndefined();
+    });
+    it("sets contains_url for media has but not for link-only", () => {
+        expect(
+            buildServerSearchFilter("!r:x", parseSearchQuery("has:image"))
+                .contains_url,
+        ).toBe(true);
+        expect(
+            buildServerSearchFilter("!r:x", parseSearchQuery("has:link"))
+                .contains_url,
+        ).toBeUndefined();
+    });
+});
+
+describe("matchesParsedQuery", () => {
+    const p = parseSearchQuery.bind(null);
+    it("matches image msgtype for has:image, rejects video", () => {
+        expect(
+            matchesParsedQuery(meta({ msgtype: "m.image" }), p("has:image")),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(meta({ msgtype: "m.video" }), p("has:image")),
+        ).toBe(false);
+    });
+    it("distinguishes audio from voice", () => {
+        expect(
+            matchesParsedQuery(
+                meta({ msgtype: "m.audio", isVoice: false }),
+                p("has:audio"),
+            ),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(
+                meta({ msgtype: "m.audio", isVoice: true }),
+                p("has:audio"),
+            ),
+        ).toBe(false);
+        expect(
+            matchesParsedQuery(
+                meta({ msgtype: "m.audio", isVoice: true }),
+                p("has:voice"),
+            ),
+        ).toBe(true);
+    });
+    it("matches a link in the body", () => {
+        expect(
+            matchesParsedQuery(
+                meta({ body: "see http://x.io" }),
+                p("has:link"),
+            ),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(meta({ body: "no links here" }), p("has:link")),
+        ).toBe(false);
+    });
+    it("full-mxid sender is exact; partial is substring", () => {
+        expect(
+            matchesParsedQuery(meta({ sender: "@bob:x" }), p("from:@bob:x")),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(meta({ sender: "@bobby:x" }), p("from:@bob:x")),
+        ).toBe(false);
+        expect(
+            matchesParsedQuery(meta({ sender: "@bobby:x" }), p("from:bob")),
+        ).toBe(true);
+    });
+    it("ANDs across operators, ORs within", () => {
+        const q = p("from:@a:x from:@b:x has:image has:video");
+        expect(
+            matchesParsedQuery(meta({ sender: "@a:x", msgtype: "m.image" }), q),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(meta({ sender: "@c:x", msgtype: "m.image" }), q),
+        ).toBe(false); // sender fails
+        expect(
+            matchesParsedQuery(meta({ sender: "@a:x", msgtype: "m.file" }), q),
+        ).toBe(false); // has fails
+    });
+    it("empty parsed query matches anything", () => {
+        expect(matchesParsedQuery(meta({}), p("hi"))).toBe(true);
+    });
+});
+
+describe("parsedQueryNeedsClientRefine", () => {
+    it("true for any has:", () =>
+        expect(
+            parsedQueryNeedsClientRefine(parseSearchQuery("has:image")),
+        ).toBe(true));
+    it("true for a partial sender", () =>
+        expect(parsedQueryNeedsClientRefine(parseSearchQuery("from:bob"))).toBe(
+            true,
+        ));
+    it("false for full-mxid-only from:", () =>
+        expect(
+            parsedQueryNeedsClientRefine(parseSearchQuery("from:@a:x")),
+        ).toBe(false));
+    it("false for plain text", () =>
+        expect(parsedQueryNeedsClientRefine(parseSearchQuery("hi"))).toBe(
+            false,
+        ));
 });
