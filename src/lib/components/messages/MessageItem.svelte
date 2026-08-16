@@ -435,8 +435,15 @@
     }
 
     const senderId = $derived(event.getSender() ?? "");
-    const displayName = $derived(getMemberName(room, senderId));
-    const avatarSrc = $derived(getMemberAvatar(room, senderId));
+    // Depend on roomsTick so a sender whose member loads AFTER this row rendered
+    // (lazy-loaded/bridged members) re-resolves from raw MXID to name+avatar —
+    // getMember reads don't re-run when the member mutates in place.
+    const displayName = $derived(
+        (void roomsState.roomsTick, getMemberName(room, senderId)),
+    );
+    const avatarSrc = $derived(
+        (void roomsState.roomsTick, getMemberAvatar(room, senderId)),
+    );
     const timestamp = $derived(event.getTs());
     const content = $derived.by(() => {
         reactionTick;
@@ -675,7 +682,10 @@
     });
     const replyTarget = $derived(timelineReplyTarget ?? fetchedReplyTarget);
     const replyTargetSender = $derived(
-        replyTarget ? getMemberName(room, replyTarget.getSender() ?? "") : null,
+        replyTarget
+            ? (void roomsState.roomsTick,
+              getMemberName(room, replyTarget.getSender() ?? ""))
+            : null,
     );
     const replyTargetBody = $derived(() => {
         if (!replyTarget) return null;
