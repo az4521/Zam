@@ -2,6 +2,7 @@ import type { Room } from "matrix-js-sdk";
 import { getRoom, getRoomsInSpace, getSpaceChildIds } from "$lib/matrix/client";
 import { auth } from "./auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
+import { isLoudNotificationRead } from "$lib/utils/loudNotifications";
 
 export interface LoudNotification {
     roomId: string;
@@ -63,13 +64,29 @@ export function markNotification(n: LoudNotification): void {
 export function clearReadNotifications(room: Room, userId: string): void {
     const existing = notificationsState.byRoom[room.roomId];
     if (!existing || existing.length === 0) return;
-    const remaining = existing.filter((n) => {
+    // Latest read position, across public + private receipts. hasUserReadEvent
+    // alone can't clear a notification whose event has aged out of the loaded
+    // timeline (it returns false for events it can't locate), so entries older
+    // than this timestamp are cleared regardless — see isLoudNotificationRead.
+    const receiptTsOf = (type?: string) => {
         try {
-            return !room.hasUserReadEvent(userId, n.eventId);
+            return (
+                room.getReadReceiptForUserId(userId, false, type as never)?.data
+                    ?.ts ?? 0
+            );
         } catch {
-            return true;
+            return 0;
         }
-    });
+    };
+    const readReceiptTs =
+        Math.max(receiptTsOf(), receiptTsOf("m.read.private")) || null;
+    const remaining = existing.filter(
+        (n) =>
+            !isLoudNotificationRead(n, {
+                hasReadEvent: (id) => room.hasUserReadEvent(userId, id),
+                readReceiptTs,
+            }),
+    );
     if (remaining.length === existing.length) return;
     if (remaining.length === 0) {
         delete notificationsState.byRoom[room.roomId];
