@@ -37,6 +37,7 @@
         getRoomCallMemberships,
         getRoomThreads,
         isVideoRoom,
+        loadRoomMembersIfNeeded,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -169,6 +170,21 @@
         threadRootId = null;
         threadFullscreen = false;
         revealedBlockedIds = {};
+    });
+
+    // Bridged/quiet senders whose m.room.member event wasn't lazy-loaded render
+    // as their raw MXID (no display name, no avatar) until the member arrives.
+    // Fetch the full roster on room open so every sender resolves, then bump
+    // roomsTick so already-rendered rows re-derive their name/avatar — the
+    // getMember reads don't re-run on their own when the member mutates in
+    // place. Idempotent (loadMembersIfNeeded caches); the bump is untracked so
+    // it can't re-enter this effect.
+    $effect(() => {
+        const r = room;
+        void r.roomId;
+        loadRoomMembersIfNeeded(r)
+            .then(() => untrack(() => roomsState.roomsTick++))
+            .catch(() => {});
     });
     let isDragOver = $state(false);
     let intervalId: NodeJS.Timeout | undefined = $state();
