@@ -1128,11 +1128,65 @@
         markAsReadIfDisplayable();
     }
 
+    // Supplemental scroll anchor. When content grows LATE while the user is
+    // reading history — a link-preview card fetching in, an image decoding — the
+    // message they are looking at would jump. Native `overflow-anchor` is meant
+    // to absorb this but is unreliable across programmatic scrolls and dynamic
+    // subtrees (confirmed: preview cards still shove the timeline). So we pin the
+    // first visible message ourselves. It is deliberately gated to fire ONLY
+    // while calmly reading history (see anchoringActive) so it never fights
+    // bottom-sticking, backfill's own scroll preservation, or a jump animation.
+    let anchorEl: HTMLElement | null = null;
+    let anchorOffset = 0;
+
+    function anchoringActive(): boolean {
+        return (
+            !!scrollEl &&
+            !isAtBottom &&
+            !loadingOlder &&
+            intervalId === undefined &&
+            jumpingToEventId === null
+        );
+    }
+
+    // Record the topmost visible message and its offset from the viewport top.
+    function captureScrollAnchor() {
+        if (!anchoringActive()) {
+            anchorEl = null;
+            return;
+        }
+        const cTop = scrollEl!.getBoundingClientRect().top;
+        for (const el of scrollEl!.querySelectorAll<HTMLElement>(
+            "[data-event-id]",
+        )) {
+            const r = el.getBoundingClientRect();
+            if (r.bottom > cTop + 8) {
+                anchorEl = el;
+                anchorOffset = r.top - cTop;
+                return;
+            }
+        }
+        anchorEl = null;
+    }
+
+    // If the anchored message moved (content above/within it changed size),
+    // cancel the move so the reading position stays put. Sub-pixel drift is left
+    // to the browser; we only undo real jumps.
+    function restoreScrollAnchor() {
+        if (!anchoringActive() || !anchorEl || !anchorEl.isConnected) return;
+        const cTop = scrollEl!.getBoundingClientRect().top;
+        const delta =
+            anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
+        if (delta > 2 || delta < -2) scrollEl!.scrollTop += delta;
+    }
+
     function onScroll() {
         if (!scrollEl) return;
         const { scrollTop, clientHeight, scrollHeight } = scrollEl;
         const wasAtBottom = isAtBottom;
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
+        // Track the reading position so a late content change can be undone.
+        captureScrollAnchor();
 
         // Receipts advance the live read marker; in context view the bottom of
         // the window is not the live tail, so don't mark read while browsing it.
@@ -1285,6 +1339,34 @@
         );
         observer.observe(sentinel);
         return () => observer.disconnect();
+    });
+
+    // Keep the reading position pinned when timeline content grows AFTER it
+    // rendered: a link-preview card mounting (DOM mutation) or media finishing
+    // load (a `load` event, which doesn't bubble → capture phase). The restore
+    // runs SYNCHRONOUSLY in the observer callback — a MutationObserver callback
+    // is a microtask, so it fires after the growth but BEFORE the browser paints
+    // the frame; correcting scrollTop there cancels the jump in the same frame
+    // (deferring to requestAnimationFrame would let the shifted frame paint
+    // first, so the user still sees it flick). restoreScrollAnchor no-ops unless
+    // we're calmly reading history and the anchor actually moved, so this is
+    // inert at the bottom, during backfill, and during a jump.
+    $effect(() => {
+        const root = scrollEl;
+        roomId; // re-establish per room
+        if (!root) return;
+        const onMediaLoad = (e: Event) => {
+            const t = e.target as HTMLElement | null;
+            if (t && (t.tagName === "IMG" || t.tagName === "VIDEO"))
+                restoreScrollAnchor();
+        };
+        const mo = new MutationObserver(restoreScrollAnchor);
+        mo.observe(root, { childList: true, subtree: true });
+        root.addEventListener("load", onMediaLoad, true);
+        return () => {
+            mo.disconnect();
+            root.removeEventListener("load", onMediaLoad, true);
+        };
     });
 
     // Message grouping, date separators and the unread divider are pure
