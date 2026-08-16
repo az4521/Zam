@@ -25,6 +25,7 @@ import {
     M_BEACON_INFO,
     ContentHelpers,
     Filter,
+    TimelineWindow,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -1487,45 +1488,55 @@ export async function reorderRoomTag(
     }
 }
 
+// Whether a timeline event should render as a message in the main timeline.
+// Shared by the live timeline (getTimelineMessages) and the jump-to-message
+// context window (getContextWindowEvents) so both show exactly the same events.
+// Debug mode (showAllEvents) surfaces every event — state, edits, redacted,
+// reactions — instead of just renderable messages.
+function isRenderableTimelineEvent(e: MatrixEvent): boolean {
+    if (settingsState.showAllEvents) return true;
+    if (e.isRedacted()) return false;
+    if (
+        e.getType() !== "m.room.message" &&
+        e.getType() !== "m.sticker" &&
+        // Keep still-encrypted (undecryptable) events visible as UTD
+        // placeholders instead of silently dropping them. A *decrypted*
+        // event already reports its cleartext type and passes above.
+        e.getType() !== "m.room.encrypted" &&
+        !isPollStartEventType(e.getType())
+    )
+        return false;
+    const rel = e.getContent()?.["m.relates_to"];
+    if (rel?.rel_type === "m.replace") return false;
+    // Divert thread replies out of the main timeline (Element behaviour).
+    // With threadSupport on the SDK already does this; the clause is the ⚑4
+    // backstop against out-of-order Conduit delivery. Read the ORIGINAL
+    // content so an edited reply is still recognised as a thread reply.
+    if (
+        !belongsToMainTimeline({
+            relatesTo: e.getOriginalContent()?.["m.relates_to"],
+            eventId: e.getId() ?? "",
+        })
+    )
+        return false;
+    return true;
+}
+
 export function getTimelineMessages(room: Room): MatrixEvent[] {
-    // Debug mode: surface every timeline event (state events, edits, redacted,
-    // reactions, etc) instead of just renderable messages.
-    const showAll = settingsState.showAllEvents;
-    const filter = (e: MatrixEvent) => {
-        if (showAll) return true;
-        if (e.isRedacted()) return false;
-        if (
-            e.getType() !== "m.room.message" &&
-            e.getType() !== "m.sticker" &&
-            // Keep still-encrypted (undecryptable) events visible as UTD
-            // placeholders instead of silently dropping them. A *decrypted*
-            // event already reports its cleartext type and passes above.
-            e.getType() !== "m.room.encrypted" &&
-            !isPollStartEventType(e.getType())
-        )
-            return false;
-        const rel = e.getContent()?.["m.relates_to"];
-        if (rel?.rel_type === "m.replace") return false;
-        // Divert thread replies out of the main timeline (Element behaviour).
-        // With threadSupport on the SDK already does this; the clause is the ⚑4
-        // backstop against out-of-order Conduit delivery. Read the ORIGINAL
-        // content so an edited reply is still recognised as a thread reply.
-        if (
-            !belongsToMainTimeline({
-                relatesTo: e.getOriginalContent()?.["m.relates_to"],
-                eventId: e.getId() ?? "",
-            })
-        )
-            return false;
-        return true;
-    };
-    const timeline = room.getLiveTimeline().getEvents().filter(filter);
+    const timeline = room
+        .getLiveTimeline()
+        .getEvents()
+        .filter(isRenderableTimelineEvent);
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
     // can see a failed send and retry/delete it (see resendMessage /
     // deleteFailedMessage); only drop ones already cancelled.
     const pending = room
         .getPendingEvents()
-        .filter((e) => filter(e) && e.status !== EventStatus.CANCELLED);
+        .filter(
+            (e) =>
+                isRenderableTimelineEvent(e) &&
+                e.status !== EventStatus.CANCELLED,
+        );
     return [...timeline, ...pending];
 }
 
@@ -3990,39 +4001,57 @@ export async function loadMessagesUntilEvent(
         .some((e) => e.getId() === eventId);
 }
 
-/** Loads the timeline context around `eventId` without affecting the live timeline.
- *  Returns filtered message events around that point, or null if unavailable. */
-export async function loadContextAroundEvent(
+/** Builds a paginating timeline window centred on `eventId`, WITHOUT disturbing
+ *  the live timeline. Unlike a one-shot context snapshot, the returned window can
+ *  be paginated in both directions as the user scrolls (see paginateContextWindow)
+ *  and reports when it has caught up to the live edge (see contextWindowCanPaginate)
+ *  — that is what lets a jump-to-message view scroll freely and rejoin the present.
+ *  Returns null if the event's timeline can't be loaded. */
+export async function createContextWindow(
     room: Room,
     eventId: string,
     windowSize = 50,
-): Promise<MatrixEvent[] | null> {
+): Promise<TimelineWindow | null> {
     if (!matrixClient) return null;
     const timelineSet = room.getUnfilteredTimelineSet();
-    const timeline = await matrixClient.getEventTimeline(timelineSet, eventId);
-    if (!timeline) return null;
-    const half = Math.floor(windowSize / 2);
-    await matrixClient.paginateEventTimeline(timeline, {
-        backwards: true,
-        limit: half,
-    });
-    await matrixClient.paginateEventTimeline(timeline, {
-        backwards: false,
-        limit: half,
-    });
-    const filter = (e: MatrixEvent) => {
-        if (e.isRedacted()) return false;
-        if (
-            e.getType() !== "m.room.message" &&
-            e.getType() !== "m.sticker" &&
-            !isPollStartEventType(e.getType())
-        )
-            return false;
-        const rel = e.getContent()?.["m.relates_to"];
-        if (rel?.rel_type === "m.replace") return false;
-        return true;
-    };
-    return timeline.getEvents().filter(filter);
+    const window = new TimelineWindow(matrixClient, timelineSet);
+    try {
+        await window.load(eventId, windowSize);
+    } catch {
+        return null;
+    }
+    // load() resolves even when the event's timeline could not be fetched; an
+    // empty window means we have nothing to show, so treat it as unavailable.
+    if (window.getEvents().length === 0) return null;
+    return window;
+}
+
+/** The renderable message events currently held by a context window, filtered
+ *  identically to the live timeline so the jump view matches normal rendering. */
+export function getContextWindowEvents(window: TimelineWindow): MatrixEvent[] {
+    return window.getEvents().filter(isRenderableTimelineEvent);
+}
+
+/** Extends a context window by `limit` events in one direction (forwards =
+ *  towards newer/live). Returns true if more events were loaded. */
+export function paginateContextWindow(
+    window: TimelineWindow,
+    forwards: boolean,
+    limit = 30,
+): Promise<boolean> {
+    const dir = forwards ? EventTimeline.FORWARDS : EventTimeline.BACKWARDS;
+    return window.paginate(dir, limit);
+}
+
+/** Whether a context window can still extend in the given direction. A false
+ *  result for forwards means the window has reached the live timeline's newest
+ *  event — the caller can then hand back to the live timeline. */
+export function contextWindowCanPaginate(
+    window: TimelineWindow,
+    forwards: boolean,
+): boolean {
+    const dir = forwards ? EventTimeline.FORWARDS : EventTimeline.BACKWARDS;
+    return window.canPaginate(dir);
 }
 
 /** Server-side message search scoped to a single room (order: most recent

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { tick, untrack, onMount } from "svelte";
-    import type { Room, MatrixEvent } from "matrix-js-sdk";
+    import type { Room, MatrixEvent, TimelineWindow } from "matrix-js-sdk";
     import { auth } from "$lib/stores/auth.svelte";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
@@ -24,7 +24,10 @@
         onRoomHealed,
         loadPreviousMessages,
         loadMessagesUntilEvent,
-        loadContextAroundEvent,
+        createContextWindow,
+        getContextWindowEvents,
+        paginateContextWindow,
+        contextWindowCanPaginate,
         getRoomDisplayName,
         getRoomTopic,
         sendReadReceipt,
@@ -351,9 +354,10 @@
         if (!el) {
             jumpingToEventId = eventId;
             try {
-                const ctx = await loadContextAroundEvent(room, eventId);
-                if (ctx) {
-                    contextMessages = ctx;
+                const win = await createContextWindow(room, eventId);
+                if (win) {
+                    contextWindow = win;
+                    contextMessages = getContextWindowEvents(win);
                     await tick();
                 }
             } finally {
@@ -667,7 +671,15 @@
     const isVideoRoomView = $derived(
         (void roomsState.roomsTick, isVideoRoom(room)),
     );
+    // Jump-to-message ("context") view. Jumping to a far-back message loads a
+    // paginating TimelineWindow around it instead of the live timeline, so the
+    // user can scroll freely both ways from that point (unlike the old static
+    // 50-event snapshot). `contextMessages` is the rendered snapshot, refreshed
+    // from the window after each pagination; scrolling to the live edge hands
+    // back to the live timeline (see rejoinLive / maybeLoadNewer).
+    let contextWindow = $state<TimelineWindow | null>(null);
     let contextMessages = $state<MatrixEvent[] | null>(null);
+    let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
 
@@ -678,6 +690,7 @@
     $effect(() => {
         room.roomId; // track room changes
         replyToEvent = null;
+        contextWindow = null;
         contextMessages = null;
     });
 
@@ -1089,7 +1102,9 @@
     // component. visibilitychange fires both ways — the canSendReceipt gate
     // inside markAsReadIfDisplayable makes the hidden transition a no-op.
     function onWindowFocusRegained() {
-        if (isAtBottom) markAsReadIfDisplayable();
+        // In context view "at bottom" is the bottom of the jumped-to window, not
+        // the live tail — don't send a receipt for the latest event then.
+        if (isAtBottom && !isContextView) markAsReadIfDisplayable();
     }
 
     onMount(() => {
@@ -1119,13 +1134,33 @@
         const wasAtBottom = isAtBottom;
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
 
-        if (!wasAtBottom && isAtBottom) markAsReadIfDisplayable();
+        // Receipts advance the live read marker; in context view the bottom of
+        // the window is not the live tail, so don't mark read while browsing it.
+        if (!wasAtBottom && isAtBottom && !isContextView)
+            markAsReadIfDisplayable();
         // Loading older messages near the top is driven by the IntersectionObserver
         // on topSentinelEl (see below) — more reliable than a scroll-position check.
+        // Loading newer messages (and rejoining live) is driven here: while in a
+        // jumped-to context view, approaching the bottom pages the window forward.
+        if (isContextView) {
+            const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+            if (distanceToBottom < 600) void maybeLoadNewer();
+        }
     }
 
     async function loadOlderMessages() {
-        if (loadingOlder || !canLoadMore(roomId) || isContextView) return;
+        if (loadingOlder) return;
+        // Context view paginates the jumped-to window; the live view paginates
+        // the live timeline. Both share the scroll-preservation dance below.
+        if (isContextView) {
+            if (
+                !contextWindow ||
+                !contextWindowCanPaginate(contextWindow, false)
+            )
+                return;
+        } else if (!canLoadMore(roomId)) {
+            return;
+        }
         loadingOlder = true;
         // Reference element for scroll preservation: the oldest rendered
         // message. After prepending we cancel however far it actually moved —
@@ -1136,10 +1171,15 @@
         const prevTop = refEl?.getBoundingClientRect().top;
 
         try {
-            const hasMore = await loadPreviousMessages(room);
-            if (!hasMore) setCanLoadMore(roomId, false);
-            const events = getTimelineMessages(room);
-            setMessages(roomId, events);
+            if (isContextView && contextWindow) {
+                await paginateContextWindow(contextWindow, false);
+                contextMessages = getContextWindowEvents(contextWindow);
+            } else {
+                const hasMore = await loadPreviousMessages(room);
+                if (!hasMore) setCanLoadMore(roomId, false);
+                const events = getTimelineMessages(room);
+                setMessages(roomId, events);
+            }
 
             await tick();
             if (scrollEl && refId !== undefined && prevTop !== undefined) {
@@ -1152,6 +1192,44 @@
         } finally {
             loadingOlder = false;
         }
+    }
+
+    // Extend a jumped-to context window towards newer messages as the user
+    // scrolls down. Once the window reaches the live edge AND the user is at the
+    // bottom, hand back to the live timeline so new messages append and the
+    // "Viewing message context" banner clears — the seamless "scroll down to
+    // rejoin the present" that jumping to an old message used to lack.
+    async function maybeLoadNewer() {
+        if (loadingNewer || !isContextView || !contextWindow) return;
+        if (contextWindowCanPaginate(contextWindow, true)) {
+            loadingNewer = true;
+            try {
+                await paginateContextWindow(contextWindow, true);
+                contextMessages = getContextWindowEvents(contextWindow);
+            } finally {
+                loadingNewer = false;
+            }
+        } else if (isAtBottom) {
+            rejoinLive();
+        }
+    }
+
+    // Leave context view and return to the live timeline, scrolled to the
+    // present. The window's newest event is the live timeline's newest, so from
+    // the bottom this swap is visually seamless.
+    function rejoinLive() {
+        contextWindow = null;
+        contextMessages = null;
+        setMessages(roomId, getTimelineMessages(room));
+        tick().then(() => scrollToBottom(true));
+    }
+
+    // Whether older history can still load: the live timeline's pagination
+    // token, or the context window's backwards edge.
+    function hasOlderToLoad(): boolean {
+        return isContextView
+            ? !!contextWindow && contextWindowCanPaginate(contextWindow, false)
+            : canLoadMore(roomId);
     }
 
     // Returns whether the top sentinel is on/near screen — i.e. the user has
@@ -1172,14 +1250,12 @@
     // the viewport". Driven by the IntersectionObserver and the explicit fill
     // points (room open, sync prepared, timeline reset).
     async function backfillFromTop() {
-        if (isContextView) return; // never queue a request the context view won't serve
         if (!backfillGate.tryEnter()) return;
         try {
             await tick();
             let guard = 0;
             while (
-                canLoadMore(roomId) &&
-                !isContextView &&
+                hasOlderToLoad() &&
                 isTopSentinelNearViewport() &&
                 guard++ < 50
             ) {
@@ -1501,13 +1577,12 @@
             <div class="mt-auto flex-shrink-0"></div>
 
             <!-- Backfill sentinel at the visual top (= oldest-loaded edge).
-                 The IntersectionObserver watches it to load older history. -->
-            {#if !isContextView}
-                <div
-                    bind:this={topSentinelEl}
-                    class="h-px w-full flex-shrink-0"
-                ></div>
-            {/if}
+                 The IntersectionObserver watches it to load older history —
+                 for both the live timeline and a jumped-to context window. -->
+            <div
+                bind:this={topSentinelEl}
+                class="h-px w-full flex-shrink-0"
+            ></div>
 
             <!-- Load more indicator -->
             {#if loadingOlder}
@@ -1731,11 +1806,7 @@
                     >
                     Viewing message context
                     <button
-                        onclick={() => {
-                            contextMessages = null;
-                            setMessages(roomId, getTimelineMessages(room));
-                            tick().then(() => scrollToBottom(true));
-                        }}
+                        onclick={rejoinLive}
                         class="ml-1 underline hover:no-underline"
                         >Return to live</button
                     >
