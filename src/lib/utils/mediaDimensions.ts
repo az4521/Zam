@@ -52,3 +52,30 @@ export function safeAspectRatio(
     if (w === null || h === null) return fallback;
     return `${w} / ${h}`;
 }
+
+/**
+ * Display box (in px) for an image whose intrinsic `width`/`height` come off the
+ * wire, scaled to fit within `maxWidth`×`maxHeight` while preserving aspect
+ * ratio and never upscaling past intrinsic size. Returns `null` when either
+ * dimension fails `safeDimension`, so the caller can fall back to CSS bounds.
+ *
+ * The point is layout stability: rendering these as the `<img>`'s `width`/
+ * `height` attributes lets the browser reserve the exact box before the image
+ * loads, so it can't pop in and shove the timeline. Both sides are sanitized
+ * integers, so they are safe to interpolate into markup.
+ */
+export function reservedMediaBox(
+    width: unknown,
+    height: unknown,
+    maxWidth: number,
+    maxHeight: number,
+): { width: number; height: number } | null {
+    const w = safeDimension(width);
+    const h = safeDimension(height);
+    if (w === null || h === null) return null;
+    const scale = Math.min(maxWidth / w, maxHeight / h, 1);
+    return {
+        width: Math.max(1, Math.round(w * scale)),
+        height: Math.max(1, Math.round(h * scale)),
+    };
+}

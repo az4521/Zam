@@ -2437,6 +2437,9 @@ export interface UrlPreview {
     title?: string;
     description?: string;
     imageUrl?: string;
+    /** Intrinsic image dimensions (og:image:width/height), to reserve layout space. */
+    imageWidth?: number;
+    imageHeight?: number;
     videoUrl?: string;
     /** Poster frame for a video preview, shown before the video is loaded. */
     videoThumbnailUrl?: string;
@@ -2496,7 +2499,8 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
             title: data["og:title"] as string | undefined,
             description: data["og:description"] as string | undefined,
             imageUrl,
-
+            imageWidth: parseDim(data["og:image:width"]),
+            imageHeight: parseDim(data["og:image:height"]),
             videoUrl,
             videoThumbnailUrl,
             videoWidth: parseDim(data["og:video:width"]),

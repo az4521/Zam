@@ -58,7 +58,10 @@
         videoSourceMxc,
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
-    import { safeAspectRatio } from "$lib/utils/mediaDimensions";
+    import {
+        reservedMediaBox,
+        safeAspectRatio,
+    } from "$lib/utils/mediaDimensions";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -781,6 +784,29 @@
     const videoAspectRatio = $derived(
         safeAspectRatio((content?.info as any)?.w, (content?.info as any)?.h),
     );
+    // Reserved display box (px) for uploaded images/stickers, from the sender's
+    // untrusted `info.w`/`info.h`. Rendered as the `<img>`'s width/height
+    // attributes so the browser holds the exact space before the image loads —
+    // otherwise it pops in from zero height and shoves the timeline on scroll.
+    // Bounds mirror the CSS caps: images max-w-lg/max-h-96 (512×384), stickers
+    // max-w-48/max-h-48 (192×192). Null when dimensions are absent → the markup
+    // falls back to the old CSS-only bounds.
+    const imageBox = $derived(
+        reservedMediaBox(
+            (content?.info as any)?.w,
+            (content?.info as any)?.h,
+            512,
+            384,
+        ),
+    );
+    const stickerBox = $derived(
+        reservedMediaBox(
+            (content?.info as any)?.w,
+            (content?.info as any)?.h,
+            192,
+            192,
+        ),
+    );
 
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
@@ -1391,12 +1417,23 @@
         {:else if eventType === "m.sticker"}
             {@const src = stickerHttpUrl()}
             {#if src}
-                <img
-                    {src}
-                    alt={content?.body ?? "sticker"}
-                    class="max-w-48 max-h-48 object-contain mt-1"
-                    loading="lazy"
-                />
+                {#if stickerBox}
+                    <img
+                        {src}
+                        alt={content?.body ?? "sticker"}
+                        width={stickerBox.width}
+                        height={stickerBox.height}
+                        class="max-w-full h-auto object-contain mt-1"
+                        loading="lazy"
+                    />
+                {:else}
+                    <img
+                        {src}
+                        alt={content?.body ?? "sticker"}
+                        class="max-w-48 max-h-48 object-contain mt-1"
+                        loading="lazy"
+                    />
+                {/if}
             {/if}
         {:else if msgtype === "m.image"}
             {@render mediaCaption()}
@@ -1413,12 +1450,23 @@
                             imageLightboxOpen = true;
                         }}
                     >
-                        <img
-                            src={thumb}
-                            alt={mediaFilename}
-                            class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
-                            loading="lazy"
-                        />
+                        {#if imageBox}
+                            <img
+                                src={thumb}
+                                alt={mediaFilename}
+                                width={imageBox.width}
+                                height={imageBox.height}
+                                class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                                loading="lazy"
+                            />
+                        {:else}
+                            <img
+                                src={thumb}
+                                alt={mediaFilename}
+                                class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
+                                loading="lazy"
+                            />
+                        {/if}
                     </a>
                     {#if isGif}
                         <button

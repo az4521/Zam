@@ -16,6 +16,7 @@
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
+    import { reservedMediaBox } from "$lib/utils/mediaDimensions";
 
     interface Props {
         url: string;
@@ -194,6 +195,19 @@
     // opposed to being a raw image or video with none.
     const hasMeta = $derived(
         !!(preview?.title || preview?.description || preview?.siteName),
+    );
+
+    // Reserved display box (px) for preview images, from og:image:width/height
+    // when the site supplies them. Rendered as the <img> width/height so the
+    // browser holds the space before load and the image can't shove the timeline
+    // on scroll. Null when dimensions are absent → markup keeps its CSS bounds.
+    // Direct embed matches uploaded-image bounds (512×384); the card thumbnail
+    // uses the narrower card column (max-w-full / max-h-72 ≈ 480×288).
+    const embedImageBox = $derived(
+        reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 512, 384),
+    );
+    const cardImageBox = $derived(
+        reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 480, 288),
     );
 
     // GIF-sharing sites (Tenor/Giphy/Klipy) have page metadata but should embed
@@ -405,14 +419,27 @@
                     lightboxOpen = true;
                 }}
             >
-                <img
-                    src={preview.imageUrl}
-                    alt=""
-                    class="max-w-lg max-h-96 rounded-lg object-contain cursor-pointer block"
-                    loading="lazy"
-                    referrerpolicy="no-referrer"
-                    onerror={() => (imageError = true)}
-                />
+                {#if embedImageBox}
+                    <img
+                        src={preview.imageUrl}
+                        alt=""
+                        width={embedImageBox.width}
+                        height={embedImageBox.height}
+                        class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        onerror={() => (imageError = true)}
+                    />
+                {:else}
+                    <img
+                        src={preview.imageUrl}
+                        alt=""
+                        class="max-w-lg max-h-96 rounded-lg object-contain cursor-pointer block"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                        onerror={() => (imageError = true)}
+                    />
+                {/if}
             </a>
             <button
                 onclick={toggleFavourite}
@@ -501,8 +528,10 @@
                         <img
                             src={preview.imageUrl}
                             alt={preview.title ?? ""}
+                            width={cardImageBox?.width}
+                            height={cardImageBox?.height}
                             onerror={() => (imageError = true)}
-                            class="max-w-full max-h-72 rounded mt-1 object-contain cursor-pointer"
+                            class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
                             loading="lazy"
                             referrerpolicy="no-referrer"
                             onclick={(e) => {
