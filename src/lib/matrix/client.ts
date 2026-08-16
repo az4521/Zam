@@ -78,7 +78,7 @@ import {
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
-import { signalMediaAuthReady } from "$lib/stores/mediaAuth.svelte";
+import { installMediaHealer } from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
@@ -2362,13 +2362,8 @@ let swMediaListenersAttached = false;
 function attachSwMediaListeners(): void {
     if (swMediaListenersAttached || !("serviceWorker" in navigator)) return;
     swMediaListenersAttached = true;
-    // The worker announces this once it can authenticate media (activated AND
-    // holding a token). Re-drives any avatar/image that 401'd during startup.
-    navigator.serviceWorker.addEventListener("message", (e) => {
-        if ((e as MessageEvent).data?.type === "MEDIA_AUTH_READY")
-            signalMediaAuthReady();
-    });
-    // A new controller took over — hand it the token so its media auth works.
+    // A new controller took over (first install / SW update) — hand it the token
+    // so its media auth works; a just-activated worker starts tokenless.
     navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (latestSwAuthMessage)
             navigator.serviceWorker.controller?.postMessage(
@@ -2378,6 +2373,10 @@ function attachSwMediaListeners(): void {
 }
 
 export async function initServiceWorker(): Promise<void> {
+    // Heal broken authenticated media WITHOUT the SW (a hard reload leaves the
+    // page uncontrolled, so the SW can't help) by re-fetching with the token as
+    // a blob. Idempotent; install it regardless of SW support.
+    installMediaHealer();
     if (!("serviceWorker" in navigator) || !matrixClient) return;
     const token = matrixClient.getAccessToken();
     const hsUrl = matrixClient.getHomeserverUrl();
@@ -2422,12 +2421,8 @@ export async function initServiceWorker(): Promise<void> {
         const ready = await navigator.serviceWorker.ready;
         ready.active?.postMessage(authMsg);
         ready.active?.postMessage(notifMsg);
-        if (navigator.serviceWorker.controller) signalMediaAuthReady();
     } catch (e) {
         console.error("[SW] registration failed", e);
-        // Registration failed → media can't be authed. Flag ready anyway so
-        // images fall back to a clean placeholder instead of hanging broken.
-        signalMediaAuthReady();
     }
 }
 

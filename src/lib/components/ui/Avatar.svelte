@@ -34,25 +34,16 @@
     });
 
     // Avatars load over authenticated media (/_matrix/client/v1/media), whose
-    // access token is injected by the media service worker. On a fresh load, a
-    // hard reload, or right after an SW update the worker isn't ready to auth the
-    // request yet, so it goes out tokenless and 401s — the reported "profile
-    // pictures are sometimes broken". createMediaRetry holds that failure and
-    // retries the moment media auth becomes ready (see mediaAuth.svelte), then
-    // falls back to initials so a genuinely-missing avatar shows the clean
-    // placeholder rather than a broken-image glyph.
-    const imgRetry = createMediaRetry();
-    // Reset load state whenever the source changes (avatar swap, room switch).
-    $effect(() => {
-        void resolvedSrc;
-        imgRetry.reset();
-    });
-
-    // Hide the <img> while a failure is held (pending) too, so the clean initials
-    // show during the retry wait instead of a broken-image glyph. Avatars are
-    // fixed-size, so unmounting the <img> costs no reserved layout space.
+    // token an <img> can't send. Normally the media service worker injects it,
+    // but a hard reload leaves the page uncontrolled and the request 401s — the
+    // reported "profile pictures are sometimes broken". createMediaRetry re-fetches
+    // it with the token and swaps to a blob URL (works with no SW), falling back
+    // to initials only if the avatar is genuinely gone. `.src` is the URL to use
+    // (original, then blob); `.pending` is true while fetching, so the clean
+    // initials show during the wait instead of a broken-image glyph.
+    const imgRetry = createMediaRetry(() => resolvedSrc);
     const showImage = $derived(
-        !!resolvedSrc && !imgRetry.failed && !imgRetry.pending,
+        !!imgRetry.src && !imgRetry.failed && !imgRetry.pending,
     );
 </script>
 
@@ -63,14 +54,12 @@
         : bgColor};"
 >
     {#if showImage}
-        {#key imgRetry.key}
-            <img
-                src={resolvedSrc}
-                alt={name}
-                class="w-full h-full object-cover {roundedClass()}"
-                onerror={imgRetry.onError}
-            />
-        {/key}
+        <img
+            src={imgRetry.src}
+            alt={name}
+            class="w-full h-full object-cover {roundedClass()}"
+            onerror={imgRetry.onError}
+        />
     {:else}
         <span
             class="text-white font-semibold select-none"

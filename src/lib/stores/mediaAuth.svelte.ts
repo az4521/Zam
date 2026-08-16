@@ -1,125 +1,159 @@
 import { untrack } from "svelte";
+import { getActiveAccount } from "$lib/stores/accounts.svelte";
 
 /**
- * Authenticated Matrix media (avatars, images, thumbnails) is served from
- * `/_matrix/client/v1/media/...`, which needs an `Authorization` header. An
- * `<img>` can't send one, so the media service worker injects it — but only
- * once it BOTH controls the page and holds a token. On a fresh load, a hard
- * reload, or right after a SW update there's a window where neither is true, so
- * those requests 401 and the image renders broken. Without recovery it stays
- * broken until a full manual reload ("horrible UX", reported 2026-08-16).
+ * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
+ * `Authorization` header that an `<img>` can't send. Normally the media service
+ * worker injects it — but a HARD reload loads the page UNCONTROLLED (the browser
+ * bypasses the SW for the navigation, and an already-active SW never re-claims),
+ * so those `<img>`s 401 and stay broken until a full normal reload ("horrible
+ * UX", user report). Nothing SW-based can help an uncontrolled page.
  *
- * `initServiceWorker` (client.ts) flips this to ready when the SW announces
- * `MEDIA_AUTH_READY` (activated + holding a token) or is already controlling us.
- * `createMediaRetry` lets each media `<img>` hold a 401 until then and retry,
- * so the page self-heals instead of needing a reload.
+ * So heal media WITHOUT the SW: fetch it with the token directly and swap the
+ * `<img>` to a blob URL. Verified against the homeserver — an authed fetch
+ * returns the image bytes where a plain `<img>` request 401s.
  */
-export const mediaAuthState = $state({ ready: false, tick: 0 });
 
-/**
- * The media service worker can now authenticate media. Bumps `tick` so held
- * retries re-fire on every (re-)ready — a new controller after an account
- * switch or SW update announces again.
- */
-export function signalMediaAuthReady() {
-    mediaAuthState.ready = true;
-    mediaAuthState.tick++;
-    scheduleHeal();
-}
-
-// Re-request broken authenticated-media <img>s injected via {@html} — custom
-// emotes and mx-reply images inside `.message-body` — so they load now that the
-// worker can add the token. Without this they stay broken until a full reload
-// (createMediaRetry can't reach them: they aren't Svelte-rendered elements).
-// Scoped to `.message-body` on purpose: component <img>s (avatars, message
-// images) retry themselves, and poking their `src` here would fight Svelte's
-// ownership and fire a spurious onerror. Clearing then re-setting `src` forces
-// the reload even though the URL is unchanged; these have no onerror to trip.
-export function healBrokenMedia(): void {
-    if (typeof document === "undefined") return;
-    for (const img of document.querySelectorAll<HTMLImageElement>(
-        ".message-body img",
-    )) {
-        if (
-            img.complete &&
-            img.naturalWidth === 0 &&
-            img.src.includes("/_matrix/client/v1/media/")
-        ) {
-            const src = img.src;
-            img.src = "";
-            img.src = src;
-        }
+function mediaCreds(): { token: string; origin: string } | null {
+    const a = getActiveAccount();
+    if (!a?.accessToken || !a.homeserverUrl) return null;
+    try {
+        return {
+            token: a.accessToken,
+            origin: new URL(a.homeserverUrl).origin,
+        };
+    } catch {
+        return null;
     }
 }
 
-function scheduleHeal(): void {
-    if (typeof document === "undefined") return;
-    // Now (for media already broken) plus a couple of delayed passes to catch
-    // requests that were still in flight when auth became ready.
-    queueMicrotask(healBrokenMedia);
-    setTimeout(healBrokenMedia, 400);
-    setTimeout(healBrokenMedia, 1500);
+/** Only OUR homeserver's authed media endpoints, and only when we hold a token. */
+export function isAuthedMediaUrl(src: string): boolean {
+    if (!src.includes("/_matrix/client/v1/media/")) return false;
+    const c = mediaCreds();
+    if (!c) return false;
+    try {
+        return new URL(src, location.href).origin === c.origin;
+    } catch {
+        return false;
+    }
+}
+
+/** Fetch authed media with the token → object URL, or null if unavailable. */
+export async function authedMediaBlobUrl(src: string): Promise<string | null> {
+    const c = mediaCreds();
+    if (!c || !isAuthedMediaUrl(src)) return null;
+    try {
+        const res = await fetch(src, {
+            headers: { Authorization: `Bearer ${c.token}` },
+        });
+        if (!res.ok) return null;
+        return URL.createObjectURL(await res.blob());
+    } catch {
+        return null;
+    }
 }
 
 export interface MediaRetry {
-    /** Bump this in a `{#key}` around the `<img>` to remount and re-request it. */
-    readonly key: number;
-    /** True once the media is genuinely unavailable (failed with the SW ready). */
+    /** The src to bind to the `<img>` — the original URL, or a healed blob URL. */
+    readonly src: string | null | undefined;
+    /** True once the media is genuinely unavailable (auth fetch also failed). */
     readonly failed: boolean;
-    /** True while holding a failure, waiting for media auth so we can retry. Show
-     *  a placeholder over these to avoid a broken-image glyph — but only where
-     *  hiding the `<img>` won't drop reserved layout space (e.g. fixed-size
-     *  avatars, not message images that reserve their box via width/height). */
+    /** True while fetching the blob — show a placeholder, not a broken glyph. */
     readonly pending: boolean;
     /** Wire to the `<img>`'s `onerror`. */
     onError: () => void;
-    /** Call when the `src` changes (avatar swap, room switch) to start fresh. */
-    reset: () => void;
 }
 
 /**
- * Per-`<img>` retry state. Call once during component init.
- *
- * - error while the SW isn't ready yet → hold (the media probably just needs the
- *   token); retry automatically the moment media auth becomes ready.
- * - error while the SW IS ready → the media is genuinely missing → `failed`, so
- *   the caller shows a placeholder instead of a broken-image glyph.
+ * Per-`<img>` heal for Svelte-rendered media (avatars, message images). Call
+ * once during component init with a getter for the desired src; bind the
+ * returned `src` to the `<img>` and `onError` to its `onerror`. On a load
+ * failure it fetches the media with auth and swaps to a blob URL — SW-independent,
+ * so it works on an uncontrolled (hard-reloaded) page. If that also fails the
+ * media is genuinely gone → `failed`, so the caller shows a placeholder.
  */
-export function createMediaRetry(): MediaRetry {
-    let key = $state(0);
+export function createMediaRetry(
+    getSrc: () => string | null | undefined,
+): MediaRetry {
+    let effective = $state<string | null | undefined>(undefined);
     let failed = $state(false);
-    let waiting = $state(false);
+    let pending = $state(false);
+    let blobUrl: string | null = null;
+    let tried = false;
 
+    // Follow src changes (avatar swap, room switch); revoke any old blob.
     $effect(() => {
-        mediaAuthState.tick; // re-run on each (re-)ready
-        if (mediaAuthState.ready && waiting && !failed) {
-            untrack(() => {
-                waiting = false;
-                key++;
-            });
-        }
+        const s = getSrc();
+        untrack(() => {
+            if (blobUrl) {
+                URL.revokeObjectURL(blobUrl);
+                blobUrl = null;
+            }
+            effective = s;
+            failed = false;
+            pending = false;
+            tried = false;
+        });
+    });
+    // Revoke on destroy.
+    $effect(() => () => {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
     });
 
     return {
-        get key() {
-            return key;
+        get src() {
+            return effective;
         },
         get failed() {
             return failed;
         },
         get pending() {
-            return waiting;
+            return pending;
         },
-        onError() {
-            if (mediaAuthState.ready) failed = true;
-            else waiting = true;
-        },
-        reset() {
-            untrack(() => {
-                key = 0;
-                failed = false;
-                waiting = false;
-            });
+        async onError() {
+            const s = getSrc();
+            if (tried || !s || !isAuthedMediaUrl(s)) {
+                failed = true;
+                return;
+            }
+            tried = true;
+            pending = true;
+            const url = await authedMediaBlobUrl(s);
+            pending = false;
+            if (url) {
+                blobUrl = url;
+                effective = url;
+            } else {
+                failed = true;
+            }
         },
     };
+}
+
+// `{@html}`-injected media (custom emotes, mx-reply images) can't use the
+// composable — they aren't Svelte-rendered elements. A single capture-phase
+// error listener heals them in place (the `error` event doesn't bubble, hence
+// capture). Scoped to `.message-body` so component `<img>`s keep their own
+// state, and idempotent so it can be called from every app mount.
+let healerInstalled = false;
+export function installMediaHealer(): void {
+    if (healerInstalled || typeof document === "undefined") return;
+    healerInstalled = true;
+    document.addEventListener(
+        "error",
+        (e) => {
+            const img = e.target;
+            if (!(img instanceof HTMLImageElement) || img.dataset.mediaHealed)
+                return;
+            if (!img.closest(".message-body")) return;
+            const src = img.currentSrc || img.src;
+            if (!isAuthedMediaUrl(src)) return; // not our authed media / no token
+            img.dataset.mediaHealed = "1";
+            authedMediaBlobUrl(src).then((url) => {
+                if (url) img.src = url;
+            });
+        },
+        true,
+    );
 }
