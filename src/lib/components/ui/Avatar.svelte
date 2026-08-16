@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { untrack } from "svelte";
     import { getAvatarColor, getAvatarInitials } from "$lib/utils/colors";
+    import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
 
     interface Props {
         src?: string | null;
@@ -35,52 +35,25 @@
 
     // Avatars load over authenticated media (/_matrix/client/v1/media), whose
     // access token is injected by the media service worker. On a fresh load, a
-    // hard reload, or right after an SW update the worker may not yet control
-    // the page, so the <img> request goes out tokenless and 401s — the reported
-    // "profile pictures are sometimes broken". The SW calls clients.claim() on
-    // activate (firing controllerchange), so retry the load once it takes
-    // control; after that, fall back to initials so a genuinely-missing avatar
-    // shows the clean placeholder rather than a broken-image glyph.
-    const MAX_RETRIES = 2;
-    let attempt = $state(0);
-    let failed = $state(false);
-
+    // hard reload, or right after an SW update the worker isn't ready to auth the
+    // request yet, so it goes out tokenless and 401s — the reported "profile
+    // pictures are sometimes broken". createMediaRetry holds that failure and
+    // retries the moment media auth becomes ready (see mediaAuth.svelte), then
+    // falls back to initials so a genuinely-missing avatar shows the clean
+    // placeholder rather than a broken-image glyph.
+    const imgRetry = createMediaRetry();
     // Reset load state whenever the source changes (avatar swap, room switch).
     $effect(() => {
         void resolvedSrc;
-        untrack(() => {
-            attempt = 0;
-            failed = false;
-        });
+        imgRetry.reset();
     });
 
-    const showImage = $derived(!!resolvedSrc && !failed);
-
-    async function whenSwControls(): Promise<void> {
-        const sw =
-            typeof navigator !== "undefined" ? navigator.serviceWorker : null;
-        if (!sw || sw.controller) return;
-        await new Promise<void>((resolve) => {
-            const done = () => {
-                sw.removeEventListener("controllerchange", done);
-                clearTimeout(timer);
-                resolve();
-            };
-            const timer = setTimeout(done, 1500);
-            sw.addEventListener("controllerchange", done);
-        });
-    }
-
-    async function handleImageError() {
-        if (attempt >= MAX_RETRIES) {
-            failed = true;
-            return;
-        }
-        await whenSwControls();
-        // Bumping the key remounts the <img>, re-requesting the same URL — now
-        // through the (newly controlling) service worker.
-        attempt++;
-    }
+    // Hide the <img> while a failure is held (pending) too, so the clean initials
+    // show during the retry wait instead of a broken-image glyph. Avatars are
+    // fixed-size, so unmounting the <img> costs no reserved layout space.
+    const showImage = $derived(
+        !!resolvedSrc && !imgRetry.failed && !imgRetry.pending,
+    );
 </script>
 
 <div
@@ -90,12 +63,12 @@
         : bgColor};"
 >
     {#if showImage}
-        {#key attempt}
+        {#key imgRetry.key}
             <img
                 src={resolvedSrc}
                 alt={name}
                 class="w-full h-full object-cover {roundedClass()}"
-                onerror={handleImageError}
+                onerror={imgRetry.onError}
             />
         {/key}
     {:else}

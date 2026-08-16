@@ -689,6 +689,33 @@ function notificationData(roomId) {
 	return roomId ? { roomId: roomId, userId: userId } : { userId: userId };
 }
 
+// Set once the activate handler has run — i.e. this worker now controls its
+// clients and its fetch handler will intercept their <img> media requests.
+let swActivated = false;
+
+// Tell controlled pages that authenticated media will now succeed: the worker is
+// both activated (controlling the page, so it sees the <img> request) AND holds a
+// token (so it can inject the Authorization header). Pages listen for this to
+// retry any avatar/image that 401'd during the startup race, so a fresh load or
+// SW update self-heals instead of stranding broken images until a manual reload.
+// Called from BOTH the activate handler and the SET_AUTH handler because either
+// can be the last of the pair to happen.
+function broadcastMediaAuthReady() {
+	if (!swActivated || !accessToken) return;
+	self.clients
+		.matchAll({ includeUncontrolled: false, type: "window" })
+		.then((clients) => {
+			for (const c of clients) {
+				try {
+					c.postMessage({ type: "MEDIA_AUTH_READY" });
+				} catch (e) {
+					/* client gone */
+				}
+			}
+		})
+		.catch(() => {});
+}
+
 self.addEventListener("message", (event) => {
 	// Only accept messages from the app's own origin
 	if (event.origin !== APP_ORIGIN) return;
@@ -762,6 +789,9 @@ self.addEventListener("message", (event) => {
 						throw err;
 					}
 				});
+				// Token is now in memory — if we already control the page, its
+				// media requests will succeed; tell it to retry any that 401'd.
+				broadcastMediaAuthReady();
 			} else if (event.data?.type === "CLEAR_AUTH") {
 				// Logout / session expiry — forget the token so we stop injecting it,
 				// and the identity so a stale device id can't silence this worker.
@@ -1193,11 +1223,15 @@ self.addEventListener("install", (event) => {
 	if (!SW_OFFLINE_ENABLED) return;
 	event.waitUntil(swPrecacheShell());
 });
-self.addEventListener("activate", (event) =>
+self.addEventListener("activate", (event) => {
+	// We now control our clients, so our fetch handler will see their media
+	// requests. If the token already arrived (SET_AUTH before activate), tell
+	// the page it can retry; otherwise the SET_AUTH handler will, once it lands.
+	swActivated = true;
 	event.waitUntil(
 		Promise.all([
 			self.clients.claim(),
 			SW_OFFLINE_ENABLED ? swSweepStaleCaches() : Promise.resolve(),
-		]),
-	),
-);
+		]).then(() => broadcastMediaAuthReady()),
+	);
+});

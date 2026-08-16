@@ -62,6 +62,7 @@
         reservedMediaBox,
         safeAspectRatio,
     } from "$lib/utils/mediaDimensions";
+    import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -802,6 +803,13 @@
     const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
     const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
 
+    // Image/sticker media 401s while the media service worker isn't ready to
+    // authenticate it yet (fresh load / hard reload / SW update). Hold the
+    // failure and retry once auth is ready instead of leaving a broken glyph
+    // until a manual reload; only one of m.image/m.sticker renders per message,
+    // so a single instance covers both. See mediaAuth.svelte.
+    const mediaImgRetry = createMediaRetry();
+
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
     let audioBlobUrl = $state<string | null>(null);
@@ -1410,30 +1418,34 @@
             </div>
         {:else if eventType === "m.sticker"}
             {@const src = stickerHttpUrl()}
-            {#if src}
-                {#if stickerBox}
-                    <img
-                        {src}
-                        alt={content?.body ?? "sticker"}
-                        width={stickerBox.width}
-                        height={stickerBox.height}
-                        class="max-w-full h-auto object-contain mt-1"
-                        loading="lazy"
-                    />
-                {:else}
-                    <img
-                        {src}
-                        alt={content?.body ?? "sticker"}
-                        class="max-w-48 max-h-48 object-contain mt-1"
-                        loading="lazy"
-                    />
-                {/if}
+            {#if src && !mediaImgRetry.failed}
+                {#key mediaImgRetry.key}
+                    {#if stickerBox}
+                        <img
+                            {src}
+                            alt={content?.body ?? "sticker"}
+                            width={stickerBox.width}
+                            height={stickerBox.height}
+                            class="max-w-full h-auto object-contain mt-1"
+                            loading="lazy"
+                            onerror={mediaImgRetry.onError}
+                        />
+                    {:else}
+                        <img
+                            {src}
+                            alt={content?.body ?? "sticker"}
+                            class="max-w-48 max-h-48 object-contain mt-1"
+                            loading="lazy"
+                            onerror={mediaImgRetry.onError}
+                        />
+                    {/if}
+                {/key}
             {/if}
         {:else if msgtype === "m.image"}
             {@render mediaCaption()}
             {@const thumb = imageThumbUrl()}
             {@const full = imageFullUrl()}
-            {#if thumb}
+            {#if thumb && !mediaImgRetry.failed}
                 <div class="relative inline-block group/img mt-1">
                     <a
                         href={full}
@@ -1444,23 +1456,27 @@
                             imageLightboxOpen = true;
                         }}
                     >
-                        {#if imageBox}
-                            <img
-                                src={thumb}
-                                alt={mediaFilename}
-                                width={imageBox.width}
-                                height={imageBox.height}
-                                class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
-                                loading="lazy"
-                            />
-                        {:else}
-                            <img
-                                src={thumb}
-                                alt={mediaFilename}
-                                class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
-                                loading="lazy"
-                            />
-                        {/if}
+                        {#key mediaImgRetry.key}
+                            {#if imageBox}
+                                <img
+                                    src={thumb}
+                                    alt={mediaFilename}
+                                    width={imageBox.width}
+                                    height={imageBox.height}
+                                    class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                                    loading="lazy"
+                                    onerror={mediaImgRetry.onError}
+                                />
+                            {:else}
+                                <img
+                                    src={thumb}
+                                    alt={mediaFilename}
+                                    class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
+                                    loading="lazy"
+                                    onerror={mediaImgRetry.onError}
+                                />
+                            {/if}
+                        {/key}
                     </a>
                     {#if isGif}
                         <button

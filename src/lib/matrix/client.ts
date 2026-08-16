@@ -78,6 +78,7 @@ import {
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
 import { settingsState } from "$lib/stores/settings.svelte";
+import { signalMediaAuthReady } from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
@@ -2351,6 +2352,31 @@ export async function getContentType(url: string): Promise<string | null> {
 }
 
 /** Register the service worker and send it the current auth credentials. */
+// The most recent SET_AUTH payload, so the one-time `controllerchange` listener
+// re-hands the CURRENT account's token to a newly-activated worker (first
+// install / SW update) — a just-activated worker starts tokenless. Updated by
+// initServiceWorker and updateServiceWorkerAuth on every account change.
+let latestSwAuthMessage: Record<string, unknown> | null = null;
+let swMediaListenersAttached = false;
+
+function attachSwMediaListeners(): void {
+    if (swMediaListenersAttached || !("serviceWorker" in navigator)) return;
+    swMediaListenersAttached = true;
+    // The worker announces this once it can authenticate media (activated AND
+    // holding a token). Re-drives any avatar/image that 401'd during startup.
+    navigator.serviceWorker.addEventListener("message", (e) => {
+        if ((e as MessageEvent).data?.type === "MEDIA_AUTH_READY")
+            signalMediaAuthReady();
+    });
+    // A new controller took over — hand it the token so its media auth works.
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (latestSwAuthMessage)
+            navigator.serviceWorker.controller?.postMessage(
+                latestSwAuthMessage,
+            );
+    });
+}
+
 export async function initServiceWorker(): Promise<void> {
     if (!("serviceWorker" in navigator) || !matrixClient) return;
     const token = matrixClient.getAccessToken();
@@ -2364,22 +2390,44 @@ export async function initServiceWorker(): Promise<void> {
     const uid = matrixClient.getUserId() ?? undefined;
     const devId = matrixClient.getDeviceId() ?? undefined;
     if (!token || !hsUrl) return;
+    const authMsg = {
+        type: "SET_AUTH",
+        accessToken: token,
+        homeserverUrl: hsUrl,
+        userId: uid,
+        deviceId: devId,
+    };
+    const notifMsg = {
+        type: "SET_NOTIF_PRIVACY",
+        hideBody: settingsState.hideNotificationBody,
+    };
+    latestSwAuthMessage = authMsg;
+    attachSwMediaListeners();
     try {
-        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-        const reg = await navigator.serviceWorker.ready;
-        reg.active?.postMessage({
-            type: "SET_AUTH",
-            accessToken: token,
-            homeserverUrl: hsUrl,
-            userId: uid,
-            deviceId: devId,
+        const reg = await navigator.serviceWorker.register("/sw.js", {
+            scope: "/",
         });
-        reg.active?.postMessage({
-            type: "SET_NOTIF_PRIVACY",
-            hideBody: settingsState.hideNotificationBody,
-        });
+        // Hand the token to whatever worker exists RIGHT NOW instead of awaiting
+        // navigator.serviceWorker.ready first: `ready` blocks until install
+        // finishes (which includes the shell precache), and authenticated <img>s
+        // render meanwhile — the "broken images until a manual reload" report.
+        // The SW's message handler is live from first evaluation, so an
+        // installing worker records the token and uses it the moment it activates.
+        const early = reg.installing || reg.waiting || reg.active;
+        early?.postMessage(authMsg);
+        early?.postMessage(notifMsg);
+        // Deliver again once fully active in case a later worker became the
+        // controller, and — if it already controls us — flag media as ready even
+        // if the broadcast was missed.
+        const ready = await navigator.serviceWorker.ready;
+        ready.active?.postMessage(authMsg);
+        ready.active?.postMessage(notifMsg);
+        if (navigator.serviceWorker.controller) signalMediaAuthReady();
     } catch (e) {
         console.error("[SW] registration failed", e);
+        // Registration failed → media can't be authed. Flag ready anyway so
+        // images fall back to a clean placeholder instead of hanging broken.
+        signalMediaAuthReady();
     }
 }
 
@@ -2389,16 +2437,17 @@ export function updateServiceWorkerAuth(): void {
     const token = matrixClient.getAccessToken();
     const hsUrl = matrixClient.getHomeserverUrl();
     if (!token || !hsUrl) return;
+    const authMsg = {
+        type: "SET_AUTH",
+        accessToken: token,
+        homeserverUrl: hsUrl,
+        userId: matrixClient?.getUserId() ?? undefined,
+        deviceId: matrixClient?.getDeviceId() ?? undefined,
+    };
+    // Keep the controllerchange re-post on the new account's token.
+    latestSwAuthMessage = authMsg;
     navigator.serviceWorker.ready
-        .then((reg) => {
-            reg.active?.postMessage({
-                type: "SET_AUTH",
-                accessToken: token,
-                homeserverUrl: hsUrl,
-                userId: matrixClient?.getUserId() ?? undefined,
-                deviceId: matrixClient?.getDeviceId() ?? undefined,
-            });
-        })
+        .then((reg) => reg.active?.postMessage(authMsg))
         .catch(() => {});
 }
 
