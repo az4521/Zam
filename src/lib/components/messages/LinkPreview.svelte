@@ -59,12 +59,17 @@
 
     let directEmbed = $state<DirectEmbed | null>(null);
 
+    interface TweetMedia {
+        url: string;
+        width?: number;
+        height?: number;
+    }
     interface TweetEmbed {
         authorName: string;
         authorHandle: string;
         text: string;
-        photos: string[];
-        videos: string[];
+        photos: TweetMedia[];
+        videos: TweetMedia[];
     }
 
     let tweetEmbed = $state<TweetEmbed | null>(null);
@@ -155,12 +160,19 @@
                         authorName: tweet.author?.name ?? "",
                         authorHandle: tweet.author?.screen_name ?? "",
                         text: tweet.text ?? "",
-                        photos: (tweet.media?.photos ?? []).map(
-                            (p: any) => p.url as string,
-                        ),
-                        videos: (tweet.media?.videos ?? []).map(
-                            (v: any) => v.url as string,
-                        ),
+                        // fxtwitter media objects carry width/height — keep them
+                        // so the grid can reserve layout space before the image
+                        // loads (otherwise it pops in and shoves the timeline).
+                        photos: (tweet.media?.photos ?? []).map((p: any) => ({
+                            url: p.url as string,
+                            width: p.width as number | undefined,
+                            height: p.height as number | undefined,
+                        })),
+                        videos: (tweet.media?.videos ?? []).map((v: any) => ({
+                            url: v.url as string,
+                            width: v.width as number | undefined,
+                            height: v.height as number | undefined,
+                        })),
                     };
                 })
                 .catch((err) => {
@@ -299,11 +311,11 @@
                     {@const allMedia = [
                         ...tweetEmbed.videos.map((v) => ({
                             type: "video" as const,
-                            url: v,
+                            ...v,
                         })),
                         ...tweetEmbed.photos.map((p) => ({
                             type: "photo" as const,
-                            url: p,
+                            ...p,
                         })),
                     ]}
                     <div
@@ -314,11 +326,22 @@
                         )}, 1fr)"
                     >
                         {#each allMedia as item, i}
+                            <!-- width/height reserve the box before load (from the
+                                 fxtwitter media dims); w-full/h-auto keep it
+                                 responsive within the grid cell. -->
+                            {@const box = reservedMediaBox(
+                                item.width,
+                                item.height,
+                                512,
+                                512,
+                            )}
                             {#if item.type === "video"}
                                 <!-- svelte-ignore a11y_media_has_caption -->
                                 <video
                                     src={item.url}
-                                    class="w-full max-h-72 object-contain rounded"
+                                    width={box?.width}
+                                    height={box?.height}
+                                    class="w-full h-auto max-h-72 object-contain rounded"
                                     controls
                                     preload="metadata"
                                     onclick={(e) => e.preventDefault()}
@@ -329,7 +352,9 @@
                                 <img
                                     src={item.url}
                                     alt=""
-                                    class="w-full max-h-72 object-contain rounded cursor-pointer bg-black/10"
+                                    width={box?.width}
+                                    height={box?.height}
+                                    class="w-full h-auto max-h-72 object-contain rounded cursor-pointer bg-black/10"
                                     loading="lazy"
                                     referrerpolicy="no-referrer"
                                     onclick={(e) => {
@@ -347,11 +372,11 @@
             {@const allMedia = [
                 ...tweetEmbed.videos.map((v) => ({
                     type: "video" as const,
-                    url: v,
+                    ...v,
                 })),
                 ...tweetEmbed.photos.map((p) => ({
                     type: "photo" as const,
-                    url: p,
+                    ...p,
                 })),
             ]}
             {@const item = allMedia[lightboxTweetIndex]}

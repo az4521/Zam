@@ -788,25 +788,19 @@
     // untrusted `info.w`/`info.h`. Rendered as the `<img>`'s width/height
     // attributes so the browser holds the exact space before the image loads —
     // otherwise it pops in from zero height and shoves the timeline on scroll.
-    // Bounds mirror the CSS caps: images max-w-lg/max-h-96 (512×384), stickers
-    // max-w-48/max-h-48 (192×192). Null when dimensions are absent → the markup
-    // falls back to the old CSS-only bounds.
-    const imageBox = $derived(
-        reservedMediaBox(
-            (content?.info as any)?.w,
-            (content?.info as any)?.h,
-            512,
-            384,
-        ),
+    // Fall back to `info.thumbnail_info.w/h`: bridges (e.g. OOYE) frequently omit
+    // top-level dims but still populate the thumbnail's, and the thumbnail shares
+    // the original's aspect ratio. Bounds mirror the CSS caps: images
+    // max-w-lg/max-h-96 (512×384), stickers max-w-48/max-h-48 (192×192). Null
+    // when no dims are present → the markup falls back to the old CSS-only bounds.
+    const imgInfoW = $derived(
+        (content?.info as any)?.w ?? (content?.info as any)?.thumbnail_info?.w,
     );
-    const stickerBox = $derived(
-        reservedMediaBox(
-            (content?.info as any)?.w,
-            (content?.info as any)?.h,
-            192,
-            192,
-        ),
+    const imgInfoH = $derived(
+        (content?.info as any)?.h ?? (content?.info as any)?.thumbnail_info?.h,
     );
+    const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
+    const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
 
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
