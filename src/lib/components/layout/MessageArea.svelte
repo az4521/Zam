@@ -1149,24 +1149,45 @@
         );
     }
 
-    // Record the topmost visible message and its offset from the viewport top.
+    // The reading line: pin the message the user is actually looking at — a point
+    // partway down the viewport — not the top-most visible one. Growth ABOVE the
+    // line is absorbed by pushing already-read content up; growth BELOW it pushes
+    // down into the unread region. Either way the message being read stays put, so
+    // a late preview/image just moves the jump off into the periphery. Center reads
+    // best; ~0.35 is the fallback candidate if it feels low (feel call — tune live).
+    const READING_LINE_FRACTION = 0.5;
+
+    // Record the message crossing the reading line and its offset from the
+    // viewport top.
     function captureScrollAnchor() {
         if (!anchoringActive()) {
             anchorEl = null;
             return;
         }
         const cTop = scrollEl!.getBoundingClientRect().top;
+        const line = scrollEl!.clientHeight * READING_LINE_FRACTION;
+        // Fallback for short/gappy content where nothing spans the line: the first
+        // message reaching into the viewport, i.e. the old top-visible target.
+        let fallbackEl: HTMLElement | null = null;
+        let fallbackOffset = 0;
         for (const el of scrollEl!.querySelectorAll<HTMLElement>(
             "[data-event-id]",
         )) {
             const r = el.getBoundingClientRect();
-            if (r.bottom > cTop + 8) {
+            const top = r.top - cTop;
+            const bottom = r.bottom - cTop;
+            if (fallbackEl === null && bottom > 8) {
+                fallbackEl = el;
+                fallbackOffset = top;
+            }
+            if (top <= line && bottom >= line) {
                 anchorEl = el;
-                anchorOffset = r.top - cTop;
+                anchorOffset = top;
                 return;
             }
         }
-        anchorEl = null;
+        anchorEl = fallbackEl;
+        if (fallbackEl) anchorOffset = fallbackOffset;
     }
 
     // If the anchored message moved (content above/within it changed size),
