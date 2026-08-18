@@ -64,7 +64,7 @@ export function buildPrecacheManifest(html: string): string[] {
     const assets = extractStartupAssets(html);
     if (assets.length === 0) {
         throw new Error(
-            "sw precache: no /_app/immutable assets found in the built index.html — " +
+            "sw precache: no /_app/immutable assets found in the built index.html - " +
                 "the shell document's shape changed and the offline precache would be empty",
         );
     }

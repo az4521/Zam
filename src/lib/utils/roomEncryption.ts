@@ -150,7 +150,7 @@ export function shouldEncryptNewDm(input: NewDmEncryptionInput): boolean {
  * easy to miss. Shared by all three DM entry points.
  */
 export const PLAINTEXT_DM_REUSE_WARNING =
-    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically — open it and turn it on from the room's Security settings.";
+    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically - open it and turn it on from the room's Security settings.";
 
 /** Inputs to "should we warn that this DM is an un-upgraded plaintext reuse?". */
 export interface PlaintextDmReuseInput {

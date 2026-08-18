@@ -111,7 +111,7 @@ describe("securityPanelView", () => {
         expect(v.authoritative).toBe(false);
         expect(v.allowDestructive).toBe(false);
         expect(v.notice).toBe(
-            "Couldn't read this account's encryption status. Nothing here is reliable until it loads — don't set up or reset recovery yet.",
+            "Couldn't read this account's encryption status. Nothing here is reliable until it loads - don't set up or reset recovery yet.",
         );
     });
 

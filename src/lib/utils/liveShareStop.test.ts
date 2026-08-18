@@ -135,7 +135,7 @@ describe("labels", () => {
 
     it("stays honest about a failed stop and offers a retry", () => {
         const s: StopState = { phase: "failed", error: "x" };
-        expect(stopStatusLabel(s)).toBe("Still sharing — couldn't stop");
+        expect(stopStatusLabel(s)).toBe("Still sharing - couldn't stop");
         expect(stopButtonLabel(s)).toBe("Retry stop");
     });
 });

@@ -72,7 +72,7 @@ export async function initPush(
     if (!Capacitor.isNativePlatform()) return;
     if (!PUSH_ENABLED) {
         console.info(
-            "[push] No push gateway configured (VITE_PUSH_GATEWAY_URL) — push disabled.",
+            "[push] No push gateway configured (VITE_PUSH_GATEWAY_URL) - push disabled.",
         );
         return;
     }
@@ -144,7 +144,7 @@ export async function initPush(
         pushDebug.lastError =
             "Push init failed (Firebase not configured?): " + String(err);
         console.warn(
-            "[push] Push init failed (Firebase not configured?) — continuing without push.",
+            "[push] Push init failed (Firebase not configured?) - continuing without push.",
             err,
         );
     }

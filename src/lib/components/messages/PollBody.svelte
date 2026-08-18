@@ -265,6 +265,6 @@
     </div>
 {:else}
     <p class="text-xs text-discord-textMuted italic">
-        [Poll — unsupported format]
+        [Poll - unsupported format]
     </p>
 {/if}

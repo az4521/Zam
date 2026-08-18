@@ -5,9 +5,10 @@
     "main": "electron/main.cjs",
     "scripts": {
         "dev": "vite dev",
-        "build": "vite build && node scripts/sw-precache.mjs",
+        "build": "node scripts/check-no-emdash.mjs && vite build && node scripts/sw-precache.mjs",
         "preview": "vite preview",
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "check:emdash": "node scripts/check-no-emdash.mjs",
         "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
         "lint": "prettier --check . && eslint .",
         "format": "prettier --write .",

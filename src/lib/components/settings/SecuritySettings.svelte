@@ -443,7 +443,7 @@
      current claim about the account (audit CRYPTO-02). -->
 {#snippet staleMarker()}
     <p class="text-xs text-discord-textMuted py-1.5">
-        Showing the last reading that loaded — it may be out of date.
+        Showing the last reading that loaded - it may be out of date.
     </p>
 {/snippet}
 
@@ -564,7 +564,7 @@
                         Set up recovery
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        We'll create a <strong>recovery key</strong> — a one-time
+                        We'll create a <strong>recovery key</strong> - a one-time
                         code that unlocks your encrypted history and verifies new
                         sessions. Store it somewhere safe like a password manager;
                         it's shown only once and we can't recover it for you.
@@ -604,7 +604,7 @@
                         />
                         <span
                             >Also let me unlock with a passphrase I choose
-                            (optional — your recovery key still works and is
+                            (optional - your recovery key still works and is
                             still shown).</span
                         >
                     </label>
@@ -651,7 +651,7 @@
                         Save your recovery key
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        This is shown <strong>only once</strong>. Store it now —
+                        This is shown <strong>only once</strong>. Store it now -
                         without it you can't recover your encrypted history if
                         you lose access to your sessions.
                     </p>
@@ -668,7 +668,7 @@
                     {#if keyHasPassphrase}
                         <p class="text-xs text-discord-textMuted">
                             You can also unlock with the passphrase you chose.
-                            Keep the key anyway — it's the only way in if you
+                            Keep the key anyway - it's the only way in if you
                             forget the passphrase.
                         </p>
                     {/if}
@@ -777,7 +777,7 @@
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-warning">
                         Your old recovery key and backup were reset, but the new
-                        recovery wasn't created. Finish setting it up now — your
+                        recovery wasn't created. Finish setting it up now - your
                         messages can't be recovered on a new session until you
                         do.
                     </p>
@@ -801,7 +801,7 @@
                         />
                         <span
                             >Also let me unlock with a passphrase I choose
-                            (optional — your recovery key still works and is
+                            (optional - your recovery key still works and is
                             still shown).</span
                         >
                     </label>
@@ -859,7 +859,7 @@
                         />
                         <span
                             >Also let me unlock with a passphrase I choose
-                            (optional — your recovery key still works and is
+                            (optional - your recovery key still works and is
                             still shown).</span
                         >
                     </label>

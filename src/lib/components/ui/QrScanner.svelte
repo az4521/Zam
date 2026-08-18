@@ -118,7 +118,7 @@
                     // here, and a black square under "checking it…" reads as a
                     // crash. `fail()` below still blanks it if that throws.
                     stop(false);
-                    status = "Code found — checking it…";
+                    status = "Code found - checking it…";
                     try {
                         onScan(payload);
                         done = true;

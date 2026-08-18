@@ -455,7 +455,7 @@
                     </div>
                     {#if knockSent}
                         <p class="text-sm text-discord-textSecondary">
-                            Request sent — you'll be able to join once someone
+                            Request sent - you'll be able to join once someone
                             lets you in.
                         </p>
                     {:else if knockOffered}

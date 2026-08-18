@@ -83,9 +83,9 @@ export function followUpFailureMessage(
  */
 export function followUpTimeoutMessage(task: RoomFollowUpTask): string {
     if (task.kind === "space-link") {
-        return "The room was created, but adding it to the space hasn't been confirmed yet — it may still be saving. Retry if the room doesn't show up in the space.";
+        return "The room was created, but adding it to the space hasn't been confirmed yet - it may still be saving. Retry if the room doesn't show up in the space.";
     }
-    return "The direct message was created, but saving it to your DM list hasn't been confirmed yet — it may still be saving. Retry if it doesn't show up in your DM list.";
+    return "The direct message was created, but saving it to your DM list hasn't been confirmed yet - it may still be saving. Retry if it doesn't show up in your DM list.";
 }
 
 /**

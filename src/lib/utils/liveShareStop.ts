@@ -49,7 +49,7 @@ export function decideStop(target: StopTarget | null): StopDecision {
 /** Shown when a stop write is rejected. Deliberately fixed copy: a raw
  *  MatrixError string tells the user nothing and leaks server detail. */
 export const STOP_FAILED_MESSAGE =
-    "Couldn't stop sharing your live location — it's still visible to this room. Use Retry stop to try again.";
+    "Couldn't stop sharing your live location - it's still visible to this room. Use Retry stop to try again.";
 
 /**
  * How long a `live:false` write may stay in flight before the UI stops
@@ -109,7 +109,7 @@ export function stopStatusLabel(stop: StopState | null): string | null {
     if (!stop) return null;
     return stop.phase === "stopping"
         ? "Stopping…"
-        : "Still sharing — couldn't stop";
+        : "Still sharing - couldn't stop";
 }
 
 /**
@@ -122,7 +122,7 @@ export function alreadySharingMessage(stop: StopState | null): string {
     if (!stop) {
         return "You're already sharing your live location in this room.";
     }
-    return "Your last live location share here hasn't stopped yet — stop it from the room's banner before starting a new one.";
+    return "Your last live location share here hasn't stopped yet - stop it from the room's banner before starting a new one.";
 }
 
 /** Label for the stop/retry button in the banner and the map footer. */

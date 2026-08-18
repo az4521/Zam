@@ -76,7 +76,7 @@
             map.set(member.userId, {
                 dotClass: presenceDotClass(presenceDot(state)),
                 label: p?.statusMsg
-                    ? `${presenceLabel(state)} — ${p.statusMsg}`
+                    ? `${presenceLabel(state)} - ${p.statusMsg}`
                     : presenceLabel(state),
             });
         }
@@ -95,7 +95,7 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
         >
-            Members — {members.length}
+            Members: {members.length}
         </h3>
     </div>
 
@@ -106,7 +106,7 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Admins — {admins.length}
+                    Admins: {admins.length}
                 </p>
                 {#each admins as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
@@ -148,7 +148,7 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Moderators — {moderators.length}
+                    Moderators: {moderators.length}
                 </p>
                 {#each moderators as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
@@ -187,7 +187,7 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Members — {regularMembers.length}
+                    Members: {regularMembers.length}
                 </p>
                 {#each regularMembers as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}

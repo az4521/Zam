@@ -7,7 +7,7 @@
 
 /** Body shown in the timeline for an event we hold no keys for. */
 export const UTD_PLACEHOLDER_TEXT =
-    "Unable to decrypt — you may not have the keys for this message.";
+    "Unable to decrypt - you may not have the keys for this message.";
 
 /** Room-list / notification preview when the last event can't be decrypted. */
 export const ENCRYPTED_MESSAGE_PLACEHOLDER = "🔒 Encrypted message";

@@ -176,7 +176,7 @@
             >
                 <span class="text-discord-textMuted">Latest spec version</span>
                 <span class="text-discord-textPrimary text-xs font-mono"
-                    >{specVersions.at(-1) ?? "—"}</span
+                    >{specVersions.at(-1) ?? "-"}</span
                 >
             </div>
             {#if roomVersion}

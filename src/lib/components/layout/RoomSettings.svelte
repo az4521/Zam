@@ -902,10 +902,10 @@
                          (aria-labelledby), and on a sub-page the visible text is
                          only the category — so name the room for screen readers
                          without repeating it on screen. -->
-                    <span class="sr-only">{`${room.name} — `}</span
+                    <span class="sr-only">{`${room.name} - `}</span
                     >{roomSettingsTabLabel(view.tab)}
                 {:else}
-                    {room.name} — Settings
+                    {room.name} - Settings
                 {/if}
             </h2>
             <button
@@ -1144,7 +1144,7 @@
                                     Who can join?
                                 </p>
                                 <div class="space-y-1.5">
-                                    {#each [["invite", "Invite only — members must be invited"], ["knock", "Knock — users can request to join"], ["public", "Public — anyone can join"]] as [value, label]}
+                                    {#each [["invite", "Invite only - members must be invited"], ["knock", "Knock - users can request to join"], ["public", "Public - anyone can join"]] as [value, label]}
                                         <label
                                             class="flex items-center gap-2.5 cursor-pointer {!canEditState
                                                 ? 'opacity-50 pointer-events-none'
@@ -1177,8 +1177,8 @@
                                         <span
                                             class="text-sm text-discord-textPrimary"
                                             >{parentSpaceNames
-                                                ? `Space members — anyone in ${parentSpaceNames} can join`
-                                                : "Space members — anyone in the parent space can join"}</span
+                                                ? `Space members - anyone in ${parentSpaceNames} can join`
+                                                : "Space members - anyone in the parent space can join"}</span
                                         >
                                     </label>
                                     {#if restrictedJoin.reason}
@@ -1284,7 +1284,7 @@
                                 <p class="text-xs text-discord-textMuted mt-1">
                                     Lists the {isSpace ? "space" : "room"} by ID.
                                     Being found by name also needs a published address
-                                    — add one below.
+                                    - add one below.
                                 </p>
                                 {#if dirError}<p
                                         class="text-sm text-discord-danger mt-1"

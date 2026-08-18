@@ -55,7 +55,7 @@ export function securitySetupState(p: SecurityPosture): SecuritySetupState {
 }
 
 const READ_FAILED_NOTICE =
-    "Couldn't read this account's encryption status. Nothing here is reliable until it loads — don't set up or reset recovery yet.";
+    "Couldn't read this account's encryption status. Nothing here is reliable until it loads - don't set up or reset recovery yet.";
 const UNAVAILABLE_NOTICE =
     "Encryption isn't ready on this session yet. Reload if this persists.";
 

@@ -382,7 +382,7 @@
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         Refuse to encrypt messages for sessions you haven't
-                        verified. They will not receive your messages at all —
+                        verified. They will not receive your messages at all -
                         including your own unverified sessions. Off by default.
                     </p>
                 </div>
@@ -422,7 +422,7 @@
         </p>
         {#if loaded && others.length === 0}
             <p class="text-sm text-discord-textMuted">
-                No other sessions — you're only signed in here.
+                No other sessions - you're only signed in here.
             </p>
         {:else}
             <div class="space-y-2">

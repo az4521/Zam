@@ -128,7 +128,7 @@
         const e = outcome.error;
         if (isSearchUnsupportedError(e)) {
             console.warn(
-                "Message search: homeserver does not support /search — hiding the feature",
+                "Message search: homeserver does not support /search - hiding the feature",
             );
             searchState.unsupported = true;
             onClose();
@@ -309,7 +309,7 @@
             bind:this={inputEl}
             bind:value={term}
             type="text"
-            placeholder="Search — try from: or has:image"
+            placeholder="Search - try from: or has:image"
             class="w-full px-2 py-1.5 text-sm rounded bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted outline-none focus:ring-1 focus:ring-discord-accent"
             oninput={() => {
                 updateActiveToken();

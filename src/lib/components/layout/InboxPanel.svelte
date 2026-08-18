@@ -104,7 +104,7 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
                     >
-                        Pending invites — {roomsState.invitedRooms.length}
+                        Pending invites: {roomsState.invitedRooms.length}
                     </p>
                 {/if}
                 {#each roomsState.invitedRooms as room (room.roomId)}
@@ -169,7 +169,7 @@
                             ? 'mt-3'
                             : ''}"
                     >
-                        Pending join requests — {roomsState.knockedRooms.length}
+                        Pending join requests: {roomsState.knockedRooms.length}
                     </p>
                     {#each roomsState.knockedRooms as room (room.roomId)}
                         {@const busy = busyIds.has(room.roomId)}
@@ -190,7 +190,7 @@
                                     )}
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
-                                    You asked to join — waiting for someone to
+                                    You asked to join - waiting for someone to
                                     let you in.
                                 </p>
                             </div>
