@@ -58,7 +58,11 @@
         videoSourceMxc,
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
-    import { safeAspectRatio } from "$lib/utils/mediaDimensions";
+    import {
+        reservedMediaBox,
+        safeAspectRatio,
+    } from "$lib/utils/mediaDimensions";
+    import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -781,6 +785,31 @@
     const videoAspectRatio = $derived(
         safeAspectRatio((content?.info as any)?.w, (content?.info as any)?.h),
     );
+    // Reserved display box (px) for uploaded images/stickers, from the sender's
+    // untrusted `info.w`/`info.h`. Rendered as the `<img>`'s width/height
+    // attributes so the browser holds the exact space before the image loads —
+    // otherwise it pops in from zero height and shoves the timeline on scroll.
+    // Fall back to `info.thumbnail_info.w/h`: bridges (e.g. OOYE) frequently omit
+    // top-level dims but still populate the thumbnail's, and the thumbnail shares
+    // the original's aspect ratio. Bounds mirror the CSS caps: images
+    // max-w-lg/max-h-96 (512×384), stickers max-w-48/max-h-48 (192×192). Null
+    // when no dims are present → the markup falls back to the old CSS-only bounds.
+    const imgInfoW = $derived(
+        (content?.info as any)?.w ?? (content?.info as any)?.thumbnail_info?.w,
+    );
+    const imgInfoH = $derived(
+        (content?.info as any)?.h ?? (content?.info as any)?.thumbnail_info?.h,
+    );
+    const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
+    const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
+
+    // Image/sticker media 401s when the media service worker isn't authenticating
+    // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
+    // re-fetches with the token and swaps to a blob URL so it heals without a
+    // manual reload. A message is image XOR sticker, so one src is null and a
+    // single instance covers both. See mediaAuth.svelte.
+    const mediaImgSrc = $derived(imageThumbUrl() ?? stickerHttpUrl());
+    const mediaImgRetry = createMediaRetry(() => mediaImgSrc);
 
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
@@ -1389,20 +1418,32 @@
                 <span>{UTD_PLACEHOLDER_TEXT}</span>
             </div>
         {:else if eventType === "m.sticker"}
-            {@const src = stickerHttpUrl()}
-            {#if src}
-                <img
-                    {src}
-                    alt={content?.body ?? "sticker"}
-                    class="max-w-48 max-h-48 object-contain mt-1"
-                    loading="lazy"
-                />
+            {#if mediaImgRetry.src && !mediaImgRetry.failed}
+                {#if stickerBox}
+                    <img
+                        src={mediaImgRetry.src}
+                        alt={content?.body ?? "sticker"}
+                        width={stickerBox.width}
+                        height={stickerBox.height}
+                        class="max-w-full h-auto object-contain mt-1"
+                        loading="lazy"
+                        onerror={mediaImgRetry.onError}
+                    />
+                {:else}
+                    <img
+                        src={mediaImgRetry.src}
+                        alt={content?.body ?? "sticker"}
+                        class="max-w-48 max-h-48 object-contain mt-1"
+                        loading="lazy"
+                        onerror={mediaImgRetry.onError}
+                    />
+                {/if}
             {/if}
         {:else if msgtype === "m.image"}
             {@render mediaCaption()}
             {@const thumb = imageThumbUrl()}
             {@const full = imageFullUrl()}
-            {#if thumb}
+            {#if thumb && !mediaImgRetry.failed}
                 <div class="relative inline-block group/img mt-1">
                     <a
                         href={full}
@@ -1413,12 +1454,25 @@
                             imageLightboxOpen = true;
                         }}
                     >
-                        <img
-                            src={thumb}
-                            alt={mediaFilename}
-                            class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
-                            loading="lazy"
-                        />
+                        {#if imageBox}
+                            <img
+                                src={mediaImgRetry.src}
+                                alt={mediaFilename}
+                                width={imageBox.width}
+                                height={imageBox.height}
+                                class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                                loading="lazy"
+                                onerror={mediaImgRetry.onError}
+                            />
+                        {:else}
+                            <img
+                                src={mediaImgRetry.src}
+                                alt={mediaFilename}
+                                class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
+                                loading="lazy"
+                                onerror={mediaImgRetry.onError}
+                            />
+                        {/if}
                     </a>
                     {#if isGif}
                         <button

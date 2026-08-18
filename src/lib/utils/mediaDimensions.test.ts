@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { safeAspectRatio, safeDimension } from "./mediaDimensions";
+import {
+    reservedMediaBox,
+    safeAspectRatio,
+    safeDimension,
+} from "./mediaDimensions";
 
 describe("safeDimension", () => {
     it("accepts plain positive numbers", () => {
@@ -101,5 +105,51 @@ describe("safeAspectRatio", () => {
 
     it("accepts a caller-chosen fallback", () => {
         expect(safeAspectRatio(null, null, "1 / 1")).toBe("1 / 1");
+    });
+});
+
+describe("reservedMediaBox", () => {
+    it("scales a large landscape image down to fit the width bound", () => {
+        expect(reservedMediaBox(1920, 1080, 512, 384)).toEqual({
+            width: 512,
+            height: 288,
+        });
+    });
+
+    it("scales a tall portrait image down to fit the height bound", () => {
+        expect(reservedMediaBox(1080, 1920, 512, 384)).toEqual({
+            width: 216,
+            height: 384,
+        });
+    });
+
+    it("never upscales an image smaller than the bounds", () => {
+        expect(reservedMediaBox(100, 100, 512, 384)).toEqual({
+            width: 100,
+            height: 100,
+        });
+    });
+
+    it("accepts numeric strings, which is what most senders put in info", () => {
+        expect(reservedMediaBox("640", "480", 512, 384)).toEqual({
+            width: 512,
+            height: 384,
+        });
+    });
+
+    it("keeps an extreme ratio's collapsed side at a visible minimum", () => {
+        expect(reservedMediaBox(100000, 1, 512, 384)).toEqual({
+            width: 512,
+            height: 1,
+        });
+    });
+
+    it("returns null when either dimension is missing or hostile", () => {
+        expect(reservedMediaBox(undefined, undefined, 512, 384)).toBeNull();
+        expect(reservedMediaBox(1920, undefined, 512, 384)).toBeNull();
+        expect(reservedMediaBox(undefined, 1080, 512, 384)).toBeNull();
+        expect(
+            reservedMediaBox("1px;background:url(https://x/y)", 1080, 512, 384),
+        ).toBeNull();
     });
 });

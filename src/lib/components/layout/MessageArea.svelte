@@ -1,6 +1,6 @@
 <script lang="ts">
     import { tick, untrack, onMount } from "svelte";
-    import type { Room, MatrixEvent } from "matrix-js-sdk";
+    import type { Room, MatrixEvent, TimelineWindow } from "matrix-js-sdk";
     import { auth } from "$lib/stores/auth.svelte";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
@@ -24,7 +24,10 @@
         onRoomHealed,
         loadPreviousMessages,
         loadMessagesUntilEvent,
-        loadContextAroundEvent,
+        createContextWindow,
+        getContextWindowEvents,
+        paginateContextWindow,
+        contextWindowCanPaginate,
         getRoomDisplayName,
         getRoomTopic,
         sendReadReceipt,
@@ -351,9 +354,10 @@
         if (!el) {
             jumpingToEventId = eventId;
             try {
-                const ctx = await loadContextAroundEvent(room, eventId);
-                if (ctx) {
-                    contextMessages = ctx;
+                const win = await createContextWindow(room, eventId);
+                if (win) {
+                    contextWindow = win;
+                    contextMessages = getContextWindowEvents(win);
                     await tick();
                 }
             } finally {
@@ -667,7 +671,15 @@
     const isVideoRoomView = $derived(
         (void roomsState.roomsTick, isVideoRoom(room)),
     );
+    // Jump-to-message ("context") view. Jumping to a far-back message loads a
+    // paginating TimelineWindow around it instead of the live timeline, so the
+    // user can scroll freely both ways from that point (unlike the old static
+    // 50-event snapshot). `contextMessages` is the rendered snapshot, refreshed
+    // from the window after each pagination; scrolling to the live edge hands
+    // back to the live timeline (see rejoinLive / maybeLoadNewer).
+    let contextWindow = $state<TimelineWindow | null>(null);
     let contextMessages = $state<MatrixEvent[] | null>(null);
+    let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
 
@@ -678,6 +690,7 @@
     $effect(() => {
         room.roomId; // track room changes
         replyToEvent = null;
+        contextWindow = null;
         contextMessages = null;
     });
 
@@ -1089,7 +1102,9 @@
     // component. visibilitychange fires both ways — the canSendReceipt gate
     // inside markAsReadIfDisplayable makes the hidden transition a no-op.
     function onWindowFocusRegained() {
-        if (isAtBottom) markAsReadIfDisplayable();
+        // In context view "at bottom" is the bottom of the jumped-to window, not
+        // the live tail — don't send a receipt for the latest event then.
+        if (isAtBottom && !isContextView) markAsReadIfDisplayable();
     }
 
     onMount(() => {
@@ -1113,33 +1128,149 @@
         markAsReadIfDisplayable();
     }
 
+    // Supplemental scroll anchor. When content grows LATE while the user is
+    // reading history — a link-preview card fetching in, an image decoding — the
+    // message they are looking at would jump. Native `overflow-anchor` is meant
+    // to absorb this but is unreliable across programmatic scrolls and dynamic
+    // subtrees (confirmed: preview cards still shove the timeline). So we pin the
+    // first visible message ourselves. It is deliberately gated to fire ONLY
+    // while calmly reading history (see anchoringActive) so it never fights
+    // bottom-sticking, backfill's own scroll preservation, or a jump animation.
+    let anchorEl: HTMLElement | null = null;
+    let anchorOffset = 0;
+
+    function anchoringActive(): boolean {
+        return (
+            !!scrollEl &&
+            !isAtBottom &&
+            !loadingOlder &&
+            intervalId === undefined &&
+            jumpingToEventId === null
+        );
+    }
+
+    // The reading line: pin the message the user is actually looking at — a point
+    // partway down the viewport — not the top-most visible one. Growth ABOVE the
+    // line is absorbed by pushing already-read content up; growth BELOW it pushes
+    // down into the unread region. Either way the message being read stays put, so
+    // a late preview/image just moves the jump off into the periphery. Center reads
+    // best; ~0.35 is the fallback candidate if it feels low (feel call — tune live).
+    const READING_LINE_FRACTION = 0.5;
+
+    // Record the message crossing the reading line and its offset from the
+    // viewport top.
+    function captureScrollAnchor() {
+        if (!anchoringActive()) {
+            anchorEl = null;
+            return;
+        }
+        const cTop = scrollEl!.getBoundingClientRect().top;
+        const line = scrollEl!.clientHeight * READING_LINE_FRACTION;
+        // Fallback for short/gappy content where nothing spans the line: the first
+        // message reaching into the viewport, i.e. the old top-visible target.
+        let fallbackEl: HTMLElement | null = null;
+        let fallbackOffset = 0;
+        for (const el of scrollEl!.querySelectorAll<HTMLElement>(
+            "[data-event-id]",
+        )) {
+            const r = el.getBoundingClientRect();
+            const top = r.top - cTop;
+            const bottom = r.bottom - cTop;
+            if (fallbackEl === null && bottom > 8) {
+                fallbackEl = el;
+                fallbackOffset = top;
+            }
+            if (top <= line && bottom >= line) {
+                anchorEl = el;
+                anchorOffset = top;
+                return;
+            }
+        }
+        anchorEl = fallbackEl;
+        if (fallbackEl) anchorOffset = fallbackOffset;
+    }
+
+    // If the anchored message moved (content above/within it changed size),
+    // cancel the move so the reading position stays put. Sub-pixel drift is left
+    // to the browser; we only undo real jumps.
+    function restoreScrollAnchor() {
+        if (!anchoringActive() || !anchorEl || !anchorEl.isConnected) return;
+        const cTop = scrollEl!.getBoundingClientRect().top;
+        const delta =
+            anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
+        if (delta > 2 || delta < -2) scrollEl!.scrollTop += delta;
+    }
+
     function onScroll() {
         if (!scrollEl) return;
         const { scrollTop, clientHeight, scrollHeight } = scrollEl;
         const wasAtBottom = isAtBottom;
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
+        // Track the reading position so a late content change can be undone.
+        captureScrollAnchor();
 
-        if (!wasAtBottom && isAtBottom) markAsReadIfDisplayable();
+        // Receipts advance the live read marker; in context view the bottom of
+        // the window is not the live tail, so don't mark read while browsing it.
+        if (!wasAtBottom && isAtBottom && !isContextView)
+            markAsReadIfDisplayable();
         // Loading older messages near the top is driven by the IntersectionObserver
         // on topSentinelEl (see below) — more reliable than a scroll-position check.
+        // Loading newer messages (and rejoining live) is driven here: while in a
+        // jumped-to context view, approaching the bottom pages the window forward.
+        if (isContextView) {
+            const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+            if (distanceToBottom < 600) void maybeLoadNewer();
+        }
     }
 
     async function loadOlderMessages() {
-        if (loadingOlder || !canLoadMore(roomId) || isContextView) return;
+        if (loadingOlder) return;
+        // Context view paginates the jumped-to window; the live view paginates
+        // the live timeline. Both share the scroll-preservation dance below.
+        if (isContextView) {
+            if (
+                !contextWindow ||
+                !contextWindowCanPaginate(contextWindow, false)
+            )
+                return;
+        } else if (!canLoadMore(roomId)) {
+            return;
+        }
         loadingOlder = true;
-        // Reference element for scroll preservation: the oldest rendered
-        // message. After prepending we cancel however far it actually moved —
-        // correct whether or not the browser's native scroll anchoring also
-        // compensated (Chromium/Firefox do, WebKit doesn't).
-        const refEl = scrollEl?.querySelector("[data-event-id]");
-        const refId = (refEl as HTMLElement | null)?.dataset.eventId;
-        const prevTop = refEl?.getBoundingClientRect().top;
+        // Scroll preservation across a history prepend. The reference is the
+        // oldest rendered message; after prepending we nudge it back to the
+        // viewport offset it held just before — a self-correcting form that lands
+        // it right whether or not the browser's native scroll anchoring also
+        // compensated (Chromium/Firefox do, WebKit doesn't). Do NOT replace this
+        // with a "shift by the inserted height" calculation: where native
+        // anchoring is active it already added that height, so shifting again
+        // double-counts and flings the timeline (bit us 2026-08-18).
+        //
+        // CRUCIAL: capture the reference AFTER the async load resolves and right
+        // BEFORE applying it to the DOM — not before the await. The load takes
+        // ~100ms+, during which the user keeps scrolling; capturing up front and
+        // pinning to it rewinds that in-flight scroll, which reads as a stutter
+        // when history loads mid-scroll. Capturing post-load leaves only a
+        // sub-frame gap, so the correction cancels the prepend and nothing else.
+        let refId: string | undefined;
+        let prevTop: number | undefined;
 
         try {
-            const hasMore = await loadPreviousMessages(room);
-            if (!hasMore) setCanLoadMore(roomId, false);
-            const events = getTimelineMessages(room);
-            setMessages(roomId, events);
+            if (isContextView && contextWindow) {
+                await paginateContextWindow(contextWindow, false);
+                const refEl = scrollEl?.querySelector("[data-event-id]");
+                refId = (refEl as HTMLElement | null)?.dataset.eventId;
+                prevTop = refEl?.getBoundingClientRect().top;
+                contextMessages = getContextWindowEvents(contextWindow);
+            } else {
+                const hasMore = await loadPreviousMessages(room);
+                if (!hasMore) setCanLoadMore(roomId, false);
+                const events = getTimelineMessages(room);
+                const refEl = scrollEl?.querySelector("[data-event-id]");
+                refId = (refEl as HTMLElement | null)?.dataset.eventId;
+                prevTop = refEl?.getBoundingClientRect().top;
+                setMessages(roomId, events);
+            }
 
             await tick();
             if (scrollEl && refId !== undefined && prevTop !== undefined) {
@@ -1152,6 +1283,44 @@
         } finally {
             loadingOlder = false;
         }
+    }
+
+    // Extend a jumped-to context window towards newer messages as the user
+    // scrolls down. Once the window reaches the live edge AND the user is at the
+    // bottom, hand back to the live timeline so new messages append and the
+    // "Viewing message context" banner clears — the seamless "scroll down to
+    // rejoin the present" that jumping to an old message used to lack.
+    async function maybeLoadNewer() {
+        if (loadingNewer || !isContextView || !contextWindow) return;
+        if (contextWindowCanPaginate(contextWindow, true)) {
+            loadingNewer = true;
+            try {
+                await paginateContextWindow(contextWindow, true);
+                contextMessages = getContextWindowEvents(contextWindow);
+            } finally {
+                loadingNewer = false;
+            }
+        } else if (isAtBottom) {
+            rejoinLive();
+        }
+    }
+
+    // Leave context view and return to the live timeline, scrolled to the
+    // present. The window's newest event is the live timeline's newest, so from
+    // the bottom this swap is visually seamless.
+    function rejoinLive() {
+        contextWindow = null;
+        contextMessages = null;
+        setMessages(roomId, getTimelineMessages(room));
+        tick().then(() => scrollToBottom(true));
+    }
+
+    // Whether older history can still load: the live timeline's pagination
+    // token, or the context window's backwards edge.
+    function hasOlderToLoad(): boolean {
+        return isContextView
+            ? !!contextWindow && contextWindowCanPaginate(contextWindow, false)
+            : canLoadMore(roomId);
     }
 
     // Returns whether the top sentinel is on/near screen — i.e. the user has
@@ -1172,14 +1341,12 @@
     // the viewport". Driven by the IntersectionObserver and the explicit fill
     // points (room open, sync prepared, timeline reset).
     async function backfillFromTop() {
-        if (isContextView) return; // never queue a request the context view won't serve
         if (!backfillGate.tryEnter()) return;
         try {
             await tick();
             let guard = 0;
             while (
-                canLoadMore(roomId) &&
-                !isContextView &&
+                hasOlderToLoad() &&
                 isTopSentinelNearViewport() &&
                 guard++ < 50
             ) {
@@ -1209,6 +1376,34 @@
         );
         observer.observe(sentinel);
         return () => observer.disconnect();
+    });
+
+    // Keep the reading position pinned when timeline content grows AFTER it
+    // rendered: a link-preview card mounting (DOM mutation) or media finishing
+    // load (a `load` event, which doesn't bubble → capture phase). The restore
+    // runs SYNCHRONOUSLY in the observer callback — a MutationObserver callback
+    // is a microtask, so it fires after the growth but BEFORE the browser paints
+    // the frame; correcting scrollTop there cancels the jump in the same frame
+    // (deferring to requestAnimationFrame would let the shifted frame paint
+    // first, so the user still sees it flick). restoreScrollAnchor no-ops unless
+    // we're calmly reading history and the anchor actually moved, so this is
+    // inert at the bottom, during backfill, and during a jump.
+    $effect(() => {
+        const root = scrollEl;
+        roomId; // re-establish per room
+        if (!root) return;
+        const onMediaLoad = (e: Event) => {
+            const t = e.target as HTMLElement | null;
+            if (t && (t.tagName === "IMG" || t.tagName === "VIDEO"))
+                restoreScrollAnchor();
+        };
+        const mo = new MutationObserver(restoreScrollAnchor);
+        mo.observe(root, { childList: true, subtree: true });
+        root.addEventListener("load", onMediaLoad, true);
+        return () => {
+            mo.disconnect();
+            root.removeEventListener("load", onMediaLoad, true);
+        };
     });
 
     // Message grouping, date separators and the unread divider are pure
@@ -1501,13 +1696,12 @@
             <div class="mt-auto flex-shrink-0"></div>
 
             <!-- Backfill sentinel at the visual top (= oldest-loaded edge).
-                 The IntersectionObserver watches it to load older history. -->
-            {#if !isContextView}
-                <div
-                    bind:this={topSentinelEl}
-                    class="h-px w-full flex-shrink-0"
-                ></div>
-            {/if}
+                 The IntersectionObserver watches it to load older history —
+                 for both the live timeline and a jumped-to context window. -->
+            <div
+                bind:this={topSentinelEl}
+                class="h-px w-full flex-shrink-0"
+            ></div>
 
             <!-- Load more indicator -->
             {#if loadingOlder}
@@ -1731,11 +1925,7 @@
                     >
                     Viewing message context
                     <button
-                        onclick={() => {
-                            contextMessages = null;
-                            setMessages(roomId, getTimelineMessages(room));
-                            tick().then(() => scrollToBottom(true));
-                        }}
+                        onclick={rejoinLive}
                         class="ml-1 underline hover:no-underline"
                         >Return to live</button
                     >
