@@ -107,6 +107,7 @@ import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import { firstReusableDmRoom } from "$lib/utils/dmReuse";
 import { pickDmRoomVersion } from "$lib/utils/dmRoomVersion";
+import { planReconcileReload } from "$lib/utils/reconcileReload";
 import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
 import {
     countReactions,
@@ -640,7 +641,10 @@ export async function startSync(
         if (state === "PREPARED") {
             initialSyncComplete = true;
             seedStatelessRooms();
-            void reconcileJoinedRooms();
+            // Heal any joined room the initial sync dropped, in place where
+            // possible — a cache-wipe reload is the last resort, never for a
+            // room a prior reload already failed to fix (the boot double-flash).
+            void reconcileJoinedRoomsLive();
         }
         onStateChange(state);
     });
@@ -3829,46 +3833,41 @@ export async function clearCacheAndReload(): Promise<void> {
     window.location.reload();
 }
 
-// A poisoned sync cache can hide a room the server considers joined, and it
-// never self-heals (see clearCacheAndReload). After each initial sync,
-// compare the server's joined list against ours; on mismatch, reset the
-// cache once. The sessionStorage flag stops a reload loop if the mismatch
-// somehow survives a fresh initial sync.
-const RECONCILE_FLAG = "syncReconcileAttempted";
+// A joined-rooms mismatch — the server reports a room joined that our local sync
+// cache is missing — heals in place where possible (re-assert the join, seed
+// state); a cache-wipe reload is only the last resort. continuwuity both poisons
+// the cache (a fresh sync WOULD re-deliver the room, so a reload helps) and
+// reports outright phantoms (it never delivers the room, so nothing materializes
+// it). We reload at most ONCE per unhealable room, remembered in localStorage, so
+// a known phantom never re-triggers the boot "Restoring session…" double-flash on
+// later cold starts.
+const RECONCILE_RELOADED_KEY = "syncReconcileReloadedRooms";
+const RECONCILE_RELOADED_MAX = 50;
 
-async function reconcileJoinedRooms(): Promise<void> {
-    if (!matrixClient) return;
+function loadReconcileReloadedRooms(): string[] {
     try {
-        const server = await matrixClient.getJoinedRooms();
-        const missing = server.joined_rooms.filter(
-            (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
+        const parsed = JSON.parse(
+            localStorage.getItem(RECONCILE_RELOADED_KEY) ?? "[]",
         );
-        if (missing.length === 0) {
-            sessionStorage.removeItem(RECONCILE_FLAG);
-            return;
-        }
-        if (sessionStorage.getItem(RECONCILE_FLAG)) {
-            console.warn(
-                "Joined-rooms mismatch persists after a cache reset:",
-                missing,
-            );
-            return;
-        }
-        console.warn("Sync cache is missing joined rooms, resetting:", missing);
-        sessionStorage.setItem(RECONCILE_FLAG, "1");
-        await clearCacheAndReload();
+        return Array.isArray(parsed)
+            ? parsed.filter((x): x is string => typeof x === "string")
+            : [];
     } catch {
-        // Reconciliation is best-effort — never let it break boot.
+        return [];
     }
 }
 
-// ── In-session joined-rooms self-heal ─────────────────────────────────────────
-// reconcileJoinedRooms() only runs at boot. But continuwuity can drop a freshly
-// joined/created room from INCREMENTAL sync entirely (the cache never re-delivers
-// it), so mid-session a room you're joined to can stay invisible until a manual
-// reload. This heals it in place — no reload — by re-asserting the join and
-// seeding state, and only falls back to the cache reset if a room truly can't be
-// materialized.
+function saveReconcileReloadedRooms(ids: string[]): void {
+    try {
+        // Bounded: only the most recent unhealable rooms need remembering.
+        localStorage.setItem(
+            RECONCILE_RELOADED_KEY,
+            JSON.stringify(ids.slice(-RECONCILE_RELOADED_MAX)),
+        );
+    } catch {
+        // Private-mode localStorage can throw; the one reload still happens.
+    }
+}
 
 /** Re-materialize + state-seed one joined room the local cache is missing. */
 async function healMissingJoinedRoom(roomId: string): Promise<boolean> {
@@ -3891,9 +3890,10 @@ async function healMissingJoinedRoom(roomId: string): Promise<boolean> {
 let liveReconcileRunning = false;
 
 /**
- * Compare the server's joined list against ours mid-session and heal any room
- * incremental sync dropped, WITHOUT a reload. Best-effort; the boot cache-reset
- * is a last resort only if in-place healing leaves a room unrecovered.
+ * Compare the server's joined list against ours and heal any room sync dropped,
+ * preferring an in-place heal (no reload). Runs at boot (first PREPARED) and,
+ * debounced, mid-session. A cache-wipe reload is the last resort, tried at most
+ * once per unhealable room so a continuwuity phantom can't reload on every boot.
  */
 export async function reconcileJoinedRoomsLive(): Promise<void> {
     if (!matrixClient || liveReconcileRunning) return;
@@ -3904,21 +3904,33 @@ export async function reconcileJoinedRoomsLive(): Promise<void> {
             (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
         );
         if (missing.length === 0) return;
-        console.info("In-session sync heal - rooms missing locally:", missing);
-        let unhealed = false;
+        console.info("Sync heal - rooms missing locally:", missing);
+        const stillMissing: string[] = [];
         for (const id of missing) {
-            if (!(await healMissingJoinedRoom(id))) unhealed = true;
+            if (!(await healMissingJoinedRoom(id))) stillMissing.push(id);
         }
         for (const cb of roomUpdateSubscribers) cb();
         for (const id of missing) {
             if (matrixClient.getRoom(id)?.getMyMembership() === "join")
                 for (const cb of roomHealedSubscribers) cb(id);
         }
-        // Nothing we could do in place — reuse the boot escape hatch once.
-        if (unhealed && !sessionStorage.getItem(RECONCILE_FLAG)) {
-            sessionStorage.setItem(RECONCILE_FLAG, "1");
-            await clearCacheAndReload();
+        if (stillMissing.length === 0) return;
+        // Rooms we couldn't materialize in place: reload once for any we have
+        // never reloaded for (a poisoned cache may deliver them on a fresh
+        // sync); never reload for one a prior reload already failed to fix.
+        const plan = planReconcileReload({
+            stillMissing,
+            reloadedRooms: loadReconcileReloadedRooms(),
+        });
+        if (!plan.reload) {
+            console.warn(
+                "Joined-rooms mismatch a reload can't fix:",
+                stillMissing,
+            );
+            return;
         }
+        saveReconcileReloadedRooms(plan.nextReloadedRooms);
+        await clearCacheAndReload();
     } catch {
         // best-effort — never surface as a user-facing error
     } finally {
