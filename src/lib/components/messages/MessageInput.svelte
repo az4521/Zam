@@ -83,6 +83,7 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
+    import { suppressNextClick } from "$lib/utils/suppressNextClick";
     import {
         Loader2,
         Plus,
@@ -1651,6 +1652,9 @@
                 <button
                     onpointerdown={(e) => {
                         e.preventDefault();
+                        // See the mention picker: swallow the trailing click so
+                        // it can't open a link behind the unmounted picker.
+                        suppressNextClick();
                         commitEmoji(candidate);
                     }}
                     onpointerenter={() => (emojiSelectedIdx = i)}
@@ -1694,6 +1698,10 @@
                 <button
                     onpointerdown={(e) => {
                         e.preventDefault();
+                        // Committing unmounts the picker before pointerup, so
+                        // swallow the trailing click or it opens whatever link
+                        // is now under the cursor behind the picker.
+                        suppressNextClick();
                         commitMention(member);
                     }}
                     class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
@@ -1728,6 +1736,9 @@
                 <button
                     onpointerdown={(e) => {
                         e.preventDefault();
+                        // See the mention picker: swallow the trailing click so
+                        // it can't open a link behind the unmounted picker.
+                        suppressNextClick();
                         commitSlashCommand(command);
                     }}
                     onpointerenter={() => (slashSelectedIdx = i)}
