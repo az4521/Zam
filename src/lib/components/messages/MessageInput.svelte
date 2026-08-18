@@ -1521,16 +1521,16 @@
 <div
     class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0 relative"
 >
-    <!-- Typing indicator: floats just ABOVE the composer, over the timeline's
-         bottom edge and out of flow, so it never adds height or shifts the
-         input. Subtle background keeps it readable over the last message. -->
-    {#if typingUsers.length > 0}
-        <p
-            class="pointer-events-none absolute -top-5 left-4 right-4 truncate rounded bg-discord-background/90 px-1 text-xs leading-4 text-discord-textMuted"
-        >
-            {typingText()}
-        </p>
-    {/if}
+    <!-- Typing indicator: a reserved (fixed-height) row ABOVE the input, in
+         flow within the composer's own space, so it never overlays the last
+         message and never shifts the timeline when it appears or clears. -->
+    <div class="h-4 mb-1 px-1">
+        {#if typingUsers.length > 0}
+            <p class="truncate text-xs leading-4 text-discord-textMuted">
+                {typingText()}
+            </p>
+        {/if}
+    </div>
     <!-- Reply preview bar -->
     {#if replyToEvent}
         <div
