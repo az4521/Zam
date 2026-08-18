@@ -61,6 +61,7 @@
     import {
         reservedMediaBox,
         safeAspectRatio,
+        safeDimension,
     } from "$lib/utils/mediaDimensions";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
@@ -785,6 +786,41 @@
     const videoAspectRatio = $derived(
         safeAspectRatio((content?.info as any)?.w, (content?.info as any)?.h),
     );
+    // True only when the sender gave usable dimensions. When false,
+    // `videoAspectRatio` is just the 16/9 fallback guess, so we prefer a
+    // self-measured ratio (below) once the element reports one. Bridged
+    // Discord/Twitter media (OOYE) routinely omits info.w/info.h.
+    const videoHasDims = $derived(
+        safeDimension((content?.info as any)?.w) !== null &&
+            safeDimension((content?.info as any)?.h) !== null,
+    );
+    // Aspect ratio recovered from the played <video>'s own intrinsic size when
+    // the sender omitted dims. `safeAspectRatio` keeps this to `<int> / <int>`,
+    // and its inputs are the element's videoWidth/videoHeight — trusted browser
+    // integers, never event content — so it is safe to put in `style`.
+    let measuredVideoAspect = $state<string | null>(null);
+    // The aspect ratio the played/poster box is actually drawn at: the sender's
+    // when they gave one, else the self-measured value once we have it, else the
+    // 16/9 fallback.
+    const effectiveVideoAspect = $derived(
+        videoHasDims
+            ? videoAspectRatio
+            : (measuredVideoAspect ?? videoAspectRatio),
+    );
+    // Recover the true aspect of a dimension-less video from its metadata, so a
+    // bridged clip settles to its real shape once (gently, inside the bounded
+    // box) instead of the browser's unbounded intrinsic-size jump. Ignored when
+    // the sender's dims are present — those stay authoritative.
+    function onVideoMetadata(e: Event) {
+        if (videoHasDims) return;
+        const el = e.currentTarget as HTMLVideoElement;
+        if (el.videoWidth > 0 && el.videoHeight > 0) {
+            measuredVideoAspect = safeAspectRatio(
+                el.videoWidth,
+                el.videoHeight,
+            );
+        }
+    }
     // Reserved display box (px) for uploaded images/stickers, from the sender's
     // untrusted `info.w`/`info.h`. Rendered as the `<img>`'s width/height
     // attributes so the browser holds the exact space before the image loads —
@@ -1562,13 +1598,21 @@
                      nothing and the browser would never re-attempt the load. -->
                 {#key videoAttempt}
                     <!-- svelte-ignore a11y_media_has_caption -->
+                    <!-- The played box is drawn identically to the poster: same
+                         `aspect-ratio` and `max-height`, plus object-contain and
+                         a black backdrop. Without an explicit box the <video>
+                         sizes to its intrinsic dimensions, which (a) jumps the
+                         box vs the poster on play and (b) lets a wide clip's
+                         min-content width push past the column and overflow. -->
                     <video
                         src={videoSrcUrl}
                         controls
                         autoplay
                         playsinline
                         preload="auto"
-                        class="max-w-lg w-full max-h-96 rounded-lg mt-1 block"
+                        class="max-w-lg w-full rounded-lg mt-1 block object-contain bg-black"
+                        style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
+                        onloadedmetadata={onVideoMetadata}
                         onerror={() => (videoFailed = true)}
                     ></video>
                 {/key}
@@ -1577,7 +1621,7 @@
                 <div
                     class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
                     style={videoThumbnailUrl && !videoThumbFailed
-                        ? `aspect-ratio: ${videoAspectRatio}; max-height: 24rem;`
+                        ? `aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`
                         : ""}
                     onclick={playVideo}
                 >
