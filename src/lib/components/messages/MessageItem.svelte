@@ -1932,9 +1932,11 @@
             </div>
         {/if}
 
-        <!-- Read receipts -->
+        <!-- Read receipts: absolutely anchored to the row's bottom-right (the
+             row is `relative`), OUT OF FLOW, so receipts appearing or moving
+             between messages never reflows the timeline. -->
         {#if receipts.length > 0}
-            <div class="flex items-center gap-0.5 px-4 pb-0.5 justify-end">
+            <div class="absolute bottom-0.5 right-4 flex items-center gap-0.5">
                 {#each receipts.slice(0, 5) as r (r.userId)}
                     <div title={r.name}>
                         <Avatar
