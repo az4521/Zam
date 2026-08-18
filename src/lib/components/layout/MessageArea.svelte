@@ -1237,22 +1237,38 @@
             return;
         }
         loadingOlder = true;
-        // Reference element for scroll preservation: the oldest rendered
-        // message. After prepending we cancel however far it actually moved —
-        // correct whether or not the browser's native scroll anchoring also
-        // compensated (Chromium/Firefox do, WebKit doesn't).
-        const refEl = scrollEl?.querySelector("[data-event-id]");
-        const refId = (refEl as HTMLElement | null)?.dataset.eventId;
-        const prevTop = refEl?.getBoundingClientRect().top;
+        // Scroll preservation across a history prepend. The reference is the
+        // oldest rendered message; after prepending we nudge it back to the
+        // viewport offset it held just before — a self-correcting form that lands
+        // it right whether or not the browser's native scroll anchoring also
+        // compensated (Chromium/Firefox do, WebKit doesn't). Do NOT replace this
+        // with a "shift by the inserted height" calculation: where native
+        // anchoring is active it already added that height, so shifting again
+        // double-counts and flings the timeline (bit us 2026-08-18).
+        //
+        // CRUCIAL: capture the reference AFTER the async load resolves and right
+        // BEFORE applying it to the DOM — not before the await. The load takes
+        // ~100ms+, during which the user keeps scrolling; capturing up front and
+        // pinning to it rewinds that in-flight scroll, which reads as a stutter
+        // when history loads mid-scroll. Capturing post-load leaves only a
+        // sub-frame gap, so the correction cancels the prepend and nothing else.
+        let refId: string | undefined;
+        let prevTop: number | undefined;
 
         try {
             if (isContextView && contextWindow) {
                 await paginateContextWindow(contextWindow, false);
+                const refEl = scrollEl?.querySelector("[data-event-id]");
+                refId = (refEl as HTMLElement | null)?.dataset.eventId;
+                prevTop = refEl?.getBoundingClientRect().top;
                 contextMessages = getContextWindowEvents(contextWindow);
             } else {
                 const hasMore = await loadPreviousMessages(room);
                 if (!hasMore) setCanLoadMore(roomId, false);
                 const events = getTimelineMessages(room);
+                const refEl = scrollEl?.querySelector("[data-event-id]");
+                refId = (refEl as HTMLElement | null)?.dataset.eventId;
+                prevTop = refEl?.getBoundingClientRect().top;
                 setMessages(roomId, events);
             }
 
