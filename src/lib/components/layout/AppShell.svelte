@@ -3,6 +3,7 @@
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
+    import ReconnectPill from "$lib/components/layout/ReconnectPill.svelte";
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
     import CallView from "$lib/components/layout/CallView.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
@@ -1628,22 +1629,10 @@
         style="position: fixed; inset: 0;"
         ontouchstart={drawerDragStart}
     >
-        <!-- Sync state banner -->
-        {#if auth.syncState !== "PREPARED" && auth.syncState !== "SYNCING"}
-            <div
-                role="status"
-                aria-live="polite"
-                class="absolute top-0 left-0 right-0 z-50 bg-discord-warning/90 text-discord-backgroundTertiary text-sm font-medium text-center py-1.5"
-            >
-                {#if auth.syncState === "ERROR"}
-                    Connection error - trying to reconnect…
-                {:else if auth.syncState === "RECONNECTING"}
-                    Reconnecting…
-                {:else}
-                    Syncing…
-                {/if}
-            </div>
-        {/if}
+        <!-- Sync-state indicator: an unobtrusive, non-blocking corner pill (see
+             ReconnectPill) instead of a full-width bar that overlaid the header
+             and read as "the app is frozen". Offline never locks the app. -->
+        <ReconnectPill syncState={auth.syncState} />
 
         {#if !interfaceState.isMobile}
             <!-- Desktop: permanent sidebars -->

@@ -1519,8 +1519,18 @@
 </script>
 
 <div
-    class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(1.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0 relative"
+    class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0 relative"
 >
+    <!-- Typing indicator: a reserved (fixed-height) row ABOVE the input, in
+         flow within the composer's own space, so it never overlays the last
+         message and never shifts the timeline when it appears or clears. -->
+    <div class="h-4 mb-1 px-1">
+        {#if typingUsers.length > 0}
+            <p class="truncate text-xs leading-4 text-discord-textMuted">
+                {typingText()}
+            </p>
+        {/if}
+    </div>
     <!-- Reply preview bar -->
     {#if replyToEvent}
         <div
@@ -2031,38 +2041,9 @@
             </button>
         </div>
     {/if}
-    {#if !interfaceState.isTouchscreen}
-        <!-- Desktop keeps a reserved 16px row: the keyboard hints are static
-             and must not overlap the timeline. -->
-        <div class="relative mt-1 px-1 h-4">
-            {#if typingUsers.length > 0}
-                <p
-                    class="absolute inset-0 truncate text-xs text-discord-textMuted bg-discord-background/90"
-                >
-                    {typingText()}
-                </p>
-            {:else}
-                <p class="text-xs text-discord-textMuted">
-                    <kbd class="font-mono">Enter</kbd> to send &middot;
-                    <kbd class="font-mono">Shift+Enter</kbd> for new line
-                    {#if replyToEvent}&middot; <kbd class="font-mono">Esc</kbd> to
-                        cancel reply{/if}
-                </p>
-            {/if}
-        </div>
-    {:else if typingUsers.length > 0}
-        <!-- Touch: float the indicator in the root's bottom padding band instead
-             of reserving 20px that is empty whenever nobody is typing. That band
-             is a 16px band above the safe-area inset, sized to exactly fit the
-             chip (leading-4 makes its line box exactly 16px), so the chip fills
-             the band without painting over the input pill above it — and sitting
-             on top of the inset keeps it clear of a notched device's gesture bar. -->
-        <p
-            class="pointer-events-none absolute bottom-[env(safe-area-inset-bottom,0px)] left-5 right-5 truncate rounded bg-discord-background/90 px-1 text-xs leading-4 text-discord-textMuted"
-        >
-            {typingText()}
-        </p>
-    {/if}
+    <!-- Typing indicator now floats ABOVE the input (see the overlay at the top
+         of this container); the "Enter to send" hint was dropped for a cleaner,
+         flush composer. -->
 </div>
 
 <style>
