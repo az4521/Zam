@@ -93,7 +93,12 @@
         // reactive loop; the returned unsub is the cleanup.
         desktopSetAutoDownload(settingsState.autoUpdateEnabled);
         desktopCheck();
-        const unsub = onDesktopUpdateStatus((s) => (desktopStatus = s));
+        // Merge, don't replace: the main process omits `version` on the
+        // `downloading` event, so carrying the prior status forward keeps the
+        // target version visible through the whole flow (matches the banner).
+        const unsub = onDesktopUpdateStatus(
+            (s) => (desktopStatus = { ...desktopStatus, ...s }),
+        );
         return unsub;
     });
 
