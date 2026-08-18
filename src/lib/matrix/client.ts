@@ -3954,6 +3954,16 @@ export function onRoomUpdate(callback: () => void): () => void {
 }
 
 /**
+ * Backfill batch size. Deliberately small: every paged-in event is parsed,
+ * built into a MatrixEvent, and mounted as a Svelte message component
+ * synchronously inside the `/messages` response handler — a JS-bound frame
+ * whose cost scales with the batch (measured: ~28 rows ≈ a ~50ms frame at
+ * depth). A smaller batch splits that into two cheaper frames, so scroll-up
+ * stutters less; the trade is more frequent, lighter loads.
+ */
+const BACKFILL_BATCH = 15;
+
+/**
  * Page one batch of older history into the live timeline. Returns whether
  * more history remains.
  *
@@ -3988,7 +3998,7 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     // preserves it and MessageArea never remounts), killing scroll-up in the
     // room for good. The token below is the honest answer either way.
     const client = ownedClient(owner);
-    if (client) await client.scrollback(room, 30);
+    if (client) await client.scrollback(room, BACKFILL_BATCH);
     return room.oldState.paginationToken !== null;
 }
 
