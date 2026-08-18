@@ -140,12 +140,33 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         expect(
             updateStatusView({ phase: "downloaded", autoEnabled: true }),
         ).toEqual({
-            label: "Update ready — restart to apply",
+            label: "Update ready - restart to apply",
             action: "restart",
             actionLabel: "Restart to apply",
             busy: false,
             percent: null,
         });
+    });
+
+    it("downloaded surfaces the target version in the label", () => {
+        expect(
+            updateStatusView({
+                phase: "downloaded",
+                autoEnabled: true,
+                version: "1.2.0",
+            }).label,
+        ).toBe("Update ready (v1.2.0) - restart to apply");
+    });
+
+    it("downloading names the target version when known", () => {
+        expect(
+            updateStatusView({
+                phase: "downloading",
+                autoEnabled: true,
+                version: "1.2.0",
+                percent: 42,
+            }).label,
+        ).toBe("Downloading v1.2.0… 42%");
     });
 
     it("unsupported → points at the release page", () => {
@@ -158,6 +179,16 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
             busy: false,
             percent: null,
         });
+    });
+
+    it("unsupported surfaces the target version when known", () => {
+        expect(
+            updateStatusView({
+                phase: "unsupported",
+                autoEnabled: false,
+                version: "1.2.0",
+            }).label,
+        ).toBe("A new version is available (v1.2.0)");
     });
 
     it("error surfaces the message verbatim", () => {
@@ -202,7 +233,7 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
                 platform: "android",
             }),
         ).toEqual({
-            label: "Update ready — Install",
+            label: "Update ready - Install",
             action: "install",
             actionLabel: "Install",
             busy: false,
@@ -218,7 +249,7 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
                 platform: "electron",
             }),
         ).toEqual({
-            label: "Update ready — restart to apply",
+            label: "Update ready - restart to apply",
             action: "restart",
             actionLabel: "Restart to apply",
             busy: false,

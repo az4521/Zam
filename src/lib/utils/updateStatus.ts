@@ -79,21 +79,27 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
                 percent: null,
             };
 
-        case "downloading":
+        case "downloading": {
+            // Name the version being fetched so the target stays visible past
+            // the "available" prompt; fall back to a generic label without one.
+            const downloading = version
+                ? `Downloading v${version}`
+                : "Downloading update";
             return {
-                label: `Downloading update… ${clampedPercent}%`,
+                label: `${downloading}… ${clampedPercent}%`,
                 action: "none",
                 actionLabel: "",
                 busy: true,
                 percent: clampedPercent,
             };
+        }
 
         case "downloaded":
-            // Android cannot restart-to-apply — a sideloaded APK install is a
+            // Android cannot restart-to-apply: a sideloaded APK install is a
             // user tap in the OS package installer. Fire that instead.
             if (platform === "android") {
                 return {
-                    label: "Update ready — Install",
+                    label: `Update ready${versionSuffix} - Install`,
                     action: "install",
                     actionLabel: "Install",
                     busy: false,
@@ -101,7 +107,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
                 };
             }
             return {
-                label: "Update ready — restart to apply",
+                label: `Update ready${versionSuffix} - restart to apply`,
                 action: "restart",
                 actionLabel: "Restart to apply",
                 busy: false,
@@ -110,7 +116,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
 
         case "unsupported":
             return {
-                label: "A new version is available",
+                label: `A new version is available${versionSuffix}`,
                 action: "open-release",
                 actionLabel: "Open release page",
                 busy: false,

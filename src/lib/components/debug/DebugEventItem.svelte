@@ -9,12 +9,12 @@
     let { event }: Props = $props();
 
     const type = $derived(event.getType());
-    const sender = $derived(event.getSender() ?? "—");
+    const sender = $derived(event.getSender() ?? "-");
     const stateKey = $derived(event.getStateKey());
-    const eventId = $derived(event.getId() ?? "—");
+    const eventId = $derived(event.getId() ?? "-");
     const redacted = $derived(event.isRedacted());
     const time = $derived(
-        event.getTs() ? format(new Date(event.getTs()), "HH:mm:ss") : "—",
+        event.getTs() ? format(new Date(event.getTs()), "HH:mm:ss") : "-",
     );
     const contentJson = $derived(JSON.stringify(event.getContent(), null, 2));
 </script>

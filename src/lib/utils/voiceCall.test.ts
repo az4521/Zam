@@ -155,24 +155,24 @@ describe("callEndedMembershipMessage", () => {
     const other = "@mod:server";
     it("names a ban regardless of who acted", () => {
         expect(callEndedMembershipMessage("ban", other, me)).toBe(
-            "You were banned from this room — call ended",
+            "You were banned from this room - call ended",
         );
     });
     it("names a kick (removed by someone else)", () => {
         expect(callEndedMembershipMessage("leave", other, me)).toBe(
-            "You were removed from this room — call ended",
+            "You were removed from this room - call ended",
         );
     });
     it("names a self-leave", () => {
         expect(callEndedMembershipMessage("leave", me, me)).toBe(
-            "You left this room — call ended",
+            "You left this room - call ended",
         );
     });
     it("treats an unknown sender as a self-leave (member already pruned)", () => {
         // Leaving from another device can drop my member object before this
         // fires; an absent sender must read as "You left", not "You were removed".
         expect(callEndedMembershipMessage("leave", undefined, me)).toBe(
-            "You left this room — call ended",
+            "You left this room - call ended",
         );
     });
     it("returns null for a still-present membership", () => {

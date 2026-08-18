@@ -248,7 +248,7 @@
                 );
                 if (result.kind === "set" && result.clamped) {
                     showErrorToast(
-                        `Order must be between 0 and 1 — used ${result.value} instead.`,
+                        `Order must be between 0 and 1 - used ${result.value} instead.`,
                     );
                 }
             }
@@ -343,7 +343,7 @@
                     </p>
                 {:else}
                     <p class="mt-1.5 text-xs text-discord-danger">
-                        Invalid format — use lowercase date-fns tokens like
+                        Invalid format - use lowercase date-fns tokens like
                         yyyy-MM-dd.
                     </p>
                 {/if}
@@ -383,7 +383,7 @@
                 </p>
                 <p class="text-xs text-discord-textMuted">
                     Show who has read each message as small avatars underneath
-                    it. This only changes what you see on this device — to stop
+                    it. This only changes what you see on this device - to stop
                     others seeing how far you've read, use Private read receipts
                     in Notifications.
                 </p>

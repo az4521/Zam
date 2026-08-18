@@ -105,7 +105,7 @@
             if (mine !== seq) return;
             results = [];
             searchError =
-                "User search failed — you can still enter a full user ID.";
+                "User search failed - you can still enter a full user ID.";
             searched = true;
         } finally {
             if (mine === seq) searching = false;

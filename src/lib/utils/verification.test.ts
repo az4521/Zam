@@ -85,7 +85,7 @@ describe("verificationPhaseLabel — human wording, self vs other", () => {
     // QR wait that has none — precisely because nothing held them to it.
     it("does not promise a choice at Ready — it shows when there is none", () => {
         expect(verificationPhaseLabel(VerificationPhaseValue.Ready)).toBe(
-            "Accepted — setting up the check…",
+            "Accepted - setting up the check…",
         );
     });
 

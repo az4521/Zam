@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { geoErrorMessage, geolocationUnavailableMessage } from "./geoErrors";
 
 const HTTPS_HINT =
-    "Location needs a secure (HTTPS) connection — open the app over https.";
+    "Location needs a secure (HTTPS) connection - open the app over https.";
 
 describe("geoErrorMessage", () => {
     it("blames the insecure context for code 1 when not secure", () => {
@@ -14,7 +14,7 @@ describe("geoErrorMessage", () => {
 
     it("reports a real permission denial for code 1 in a secure context", () => {
         expect(geoErrorMessage({ code: 1 }, true)).toBe(
-            "Location permission was denied — check site permissions.",
+            "Location permission was denied - check site permissions.",
         );
     });
 

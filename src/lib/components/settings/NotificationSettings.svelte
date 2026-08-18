@@ -511,7 +511,7 @@
                     class="flex-1 min-w-0 text-sm text-discord-danger"
                     aria-live="polite"
                 >
-                    Couldn't save to your account — your other devices may keep
+                    Couldn't save to your account - your other devices may keep
                     the old setting. Check your connection and try again.
                 </p>
                 <button

@@ -118,7 +118,7 @@
                     >
                     {#if !o.ok && o.error}
                         <span class="text-discord-textMuted truncate"
-                            >— {o.error}</span
+                            >- {o.error}</span
                         >
                     {/if}
                 </li>
@@ -169,7 +169,7 @@
                     >
                     {#if !emailOutcome.ok && emailOutcome.error}
                         <span class="text-discord-textMuted truncate"
-                            >— {emailOutcome.error}</span
+                            >- {emailOutcome.error}</span
                         >
                     {/if}
                 </p>

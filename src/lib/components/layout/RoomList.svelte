@@ -111,7 +111,7 @@
             map.set(room.roomId, {
                 dotClass: presenceDotClass(presenceDot(state)),
                 label: p?.statusMsg
-                    ? `${presenceLabel(state)} — ${p.statusMsg}`
+                    ? `${presenceLabel(state)} - ${p.statusMsg}`
                     : presenceLabel(state),
             });
         }
@@ -133,6 +133,25 @@
     // Rooms currently being joined (show spinner)
     let joiningIds = $state(new Set<string>());
     let inviteActionIds = $state(new Set<string>());
+
+    // Browse Rooms section collapse toggle, persisted per browser so a user who
+    // collapses it keeps it collapsed across reloads.
+    const BROWSE_COLLAPSED_KEY = "roomlist.browseCollapsed";
+    let browseCollapsed = $state(
+        typeof localStorage !== "undefined" &&
+            localStorage.getItem(BROWSE_COLLAPSED_KEY) === "1",
+    );
+    function toggleBrowseCollapsed(): void {
+        browseCollapsed = !browseCollapsed;
+        try {
+            localStorage.setItem(
+                BROWSE_COLLAPSED_KEY,
+                browseCollapsed ? "1" : "0",
+            );
+        } catch {
+            // Private-mode localStorage can throw; the in-session toggle still works.
+        }
+    }
 
     // Knock-to-join prompt (shown when a join is refused but knocking may work)
     let knockPromptId = $state<string | null>(null);
@@ -648,7 +667,7 @@
                 );
                 if (result.kind === "set" && result.clamped) {
                     showErrorToast(
-                        `Order must be between 0 and 1 — used ${result.value} instead.`,
+                        `Order must be between 0 and 1 - used ${result.value} instead.`,
                     );
                 }
             }
@@ -836,7 +855,7 @@
                                         true,
                                     ),
                             }}
-                            title="{name} — in voice"
+                            title="{name} - in voice"
                         >
                             <div
                                 class="rounded-full flex-shrink-0 ring-2 {speaking.has(
@@ -1063,160 +1082,176 @@
         <!-- Unjoined rooms (from space hierarchy) -->
         {#if unjoinedRooms.length > 0 || childSpaces.length > 0}
             <div class="mb-2">
-                <p
-                    class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                <button
+                    type="button"
+                    onclick={toggleBrowseCollapsed}
+                    aria-expanded={!browseCollapsed}
+                    class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textSecondary transition-colors"
                 >
-                    Browse Channels
-                </p>
-                {#each childSpaces as space (space.roomId)}
-                    <button
-                        onclick={() =>
-                            setActiveSpace(space.roomId, {
-                                // Chain to the nearest joined ancestor so the
-                                // hierarchy fallback has a fetchable parent,
-                                // tracking how many levels down we are.
-                                parentId:
-                                    roomsState.spaceDrillParentId ??
-                                    roomsState.activeSpaceId!,
-                                name: space.name,
-                                depth: roomsState.spaceDrillParentId
-                                    ? roomsState.spaceDrillDepth + 1
-                                    : 1,
-                            })}
-                        class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-discord-messageHover transition-colors group"
+                    <svg
+                        class="w-3 h-3 flex-shrink-0 transition-transform {browseCollapsed
+                            ? '-rotate-90'
+                            : ''}"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
                     >
-                        <svg
-                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
+                        <path d="M7 10l5 5 5-5z" />
+                    </svg>
+                    Browse Rooms
+                </button>
+                {#if !browseCollapsed}
+                    {#each childSpaces as space (space.roomId)}
+                        <button
+                            onclick={() =>
+                                setActiveSpace(space.roomId, {
+                                    // Chain to the nearest joined ancestor so the
+                                    // hierarchy fallback has a fetchable parent,
+                                    // tracking how many levels down we are.
+                                    parentId:
+                                        roomsState.spaceDrillParentId ??
+                                        roomsState.activeSpaceId!,
+                                    name: space.name,
+                                    depth: roomsState.spaceDrillParentId
+                                        ? roomsState.spaceDrillDepth + 1
+                                        : 1,
+                                })}
+                            class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left hover:bg-discord-messageHover transition-colors group"
                         >
-                            <path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"
-                            />
-                        </svg>
-                        <div class="flex-1 min-w-0">
-                            <p
-                                class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
+                            <svg
+                                class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
                             >
-                                {@html renderPlainTextWithTwemoji(
-                                    space.name ?? "",
-                                )}
-                            </p>
-                            {#if space.numMembers > 0}
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"
+                                />
+                            </svg>
+                            <div class="flex-1 min-w-0">
                                 <p
-                                    class="text-xs text-discord-textMuted opacity-70"
+                                    class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                                 >
-                                    {space.numMembers} members
+                                    {@html renderPlainTextWithTwemoji(
+                                        space.name ?? "",
+                                    )}
                                 </p>
-                            {/if}
-                        </div>
-                        <svg
-                            class="w-3.5 h-3.5 flex-shrink-0 text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
-                            />
-                        </svg>
-                    </button>
-                {/each}
-                {#each unjoinedRooms as room (room.roomId)}
-                    {@const isJoining = joiningIds.has(room.roomId)}
-                    <div
-                        class="flex items-center gap-2 px-2 py-1.5 rounded group hover:bg-discord-messageHover transition-colors"
-                    >
-                        <!-- Channel icon -->
-                        <span
-                            class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
-                        >
-                            <Hash size={14} />
-                        </span>
-
-                        <!-- Name + member count -->
-                        <div class="flex-1 min-w-0">
-                            <p
-                                class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
-                            >
-                                {@html renderPlainTextWithTwemoji(
-                                    room.name ?? "",
-                                )}
-                            </p>
-                            {#if room.numMembers > 0}
-                                <p
-                                    class="text-xs text-discord-textMuted opacity-70"
-                                >
-                                    {room.numMembers} members
-                                </p>
-                            {/if}
-                        </div>
-
-                        {#if room.isKnocked}
-                            <!-- Pending knock: state chip + cancel on hover -->
-                            <span
-                                class="flex-shrink-0 text-xs font-semibold text-discord-textMuted group-hover:hidden"
-                                >Requested</span
-                            >
-                            <button
-                                onclick={() => handleCancelKnock(room.roomId)}
-                                disabled={isJoining}
-                                class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
-                            >
-                                Cancel request
-                            </button>
-                        {:else}
-                            <!-- Join button -->
-                            <button
-                                onclick={() => handleJoin(room)}
-                                disabled={isJoining}
-                                class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
-                            >
-                                {#if isJoining}
-                                    <span class="flex items-center gap-1">
-                                        <span
-                                            class="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                                        ></span>
-                                    </span>
-                                {:else}
-                                    Join
+                                {#if space.numMembers > 0}
+                                    <p
+                                        class="text-xs text-discord-textMuted opacity-70"
+                                    >
+                                        {space.numMembers} members
+                                    </p>
                                 {/if}
-                            </button>
-                        {/if}
-                    </div>
-                    {#if knockPromptId === room.roomId && !room.isKnocked}
-                        <div
-                            class="mx-2 mb-1.5 p-2 rounded bg-discord-backgroundTertiary flex flex-col gap-1.5"
-                        >
-                            <p class="text-xs text-discord-textMuted">
-                                You can't join this room directly — request to
-                                join instead?
-                            </p>
-                            <input
-                                bind:value={knockReason}
-                                placeholder="Reason (optional)"
-                                class="w-full px-2 py-1 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-xs"
-                            />
-                            {#if knockError}
-                                <p class="text-xs text-discord-danger">
-                                    {knockError}
-                                </p>
-                            {/if}
-                            <div class="flex justify-end gap-1.5">
-                                <button
-                                    onclick={() => (knockPromptId = null)}
-                                    class="px-2 py-0.5 text-xs font-medium rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                                    >Not now</button
-                                >
-                                <button
-                                    onclick={() => handleKnock(room)}
-                                    disabled={isJoining}
-                                    class="px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60"
-                                    >Request to join</button
-                                >
                             </div>
+                            <svg
+                                class="w-3.5 h-3.5 flex-shrink-0 text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
+                                />
+                            </svg>
+                        </button>
+                    {/each}
+                    {#each unjoinedRooms as room (room.roomId)}
+                        {@const isJoining = joiningIds.has(room.roomId)}
+                        <div
+                            class="flex items-center gap-2 px-2 py-1.5 rounded group hover:bg-discord-messageHover transition-colors"
+                        >
+                            <!-- Channel icon -->
+                            <span
+                                class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
+                            >
+                                <Hash size={14} />
+                            </span>
+
+                            <!-- Name + member count -->
+                            <div class="flex-1 min-w-0">
+                                <p
+                                    class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
+                                >
+                                    {@html renderPlainTextWithTwemoji(
+                                        room.name ?? "",
+                                    )}
+                                </p>
+                                {#if room.numMembers > 0}
+                                    <p
+                                        class="text-xs text-discord-textMuted opacity-70"
+                                    >
+                                        {room.numMembers} members
+                                    </p>
+                                {/if}
+                            </div>
+
+                            {#if room.isKnocked}
+                                <!-- Pending knock: state chip + cancel on hover -->
+                                <span
+                                    class="flex-shrink-0 text-xs font-semibold text-discord-textMuted group-hover:hidden"
+                                    >Requested</span
+                                >
+                                <button
+                                    onclick={() =>
+                                        handleCancelKnock(room.roomId)}
+                                    disabled={isJoining}
+                                    class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
+                                >
+                                    Cancel request
+                                </button>
+                            {:else}
+                                <!-- Join button -->
+                                <button
+                                    onclick={() => handleJoin(room)}
+                                    disabled={isJoining}
+                                    class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                                >
+                                    {#if isJoining}
+                                        <span class="flex items-center gap-1">
+                                            <span
+                                                class="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin"
+                                            ></span>
+                                        </span>
+                                    {:else}
+                                        Join
+                                    {/if}
+                                </button>
+                            {/if}
                         </div>
-                    {/if}
-                {/each}
+                        {#if knockPromptId === room.roomId && !room.isKnocked}
+                            <div
+                                class="mx-2 mb-1.5 p-2 rounded bg-discord-backgroundTertiary flex flex-col gap-1.5"
+                            >
+                                <p class="text-xs text-discord-textMuted">
+                                    You can't join this room directly - request
+                                    to join instead?
+                                </p>
+                                <input
+                                    bind:value={knockReason}
+                                    placeholder="Reason (optional)"
+                                    class="w-full px-2 py-1 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-xs"
+                                />
+                                {#if knockError}
+                                    <p class="text-xs text-discord-danger">
+                                        {knockError}
+                                    </p>
+                                {/if}
+                                <div class="flex justify-end gap-1.5">
+                                    <button
+                                        onclick={() => (knockPromptId = null)}
+                                        class="px-2 py-0.5 text-xs font-medium rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                                        >Not now</button
+                                    >
+                                    <button
+                                        onclick={() => handleKnock(room)}
+                                        disabled={isJoining}
+                                        class="px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60"
+                                        >Request to join</button
+                                    >
+                                </div>
+                            </div>
+                        {/if}
+                    {/each}
+                {/if}
             </div>
         {/if}
 

@@ -137,7 +137,7 @@
             });
         } catch {
             if (isCaptureCurrent(micCapture, ticket))
-                micError = "Microphone unavailable — check browser permissions";
+                micError = "Microphone unavailable - check browser permissions";
             return;
         }
         // A grant that arrives after the tab closed (or after a newer start)
@@ -210,7 +210,7 @@
             });
         } catch {
             if (isCaptureCurrent(cameraCapture, ticket))
-                cameraError = "Camera unavailable — check browser permissions";
+                cameraError = "Camera unavailable - check browser permissions";
             return;
         }
         // Leaving the tab (or clicking Preview twice) used to leave the camera
@@ -316,7 +316,7 @@
         </select>
         {#if inputFallback}
             <p class="text-xs text-discord-warning mt-1">
-                Saved microphone not found — using the default until it returns.
+                Saved microphone not found - using the default until it returns.
             </p>
         {/if}
         {#if micError}
@@ -409,7 +409,7 @@
                 ></div>
             </div>
             <p class="text-xs text-discord-textMuted mt-1">
-                Incoming call audio — if this moves but you hear nothing, check
+                Incoming call audio - if this moves but you hear nothing, check
                 the selected output device and system volume.
             </p>
         {/if}
@@ -631,7 +631,7 @@
                     Ring for incoming DM calls
                 </p>
                 <p class="text-xs text-discord-textMuted mt-0.5">
-                    Direct messages ring. Rooms never do — you join those from
+                    Direct messages ring. Rooms never do - you join those from
                     the room itself.
                 </p>
             </div>

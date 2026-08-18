@@ -434,7 +434,7 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
                     >
-                        Mutual rooms — {mutual.total}
+                        Mutual rooms: {mutual.total}
                     </p>
                     {#each mutual.shown as name (name)}
                         <p class="text-xs text-discord-textSecondary truncate">

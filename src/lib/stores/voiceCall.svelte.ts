@@ -249,7 +249,7 @@ function applyMuteState(next: MuteState, prev: MuteState): void {
         showErrorToast(
             next.micMuted
                 ? "Could not mute your microphone"
-                : "Could not unmute your microphone — check your input device",
+                : "Could not unmute your microphone - check your input device",
         );
     });
 }

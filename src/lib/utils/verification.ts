@@ -63,7 +63,7 @@ export function verificationPhaseLabel(
             // the modal prints its own copy while the user picks a method, so
             // this only reaches the screen when there is nothing to pick (no QR
             // on either side, and the caller starts the emoji check itself).
-            return "Accepted — setting up the check…";
+            return "Accepted - setting up the check…";
         case VerificationPhaseValue.Started:
             // NOT "compare the emoji": a QR flow spends this entire phase
             // waiting for the other side to confirm, with no emoji in

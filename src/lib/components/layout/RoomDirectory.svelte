@@ -242,7 +242,7 @@
                     {:else if entry.joinRule === "knock"}
                         <button
                             disabled
-                            title="This room requires a knock — not supported yet"
+                            title="This room requires a knock - not supported yet"
                             class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary text-discord-textMuted opacity-60 cursor-not-allowed flex-shrink-0"
                             >Knock only</button
                         >

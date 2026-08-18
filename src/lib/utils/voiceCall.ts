@@ -162,12 +162,12 @@ export function callEndedMembershipMessage(
     me: string,
 ): string | null {
     if (membership === "ban")
-        return "You were banned from this room — call ended";
+        return "You were banned from this room - call ended";
     if (membership === "leave") {
         const removedBySelf = !sender || sender === me;
         return removedBySelf
-            ? "You left this room — call ended"
-            : "You were removed from this room — call ended";
+            ? "You left this room - call ended"
+            : "You were removed from this room - call ended";
     }
     return null; // join / invite / knock: no teardown
 }

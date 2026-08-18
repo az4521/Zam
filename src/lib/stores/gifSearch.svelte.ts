@@ -74,7 +74,7 @@ async function run(
         cachedAt = Date.now();
     } catch {
         if (seq !== requestSeq) return;
-        gifSearchState.error = "Couldn't reach KLIPY — try again.";
+        gifSearchState.error = "Couldn't reach KLIPY - try again.";
         if (!append) gifSearchState.items = [];
     } finally {
         if (seq === requestSeq) gifSearchState.loading = false;

@@ -14,7 +14,7 @@ export interface GeoErrorLike {
 }
 
 const HTTPS_HINT =
-    "Location needs a secure (HTTPS) connection — open the app over https.";
+    "Location needs a secure (HTTPS) connection - open the app over https.";
 
 /** Message for a getCurrentPosition/watchPosition error callback. */
 export function geoErrorMessage(
@@ -24,7 +24,7 @@ export function geoErrorMessage(
     switch (err?.code) {
         case 1: // PERMISSION_DENIED
             return secureContext
-                ? "Location permission was denied — check site permissions."
+                ? "Location permission was denied - check site permissions."
                 : HTTPS_HINT;
         case 2: // POSITION_UNAVAILABLE
             return "Your position is unavailable (location off or no GPS fix).";

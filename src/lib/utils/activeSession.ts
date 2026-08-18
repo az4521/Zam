@@ -57,7 +57,7 @@ export const MAX_GRACE_MS = 7_200_000;
 /** The choices offered in Settings. 0 = feature off. Anything else the user
  *  wants goes through the "Custom" input (`parseCustomGraceMinutes`). */
 export const GRACE_OPTIONS: readonly { value: number; label: string }[] = [
-    { value: 0, label: "Off — always notify" },
+    { value: 0, label: "Off - always notify" },
     { value: 15_000, label: "15 seconds" },
     { value: 30_000, label: "30 seconds" },
     { value: 60_000, label: "1 minute" },
@@ -100,7 +100,7 @@ export function parseCustomGraceMinutes(input: string): CustomGraceParse {
     if (ms < MIN_CUSTOM_GRACE_MS)
         return {
             ok: false,
-            error: "Choose at least 1 minute — use the list above for shorter times.",
+            error: "Choose at least 1 minute - use the list above for shorter times.",
         };
     if (ms > MAX_GRACE_MS)
         return {

@@ -1636,7 +1636,7 @@
                 class="absolute top-0 left-0 right-0 z-50 bg-discord-warning/90 text-discord-backgroundTertiary text-sm font-medium text-center py-1.5"
             >
                 {#if auth.syncState === "ERROR"}
-                    Connection error — trying to reconnect…
+                    Connection error - trying to reconnect…
                 {:else if auth.syncState === "RECONNECTING"}
                     Reconnecting…
                 {:else}
@@ -1754,7 +1754,7 @@
                             Nothing in Home
                         </h2>
                         <p class="text-discord-textMuted max-w-sm">
-                            All of your rooms live in spaces — open one to see
+                            All of your rooms live in spaces - open one to see
                             them. Rooms and direct messages outside a space show
                             up here.
                         </p>

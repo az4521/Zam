@@ -46,7 +46,7 @@
             // The sidebar's Browse Channels list owns the knock/request flow —
             // point at it rather than growing a second copy here.
             showErrorToast(
-                `Couldn't join ${child.name || "that channel"}. Try it from Browse Channels in the channel list.`,
+                `Couldn't join ${child.name || "that room"}. Try it from Browse Rooms in the room list.`,
             );
         } finally {
             const next = new Set(joiningIds);
@@ -82,15 +82,15 @@
                 <div
                     class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
                 ></div>
-                <span>Loading channels…</span>
+                <span>Loading rooms…</span>
             </div>
         {:else if joinable.length > 0}
             <div class="max-w-2xl mx-auto">
                 <h2 class="text-2xl font-bold text-discord-textPrimary mb-1">
-                    Browse channels
+                    Browse rooms
                 </h2>
                 <p class="text-discord-textMuted mb-6">
-                    You haven't joined a channel in {spaceName} yet. Pick one to get
+                    You haven't joined a room in {spaceName} yet. Pick one to get
                     started.
                 </p>
                 <ul class="flex flex-col gap-2">
@@ -144,8 +144,8 @@
                     Nothing joined here yet
                 </h2>
                 <p class="text-discord-textMuted max-w-sm">
-                    Only other spaces live inside {spaceName} — open one from the
-                    channel list to browse its channels.
+                    Only other spaces live inside {spaceName}, open one from the
+                    room list to browse its rooms.
                 </p>
             </div>
         {:else}
@@ -153,7 +153,7 @@
                 class="h-full flex flex-col items-center justify-center text-center"
             >
                 <p class="text-discord-textMuted max-w-sm">
-                    There are no channels in {spaceName} yet.
+                    There are no rooms in {spaceName} yet.
                 </p>
             </div>
         {/if}

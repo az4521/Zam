@@ -481,7 +481,7 @@ async function resolveHomeserver(input: string): Promise<string> {
         // Auto-discovery failed but the typed address may still work — use it,
         // and inform the user (spec FAIL_PROMPT).
         showErrorToast(
-            "Server auto-discovery failed — using the address as typed",
+            "Server auto-discovery failed - using the address as typed",
         );
         return withProtocol;
     }
@@ -968,12 +968,12 @@ export async function logout(): Promise<void> {
         // left to render on, and the log survives the reload.
         if (!outcome.localWipeOk) {
             console.warn(
-                "[matrix] logout: clearing local stores failed — this account's cached sync store and its rust-crypto store (message keys) may still be on this device",
+                "[matrix] logout: clearing local stores failed - this account's cached sync store and its rust-crypto store (message keys) may still be on this device",
             );
         }
         if (outcome.invalidationStarted && !outcome.invalidationOk) {
             console.warn(
-                "[matrix] logout: the server did not confirm the sign-out — this session's access token may still be live; it can be revoked from Settings on another session",
+                "[matrix] logout: the server did not confirm the sign-out - this session's access token may still be live; it can be revoked from Settings on another session",
             );
         }
     } else {
@@ -2799,7 +2799,7 @@ export async function deleteOwnDevice(
         if (uia.httpStatus !== 401 || !data.flows) throw e;
         if (!supportsPasswordUia(data.flows)) {
             throw new Error(
-                "This server does not allow signing out sessions with a password — use its account page instead.",
+                "This server does not allow signing out sessions with a password - use its account page instead.",
             );
         }
         if (password === undefined) return "password-required";
@@ -2853,7 +2853,7 @@ async function completeWithPasswordUia(
         if (uia.httpStatus !== 401 || !data.flows) throw serverErrorMessage(e);
         if (!supportsPasswordUia(data.flows)) {
             throw new Error(
-                "This server does not allow confirming this action with a password — use its account page instead.",
+                "This server does not allow confirming this action with a password - use its account page instead.",
             );
         }
         try {
@@ -3305,7 +3305,7 @@ const pushRuleWriteQueue = createSerialQueue({
         console.warn(
             "[push rules] a write has been in flight for",
             PUSH_RULE_QUEUE_TIMEOUT_MS,
-            "ms — letting later writes past it",
+            "ms - letting later writes past it",
         ),
 });
 
@@ -3904,7 +3904,7 @@ export async function reconcileJoinedRoomsLive(): Promise<void> {
             (id) => matrixClient?.getRoom(id)?.getMyMembership() !== "join",
         );
         if (missing.length === 0) return;
-        console.info("In-session sync heal — rooms missing locally:", missing);
+        console.info("In-session sync heal - rooms missing locally:", missing);
         let unhealed = false;
         for (const id of missing) {
             if (!(await healMissingJoinedRoom(id))) unhealed = true;
@@ -7628,7 +7628,7 @@ let audioInputGoneNotified: ActiveVoiceCall | null = null;
 let videoInputGoneNotified: ActiveVoiceCall | null = null;
 
 const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
-    audioinput: "Microphone disconnected — switched to the default device",
+    audioinput: "Microphone disconnected - switched to the default device",
     videoinput: "Camera disconnected",
 };
 
@@ -7922,7 +7922,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         console.error("Voice call membership failed:", err);
         const detail = matrixErrorMessage(
             err,
-            "the server rejected it — you may lack permission to join calls in this room",
+            "the server rejected it - you may lack permission to join calls in this room",
         );
         for (const cb of voiceErrorSubscribers)
             cb(`Call membership failed: ${detail}`);
@@ -8108,7 +8108,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             if (activeVoice !== call || silenceNotified) return;
             silenceNotified = true;
             notifyVoiceNotice(
-                "Your microphone appears silent — check your input device",
+                "Your microphone appears silent - check your input device",
             );
         });
         lkRoom.on(lk.RoomEvent.MediaDevicesError, (e: Error) => {
@@ -8298,7 +8298,7 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         return on;
     } catch (err) {
         console.error("Camera enable failed:", err);
-        notifyVoiceNotice("Could not start the camera — check permissions");
+        notifyVoiceNotice("Could not start the camera - check permissions");
         return false;
     }
 }

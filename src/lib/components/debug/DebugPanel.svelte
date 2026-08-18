@@ -319,7 +319,7 @@
                             <div class="pl-4 text-[11px] text-orange-300">
                                 [{formatTs(e.getTs())}] {e.getType()} from {e
                                     .getSender()
-                                    ?.split(":")[0]} — {msgPreview(
+                                    ?.split(":")[0]} - {msgPreview(
                                     e.getContent(),
                                 )}
                             </div>
@@ -472,7 +472,7 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#0d1a0d] border-b border-[#333] text-green-400 font-bold"
                     >
-                        STORE MESSAGES ({filteredMessages.length}) — what the UI
+                        STORE MESSAGES ({filteredMessages.length}) - what the UI
                         renders
                     </div>
                     {#each filteredMessages as e, i}

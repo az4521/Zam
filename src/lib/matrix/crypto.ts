@@ -840,7 +840,7 @@ function createVerificationController(
                 qrBytes = bytes ?? null;
                 qrError = bytes
                     ? null
-                    : "No code available — the other side can't scan one.";
+                    : "No code available - the other side can't scan one.";
             } catch (e) {
                 qrBytes = null;
                 qrError = verificationFailureText(
@@ -1214,7 +1214,7 @@ function makeUiaPasswordCallback(
             if (uia.httpStatus !== 401 || !data.flows) throw e;
             if (!supportsPasswordUia(data.flows)) {
                 throw new Error(
-                    "This server can't confirm encryption setup with a password — use its account page instead.",
+                    "This server can't confirm encryption setup with a password - use its account page instead.",
                 );
             }
             const auth: AuthDict = {

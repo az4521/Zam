@@ -306,7 +306,7 @@
                         onclick={() => openViewer(media)}
                         class="relative aspect-square rounded overflow-hidden bg-discord-background hover:opacity-80 transition-opacity"
                         title={media.kind === "video"
-                            ? `${media.name} — play`
+                            ? `${media.name} - play`
                             : media.name}
                     >
                         {#if thumb}
