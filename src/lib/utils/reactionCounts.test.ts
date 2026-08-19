@@ -21,7 +21,13 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 3, isMine: false, myEventId: null },
+            {
+                key: "👍",
+                count: 3,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@a:hs", "@b:hs", "@c:hs"],
+            },
         ]);
     });
 
@@ -35,7 +41,13 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 2, isMine: false, myEventId: null },
+            {
+                key: "👍",
+                count: 2,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@a:hs", "@b:hs"],
+            },
         ]);
     });
 
@@ -48,8 +60,20 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 1, isMine: false, myEventId: null },
-            { key: "🎉", count: 1, isMine: false, myEventId: null },
+            {
+                key: "👍",
+                count: 1,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@a:hs"],
+            },
+            {
+                key: "🎉",
+                count: 1,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@a:hs"],
+            },
         ]);
     });
 
@@ -62,7 +86,13 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 2, isMine: true, myEventId: "$mine" },
+            {
+                key: "👍",
+                count: 2,
+                isMine: true,
+                myEventId: "$mine",
+                reactorIds: ["@b:hs", "@me:hs"],
+            },
         ]);
     });
 
@@ -72,7 +102,13 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 1, isMine: true, myEventId: null },
+            {
+                key: "👍",
+                count: 1,
+                isMine: true,
+                myEventId: null,
+                reactorIds: ["@me:hs"],
+            },
         ]);
     });
 
@@ -87,7 +123,13 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
         // count is 1 (deduped) but the reaction is still mine, and myEventId
         // reflects the latest confirmed own annotation just as before.
         expect(out).toEqual([
-            { key: "👍", count: 1, isMine: true, myEventId: "$dupe" },
+            {
+                key: "👍",
+                count: 1,
+                isMine: true,
+                myEventId: "$dupe",
+                reactorIds: ["@me:hs"],
+            },
         ]);
     });
 
@@ -101,7 +143,39 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
             "@me:hs",
         );
         expect(out).toEqual([
-            { key: "👍", count: 1, isMine: false, myEventId: null },
+            {
+                key: "👍",
+                count: 1,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@c:hs"],
+            },
         ]);
+    });
+
+    it("collects deduped non-null reactor ids in first-seen order", () => {
+        const out = countReactions(
+            [
+                ann({ sender: "@a:hs", id: "$1" }),
+                ann({ sender: "@b:hs", id: "$2" }),
+                ann({ sender: "@a:hs", id: "$3" }), // federation dupe of @a
+                ann({ sender: null, id: "$4" }), // unknown sender — counted, not listed
+            ],
+            "@me:hs",
+        );
+        expect(out).toHaveLength(1);
+        expect(out[0].reactorIds).toEqual(["@a:hs", "@b:hs"]);
+    });
+
+    it("omits redacted and empty-key annotations from reactorIds", () => {
+        const out = countReactions(
+            [
+                ann({ sender: "@a:hs", id: "$1", isRedacted: true }),
+                ann({ sender: "@b:hs", id: "$2", key: "" }),
+                ann({ sender: "@c:hs", id: "$3" }),
+            ],
+            "@me:hs",
+        );
+        expect(out[0].reactorIds).toEqual(["@c:hs"]);
     });
 });

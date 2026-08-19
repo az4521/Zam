@@ -5,10 +5,17 @@
         sendReaction,
         removeReaction,
         mxcToHttp,
+        getMemberName,
+        getMemberAvatar,
     } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { renderEmoji, isEmojiOnly } from "$lib/utils/twemoji";
+    import { roomsState } from "$lib/stores/rooms.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
+    import { orderReactors } from "$lib/utils/reactionReactors";
+    import { longPress } from "$lib/actions/longPress";
+    import ReactorPopover from "./ReactorPopover.svelte";
 
     interface Props {
         eventId: string;
@@ -90,6 +97,54 @@
     function emojiHtml(key: string): string {
         return renderEmoji(key, "reaction-twemoji");
     }
+
+    // Which reaction's reactor list is open, and how (hover vs touch sheet).
+    let openKey = $state<string | null>(null);
+    let openTouch = $state(false);
+    let anchorX = $state(0);
+    let anchorY = $state(0);
+
+    function reactorsFor(reactorIds: string[]) {
+        void roomsState.roomsTick; // re-resolve names/avatars as members load
+        const { shown, overflow } = orderReactors(reactorIds, auth.userId);
+        return {
+            reactors: shown.map((userId) => ({
+                userId,
+                name: getMemberName(room, userId),
+                avatarUrl: getMemberAvatar(room, userId),
+            })),
+            overflow,
+        };
+    }
+
+    const active = $derived.by(() => {
+        if (!openKey) return null;
+        const g = visibleReactions.find((r) => r.key === openKey);
+        if (!g) return null;
+        const info = reactorsFor(g.reactorIds);
+        if (info.reactors.length === 0 && info.overflow === 0) return null;
+        return { key: g.key, ...info };
+    });
+
+    function openHover(e: PointerEvent, key: string) {
+        if (e.pointerType !== "mouse") return;
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        anchorX = rect.left + rect.width / 2;
+        anchorY = rect.top;
+        openTouch = false;
+        openKey = key;
+    }
+    function closeHover(key: string) {
+        if (openKey === key && !openTouch) openKey = null;
+    }
+    function openSheet(key: string) {
+        openTouch = true;
+        openKey = key;
+    }
+    function closePopover() {
+        openKey = null;
+        openTouch = false;
+    }
 </script>
 
 {#if visibleReactions.length > 0}
@@ -101,6 +156,9 @@
             <button
                 onclick={() =>
                     toggleReaction(group.key, group.isMine, group.myEventId)}
+                onpointerenter={(e) => openHover(e, group.key)}
+                onpointerleave={() => closeHover(group.key)}
+                use:longPress={{ onTrigger: () => openSheet(group.key) }}
                 class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
                 class:bg-discord-accent={group.isMine}
                 class:border-discord-accent={group.isMine}
@@ -128,6 +186,17 @@
                 <span>{group.count}</span>
             </button>
         {/each}
+        {#if active}
+            <ReactorPopover
+                reactors={active.reactors}
+                overflow={active.overflow}
+                label={active.key}
+                touch={openTouch}
+                x={anchorX}
+                y={anchorY}
+                onClose={closePopover}
+            />
+        {/if}
     </div>
 {/if}
 

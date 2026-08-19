@@ -20,6 +20,8 @@ export interface ReactionCount {
     count: number;
     isMine: boolean;
     myEventId: string | null;
+    /** Deduped non-null senders for this key, first-seen order. */
+    reactorIds: string[];
 }
 
 /**
@@ -42,7 +44,12 @@ export function countReactions(
 ): ReactionCount[] {
     const groups: Map<
         string,
-        { count: number; isMine: boolean; myEventId: string | null }
+        {
+            count: number;
+            isMine: boolean;
+            myEventId: string | null;
+            reactorIds: string[];
+        }
     > = new Map();
     const seen = new Set<string>();
 
@@ -57,21 +64,27 @@ export function countReactions(
             count: 0,
             isMine: false,
             myEventId: null,
+            reactorIds: [],
         };
         const isOwn = e.sender === ownUserId;
         groups.set(key, {
             count: counted ? existing.count : existing.count + 1,
             isMine: existing.isMine || isOwn,
             myEventId: isOwn && !e.status ? (e.id ?? null) : existing.myEventId,
+            reactorIds:
+                !counted && e.sender
+                    ? [...existing.reactorIds, e.sender]
+                    : existing.reactorIds,
         });
     }
 
     return Array.from(groups.entries()).map(
-        ([key, { count, isMine, myEventId }]) => ({
+        ([key, { count, isMine, myEventId, reactorIds }]) => ({
             key,
             count,
             isMine,
             myEventId,
+            reactorIds,
         }),
     );
 }
