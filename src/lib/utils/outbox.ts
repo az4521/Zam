@@ -23,7 +23,7 @@ export interface OutboxState {
 // Frozen shared empty state so "no items" reads as a stable reference and a
 // caller can't mutate it. Frozen in separate statements because freezing inline
 // in the type assertion is a type error.
-const frozenItems = Object.freeze([]) as OutboxItem[];
+const frozenItems: readonly OutboxItem[] = Object.freeze([]);
 export const emptyOutbox: OutboxState = Object.freeze({
     items: frozenItems,
 });
