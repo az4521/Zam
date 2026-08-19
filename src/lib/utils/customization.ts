@@ -68,7 +68,7 @@ function themePresetsMap(
         }
     }
 
-    return Object.keys(result).length > 0 ? result : undefined;
+    return result;
 }
 
 /**

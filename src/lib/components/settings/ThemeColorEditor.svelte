@@ -60,6 +60,7 @@
         deleteThemePreset(name);
         if (wasActive) {
             draft = {};
+            presetName = "";
         }
     }
 
@@ -69,14 +70,21 @@
         setActivePreset(name);
     }
 
-    function handleCopyTheme() {
-        navigator.clipboard.writeText(
-            encodeThemePreset({ name: presetName || undefined, colors: draft }),
-        );
-        copied = true;
-        setTimeout(() => {
-            copied = false;
-        }, 2000);
+    async function handleCopyTheme() {
+        try {
+            await navigator.clipboard.writeText(
+                encodeThemePreset({
+                    name: presetName || undefined,
+                    colors: draft,
+                }),
+            );
+            copied = true;
+            setTimeout(() => {
+                copied = false;
+            }, 2000);
+        } catch {
+            // Permission denied or insecure context - do nothing
+        }
     }
 
     function handleImport() {

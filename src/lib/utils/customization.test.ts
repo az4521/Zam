@@ -90,10 +90,10 @@ describe("sanitizeCustomization", () => {
         expect(Object.keys(out)).toEqual(["theme"]);
     });
 
-    it("drops themePresets when result is empty after sanitization", () => {
+    it("returns empty themePresets object when result is empty after sanitization", () => {
         expect(
             sanitizeCustomization({ themePresets: { Empty: { bad: "x" } } }),
-        ).toEqual({});
+        ).toEqual({ themePresets: {} });
     });
 
     it("caps themePresets at 50 entries, keeping the first 50 in iteration order", () => {
