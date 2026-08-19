@@ -70,3 +70,17 @@ describe("sanitizeCustomization", () => {
         );
     });
 });
+
+describe("sanitizeCustomization showMatrixIds", () => {
+    it("keeps a boolean showMatrixIds", () => {
+        expect(sanitizeCustomization({ showMatrixIds: true })).toEqual({
+            showMatrixIds: true,
+        });
+        expect(sanitizeCustomization({ showMatrixIds: false })).toEqual({
+            showMatrixIds: false,
+        });
+    });
+    it("drops a non-boolean showMatrixIds", () => {
+        expect(sanitizeCustomization({ showMatrixIds: "yes" })).toEqual({});
+    });
+});

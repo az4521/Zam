@@ -139,6 +139,10 @@ export const settingsState = $state({
     gifDefaultTab: normalizeGifTab(readString("gifDefaultTab")),
     customDatePattern: readString("customDatePattern") || "yyyy-MM-dd",
     alwaysAbsolute: readBool("alwaysAbsolute", false),
+    /** Show full Matrix ids (@user:server) instead of display names across
+     *  the UI. Default OFF (display names). Rides customization sync so it
+     *  follows the account across devices, like alwaysAbsolute. */
+    showMatrixIds: readBool("showMatrixIds", false),
     ownDoubleTapAction: normalizeDoubleTapAction(
         readAccountString("ownDoubleTapAction"),
         "none",
@@ -269,6 +273,7 @@ export function customizationSnapshot(): ClientCustomization {
         dateStyle: settingsState.dateStyle,
         customDatePattern: settingsState.customDatePattern,
         alwaysAbsolute: settingsState.alwaysAbsolute,
+        showMatrixIds: settingsState.showMatrixIds,
         gifDefaultTab: settingsState.gifDefaultTab,
         keepSidebarOpen: settingsState.keepSidebarOpen,
         ownDoubleTapAction: settingsState.ownDoubleTapAction,
@@ -311,6 +316,10 @@ export function applyCustomization(c: ClientCustomization): void {
     if (c.alwaysAbsolute !== undefined) {
         settingsState.alwaysAbsolute = c.alwaysAbsolute;
         writeBool("alwaysAbsolute", c.alwaysAbsolute);
+    }
+    if (c.showMatrixIds !== undefined) {
+        settingsState.showMatrixIds = c.showMatrixIds;
+        writeBool("showMatrixIds", c.showMatrixIds);
     }
     if (c.gifDefaultTab !== undefined) {
         settingsState.gifDefaultTab = normalizeGifTab(c.gifDefaultTab);
@@ -450,6 +459,12 @@ export function setCustomDatePattern(value: string): void {
 export function setAlwaysAbsolute(value: boolean): void {
     settingsState.alwaysAbsolute = value;
     writeBool("alwaysAbsolute", value);
+    customizationChanged();
+}
+
+export function setShowMatrixIds(value: boolean): void {
+    settingsState.showMatrixIds = value;
+    writeBool("showMatrixIds", value);
     customizationChanged();
 }
 

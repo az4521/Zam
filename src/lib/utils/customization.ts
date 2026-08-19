@@ -16,6 +16,7 @@ export interface ClientCustomization {
     alwaysAbsolute?: boolean;
     gifDefaultTab?: string;
     keepSidebarOpen?: boolean;
+    showMatrixIds?: boolean;
     ownDoubleTapAction?: string;
     otherDoubleTapAction?: string;
     doubleTapReaction?: string;
@@ -56,6 +57,7 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         alwaysAbsolute: bool(r.alwaysAbsolute),
         gifDefaultTab: str(r.gifDefaultTab),
         keepSidebarOpen: bool(r.keepSidebarOpen),
+        showMatrixIds: bool(r.showMatrixIds),
         ownDoubleTapAction: str(r.ownDoubleTapAction),
         otherDoubleTapAction: str(r.otherDoubleTapAction),
         doubleTapReaction: str(r.doubleTapReaction),
