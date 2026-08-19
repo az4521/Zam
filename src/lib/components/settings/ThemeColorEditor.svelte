@@ -8,6 +8,7 @@
         forkActivePreset,
         activeBase,
         getPresetColors,
+        renameCustomPreset,
     } from "$lib/stores/settings.svelte";
     import { applyThemeColors } from "$lib/utils/theme";
     import {
@@ -34,6 +35,8 @@
     let importText = $state("");
     let importError = $state("");
     let copied = $state(false);
+    let renamingName = $state<string | null>(null);
+    let renameValue = $state("");
 
     const activePresetName = $derived(settingsState.activePreset);
     const activeIsBuiltin = $derived(isBuiltinPreset(activePresetName));
@@ -132,6 +135,38 @@
         draft = { ...getPresetColors(copyName) };
     }
 
+    function startRename(name: string) {
+        renamingName = name;
+        renameValue = name;
+    }
+
+    function commitRename() {
+        if (renamingName === null) return;
+        const oldName = renamingName;
+        const newName = renameValue.trim();
+        renamingName = null;
+
+        if (!newName || newName === oldName) {
+            // Empty or unchanged - just cancel
+            return;
+        }
+
+        const success = renameCustomPreset(oldName, newName);
+        if (!success) {
+            // Collision or invalid - keep editing
+            renamingName = oldName;
+        }
+    }
+
+    function cancelRename() {
+        renamingName = null;
+        renameValue = "";
+    }
+
+    function focus(el: HTMLElement) {
+        el.focus();
+    }
+
     onDestroy(() => {
         // Restore active preset's colors on unmount
         const activeColors = getPresetColors(settingsState.activePreset);
@@ -217,39 +252,87 @@
             {#each allPresetNames as name (name)}
                 {@const isBuiltin = isBuiltinPreset(name)}
                 {@const isActive = name === activePresetName}
+                {@const isRenaming = renamingName === name}
                 <div
                     class="flex items-center gap-2 px-3 py-2 rounded {isActive
                         ? 'bg-discord-accent/20 border border-discord-accent'
-                        : 'border border-discord-divider hover:bg-discord-messageHover'} transition-colors cursor-pointer"
-                    onclick={() => selectPreset(name)}
+                        : 'border border-discord-divider hover:bg-discord-messageHover'} transition-colors {isRenaming
+                        ? ''
+                        : 'cursor-pointer'}"
+                    onclick={() => {
+                        if (!isRenaming) selectPreset(name);
+                    }}
                     role="button"
-                    tabindex="0"
+                    tabindex={isRenaming ? -1 : 0}
                     onkeydown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                        if (
+                            !isRenaming &&
+                            (e.key === "Enter" || e.key === " ")
+                        ) {
                             e.preventDefault();
                             selectPreset(name);
                         }
                     }}
                 >
-                    <span class="flex-1 text-sm text-discord-textPrimary"
-                        >{name}</span
-                    >
-                    {#if isBuiltin}
-                        <span
-                            class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
-                            >Default</span
-                        >
-                    {:else}
+                    {#if isRenaming}
+                        <input
+                            type="text"
+                            bind:value={renameValue}
+                            class="flex-1 px-2 py-1 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-accent outline-none"
+                            onblur={commitRename}
+                            onkeydown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    commitRename();
+                                } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    cancelRename();
+                                }
+                            }}
+                            use:focus
+                        />
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                            class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                             onclick={(e) => {
                                 e.stopPropagation();
-                                handleDelete(name);
+                                cancelRename();
                             }}
                         >
-                            Delete
+                            Cancel
                         </button>
+                    {:else}
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{name}</span
+                        >
+                        {#if isBuiltin}
+                            <span
+                                class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                >Default</span
+                            >
+                        {:else}
+                            <button
+                                type="button"
+                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    startRename(name);
+                                }}
+                                title="Rename"
+                            >
+                                ✎
+                            </button>
+                            <button
+                                type="button"
+                                class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(name);
+                                }}
+                            >
+                                Delete
+                            </button>
+                        {/if}
                     {/if}
                 </div>
             {/each}

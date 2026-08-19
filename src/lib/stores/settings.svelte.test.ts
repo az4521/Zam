@@ -12,6 +12,7 @@ import {
     deleteCustomPreset,
     forkActivePreset,
     setTheme,
+    renameCustomPreset,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import * as themeModule from "$lib/utils/theme";
@@ -419,6 +420,87 @@ describe("unified theming (base + overlay)", () => {
         vi.resetModules();
         const fresh = await import("./settings.svelte");
         expect(fresh.settingsState.themePresets.OldPreset).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+    });
+
+    it("renameCustomPreset moves base and colors to the new key", () => {
+        saveCustomPreset("OldName", "light", { accent: "#123456" });
+        const result = renameCustomPreset("OldName", "NewName");
+        expect(result).toBe(true);
+        expect(settingsState.themePresets.NewName).toEqual({
+            base: "light",
+            colors: { accent: "#123456" },
+        });
+        expect(settingsState.themePresets.OldName).toBeUndefined();
+    });
+
+    it("renameCustomPreset updates activePreset when renaming the active preset", () => {
+        saveCustomPreset("Current", "dark", { background: "#111111" });
+        setActivePreset("Current");
+        const result = renameCustomPreset("Current", "Renamed");
+        expect(result).toBe(true);
+        expect(settingsState.activePreset).toBe("Renamed");
+        expect(settingsState.themePresets.Renamed).toEqual({
+            base: "dark",
+            colors: { background: "#111111" },
+        });
+    });
+
+    it("renameCustomPreset returns false for built-in presets", () => {
+        const result = renameCustomPreset("Default Dark", "NewName");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.NewName).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when oldName does not exist", () => {
+        const result = renameCustomPreset("Nonexistent", "NewName");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.NewName).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when newName collides with a built-in", () => {
+        saveCustomPreset("Custom", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Custom", "Default Dark");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+        expect(settingsState.themePresets["Default Dark"]).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when newName collides with another custom preset", () => {
+        saveCustomPreset("First", "dark", { accent: "#111111" });
+        saveCustomPreset("Second", "light", { accent: "#222222" });
+        const result = renameCustomPreset("First", "Second");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.First).toEqual({
+            base: "dark",
+            colors: { accent: "#111111" },
+        });
+        expect(settingsState.themePresets.Second).toEqual({
+            base: "light",
+            colors: { accent: "#222222" },
+        });
+    });
+
+    it("renameCustomPreset returns false when newName is empty after trimming", () => {
+        saveCustomPreset("Custom", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Custom", "   ");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+    });
+
+    it("renameCustomPreset returns true and no-ops when newName equals oldName", () => {
+        saveCustomPreset("Same", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Same", "Same");
+        expect(result).toBe(true);
+        expect(settingsState.themePresets.Same).toEqual({
             base: "dark",
             colors: { accent: "#123456" },
         });

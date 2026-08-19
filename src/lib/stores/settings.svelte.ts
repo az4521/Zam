@@ -888,3 +888,45 @@ export function forkActivePreset(
     const forked = forkFromEdit(sourceBase, editedColors, newName);
     saveCustomPreset(forked.name, forked.preset.base, forked.preset.colors);
 }
+
+/** Rename a custom preset. Returns true on success, false if the rename was rejected.
+ * Refuses built-in presets, empty names, and colliding names (built-in or existing custom).
+ * When renaming the active preset, updates activePreset to the new name. */
+export function renameCustomPreset(oldName: string, newName: string): boolean {
+    // Refuse built-ins
+    if (isBuiltinPreset(oldName)) return false;
+
+    // Refuse if oldName doesn't exist
+    if (!settingsState.themePresets[oldName]) return false;
+
+    // Trim and reject empty
+    const trimmedNew = newName.trim();
+    if (!trimmedNew) return false;
+
+    // No-op if same name
+    if (trimmedNew === oldName) return true;
+
+    // Reject collision with built-in
+    if (isBuiltinPreset(trimmedNew)) return false;
+
+    // Reject collision with existing custom (other than oldName)
+    if (settingsState.themePresets[trimmedNew]) return false;
+
+    // Move the preset
+    const preset = settingsState.themePresets[oldName];
+    const next = { ...settingsState.themePresets };
+    delete next[oldName];
+    next[trimmedNew] = preset;
+    settingsState.themePresets = next;
+    writeString("themePresets", JSON.stringify(next));
+
+    // Update activePreset if renaming the active one
+    if (settingsState.activePreset === oldName) {
+        settingsState.activePreset = trimmedNew;
+        writeString("activePreset", trimmedNew);
+        // No need to re-apply: base and colors haven't changed
+    }
+
+    customizationChanged();
+    return true;
+}
