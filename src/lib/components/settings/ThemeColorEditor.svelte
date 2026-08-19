@@ -271,6 +271,12 @@
                     role="button"
                     tabindex={isRenaming ? -1 : 0}
                     onkeydown={(e) => {
+                        // Enter/Space only activates when the ROW is focused. Keys
+                        // typed in the rename input (a descendant) bubble here after
+                        // commitRename has cleared the renaming flag, which would
+                        // otherwise select the preset — ignore those.
+                        if ((e.target as HTMLElement).closest("input, button"))
+                            return;
                         if (
                             !isRenaming &&
                             (e.key === "Enter" || e.key === " ")
