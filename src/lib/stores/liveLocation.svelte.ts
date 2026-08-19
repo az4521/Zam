@@ -10,6 +10,7 @@ import {
     onSyncReconnected,
 } from "$lib/matrix/client";
 import { shouldSendUpdate } from "$lib/utils/liveLocation";
+import { planWatchRestart } from "$lib/utils/geoWatchRetry";
 import {
     geoErrorMessage,
     geolocationUnavailableMessage,
@@ -51,6 +52,17 @@ const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
  *  its hands off. Kept out of ShareState: it is bookkeeping, not view data. */
 const stopAttempts = new Map<string, object>();
 let watchId: number | null = null;
+
+/** Watch-drop recovery (audit LOC-01). A long-running `watchPosition` that
+ *  starts erroring persistently has dropped and will not recover on its own; we
+ *  tear it down and stand a fresh one up on a bounded, backed-off, capped
+ *  schedule. `geoConsecutiveErrors` counts transient errors since the last good
+ *  fix (or the last restart); `geoRestartAttempts` counts restarts since the
+ *  last good fix (drives the backoff and the give-up cap). All module scope like
+ *  `watchId`, and reset together by resetWatchRetry(). */
+let geoConsecutiveErrors = 0;
+let geoRestartAttempts = 0;
+let watchRestartTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Which login session owns this module's state. Everything here is module
  *  scope, so it survives a logout: AppShell unmounts and remounts against the
@@ -127,7 +139,60 @@ function clearWatchIfIdle() {
     if (watchId !== null && !hasActiveBroadcast()) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
+        // No watch to nurse any more — cancel a pending restart so it can't
+        // fire against a share that has since been stopped.
+        resetWatchRetry();
     }
+}
+
+/** Forget every accumulated watch error and cancel a pending restart. Called
+ *  when a good fix proves the watch healthy, when the watch is torn down, and
+ *  at a session boundary. */
+function resetWatchRetry() {
+    if (watchRestartTimer !== null) {
+        clearTimeout(watchRestartTimer);
+        watchRestartTimer = null;
+    }
+    geoConsecutiveErrors = 0;
+    geoRestartAttempts = 0;
+}
+
+/** Tear the current watch down and stand a fresh one up. A dropped watch never
+ *  recovers on its own; re-registering is the recovery. No-op-safe when no
+ *  watch is installed. */
+function restartWatch() {
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    ensureWatch();
+}
+
+/**
+ * A transient watch error just arrived. A single blip is routine, but a run of
+ * them with no good fix means the watch has dropped — schedule a bounded,
+ * backed-off restart. One restart is pending at a time (a burst of errors does
+ * not stack timers); planWatchRestart returns null below the drop threshold and
+ * once the attempt cap is reached, so a healthy blip and a dead-signal device
+ * are both left alone rather than hammered.
+ */
+function noteWatchError() {
+    if (watchRestartTimer !== null) return; // one restart pending per burst
+    if (!hasActiveBroadcast()) return; // nothing left to keep alive
+    const delay = planWatchRestart(geoConsecutiveErrors, geoRestartAttempts);
+    if (delay === null) return;
+    // The share may be stopped, or the session handed over, before this fires.
+    const epoch = sessionEpoch;
+    watchRestartTimer = setTimeout(() => {
+        watchRestartTimer = null;
+        if (!ownsSession(epoch, sessionEpoch)) return;
+        if (!hasActiveBroadcast()) return;
+        // The fresh watch starts clean; a further drop must re-earn its errors
+        // (and pays the next, longer, backoff off the incremented count).
+        geoConsecutiveErrors = 0;
+        geoRestartAttempts++;
+        restartWatch();
+    }, delay);
 }
 
 /**
@@ -170,6 +235,10 @@ function dropShare(roomId: string) {
 }
 
 function onPosition(pos: GeolocationPosition) {
+    // A real fix means the watch is healthy again: forget any accumulated
+    // errors and cancel a pending restart so a recovered watch is never torn
+    // down under it.
+    resetWatchRetry();
     const now = Date.now();
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
@@ -214,9 +283,15 @@ function onGeoError(err: GeolocationPositionError) {
     // (no fix / timeout) are routine — Android Chrome emits sporadic
     // POSITION_UNAVAILABLE blips even with GPS on, and a stationary device
     // may not re-fire the watch for a long time. The banner's "last updated
-    // at …" label makes staleness visible without a scary error state, so
-    // transient errors are deliberately ignored here.
-    if (err?.code !== 1) return;
+    // at …" label makes staleness visible without a scary error state, so a
+    // transient error never ends the share. But a RUN of them with no good fix
+    // means the watch has dropped and will not recover on its own: count them
+    // and let noteWatchError restart the watch on a bounded backoff (LOC-01).
+    if (err?.code !== 1) {
+        geoConsecutiveErrors++;
+        noteWatchError();
+        return;
+    }
     const msg = geoErrorMessage(err, isSecureContext());
     // Silent stops: the revocation is one event with one cause, so it gets one
     // toast. A per-share stop failure is reported by that room's banner.
@@ -526,6 +601,12 @@ function beginSession(): number {
     detachListeners();
     sessionEpoch++;
     stopAttempts.clear();
+    // Watch-retry bookkeeping is per session: the outgoing session's error
+    // tally and any pending restart mean nothing to the account taking over
+    // (its own drops will re-earn a restart). A stale timer would be inert
+    // anyway — its callback bails on the epoch check — but clear it so nothing
+    // lingers past the boundary.
+    resetWatchRetry();
     for (const share of liveLocationState.shares.values()) {
         share.stop = adoptInheritedStop(share.stop);
     }

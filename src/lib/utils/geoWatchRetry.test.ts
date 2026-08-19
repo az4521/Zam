@@ -38,13 +38,19 @@ describe("planWatchRestart", () => {
     it("caps the backoff at the ceiling", () => {
         // A high attempt whose exponential would exceed the ceiling is clamped.
         expect(
-            planWatchRestart(GEO_WATCH_ERROR_THRESHOLD, GEO_WATCH_RETRY_MAX_ATTEMPTS - 1),
+            planWatchRestart(
+                GEO_WATCH_ERROR_THRESHOLD,
+                GEO_WATCH_RETRY_MAX_ATTEMPTS - 1,
+            ),
         ).toBe(GEO_WATCH_RETRY_MAX_MS);
     });
 
     it("gives up (returns null) once the attempt cap is reached", () => {
         expect(
-            planWatchRestart(GEO_WATCH_ERROR_THRESHOLD, GEO_WATCH_RETRY_MAX_ATTEMPTS),
+            planWatchRestart(
+                GEO_WATCH_ERROR_THRESHOLD,
+                GEO_WATCH_RETRY_MAX_ATTEMPTS,
+            ),
         ).toBeNull();
         expect(
             planWatchRestart(
@@ -56,7 +62,9 @@ describe("planWatchRestart", () => {
 
     it("rejects garbage inputs rather than scheduling a bogus restart", () => {
         expect(planWatchRestart(Number.NaN, 0)).toBeNull();
-        expect(planWatchRestart(GEO_WATCH_ERROR_THRESHOLD, Number.NaN)).toBeNull();
+        expect(
+            planWatchRestart(GEO_WATCH_ERROR_THRESHOLD, Number.NaN),
+        ).toBeNull();
         expect(planWatchRestart(Number.POSITIVE_INFINITY, 0)).toBeNull();
         expect(planWatchRestart(GEO_WATCH_ERROR_THRESHOLD, -1)).toBeNull();
     });
@@ -68,7 +76,11 @@ describe("planWatchRestart", () => {
         );
         // Custom base + ceiling.
         expect(
-            planWatchRestart(1, 3, { errorThreshold: 1, baseMs: 1000, maxMs: 5000 }),
+            planWatchRestart(1, 3, {
+                errorThreshold: 1,
+                baseMs: 1000,
+                maxMs: 5000,
+            }),
         ).toBe(5000); // 1000 * 2^3 = 8000, clamped to 5000
         // Custom cap.
         expect(
@@ -79,7 +91,9 @@ describe("planWatchRestart", () => {
     it("exports sane defaults", () => {
         expect(GEO_WATCH_ERROR_THRESHOLD).toBeGreaterThanOrEqual(1);
         expect(GEO_WATCH_RETRY_BASE_MS).toBeGreaterThan(0);
-        expect(GEO_WATCH_RETRY_MAX_MS).toBeGreaterThanOrEqual(GEO_WATCH_RETRY_BASE_MS);
+        expect(GEO_WATCH_RETRY_MAX_MS).toBeGreaterThanOrEqual(
+            GEO_WATCH_RETRY_BASE_MS,
+        );
         expect(GEO_WATCH_RETRY_MAX_ATTEMPTS).toBeGreaterThanOrEqual(1);
     });
 });
