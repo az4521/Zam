@@ -17,7 +17,15 @@ export type ThemeTokenKey =
     | "textMuted"
     | "danger"
     | "positive"
-    | "mention";
+    | "mention"
+    | "link"
+    | "warning"
+    | "online"
+    | "idle"
+    | "dnd"
+    | "offline"
+    | "divider"
+    | "spoilerBackground";
 
 export type ThemeColors = Partial<Record<ThemeTokenKey, string>>;
 
@@ -100,6 +108,54 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
         hexVars: [],
         rgbVars: ["--discord-mention-highlight-rgb"],
     },
+    {
+        key: "link",
+        label: "Link",
+        hexVars: ["--discord-link"],
+        rgbVars: ["--discord-link-rgb"],
+    },
+    {
+        key: "warning",
+        label: "Warning",
+        hexVars: ["--discord-warning"],
+        rgbVars: ["--discord-warning-rgb"],
+    },
+    {
+        key: "online",
+        label: "Online status",
+        hexVars: ["--discord-online"],
+        rgbVars: [],
+    },
+    {
+        key: "idle",
+        label: "Idle status",
+        hexVars: ["--discord-idle"],
+        rgbVars: [],
+    },
+    {
+        key: "dnd",
+        label: "Do not disturb status",
+        hexVars: ["--discord-dnd"],
+        rgbVars: [],
+    },
+    {
+        key: "offline",
+        label: "Offline status",
+        hexVars: ["--discord-offline"],
+        rgbVars: [],
+    },
+    {
+        key: "divider",
+        label: "Divider",
+        hexVars: ["--discord-divider"],
+        rgbVars: [],
+    },
+    {
+        key: "spoilerBackground",
+        label: "Spoiler background",
+        hexVars: ["--discord-spoiler-bg"],
+        rgbVars: [],
+    },
 ];
 
 /**
@@ -124,6 +180,14 @@ export const DEFAULT_THEME_COLORS = {
         danger: "#d83c3f",
         positive: "#23a559",
         mention: "#7289da",
+        link: "#8fa1e2",
+        warning: "#faa61a",
+        online: "#3ba55c",
+        idle: "#faa61a",
+        dnd: "#ed4245",
+        offline: "#747f8d",
+        divider: "#41444e",
+        spoilerBackground: "#1e1f22",
     },
     light: {
         accent: "#5865c7",
@@ -136,6 +200,34 @@ export const DEFAULT_THEME_COLORS = {
         danger: "#d83c3e",
         positive: "#1f7a43",
         mention: "#5865c7",
+        link: "#4d5bc1",
+        warning: "#a86600",
+        online: "#248046",
+        idle: "#b87900",
+        dnd: "#d83c3e",
+        offline: "#80848e",
+        divider: "#d4d7dc",
+        spoilerBackground: "#c9ccd1",
+    },
+    amoled: {
+        accent: "#5865f2",
+        background: "#000000",
+        backgroundSecondary: "#000000",
+        backgroundTertiary: "#000000",
+        textPrimary: "#dcddde",
+        textSecondary: "#babec4",
+        textMuted: "#a4a7ae",
+        danger: "#d83c3f",
+        positive: "#23a559",
+        mention: "#7289da",
+        link: "#8fa1e2",
+        warning: "#faa61a",
+        online: "#3ba55c",
+        idle: "#faa61a",
+        dnd: "#ed4245",
+        offline: "#747f8d",
+        divider: "#23262c",
+        spoilerBackground: "#000000",
     },
 } as const;
 
@@ -211,10 +303,10 @@ export function themeColorsToCssVars(
 
 /**
  * Resolve effective theme colors by overlaying partial overrides on a base theme.
- * Returns a complete map with all 10 tokens.
+ * Returns a complete map with all 18 tokens.
  */
 export function resolveEffectiveColors(
-    base: "dark" | "light",
+    base: "dark" | "light" | "amoled",
     overrides: ThemeColors,
 ): Record<ThemeTokenKey, string> {
     return { ...DEFAULT_THEME_COLORS[base], ...sanitizeThemeColors(overrides) };
