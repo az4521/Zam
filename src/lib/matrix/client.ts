@@ -94,6 +94,7 @@ import {
 import { parseMarkdown } from "$lib/utils/markdown";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
+import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
@@ -2937,7 +2938,19 @@ export function getRoomDisplayName(room: Room): string {
 }
 
 export function getMemberName(room: Room, userId: string): string {
-    return room.getMember(userId)?.name || userId;
+    return resolveDisplayName(
+        { userId, displayName: room.getMember(userId)?.name },
+        { preferId: settingsState.showMatrixIds },
+    );
+}
+
+/** Like getMemberName but for a RoomMember already in hand (member lists,
+ *  profile card). Honors the Show Matrix IDs setting. */
+export function memberDisplayName(member: RoomMember): string {
+    return resolveDisplayName(
+        { userId: member.userId, displayName: member.name },
+        { preferId: settingsState.showMatrixIds },
+    );
 }
 
 export function getMemberAvatar(room: Room, userId: string): string | null {
