@@ -40,6 +40,7 @@
         setGifDefaultTab,
         setLinkPreviewMedia,
         setShowReadReceiptAvatars,
+        setShowMatrixIds,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
@@ -374,6 +375,22 @@
         >
             Messages
         </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">Show Matrix IDs</p>
+                <p class="text-xs text-discord-textMuted">
+                    Show full Matrix ids like @user:server instead of display
+                    names throughout the app.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.showMatrixIds}
+                onChange={setShowMatrixIds}
+                label="Show Matrix IDs"
+            />
+        </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
