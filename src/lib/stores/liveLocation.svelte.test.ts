@@ -61,6 +61,12 @@ import {
     STOP_FAILED_MESSAGE,
     STOP_WATCHDOG_MS,
 } from "$lib/utils/liveShareStop";
+import {
+    GEO_WATCH_ERROR_THRESHOLD,
+    GEO_WATCH_RETRY_BASE_MS,
+    GEO_WATCH_RETRY_MAX_MS,
+    GEO_WATCH_RETRY_MAX_ATTEMPTS,
+} from "$lib/utils/geoWatchRetry";
 
 const ROOM = "!r:server";
 
@@ -1240,5 +1246,131 @@ describe("live-location own-share engine", () => {
         expect(unsubs[0]).toHaveBeenCalledTimes(1);
         expect(unsubs[1]).toHaveBeenCalledTimes(1);
         expect(unsubs[2]).not.toHaveBeenCalled();
+    });
+});
+
+describe("live-location watch-drop recovery (LOC-01)", () => {
+    // Fire a transient (non-permission) watch error the way a struggling GPS
+    // would. code 2 = POSITION_UNAVAILABLE, code 3 = TIMEOUT — both routine
+    // in isolation but a drop when they pile up.
+    function driveErrors(n: number, code = 2) {
+        for (let i = 0; i < n; i++) {
+            geoError?.({ code, PERMISSION_DENIED: 1 });
+        }
+    }
+
+    it("restarts a dropped watch after a run of transient errors", async () => {
+        await startShare(ROOM, 900000);
+        expect(watchPosition).toHaveBeenCalledTimes(1);
+
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+        // Nothing yet — the restart is deferred by the backoff.
+        expect(watchPosition).toHaveBeenCalledTimes(1);
+        expect(clearWatch).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS);
+
+        // The stale watch was torn down and a fresh one stood up.
+        expect(clearWatch).toHaveBeenCalledWith(7);
+        expect(watchPosition).toHaveBeenCalledTimes(2);
+        // The share itself is untouched: no stop, no toast.
+        expect(isSharingLive(ROOM)).toBe(true);
+        expect(h.stopLiveBeacon).not.toHaveBeenCalled();
+        expect(h.showErrorToast).not.toHaveBeenCalled();
+    });
+
+    it("ignores a run of blips below the drop threshold", async () => {
+        await startShare(ROOM, 900000);
+
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD - 1, 3);
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS * 4);
+
+        expect(watchPosition).toHaveBeenCalledTimes(1);
+        expect(clearWatch).not.toHaveBeenCalled();
+    });
+
+    it("cancels a pending restart when a good fix arrives first", async () => {
+        await startShare(ROOM, 900000);
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+
+        // A real fix lands before the backoff elapses.
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS - 1);
+        driveFix(5, 6);
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS * 4);
+
+        // The good fix proved the watch healthy — no restart happened.
+        expect(watchPosition).toHaveBeenCalledTimes(1);
+        expect(clearWatch).not.toHaveBeenCalled();
+    });
+
+    it("backs off further after a fix-less restart, then gives up at the cap", async () => {
+        await startShare(ROOM, 900000);
+
+        // Drive the watch through every allowed restart: a run of errors, then
+        // wait out that attempt's backoff (MAX_MS covers each one).
+        for (
+            let attempt = 0;
+            attempt < GEO_WATCH_RETRY_MAX_ATTEMPTS;
+            attempt++
+        ) {
+            driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+            await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_MAX_MS);
+        }
+        // The initial watch plus one restart per allowed attempt.
+        expect(watchPosition).toHaveBeenCalledTimes(
+            GEO_WATCH_RETRY_MAX_ATTEMPTS + 1,
+        );
+
+        // A further run of errors must NOT restart again — the cap is reached,
+        // so a device with no signal is left alone rather than hammered.
+        const calls = watchPosition.mock.calls.length;
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_MAX_MS);
+        expect(watchPosition.mock.calls.length).toBe(calls);
+        // Giving up on restarts does not end the share.
+        expect(isSharingLive(ROOM)).toBe(true);
+    });
+
+    it("re-arms fresh retries once a fix recovers a capped-out watch", async () => {
+        await startShare(ROOM, 900000);
+        for (
+            let attempt = 0;
+            attempt < GEO_WATCH_RETRY_MAX_ATTEMPTS;
+            attempt++
+        ) {
+            driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+            await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_MAX_MS);
+        }
+        const cappedCalls = watchPosition.mock.calls.length;
+
+        // A real fix resets the attempt budget…
+        driveFix(7, 8);
+        // …so a later drop restarts again at the base backoff.
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD);
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS);
+
+        expect(watchPosition.mock.calls.length).toBe(cappedCalls + 1);
+    });
+
+    it("does not restart the watch once the share has stopped", async () => {
+        await startShare(ROOM, 900000);
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD); // restart pending
+
+        await stopShare(ROOM); // clears the watch and any pending restart
+        const calls = watchPosition.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(GEO_WATCH_RETRY_BASE_MS * 4);
+
+        expect(watchPosition.mock.calls.length).toBe(calls);
+    });
+
+    it("leaves no restart timer behind once the watch goes idle", async () => {
+        await startShare(ROOM, 900000);
+        driveErrors(GEO_WATCH_ERROR_THRESHOLD); // arms a restart timer
+
+        await stopShare(ROOM);
+
+        // The pending restart must be cleared with the watch — not left to fire
+        // against a share that no longer exists.
+        expect(vi.getTimerCount()).toBe(0);
     });
 });
