@@ -7,6 +7,7 @@
         getUserPowerLevel,
         loadRoomMembersIfNeeded,
         mxcToHttp,
+        memberDisplayName,
     } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
@@ -132,7 +133,7 @@
                             <p
                                 class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
                             >
-                                {member.name}
+                                {memberDisplayName(member)}
                             </p>
                             <p class="text-xs text-discord-textMuted truncate">
                                 Admin
@@ -174,7 +175,7 @@
                             <p
                                 class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
                             >
-                                {member.name}
+                                {memberDisplayName(member)}
                             </p>
                         </div>
                     </button>
@@ -213,7 +214,7 @@
                             <p
                                 class="text-sm font-medium text-discord-textMuted truncate group-hover:text-discord-textPrimary transition-colors"
                             >
-                                {member.name}
+                                {memberDisplayName(member)}
                             </p>
                         </div>
                     </button>

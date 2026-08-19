@@ -25,6 +25,7 @@
         kickUser,
         banUser,
         getRoom,
+        memberDisplayName,
     } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
@@ -73,7 +74,10 @@
     const member = $derived(
         (void roomsState.roomsTick, userId ? room.getMember(userId) : null),
     );
-    const displayName = $derived(member?.name || userId);
+    const displayName = $derived(
+        (void roomsState.roomsTick,
+        member ? memberDisplayName(member) : userId),
+    );
     const avatarSrc = $derived(
         (void roomsState.roomsTick,
         userId ? getMemberAvatar(room, userId) : null),

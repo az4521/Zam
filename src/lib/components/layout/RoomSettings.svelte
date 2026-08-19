@@ -47,6 +47,7 @@
         upgradeRoomToVersion,
         getRoomVersionCapability,
         type SpaceChildEntry,
+        memberDisplayName,
     } from "$lib/matrix/client";
     import {
         getRestrictedJoinState,
@@ -1670,7 +1671,9 @@
                                                     <p
                                                         class="text-sm font-medium text-discord-textPrimary truncate"
                                                     >
-                                                        {member.name}
+                                                        {memberDisplayName(
+                                                            member,
+                                                        )}
                                                     </p>
                                                     <p
                                                         class="text-xs text-discord-textMuted truncate"
@@ -1736,7 +1739,9 @@
                                                         <p
                                                             class="text-sm font-medium text-discord-textPrimary truncate"
                                                         >
-                                                            {member.name}{isSelf
+                                                            {memberDisplayName(
+                                                                member,
+                                                            )}{isSelf
                                                                 ? " (you)"
                                                                 : ""}
                                                         </p>
