@@ -23,6 +23,10 @@
                         .querySelector('meta[name="theme-color"]')
                         ?.setAttribute("content", color);
                 }
+                var vars = localStorage.getItem("settings:themeVars");
+                if (vars) {
+                    document.documentElement.style.cssText += vars;
+                }
             } catch {}
         </script>
         <link rel="apple-touch-icon" href="%sveltekit.assets%/favicon.png" />

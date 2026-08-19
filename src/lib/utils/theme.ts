@@ -27,6 +27,18 @@ export function applyTheme(theme: Theme): void {
 }
 
 /**
+ * Serialize a ThemeColors map to inline CSS custom property declarations.
+ * Returns a string like "--discord-bg:#000000;--discord-bg-rgb:0 0 0;..."
+ * with the SAME set of vars that applyThemeColors would set on the root element.
+ * Empty/null colors → returns "".
+ */
+export function themeColorsToCssText(colors: ThemeColors | null): string {
+    if (!colors || Object.keys(colors).length === 0) return "";
+    const pairs = themeColorsToCssVars(colors);
+    return pairs.map(([prop, value]) => `${prop}:${value};`).join("");
+}
+
+/**
  * Apply a custom color preset as inline custom properties on the root element,
  * or clear all managed overrides when passed null. Inline styles beat the
  * stylesheet :root blocks, so a preset overrides whichever base theme is active.

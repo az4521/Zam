@@ -11,6 +11,7 @@ import {
     applyTheme,
     applyPreset,
     normalizeTheme,
+    themeColorsToCssText,
     type Theme,
 } from "$lib/utils/theme";
 import {
@@ -335,6 +336,7 @@ const bootColors =
     Object.keys(bootResolved.colors).length === 0 ? null : bootResolved.colors;
 applyPreset(bootBase, bootColors);
 writeString("themeBase", bootBase);
+writeString("themeVars", themeColorsToCssText(bootColors));
 
 /** Returns the colors for the active preset, or null if none is active or it has no overrides. */
 export function activePresetColors(): ThemeColors | null {
@@ -410,6 +412,7 @@ export function applyCustomization(c: ClientCustomization): void {
         writeString("themeBase", resolved.base);
         const colors =
             Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+        writeString("themeVars", themeColorsToCssText(colors));
         applyPreset(resolved.base as Theme, colors);
     }
     if (c.timeClock !== undefined) {
@@ -499,6 +502,7 @@ export function applyCustomization(c: ClientCustomization): void {
         writeString("themeBase", resolved.base);
         const colors =
             Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+        writeString("themeVars", themeColorsToCssText(colors));
         applyPreset(resolved.base as Theme, colors);
     }
 }
@@ -837,6 +841,7 @@ export function setActivePreset(name: string): void {
     writeString("themeBase", resolved.base);
     const colors =
         Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+    writeString("themeVars", themeColorsToCssText(colors));
     applyPreset(resolved.base as Theme, colors);
     customizationChanged();
 }

@@ -4,6 +4,7 @@ import {
     normalizeTheme,
     applyThemeColors,
     applyPreset,
+    themeColorsToCssText,
 } from "./theme";
 
 describe("theme", () => {
@@ -107,5 +108,64 @@ describe("applyPreset", () => {
         expect(
             document.documentElement.style.getPropertyValue("--discord-bg"),
         ).toBe("");
+    });
+});
+
+describe("themeColorsToCssText", () => {
+    it("returns empty string for empty colors object", () => {
+        expect(themeColorsToCssText({})).toBe("");
+    });
+
+    it("returns CSS text with hex and rgb vars for background", () => {
+        const result = themeColorsToCssText({ background: "#010203" });
+        expect(result).toContain("--discord-bg:#010203;");
+        expect(result).toContain("--discord-bg-rgb:1 2 3;");
+    });
+
+    it("returns CSS text for mention (rgb-only token)", () => {
+        const result = themeColorsToCssText({ mention: "#0a0b0c" });
+        expect(result).toContain("--discord-mention-highlight-rgb:10 11 12;");
+        expect(result).not.toContain("--discord-mention:");
+    });
+
+    it("returns CSS text for accent (multiple hex + rgb vars)", () => {
+        const result = themeColorsToCssText({ accent: "#5865f2" });
+        expect(result).toContain("--discord-accent:#5865f2;");
+        expect(result).toContain("--discord-accent-hover:#5865f2;");
+        expect(result).toContain("--discord-accent-fill:#5865f2;");
+        expect(result).toContain("--discord-accent-fill-hover:#5865f2;");
+        expect(result).toContain("--discord-accent-rgb:88 101 242;");
+        expect(result).toContain("--discord-accent-fill-rgb:88 101 242;");
+    });
+
+    it("parity: emits the same vars that applyThemeColors sets", () => {
+        const colors = {
+            accent: "#5865f2",
+            background: "#010203",
+            mention: "#0a0b0c",
+            danger: "#d83c3f",
+        };
+        const cssText = themeColorsToCssText(colors);
+
+        // Apply the colors to the DOM
+        applyThemeColors(colors);
+        const style = document.documentElement.style;
+
+        // Parse cssText to extract all var names
+        const textVars = new Set(
+            Array.from(cssText.matchAll(/--discord-[^:]+/g)).map((m) => m[0]),
+        );
+
+        // Collect all vars that applyThemeColors actually set
+        const appliedVars = new Set<string>();
+        for (let i = 0; i < style.length; i++) {
+            const prop = style.item(i);
+            if (prop.startsWith("--discord-")) {
+                appliedVars.add(prop);
+            }
+        }
+
+        // They should match exactly
+        expect(textVars).toEqual(appliedVars);
     });
 });
