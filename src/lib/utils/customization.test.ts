@@ -70,18 +70,65 @@ describe("sanitizeCustomization", () => {
         );
     });
 
-    it("sanitizes themePresets: drops empty and invalid colors, keeps valid ones", () => {
+    it("sanitizes themePresets with {base,colors}: keeps valid presets", () => {
         expect(
             sanitizeCustomization({
                 themePresets: {
-                    Mine: { accent: "#FFF", bogus: 1 },
-                    Empty: { bad: "x" },
+                    Mine: { base: "dark", colors: { accent: "#FFF" } },
                 },
                 activePreset: "Mine",
             }),
         ).toEqual({
-            themePresets: { Mine: { accent: "#ffffff" } },
+            themePresets: {
+                Mine: { base: "dark", colors: { accent: "#ffffff" } },
+            },
             activePreset: "Mine",
+        });
+    });
+
+    it("sanitizes themePresets: drops presets with invalid base", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Valid: { base: "light", colors: { accent: "#123456" } },
+                    BadBase: { base: "purple", colors: { accent: "#abcdef" } },
+                },
+            }),
+        ).toEqual({
+            themePresets: {
+                Valid: { base: "light", colors: { accent: "#123456" } },
+            },
+        });
+    });
+
+    it("sanitizes themePresets: drops non-object preset values", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Valid: { base: "amoled", colors: {} },
+                    NotObject: "not an object",
+                    AlsoNot: null,
+                },
+            }),
+        ).toEqual({
+            themePresets: { Valid: { base: "amoled", colors: {} } },
+        });
+    });
+
+    it("sanitizes themePresets: cleans colors within each preset", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    A: {
+                        base: "dark",
+                        colors: { accent: "#abc", bogus: "nope" },
+                    },
+                },
+            }),
+        ).toEqual({
+            themePresets: {
+                A: { base: "dark", colors: { accent: "#aabbcc" } },
+            },
         });
     });
 
@@ -97,9 +144,12 @@ describe("sanitizeCustomization", () => {
     });
 
     it("caps themePresets at 50 entries, keeping the first 50 in iteration order", () => {
-        const tooMany: Record<string, Record<string, string>> = {};
+        const tooMany: Record<string, unknown> = {};
         for (let i = 0; i < 60; i++) {
-            tooMany[`preset${i}`] = { accent: "#010203" };
+            tooMany[`preset${i}`] = {
+                base: "dark",
+                colors: { accent: "#010203" },
+            };
         }
         const result = sanitizeCustomization({ themePresets: tooMany });
         expect(Object.keys(result.themePresets ?? {}).length).toBe(50);

@@ -9,6 +9,7 @@
 // where the unions and the defaults are enforced.
 
 import { sanitizeThemeColors } from "./themePalette";
+import { sanitizeCustomPreset, type CustomPreset } from "./themePreset";
 
 export interface ClientCustomization {
     theme?: string;
@@ -22,7 +23,7 @@ export interface ClientCustomization {
     otherDoubleTapAction?: string;
     doubleTapReaction?: string;
     doubleTapReactionBySpace?: Record<string, string>;
-    themePresets?: Record<string, Record<string, string>>;
+    themePresets?: Record<string, CustomPreset>;
     activePreset?: string;
 }
 
@@ -44,27 +45,19 @@ function stringMap(v: unknown): Record<string, string> | undefined {
     );
 }
 
-function themePresetsMap(
-    v: unknown,
-): Record<string, Record<string, string>> | undefined {
+function themePresetsMap(v: unknown): Record<string, CustomPreset> | undefined {
     if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
 
     const entries = Object.entries(v);
-    const result: Record<string, Record<string, string>> = {};
+    const result: Record<string, CustomPreset> = {};
     let count = 0;
 
     for (const [key, value] of entries) {
         if (count >= 50) break;
-        if (
-            typeof value === "object" &&
-            value !== null &&
-            !Array.isArray(value)
-        ) {
-            const sanitized = sanitizeThemeColors(value);
-            if (Object.keys(sanitized).length > 0) {
-                result[key] = sanitized;
-                count++;
-            }
+        const sanitized = sanitizeCustomPreset(value);
+        if (sanitized !== null) {
+            result[key] = sanitized;
+            count++;
         }
     }
 

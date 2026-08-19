@@ -7,7 +7,12 @@
 // sync lands. See stores/customizationSync.svelte for the transport.
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
-import { applyTheme, normalizeTheme, type Theme } from "$lib/utils/theme";
+import {
+    applyTheme,
+    applyPreset,
+    normalizeTheme,
+    type Theme,
+} from "$lib/utils/theme";
 import {
     normalizeTimeClock,
     normalizeDateStyle,
@@ -36,6 +41,16 @@ import { normalizeGraceMs } from "$lib/utils/activeSession";
 import type { ClientCustomization } from "$lib/utils/customization";
 import { applyThemeColors } from "$lib/utils/theme";
 import { sanitizeThemeColors, type ThemeColors } from "$lib/utils/themePalette";
+import {
+    sanitizeCustomPreset,
+    isBuiltinPreset,
+    defaultActivePresetName,
+    resolveActivePreset,
+    forkFromEdit,
+    migrateThemeToPresetName,
+    type CustomPreset,
+    type ThemeBase,
+} from "$lib/utils/themePreset";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -131,15 +146,29 @@ function readReactionOverrides(): Record<string, string> {
     }
 }
 
-function readThemePresets(): Record<string, ThemeColors> {
+function readThemePresets(): Record<string, CustomPreset> {
     try {
         const parsed = JSON.parse(readString("themePresets") ?? "{}");
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
             return {};
-        const result: Record<string, ThemeColors> = {};
+        const result: Record<string, CustomPreset> = {};
         for (const [key, value] of Object.entries(parsed)) {
-            const sanitized = sanitizeThemeColors(value);
-            if (Object.keys(sanitized).length > 0) {
+            // Try new {base, colors} shape first
+            let sanitized = sanitizeCustomPreset(value);
+            // Back-compat: if it looks like old colors-only shape, wrap it
+            if (
+                sanitized === null &&
+                value &&
+                typeof value === "object" &&
+                !Array.isArray(value) &&
+                !(value as any).base
+            ) {
+                const colors = sanitizeThemeColors(value);
+                if (Object.keys(colors).length > 0) {
+                    sanitized = { base: "dark", colors };
+                }
+            }
+            if (sanitized !== null) {
                 result[key] = sanitized;
             }
         }
@@ -149,9 +178,23 @@ function readThemePresets(): Record<string, ThemeColors> {
     }
 }
 
+// Read and migrate legacy theme setting to activePreset
+const legacyTheme = readString("theme");
+const storedActivePreset = readString("activePreset") || "";
+const initialActivePreset =
+    storedActivePreset ||
+    (legacyTheme ? migrateThemeToPresetName(legacyTheme) : "");
+
 export const settingsState = $state({
-    /** Local interface color theme. */
-    theme: normalizeTheme(readString("theme")),
+    /** COMPAT SHIM: Legacy local interface color theme. Now derived from activePreset's base.
+     * Use activeBase for the actual base; this exists for back-compat only. */
+    get theme(): Theme {
+        const resolved = resolveActivePreset(
+            this.activePreset,
+            this.themePresets,
+        );
+        return resolved.base as Theme;
+    },
     /** Timestamp display (device-global, like theme). See utils/timeFormat. */
     timeClock: normalizeTimeClock(readString("timeClock")),
     dateStyle: normalizeDateStyle(readString("dateStyle")),
@@ -264,19 +307,43 @@ export const settingsState = $state({
     /** Theme color presets. */
     themePresets: readThemePresets(),
     /** Active theme preset name. */
-    activePreset: readString("activePreset") || "",
+    activePreset: initialActivePreset,
 });
 
-applyTheme(settingsState.theme);
-applyThemeColors(activePresetColors());
+/** The active base theme (dark/light/amoled), derived from activePreset. */
+export function activeBase(): ThemeBase {
+    return resolveActivePreset(
+        settingsState.activePreset,
+        settingsState.themePresets,
+    ).base;
+}
 
-/** Returns the colors for the active preset, or null if none is active. */
+/** COMPAT SHIM: Get just the colors from a preset by name. Returns empty object if preset not found.
+ * Use this in components that were written for the old colors-only themePresets. */
+export function getPresetColors(name: string): ThemeColors {
+    const preset = settingsState.themePresets[name];
+    return preset?.colors ?? {};
+}
+
+// Boot apply: apply the active preset (base + colors)
+const bootBase = activeBase();
+const bootResolved = resolveActivePreset(
+    settingsState.activePreset,
+    settingsState.themePresets,
+);
+const bootColors =
+    Object.keys(bootResolved.colors).length === 0 ? null : bootResolved.colors;
+applyPreset(bootBase, bootColors);
+writeString("themeBase", bootBase);
+
+/** Returns the colors for the active preset, or null if none is active or it has no overrides. */
 export function activePresetColors(): ThemeColors | null {
     const name = settingsState.activePreset;
     if (!name) return null;
-    const colors = settingsState.themePresets[name];
-    if (!colors || Object.keys(colors).length === 0) return null;
-    return colors;
+    const resolved = resolveActivePreset(name, settingsState.themePresets);
+    if (!resolved.colors || Object.keys(resolved.colors).length === 0)
+        return null;
+    return resolved.colors;
 }
 
 // ── Customization sync ──────────────────────────────────────────────────
@@ -327,10 +394,23 @@ export function customizationSnapshot(): ClientCustomization {
  * fields keep their current value.
  */
 export function applyCustomization(c: ClientCustomization): void {
-    if (c.theme !== undefined) {
-        settingsState.theme = normalizeTheme(c.theme);
-        writeString("theme", settingsState.theme);
-        applyTheme(settingsState.theme);
+    // Legacy theme field: migrate to activePreset if activePreset is not already set
+    if (
+        c.theme !== undefined &&
+        !c.activePreset &&
+        !settingsState.activePreset
+    ) {
+        const migrated = migrateThemeToPresetName(c.theme);
+        settingsState.activePreset = migrated;
+        writeString("activePreset", migrated);
+        const resolved = resolveActivePreset(
+            migrated,
+            settingsState.themePresets,
+        );
+        writeString("themeBase", resolved.base);
+        const colors =
+            Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+        applyPreset(resolved.base as Theme, colors);
     }
     if (c.timeClock !== undefined) {
         settingsState.timeClock = normalizeTimeClock(c.timeClock);
@@ -397,11 +477,13 @@ export function applyCustomization(c: ClientCustomization): void {
         );
     }
     if (c.themePresets !== undefined) {
-        const clean = Object.fromEntries(
-            Object.entries(c.themePresets)
-                .map(([k, v]) => [k, sanitizeThemeColors(v)])
-                .filter(([, v]) => Object.keys(v).length),
-        );
+        const clean: Record<string, CustomPreset> = {};
+        for (const [name, preset] of Object.entries(c.themePresets)) {
+            const sanitized = sanitizeCustomPreset(preset);
+            if (sanitized !== null) {
+                clean[name] = sanitized;
+            }
+        }
         settingsState.themePresets = clean;
         writeString("themePresets", JSON.stringify(clean));
     }
@@ -410,7 +492,14 @@ export function applyCustomization(c: ClientCustomization): void {
         writeString("activePreset", c.activePreset);
     }
     if (c.themePresets !== undefined || c.activePreset !== undefined) {
-        applyThemeColors(activePresetColors());
+        const resolved = resolveActivePreset(
+            settingsState.activePreset,
+            settingsState.themePresets,
+        );
+        writeString("themeBase", resolved.base);
+        const colors =
+            Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+        applyPreset(resolved.base as Theme, colors);
     }
 }
 
@@ -473,11 +562,11 @@ export function reloadAccountSettings(): void {
     );
 }
 
+/** COMPAT SHIM: Legacy theme setter. Now switches to the matching built-in preset.
+ * setTheme("dark") → activate "Default Dark", etc. */
 export function setTheme(value: Theme): void {
-    settingsState.theme = value;
-    writeString("theme", value);
-    applyTheme(value);
-    customizationChanged();
+    const presetName = migrateThemeToPresetName(value);
+    setActivePreset(presetName);
 }
 
 export function setTimeClock(value: TimeClock): void {
@@ -714,12 +803,15 @@ export function setParticipantAudioSetting(
     writeAccountString("participantAudio", serializeAudioMap(map));
 }
 
+/** LEGACY: Save a theme preset (colors-only). Now wraps as {base:"dark", colors}.
+ * Use saveCustomPreset for the new base+colors API. */
 export function saveThemePreset(name: string, colors: ThemeColors): void {
     if (!name) return;
     const clean = sanitizeThemeColors(colors);
+    const preset: CustomPreset = { base: "dark", colors: clean };
     settingsState.themePresets = {
         ...settingsState.themePresets,
-        [name]: clean,
+        [name]: preset,
     };
     writeString("themePresets", JSON.stringify(settingsState.themePresets));
     if (settingsState.activePreset === name) applyThemeColors(clean);
@@ -741,6 +833,58 @@ export function deleteThemePreset(name: string): void {
 export function setActivePreset(name: string): void {
     settingsState.activePreset = name;
     writeString("activePreset", name);
-    applyThemeColors(activePresetColors());
+    const resolved = resolveActivePreset(name, settingsState.themePresets);
+    writeString("themeBase", resolved.base);
+    const colors =
+        Object.keys(resolved.colors).length === 0 ? null : resolved.colors;
+    applyPreset(resolved.base as Theme, colors);
     customizationChanged();
+}
+
+/** Save a custom preset with base and color overrides. Refuses to shadow a built-in name. */
+export function saveCustomPreset(
+    name: string,
+    base: ThemeBase,
+    colors: Partial<Record<string, string>>,
+): void {
+    if (!name) return;
+    if (isBuiltinPreset(name)) {
+        throw new Error(`Cannot save a preset with built-in name: ${name}`);
+    }
+    const clean = sanitizeThemeColors(colors);
+    const preset: CustomPreset = { base, colors: clean };
+    settingsState.themePresets = {
+        ...settingsState.themePresets,
+        [name]: preset,
+    };
+    writeString("themePresets", JSON.stringify(settingsState.themePresets));
+    if (settingsState.activePreset === name) {
+        applyPreset(base as Theme, clean);
+    }
+    customizationChanged();
+}
+
+/** Delete a custom preset. Refuses to delete a built-in. Falls back to Default Dark if deleting the active preset. */
+export function deleteCustomPreset(name: string): void {
+    if (isBuiltinPreset(name)) return; // No-op for built-ins
+    const next = { ...settingsState.themePresets };
+    delete next[name];
+    settingsState.themePresets = next;
+    writeString("themePresets", JSON.stringify(next));
+    if (settingsState.activePreset === name) {
+        setActivePreset(defaultActivePresetName());
+        return; // setActivePreset already notifies + applies
+    }
+    customizationChanged();
+}
+
+/** Fork the active preset with edited colors. Used for edit-a-builtin → fork workflow.
+ * Inherits the active base, dedupes the name if it shadows a built-in, and saves the new preset. */
+export function forkActivePreset(
+    newName: string,
+    editedColors: Partial<Record<string, string>>,
+): void {
+    const sourceBase = activeBase();
+    const forked = forkFromEdit(sourceBase, editedColors, newName);
+    saveCustomPreset(forked.name, forked.preset.base, forked.preset.colors);
 }
