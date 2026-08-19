@@ -69,4 +69,50 @@ describe("sanitizeCustomization", () => {
             JSON.stringify(full),
         );
     });
+
+    it("sanitizes themePresets: drops empty and invalid colors, keeps valid ones", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Mine: { accent: "#FFF", bogus: 1 },
+                    Empty: { bad: "x" },
+                },
+                activePreset: "Mine",
+            }),
+        ).toEqual({
+            themePresets: { Mine: { accent: "#ffffff" } },
+            activePreset: "Mine",
+        });
+    });
+
+    it("drops themePresets and activePreset when absent", () => {
+        const out = sanitizeCustomization({ theme: "dark" });
+        expect(Object.keys(out)).toEqual(["theme"]);
+    });
+
+    it("drops themePresets when result is empty after sanitization", () => {
+        expect(
+            sanitizeCustomization({ themePresets: { Empty: { bad: "x" } } }),
+        ).toEqual({});
+    });
+
+    it("caps themePresets at 50 entries, keeping the first 50 in iteration order", () => {
+        const tooMany: Record<string, Record<string, string>> = {};
+        for (let i = 0; i < 60; i++) {
+            tooMany[`preset${i}`] = { accent: "#010203" };
+        }
+        const result = sanitizeCustomization({ themePresets: tooMany });
+        expect(Object.keys(result.themePresets ?? {}).length).toBe(50);
+        expect(result.themePresets).toHaveProperty("preset0");
+        expect(result.themePresets).toHaveProperty("preset49");
+        expect(result.themePresets).not.toHaveProperty("preset50");
+    });
+
+    it("rejects non-object themePresets", () => {
+        expect(
+            sanitizeCustomization({ themePresets: "not an object" }),
+        ).toEqual({});
+        expect(sanitizeCustomization({ themePresets: null })).toEqual({});
+        expect(sanitizeCustomization({ themePresets: [] })).toEqual({});
+    });
 });

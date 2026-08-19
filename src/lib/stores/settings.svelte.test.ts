@@ -3,6 +3,11 @@ import {
     settingsState,
     setShowReadReceiptAvatars,
     setLinkPreviewMedia,
+    saveThemePreset,
+    deleteThemePreset,
+    setActivePreset,
+    activePresetColors,
+    customizationSnapshot,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 
@@ -213,5 +218,69 @@ describe("encryptNewDms", () => {
         } finally {
             auth.userId = null;
         }
+    });
+});
+
+describe("themePresets", () => {
+    afterEach(() => {
+        settingsState.themePresets = {};
+        settingsState.activePreset = "";
+        localStorage.clear();
+    });
+
+    it("saveThemePreset stores the preset and makes it available", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        expect(settingsState.themePresets.A).toEqual({ accent: "#010203" });
+    });
+
+    it("setActivePreset sets the active preset name", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        expect(settingsState.activePreset).toBe("A");
+    });
+
+    it("activePresetColors returns the colors for the active preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        expect(activePresetColors()).toEqual({ accent: "#010203" });
+    });
+
+    it("activePresetColors returns null when no preset is active", () => {
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("activePresetColors returns null when active preset does not exist", () => {
+        setActivePreset("nonexistent");
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("customizationSnapshot includes themePresets and activePreset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        const snap = customizationSnapshot();
+        expect(snap.themePresets).toEqual({ A: { accent: "#010203" } });
+        expect(snap.activePreset).toBe("A");
+    });
+
+    it("deleteThemePreset removes the preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        deleteThemePreset("A");
+        expect(settingsState.themePresets.A).toBeUndefined();
+    });
+
+    it("deleteThemePreset clears active when deleting the active preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        deleteThemePreset("A");
+        expect(settingsState.activePreset).toBe("");
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("deleteThemePreset does not clear active when deleting a different preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        saveThemePreset("B", { accent: "#040506" });
+        setActivePreset("A");
+        deleteThemePreset("B");
+        expect(settingsState.activePreset).toBe("A");
     });
 });

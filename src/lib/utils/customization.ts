@@ -8,6 +8,8 @@
 // runs each field through its usual normalize* helper on the way in, which is
 // where the unions and the defaults are enforced.
 
+import { sanitizeThemeColors } from "./themePalette";
+
 export interface ClientCustomization {
     theme?: string;
     timeClock?: string;
@@ -20,6 +22,8 @@ export interface ClientCustomization {
     otherDoubleTapAction?: string;
     doubleTapReaction?: string;
     doubleTapReactionBySpace?: Record<string, string>;
+    themePresets?: Record<string, Record<string, string>>;
+    activePreset?: string;
 }
 
 function str(v: unknown): string | undefined {
@@ -38,6 +42,33 @@ function stringMap(v: unknown): Record<string, string> | undefined {
                 typeof e[1] === "string" && e[1].length > 0,
         ),
     );
+}
+
+function themePresetsMap(
+    v: unknown,
+): Record<string, Record<string, string>> | undefined {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+
+    const entries = Object.entries(v);
+    const result: Record<string, Record<string, string>> = {};
+    let count = 0;
+
+    for (const [key, value] of entries) {
+        if (count >= 50) break;
+        if (
+            typeof value === "object" &&
+            value !== null &&
+            !Array.isArray(value)
+        ) {
+            const sanitized = sanitizeThemeColors(value);
+            if (Object.keys(sanitized).length > 0) {
+                result[key] = sanitized;
+                count++;
+            }
+        }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
@@ -60,6 +91,8 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         otherDoubleTapAction: str(r.otherDoubleTapAction),
         doubleTapReaction: str(r.doubleTapReaction),
         doubleTapReactionBySpace: stringMap(r.doubleTapReactionBySpace),
+        themePresets: themePresetsMap(r.themePresets),
+        activePreset: str(r.activePreset),
     };
     // Drop absent keys so an empty payload serializes as {} rather than a
     // wall of undefined, keeping the equality check in the sync layer honest.

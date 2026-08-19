@@ -34,6 +34,8 @@ import {
 } from "$lib/utils/linkPreviewPolicy";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
 import type { ClientCustomization } from "$lib/utils/customization";
+import { applyThemeColors } from "$lib/utils/theme";
+import { sanitizeThemeColors, type ThemeColors } from "$lib/utils/themePalette";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -124,6 +126,24 @@ function readReactionOverrides(): Record<string, string> {
                     typeof entry[1] === "string" && entry[1].length > 0,
             ),
         );
+    } catch {
+        return {};
+    }
+}
+
+function readThemePresets(): Record<string, ThemeColors> {
+    try {
+        const parsed = JSON.parse(readString("themePresets") ?? "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+            return {};
+        const result: Record<string, ThemeColors> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            const sanitized = sanitizeThemeColors(value);
+            if (Object.keys(sanitized).length > 0) {
+                result[key] = sanitized;
+            }
+        }
+        return result;
     } catch {
         return {};
     }
@@ -241,9 +261,23 @@ export const settingsState = $state({
     ringVolume: readAccountNumber("ringVolume", 1),
     /** Per-user call volume/mute, keyed by user id. */
     participantAudio: parseAudioMap(readAccountString("participantAudio")),
+    /** Theme color presets. */
+    themePresets: readThemePresets(),
+    /** Active theme preset name. */
+    activePreset: readString("activePreset") || "",
 });
 
 applyTheme(settingsState.theme);
+applyThemeColors(activePresetColors());
+
+/** Returns the colors for the active preset, or null if none is active. */
+export function activePresetColors(): ThemeColors | null {
+    const name = settingsState.activePreset;
+    if (!name) return null;
+    const colors = settingsState.themePresets[name];
+    if (!colors || Object.keys(colors).length === 0) return null;
+    return colors;
+}
 
 // ── Customization sync ──────────────────────────────────────────────────
 // The transport registers a listener here at app mount. Inverting the
@@ -275,6 +309,13 @@ export function customizationSnapshot(): ClientCustomization {
         otherDoubleTapAction: settingsState.otherDoubleTapAction,
         doubleTapReaction: settingsState.doubleTapReaction,
         doubleTapReactionBySpace: { ...settingsState.doubleTapReactionBySpace },
+        themePresets: Object.fromEntries(
+            Object.entries(settingsState.themePresets).map(([k, v]) => [
+                k,
+                { ...v },
+            ]),
+        ),
+        activePreset: settingsState.activePreset,
     };
 }
 
@@ -354,6 +395,22 @@ export function applyCustomization(c: ClientCustomization): void {
             "doubleTapReactionBySpace",
             JSON.stringify(settingsState.doubleTapReactionBySpace),
         );
+    }
+    if (c.themePresets !== undefined) {
+        const clean = Object.fromEntries(
+            Object.entries(c.themePresets)
+                .map(([k, v]) => [k, sanitizeThemeColors(v)])
+                .filter(([, v]) => Object.keys(v).length),
+        );
+        settingsState.themePresets = clean;
+        writeString("themePresets", JSON.stringify(clean));
+    }
+    if (c.activePreset !== undefined) {
+        settingsState.activePreset = c.activePreset;
+        writeString("activePreset", c.activePreset);
+    }
+    if (c.themePresets !== undefined || c.activePreset !== undefined) {
+        applyThemeColors(activePresetColors());
     }
 }
 
@@ -655,4 +712,35 @@ export function setParticipantAudioSetting(
     map.set(userId, next);
     settingsState.participantAudio = map;
     writeAccountString("participantAudio", serializeAudioMap(map));
+}
+
+export function saveThemePreset(name: string, colors: ThemeColors): void {
+    if (!name) return;
+    const clean = sanitizeThemeColors(colors);
+    settingsState.themePresets = {
+        ...settingsState.themePresets,
+        [name]: clean,
+    };
+    writeString("themePresets", JSON.stringify(settingsState.themePresets));
+    if (settingsState.activePreset === name) applyThemeColors(clean);
+    customizationChanged();
+}
+
+export function deleteThemePreset(name: string): void {
+    const next = { ...settingsState.themePresets };
+    delete next[name];
+    settingsState.themePresets = next;
+    writeString("themePresets", JSON.stringify(next));
+    if (settingsState.activePreset === name) {
+        setActivePreset("");
+        return; // setActivePreset already notifies + applies
+    }
+    customizationChanged();
+}
+
+export function setActivePreset(name: string): void {
+    settingsState.activePreset = name;
+    writeString("activePreset", name);
+    applyThemeColors(activePresetColors());
+    customizationChanged();
 }
