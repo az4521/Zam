@@ -294,7 +294,11 @@
                         <button
                             type="button"
                             class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                            onclick={(e) => {
+                            onpointerdown={(e) => {
+                                // pointerdown fires before the input's blur, and
+                                // preventDefault keeps focus so onblur→commitRename
+                                // never runs — otherwise "Cancel" would save.
+                                e.preventDefault();
                                 e.stopPropagation();
                                 cancelRename();
                             }}
