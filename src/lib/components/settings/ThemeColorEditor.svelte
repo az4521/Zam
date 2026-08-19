@@ -2,10 +2,12 @@
     import { onDestroy } from "svelte";
     import {
         settingsState,
-        saveThemePreset,
-        deleteThemePreset,
         setActivePreset,
-        activePresetColors,
+        saveCustomPreset,
+        deleteCustomPreset,
+        forkActivePreset,
+        activeBase,
+        getPresetColors,
     } from "$lib/stores/settings.svelte";
     import { applyThemeColors } from "$lib/utils/theme";
     import {
@@ -19,63 +21,78 @@
         encodeThemePreset,
         decodeThemePreset,
     } from "$lib/utils/themeShare";
+    import {
+        orderedPresetNames,
+        isBuiltinPreset,
+    } from "$lib/utils/themePreset";
 
-    let draft = $state<ThemeColors>({ ...(activePresetColors() ?? {}) });
-    let presetName = $state(settingsState.activePreset);
+    // Current edit state
+    let draft = $state<ThemeColors>({
+        ...getPresetColors(settingsState.activePreset),
+    });
+    let saveNameInput = $state("");
     let importText = $state("");
     let importError = $state("");
     let copied = $state(false);
 
-    const effective = $derived(
-        resolveEffectiveColors(settingsState.theme, draft),
+    const activePresetName = $derived(settingsState.activePreset);
+    const activeIsBuiltin = $derived(isBuiltinPreset(activePresetName));
+    const allPresetNames = $derived(
+        orderedPresetNames(settingsState.themePresets),
     );
+    const currentBase = $derived(activeBase());
+
+    const effective = $derived(resolveEffectiveColors(currentBase, draft));
     const warnings = $derived(paletteContrastWarnings(effective));
 
     function setColor(key: ThemeTokenKey, value: string) {
+        if (activeIsBuiltin) return; // Built-ins are read-only
         draft = { ...draft, [key]: value };
+        // Live-update the active custom preset
+        saveCustomPreset(activePresetName, currentBase, draft);
         applyThemeColors(draft);
     }
 
     function resetColor(key: ThemeTokenKey) {
+        if (activeIsBuiltin) return;
         const updated = { ...draft };
         delete updated[key];
         draft = updated;
+        saveCustomPreset(activePresetName, currentBase, draft);
         applyThemeColors(draft);
     }
 
-    function applyPreset(name: string) {
+    function selectPreset(name: string) {
         setActivePreset(name);
-        if (name === "") {
-            draft = {};
-            presetName = "";
-            applyThemeColors(null);
-        } else {
-            draft = { ...settingsState.themePresets[name] };
-            presetName = name;
-        }
+        draft = { ...getPresetColors(name) };
     }
 
-    function handleDeletePreset(name: string) {
-        const wasActive = settingsState.activePreset === name;
-        deleteThemePreset(name);
-        if (wasActive) {
-            draft = {};
-            presetName = "";
-        }
+    function handleDelete(name: string) {
+        deleteCustomPreset(name);
     }
 
     function handleSave() {
-        const name = presetName.trim();
-        saveThemePreset(name, draft);
-        setActivePreset(name);
+        const name = saveNameInput.trim();
+        if (!name) return;
+        try {
+            saveCustomPreset(name, currentBase, draft);
+            setActivePreset(name);
+            saveNameInput = "";
+        } catch (err) {
+            importError =
+                err instanceof Error ? err.message : "Cannot save preset";
+            setTimeout(() => {
+                importError = "";
+            }, 3000);
+        }
     }
 
-    async function handleCopyTheme() {
+    async function handleCopy() {
         try {
             await navigator.clipboard.writeText(
                 encodeThemePreset({
-                    name: presetName || undefined,
-                    base: settingsState.theme,
+                    name: activePresetName || undefined,
+                    base: currentBase,
                     colors: draft,
                 }),
             );
@@ -93,16 +110,34 @@
         if (p === null) {
             importError = "Not a valid theme code";
         } else {
-            draft = { ...p.colors };
-            presetName = p.name ?? presetName;
-            applyThemeColors(draft);
-            importError = "";
-            importText = "";
+            const importName = p.name || "Imported";
+            try {
+                saveCustomPreset(importName, p.base, p.colors);
+                setActivePreset(importName);
+                draft = { ...p.colors };
+                importError = "";
+                importText = "";
+            } catch (err) {
+                importError =
+                    err instanceof Error ? err.message : "Cannot import preset";
+            }
         }
     }
 
+    function handleDuplicate() {
+        if (!activeIsBuiltin) return;
+        const copyName = `${activePresetName} (Copy)`;
+        forkActivePreset(copyName, draft);
+        setActivePreset(copyName);
+        draft = { ...getPresetColors(copyName) };
+    }
+
     onDestroy(() => {
-        applyThemeColors(activePresetColors());
+        // Restore active preset's colors on unmount
+        const activeColors = getPresetColors(settingsState.activePreset);
+        applyThemeColors(
+            Object.keys(activeColors).length > 0 ? activeColors : null,
+        );
     });
 </script>
 
@@ -113,77 +148,350 @@
         Theme colors
     </p>
 
-    <!-- Preset picker -->
-    <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Presets</p>
-        <div class="flex flex-col gap-1.5">
-            <div class="flex items-center gap-2 py-1.5">
-                <span class="flex-1 text-sm text-discord-textPrimary"
-                    >Default (no custom colors)</span
-                >
+    <!-- Top control row: Save | Import [Copy] -->
+    <div
+        class="flex flex-wrap items-end gap-4 mb-4 pb-4 border-b border-discord-divider"
+    >
+        <!-- Save section -->
+        <div class="flex-1 min-w-[200px]">
+            <label class="text-xs text-discord-textMuted mb-1 block">Save</label
+            >
+            <div class="flex items-center gap-2">
+                <input
+                    type="text"
+                    bind:value={saveNameInput}
+                    placeholder="Preset name"
+                    class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
+                />
                 <button
                     type="button"
-                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 transition-colors"
-                    onclick={() => applyPreset("")}
+                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 transition-colors"
+                    disabled={saveNameInput.trim() === ""}
+                    onclick={handleSave}
                 >
-                    Apply
+                    Save preset
                 </button>
             </div>
-            {#each Object.keys(settingsState.themePresets) as name}
-                <div class="flex items-center gap-2 py-1.5">
+        </div>
+
+        <!-- Import + Copy section -->
+        <div class="flex-1 min-w-[200px]">
+            <label class="text-xs text-discord-textMuted mb-1 block"
+                >Import</label
+            >
+            <div class="flex items-center gap-2">
+                <input
+                    type="text"
+                    bind:value={importText}
+                    placeholder="Paste theme code"
+                    class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border {importError
+                        ? 'border-discord-danger'
+                        : 'border-discord-divider focus:border-discord-accent'} outline-none"
+                />
+                <button
+                    type="button"
+                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 transition-colors"
+                    disabled={importText.trim() === ""}
+                    onclick={handleImport}
+                >
+                    Import
+                </button>
+                <button
+                    type="button"
+                    class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    onclick={handleCopy}
+                    title="Copy current preset to clipboard"
+                >
+                    {copied ? "Copied!" : "Copy"}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {#if importError}
+        <p class="text-xs text-discord-danger mb-3">{importError}</p>
+    {/if}
+
+    <!-- Presets list -->
+    <div class="mb-4">
+        <p class="text-sm text-discord-textPrimary mb-2">Presets</p>
+        <div class="flex flex-col gap-1">
+            {#each allPresetNames as name (name)}
+                {@const isBuiltin = isBuiltinPreset(name)}
+                {@const isActive = name === activePresetName}
+                <div
+                    class="flex items-center gap-2 px-3 py-2 rounded {isActive
+                        ? 'bg-discord-accent/20 border border-discord-accent'
+                        : 'border border-discord-divider hover:bg-discord-messageHover'} transition-colors cursor-pointer"
+                    onclick={() => selectPreset(name)}
+                    role="button"
+                    tabindex="0"
+                    onkeydown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            selectPreset(name);
+                        }
+                    }}
+                >
                     <span class="flex-1 text-sm text-discord-textPrimary"
                         >{name}</span
                     >
-                    <button
-                        type="button"
-                        class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 transition-colors"
-                        onclick={() => applyPreset(name)}
-                    >
-                        Apply
-                    </button>
-                    <button
-                        type="button"
-                        class="px-3 py-1.5 rounded bg-discord-danger text-sm text-white hover:bg-discord-danger/90 transition-colors"
-                        onclick={() => handleDeletePreset(name)}
-                    >
-                        Delete
-                    </button>
+                    {#if isBuiltin}
+                        <span
+                            class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                            >Default</span
+                        >
+                    {:else}
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(name);
+                            }}
+                        >
+                            Delete
+                        </button>
+                    {/if}
                 </div>
             {/each}
         </div>
     </div>
 
-    <!-- Color pickers -->
+    {#if activeIsBuiltin}
+        <div
+            class="mb-4 p-3 rounded bg-discord-backgroundTertiary border border-discord-divider"
+        >
+            <p class="text-sm text-discord-textPrimary mb-2">
+                Built-in presets are read-only. Duplicate to customize:
+            </p>
+            <button
+                type="button"
+                class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 transition-colors"
+                onclick={handleDuplicate}
+            >
+                Duplicate to customize
+            </button>
+        </div>
+    {/if}
+
+    <!-- Color pickers (grouped) -->
     <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Colors</p>
-        <div class="flex flex-col gap-2">
-            {#each THEME_TOKENS as token}
-                <div
-                    class="flex items-center gap-2 py-2 border-b border-discord-divider"
-                >
-                    <span class="flex-1 text-sm text-discord-textPrimary"
-                        >{token.label}</span
+        <p class="text-sm text-discord-textPrimary mb-3">Colors</p>
+
+        <!-- Backgrounds -->
+        <div class="mb-4">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                Backgrounds
+            </p>
+            <div class="flex flex-col gap-2">
+                {#each THEME_TOKENS.filter( (t) => ["background", "backgroundSecondary", "backgroundTertiary"].includes(t.key), ) as token}
+                    <div
+                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
-                    <input
-                        type="color"
-                        value={effective[token.key]}
-                        oninput={(e) =>
-                            setColor(token.key, e.currentTarget.value)}
-                        class="w-10 h-8 rounded cursor-pointer"
-                    />
-                    <span class="text-xs text-discord-textMuted font-mono w-20"
-                        >{effective[token.key]}</span
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{token.label}</span
+                        >
+                        <input
+                            type="color"
+                            value={effective[token.key]}
+                            oninput={(e) =>
+                                setColor(token.key, e.currentTarget.value)}
+                            disabled={activeIsBuiltin}
+                            class="w-10 h-8 rounded {activeIsBuiltin
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer'}"
+                        />
+                        <span
+                            class="text-xs text-discord-textMuted font-mono w-20"
+                            >{effective[token.key]}</span
+                        >
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            onclick={() => resetColor(token.key)}
+                            disabled={activeIsBuiltin}
+                            title="Reset to default"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Text -->
+        <div class="mb-4">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                Text
+            </p>
+            <div class="flex flex-col gap-2">
+                {#each THEME_TOKENS.filter( (t) => ["textPrimary", "textSecondary", "textMuted"].includes(t.key), ) as token}
+                    <div
+                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
-                    <button
-                        type="button"
-                        class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                        onclick={() => resetColor(token.key)}
-                        title="Reset to default"
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{token.label}</span
+                        >
+                        <input
+                            type="color"
+                            value={effective[token.key]}
+                            oninput={(e) =>
+                                setColor(token.key, e.currentTarget.value)}
+                            disabled={activeIsBuiltin}
+                            class="w-10 h-8 rounded {activeIsBuiltin
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer'}"
+                        />
+                        <span
+                            class="text-xs text-discord-textMuted font-mono w-20"
+                            >{effective[token.key]}</span
+                        >
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            onclick={() => resetColor(token.key)}
+                            disabled={activeIsBuiltin}
+                            title="Reset to default"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Accents & semantics -->
+        <div class="mb-4">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                Accents & semantics
+            </p>
+            <div class="flex flex-col gap-2">
+                {#each THEME_TOKENS.filter( (t) => ["accent", "link", "danger", "positive", "warning"].includes(t.key), ) as token}
+                    <div
+                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
-                        ✕
-                    </button>
-                </div>
-            {/each}
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{token.label}</span
+                        >
+                        <input
+                            type="color"
+                            value={effective[token.key]}
+                            oninput={(e) =>
+                                setColor(token.key, e.currentTarget.value)}
+                            disabled={activeIsBuiltin}
+                            class="w-10 h-8 rounded {activeIsBuiltin
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer'}"
+                        />
+                        <span
+                            class="text-xs text-discord-textMuted font-mono w-20"
+                            >{effective[token.key]}</span
+                        >
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            onclick={() => resetColor(token.key)}
+                            disabled={activeIsBuiltin}
+                            title="Reset to default"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Presence -->
+        <div class="mb-4">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                Presence
+            </p>
+            <div class="flex flex-col gap-2">
+                {#each THEME_TOKENS.filter( (t) => ["online", "idle", "dnd", "offline"].includes(t.key), ) as token}
+                    <div
+                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                    >
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{token.label}</span
+                        >
+                        <input
+                            type="color"
+                            value={effective[token.key]}
+                            oninput={(e) =>
+                                setColor(token.key, e.currentTarget.value)}
+                            disabled={activeIsBuiltin}
+                            class="w-10 h-8 rounded {activeIsBuiltin
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer'}"
+                        />
+                        <span
+                            class="text-xs text-discord-textMuted font-mono w-20"
+                            >{effective[token.key]}</span
+                        >
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            onclick={() => resetColor(token.key)}
+                            disabled={activeIsBuiltin}
+                            title="Reset to default"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- Details -->
+        <div class="mb-4">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                Details
+            </p>
+            <div class="flex flex-col gap-2">
+                {#each THEME_TOKENS.filter( (t) => ["divider", "mention", "spoilerBackground"].includes(t.key), ) as token}
+                    <div
+                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                    >
+                        <span class="flex-1 text-sm text-discord-textPrimary"
+                            >{token.label}</span
+                        >
+                        <input
+                            type="color"
+                            value={effective[token.key]}
+                            oninput={(e) =>
+                                setColor(token.key, e.currentTarget.value)}
+                            disabled={activeIsBuiltin}
+                            class="w-10 h-8 rounded {activeIsBuiltin
+                                ? 'opacity-60 cursor-not-allowed'
+                                : 'cursor-pointer'}"
+                        />
+                        <span
+                            class="text-xs text-discord-textMuted font-mono w-20"
+                            >{effective[token.key]}</span
+                        >
+                        <button
+                            type="button"
+                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            onclick={() => resetColor(token.key)}
+                            disabled={activeIsBuiltin}
+                            title="Reset to default"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/each}
+            </div>
         </div>
     </div>
 
@@ -202,66 +510,4 @@
             </div>
         </div>
     {/if}
-
-    <!-- Save preset -->
-    <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Save preset</p>
-        <div class="flex items-center gap-2">
-            <input
-                type="text"
-                bind:value={presetName}
-                placeholder="Preset name"
-                class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
-            />
-            <button
-                type="button"
-                class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 disabled:hover:bg-discord-accent transition-colors"
-                disabled={presetName.trim() === "" ||
-                    Object.keys(draft).length === 0}
-                onclick={handleSave}
-            >
-                Save preset
-            </button>
-        </div>
-    </div>
-
-    <!-- Share -->
-    <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Share</p>
-        <button
-            type="button"
-            class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            onclick={handleCopyTheme}
-        >
-            {copied ? "Copied!" : "Copy theme code"}
-        </button>
-    </div>
-
-    <!-- Import -->
-    <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Import</p>
-        <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2">
-                <input
-                    type="text"
-                    bind:value={importText}
-                    placeholder="Paste theme code"
-                    class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border {importError
-                        ? 'border-discord-danger'
-                        : 'border-discord-divider focus:border-discord-accent'} outline-none"
-                />
-                <button
-                    type="button"
-                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 disabled:hover:bg-discord-accent transition-colors"
-                    disabled={importText.trim() === ""}
-                    onclick={handleImport}
-                >
-                    Import
-                </button>
-            </div>
-            {#if importError}
-                <p class="text-xs text-discord-danger">{importError}</p>
-            {/if}
-        </div>
-    </div>
 </div>

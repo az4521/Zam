@@ -33,7 +33,6 @@
         setOtherDoubleTapAction,
         setOwnDoubleTapAction,
         setSpaceDoubleTapReaction,
-        setTheme,
         setTimeClock,
         setDateStyle,
         setCustomDatePattern,
@@ -264,27 +263,6 @@
 </script>
 
 <div class="space-y-6">
-    <section>
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
-        >
-            Theme
-        </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <p class="flex-1 text-sm text-discord-textPrimary">Light theme</p>
-            <ToggleSwitch
-                checked={settingsState.theme === "light"}
-                onChange={(light) => setTheme(light ? "light" : "dark")}
-                label="Light theme"
-                title={settingsState.theme === "light"
-                    ? "Use dark theme"
-                    : "Use light theme"}
-            />
-        </div>
-    </section>
-
     <section>
         <ThemeColorEditor />
     </section>
