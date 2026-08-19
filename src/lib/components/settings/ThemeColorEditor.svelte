@@ -149,11 +149,9 @@
     </p>
 
     <!-- Top control row: Save | Import [Copy] -->
-    <div
-        class="flex flex-wrap items-end gap-4 mb-4 pb-4 border-b border-discord-divider"
-    >
+    <div class="flex flex-col gap-3 mb-4 pb-4 border-b border-discord-divider">
         <!-- Save section -->
-        <div class="flex-1 min-w-[200px]">
+        <div>
             <label class="text-xs text-discord-textMuted mb-1 block">Save</label
             >
             <div class="flex items-center gap-2">
@@ -175,7 +173,7 @@
         </div>
 
         <!-- Import + Copy section -->
-        <div class="flex-1 min-w-[200px]">
+        <div>
             <label class="text-xs text-discord-textMuted mb-1 block"
                 >Import</label
             >
