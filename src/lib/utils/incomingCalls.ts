@@ -7,6 +7,13 @@
  * appears that was not in the previous snapshot. Gating on the membership's
  * own createdTs would compare a server clock against the client's, and the
  * skew between them is unbounded.
+ *
+ * The boot seed (prev === null) is the one exception: with no prior snapshot to
+ * diff, every currently active incoming call counts as an arrival, so entering
+ * the app while a DM call is already waiting rings instead of showing a silent
+ * card. Safe because the snapshot holds only live memberships — the caller sees
+ * expired ones filtered out upstream (getRoomCallMemberships), so a present peer
+ * means "calling right now", not a stale leftover.
  */
 
 /** Room id → membership identities ("userId:deviceId") currently in its call. */
@@ -63,15 +70,17 @@ export function diffIncomingCalls(
         ...incoming.filter((roomId) => !opts.prevRinging.includes(roomId)),
     ];
 
-    // prev === null is the boot seed: a caller already waiting must not sound.
-    const newlyRinging =
-        prev === null
-            ? []
-            : ringing.filter((roomId) => {
-                  if (opts.prevRinging.includes(roomId)) return false;
-                  const before = new Set(peers(prev.get(roomId)));
-                  return peers(next.get(roomId)).some((id) => !before.has(id));
-              });
+    // A room newly rings when a caller appears in it. On the boot seed
+    // (prev === null) there is no prior snapshot to diff, so every currently
+    // active incoming call counts as an arrival: entering the app while a DM
+    // call is already waiting must ring, not sit as a silent card. `busy` and
+    // the single-ring/blip rule below still apply.
+    const newlyRinging = ringing.filter((roomId) => {
+        if (opts.prevRinging.includes(roomId)) return false;
+        if (prev === null) return true;
+        const before = new Set(peers(prev.get(roomId)));
+        return peers(next.get(roomId)).some((id) => !before.has(id));
+    });
 
     // At most one ringtone ever sounds. A second arrival — whether because a
     // call is live or because someone else already owns the ringer — is the

@@ -20,15 +20,64 @@ const opts = (over: Partial<Parameters<typeof diffIncomingCalls>[2]> = {}) => ({
 });
 
 describe("diffIncomingCalls", () => {
-    it("stays silent on the boot seed but still surfaces the card", () => {
+    it("rings on the boot seed for an already-active call (catch-up on entry)", () => {
         const r = diffIncomingCalls(
             null,
             snap({ [DM]: [`${THEM}:AAA`] }),
             opts(),
         );
         expect(r.ringing).toEqual([DM]);
+        expect(r.startRing).toBe(DM);
+        expect(r.blip).toBe(false);
+    });
+
+    it("stays quiet on the boot seed when no call is active", () => {
+        const r = diffIncomingCalls(null, snap({ [DM]: [] }), opts());
+        expect(r.ringing).toEqual([]);
         expect(r.startRing).toBeNull();
         expect(r.blip).toBe(false);
+    });
+
+    it("blips instead of ringing on the boot seed while busy", () => {
+        const r = diffIncomingCalls(
+            null,
+            snap({ [DM]: [`${THEM}:AAA`] }),
+            opts({ busy: true }),
+        );
+        expect(r.startRing).toBeNull();
+        expect(r.blip).toBe(true);
+        expect(r.ringing).toEqual([DM]);
+    });
+
+    it("does not ring on the boot seed for a call declined earlier", () => {
+        const r = diffIncomingCalls(
+            null,
+            snap({ [DM]: [`${THEM}:AAA`] }),
+            opts({ declined: new Set([DM]) }),
+        );
+        expect(r.ringing).toEqual([]);
+        expect(r.startRing).toBeNull();
+    });
+
+    it("never rings on the boot seed for your own membership (another device)", () => {
+        const r = diffIncomingCalls(
+            null,
+            snap({ [DM]: [`${ME}:OTHERDEVICE`] }),
+            opts(),
+        );
+        expect(r.ringing).toEqual([]);
+        expect(r.startRing).toBeNull();
+    });
+
+    it("rings once and blips for two calls already active on the boot seed", () => {
+        const r = diffIncomingCalls(
+            null,
+            snap({ [DM]: [`${THEM}:AAA`], [DM2]: [`${THEM}:CCC`] }),
+            opts(),
+        );
+        expect(r.startRing).toBe(DM);
+        expect(r.blip).toBe(true);
+        expect(r.ringing).toEqual([DM, DM2]);
     });
 
     it("rings when a caller newly appears", () => {

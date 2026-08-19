@@ -119,11 +119,11 @@ export function initIncomingCalls(): () => void {
     let unsubSessions: (() => void) | null = null;
     const start = () => {
         if (unsubSessions) return; // idempotent: PREPARED can re-fire
-        // Seed silently: prev === null here, so a caller already waiting when we
-        // boot gets a card but no ringtone. This is why the mount-time sweep is
-        // gone rather than kept alongside — sweeping at mount would leave prev as
-        // an empty Map (non-null!), and this sweep would then read an
-        // already-in-progress call as an arrival and RING.
+        // The seed sweep (prev === null) rings for a call already waiting when
+        // we arrive — that is the "catch up on entry" case (see diffIncomingCalls).
+        // It runs at most once per mount (guarded above), so it cannot re-ring on
+        // a reconnect: reconnects re-fire onVoiceSessionsChanged with a non-null
+        // prev, which rings only on a genuine new arrival.
         sweep();
         unsubSessions = onVoiceSessionsChanged(sweep);
     };
