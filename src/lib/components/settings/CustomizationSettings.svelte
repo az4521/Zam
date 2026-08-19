@@ -2,6 +2,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import ThemeColorEditor from "$lib/components/settings/ThemeColorEditor.svelte";
     import {
         getRoomDisplayName,
         mxcToHttp,
@@ -282,6 +283,10 @@
                     : "Use light theme"}
             />
         </div>
+    </section>
+
+    <section>
+        <ThemeColorEditor />
     </section>
 
     <section>
