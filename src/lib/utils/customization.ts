@@ -8,6 +8,9 @@
 // runs each field through its usual normalize* helper on the way in, which is
 // where the unions and the defaults are enforced.
 
+import { sanitizeThemeColors } from "./themePalette";
+import { sanitizeCustomPreset, type CustomPreset } from "./themePreset";
+
 export interface ClientCustomization {
     theme?: string;
     timeClock?: string;
@@ -20,6 +23,8 @@ export interface ClientCustomization {
     otherDoubleTapAction?: string;
     doubleTapReaction?: string;
     doubleTapReactionBySpace?: Record<string, string>;
+    themePresets?: Record<string, CustomPreset>;
+    activePreset?: string;
 }
 
 function str(v: unknown): string | undefined {
@@ -38,6 +43,25 @@ function stringMap(v: unknown): Record<string, string> | undefined {
                 typeof e[1] === "string" && e[1].length > 0,
         ),
     );
+}
+
+function themePresetsMap(v: unknown): Record<string, CustomPreset> | undefined {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+
+    const entries = Object.entries(v);
+    const result: Record<string, CustomPreset> = {};
+    let count = 0;
+
+    for (const [key, value] of entries) {
+        if (count >= 50) break;
+        const sanitized = sanitizeCustomPreset(value);
+        if (sanitized !== null) {
+            result[key] = sanitized;
+            count++;
+        }
+    }
+
+    return result;
 }
 
 /**
@@ -60,6 +84,8 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         otherDoubleTapAction: str(r.otherDoubleTapAction),
         doubleTapReaction: str(r.doubleTapReaction),
         doubleTapReactionBySpace: stringMap(r.doubleTapReactionBySpace),
+        themePresets: themePresetsMap(r.themePresets),
+        activePreset: str(r.activePreset),
     };
     // Drop absent keys so an empty payload serializes as {} rather than a
     // wall of undefined, keeping the equality check in the sync layer honest.

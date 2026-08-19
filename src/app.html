@@ -13,11 +13,19 @@
         <meta name="theme-color" content="#313338" />
         <script>
             try {
-                if (localStorage.getItem("settings:theme") === "light") {
-                    document.documentElement.dataset.theme = "light";
+                var base =
+                    localStorage.getItem("settings:themeBase") ||
+                    localStorage.getItem("settings:theme");
+                if (base === "light" || base === "amoled") {
+                    document.documentElement.dataset.theme = base;
+                    var color = base === "light" ? "#f2f3f5" : "#000000";
                     document
                         .querySelector('meta[name="theme-color"]')
-                        ?.setAttribute("content", "#f2f3f5");
+                        ?.setAttribute("content", color);
+                }
+                var vars = localStorage.getItem("settings:themeVars");
+                if (vars) {
+                    document.documentElement.style.cssText += vars;
                 }
             } catch {}
         </script>

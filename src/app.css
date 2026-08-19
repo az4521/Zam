@@ -9,10 +9,10 @@ body {
 
 @keyframes message-highlight-fade {
     0% {
-        background-color: rgb(var(--discord-accent-rgb) / 0.35);
+        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
     }
     70% {
-        background-color: rgb(var(--discord-accent-rgb) / 0.35);
+        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
     }
     100% {
         background-color: transparent;
@@ -64,6 +64,7 @@ body {
     /* RGB channels for opacity modifier support (e.g. bg-discord-accent/30) */
     --discord-accent-rgb: var(--brand-500-rgb);
     --discord-accent-hover-rgb: var(--brand-530-rgb);
+    --discord-mention-highlight-rgb: 114 137 218;
     --discord-danger-rgb: 237 66 69;
     --discord-warning-rgb: 250 166 26;
     --discord-divider: #41444e;
@@ -104,6 +105,8 @@ body {
     --discord-danger-fill-rgb: 216 60 63;
     --discord-danger-fill-hover-rgb: 192 53 55;
     --discord-danger-text-rgb: 255 119 124;
+    --discord-link: #8fa1e2;
+    --discord-link-rgb: 143 161 226;
 
     /* ── Spoiler ─────────────────────────────────────── */
     --discord-spoiler-bg: #1e1f22;
@@ -149,6 +152,7 @@ body {
     --discord-accent-hover: #4752a8;
     --discord-accent-rgb: 88 101 199;
     --discord-accent-hover-rgb: 71 82 168;
+    --discord-mention-highlight-rgb: 88 101 199;
     --discord-divider: #d4d7dc;
 
     --discord-online: #248046;
@@ -183,6 +187,8 @@ body {
     --discord-danger-fill-rgb: 216 60 62;
     --discord-danger-fill-hover-rgb: 185 45 48;
     --discord-danger-text-rgb: 188 52 54;
+    --discord-link: #4d5bc1;
+    --discord-link-rgb: 77 91 193;
 
     --discord-spoiler-bg: #c9ccd1;
     --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
@@ -193,6 +199,28 @@ body {
     --syntax-title: #285db5;
     --syntax-comment: #687078;
     --syntax-variable: #986000;
+}
+
+:root[data-theme="amoled"] {
+    color-scheme: dark;
+
+    /* True-black base surfaces */
+    --discord-bg: #000000;
+    --discord-bg-secondary: #000000;
+    --discord-bg-tertiary: #000000;
+    --discord-bg-dark: #000000;
+    /* Near-black interactive elevations (kept visibly distinct from #000) */
+    --discord-bg-hover: #17191d;
+    --discord-bg-selected: #202329;
+    /* RGB twins MUST match the hex above (Tailwind <alpha-value> support) */
+    --discord-bg-rgb: 0 0 0;
+    --discord-bg-secondary-rgb: 0 0 0;
+
+    /* Divider visible against pure black */
+    --discord-divider: #23262c;
+
+    /* Spoiler cover on true black */
+    --discord-spoiler-bg: #000000;
 }
 
 * {
@@ -306,7 +334,7 @@ body {
    light enough to read as a distinct shade. The underline is the hover
    affordance on its own. */
 .message-body a {
-    color: var(--discord-accent-text);
+    color: var(--discord-link, var(--discord-accent-text));
 }
 .message-body a:hover {
     text-decoration: underline;

@@ -2,6 +2,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import ThemeColorEditor from "$lib/components/settings/ThemeColorEditor.svelte";
     import {
         getRoomDisplayName,
         mxcToHttp,
@@ -32,7 +33,6 @@
         setOtherDoubleTapAction,
         setOwnDoubleTapAction,
         setSpaceDoubleTapReaction,
-        setTheme,
         setTimeClock,
         setDateStyle,
         setCustomDatePattern,
@@ -264,24 +264,7 @@
 
 <div class="space-y-6">
     <section>
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
-        >
-            Theme
-        </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <p class="flex-1 text-sm text-discord-textPrimary">Light theme</p>
-            <ToggleSwitch
-                checked={settingsState.theme === "light"}
-                onChange={(light) => setTheme(light ? "light" : "dark")}
-                label="Light theme"
-                title={settingsState.theme === "light"
-                    ? "Use dark theme"
-                    : "Use light theme"}
-            />
-        </div>
+        <ThemeColorEditor />
     </section>
 
     <section>

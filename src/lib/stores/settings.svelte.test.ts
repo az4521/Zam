@@ -3,8 +3,19 @@ import {
     settingsState,
     setShowReadReceiptAvatars,
     setLinkPreviewMedia,
+    saveThemePreset,
+    deleteThemePreset,
+    setActivePreset,
+    activePresetColors,
+    customizationSnapshot,
+    saveCustomPreset,
+    deleteCustomPreset,
+    forkActivePreset,
+    setTheme,
+    renameCustomPreset,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
+import * as themeModule from "$lib/utils/theme";
 
 const KEY = "settings:showReadReceiptAvatars";
 
@@ -213,5 +224,285 @@ describe("encryptNewDms", () => {
         } finally {
             auth.userId = null;
         }
+    });
+});
+
+describe("themePresets (legacy, pre-unified)", () => {
+    afterEach(() => {
+        settingsState.themePresets = {};
+        settingsState.activePreset = "";
+        localStorage.clear();
+    });
+
+    it("saveThemePreset stores the preset and makes it available", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        // Now wraps as {base, colors}
+        expect(settingsState.themePresets.A).toEqual({
+            base: "dark",
+            colors: { accent: "#010203" },
+        });
+    });
+
+    it("setActivePreset sets the active preset name", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        expect(settingsState.activePreset).toBe("A");
+    });
+
+    it("activePresetColors returns the colors for the active preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        expect(activePresetColors()).toEqual({ accent: "#010203" });
+    });
+
+    it("activePresetColors returns null when no preset is active", () => {
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("activePresetColors returns null when active preset does not exist", () => {
+        setActivePreset("nonexistent");
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("customizationSnapshot includes themePresets and activePreset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        const snap = customizationSnapshot();
+        // Now in {base, colors} format
+        expect(snap.themePresets).toEqual({
+            A: { base: "dark", colors: { accent: "#010203" } },
+        });
+        expect(snap.activePreset).toBe("A");
+    });
+
+    it("deleteThemePreset removes the preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        deleteThemePreset("A");
+        expect(settingsState.themePresets.A).toBeUndefined();
+    });
+
+    it("deleteThemePreset clears active when deleting the active preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        setActivePreset("A");
+        deleteThemePreset("A");
+        expect(settingsState.activePreset).toBe("");
+        expect(activePresetColors()).toBe(null);
+    });
+
+    it("deleteThemePreset does not clear active when deleting a different preset", () => {
+        saveThemePreset("A", { accent: "#010203" });
+        saveThemePreset("B", { accent: "#040506" });
+        setActivePreset("A");
+        deleteThemePreset("B");
+        expect(settingsState.activePreset).toBe("A");
+    });
+});
+
+describe("unified theming (base + overlay)", () => {
+    afterEach(() => {
+        settingsState.themePresets = {};
+        settingsState.activePreset = "";
+        localStorage.clear();
+        vi.restoreAllMocks();
+    });
+
+    it("setActivePreset with a built-in applies its base and writes themeBase", () => {
+        const applyPresetSpy = vi.spyOn(themeModule, "applyPreset");
+        setActivePreset("Default AMOLED");
+        expect(settingsState.activePreset).toBe("Default AMOLED");
+        expect(localStorage.getItem("settings:themeBase")).toBe("amoled");
+        expect(applyPresetSpy).toHaveBeenCalledWith("amoled", null);
+    });
+
+    it("setActivePreset with a custom preset applies its base and colors", () => {
+        const applyPresetSpy = vi.spyOn(themeModule, "applyPreset");
+        saveCustomPreset("MyTheme", "light", { accent: "#123456" });
+        setActivePreset("MyTheme");
+        expect(settingsState.activePreset).toBe("MyTheme");
+        expect(localStorage.getItem("settings:themeBase")).toBe("light");
+        expect(applyPresetSpy).toHaveBeenCalledWith("light", {
+            accent: "#123456",
+        });
+    });
+
+    it("saveCustomPreset stores a preset with base and colors", () => {
+        saveCustomPreset("Custom", "dark", {
+            background: "#111111",
+            accent: "#ff0000",
+        });
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "dark",
+            colors: { background: "#111111", accent: "#ff0000" },
+        });
+    });
+
+    it("saveCustomPreset sanitizes colors", () => {
+        saveCustomPreset("Custom", "light", {
+            accent: "#abc",
+            bogus: "nope",
+        } as any);
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "light",
+            colors: { accent: "#aabbcc" },
+        });
+    });
+
+    it("saveCustomPreset refuses to shadow a built-in name", () => {
+        expect(() => saveCustomPreset("Default Dark", "light", {})).toThrow();
+    });
+
+    it("deleteCustomPreset removes a custom preset", () => {
+        saveCustomPreset("Custom", "dark", { accent: "#123456" });
+        deleteCustomPreset("Custom");
+        expect(settingsState.themePresets.Custom).toBeUndefined();
+    });
+
+    it("deleteCustomPreset refuses to delete a built-in", () => {
+        deleteCustomPreset("Default Dark");
+        // Should be a no-op - just verify it doesn't throw or corrupt state
+        expect(settingsState.activePreset).toBe("");
+    });
+
+    it("deleteCustomPreset resets to Default Dark when deleting the active preset", () => {
+        saveCustomPreset("Custom", "light", { accent: "#abcdef" });
+        setActivePreset("Custom");
+        deleteCustomPreset("Custom");
+        expect(settingsState.activePreset).toBe("Default Dark");
+        expect(settingsState.themePresets.Custom).toBeUndefined();
+    });
+
+    it("forkActivePreset creates a new custom preset from a built-in", () => {
+        setActivePreset("Default Light");
+        forkActivePreset("My Light", { accent: "#fedcba" });
+        expect(settingsState.themePresets["My Light"]).toEqual({
+            base: "light",
+            colors: { accent: "#fedcba" },
+        });
+        // Built-in should remain untouched (it's not stored, just resolved)
+        expect(settingsState.themePresets["Default Light"]).toBeUndefined();
+    });
+
+    it("forkActivePreset dedupes the name if shadowing a built-in", () => {
+        setActivePreset("Default Dark");
+        forkActivePreset("Default Dark", { accent: "#abcdef" });
+        expect(settingsState.themePresets["Default Dark (Copy)"]).toEqual({
+            base: "dark",
+            colors: { accent: "#abcdef" },
+        });
+    });
+
+    it("compat: setTheme(base) switches to the matching built-in preset", () => {
+        setTheme("amoled");
+        expect(settingsState.activePreset).toBe("Default AMOLED");
+    });
+
+    it("compat: settingsState.theme returns the active base", () => {
+        setActivePreset("Default Light");
+        expect(settingsState.theme).toBe("light");
+        saveCustomPreset("MyAmoled", "amoled", { accent: "#abcdef" });
+        setActivePreset("MyAmoled");
+        expect(settingsState.theme).toBe("amoled");
+    });
+
+    it("migration: legacy settings:theme migrates to activePreset on boot", async () => {
+        localStorage.setItem("settings:theme", "light");
+        localStorage.removeItem("settings:activePreset");
+        vi.resetModules();
+        const fresh = await import("./settings.svelte");
+        expect(fresh.settingsState.activePreset).toBe("Default Light");
+    });
+
+    it("readThemePresets back-compat: wraps old colors-only shape as {base:dark, colors}", async () => {
+        localStorage.setItem(
+            "settings:themePresets",
+            JSON.stringify({ OldPreset: { accent: "#123456" } }),
+        );
+        vi.resetModules();
+        const fresh = await import("./settings.svelte");
+        expect(fresh.settingsState.themePresets.OldPreset).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+    });
+
+    it("renameCustomPreset moves base and colors to the new key", () => {
+        saveCustomPreset("OldName", "light", { accent: "#123456" });
+        const result = renameCustomPreset("OldName", "NewName");
+        expect(result).toBe(true);
+        expect(settingsState.themePresets.NewName).toEqual({
+            base: "light",
+            colors: { accent: "#123456" },
+        });
+        expect(settingsState.themePresets.OldName).toBeUndefined();
+    });
+
+    it("renameCustomPreset updates activePreset when renaming the active preset", () => {
+        saveCustomPreset("Current", "dark", { background: "#111111" });
+        setActivePreset("Current");
+        const result = renameCustomPreset("Current", "Renamed");
+        expect(result).toBe(true);
+        expect(settingsState.activePreset).toBe("Renamed");
+        expect(settingsState.themePresets.Renamed).toEqual({
+            base: "dark",
+            colors: { background: "#111111" },
+        });
+    });
+
+    it("renameCustomPreset returns false for built-in presets", () => {
+        const result = renameCustomPreset("Default Dark", "NewName");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.NewName).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when oldName does not exist", () => {
+        const result = renameCustomPreset("Nonexistent", "NewName");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.NewName).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when newName collides with a built-in", () => {
+        saveCustomPreset("Custom", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Custom", "Default Dark");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+        expect(settingsState.themePresets["Default Dark"]).toBeUndefined();
+    });
+
+    it("renameCustomPreset returns false when newName collides with another custom preset", () => {
+        saveCustomPreset("First", "dark", { accent: "#111111" });
+        saveCustomPreset("Second", "light", { accent: "#222222" });
+        const result = renameCustomPreset("First", "Second");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.First).toEqual({
+            base: "dark",
+            colors: { accent: "#111111" },
+        });
+        expect(settingsState.themePresets.Second).toEqual({
+            base: "light",
+            colors: { accent: "#222222" },
+        });
+    });
+
+    it("renameCustomPreset returns false when newName is empty after trimming", () => {
+        saveCustomPreset("Custom", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Custom", "   ");
+        expect(result).toBe(false);
+        expect(settingsState.themePresets.Custom).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
+    });
+
+    it("renameCustomPreset returns true and no-ops when newName equals oldName", () => {
+        saveCustomPreset("Same", "dark", { accent: "#123456" });
+        const result = renameCustomPreset("Same", "Same");
+        expect(result).toBe(true);
+        expect(settingsState.themePresets.Same).toEqual({
+            base: "dark",
+            colors: { accent: "#123456" },
+        });
     });
 });

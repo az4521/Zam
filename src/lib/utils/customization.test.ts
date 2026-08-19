@@ -69,4 +69,100 @@ describe("sanitizeCustomization", () => {
             JSON.stringify(full),
         );
     });
+
+    it("sanitizes themePresets with {base,colors}: keeps valid presets", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Mine: { base: "dark", colors: { accent: "#FFF" } },
+                },
+                activePreset: "Mine",
+            }),
+        ).toEqual({
+            themePresets: {
+                Mine: { base: "dark", colors: { accent: "#ffffff" } },
+            },
+            activePreset: "Mine",
+        });
+    });
+
+    it("sanitizes themePresets: drops presets with invalid base", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Valid: { base: "light", colors: { accent: "#123456" } },
+                    BadBase: { base: "purple", colors: { accent: "#abcdef" } },
+                },
+            }),
+        ).toEqual({
+            themePresets: {
+                Valid: { base: "light", colors: { accent: "#123456" } },
+            },
+        });
+    });
+
+    it("sanitizes themePresets: drops non-object preset values", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    Valid: { base: "amoled", colors: {} },
+                    NotObject: "not an object",
+                    AlsoNot: null,
+                },
+            }),
+        ).toEqual({
+            themePresets: { Valid: { base: "amoled", colors: {} } },
+        });
+    });
+
+    it("sanitizes themePresets: cleans colors within each preset", () => {
+        expect(
+            sanitizeCustomization({
+                themePresets: {
+                    A: {
+                        base: "dark",
+                        colors: { accent: "#abc", bogus: "nope" },
+                    },
+                },
+            }),
+        ).toEqual({
+            themePresets: {
+                A: { base: "dark", colors: { accent: "#aabbcc" } },
+            },
+        });
+    });
+
+    it("drops themePresets and activePreset when absent", () => {
+        const out = sanitizeCustomization({ theme: "dark" });
+        expect(Object.keys(out)).toEqual(["theme"]);
+    });
+
+    it("returns empty themePresets object when result is empty after sanitization", () => {
+        expect(
+            sanitizeCustomization({ themePresets: { Empty: { bad: "x" } } }),
+        ).toEqual({ themePresets: {} });
+    });
+
+    it("caps themePresets at 50 entries, keeping the first 50 in iteration order", () => {
+        const tooMany: Record<string, unknown> = {};
+        for (let i = 0; i < 60; i++) {
+            tooMany[`preset${i}`] = {
+                base: "dark",
+                colors: { accent: "#010203" },
+            };
+        }
+        const result = sanitizeCustomization({ themePresets: tooMany });
+        expect(Object.keys(result.themePresets ?? {}).length).toBe(50);
+        expect(result.themePresets).toHaveProperty("preset0");
+        expect(result.themePresets).toHaveProperty("preset49");
+        expect(result.themePresets).not.toHaveProperty("preset50");
+    });
+
+    it("rejects non-object themePresets", () => {
+        expect(
+            sanitizeCustomization({ themePresets: "not an object" }),
+        ).toEqual({});
+        expect(sanitizeCustomization({ themePresets: null })).toEqual({});
+        expect(sanitizeCustomization({ themePresets: [] })).toEqual({});
+    });
 });
