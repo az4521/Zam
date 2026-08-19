@@ -74,6 +74,7 @@
         closeModal,
         clearModalIfOwner,
         showCallView,
+        openAppSettingsTab,
     } from "$lib/stores/interface.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -86,6 +87,13 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
+    import {
+        verificationStatusState,
+        refreshVerificationStatus,
+        dismissVerificationNudge,
+    } from "$lib/stores/verificationStatus.svelte";
+    import { securityState } from "$lib/stores/security.svelte";
+    import { verificationState } from "$lib/stores/verification.svelte";
 
     interface Props {
         onLogout: () => void;
@@ -129,6 +137,28 @@
             label: presenceLabel(state),
         };
     });
+
+    // Verification status refresh (guarded by tick to avoid re-triggering).
+    let vLoaded = false;
+    let vLastTick = -1;
+    $effect(() => {
+        const tick =
+            securityState.securityTick + verificationState.verificationTick;
+        if (!vLoaded || tick !== vLastTick) {
+            vLoaded = true;
+            vLastTick = tick;
+            refreshVerificationStatus();
+        }
+    });
+
+    // Derive the verification nudge (shown only when actionable and not dismissed).
+    const nudge = $derived(
+        verificationStatusState.view &&
+            verificationStatusState.view.actionable &&
+            !verificationStatusState.nudgeDismissed
+            ? verificationStatusState.view
+            : null,
+    );
 
     // Rooms currently being joined (show spinner)
     let joiningIds = $state(new Set<string>());
@@ -1426,6 +1456,40 @@
     </div>
 
     <VoiceCallPanel />
+
+    {#if nudge}
+        {@const toneClass =
+            nudge.tone === "verified"
+                ? "text-discord-online"
+                : nudge.tone === "warning"
+                  ? "text-discord-warning"
+                  : nudge.tone === "unverified"
+                    ? "text-discord-danger"
+                    : "text-discord-textMuted"}
+        <div
+            class="px-2 py-1.5 flex items-center gap-2 bg-discord-backgroundTertiary border-t border-discord-divider flex-shrink-0"
+        >
+            <div class="w-2 h-2 rounded-full {toneClass} bg-current"></div>
+            <p class="flex-1 text-xs {toneClass} truncate" title={nudge.detail}>
+                {nudge.label}
+            </p>
+            {#if nudge.actionLabel}
+                <button
+                    onclick={() => openAppSettingsTab("security")}
+                    class="px-2 py-0.5 text-xs {toneClass} hover:underline"
+                >
+                    {nudge.actionLabel}
+                </button>
+            {/if}
+            <button
+                onclick={dismissVerificationNudge}
+                aria-label="Dismiss"
+                class="text-discord-textMuted hover:text-discord-textPrimary text-sm"
+            >
+                ×
+            </button>
+        </div>
+    {/if}
 
     <!-- User bar -->
     <div

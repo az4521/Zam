@@ -15,6 +15,8 @@
 // open/close through the helpers below. AppShell.svelte owns the global
 // Escape-key and mobile back-button handling and operates on this store.
 
+import type { SettingsTab } from "../utils/settingsNav";
+
 export type ModalId =
     | "app-settings"
     | "room-settings"
@@ -94,6 +96,10 @@ export const interfaceState = $state({
     /** Room currently shown as a call view instead of its timeline. The app
      *  shell renders CallView when this matches the active room. */
     callViewRoomId: null as string | null,
+    /** Settings tab to drill directly into on next modal open (e.g. verification
+     *  nudge → "security"). Reset on close so the next normal open lands on the
+     *  default tab. */
+    settingsInitialTab: null as SettingsTab | null,
 });
 
 /** Opaque handle for one occupancy of a slot. See `openModal`. */
@@ -286,4 +292,14 @@ export function clearSidebarIfOwner(token: SlotToken): boolean {
     interfaceState.sidebar = null;
     interfaceState.sidebarClose = null;
     return true;
+}
+
+/** Open app settings drilled straight into `tab` (e.g. the verification
+ *  nudge → "security"). Resets the slot on close so the next normal open
+ *  lands on the default tab. */
+export function openAppSettingsTab(tab: SettingsTab): void {
+    interfaceState.settingsInitialTab = tab;
+    openModal("app-settings", () => {
+        interfaceState.settingsInitialTab = null;
+    });
 }
