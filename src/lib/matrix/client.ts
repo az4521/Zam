@@ -2236,27 +2236,33 @@ export async function sendFormattedMessage(
  * Send a fully-built message content object for the offline outbox
  * (stores/outbox). 2-arg sendMessage form ONLY (the 3-arg overload treats a
  * $-prefixed string as a thread id — CLAUDE.md landmine). On failure the SDK
- * has synthesized a NOT_SENT local echo; cancel it so the app-level outbox is
- * the single source of the queued/failed state and the room's SDK send queue
- * is not left blocked by our replayed message.
+ * has synthesized a NOT_SENT local echo; snapshot pending echoes before the
+ * send so we cancel ONLY the echo our own send created — never a concurrent
+ * file/thread/direct send's failed echo (which would make that other message
+ * silently vanish).
  */
 export async function sendOutboxMessage(
     roomId: string,
     content: Record<string, unknown>,
 ): Promise<string> {
     if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    // Snapshot the echoes that already exist so that, on failure, we cancel
+    // ONLY the NOT_SENT echo our own send just created — never a concurrent
+    // file/thread/direct send's failed echo (which would make that other
+    // message silently vanish).
+    const before = new Set(
+        (room?.getPendingEvents() ?? []).map((e) => e.getId()),
+    );
     try {
         const res = await matrixClient.sendMessage(roomId, content as never);
         return res.event_id;
     } catch (err) {
-        const room = matrixClient.getRoom(roomId);
-        const pending = room?.getPendingEvents() ?? [];
-        // The last NOT_SENT echo in the room is the one we just tried to send
-        // (the outbox flushes one message at a time per room, only after being
-        // offline, so there is no earlier in-flight send of ours to confuse it).
+        const pending = matrixClient.getRoom(roomId)?.getPendingEvents() ?? [];
         for (let i = pending.length - 1; i >= 0; i--) {
-            if (pending[i].status === EventStatus.NOT_SENT) {
-                matrixClient.cancelPendingEvent(pending[i]);
+            const ev = pending[i];
+            if (ev.status === EventStatus.NOT_SENT && !before.has(ev.getId())) {
+                matrixClient.cancelPendingEvent(ev);
                 break;
             }
         }

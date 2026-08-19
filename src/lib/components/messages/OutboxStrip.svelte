@@ -43,8 +43,8 @@
                     >{String(item.content.body ?? "")}</span
                 >
 
-                <!-- Actions for failed items -->
-                {#if item.status === "failed"}
+                <!-- Actions for queued and failed items -->
+                {#if item.status === "queued" || item.status === "failed"}
                     <button
                         type="button"
                         onclick={() => retryOutboxItem(roomId, item.id)}

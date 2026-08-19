@@ -40,13 +40,7 @@
         buildFormattedContent,
     } from "$lib/utils/messageContent";
     import { shouldQueueSend } from "$lib/utils/sendGating";
-    import {
-        queueMessage,
-        getOutboxItems,
-        outboxTick,
-        retryOutboxItem,
-        removeOutboxItem,
-    } from "$lib/stores/outbox.svelte";
+    import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
