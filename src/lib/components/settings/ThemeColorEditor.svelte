@@ -47,15 +47,18 @@
         setActivePreset(name);
         if (name === "") {
             draft = {};
+            presetName = "";
             applyThemeColors(null);
         } else {
             draft = { ...settingsState.themePresets[name] };
+            presetName = name;
         }
     }
 
     function handleDeletePreset(name: string) {
+        const wasActive = settingsState.activePreset === name;
         deleteThemePreset(name);
-        if (settingsState.activePreset === name) {
+        if (wasActive) {
             draft = {};
         }
     }
