@@ -19,7 +19,9 @@ describe("updateFaviconBadge", () => {
         updateFaviconBadge = module.updateFaviconBadge;
 
         // Reset DOM: remove any existing favicon links
-        document.head.querySelectorAll("link[rel~='icon']").forEach((el) => el.remove());
+        document.head
+            .querySelectorAll("link[rel~='icon']")
+            .forEach((el) => el.remove());
 
         // Add a fresh favicon link
         const link = document.createElement("link");
@@ -41,22 +43,24 @@ describe("updateFaviconBadge", () => {
             fillText: vi.fn(),
         };
 
-        // @ts-expect-error - mocking for test
-        HTMLCanvasElement.prototype.getContext = function (type) {
+        HTMLCanvasElement.prototype.getContext = function (type: string) {
             if (type === "2d") return mockContext;
             return null;
-        };
+        } as any;
 
         // Mock toDataURL to return a fake data URL
-        toDataURLSpy = vi.fn().mockReturnValue(
-            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-        );
-        // @ts-expect-error - mocking for test
-        HTMLCanvasElement.prototype.toDataURL = toDataURLSpy;
+        toDataURLSpy = vi
+            .fn()
+            .mockReturnValue(
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            );
+        HTMLCanvasElement.prototype.toDataURL = toDataURLSpy as any;
     });
 
     it("restores original favicon when count is 0", async () => {
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
         const originalHref = link.href;
 
         // Set a badge first
@@ -71,7 +75,9 @@ describe("updateFaviconBadge", () => {
     });
 
     it("restores original favicon when count is negative", async () => {
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
         const originalHref = link.href;
 
         await updateFaviconBadge(-1);
@@ -79,7 +85,9 @@ describe("updateFaviconBadge", () => {
     });
 
     it("generates a data URL for counts 1-99", async () => {
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
 
         await updateFaviconBadge(42);
 
@@ -91,7 +99,9 @@ describe("updateFaviconBadge", () => {
         // We can't verify the actual text on the canvas in jsdom, but we can verify:
         // 1. A data URL is generated
         // 2. The function completes without error
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
 
         await updateFaviconBadge(100);
         expect(link.href).toMatch(/^data:image\/png/);
@@ -120,7 +130,9 @@ describe("updateFaviconBadge", () => {
         await Promise.all([promise1, promise2]);
 
         // The link is updated (we can't predict which generation won, but it should be one of them)
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
         expect(link.href).toMatch(/^data:image\/png/);
     });
 
@@ -134,7 +146,9 @@ describe("updateFaviconBadge", () => {
 
         await updateFaviconBadge(7);
 
-        const links = Array.from(document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']"));
+        const links = Array.from(
+            document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']"),
+        );
         expect(links).toHaveLength(2);
 
         // Both should be updated to the same data URL
@@ -145,7 +159,9 @@ describe("updateFaviconBadge", () => {
     });
 
     it("remembers original hrefs across multiple badge updates", async () => {
-        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        const link = document.querySelector(
+            "link[rel~='icon']",
+        ) as HTMLLinkElement;
         const originalHref = link.href;
 
         // Badge on

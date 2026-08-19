@@ -12,7 +12,9 @@ describe("escapeHtml — XSS prevention", () => {
         const malicious = '<script>alert("XSS")</script>';
         const escaped = escapeHtml(malicious);
         expect(escaped).not.toMatch(/<script/i);
-        expect(escaped).toBe("&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;");
+        expect(escaped).toBe(
+            "&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;",
+        );
     });
 
     it("neutralizes event handlers", () => {
@@ -62,7 +64,9 @@ describe("parseMarkdown — inline formatting", () => {
 
     it("renders ***bold italic***", () => {
         const result = parseMarkdown("***bold italic***");
-        expect(result.formattedBody).toBe("<strong><em>bold italic</em></strong>");
+        expect(result.formattedBody).toBe(
+            "<strong><em>bold italic</em></strong>",
+        );
     });
 
     it("renders __underline__", () => {
@@ -77,12 +81,16 @@ describe("parseMarkdown — inline formatting", () => {
 
     it("renders ||spoiler||", () => {
         const result = parseMarkdown("This is a ||spoiler||");
-        expect(result.formattedBody).toBe('This is a <span data-mx-spoiler="">spoiler</span>');
+        expect(result.formattedBody).toBe(
+            'This is a <span data-mx-spoiler="">spoiler</span>',
+        );
     });
 
     it("renders `inline code`", () => {
         const result = parseMarkdown("Use `git commit` to save");
-        expect(result.formattedBody).toBe("Use <code>git commit</code> to save");
+        expect(result.formattedBody).toBe(
+            "Use <code>git commit</code> to save",
+        );
     });
 
     it("preserves formatting markers inside code spans", () => {
@@ -93,25 +101,31 @@ describe("parseMarkdown — inline formatting", () => {
 
     it("auto-links http/https URLs", () => {
         const result = parseMarkdown("Visit https://matrix.org for info");
-        expect(result.formattedBody).toContain('<a href="https://matrix.org">https://matrix.org</a>');
+        expect(result.formattedBody).toContain(
+            '<a href="https://matrix.org">https://matrix.org</a>',
+        );
     });
 
     it("escapes HTML in auto-linked URLs", () => {
-        const result = parseMarkdown('Visit https://example.com?q=<script>');
+        const result = parseMarkdown("Visit https://example.com?q=<script>");
         expect(result.formattedBody).not.toMatch(/<script/);
         expect(result.formattedBody).toContain("&lt;script&gt;");
     });
 
     it("does not format inside URLs", () => {
         const result = parseMarkdown("https://example.com/**path**/file");
-        expect(result.formattedBody).toContain('<a href="https://example.com/**path**/file">');
+        expect(result.formattedBody).toContain(
+            '<a href="https://example.com/**path**/file">',
+        );
         // The link text should also preserve the asterisks
         expect(result.formattedBody).not.toContain("<strong>");
     });
 
     it("preserves emoji shortcodes without formatting their contents", () => {
         const result = parseMarkdown("I love :thumbs_up: and :star-struck:");
-        expect(result.formattedBody).toBe("I love :thumbs_up: and :star-struck:");
+        expect(result.formattedBody).toBe(
+            "I love :thumbs_up: and :star-struck:",
+        );
         // The underscores in shortcodes shouldn't trigger italic
         expect(result.formattedBody).not.toContain("<em>");
     });
@@ -145,7 +159,9 @@ describe("parseMarkdown — block formatting", () => {
 
     it("renders > blockquotes", () => {
         const result = parseMarkdown("> quoted text");
-        expect(result.formattedBody).toBe("<blockquote>quoted text</blockquote>");
+        expect(result.formattedBody).toBe(
+            "<blockquote>quoted text</blockquote>",
+        );
     });
 
     it("handles empty blockquote '>'", () => {
@@ -155,7 +171,9 @@ describe("parseMarkdown — block formatting", () => {
 
     it("renders unordered lists (- prefix)", () => {
         const result = parseMarkdown("- item one\n- item two\n- item three");
-        expect(result.formattedBody).toBe("<ul><li>item one</li><li>item two</li><li>item three</li></ul>");
+        expect(result.formattedBody).toBe(
+            "<ul><li>item one</li><li>item two</li><li>item three</li></ul>",
+        );
     });
 
     it("handles empty list item '-'", () => {
@@ -165,7 +183,9 @@ describe("parseMarkdown — block formatting", () => {
 
     it("renders ordered lists (N. prefix)", () => {
         const result = parseMarkdown("1. first\n2. second\n3. third");
-        expect(result.formattedBody).toBe("<ol><li>first</li><li>second</li><li>third</li></ol>");
+        expect(result.formattedBody).toBe(
+            "<ol><li>first</li><li>second</li><li>third</li></ol>",
+        );
     });
 
     it("renders -# subtext as <small>", () => {
@@ -175,7 +195,9 @@ describe("parseMarkdown — block formatting", () => {
 
     it("renders fenced code blocks ```lang", () => {
         const result = parseMarkdown("```python\nprint('hello')\n```");
-        expect(result.formattedBody).toContain('<pre><code class="language-python">');
+        expect(result.formattedBody).toContain(
+            '<pre><code class="language-python">',
+        );
         // Single quotes are not escaped by escapeHtml (only <, >, &, ")
         expect(result.formattedBody).toContain("print('hello')");
         expect(result.formattedBody).toContain("</code></pre>");
@@ -222,7 +244,7 @@ describe("parseMarkdown — escape-first security invariant", () => {
     it("escapes javascript: URLs before link processing", () => {
         // The markdown parser auto-links http/https URLs only
         // javascript: is not auto-linked, so it remains as safe text
-        const malicious = '**See javascript:alert(1) for more**';
+        const malicious = "**See javascript:alert(1) for more**";
         const result = parseMarkdown(malicious);
 
         // Should not create an executable link (no <a href="javascript:...)
@@ -237,7 +259,9 @@ describe("parseMarkdown — escape-first security invariant", () => {
 
         expect(result.formattedBody).not.toMatch(/<script/);
         // Single quotes are not escaped (only <, >, &, ")
-        expect(result.formattedBody).toBe("<h1>&lt;script&gt;alert('XSS')&lt;/script&gt;</h1>");
+        expect(result.formattedBody).toBe(
+            "<h1>&lt;script&gt;alert('XSS')&lt;/script&gt;</h1>",
+        );
     });
 
     it("prevents HTML injection in blockquotes", () => {
@@ -266,11 +290,15 @@ describe("parseMarkdown — edge cases and combinations", () => {
 
     it("combines inline formatting (bold + italic)", () => {
         const result = parseMarkdown("**bold _and italic_**");
-        expect(result.formattedBody).toContain("<strong>bold <em>and italic</em></strong>");
+        expect(result.formattedBody).toContain(
+            "<strong>bold <em>and italic</em></strong>",
+        );
     });
 
     it("escapes block-level markers with leading backslash", () => {
-        const result = parseMarkdown("\\> not a quote\n\\# not a heading\n\\- not a list");
+        const result = parseMarkdown(
+            "\\> not a quote\n\\# not a heading\n\\- not a list",
+        );
         expect(result.formattedBody).not.toContain("<blockquote>");
         expect(result.formattedBody).not.toContain("<h");
         expect(result.formattedBody).not.toContain("<ul>");
