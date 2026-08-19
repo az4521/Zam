@@ -46,6 +46,7 @@
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
+    import { initOutbox } from "$lib/stores/outbox.svelte";
     import {
         initVoiceCall,
         leaveCall,
@@ -1416,6 +1417,7 @@
         const unsubVoice = initVoiceCall();
         const unsubIncoming = initIncomingCalls();
         const unsubLiveLocation = initLiveLocation();
+        const unsubOutbox = initOutbox();
         const unsubVerification = initVerification();
         const unsubAccountData = onAccountData((type) => {
             if (
@@ -1505,6 +1507,7 @@
             unsubVoice();
             unsubIncoming();
             unsubLiveLocation();
+            unsubOutbox();
             unsubVerification();
             unsubAccountData();
             unsubUpdateWatch();

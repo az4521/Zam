@@ -2234,6 +2234,44 @@ export async function sendFormattedMessage(
 }
 
 /**
+ * Send a fully-built message content object for the offline outbox
+ * (stores/outbox). 2-arg sendMessage form ONLY (the 3-arg overload treats a
+ * $-prefixed string as a thread id — CLAUDE.md landmine). On failure the SDK
+ * has synthesized a NOT_SENT local echo; snapshot pending echoes before the
+ * send so we cancel ONLY the echo our own send created — never a concurrent
+ * file/thread/direct send's failed echo (which would make that other message
+ * silently vanish).
+ */
+export async function sendOutboxMessage(
+    roomId: string,
+    content: Record<string, unknown>,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = matrixClient.getRoom(roomId);
+    // Snapshot the echoes that already exist so that, on failure, we cancel
+    // ONLY the NOT_SENT echo our own send just created — never a concurrent
+    // file/thread/direct send's failed echo (which would make that other
+    // message silently vanish).
+    const before = new Set(
+        (room?.getPendingEvents() ?? []).map((e) => e.getId()),
+    );
+    try {
+        const res = await matrixClient.sendMessage(roomId, content as never);
+        return res.event_id;
+    } catch (err) {
+        const pending = matrixClient.getRoom(roomId)?.getPendingEvents() ?? [];
+        for (let i = pending.length - 1; i >= 0; i--) {
+            const ev = pending[i];
+            if (ev.status === EventStatus.NOT_SENT && !before.has(ev.getId())) {
+                matrixClient.cancelPendingEvent(ev);
+                break;
+            }
+        }
+        throw err;
+    }
+}
+
+/**
  * Send an `m.emote` ("/me") message. Mirrors sendFormattedMessage but with the
  * emote msgtype; formatted_body + m.mentions ride along when present so markdown
  * and mentions still work inside an emote.

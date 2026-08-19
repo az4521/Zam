@@ -34,12 +34,20 @@
     } from "$lib/matrix/client";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
+    import { buildReplyContent } from "$lib/utils/replyContent";
+    import {
+        buildTextContent,
+        buildFormattedContent,
+    } from "$lib/utils/messageContent";
+    import { shouldQueueSend } from "$lib/utils/sendGating";
+    import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
     import {
         interfaceState,
         openModal,
@@ -48,6 +56,7 @@
     } from "$lib/stores/interface.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
+    import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
     import { pickAudioMimeType } from "$lib/utils/voiceMessage";
     import { openCreatePollDialog } from "$lib/stores/pollDialog.svelte";
     import { openShareLocationDialog } from "$lib/stores/locationDialog.svelte";
@@ -1102,6 +1111,46 @@
             clearComposerAfterSend(targetComposerKey, textAtSend);
 
         const sentIds = new Set<string>();
+
+        // Offline: queue the text message in the app-level outbox instead of
+        // letting the SDK create a room-blocking NOT_SENT echo. Non-thread,
+        // no-attachment text/reply only (threads + files keep their existing
+        // paths). The composer was already cleared up front (above), matching a
+        // normal send's UX.
+        if (
+            trimmed &&
+            formatted &&
+            !useCaption &&
+            filesToSend.length === 0 &&
+            !isThread &&
+            shouldQueueSend({
+                syncState: auth.syncState,
+                online: navigator.onLine,
+            })
+        ) {
+            const { html, mentionedUserIds } = formatted;
+            const mentions =
+                mentionedUserIds.length > 0
+                    ? { user_ids: mentionedUserIds }
+                    : undefined;
+            const content: Record<string, unknown> = replyToEvent
+                ? (buildReplyContent({
+                      replyEventId: replyToEvent.getId()!,
+                      text: trimmed,
+                      formattedText: html ?? undefined,
+                      mentions,
+                  }) as unknown as Record<string, unknown>)
+                : html
+                  ? buildFormattedContent(trimmed, html, mentions)
+                  : buildTextContent(trimmed);
+            queueMessage(targetRoomId, content);
+            if (replyToEvent) onCancelReply?.();
+            createThreadArmed = false;
+            isSending = false;
+            textareaEl?.focus();
+            return;
+        }
+
         try {
             if (trimmed && formatted && !useCaption) {
                 const { html, mentionedUserIds } = formatted;
@@ -1589,6 +1638,8 @@
             >
         </div>
     {/if}
+    <!-- Outbox strip -->
+    <OutboxStrip {roomId} />
     <!-- File queue preview -->
     {#if fileQueue.length > 0}
         <div class="flex gap-2 mb-2 overflow-x-auto pb-1">
