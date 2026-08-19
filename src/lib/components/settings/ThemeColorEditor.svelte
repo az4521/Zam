@@ -187,8 +187,7 @@
     <div class="flex flex-col gap-3 mb-4 pb-4 border-b border-discord-divider">
         <!-- Save section -->
         <div>
-            <label class="text-xs text-discord-textMuted mb-1 block">Save</label
-            >
+            <span class="text-xs text-discord-textMuted mb-1 block">Save</span>
             <div class="flex items-center gap-2">
                 <input
                     type="text"
@@ -209,8 +208,7 @@
 
         <!-- Import + Copy section -->
         <div>
-            <label class="text-xs text-discord-textMuted mb-1 block"
-                >Import</label
+            <span class="text-xs text-discord-textMuted mb-1 block">Import</span
             >
             <div class="flex items-center gap-2">
                 <input
