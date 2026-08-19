@@ -26,6 +26,7 @@ const h = vi.hoisted(() => {
         getBackupStatus: vi.fn(),
         setupRecovery: vi.fn(),
         resetRecovery: vi.fn(),
+        getOwnVerificationStatusInputs: vi.fn(),
         RecoverySetupIncompleteError,
     };
 });
@@ -35,6 +36,7 @@ vi.mock("$lib/matrix/crypto", () => ({
     getBackupStatus: h.getBackupStatus,
     setupRecovery: h.setupRecovery,
     resetRecovery: h.resetRecovery,
+    getOwnVerificationStatusInputs: h.getOwnVerificationStatusInputs,
     // Deliberately NOT a vi.fn: `vi.resetAllMocks()` in beforeEach would strip
     // the implementation and every failure would classify as "before destroy".
     isRecoverySetupIncomplete: (e: unknown) =>
@@ -165,6 +167,12 @@ beforeEach(() => {
     // mockResolvedValue, so a test that set only one of the two reads would
     // silently inherit the other test's posture. Every test sets both.
     vi.resetAllMocks();
+    // Default mock for verification status inputs (verification-nudge feature).
+    // Returns "unavailable" so the nudge never renders in these tests.
+    h.getOwnVerificationStatusInputs.mockResolvedValue({
+        deviceTrust: null,
+        setupState: "unavailable",
+    });
     target = document.createElement("div");
     document.body.appendChild(target);
 });

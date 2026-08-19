@@ -23,6 +23,11 @@
         verificationState,
         verifyOwnDevice,
     } from "$lib/stores/verification.svelte";
+    import {
+        verificationStatusState,
+        refreshVerificationStatus,
+    } from "$lib/stores/verificationStatus.svelte";
+    import { securityState } from "$lib/stores/security.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         settingsState,
@@ -187,11 +192,18 @@
 
     // Refresh trust badges when a verification completes (tick bumps on Done).
     let lastSeenTick = 0;
+    let lastSeenSecurityTick = 0;
     $effect(() => {
         const tick = verificationState.verificationTick;
-        if (tick !== lastSeenTick && loaded) {
+        const securityTick = securityState.securityTick;
+        if (
+            (tick !== lastSeenTick || securityTick !== lastSeenSecurityTick) &&
+            loaded
+        ) {
             lastSeenTick = tick;
+            lastSeenSecurityTick = securityTick;
             loadTrust();
+            refreshVerificationStatus();
         }
     });
 </script>
@@ -205,7 +217,9 @@
         .filter(Boolean)
         .join(" · ")}
     {@const badge = cryptoActive
-        ? deviceTrustBadge(trust[device.deviceId] ?? null)
+        ? isCurrent
+            ? verificationStatusState.view
+            : deviceTrustBadge(trust[device.deviceId] ?? null)
         : null}
     <div class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-3">
         <div class="flex items-start justify-between gap-3">
@@ -241,7 +255,18 @@
                                 class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-discord-accent/20 text-discord-accent"
                                 >Current</span
                             >{/if}
-                        {#if badge}<span
+                        {#if isCurrent && cryptoActive}
+                            <span
+                                class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge?.tone ===
+                                'verified'
+                                    ? 'bg-discord-online/20 text-discord-online'
+                                    : badge?.tone === 'warning'
+                                      ? 'bg-discord-warning/20 text-discord-warning'
+                                      : 'bg-discord-messageHover text-discord-textMuted'}"
+                                >{badge?.label ?? "Checking…"}</span
+                            >
+                        {:else if !isCurrent && badge}
+                            <span
                                 class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge.tone ===
                                 'verified'
                                     ? 'bg-discord-online/20 text-discord-online'
@@ -249,7 +274,8 @@
                                       ? 'bg-discord-warning/20 text-discord-warning'
                                       : 'bg-discord-messageHover text-discord-textMuted'}"
                                 >{badge.label}</span
-                            >{/if}
+                            >
+                        {/if}
                     </p>
                 {/if}
                 <p class="text-xs text-discord-textMuted font-mono mt-0.5">

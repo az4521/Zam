@@ -14,6 +14,10 @@
     } from "$lib/matrix/crypto";
     import { securityState } from "$lib/stores/security.svelte";
     import {
+        verificationStatusState,
+        refreshVerificationStatus,
+    } from "$lib/stores/verificationStatus.svelte";
+    import {
         formatRecoveryKey,
         isLikelyRecoveryKey,
     } from "$lib/utils/recoveryKey";
@@ -228,6 +232,7 @@
             loaded = true;
             lastTick = tick;
             loadStatus();
+            refreshVerificationStatus();
         }
     });
 
@@ -483,6 +488,22 @@
             {#if panel.stale}
                 {@render staleMarker()}
             {/if}
+            <div class="flex items-center justify-between gap-3 py-1.5">
+                <span class="text-sm text-discord-textPrimary"
+                    >Verification</span
+                >
+                <span
+                    class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {verificationStatusState
+                        .view?.tone === 'verified'
+                        ? 'bg-discord-online/20 text-discord-online'
+                        : verificationStatusState.view?.tone === 'warning'
+                          ? 'bg-discord-warning/20 text-discord-warning'
+                          : verificationStatusState.view?.tone === 'unverified'
+                            ? 'bg-discord-messageHover text-discord-textMuted'
+                            : 'bg-discord-messageHover text-discord-textMuted'}"
+                    >{verificationStatusState.view?.label ?? "Checking…"}</span
+                >
+            </div>
             {@render statusRow(
                 "End-to-end encryption",
                 statusRead === "ok",

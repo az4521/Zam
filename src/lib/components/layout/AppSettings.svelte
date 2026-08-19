@@ -35,7 +35,9 @@
     // null = "nothing drilled into yet": the mobile category list, or the
     // desktop default panel. Kept across a viewport change in both directions
     // so resizing/rotating never loses the user's place.
-    let selectedTab = $state<SettingsTab | null>(null);
+    let selectedTab = $state<SettingsTab | null>(
+        interfaceState.settingsInitialTab,
+    );
 
     const view = $derived(
         settingsNavView({ isMobile: interfaceState.isMobile, selectedTab }),
