@@ -1,5 +1,10 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { applyTheme, normalizeTheme, applyThemeColors } from "./theme";
+import {
+    applyTheme,
+    normalizeTheme,
+    applyThemeColors,
+    applyPreset,
+} from "./theme";
 
 describe("theme", () => {
     it("accepts light and defaults every other value to dark", () => {
@@ -7,6 +12,10 @@ describe("theme", () => {
         expect(normalizeTheme("dark")).toBe("dark");
         expect(normalizeTheme("system")).toBe("dark");
         expect(normalizeTheme(null)).toBe("dark");
+    });
+
+    it("accepts amoled as a valid theme", () => {
+        expect(normalizeTheme("amoled")).toBe("amoled");
     });
 
     it("updates the root theme and browser theme color", () => {
@@ -17,6 +26,26 @@ describe("theme", () => {
             document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
                 ?.content,
         ).toBe("#f2f3f5");
+    });
+
+    it("applies amoled theme with correct theme-color", () => {
+        document.head.innerHTML = '<meta name="theme-color" content="#fff">';
+        applyTheme("amoled");
+        expect(document.documentElement.dataset.theme).toBe("amoled");
+        expect(
+            document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+                ?.content,
+        ).toBe("#000000");
+    });
+
+    it("applies dark theme with correct theme-color", () => {
+        document.head.innerHTML = '<meta name="theme-color" content="#fff">';
+        applyTheme("dark");
+        expect(document.documentElement.dataset.theme).toBe("dark");
+        expect(
+            document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+                ?.content,
+        ).toBe("#313338");
     });
 });
 
@@ -45,5 +74,38 @@ describe("applyThemeColors", () => {
         const s = document.documentElement.style;
         expect(s.getPropertyValue("--discord-bg")).toBe("");
         expect(s.getPropertyValue("--discord-accent").trim()).toBe("#040506");
+    });
+});
+
+describe("applyPreset", () => {
+    it("applies base theme and color overrides", () => {
+        document.head.innerHTML = '<meta name="theme-color" content="#fff">';
+        applyPreset("amoled", { accent: "#123456" });
+        expect(document.documentElement.dataset.theme).toBe("amoled");
+        expect(
+            document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+                ?.content,
+        ).toBe("#000000");
+        expect(
+            document.documentElement.style
+                .getPropertyValue("--discord-accent")
+                .trim(),
+        ).toBe("#123456");
+    });
+
+    it("applies base theme and clears overrides when colors is null", () => {
+        document.head.innerHTML = '<meta name="theme-color" content="#fff">';
+        // First apply some colors
+        applyThemeColors({ background: "#010203" });
+        // Then apply preset with null colors
+        applyPreset("light", null);
+        expect(document.documentElement.dataset.theme).toBe("light");
+        expect(
+            document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+                ?.content,
+        ).toBe("#f2f3f5");
+        expect(
+            document.documentElement.style.getPropertyValue("--discord-bg"),
+        ).toBe("");
     });
 });

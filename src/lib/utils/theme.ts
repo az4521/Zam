@@ -4,18 +4,26 @@ import {
     type ThemeColors,
 } from "./themePalette";
 
-export type Theme = "dark" | "light";
+export type Theme = "dark" | "light" | "amoled";
 
 export function normalizeTheme(value: string | null): Theme {
-    return value === "light" ? "light" : "dark";
+    if (value === "light") return "light";
+    if (value === "amoled") return "amoled";
+    return "dark";
 }
 
 export function applyTheme(theme: Theme): void {
     if (typeof document === "undefined") return;
     document.documentElement.dataset.theme = theme;
+    const themeColor =
+        theme === "light"
+            ? "#f2f3f5"
+            : theme === "amoled"
+              ? "#000000"
+              : "#313338";
     document
         .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-        ?.setAttribute("content", theme === "light" ? "#f2f3f5" : "#313338");
+        ?.setAttribute("content", themeColor);
 }
 
 /**
@@ -33,4 +41,18 @@ export function applyThemeColors(colors: ThemeColors | null): void {
     for (const [prop, value] of themeColorsToCssVars(colors)) {
         root.style.setProperty(prop, value);
     }
+}
+
+/**
+ * Apply a theme preset = base theme + optional color overrides.
+ * Sets the data-theme attribute and theme-color meta tag, then applies
+ * any custom color overrides as inline styles. Pass null for colors to
+ * apply the base theme with no overrides.
+ */
+export function applyPreset(
+    base: Theme,
+    colors: Partial<ThemeColors> | null,
+): void {
+    applyTheme(base);
+    applyThemeColors(colors);
 }

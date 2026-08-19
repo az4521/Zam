@@ -173,7 +173,8 @@ function atRuleBody(preludePattern: RegExp): string | null {
 /** A declared CSS value as something `colourOf` can resolve. */
 function refOf(value: string): string {
     const v = value.trim();
-    const varRef = /^var\(\s*(--[\w-]+)\s*\)$/.exec(v);
+    // Handle var() with optional fallback: var(--foo) or var(--foo, var(--bar))
+    const varRef = /^var\(\s*(--[\w-]+)/.exec(v);
     if (varRef) return varRef[1];
     if (v === "white") return "#ffffff";
     if (v === "black") return "#000000";
