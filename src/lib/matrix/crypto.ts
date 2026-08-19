@@ -64,7 +64,12 @@ import {
     type QrMethodOptions,
 } from "$lib/utils/qrVerification";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
-import type { SecurityRead } from "$lib/utils/securityStatusView";
+import type {
+    SecurityRead,
+    SecurityPosture,
+    SecuritySetupState,
+} from "$lib/utils/securityStatusView";
+import { securitySetupState } from "$lib/utils/securityStatusView";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
@@ -1520,6 +1525,56 @@ export async function getBackupStatus(): Promise<BackupStatus> {
     } catch {
         // The read failed — say so. `exists: false` below means "unknown".
         return { ...EMPTY_BACKUP_STATUS, read: "error" };
+    }
+}
+
+/**
+ * Load the two raw signals that feed device-verification status:
+ * - deviceTrust.isVerified (local verification OR cross-signing)
+ * - setupState (whole-account encryption posture)
+ *
+ * Reconciled by `reconcileVerification` (utils/verificationStatus.ts) into
+ * a unified view that resolves the "az contradiction" where a locally-verified
+ * session could show a misleading "verified" badge despite incomplete setup.
+ *
+ * Never throws; returns sanitized fallbacks on crypto-unavailable or read errors.
+ */
+export async function getOwnVerificationStatusInputs(): Promise<{
+    deviceTrust: { isVerified: boolean; signedByOwner: boolean } | null;
+    setupState: SecuritySetupState;
+}> {
+    try {
+        const client = getClient();
+        const crypto = client?.getCrypto();
+        if (!crypto || !client) {
+            return { deviceTrust: null, setupState: "unavailable" };
+        }
+
+        const [sec, bak] = await Promise.all([
+            getSecurityStatus(),
+            getBackupStatus(),
+        ]);
+
+        const posture: SecurityPosture = {
+            read: sec.read,
+            backupRead: bak.read,
+            secretStorageReady: sec.secretStorageReady ?? false,
+            defaultKeyId: sec.defaultKeyId ?? null,
+            thisDeviceVerified: sec.thisDeviceVerified ?? false,
+            backupExists: bak.exists ?? false,
+            backupActive: bak.active ?? false,
+            hasLastGood: true,
+        };
+        const setupState = securitySetupState(posture);
+
+        const userId = client.getUserId();
+        const deviceId = client.getDeviceId();
+        const deviceTrust =
+            userId && deviceId ? await getDeviceTrust(userId, deviceId) : null;
+
+        return { deviceTrust, setupState };
+    } catch {
+        return { deviceTrust: null, setupState: "read-failed" };
     }
 }
 
