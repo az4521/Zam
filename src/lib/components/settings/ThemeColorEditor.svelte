@@ -75,6 +75,7 @@
             await navigator.clipboard.writeText(
                 encodeThemePreset({
                     name: presetName || undefined,
+                    base: settingsState.theme,
                     colors: draft,
                 }),
             );

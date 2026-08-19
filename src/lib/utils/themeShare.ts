@@ -1,7 +1,9 @@
 import { sanitizeThemeColors, type ThemeColors } from "./themePalette";
+import type { ThemeBase } from "./themePreset";
 
 export interface SharedPreset {
     name?: string;
+    base: ThemeBase;
     colors: ThemeColors;
 }
 
@@ -22,6 +24,7 @@ export function encodeThemePreset(preset: SharedPreset): string {
     const payload = {
         v: 1,
         ...(preset.name ? { name: preset.name } : {}),
+        base: preset.base,
         colors: preset.colors,
     };
     return "zam-theme:" + toBase64(JSON.stringify(payload));
@@ -47,7 +50,16 @@ export function decodeThemePreset(input: string): SharedPreset | null {
 
         const name = typeof parsed?.name === "string" ? parsed.name : undefined;
 
-        return name ? { name, colors } : { colors };
+        // Default missing or invalid base to "dark"
+        let base: ThemeBase = "dark";
+        if (
+            typeof parsed?.base === "string" &&
+            ["dark", "light", "amoled"].includes(parsed.base)
+        ) {
+            base = parsed.base as ThemeBase;
+        }
+
+        return name ? { name, base, colors } : { base, colors };
     } catch {
         return null;
     }

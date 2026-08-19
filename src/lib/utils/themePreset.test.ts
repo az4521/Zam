@@ -7,6 +7,7 @@ import {
     resolveActivePreset,
     forkFromEdit,
     sanitizeCustomPreset,
+    migrateThemeToPresetName,
     type CustomPreset,
 } from "./themePreset";
 
@@ -254,6 +255,34 @@ describe("themePreset", () => {
             };
             const result = sanitizeCustomPreset(input);
             expect(result).toBeNull();
+        });
+    });
+
+    describe("migrateThemeToPresetName", () => {
+        it('maps "dark" to "Default Dark"', () => {
+            expect(migrateThemeToPresetName("dark")).toBe("Default Dark");
+        });
+
+        it('maps "light" to "Default Light"', () => {
+            expect(migrateThemeToPresetName("light")).toBe("Default Light");
+        });
+
+        it('maps "amoled" to "Default AMOLED"', () => {
+            expect(migrateThemeToPresetName("amoled")).toBe("Default AMOLED");
+        });
+
+        it("defaults null to Default Dark", () => {
+            expect(migrateThemeToPresetName(null)).toBe("Default Dark");
+        });
+
+        it("defaults undefined to Default Dark", () => {
+            expect(migrateThemeToPresetName(undefined)).toBe("Default Dark");
+        });
+
+        it("defaults unknown theme to Default Dark", () => {
+            expect(migrateThemeToPresetName("unknown")).toBe("Default Dark");
+            expect(migrateThemeToPresetName("")).toBe("Default Dark");
+            expect(migrateThemeToPresetName("DARK")).toBe("Default Dark"); // Case-sensitive
         });
     });
 });

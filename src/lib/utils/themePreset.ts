@@ -151,3 +151,23 @@ export function sanitizeCustomPreset(value: unknown): CustomPreset | null {
         colors,
     };
 }
+
+/**
+ * Migrate a legacy theme setting to a built-in preset name.
+ * Maps "dark"/"light"/"amoled" to their corresponding Default preset.
+ * Anything else (null, undefined, unknown) defaults to "Default Dark".
+ */
+export function migrateThemeToPresetName(
+    theme: string | null | undefined,
+): string {
+    if (theme === "dark") {
+        return BUILTIN_PRESETS[0].name; // "Default Dark"
+    }
+    if (theme === "light") {
+        return BUILTIN_PRESETS[1].name; // "Default Light"
+    }
+    if (theme === "amoled") {
+        return BUILTIN_PRESETS[2].name; // "Default AMOLED"
+    }
+    return defaultActivePresetName(); // "Default Dark"
+}
