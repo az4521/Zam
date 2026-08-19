@@ -92,6 +92,7 @@ import {
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -6278,6 +6279,28 @@ export function getCustomEmojiPacks(
     }
 
     return uniquePacks(packs);
+}
+
+// Warm this room's custom emoji images in the background on room open. Custom
+// emoji are authed media with no browser cache and (for a remote pack) a
+// per-image federated fetch of ~1s the first time — so a fresh emoji-heavy room
+// otherwise trickles in when the picker opens or a message renders. Resolving
+// the packs is ~0.1ms; the cost is entirely the image fetch, which this warms
+// ahead of use. Best-effort, session-deduped, capped, low-concurrency — never
+// blocks, never throws; skipped while offline (the warm would just 401/fail).
+export function preloadRoomEmoji(
+    room: Room | null | undefined,
+    activeSpaceId: string | null,
+    spaces: Room[],
+): void {
+    if (!room) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    try {
+        const packs = getCustomEmojiPacks(activeSpaceId, spaces, room);
+        if (packs.length > 0) preloadEmojiPacks(packs);
+    } catch {
+        /* best-effort warming — a failure here must never disturb room open */
+    }
 }
 
 // Returns custom sticker packs: user pack first, then active space.

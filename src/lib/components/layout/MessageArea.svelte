@@ -77,6 +77,7 @@
         getPinnedEventIds,
         findEventById,
         isHighlightEvent,
+        preloadRoomEmoji,
     } from "$lib/matrix/client";
     import {
         shouldShowHeader,
@@ -129,6 +130,10 @@
     }
 
     let { room, isMobile = false, onMenuOpen }: Props = $props();
+
+    // Let the room's own content (timeline, avatars) claim connections first,
+    // then warm its custom emoji in the background.
+    const EMOJI_PRELOAD_DEFER_MS = 1200;
 
     let scrollEl: HTMLDivElement | undefined = $state();
     let bottomAnchorEl: HTMLDivElement | undefined = $state();
@@ -188,6 +193,24 @@
         loadRoomMembersIfNeeded(r)
             .then(() => untrack(() => roomsState.roomsTick++))
             .catch(() => {});
+    });
+
+    // Warm this room's custom emoji in the background on open so the picker and
+    // inline :shortcode: images render instantly instead of trickling in over
+    // uncached (and, for remote packs, federated ~1s-each) media fetches.
+    // Deferred so the room's own content loads first; fire-and-forget and
+    // session-deduped inside preloadRoomEmoji. Space id/list read untracked so
+    // only a room change re-arms it.
+    $effect(() => {
+        const r = room;
+        void r.roomId;
+        const spaceId = untrack(() => roomsState.activeSpaceId);
+        const spaces = untrack(() => roomsState.spaces);
+        const timer = setTimeout(
+            () => preloadRoomEmoji(r, spaceId, spaces),
+            EMOJI_PRELOAD_DEFER_MS,
+        );
+        return () => clearTimeout(timer);
     });
     let isDragOver = $state(false);
     let intervalId: NodeJS.Timeout | undefined = $state();
