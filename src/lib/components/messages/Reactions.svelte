@@ -121,10 +121,13 @@
         if (!openKey) return null;
         const g = visibleReactions.find((r) => r.key === openKey);
         if (!g) return null;
-        return { key: g.key, ...reactorsFor(g.reactorIds) };
+        const info = reactorsFor(g.reactorIds);
+        if (info.reactors.length === 0 && info.overflow === 0) return null;
+        return { key: g.key, ...info };
     });
 
-    function openHover(e: MouseEvent, key: string) {
+    function openHover(e: PointerEvent, key: string) {
+        if (e.pointerType !== "mouse") return;
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         anchorX = rect.left + rect.width / 2;
         anchorY = rect.top;
@@ -153,8 +156,8 @@
             <button
                 onclick={() =>
                     toggleReaction(group.key, group.isMine, group.myEventId)}
-                onmouseenter={(e) => openHover(e, group.key)}
-                onmouseleave={() => closeHover(group.key)}
+                onpointerenter={(e) => openHover(e, group.key)}
+                onpointerleave={() => closeHover(group.key)}
                 use:longPress={{ onTrigger: () => openSheet(group.key) }}
                 class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
                 class:bg-discord-accent={group.isMine}
