@@ -5334,6 +5334,7 @@ export interface ReactionGroup {
     count: number;
     isMine: boolean; // true even while local echo is pending
     myEventId: string | null; // only set once server-confirmed (used for removal)
+    reactorIds: string[]; // deduped non-null senders for this key
 }
 
 export function getReactions(room: Room, eventId: string): ReactionGroup[] {
