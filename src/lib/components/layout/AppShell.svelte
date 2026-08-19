@@ -3,6 +3,7 @@
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
+    import ProfileFooter from "$lib/components/layout/ProfileFooter.svelte";
     import ReconnectPill from "$lib/components/layout/ReconnectPill.svelte";
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
     import CallView from "$lib/components/layout/CallView.svelte";
@@ -1635,17 +1636,23 @@
         <ReconnectPill syncState={auth.syncState} />
 
         {#if !interfaceState.isMobile}
-            <!-- Desktop: permanent sidebars -->
-            <SpaceSidebar
-                onHomeClick={() => setActiveSpace(null)}
-                onSettingsClick={openAppSettings}
-                onOpenSpaceSettings={openRoomSettings}
-            />
-            <RoomList
-                onLogout={handleLogout}
-                onOpenSpaceSettings={openRoomSettings}
-                onOpenRoomSettings={openRoomSettings}
-            />
+            <!-- Desktop: permanent sidebars + full-width profile footer -->
+            <div class="flex flex-col w-[312px] flex-shrink-0 min-h-0">
+                <div class="flex flex-1 min-h-0 overflow-hidden">
+                    <SpaceSidebar
+                        onHomeClick={() => setActiveSpace(null)}
+                        onOpenSpaceSettings={openRoomSettings}
+                    />
+                    <RoomList
+                        onOpenSpaceSettings={openRoomSettings}
+                        onOpenRoomSettings={openRoomSettings}
+                    />
+                </div>
+                <ProfileFooter
+                    onLogout={handleLogout}
+                    onSettings={openAppSettings}
+                />
+            </div>
         {:else}
             <!-- Mobile: animated drawer + backdrop -->
             <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -1661,7 +1668,7 @@
                 }}
             ></div>
             <div
-                class="fixed inset-y-0 left-0 z-40 flex"
+                class="fixed inset-y-0 left-0 z-40 flex flex-col w-[312px]"
                 style="transform: translateX({drawerTranslate}px); {isDragging
                     ? ''
                     : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {drawerTranslate <=
@@ -1671,18 +1678,22 @@
                 inert={leftDrawerClosed}
                 aria-hidden={leftDrawerClosed ? "true" : undefined}
             >
-                <SpaceSidebar
-                    onHomeClick={() => setActiveSpace(null)}
-                    onSettingsClick={() => {
+                <div class="flex flex-1 min-h-0 overflow-hidden">
+                    <SpaceSidebar
+                        onHomeClick={() => setActiveSpace(null)}
+                        onOpenSpaceSettings={openRoomSettings}
+                    />
+                    <RoomList
+                        onOpenSpaceSettings={openRoomSettings}
+                        onOpenRoomSettings={openRoomSettings}
+                    />
+                </div>
+                <ProfileFooter
+                    onLogout={handleLogout}
+                    onSettings={() => {
                         openAppSettings();
                         interfaceState.leftOpen = false;
                     }}
-                    onOpenSpaceSettings={openRoomSettings}
-                />
-                <RoomList
-                    onLogout={handleLogout}
-                    onOpenSpaceSettings={openRoomSettings}
-                    onOpenRoomSettings={openRoomSettings}
                 />
             </div>
         {/if}

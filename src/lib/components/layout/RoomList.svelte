@@ -34,7 +34,6 @@
         setRoomTagOrderRaw,
         setSpaceChildOrder,
         getSpaceChildren,
-        getOwnAvatarUrl,
         getDMPartnerId,
         getRoomCallMemberships,
         getMemberName,
@@ -79,7 +78,6 @@
     import { auth } from "$lib/stores/auth.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
-    import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import VoiceCallPanel from "$lib/components/layout/VoiceCallPanel.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import { longPress } from "$lib/actions/longPress";
@@ -88,16 +86,11 @@
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
 
     interface Props {
-        onLogout: () => void;
         onOpenSpaceSettings?: (room: Room) => void;
         onOpenRoomSettings?: (room: Room) => void;
     }
 
-    let { onLogout, onOpenSpaceSettings, onOpenRoomSettings }: Props = $props();
-    const ownAvatarSrc = $derived.by(() => {
-        roomsState.roomsTick;
-        return getOwnAvatarUrl();
-    });
+    let { onOpenSpaceSettings, onOpenRoomSettings }: Props = $props();
 
     // Presence dot per DM partner, keyed by room id. Unknown presence (server
     // may have it disabled) renders as offline.
@@ -116,18 +109,6 @@
             });
         }
         return map;
-    });
-
-    // Own dot: prefer the server-echoed presence (arrives over sync), fall
-    // back to the advertised setting when nothing has come back yet.
-    const ownPresence = $derived.by(() => {
-        void presenceState.presenceTick;
-        const p = auth.userId ? presenceFor(auth.userId) : null;
-        const state = p?.state ?? settingsState.ownPresence;
-        return {
-            dotClass: presenceDotClass(presenceDot(state)),
-            label: presenceLabel(state),
-        };
     });
 
     // Rooms currently being joined (show spinner)
@@ -472,16 +453,6 @@
             highlight,
             loud,
         };
-    }
-
-    // Account switcher popout (shared modal slot: one popup at a time,
-    // central Escape/back dismissal).
-    let accountSwitcherOpen = $state(false);
-
-    function openAccountSwitcher() {
-        // Claim first — a same-id handover runs the outgoing close.
-        openModal("account-switcher", () => (accountSwitcherOpen = false));
-        accountSwitcherOpen = true;
     }
 
     // ── Reorder mode (edit-mode drag + raw-order field) ─────────────────────
@@ -1426,59 +1397,6 @@
     </div>
 
     <VoiceCallPanel />
-
-    <!-- User bar -->
-    <div
-        class="h-14 px-2 flex items-center gap-2 bg-discord-backgroundTertiary flex-shrink-0"
-    >
-        <button
-            onclick={openAccountSwitcher}
-            class="flex-1 flex items-center gap-2 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-left"
-            title="Switch accounts"
-        >
-            <div class="relative">
-                <Avatar
-                    src={ownAvatarSrc}
-                    name={auth.userId || "?"}
-                    id={auth.userId}
-                    size={32}
-                />
-                <div
-                    title={ownPresence.label}
-                    class="absolute bottom-0 right-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
-                ></div>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p
-                    class="text-sm font-semibold text-discord-textPrimary truncate"
-                >
-                    {auth.userId?.split(":")[0].replace("@", "") ?? "Unknown"}
-                </p>
-                <p class="text-xs text-discord-textSecondary truncate">
-                    {auth.userId ?? ""}
-                </p>
-            </div>
-        </button>
-        <button
-            onclick={onLogout}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-            title="Logout"
-        >
-            <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-            </svg>
-        </button>
-    </div>
 </div>
 
 <Portal>
@@ -1628,8 +1546,4 @@
             clearModalIfOwner(participantMenuToken);
         }}
     />
-{/if}
-
-{#if accountSwitcherOpen}
-    <AccountSwitcher onClose={closeModal} {onLogout} />
 {/if}
