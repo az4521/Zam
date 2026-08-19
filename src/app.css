@@ -9,10 +9,10 @@ body {
 
 @keyframes message-highlight-fade {
     0% {
-        background-color: rgb(var(--discord-accent-rgb) / 0.35);
+        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
     }
     70% {
-        background-color: rgb(var(--discord-accent-rgb) / 0.35);
+        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
     }
     100% {
         background-color: transparent;
@@ -64,6 +64,7 @@ body {
     /* RGB channels for opacity modifier support (e.g. bg-discord-accent/30) */
     --discord-accent-rgb: var(--brand-500-rgb);
     --discord-accent-hover-rgb: var(--brand-530-rgb);
+    --discord-mention-highlight-rgb: 114 137 218;
     --discord-danger-rgb: 237 66 69;
     --discord-warning-rgb: 250 166 26;
     --discord-divider: #41444e;
@@ -149,6 +150,7 @@ body {
     --discord-accent-hover: #4752a8;
     --discord-accent-rgb: 88 101 199;
     --discord-accent-hover-rgb: 71 82 168;
+    --discord-mention-highlight-rgb: 88 101 199;
     --discord-divider: #d4d7dc;
 
     --discord-online: #248046;
