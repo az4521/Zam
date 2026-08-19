@@ -259,8 +259,14 @@
                         : 'border border-discord-divider hover:bg-discord-messageHover'} transition-colors {isRenaming
                         ? ''
                         : 'cursor-pointer'}"
-                    onclick={() => {
-                        if (!isRenaming) selectPreset(name);
+                    onclick={(e) => {
+                        if (isRenaming) return;
+                        // A click on a control in the row (rename ✎ / delete) must
+                        // not also activate the preset. stopPropagation on those
+                        // buttons is unreliable with Svelte's event delegation, so
+                        // guard here on the actual click target.
+                        if ((e.target as HTMLElement).closest("button")) return;
+                        selectPreset(name);
                     }}
                     role="button"
                     tabindex={isRenaming ? -1 : 0}
