@@ -18,6 +18,7 @@ Messaging
 - polls (create, vote, close), voice messages with a real waveform, location + live location sharing on a Leaflet map
 - pinned messages, per-room message search, media/files browser (both have limits — see "things left to do"), link previews, read receipts (public or private) and typing indicators
 - per-room drafts that survive a room switch (in memory only — a reload drops them)
+- an offline outbox — messages you send while disconnected queue up and go out when you reconnect, instead of just failing
 
 Rooms & spaces
 
@@ -40,7 +41,7 @@ App
 
 - multi-account (switching reloads the app; one account syncs at a time)
 - push notifications with a full push-rules UI, including keyword highlight rules and per-room overrides
-- customization (light/dark theme, timestamp formats, double-tap actions) synced across devices via account data
+- theming — light, dark, and true-black AMOLED, plus fully custom colours you save as your own presets and share by a copy-paste code; timestamp formats and double-tap actions too, all synced across devices via account data
 - auto-update on Electron and Android; the web build checks on request and offers a reload
 - installable PWA, Electron desktop build, Android APK
 
