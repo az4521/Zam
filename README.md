@@ -35,7 +35,7 @@ Calls
 Encryption
 
 - E2EE via rust-crypto: encrypted rooms and DMs, SAS (emoji) and QR device verification, cross-signing, secret storage (4S), key backup and recovery
-- **attachments are not encrypted yet** — files, images and voice messages sent into an encrypted room are uploaded unencrypted, and attachments encrypted by other clients can't be displayed
+- encrypted attachments from other clients now decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; your own outgoing attachments aren't encrypted yet, so files, images and voice messages you send into an encrypted room still upload unencrypted
 
 App
 
@@ -51,7 +51,6 @@ Rooms
 
 - Server admin tools (Synapse admin API)
 - Approving/denying knock requests (you can knock from join-by-address, though not from the room directory, and there's no admin UI for handling one)
-- Muting a user (power levels can't go negative here)
 
 User
 
@@ -60,7 +59,6 @@ User
 
 Media
 
-- Listing encrypted attachments in the media/files browser (it says so in the panel — the enumerator reads `content.url`, and encrypted events put theirs in `content.file`)
 - Searching encrypted rooms (search is server-side, so there are no results there), and searching across all rooms rather than one
 
 UI / Polish
