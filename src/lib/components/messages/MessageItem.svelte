@@ -20,6 +20,7 @@
         getMemberAvatar,
         mxcToHttp,
         fetchAttachmentBlob,
+        fetchDecryptedAttachmentBlob,
         findEventById,
         fetchSingleEvent,
         sendReaction,
@@ -134,6 +135,20 @@
     } from "$lib/utils/audioPlayback";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
+
+    type EncryptedFile = {
+        url: string;
+        key: {
+            k: string;
+            alg?: string;
+            kty?: string;
+            ext?: boolean;
+            key_ops?: string[];
+        };
+        iv: string;
+        hashes: { sha256: string };
+        v?: string;
+    };
 
     interface Props {
         event: MatrixEvent;
@@ -754,17 +769,55 @@
     let videoAttempt = $state(0);
     let videoFailed = $state(false);
     let videoThumbFailed = $state(false);
-    // The URL to stream, or null when this event carries nothing playable: an
-    // encrypted attachment (`content.file` — no decryption path here) or a
-    // malformed url. Null must render an inert "unavailable" card, never a play
-    // affordance, or the click silently does nothing forever.
-    const videoSrcUrl = $derived(
-        msgtype === "m.video" ? mxcToHttp(videoSourceMxc(content)) : null,
-    );
+    // Encrypted video state
+    let encryptedVideoUrl = $state<string | null>(null);
+    let videoDecrypting = $state(false);
+    let videoDecryptFailed = $state(false);
+    let videoPlayRequested = $state(false);
+    // The URL to stream, or null when this event carries nothing playable.
+    // For encrypted video, use the decrypted blob URL; for unencrypted, use mxcToHttp.
+    const videoSrcUrl = $derived(() => {
+        if (msgtype !== "m.video") return null;
+        const file = content?.file as EncryptedFile | undefined;
+        if (file) {
+            return encryptedVideoUrl;
+        }
+        return mxcToHttp(videoSourceMxc(content));
+    });
     function playVideo() {
         videoFailed = false;
         videoAttempt += 1;
+        const file = content?.file as EncryptedFile | undefined;
+        if (file) {
+            videoPlayRequested = true;
+        }
     }
+
+    // Decrypt video when play is requested
+    $effect(() => {
+        if (msgtype !== "m.video" || !videoPlayRequested) return;
+        const file = content?.file as EncryptedFile | undefined;
+        if (!file) return;
+        videoDecrypting = true;
+        videoDecryptFailed = false;
+        let objectUrl: string | null = null;
+        const mimetype = (content?.info as { mimetype?: string } | undefined)
+            ?.mimetype;
+        fetchDecryptedAttachmentBlob(file, mimetype)
+            .then((url) => {
+                objectUrl = url;
+                encryptedVideoUrl = url;
+                videoDecrypting = false;
+            })
+            .catch(() => {
+                videoDecrypting = false;
+                videoDecryptFailed = true;
+            });
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            encryptedVideoUrl = null;
+        };
+    });
     // Poster for the unplayed video body. ONLY ever the sender's uploaded
     // thumbnail — `videoPosterMxc` hands back null otherwise, and we then render
     // the placeholder card below without requesting anything. Never point this
@@ -839,13 +892,59 @@
     const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
     const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
 
+    // Encrypted image: decrypt on mount when content.file is present
+    let encryptedImageThumbUrl = $state<string | null>(null);
+    let encryptedImageFullUrl = $state<string | null>(null);
+    let imageDecrypting = $state(false);
+    let imageDecryptFailed = $state(false);
+
     // Image/sticker media 401s when the media service worker isn't authenticating
     // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
     // re-fetches with the token and swaps to a blob URL so it heals without a
     // manual reload. A message is image XOR sticker, so one src is null and a
     // single instance covers both. See mediaAuth.svelte.
-    const mediaImgSrc = $derived(imageThumbUrl() ?? stickerHttpUrl());
+    const mediaImgSrc = $derived(
+        encryptedImageThumbUrl ?? imageThumbUrl() ?? stickerHttpUrl(),
+    );
     const mediaImgRetry = createMediaRetry(() => mediaImgSrc);
+
+    $effect(() => {
+        if (msgtype !== "m.image") return;
+        const file = content?.file as EncryptedFile | undefined;
+        if (!file) return;
+        imageDecrypting = true;
+        imageDecryptFailed = false;
+        let thumbUrl: string | null = null;
+        let fullUrl: string | null = null;
+        const mimetype = (content?.info as { mimetype?: string } | undefined)
+            ?.mimetype;
+        // Decrypt thumb (for GIFs, full is the thumb)
+        const thumbPromise = isGif
+            ? fetchDecryptedAttachmentBlob(file, mimetype)
+            : fetchDecryptedAttachmentBlob(file, mimetype);
+        // Decrypt full (only if not GIF, otherwise reuse thumb)
+        const fullPromise = isGif
+            ? thumbPromise
+            : fetchDecryptedAttachmentBlob(file, mimetype);
+        Promise.all([thumbPromise, fullPromise])
+            .then(([thumb, full]) => {
+                thumbUrl = thumb;
+                fullUrl = full;
+                encryptedImageThumbUrl = thumb;
+                encryptedImageFullUrl = full;
+                imageDecrypting = false;
+            })
+            .catch(() => {
+                imageDecrypting = false;
+                imageDecryptFailed = true;
+            });
+        return () => {
+            if (thumbUrl && !isGif) URL.revokeObjectURL(thumbUrl);
+            if (fullUrl) URL.revokeObjectURL(fullUrl);
+            encryptedImageThumbUrl = null;
+            encryptedImageFullUrl = null;
+        };
+    });
 
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
@@ -871,25 +970,51 @@
     $effect(() => {
         void audioAttempt; // re-run when the user retries a failed load
         if (!audioClicked || msgtype !== "m.audio") return;
-        const httpUrl = mxcToHttp(content?.url as string);
-        if (!httpUrl) return;
-        audioLoading = true;
-        audioFailed = false;
-        let objectUrl: string | null = null;
-        fetchAttachmentBlob(httpUrl)
-            .then((url) => {
-                objectUrl = url;
-                audioBlobUrl = url;
-                audioLoading = false;
-            })
-            .catch(() => {
-                audioLoading = false;
-                audioFailed = true;
-            });
-        return () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            audioBlobUrl = null;
-        };
+        const file = content?.file as EncryptedFile | undefined;
+        if (file) {
+            // Encrypted audio
+            audioLoading = true;
+            audioFailed = false;
+            let objectUrl: string | null = null;
+            const mimetype = (
+                content?.info as { mimetype?: string } | undefined
+            )?.mimetype;
+            fetchDecryptedAttachmentBlob(file, mimetype)
+                .then((url) => {
+                    objectUrl = url;
+                    audioBlobUrl = url;
+                    audioLoading = false;
+                })
+                .catch(() => {
+                    audioLoading = false;
+                    audioFailed = true;
+                });
+            return () => {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                audioBlobUrl = null;
+            };
+        } else {
+            // Unencrypted audio
+            const httpUrl = mxcToHttp(content?.url as string);
+            if (!httpUrl) return;
+            audioLoading = true;
+            audioFailed = false;
+            let objectUrl: string | null = null;
+            fetchAttachmentBlob(httpUrl)
+                .then((url) => {
+                    objectUrl = url;
+                    audioBlobUrl = url;
+                    audioLoading = false;
+                })
+                .catch(() => {
+                    audioLoading = false;
+                    audioFailed = true;
+                });
+            return () => {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                audioBlobUrl = null;
+            };
+        }
     });
 
     // Reactively track whether the current image URL is favourited. The
@@ -1477,9 +1602,38 @@
             {/if}
         {:else if msgtype === "m.image"}
             {@render mediaCaption()}
-            {@const thumb = imageThumbUrl()}
-            {@const full = imageFullUrl()}
-            {#if thumb && !mediaImgRetry.failed}
+            {@const file = content?.file as EncryptedFile | undefined}
+            {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
+            {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
+            {#if file && imageDecrypting}
+                <div
+                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
+                >
+                    <div
+                        class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    ></div>
+                    <span class="text-xs text-discord-textMuted"
+                        >Decrypting image...</span
+                    >
+                </div>
+            {:else if file && imageDecryptFailed}
+                <div
+                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
+                >
+                    <svg
+                        class="w-4 h-4 text-discord-danger"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                        />
+                    </svg>
+                    <span class="text-xs text-discord-danger"
+                        >Couldn't decrypt image</span
+                    >
+                </div>
+            {:else if thumb && !mediaImgRetry.failed}
                 <div class="relative inline-block group/img mt-1">
                     <a
                         href={full}
@@ -1563,9 +1717,36 @@
             {/if}
         {:else if msgtype === "m.video"}
             {@render mediaCaption()}
-            {#if videoSrcUrl === null}
-                <!-- Nothing this client can play: an encrypted attachment (no
-                     decryption path here) or a malformed url. Deliberately NOT
+            {#if videoDecrypting}
+                <div
+                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+                >
+                    <div
+                        class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    ></div>
+                    <span class="text-xs text-discord-textMuted"
+                        >Decrypting video...</span
+                    >
+                </div>
+            {:else if videoDecryptFailed}
+                <div
+                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+                >
+                    <svg
+                        class="w-4 h-4 text-discord-danger"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                        />
+                    </svg>
+                    <span class="text-xs text-discord-danger"
+                        >Couldn't decrypt video</span
+                    >
+                </div>
+            {:else if videoSrcUrl() === null}
+                <!-- Nothing this client can play: a malformed url. Deliberately NOT
                      clickable — a play affordance that can never resolve a
                      source is a dead click, which is exactly how this gets
                      reported as "videos cannot be played at all". -->
@@ -1605,7 +1786,7 @@
                          box vs the poster on play and (b) lets a wide clip's
                          min-content width push past the column and overflow. -->
                     <video
-                        src={videoSrcUrl}
+                        src={videoSrcUrl()}
                         controls
                         autoplay
                         playsinline
@@ -1702,8 +1883,13 @@
         {:else if msgtype === "m.audio"}
             {@render mediaCaption()}
             {#if voiceMsg}
+                {@const file = content?.file as EncryptedFile | undefined}
                 <VoiceMessagePlayer
-                    mxcUrl={content?.url as string}
+                    mxcUrl={file ? undefined : (content?.url as string)}
+                    encryptedFile={file}
+                    mimetype={(
+                        content?.info as { mimetype?: string } | undefined
+                    )?.mimetype}
                     waveform={voiceMsg.waveform}
                     durationMs={voiceMsg.durationMs}
                 />
@@ -1787,7 +1973,8 @@
                 isSelf={isOwnMessage}
             />
         {:else if msgtype === "m.file"}
-            {@const fileUrl = mxcToHttp(content?.url as string)}
+            {@const file = content?.file as EncryptedFile | undefined}
+            {@const fileUrl = file ? null : mxcToHttp(content?.url as string)}
             {@const fileSize = (content?.info as any)?.size}
             {@const fileName = mediaFilename}
             {@const isSwf = fileName.toLowerCase().endsWith(".swf")}
@@ -1821,10 +2008,15 @@
                                   " MB"}{:else}File attachment{/if}
                     </p>
                 </div>
-                {#if fileUrl}
+                {#if fileUrl || file}
                     <button
                         onclick={async () => {
-                            const blobUrl = await fetchAttachmentBlob(fileUrl);
+                            const blobUrl = file
+                                ? await fetchDecryptedAttachmentBlob(
+                                      file,
+                                      (content?.info as any)?.mimetype,
+                                  )
+                                : await fetchAttachmentBlob(fileUrl!);
                             const a = document.createElement("a");
                             a.href = blobUrl;
                             a.download = fileName;

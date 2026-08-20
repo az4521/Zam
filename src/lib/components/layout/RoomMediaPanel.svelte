@@ -4,6 +4,7 @@
     import {
         fetchRoomMediaPage,
         fetchAttachmentBlob,
+        fetchDecryptedAttachmentBlob,
         mxcToHttp,
         type RoomMediaPage,
     } from "$lib/matrix/client";
@@ -49,6 +50,11 @@
     // video, so this is the ORDINARY path for them, not an error case: the tile
     // swaps to a placeholder instead of showing a broken-image glyph.
     let thumbFailed = $state<Record<string, boolean>>({});
+    // Decrypted encrypted thumbnails, keyed by eventId.
+    let decryptedThumbs = $state<Record<string, string>>({});
+    // Decrypted full media for the lightbox viewer, keyed by eventId.
+    let decryptedFull = $state<Record<string, string>>({});
+    let viewerDecrypting = $state(false);
 
     const split = $derived(splitMediaItems(items));
     const visible = $derived(tab === "media" ? split.visual : split.files);
@@ -57,15 +63,13 @@
     // "…in this room yet." would assert something the Load-more button directly
     // beneath it contradicts, so only claim it once history is exhausted.
     const emptyMessage = $derived(
-        isEncrypted
-            ? "Encrypted attachments can't be listed yet."
-            : hasMore
-              ? tab === "media"
-                  ? "No media found in the last few hundred messages."
-                  : "No files found in the last few hundred messages."
-              : tab === "media"
-                ? "No images or videos in this room yet."
-                : "No files in this room yet.",
+        hasMore
+            ? tab === "media"
+                ? "No media found in the last few hundred messages."
+                : "No files found in the last few hundred messages."
+            : tab === "media"
+              ? "No images or videos in this room yet."
+              : "No files in this room yet.",
     );
 
     // Everything in the Media tab is viewable: the Lightbox renders an image or
@@ -180,14 +184,14 @@
     }
 
     async function download(item: RoomMediaItem): Promise<void> {
-        const url = mxcToHttp(item.url);
-        if (!url) return;
-        // Media lives behind the authenticated download endpoint, so the access
-        // token has to be attached — opening the URL directly 401s on a server
-        // that enforces authenticated media. Same blob-anchor-revoke dance as
-        // the m.file card in MessageItem.
         try {
-            const blobUrl = await fetchAttachmentBlob(url);
+            const blobUrl =
+                item.encrypted && item.encryptedFile
+                    ? await fetchDecryptedAttachmentBlob(
+                          item.encryptedFile,
+                          item.mimetype ?? undefined,
+                      )
+                    : await fetchAttachmentBlob(mxcToHttp(item.url)!);
             const a = document.createElement("a");
             a.href = blobUrl;
             a.download = item.name;
@@ -203,6 +207,60 @@
             showErrorToast("Failed to download attachment");
         }
     }
+
+    // Decrypt encrypted thumbnails into the decryptedThumbs map
+    $effect(() => {
+        const encrypted = split.visual.filter(
+            (m) => m.encrypted && m.encryptedFile,
+        );
+        const urls: Record<string, string> = {};
+        Promise.all(
+            encrypted.map(async (m) => {
+                if (!m.encryptedFile) return;
+                try {
+                    const url = await fetchDecryptedAttachmentBlob(
+                        m.encryptedFile,
+                        m.mimetype ?? undefined,
+                    );
+                    urls[m.eventId] = url;
+                    decryptedThumbs[m.eventId] = url;
+                } catch {
+                    // Decryption failed, leave it out
+                }
+            }),
+        );
+        return () => {
+            Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+        };
+    });
+
+    // Decrypt full media when the viewer opens on an encrypted item
+    $effect(() => {
+        if (viewerIndex === null) return;
+        const item = gallery[viewerIndex];
+        if (!item || !item.encrypted || !item.encryptedFile) return;
+        if (decryptedFull[item.eventId]) return; // Already decrypted
+        viewerDecrypting = true;
+        let url: string | null = null;
+        fetchDecryptedAttachmentBlob(
+            item.encryptedFile,
+            item.mimetype ?? undefined,
+        )
+            .then((decrypted) => {
+                url = decrypted;
+                decryptedFull[item.eventId] = decrypted;
+                viewerDecrypting = false;
+            })
+            .catch(() => {
+                viewerDecrypting = false;
+            });
+        return () => {
+            if (url && !decryptedFull[item.eventId]) {
+                // Only revoke if we're not keeping it in the map
+                URL.revokeObjectURL(url);
+            }
+        };
+    });
 </script>
 
 <div
@@ -298,9 +356,11 @@
             <div class="grid grid-cols-3 gap-1 p-2">
                 {#each split.visual as media (media.eventId)}
                     {@const thumbMxc = mediaThumbnailMxc(media)}
-                    {@const thumb = thumbFailed[media.eventId]
-                        ? null
-                        : mxcToHttp(thumbMxc, 160, 160)}
+                    {@const thumb = media.encrypted
+                        ? (decryptedThumbs[media.eventId] ?? null)
+                        : thumbFailed[media.eventId]
+                          ? null
+                          : mxcToHttp(thumbMxc, 160, 160)}
                     {@const duration = formatMediaDuration(media.durationMs)}
                     <button
                         onclick={() => openViewer(media)}
@@ -310,14 +370,7 @@
                             : media.name}
                     >
                         {#if thumb}
-                            <!-- Only ever a real thumbnail: mediaThumbnailMxc
-                                 hands back null for a video the sender did not
-                                 thumbnail, so this <img> is never pointed at a
-                                 video's own mxc (continuwuity would answer with
-                                 the whole file). A thumbnail that still fails
-                                 to decode falls through to the placeholder
-                                 below instead of a broken-image glyph. And
-                                 NEVER a <video> element per tile. -->
+                            <!-- Decrypted or unencrypted thumbnail -->
                             <img
                                 src={thumb}
                                 alt={media.name}
@@ -402,13 +455,38 @@
 </div>
 
 {#if viewerIndex !== null && gallery[viewerIndex]}
-    {@const view = mediaViewerItem(gallery[viewerIndex], {
-        full: (mxc) => mxcToHttp(mxc),
+    {@const item = gallery[viewerIndex]}
+    {@const view = mediaViewerItem(item, {
+        full: (mxc) =>
+            item.encrypted && decryptedFull[item.eventId]
+                ? decryptedFull[item.eventId]
+                : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
         // own aspect ratio or the player letterboxes a distorted still.
-        poster: (mxc) => mxcToHttp(mxc, 800, 600, "scale"),
+        poster: (mxc) =>
+            item.encrypted && decryptedThumbs[item.eventId]
+                ? decryptedThumbs[item.eventId]
+                : mxcToHttp(mxc, 800, 600, "scale"),
     })}
-    {#if view}
+    {#if viewerDecrypting}
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Decrypting media"
+        >
+            <div
+                class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
+            >
+                <div
+                    class="w-8 h-8 mx-auto mb-4 border-4 border-discord-accent border-t-transparent rounded-full animate-spin"
+                ></div>
+                <p class="text-sm text-discord-textPrimary">
+                    Decrypting media...
+                </p>
+            </div>
+        </div>
+    {:else if view}
         <Lightbox
             src={view.src}
             alt={view.filename}

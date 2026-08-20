@@ -1,17 +1,40 @@
 <script lang="ts">
     import { onDestroy, tick } from "svelte";
-    import { fetchAttachmentBlob, mxcToHttp } from "$lib/matrix/client";
+    import {
+        fetchAttachmentBlob,
+        fetchDecryptedAttachmentBlob,
+        mxcToHttp,
+    } from "$lib/matrix/client";
     import { formatCallDuration } from "$lib/utils/callDuration";
 
+    type EncryptedFile = {
+        url: string;
+        key: {
+            k: string;
+            alg?: string;
+            kty?: string;
+            ext?: boolean;
+            key_ops?: string[];
+        };
+        iv: string;
+        hashes: { sha256: string };
+        v?: string;
+    };
+
     interface Props {
-        /** mxc:// url of the audio. */
-        mxcUrl: string;
+        /** mxc:// url of the audio (unencrypted only). */
+        mxcUrl?: string;
+        /** Encrypted file metadata (encrypted only). */
+        encryptedFile?: EncryptedFile;
+        /** Plaintext mimetype (for encrypted files). */
+        mimetype?: string;
         /** Stored amplitude bars (0..1024). */
         waveform: number[];
         /** Stored clip length in ms (fallback when media metadata is unusable). */
         durationMs: number;
     }
-    let { mxcUrl, waveform, durationMs }: Props = $props();
+    let { mxcUrl, encryptedFile, mimetype, waveform, durationMs }: Props =
+        $props();
 
     let audioEl = $state<HTMLAudioElement>();
     let blobUrl = $state<string | null>(null);
@@ -37,11 +60,18 @@
 
     async function ensureLoaded(): Promise<boolean> {
         if (blobUrl) return true;
-        const http = mxcToHttp(mxcUrl);
-        if (!http) return false;
         loading = true;
         try {
-            blobUrl = await fetchAttachmentBlob(http);
+            if (encryptedFile) {
+                blobUrl = await fetchDecryptedAttachmentBlob(
+                    encryptedFile,
+                    mimetype,
+                );
+            } else {
+                const http = mxcToHttp(mxcUrl);
+                if (!http) return false;
+                blobUrl = await fetchAttachmentBlob(http);
+            }
             await tick(); // let the <audio> mount + bind before we play/seek
             return true;
         } catch {

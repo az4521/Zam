@@ -70,6 +70,8 @@ describe("mediaItemFromEvent", () => {
             mimetype: "image/png",
             size: 2048,
             durationMs: null,
+            encrypted: false,
+            encryptedFile: undefined,
         });
     });
 
@@ -156,18 +158,30 @@ describe("mediaItemFromEvent", () => {
         expect(mediaItemFromEvent(ev({ content: {} }))).toBeNull();
     });
 
-    it("rejects encrypted-attachment media that has no plain url", () => {
-        expect(
-            mediaItemFromEvent(
-                ev({
-                    content: {
-                        msgtype: "m.image",
-                        body: "secret.png",
-                        file: { url: "mxc://example.org/e", key: {} },
+    it("enumerates encrypted-attachment media with encrypted flag", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.image",
+                    body: "secret.png",
+                    file: {
+                        url: "mxc://example.org/e",
+                        key: { k: "test" },
+                        iv: "test-iv",
+                        hashes: { sha256: "test-hash" },
                     },
-                }),
-            ),
-        ).toBeNull();
+                },
+            }),
+        );
+        expect(result).not.toBeNull();
+        expect(result?.encrypted).toBe(true);
+        expect(result?.url).toBe("mxc://example.org/e");
+        expect(result?.encryptedFile).toMatchObject({
+            url: "mxc://example.org/e",
+            key: { k: "test" },
+            iv: "test-iv",
+            hashes: { sha256: "test-hash" },
+        });
     });
 
     it("rejects a non-mxc url", () => {
