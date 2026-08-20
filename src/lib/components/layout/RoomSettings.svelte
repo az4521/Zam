@@ -61,7 +61,7 @@
         validateAliasLocalpart,
         type CanonicalAliasContent,
     } from "$lib/utils/roomAliases";
-    import { parsePowerLevelInput } from "$lib/utils/powerLevels";
+    import { parseMutePowerLevelInput } from "$lib/utils/mutePowerLevel";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
     import {
         roomSettingsNavView,
@@ -765,6 +765,7 @@
     }
 
     function plLabel(level: number): string {
+        if (level < 0) return "Muted";
         if (level >= 100) return "Admin";
         if (level >= 50) return "Moderator";
         return "Member";
@@ -1716,7 +1717,7 @@
                                                 !isSelf &&
                                                 myPowerLevel > memberPl}
                                             {@const plResult =
-                                                parsePowerLevelInput(
+                                                parseMutePowerLevelInput(
                                                     plDrafts[member.userId] ??
                                                         String(memberPl),
                                                     myPowerLevel,
@@ -1834,10 +1835,15 @@
                                                                         >Member
                                                                         (0)</option
                                                                     >
+                                                                    <option
+                                                                        value="-1"
+                                                                        >Muted
+                                                                        (-1)</option
+                                                                    >
                                                                 </select>
                                                                 <input
                                                                     type="number"
-                                                                    min="0"
+                                                                    min="-1"
                                                                     max={myPowerLevel}
                                                                     value={plDrafts[
                                                                         member
