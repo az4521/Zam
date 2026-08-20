@@ -194,6 +194,7 @@ import {
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
+import { buildCallNotifyContent } from "$lib/utils/callNotify";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import { isSyncRecovery } from "$lib/utils/liveShareStop";
@@ -7577,6 +7578,25 @@ export function getRoomCallMemberships(room: Room): VoiceMembership[] {
             deviceId: m.deviceId,
             joinedTs: m.createdTs(),
         }));
+}
+
+/** Send an MSC4075 m.call.notify so a callee whose app is closed gets pushed.
+ *  Fire-and-forget from the call-start path; never block joining on it. The
+ *  `as never` casts match the poll senders — the SDK's sendEvent overloads are
+ *  narrow and the repo already casts custom event types this way. Do NOT use
+ *  sendMessage, whose threadId overload mangles anything starting with `$`. */
+export async function sendCallNotify(
+    roomId: string,
+    calleeUserIds: string[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    if (calleeUserIds.length === 0) return;
+    const content = buildCallNotifyContent({ calleeUserIds });
+    await matrixClient.sendEvent(
+        roomId,
+        "m.call.notify" as never,
+        content as never,
+    );
 }
 
 const voiceSessionSubscribers = new Set<() => void>();
