@@ -195,6 +195,7 @@ import {
 } from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import { buildCallNotifyContent, shouldRingPeers } from "$lib/utils/callNotify";
+import { buildCallNotifyPushRule } from "$lib/utils/callPushRule";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import { isSyncRecovery } from "$lib/utils/liveShareStop";
@@ -3547,6 +3548,32 @@ export async function setDefaultPushRuleLevel(
             pushRulesState.revision++;
         }
     });
+}
+
+/** Register (idempotent, best-effort) a client push rule that rings on an
+ *  MSC4075 m.call.notify, so a device whose app is closed pushes an incoming
+ *  CALL notification. Never throws into startup: on continuwuity this is
+ *  redundant (it pushes m.call.notify by default), and on servers that don't,
+ *  a failure just means no closed-device ring — not a broken session. */
+export async function ensureCallNotifyPushRule(): Promise<void> {
+    if (!matrixClient) return;
+    const r = buildCallNotifyPushRule();
+    try {
+        await matrixClient.addPushRule(
+            "global",
+            r.kind as never,
+            r.ruleId,
+            r.body as never,
+        );
+        await matrixClient.setPushRuleEnabled(
+            "global",
+            r.kind as never,
+            r.ruleId,
+            true,
+        );
+    } catch {
+        // Already present or a transient failure — the rule is best-effort.
+    }
 }
 
 // ── Per-room notification settings ────────────────────────────────────────

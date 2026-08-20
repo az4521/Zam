@@ -111,6 +111,7 @@
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
         clearServiceWorkerNotifications,
+        ensureCallNotifyPushRule,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -1118,6 +1119,9 @@
         if (client) initPush(client).catch(console.error);
         // PWA / browser web push (no-op on native or when no VAPID key set).
         if (client) initWebPush(client).catch(console.error);
+        // Ring on a closed device: register the m.call.notify push rule once.
+        // Idempotent + best-effort — never blocks or breaks the session.
+        if (client) ensureCallNotifyPushRule().catch(() => {});
 
         // Mirror the session natively so the push service can enrich
         // notifications and read the active-session blob (off-native this is a
