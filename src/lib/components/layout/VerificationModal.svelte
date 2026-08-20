@@ -380,9 +380,25 @@
                     <p class="mt-4 text-xs text-discord-textMuted">
                         {startPending
                             ? "Starting…"
-                            : "Pick how you'd like to verify."}
+                            : "Compare a short list of emoji to verify, or use a QR code."}
                     </p>
                     <div class="mt-4 flex flex-col gap-2">
+                        {#if methods.canSas}
+                            <!-- Emoji is the primary path: it always works, needs
+                                 no camera, and is what users expect. QR stays
+                                 available below as a secondary option. -->
+                            <button
+                                onclick={chooseSas}
+                                disabled={busy || startPending}
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold text-left transition-colors disabled:opacity-50"
+                            >
+                                <ShieldCheck
+                                    size={18}
+                                    class="text-white shrink-0"
+                                />
+                                Compare emoji
+                            </button>
+                        {/if}
                         {#if methods.canShowQr}
                             <button
                                 onclick={openShowQr}
@@ -407,19 +423,6 @@
                                     class="text-discord-textMuted shrink-0"
                                 />
                                 Scan their code with the camera
-                            </button>
-                        {/if}
-                        {#if methods.canSas}
-                            <button
-                                onclick={chooseSas}
-                                disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-left transition-colors disabled:opacity-50"
-                            >
-                                <ShieldCheck
-                                    size={18}
-                                    class="text-discord-textMuted shrink-0"
-                                />
-                                Compare emoji instead
                             </button>
                         {/if}
                     </div>
