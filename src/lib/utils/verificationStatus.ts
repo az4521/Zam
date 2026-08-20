@@ -97,7 +97,7 @@ export function reconcileVerification(args: {
             if (deviceTrust?.isVerified === true) {
                 return {
                     kind: "needs-setup",
-                    label: "Finish setup",
+                    label: "Encryption setup incomplete",
                     detail: "This session is verified, but encryption setup is incomplete.",
                     tone: "warning",
                     actionable: true,
