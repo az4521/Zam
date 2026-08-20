@@ -22,7 +22,7 @@ export interface RoomMediaItem {
     kind: MediaKind;
     /** Display name: MSC2530 filename, else body, else a generic kind label. */
     name: string;
-    /** mxc: URI of the full-resolution media. */
+    /** mxc: URI of the full-resolution media (or ciphertext URL for encrypted). */
     url: string;
     /** mxc: URI of a server-supplied thumbnail (videos usually have one). */
     thumbnailUrl: string | null;
@@ -31,6 +31,22 @@ export interface RoomMediaItem {
     /** `info.duration` in milliseconds — video/audio only, and optional, so it
      *  is null far more often than not. */
     durationMs: number | null;
+    /** True when this attachment is encrypted (content.file instead of content.url). */
+    encrypted?: boolean;
+    /** The EncryptedFile metadata when encrypted is true. */
+    encryptedFile?: {
+        url: string;
+        key: {
+            k: string;
+            alg?: string;
+            kty?: string;
+            ext?: boolean;
+            key_ops?: string[];
+        };
+        iv: string;
+        hashes: { sha256: string };
+        v?: string;
+    };
 }
 
 /** The minimum an event has to expose to be considered. Deliberately loose so
@@ -68,9 +84,8 @@ function mxc(value: unknown): string | null {
 
 /**
  * Map one timeline event to a media item, or null when it is not renderable
- * media. Encrypted attachments (`content.file`, no `content.url`) return null
- * on purpose: this client has no attachment-decryption path, so showing them
- * would only produce broken tiles.
+ * media. Encrypted attachments (`content.file`) are now enumerated and the
+ * caller is expected to decrypt them.
  *
  * Pass the POST-DECRYPTION type and content: this hard-rejects anything whose
  * type is not `m.room.message`, so in an encrypted room the caller must have
@@ -95,7 +110,12 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         : undefined;
     if (!kind) return null;
 
-    const url = mxc(content.url);
+    // Check for encrypted file first (content.file), then unencrypted (content.url)
+    const file =
+        typeof content.file === "object" && content.file !== null
+            ? (content.file as Record<string, unknown>)
+            : null;
+    const url = file ? mxc(file.url) : mxc(content.url);
     if (url === null) return null;
 
     const info: Record<string, unknown> =
@@ -115,6 +135,16 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         mimetype: str(info.mimetype),
         size,
         durationMs: typeof info.duration === "number" ? info.duration : null,
+        encrypted: file !== null,
+        encryptedFile: file
+            ? ({
+                  url: url,
+                  key: file.key as any,
+                  iv: str(file.iv) ?? "",
+                  hashes: (file.hashes as any) ?? { sha256: "" },
+                  v: str(file.v),
+              } as any)
+            : undefined,
     };
 }
 

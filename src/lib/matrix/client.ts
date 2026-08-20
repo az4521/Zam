@@ -94,6 +94,10 @@ import {
 import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import {
+    decryptAttachment,
+    type EncryptedFileInfo,
+} from "$lib/utils/decryptAttachment";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -2372,6 +2376,40 @@ export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
     const resp = await fetch(httpUrl, { headers });
     if (!resp.ok) throw new Error(`Failed to fetch attachment: ${resp.status}`);
     const blob = await resp.blob();
+    return URL.createObjectURL(blob);
+}
+
+/**
+ * Fetch an ENCRYPTED attachment (`content.file`) from the homeserver with auth,
+ * decrypt it (AES-CTR, integrity-checked in decryptAttachment) and return an
+ * object URL. Mirrors fetchAttachmentBlob's same-origin token guard. The
+ * plaintext mimetype comes from the event's `content.info.mimetype` — the
+ * EncryptedFile itself carries none. The caller owns the object URL and must
+ * revoke it. Throws (never returns a URL) if the integrity hash fails.
+ */
+export async function fetchDecryptedAttachmentBlob(
+    file: EncryptedFileInfo & { url: string },
+    mimetype?: string,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const httpUrl = mxcToHttp(file.url);
+    if (!httpUrl) throw new Error("Encrypted attachment has an invalid URL");
+    const baseUrl = matrixClient.getHomeserverUrl();
+    if (!isSameOrigin(httpUrl, baseUrl)) {
+        throw new Error("Refusing to fetch a non-homeserver URL with auth");
+    }
+    const token = matrixClient.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const resp = await fetch(httpUrl, { headers });
+    if (!resp.ok) {
+        throw new Error(`Failed to fetch encrypted attachment: ${resp.status}`);
+    }
+    const ciphertext = await resp.arrayBuffer();
+    const plaintext = await decryptAttachment(ciphertext, file);
+    const blob = new Blob([plaintext], {
+        type: mimetype || "application/octet-stream",
+    });
     return URL.createObjectURL(blob);
 }
 
