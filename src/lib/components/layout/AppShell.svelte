@@ -1208,7 +1208,19 @@
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
             if (e.data?.type === "OPEN_ROOM" && e.data.roomId) {
-                routeNotificationTap(e.data.roomId, e.data.userId);
+                // Accept on a call notification carries joinCall: open the room
+                // AND join the call, honouring the same posting-account guard.
+                if (e.data.joinCall) {
+                    restoreAppWindow();
+                    const decision = decideNotificationRoute(
+                        { roomId: e.data.roomId, userId: e.data.userId },
+                        { userId: auth.userId },
+                    );
+                    if (decision.action === "navigate")
+                        acceptIncomingCall(decision.roomId);
+                } else {
+                    routeNotificationTap(e.data.roomId, e.data.userId);
+                }
             }
         };
         if ("serviceWorker" in navigator) {
