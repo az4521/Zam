@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCallNotifyContent } from "./callNotify";
+import { buildCallNotifyContent, shouldRingPeers } from "./callNotify";
 
 describe("buildCallNotifyContent", () => {
     it("rings the named callees by default with the room-scoped call id", () => {
@@ -32,5 +32,19 @@ describe("buildCallNotifyContent", () => {
                 "m.mentions"
             ].user_ids,
         ).toEqual(["@dev:hs"]);
+    });
+});
+
+describe("shouldRingPeers", () => {
+    it("rings when the local join is first into a DM call", () => {
+        expect(shouldRingPeers(true, [])).toBe(true);
+    });
+
+    it("stays silent when a peer is already in the DM call (answering)", () => {
+        expect(shouldRingPeers(true, ["@dev:hs"])).toBe(false);
+    });
+
+    it("never rings outside a DM", () => {
+        expect(shouldRingPeers(false, [])).toBe(false);
     });
 });

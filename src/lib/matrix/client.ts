@@ -194,7 +194,7 @@ import {
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
-import { buildCallNotifyContent } from "$lib/utils/callNotify";
+import { buildCallNotifyContent, shouldRingPeers } from "$lib/utils/callNotify";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import { isSyncRecovery } from "$lib/utils/liveShareStop";
@@ -8046,6 +8046,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
+    // Snapshot the call's non-self peers BEFORE our own membership publishes,
+    // so we can tell "starting a call" (ring the peer) from "answering one"
+    // (stay silent). See the ring-send after joinRTCSession below.
+    const callPeersBeforeJoin = getRoomCallMemberships(room)
+        .map((m) => m.userId)
+        .filter((id) => id !== userId);
     const lk = await livekitLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
     const lkRoom = new lk.Room({
@@ -8121,6 +8127,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             undefined,
             { membershipEventExpiryMs: 4 * 60 * 60 * 1000 },
         );
+
+        // MSC4075 ring: if WE are the first into a DM call, push the peer so a
+        // device whose app is closed rings. Fire-and-forget — never block or
+        // fail the join on it. The peer answering (a peer already present at
+        // snapshot time) sends nothing.
+        const isDm = getDirectRoomIds().has(roomId);
+        if (shouldRingPeers(isDm, callPeersBeforeJoin)) {
+            const dmPeerIds = getRoomMembers(room)
+                .map((m) => m.userId)
+                .filter((id) => id !== userId);
+            void sendCallNotify(roomId, dmPeerIds).catch(() => {});
+        }
 
         const openIdToken = await matrixClient.getOpenIdToken();
         if (seq !== voiceJoinSeq) return;

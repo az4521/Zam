@@ -22,3 +22,13 @@ export function buildCallNotifyContent(opts: {
         notify_type: opts.notifyType ?? "ring",
     };
 }
+
+/** True when the local join is the FIRST participant in a DM call — i.e. we are
+ *  the caller and should ring the peer, not answer. `peerUserIdsInCall` is the
+ *  set of non-self user ids already in the call at join time. */
+export function shouldRingPeers(
+    isDm: boolean,
+    peerUserIdsInCall: string[],
+): boolean {
+    return isDm && peerUserIdsInCall.length === 0;
+}
