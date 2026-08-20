@@ -17,7 +17,8 @@ export function getAvatarInitials(name: string | null | undefined): string {
     let label = name?.trim();
     if (!label) return "?";
     if (label.startsWith("@")) {
-        label = label.slice(1).split(":")[0] || label;
+        label = label.slice(1).split(":")[0];
+        if (!label) return "?";
     }
     const words = label.split(/\s+/);
     if (words.length === 1) return words[0][0]?.toUpperCase() ?? "?";
