@@ -199,13 +199,13 @@ export function configureCallSounds(opts: {
 }
 
 /** One ring cycle: four tones — high, high, low, low — then silence to fill the
- *  RING_CYCLE_S slot before the next cycle. Triangle at a high peak so it rings
- *  loud and bright. */
+ *  RING_CYCLE_S slot before the next cycle. Pitched an octave below a phone's
+ *  classic ringback (A4/D4) so it carries without being shrill. */
 export const RING_PATTERN: ToneSegment[] = [
-    { type: "triangle", from: 880, to: 880, at: 0, duration: 0.16, peak: 0.7 },
-    { type: "triangle", from: 880, to: 880, at: 0.2, duration: 0.16, peak: 0.7 },
-    { type: "triangle", from: 587, to: 587, at: 0.4, duration: 0.16, peak: 0.7 },
-    { type: "triangle", from: 587, to: 587, at: 0.6, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 440, to: 440, at: 0, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 440, to: 440, at: 0.2, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 294, to: 294, at: 0.4, duration: 0.16, peak: 0.7 },
+    { type: "triangle", from: 294, to: 294, at: 0.6, duration: 0.16, peak: 0.7 },
 ];
 
 /** Length of one ring cycle: the four tones span ~0.76s, the rest is the pause
