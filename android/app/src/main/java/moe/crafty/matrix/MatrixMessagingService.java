@@ -177,13 +177,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     String name = senderName.trim();
 
                     // Same rule as pushNotificationKind() (src/lib/utils) and
-                    // buildNotification() in static/sw.js: m.call.notify with a
-                    // "ring" (or absent) notify_type is an incoming CALL. The
-                    // event TYPE decides — event_id_only pushes carry no tweak.
+                    // buildNotification() in static/sw.js: an MSC4075 call-notify
+                    // with a "ring" (or absent) notify_type is an incoming CALL.
+                    // The event TYPE decides (event_id_only pushes carry no
+                    // tweak). The unstable type is what is actually stored/pushed;
+                    // the stable one is accepted too.
                     String type = event.optString("type", "");
                     String notifyType = content != null
                         ? content.optString("notify_type", "ring") : "ring";
-                    if (type.equals("m.call.notify") && notifyType.equals("ring")) {
+                    boolean isCallType = type.equals("org.matrix.msc4075.call.notify")
+                        || type.equals("m.call.notify");
+                    if (isCallType && notifyType.equals("ring")) {
                         isCall = true;
                         callerName = name;
                     } else {

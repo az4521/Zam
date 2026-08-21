@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import { buildCallNotifyPushRule, CALL_NOTIFY_RULE_ID } from "./callPushRule";
 
 describe("buildCallNotifyPushRule", () => {
-    it("matches the exact shape the Task-0 spike proved works", () => {
-        // Regression guard: the rule must not silently drift from the verified body.
+    it("matches on the unstable MSC4075 type that is actually stored/pushed", () => {
+        // Regression guard: the rule must key on org.matrix.msc4075.call.notify,
+        // NOT the stable m.call.notify (which never appears on the wire).
         expect(buildCallNotifyPushRule()).toEqual({
             ruleId: "moe.crafty.rule.call_notify",
             kind: "underride",
@@ -12,7 +13,7 @@ describe("buildCallNotifyPushRule", () => {
                     {
                         kind: "event_match",
                         key: "type",
-                        pattern: "m.call.notify",
+                        pattern: "org.matrix.msc4075.call.notify",
                     },
                 ],
                 actions: ["notify", { set_tweak: "sound", value: "ring" }],

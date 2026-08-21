@@ -194,7 +194,11 @@ import {
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
-import { buildCallNotifyContent, shouldRingPeers } from "$lib/utils/callNotify";
+import {
+    buildCallNotifyContent,
+    shouldRingPeers,
+    CALL_NOTIFY_EVENT_TYPE,
+} from "$lib/utils/callNotify";
 import { buildCallNotifyPushRule } from "$lib/utils/callPushRule";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
@@ -7621,7 +7625,7 @@ export async function sendCallNotify(
     const content = buildCallNotifyContent({ calleeUserIds });
     await matrixClient.sendEvent(
         roomId,
-        "m.call.notify" as never,
+        CALL_NOTIFY_EVENT_TYPE as never,
         content as never,
     );
 }

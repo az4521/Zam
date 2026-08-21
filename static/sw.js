@@ -1005,15 +1005,17 @@ async function buildNotification(data) {
 				senderName = member.displayname;
 			const name = senderName.trim();
 
-			// MSC4075 m.call.notify → render an incoming CALL, not a message.
+			// MSC4075 call-notify → render an incoming CALL, not a message.
 			// Keep this rule identical to pushNotificationKind() in
 			// src/lib/utils/pushNotificationKind.ts (a test guards the
 			// contract). event_id_only pushes carry no sound tweak, so the
-			// event TYPE is what decides the ring here.
+			// event TYPE is what decides the ring here. The unstable type is
+			// what is actually stored/pushed; the stable one is accepted too.
 			const evtType = typeof event.type === "string" ? event.type : "";
 			const notifyType = event.content && event.content.notify_type;
 			isCall =
-				evtType === "m.call.notify" &&
+				(evtType === "org.matrix.msc4075.call.notify" ||
+					evtType === "m.call.notify") &&
 				(notifyType === undefined || notifyType === "ring");
 
 			if (isCall) {

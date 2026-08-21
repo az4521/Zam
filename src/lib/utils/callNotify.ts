@@ -1,3 +1,13 @@
+/** MSC4075 call-notify event type as it actually appears on the wire.
+ *  matrix-js-sdk 41's `EventType.CallNotify` is this unstable identifier, and
+ *  continuwuity canonicalises even a raw `m.call.notify` send to it (verified
+ *  live 2026-08-21). So this is what recipients see, what the push rule must
+ *  match, and what we must send. */
+export const CALL_NOTIFY_EVENT_TYPE = "org.matrix.msc4075.call.notify";
+/** The stable identifier, kept only so inbound classifiers accept a notify
+ *  from a client/homeserver that uses it. We never SEND this form. */
+export const CALL_NOTIFY_EVENT_TYPE_STABLE = "m.call.notify";
+
 export interface CallNotifyContent {
     application: "m.call";
     call_id: string;
