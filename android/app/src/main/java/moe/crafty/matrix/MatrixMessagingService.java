@@ -10,6 +10,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.net.Uri;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -50,6 +52,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     private static final String CHANNEL_ID = "matrix_messages";
     private static final String CHANNEL_NAME = "Messages";
+    // Separate high-importance channel for incoming calls: a ring sound, DND
+    // bypass and vibration, so a call is unmistakable and unlike a message.
+    private static final String CALL_CHANNEL_ID = "matrix_calls";
+    private static final String CALL_CHANNEL_NAME = "Calls";
 
     // Matches the Capacitor Preferences store + the single session record
     // written by src/lib/utils/nativeSessionRecord.ts (via nativeSession.ts).
@@ -122,6 +128,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         String title = "New message";
         String text = "You have a new message";
         Bitmap largeIcon = null;
+        // MSC4075 m.call.notify → render an incoming CALL, not a message.
+        boolean isCall = false;
+        String callerName = null;
 
         try {
             SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -165,18 +174,32 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     String senderName = fetchSenderName(hs, token, roomId, sender);
                     if (senderName == null || senderName.isEmpty()) senderName = sender;
 
-                    // Same comparisons as notificationBody() in
-                    // src/lib/utils/notificationPrivacy.ts (and buildNotification()
-                    // in static/sw.js): trim both sides so a whitespace-only body
-                    // counts as absent, and drop the message text entirely when
-                    // the privacy setting is on. The room name still becomes the
-                    // title — only the message text is gated.
                     String name = senderName.trim();
-                    String preview = hideBody ? "" : body.trim();
-                    if (!preview.isEmpty()) {
-                        text = name.isEmpty() ? preview : name + ": " + preview;
-                    } else if (!name.isEmpty()) {
-                        text = name + " sent a message";
+
+                    // Same rule as pushNotificationKind() (src/lib/utils) and
+                    // buildNotification() in static/sw.js: m.call.notify with a
+                    // "ring" (or absent) notify_type is an incoming CALL. The
+                    // event TYPE decides — event_id_only pushes carry no tweak.
+                    String type = event.optString("type", "");
+                    String notifyType = content != null
+                        ? content.optString("notify_type", "ring") : "ring";
+                    if (type.equals("m.call.notify") && notifyType.equals("ring")) {
+                        isCall = true;
+                        callerName = name;
+                    } else {
+                        // Same comparisons as notificationBody() in
+                        // src/lib/utils/notificationPrivacy.ts (and
+                        // buildNotification() in static/sw.js): trim both sides so
+                        // a whitespace-only body counts as absent, and drop the
+                        // message text entirely when the privacy setting is on.
+                        // The room name still becomes the title — only the
+                        // message text is gated.
+                        String preview = hideBody ? "" : body.trim();
+                        if (!preview.isEmpty()) {
+                            text = name.isEmpty() ? preview : name + ": " + preview;
+                        } else if (!name.isEmpty()) {
+                            text = name + " sent a message";
+                        }
                     }
                 }
 
@@ -195,7 +218,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // Any failure → fall back to the generic notification.
         }
 
-        showNotification(title, text, roomId, largeIcon);
+        if (isCall) {
+            showCallNotification(callerName, roomId, largeIcon);
+        } else {
+            showNotification(title, text, roomId, largeIcon);
+        }
     }
 
     // ── Session record ──────────────────────────────────────────────────────
@@ -667,6 +694,126 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     NotificationManager.IMPORTANCE_HIGH
                 );
                 channel.setDescription("New message notifications");
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    /**
+     * Full-screen ringing notification for an incoming DM call (m.call.notify).
+     * Category CALL + ongoing + a ring sound + a full-screen intent so it wakes
+     * the screen and shows over the lockscreen, with Accept/Decline actions.
+     *
+     * Full-screen intent + Android 14+ (API 34): USE_FULL_SCREEN_INTENT is
+     * declared in the manifest, but on API 34+ the OS grants it by default only
+     * to apps whose core function is calling/alarms; otherwise the system
+     * downgrades the full-screen intent to a heads-up notification (which still
+     * rings and shows the actions — the call is not lost, only not full-screen).
+     * The user can grant "Full screen intents" in Settings > Apps > Special app
+     * access. We cannot prompt from a background service, and canUseFullScreenIntent()
+     * only reports the state, so we always set it and let the OS decide.
+     */
+    private void showCallNotification(String callerName, String roomId, Bitmap largeIcon) {
+        createCallChannel();
+
+        String display = (callerName != null && !callerName.trim().isEmpty())
+            ? callerName.trim() : "Someone";
+
+        // Account stamp: only attribute (deep-link + join) when we can name the
+        // poster, mirroring showNotification()'s PRIV-02 guard.
+        String postedBy = null;
+        try {
+            SharedPreferences notifPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SessionRecord postedSession = readSessionRecord(notifPrefs);
+            postedBy = postedSession != null ? postedSession.userId : null;
+        } catch (Throwable ignored) {}
+        boolean routable = roomId != null && postedBy != null && !postedBy.isEmpty();
+
+        int notificationId = roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
+
+        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            piFlags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        // Accept / full-screen: open the app to the room AND join the call.
+        Intent answerIntent = new Intent(this, MainActivity.class);
+        answerIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (routable) {
+            answerIntent.putExtra("room_id", roomId);
+            answerIntent.putExtra("user_id", postedBy);
+            answerIntent.putExtra("join_call", true);
+        }
+        PendingIntent answerPending = PendingIntent.getActivity(
+            this, notificationId, answerIntent, piFlags);
+
+        // Body tap (not a button): open the room; the in-app ringer offers Accept.
+        Intent openIntent = new Intent(this, MainActivity.class);
+        openIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (routable) {
+            openIntent.putExtra("room_id", roomId);
+            openIntent.putExtra("user_id", postedBy);
+        }
+        PendingIntent openPending = PendingIntent.getActivity(
+            this, notificationId + 1, openIntent, piFlags);
+
+        // Decline: cancel the notification without opening the app.
+        Intent declineIntent = new Intent(this, CallActionReceiver.class);
+        declineIntent.setAction(CallActionReceiver.ACTION_DECLINE);
+        declineIntent.putExtra(CallActionReceiver.EXTRA_NOTIFICATION_ID, notificationId);
+        PendingIntent declinePending = PendingIntent.getBroadcast(
+            this, notificationId + 2, declineIntent, piFlags);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher_adaptive_fore)
+            .setContentTitle("Incoming call")
+            .setContentText(display)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(openPending)
+            .setFullScreenIntent(answerPending, true)
+            .addAction(0, "Accept", answerPending)
+            .addAction(0, "Decline", declinePending);
+
+        // Pre-O has no channels, so the ring sound + vibration ride on the
+        // builder. On O+ the channel owns both (these calls are ignored there).
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
+            builder.setVibrate(new long[] {0, 1000, 1000});
+        }
+
+        if (largeIcon != null) builder.setLargeIcon(largeIcon);
+
+        try {
+            NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+        } catch (SecurityException ignored) {}
+    }
+
+    private void createCallChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager == null) return;
+            if (manager.getNotificationChannel(CALL_CHANNEL_ID) == null) {
+                NotificationChannel channel = new NotificationChannel(
+                    CALL_CHANNEL_ID,
+                    CALL_CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("Incoming call notifications");
+                Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build();
+                if (ringtone != null) channel.setSound(ringtone, attrs);
+                channel.enableVibration(true);
+                channel.setVibrationPattern(new long[] {0, 1000, 1000});
+                // A call should ring through Do Not Disturb.
+                try {
+                    channel.setBypassDnd(true);
+                } catch (Throwable ignored) {}
                 manager.createNotificationChannel(channel);
             }
         }
