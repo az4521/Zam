@@ -684,9 +684,15 @@ function closeAllNotifications() {
  * without reopening PRIV-02: nothing this build posts is both routable and
  * unattributable.
  */
-function notificationData(roomId) {
+function notificationData(roomId, isCall) {
 	if (!userId) return {};
-	return roomId ? { roomId: roomId, userId: userId } : { userId: userId };
+	const d = roomId
+		? { roomId: roomId, userId: userId }
+		: { userId: userId };
+	// A call notification carries this so notificationclick's Accept knows to
+	// join, not just open the room.
+	if (isCall) d.isCall = true;
+	return d;
 }
 
 // Set once the activate handler has run — i.e. this worker now controls its
@@ -968,6 +974,7 @@ async function buildNotification(data) {
 	let title = "New message";
 	let body = "You have a new message";
 	let icon = "/favicon.png";
+	let isCall = false;
 
 	if (roomId && eventId) {
 		const rid = encodeURIComponent(roomId);
@@ -996,14 +1003,33 @@ async function buildNotification(data) {
 				member.displayname
 			)
 				senderName = member.displayname;
-			// Same comparisons as notificationBody() in
-			// src/lib/utils/notificationPrivacy.ts: trim both sides so a
-			// whitespace-only body counts as absent, and drop the text
-			// entirely when the privacy setting is on.
 			const name = senderName.trim();
-			const text = hideNotificationBody ? "" : msg.trim();
-			if (text) body = name ? `${name}: ${text}` : text;
-			else if (name) body = `${name} sent a message`;
+
+			// MSC4075 call-notify → render an incoming CALL, not a message.
+			// Keep this rule identical to pushNotificationKind() in
+			// src/lib/utils/pushNotificationKind.ts (a test guards the
+			// contract). event_id_only pushes carry no sound tweak, so the
+			// event TYPE is what decides the ring here. The unstable type is
+			// what is actually stored/pushed; the stable one is accepted too.
+			const evtType = typeof event.type === "string" ? event.type : "";
+			const notifyType = event.content && event.content.notify_type;
+			isCall =
+				(evtType === "org.matrix.msc4075.call.notify" ||
+					evtType === "m.call.notify") &&
+				(notifyType === undefined || notifyType === "ring");
+
+			if (isCall) {
+				title = "Incoming call";
+				body = name ? name : "Someone is calling";
+			} else {
+				// Same comparisons as notificationBody() in
+				// src/lib/utils/notificationPrivacy.ts: trim both sides so a
+				// whitespace-only body counts as absent, and drop the text
+				// entirely when the privacy setting is on.
+				const text = hideNotificationBody ? "" : msg.trim();
+				if (text) body = name ? `${name}: ${text}` : text;
+				else if (name) body = `${name} sent a message`;
+			}
 		}
 
 		const avatarRes = await mxGet(
@@ -1028,7 +1054,7 @@ async function buildNotification(data) {
 		}
 	}
 
-	return { title, body, icon, roomId };
+	return { title, body, icon, roomId, isCall };
 }
 
 // ── Active-session suppression ────────────────────────────────────────────
@@ -1180,7 +1206,18 @@ self.addEventListener("push", (event) => {
 				badge: "/favicon_foreground.png",
 				tag: n.roomId || undefined,
 				renotify: true,
-				data: notificationData(n.roomId),
+				data: notificationData(n.roomId, n.isCall),
+				// A call persists until answered/dismissed and offers
+				// Accept/Decline; a message is a normal transient popup.
+				...(n.isCall
+					? {
+							requireInteraction: true,
+							actions: [
+								{ action: "accept", title: "Accept" },
+								{ action: "decline", title: "Decline" },
+							],
+						}
+					: {}),
 			});
 		})(),
 	);
@@ -1193,6 +1230,11 @@ self.addEventListener("notificationclick", (event) => {
 	// The account this notification was posted under, so the page can refuse
 	// to open the room in a session that is not the one that posted it.
 	const postedBy = data.userId;
+	// Decline on a call notification just takes it down — open nothing.
+	if (event.action === "decline") return;
+	// Accept on a call → open the room AND join; every other tap just opens
+	// the room. The page reads this flag off the OPEN_ROOM message.
+	const joinCall = !!data.isCall && event.action === "accept";
 	event.waitUntil(
 		self.clients
 			.matchAll({ type: "window", includeUncontrolled: true })
@@ -1205,6 +1247,7 @@ self.addEventListener("notificationclick", (event) => {
 								type: "OPEN_ROOM",
 								roomId: roomId,
 								userId: postedBy,
+								joinCall: joinCall,
 							});
 						return;
 					}

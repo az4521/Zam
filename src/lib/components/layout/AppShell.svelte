@@ -111,6 +111,7 @@
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
         clearServiceWorkerNotifications,
+        ensureCallNotifyPushRule,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -1118,6 +1119,9 @@
         if (client) initPush(client).catch(console.error);
         // PWA / browser web push (no-op on native or when no VAPID key set).
         if (client) initWebPush(client).catch(console.error);
+        // Ring on a closed device: register the m.call.notify push rule once.
+        // Idempotent + best-effort — never blocks or breaks the session.
+        if (client) ensureCallNotifyPushRule().catch(() => {});
 
         // Mirror the session natively so the push service can enrich
         // notifications and read the active-session blob (off-native this is a
@@ -1194,17 +1198,44 @@
         // under; it is optional so an APK older than this change still works
         // (an unstamped tap routes, which is safe because a build that cannot
         // name the account no longer attaches a room id at all).
+        // Shared by web-push (service worker) and native (MainActivity) taps.
+        // A plain tap opens the room; Accept on a call notification passes
+        // joinCall to open the room AND join, under the same account guard.
+        const openRoomFromNotification = (
+            roomId: string,
+            userId?: string | null,
+            joinCall = false,
+        ) => {
+            if (!roomId) return;
+            if (joinCall) {
+                restoreAppWindow();
+                const decision = decideNotificationRoute(
+                    { roomId, userId },
+                    { userId: auth.userId },
+                );
+                if (decision.action === "navigate")
+                    acceptIncomingCall(decision.roomId);
+            } else {
+                routeNotificationTap(roomId, userId);
+            }
+        };
+
         (window as any).__matrixOpenRoom = (
             roomId: string,
             userId?: string,
+            joinCall = false,
         ) => {
-            if (roomId) routeNotificationTap(roomId, userId);
+            openRoomFromNotification(roomId, userId, joinCall);
         };
 
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
             if (e.data?.type === "OPEN_ROOM" && e.data.roomId) {
-                routeNotificationTap(e.data.roomId, e.data.userId);
+                openRoomFromNotification(
+                    e.data.roomId,
+                    e.data.userId,
+                    !!e.data.joinCall,
+                );
             }
         };
         if ("serviceWorker" in navigator) {

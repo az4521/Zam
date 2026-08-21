@@ -43,6 +43,10 @@ public class MainActivity extends BridgeActivity {
         final String roomId = intent.getStringExtra("room_id");
         if (roomId == null || roomId.isEmpty()) return;
         final String userId = intent.getStringExtra("user_id");
+        // Accept on an incoming-call notification: open the room AND join the
+        // call. Passed as a third argument so a plain notification tap (no
+        // extra) keeps the two-argument open-only behaviour.
+        final boolean joinCall = intent.getBooleanExtra("join_call", false);
         if (getBridge() == null || getBridge().getWebView() == null) return;
         // Defer so the web app has a chance to define the hook / finish loading.
         getBridge()
@@ -65,7 +69,9 @@ public class MainActivity extends BridgeActivity {
                             safeRoom +
                             "', '" +
                             safeUser +
-                            "')";
+                            "', " +
+                            (joinCall ? "true" : "false") +
+                            ")";
                     }
                     getBridge().getWebView().evaluateJavascript(js, null);
                 },

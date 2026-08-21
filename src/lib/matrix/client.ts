@@ -194,6 +194,12 @@ import {
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
+import {
+    buildCallNotifyContent,
+    shouldRingPeers,
+    CALL_NOTIFY_EVENT_TYPE,
+} from "$lib/utils/callNotify";
+import { buildCallNotifyPushRule } from "$lib/utils/callPushRule";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import { isSyncRecovery } from "$lib/utils/liveShareStop";
@@ -3546,6 +3552,32 @@ export async function setDefaultPushRuleLevel(
             pushRulesState.revision++;
         }
     });
+}
+
+/** Register (idempotent, best-effort) a client push rule that rings on an
+ *  MSC4075 m.call.notify, so a device whose app is closed pushes an incoming
+ *  CALL notification. Never throws into startup: on continuwuity this is
+ *  redundant (it pushes m.call.notify by default), and on servers that don't,
+ *  a failure just means no closed-device ring — not a broken session. */
+export async function ensureCallNotifyPushRule(): Promise<void> {
+    if (!matrixClient) return;
+    const r = buildCallNotifyPushRule();
+    try {
+        await matrixClient.addPushRule(
+            "global",
+            r.kind as never,
+            r.ruleId,
+            r.body as never,
+        );
+        await matrixClient.setPushRuleEnabled(
+            "global",
+            r.kind as never,
+            r.ruleId,
+            true,
+        );
+    } catch {
+        // Already present or a transient failure — the rule is best-effort.
+    }
 }
 
 // ── Per-room notification settings ────────────────────────────────────────
@@ -7579,6 +7611,25 @@ export function getRoomCallMemberships(room: Room): VoiceMembership[] {
         }));
 }
 
+/** Send an MSC4075 m.call.notify so a callee whose app is closed gets pushed.
+ *  Fire-and-forget from the call-start path; never block joining on it. The
+ *  `as never` casts match the poll senders — the SDK's sendEvent overloads are
+ *  narrow and the repo already casts custom event types this way. Do NOT use
+ *  sendMessage, whose threadId overload mangles anything starting with `$`. */
+export async function sendCallNotify(
+    roomId: string,
+    calleeUserIds: string[],
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    if (calleeUserIds.length === 0) return;
+    const content = buildCallNotifyContent({ calleeUserIds });
+    await matrixClient.sendEvent(
+        roomId,
+        CALL_NOTIFY_EVENT_TYPE as never,
+        content as never,
+    );
+}
+
 const voiceSessionSubscribers = new Set<() => void>();
 const subscribedVoiceSessions = new WeakSet<object>();
 
@@ -8026,6 +8077,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
+    // Snapshot the call's non-self peers BEFORE our own membership publishes,
+    // so we can tell "starting a call" (ring the peer) from "answering one"
+    // (stay silent). See the ring-send after joinRTCSession below.
+    const callPeersBeforeJoin = getRoomCallMemberships(room)
+        .map((m) => m.userId)
+        .filter((id) => id !== userId);
     const lk = await livekitLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
     const lkRoom = new lk.Room({
@@ -8101,6 +8158,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             undefined,
             { membershipEventExpiryMs: 4 * 60 * 60 * 1000 },
         );
+
+        // MSC4075 ring: if WE are the first into a DM call, push the peer so a
+        // device whose app is closed rings. Fire-and-forget — never block or
+        // fail the join on it. The peer answering (a peer already present at
+        // snapshot time) sends nothing.
+        const isDm = getDirectRoomIds().has(roomId);
+        if (shouldRingPeers(isDm, callPeersBeforeJoin)) {
+            const dmPeerIds = getRoomMembers(room)
+                .map((m) => m.userId)
+                .filter((id) => id !== userId);
+            void sendCallNotify(roomId, dmPeerIds).catch(() => {});
+        }
 
         const openIdToken = await matrixClient.getOpenIdToken();
         if (seq !== voiceJoinSeq) return;

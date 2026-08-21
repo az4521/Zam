@@ -50,6 +50,12 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Decline action on an incoming-call notification: cancels it without
+             opening the app. Not exported — only our own PendingIntent fires it. -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -57,6 +63,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Full-screen incoming-call notifications that wake the screen / show over
+         the lockscreen. On API 34+ the OS grants this by default only to
+         calling/alarm apps; otherwise the intent degrades to a heads-up (still
+         rings + shows Accept/Decline). See showCallNotification() in
+         MatrixMessagingService for the API-level behaviour. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
