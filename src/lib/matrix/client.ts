@@ -7024,6 +7024,10 @@ export async function setSpaceChildSuggested(
             .getState(EventTimeline.FORWARDS)
             ?.getStateEvents("m.space.child", childRoomId)
             ?.getContent() ?? {};
+    const via = (existing as { via?: unknown }).via;
+    if (!(via as { length?: number } | undefined)?.length) {
+        throw new Error("Cannot set suggested on a space child with no via");
+    }
     const next: Record<string, unknown> = { ...existing };
     if (suggested) next.suggested = true;
     else delete next.suggested;

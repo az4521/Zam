@@ -869,6 +869,7 @@
             spaceChildren = spaceChildren.map((c) =>
                 c.roomId === child.roomId ? { ...c, suggested: next } : c,
             );
+            onUpdate?.();
         } catch (e) {
             roomsError =
                 e instanceof Error ? e.message : "Failed to update suggestion";
