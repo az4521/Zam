@@ -17,6 +17,7 @@
     import { stripBodyFallback } from "$lib/utils/replyFallback";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
+    import { canSendReceipt } from "$lib/utils/receiptGate";
 
     interface Props {
         room: Room;
@@ -47,15 +48,21 @@
 
     async function loadOlder() {
         if (loadingOlder || noMoreOlder) return;
+        // The panel is reused (no {#key}) when rootEventId changes, so it can
+        // change while paginateThreadBack awaits. Capture it and drop a stale
+        // result so thread A's "no more replies" verdict / lock is never applied
+        // to thread B (F4).
+        const rid = rootEventId;
         loadingOlder = true;
         try {
             const more = await paginateThreadBack(room, rootEventId);
+            if (rootEventId !== rid) return;
             if (!more) noMoreOlder = true;
             bump();
         } catch (err) {
             console.error("Failed to paginate thread:", err);
         } finally {
-            loadingOlder = false;
+            if (rootEventId === rid) loadingOlder = false;
         }
     }
 
@@ -119,7 +126,30 @@
     $effect(() => {
         void rootEventId;
         void messages.length;
-        untrack(() => markThreadRead(room, rootEventId).catch(() => {}));
+        untrack(() => {
+            // Only claim the thread "read" when the user could actually see it —
+            // window focused AND tab visible — mirroring the main-timeline gate
+            // (receiptGate.ts / MessageArea markAsReadIfDisplayable). Without this
+            // a threaded receipt fires while the window is hidden/unfocused (S-A2).
+            if (
+                canSendReceipt({
+                    hasFocus: document.hasFocus(),
+                    visible: document.visibilityState === "visible",
+                })
+            ) {
+                markThreadRead(room, rootEventId).catch(() => {});
+            }
+        });
+    });
+
+    // Reset pagination flags when the panel retargets to a different thread root.
+    // The panel is reused (no {#key}) across a rootEventId change, so without this
+    // thread A's noMoreOlder hides "Load older replies" for thread B, and a
+    // stranded loadingOlder leaves B's button disabled forever (F4).
+    $effect(() => {
+        void rootEventId;
+        noMoreOlder = false;
+        loadingOlder = false;
     });
 
     // Scroll to bottom when messages change
