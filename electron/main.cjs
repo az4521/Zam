@@ -203,6 +203,15 @@ function setupAutoUpdater() {
     autoUpdater.autoInstallOnAppQuit = true;
     // Fail-safe default: stay OFF until the renderer seeds the persisted preference at boot (see app shell onMount). Prevents a forced silent download when the user has turned auto-updates OFF but hasn't opened Settings before the launch check.
     autoUpdater.autoDownload = false;
+    // Integrity invariant (audit SEC-M8): electron-updater verifies the release
+    // signature by default — Authenticode on Windows, code signing on macOS —
+    // and this build NEVER disables it (no verifyUpdateCodeSignature override,
+    // no flag that turns the check off). Also refuse a downgrade so a
+    // compromised update feed cannot force an older, validly-signed but
+    // vulnerable build onto the user. (Linux AppImage has no built-in signer
+    // check — a documented gap tracked separately as AppImage signing, not
+    // addressed in this file.)
+    autoUpdater.allowDowngrade = false;
 
     autoUpdater.on("checking-for-update", () => {
         sendUpdateStatus({ phase: "checking" });
@@ -220,6 +229,23 @@ function setupAutoUpdater() {
         sendUpdateStatus({ phase: "downloaded", version: info?.version });
     });
     autoUpdater.on("error", (err) => {
+        // A signature / integrity verification failure must never be folded
+        // silently into a generic update error (audit SEC-M8). electron-updater
+        // rejects an update whose signature does not match the expected
+        // publisher; log those loudly and distinctly so a tampered or
+        // mis-signed release is visible in the main-process log rather than
+        // looking like an ordinary network hiccup.
+        const message = err?.message ?? String(err);
+        if (
+            /sign|signature|publisher|not signed|sha512|checksum|integrity/i.test(
+                message,
+            )
+        ) {
+            console.error(
+                "[updater] SIGNATURE/INTEGRITY VERIFICATION FAILURE — refusing update:",
+                message,
+            );
+        }
         sendUpdateStatus(mapUpdateError(err));
     });
 
@@ -396,6 +422,23 @@ function setupDisplayMediaHandler() {
     );
 }
 
+// sourceName is display-only (it labels the granted stream); the capture
+// target is authorised by sourceId alone. Even so it comes from the renderer,
+// so clamp its length and strip control characters (audit SEC-L11) — a
+// compromised renderer must not be able to inject newlines / control sequences
+// into logs or any UI that later shows the stream name.
+function sanitizeSourceName(raw) {
+    if (typeof raw !== "string") return "";
+    // Drop C0 control chars + DEL (newlines/tabs included), then clamp length.
+    let out = "";
+    for (const ch of raw) {
+        const code = ch.codePointAt(0);
+        if (code >= 0x20 && code !== 0x7f) out += ch;
+        if (out.length >= 256) break;
+    }
+    return out;
+}
+
 // The payload comes from the renderer and is therefore untrusted: validate
 // every field before it reaches a Map key or the capture callback. A throw in
 // an ipcMain listener is an uncaught main-process exception — it kills the app.
@@ -406,9 +449,42 @@ ipcMain.on("screenshare:respond", (_e, payload) => {
     if (!Number.isFinite(id) || !pendingShareRequests.has(id)) return;
     // Only a non-empty string is a pick; anything else is a cancellation.
     const picked = typeof sourceId === "string" && sourceId ? sourceId : null;
-    const name = typeof sourceName === "string" ? sourceName : "";
+    const name = sanitizeSourceName(sourceName);
     resolveShareRequest(id, picked, name);
 });
+
+// Only ever hand http(s) URLs to the OS shell (audit SEC-M7). Blocking every
+// other scheme stops a hostile message link from launching an arbitrary OS
+// handler via ftp:/magnet:/mailto:/… — the renderer's sanitizer already strips
+// file:/smb:/javascript: from message hrefs, so this is defense-in-depth behind
+// it. Also block loopback/localhost so a link can't reach a service bound to
+// the user's own machine (localhost SSRF). Anything that fails to parse, or is
+// not a safe web URL, is dropped (never opened).
+function isSafeExternalUrl(rawUrl) {
+    let u;
+    try {
+        u = new URL(rawUrl);
+    } catch {
+        return false;
+    }
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    if (
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host === "127.0.0.1" ||
+        host === "0.0.0.0" ||
+        host === "[::1]" ||
+        host === "::1"
+    ) {
+        return false;
+    }
+    return true;
+}
+
+function openExternalSafely(rawUrl) {
+    if (isSafeExternalUrl(rawUrl)) shell.openExternal(rawUrl);
+}
 
 async function createWindow() {
     const url = await startServer();
@@ -424,6 +500,12 @@ async function createWindow() {
         webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,
+            // Explicit for durability (audit SEC-L10): the renderer runs in the
+            // OS sandbox. This is already the modern-Electron default, and the
+            // preload only uses contextBridge/ipcRenderer (both sandbox-safe),
+            // so pinning it changes no behaviour but survives a future default
+            // flip or a preload that grows Node usage.
+            sandbox: true,
             preload: path.join(__dirname, "preload.cjs"),
             // The window hides to the tray on close and keeps running as a
             // background client. Chromium throttles a hidden window's timers by
@@ -442,7 +524,7 @@ async function createWindow() {
 
     // Open target=_blank / window.open links in the system browser, not a new window.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (/^https?:/.test(url)) shell.openExternal(url);
+        openExternalSafely(url);
         return { action: "deny" };
     });
 
@@ -456,7 +538,7 @@ async function createWindow() {
         }
         if (origin !== appOrigin) {
             e.preventDefault();
-            shell.openExternal(navUrl);
+            openExternalSafely(navUrl);
         }
     });
 
