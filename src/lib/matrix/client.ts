@@ -94,6 +94,7 @@ import {
 import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import {
     decryptAttachment,
     type EncryptedFileInfo,
@@ -6613,6 +6614,30 @@ export async function setRoomPowerLevels(
         room.roomId,
         "m.room.power_levels",
         { ...current, ...updated },
+    );
+}
+
+/** Live `m.room.server_acl` content, or null when the room has no ACL. */
+export function getServerAclContent(
+    room: Room,
+): Record<string, unknown> | null {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    return (
+        (state?.getStateEvents("m.room.server_acl", "")?.getContent() as Record<
+            string,
+            unknown
+        >) ?? null
+    );
+}
+
+/** Write the room's `m.room.server_acl` (federation allow/deny lists). */
+export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    await (matrixClient as any).sendStateEvent(
+        room.roomId,
+        "m.room.server_acl",
+        serializeServerAcl(acl),
+        "",
     );
 }
 
