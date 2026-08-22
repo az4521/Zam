@@ -9,6 +9,7 @@
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
+    import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
     import EventShield from "./EventShield.svelte";
     import { Forward, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
@@ -48,6 +49,7 @@
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
         stripBodyFallback,
@@ -185,6 +187,14 @@
     const isPinned = $derived.by(() => {
         void roomsState.roomsTick;
         return getPinnedEventIds(room).includes(eventId);
+    });
+    const canRedact = $derived.by(() => {
+        void roomsState.roomsTick;
+        return mayRedactEvent({
+            isOwnEvent: isOwnMessage,
+            myPowerLevel: getMyPowerLevel(room),
+            redactLevel: getRoomPowerLevels(room).redact,
+        });
     });
 
     // Reaction emoji picker. Local boolean drives this instance's render; the
@@ -332,6 +342,7 @@
     }
 
     let showReportDialog = $state(false);
+    let showRedactDialog = $state(false);
 
     let keyboardOffset = $state(0);
     // Only track the on-screen keyboard while THIS row actually has a
@@ -2240,6 +2251,7 @@
         class="{showEmojiPicker ||
         confirmingDelete ||
         showReportDialog ||
+        showRedactDialog ||
         mobileSelected
             ? 'flex'
             : `hidden ${
@@ -2438,6 +2450,14 @@
                 {eventId}
                 {keyboardOffset}
                 bind:open={showReportDialog}
+            />
+        {/if}
+        {#if !isOwnMessage && !isFailed && canRedact}
+            <MessageRedactAction
+                roomId={room.roomId}
+                {eventId}
+                {keyboardOffset}
+                bind:open={showRedactDialog}
             />
         {/if}
     </div>
