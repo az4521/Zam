@@ -19,6 +19,7 @@
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
+    import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -1857,3 +1858,4 @@
 <ScreenSharePicker />
 
 <UpdateBanner />
+<JoinConsentDialog />
