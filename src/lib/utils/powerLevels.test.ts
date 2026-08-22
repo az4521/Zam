@@ -6,6 +6,7 @@ import {
     normalizePowerLevels,
     parsePowerLevelInput,
     roomVersionHasImmutableCreators,
+    validatePowerLevelsContent,
 } from "./powerLevels";
 
 describe("CREATOR_POWER_LEVEL", () => {
@@ -238,5 +239,61 @@ describe("parsePowerLevelInput", () => {
             expect(r.value).toBeNull();
             expect(r.error).toBe("Enter a power level");
         }
+    });
+});
+
+describe("validatePowerLevelsContent", () => {
+    it("accepts a fully-formed power_levels content object", () => {
+        expect(
+            validatePowerLevelsContent({
+                ban: 50,
+                kick: 50,
+                redact: 50,
+                invite: 0,
+                events_default: 0,
+                state_default: 50,
+                users_default: 0,
+                users: { "@admin:hs": 100, "@me:hs": 50 },
+                events: { "m.room.name": 50 },
+                notifications: { room: 50 },
+            }),
+        ).toBeNull();
+    });
+
+    it("accepts an empty object and ignores unknown extra keys", () => {
+        expect(validatePowerLevelsContent({})).toBeNull();
+        expect(
+            validatePowerLevelsContent({ ban: 50, some_future_key: "ok" }),
+        ).toBeNull();
+    });
+
+    it("rejects a non-object content", () => {
+        for (const bad of [null, undefined, 5, "x", [1, 2]])
+            expect(validatePowerLevelsContent(bad)).not.toBeNull();
+    });
+
+    it("rejects a non-numeric scalar field", () => {
+        expect(validatePowerLevelsContent({ ban: "50" })).toContain("ban");
+        expect(validatePowerLevelsContent({ users_default: null })).toContain(
+            "users_default",
+        );
+        expect(validatePowerLevelsContent({ kick: NaN })).toContain("kick");
+    });
+
+    it("rejects a map field that is not an object", () => {
+        expect(validatePowerLevelsContent({ users: 100 })).toContain("users");
+        expect(validatePowerLevelsContent({ events: [1] })).toContain("events");
+        expect(validatePowerLevelsContent({ notifications: "room" })).toContain(
+            "notifications",
+        );
+    });
+
+    it("rejects a map whose values are not numbers", () => {
+        expect(
+            validatePowerLevelsContent({ users: { "@x:hs": "100" } }),
+        ).toContain("users");
+        expect(
+            validatePowerLevelsContent({ events: { "m.room.name": null } }),
+        ).toContain("events");
     });
 });

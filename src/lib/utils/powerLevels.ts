@@ -125,6 +125,59 @@ export function normalizePowerLevels(
     };
 }
 
+// `m.room.power_levels` scalar action levels — each must be a number.
+const PL_SCALAR_KEYS = [
+    "ban",
+    "kick",
+    "redact",
+    "invite",
+    "events_default",
+    "state_default",
+    "users_default",
+] as const;
+// `m.room.power_levels` maps of name -> number.
+const PL_MAP_KEYS = ["users", "events", "notifications"] as const;
+
+/**
+ * Shape-check an `m.room.power_levels` content object before it is written back
+ * to the room (audit SEC-L12). The server rejects malformed writes anyway, so
+ * this is type-hygiene, not a security gate: it turns a cryptic server 400 into
+ * a clear client-side error and stops an obviously-wrong value ever leaving.
+ *
+ * Only fields that ARE present are checked, and only for affirmatively-wrong
+ * types (scalars must be finite numbers; the users/events/notifications maps
+ * must be objects of finite numbers). Unknown keys and omitted fields pass, so
+ * a normal edit is never blocked. Returns a human-readable reason string when
+ * invalid, or `null` when the content is well-formed.
+ */
+export function validatePowerLevelsContent(content: unknown): string | null {
+    if (
+        typeof content !== "object" ||
+        content === null ||
+        Array.isArray(content)
+    )
+        return "power_levels content must be an object";
+    const c = content as Record<string, unknown>;
+    for (const key of PL_SCALAR_KEYS) {
+        if (key in c) {
+            const v = c[key];
+            if (typeof v !== "number" || !Number.isFinite(v))
+                return `power_levels.${key} must be a number`;
+        }
+    }
+    for (const key of PL_MAP_KEYS) {
+        if (!(key in c)) continue;
+        const map = c[key];
+        if (typeof map !== "object" || map === null || Array.isArray(map))
+            return `power_levels.${key} must be an object`;
+        for (const [name, level] of Object.entries(map as object)) {
+            if (typeof level !== "number" || !Number.isFinite(level))
+                return `power_levels.${key}.${name} must be a number`;
+        }
+    }
+    return null;
+}
+
 export interface ParsePowerLevelResult {
     ok: boolean;
     /** The parsed level when ok; null otherwise. */
