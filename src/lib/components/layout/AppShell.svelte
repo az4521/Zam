@@ -1112,7 +1112,7 @@
         // createAuthenticatedClient, so this fires only on a real fallback.
         if (sessionHealthState.syncStoreFallback) {
             showErrorToast(
-                "Offline message storage is unavailable this session — history won't be saved for next time.",
+                "Offline message storage is unavailable this session, so history won't be saved for next time.",
             );
         }
 

@@ -31,7 +31,7 @@
             />
         </svg>
         <span class="min-w-0 text-sm text-discord-textPrimary">
-            Encryption is unavailable this session — encrypted messages can't be
+            Encryption is unavailable this session: encrypted messages can't be
             read or sent. Reload to try again.
         </span>
         <button
