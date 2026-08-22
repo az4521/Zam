@@ -26,6 +26,7 @@ describe("reconcileVerification", () => {
         });
         expect(v.kind).toBe("needs-setup");
         expect(v.actionable).toBe(true);
+        expect(v.label).toBe("Encryption setup incomplete");
         expect(v.actionLabel).toBe("Finish setup");
     });
 
