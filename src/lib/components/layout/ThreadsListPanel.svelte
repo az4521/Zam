@@ -11,6 +11,7 @@
     import { threadBadgeState } from "$lib/utils/threadUnread";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { pinnedDate } from "$lib/utils/timeFormat";
     import { Circle } from "lucide-svelte";
@@ -25,15 +26,27 @@
 
     let threadsTick = $state(0);
     let loading = $state(true);
+    let retryTick = $state(0);
 
     // Load server-backed thread timeline sets (feature-detected) on room change.
+    // On failure, surface a toast with a Retry (F6) rather than leaving the list
+    // silently empty; the list still renders any sync-known threads.
     $effect(() => {
         void room.roomId;
+        void retryTick;
         loading = true;
-        ensureThreadsLoaded(room).finally(() => {
-            loading = false;
-            threadsTick++;
-        });
+        ensureThreadsLoaded(room)
+            .catch((err) => {
+                console.error("Failed to load room threads:", err);
+                showErrorToast("Couldn't load threads for this room.", {
+                    label: "Retry",
+                    run: () => retryTick++,
+                });
+            })
+            .finally(() => {
+                loading = false;
+                threadsTick++;
+            });
     });
 
     // Re-read the list on any thread lifecycle change in this room.

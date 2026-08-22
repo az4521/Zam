@@ -1094,6 +1094,7 @@
     function markAsRead() {
         const currentRoom = room;
         const last = getLatestTimelineEvent(currentRoom);
+        if (!last) return;
         sendReadReceipt(last).catch(() => {});
         bumpUnreadTick();
         unreadMarkerEventId = null;
