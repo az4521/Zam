@@ -94,6 +94,7 @@ import {
 import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import {
     decryptAttachment,
     type EncryptedFileInfo,
@@ -2618,15 +2619,19 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
     try {
         const data = await matrixClient.getUrlPreview(url, Date.now());
         const ogImage = data["og:image"] as string | undefined;
-        const imageUrl = ogImage?.startsWith("mxc://")
+        // Only surface homeserver-rehosted (mxc://) preview media. A raw non-mxc
+        // og:image/og:video is attacker-chosen and would point an <img>/<video> at
+        // an off-homeserver host zero-click (SEC-M1 sub-case b), so drop it — the
+        // homeserver preview text/card still renders.
+        const imageUrl = isMxcPreviewMedia(ogImage)
             ? (mxcToHttp(ogImage) ?? undefined)
-            : ogImage;
+            : undefined;
         const rawVideo = (data["og:video:secure_url"] ??
             data["og:video:url"] ??
             data["og:video"]) as string | undefined;
-        const videoUrl = rawVideo?.startsWith("mxc://")
+        const videoUrl = isMxcPreviewMedia(rawVideo)
             ? (mxcToHttp(rawVideo) ?? undefined)
-            : rawVideo;
+            : undefined;
         // Poster for the video: an explicit og:image, or nothing. We do NOT
         // fall back to thumbnailing the video's own mxc — continuwuity answers
         // /media/thumbnail for a video with the ORIGINAL file (200 video/mp4),

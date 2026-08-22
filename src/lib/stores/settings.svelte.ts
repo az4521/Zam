@@ -230,10 +230,11 @@ export const settingsState = $state({
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
     /** Device-global: which link-preview media may load automatically.
-     *  "all" (default) is the historical behaviour; "proxied" loads only the
-     *  copies our own homeserver serves, so third-party hosts never learn the
-     *  reader's IP or when they read a message; "none" shows text-only cards.
-     *  Each preview keeps a per-message button to load its media on demand.
+     *  "proxied" (default) loads only the copies our own homeserver serves, so
+     *  third-party hosts never learn the reader's IP or when they read a message;
+     *  "all" is opt-in and loads from any host; "none" fetches the homeserver
+     *  card but no media. Each preview keeps a per-message button to load its
+     *  media on demand.
      *
      *  ⚠ Must stay readString/writeString (device-global), for the same reason
      *  spelled out on hideNotificationBody: switching a bare key to the scoped
