@@ -155,14 +155,25 @@ export function mergeViaServers(
 /**
  * Build a matrix.to permalink for a user, alias, or room id. Users and aliases
  * are self-routing; a room id (`!…`) isn't joinable on its own, so up to 5 `via`
- * servers are appended as `?via=` params. Segments are percent-encoded
- * similarly to `linkifyMatrixIdentifiers` above, so the result round-trips
- * through `parseMatrixLink`.
+ * servers are appended as `?via=` params. When an `eventId` is given, an event
+ * permalink is built (`/roomIdOrAlias/eventId`), and `via` is appended regardless
+ * of sigil (event links need a server that holds the event). Segments are
+ * percent-encoded similarly to `linkifyMatrixIdentifiers` above, so the result
+ * round-trips through `parseMatrixLink`.
  */
-export function matrixToUrl(idOrAlias: string, via: string[] = []): string {
-    const encoded = encodeURIComponent(idOrAlias).replace(/!/g, "%21");
-    const base = `https://matrix.to/#/${encoded}`;
-    if (idOrAlias.startsWith("!") && via.length) {
+export function matrixToUrl(
+    idOrAlias: string,
+    via: string[] = [],
+    eventId?: string,
+): string {
+    const encode = (s: string) => encodeURIComponent(s).replace(/!/g, "%21");
+    let path = encode(idOrAlias);
+    if (eventId) path += `/${encode(eventId)}`;
+    const base = `https://matrix.to/#/${path}`;
+    // A room id isn't joinable on its own; an event link needs a server that
+    // holds the event. Append via for either of those, not for a plain alias.
+    const wantsVia = idOrAlias.startsWith("!") || Boolean(eventId);
+    if (wantsVia && via.length) {
         const qs = via
             .slice(0, 5)
             .map((s) => `via=${encodeURIComponent(s)}`)

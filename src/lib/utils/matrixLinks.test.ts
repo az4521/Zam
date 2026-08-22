@@ -401,6 +401,47 @@ describe("matrixToUrl — build permalinks", () => {
         const url = matrixToUrl("!r:s.org", via);
         expect(url.match(/via=/g)?.length).toBe(5);
     });
+    it("appends an event id segment for a room-id permalink", () => {
+        expect(matrixToUrl("!abc:example.org", ["one.org"], "$evt123")).toBe(
+            "https://matrix.to/#/%21abc%3Aexample.org/%24evt123?via=one.org",
+        );
+    });
+    it("appends via for an ALIAS event permalink (event links need a routing server)", () => {
+        expect(matrixToUrl("#dev:example.org", ["one.org"], "$evt123")).toBe(
+            "https://matrix.to/#/%23dev%3Aexample.org/%24evt123?via=one.org",
+        );
+    });
+    it("emits an event permalink with no via when none given", () => {
+        expect(matrixToUrl("!abc:example.org", [], "$evt123")).toBe(
+            "https://matrix.to/#/%21abc%3Aexample.org/%24evt123",
+        );
+    });
+    it("caps via at 5 on an event permalink", () => {
+        const url = matrixToUrl(
+            "!r:s.org",
+            ["a", "b", "c", "d", "e", "f"],
+            "$e",
+        );
+        expect(url.match(/via=/g)?.length).toBe(5);
+    });
+    it("round-trips a room event permalink through parseMatrixLink", () => {
+        const url = matrixToUrl("!abc:example.org", ["one.org"], "$evt123");
+        expect(parseMatrixLink(url)).toEqual({
+            kind: "room",
+            roomId: "!abc:example.org",
+            eventId: "$evt123",
+            via: ["one.org"],
+        });
+    });
+    it("round-trips an alias event permalink through parseMatrixLink", () => {
+        const url = matrixToUrl("#dev:example.org", ["one.org"], "$evt123");
+        expect(parseMatrixLink(url)).toEqual({
+            kind: "alias",
+            alias: "#dev:example.org",
+            eventId: "$evt123",
+            via: ["one.org"],
+        });
+    });
 });
 
 describe("linkifyPlainText — URLs in received plain-text bodies", () => {
