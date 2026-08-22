@@ -65,7 +65,7 @@
         safeDimension,
     } from "$lib/utils/mediaDimensions";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
-    import { UTD_PLACEHOLDER_TEXT } from "$lib/utils/encryptionState";
+    import { utdPlaceholderText } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -478,6 +478,15 @@
     // $derived(event.getType()) would keep the UTD placeholder up forever.
     const eventType = $derived(
         (void messagesState.timelineTick, event.getType()),
+    );
+
+    // UTD body copy, refined by the decryption-failure reason: a deliberate
+    // key-withhold reads differently from transient key-lag. Tick-bound for the
+    // same reason as eventType — the reason lands on the same object when the
+    // Decrypted event fires and bumps timelineTick.
+    const utdText = $derived(
+        (void messagesState.timelineTick,
+        utdPlaceholderText(event.decryptionFailureReason)),
     );
 
     // Whether this room has encryption switched on. Tick-bound because the Room
@@ -1576,7 +1585,7 @@
                 class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
             >
                 <Lock size={14} class="flex-shrink-0" />
-                <span>{UTD_PLACEHOLDER_TEXT}</span>
+                <span>{utdText}</span>
             </div>
         {:else if eventType === "m.sticker"}
             {#if mediaImgRetry.src && !mediaImgRetry.failed}

@@ -3,8 +3,11 @@ import {
     isUndecryptedEvent,
     isEncryptionEnabled,
     previewForEvent,
+    utdPlaceholderText,
     ENCRYPTED_MESSAGE_PLACEHOLDER,
     UTD_PLACEHOLDER_TEXT,
+    UTD_WITHHELD_TEXT,
+    UTD_WITHHELD_UNVERIFIED_TEXT,
 } from "./encryptionState";
 
 describe("isUndecryptedEvent", () => {
@@ -59,5 +62,46 @@ describe("previewForEvent — room-list / notification fallback", () => {
 
     it("exposes a friendly UTD body constant for the timeline", () => {
         expect(UTD_PLACEHOLDER_TEXT.toLowerCase()).toContain("decrypt");
+    });
+});
+
+describe("utdPlaceholderText — distinguish deliberate withhold from key-lag", () => {
+    it("returns the generic key-lag copy when no failure reason is known", () => {
+        expect(utdPlaceholderText(null)).toBe(UTD_PLACEHOLDER_TEXT);
+        expect(utdPlaceholderText(undefined)).toBe(UTD_PLACEHOLDER_TEXT);
+        expect(utdPlaceholderText("")).toBe(UTD_PLACEHOLDER_TEXT);
+    });
+
+    it("returns the generic copy for a transient / unknown failure reason", () => {
+        // The common case: keys have not arrived yet.
+        expect(utdPlaceholderText("MEGOLM_UNKNOWN_INBOUND_SESSION_ID")).toBe(
+            UTD_PLACEHOLDER_TEXT,
+        );
+        // Anything unmapped falls through to the generic line, never a throw.
+        expect(utdPlaceholderText("SOME_FUTURE_CODE")).toBe(
+            UTD_PLACEHOLDER_TEXT,
+        );
+    });
+
+    it("returns distinct copy when the sender deliberately withheld the key", () => {
+        const text = utdPlaceholderText("MEGOLM_KEY_WITHHELD");
+        expect(text).toBe(UTD_WITHHELD_TEXT);
+        expect(text).not.toBe(UTD_PLACEHOLDER_TEXT);
+    });
+
+    it("returns unverified-device-specific copy for that withhold reason", () => {
+        const text = utdPlaceholderText(
+            "MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE",
+        );
+        expect(text).toBe(UTD_WITHHELD_UNVERIFIED_TEXT);
+        expect(text).not.toBe(UTD_WITHHELD_TEXT);
+        expect(text.toLowerCase()).toContain("verif");
+    });
+
+    it("never emits an em dash in the user-facing withhold copy", () => {
+        // The build has a guard against em dashes in UI strings; keep these
+        // clean at the source too.
+        expect(UTD_WITHHELD_TEXT).not.toContain("—");
+        expect(UTD_WITHHELD_UNVERIFIED_TEXT).not.toContain("—");
     });
 });
