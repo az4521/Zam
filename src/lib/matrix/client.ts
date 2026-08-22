@@ -4409,6 +4409,15 @@ export function getRoomShareLink(roomId: string): string {
     return matrixToUrl(roomId, domain ? [domain] : []);
 }
 
+/** A shareable matrix.to permalink to a specific event in a room. */
+export function getMessageShareLink(roomId: string, eventId: string): string {
+    const room = matrixClient?.getRoom(roomId);
+    const alias = room?.getCanonicalAlias();
+    const domain = matrixClient?.getDomain();
+    const via = domain ? [domain] : [];
+    return matrixToUrl(alias ?? roomId, via, eventId);
+}
+
 /** Returns the event ID the current user has read up to in this room, or null. */
 export function getReadUpToEventId(room: Room): string | null {
     const userId = matrixClient?.getUserId();

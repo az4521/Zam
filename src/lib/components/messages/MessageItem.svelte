@@ -10,7 +10,7 @@
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import EventShield from "./EventShield.svelte";
-    import { Forward, Lock, Reply } from "lucide-svelte";
+    import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -34,6 +34,7 @@
         resendMessage,
         deleteFailedMessage,
         getRoom,
+        getMessageShareLink,
         joinRoom,
         seedRoomStateIfMissing,
         getRoomIdForAlias,
@@ -451,6 +452,21 @@
             console.error("Failed to resend:", err);
         } finally {
             isResending = false;
+        }
+    }
+
+    let linkCopied = $state(false);
+    let linkCopiedTimer: ReturnType<typeof setTimeout> | undefined;
+    async function copyMessageLink() {
+        try {
+            await navigator.clipboard.writeText(
+                getMessageShareLink(room.roomId, eventId),
+            );
+            linkCopied = true;
+            clearTimeout(linkCopiedTimer);
+            linkCopiedTimer = setTimeout(() => (linkCopied = false), 1500);
+        } catch {
+            showErrorToast("Couldn't copy the message link");
         }
     }
 
@@ -2430,6 +2446,21 @@
                 aria-label="Forward message"
             >
                 <Forward size={16} />
+            </button>
+        {/if}
+        {#if eventId.startsWith("$") && !isFailed}
+            <button
+                data-message-action
+                onclick={copyMessageLink}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title={linkCopied ? "Link copied!" : "Copy message link"}
+                aria-label={linkCopied ? "Link copied" : "Copy message link"}
+            >
+                {#if linkCopied}
+                    <Check size={16} />
+                {:else}
+                    <Link size={16} />
+                {/if}
             </button>
         {/if}
         {#if !isOwnMessage && !isFailed}
