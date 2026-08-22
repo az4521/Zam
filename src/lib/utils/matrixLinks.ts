@@ -225,18 +225,56 @@ export function linkifyPlainText(escapedHtml: string): string {
     );
 }
 
+// A string that is entirely 7-bit ASCII carries no homograph risk.
+// eslint-disable-next-line no-control-regex
+const ASCII_ONLY_RE = /^[\x00-\x7f]*$/;
+
+/**
+ * Render a Matrix server name in ASCII: an internationalized (IDN) host is
+ * converted to its punycode (`xn--…`) form so a homograph server name cannot
+ * masquerade as a trusted ASCII one in a link tooltip (audit SEC-L5). Plain
+ * ASCII names — the overwhelming common case, including ports and IP literals —
+ * pass through untouched. Anything that cannot be parsed as a host is returned
+ * unchanged, so an odd input is never mangled or dropped.
+ */
+export function asciiServerName(server: string): string {
+    if (!server || ASCII_ONLY_RE.test(server)) return server;
+    // Split off an optional trailing :port. IPv6 literals are ASCII, so they
+    // take the fast path above and never reach here.
+    const portMatch = server.match(/:(\d+)$/);
+    const host = portMatch ? server.slice(0, portMatch.index) : server;
+    const port = portMatch ? portMatch[0] : "";
+    try {
+        // The WHATWG URL parser applies IDNA ToASCII to the host, giving the
+        // punycode form for an internationalized name.
+        const ascii = new URL(`http://${host}`).hostname;
+        return ASCII_ONLY_RE.test(ascii) ? ascii + port : server;
+    } catch {
+        return server;
+    }
+}
+
 /**
  * The tooltip an anchor should carry, or null for "leave it alone".
  *
  * Only user links get one: the anchor text is usually a nickname, so the full
- * user id is the useful disambiguation. Extracted from MessageItem so the rule
- * is testable — the component now applies it per-anchor on hover/focus instead
- * of sweeping every anchor in the row from a MutationObserver.
+ * user id is the useful disambiguation. The server name is rendered as ASCII
+ * (see `asciiServerName`) so a homograph server can't spoof a trusted one in
+ * the tooltip. Extracted from MessageItem so the rule is testable — the
+ * component now applies it per-anchor on hover/focus instead of sweeping every
+ * anchor in the row from a MutationObserver.
  */
 export function matrixLinkTitle(
     href: string | null | undefined,
 ): string | null {
     if (!href) return null;
     const target = parseMatrixLink(href);
-    return target?.kind === "user" ? target.userId : null;
+    if (target?.kind !== "user") return null;
+    // userId is `@localpart:server`; the localpart holds no colon, so the first
+    // colon splits it from the server we harden.
+    const colon = target.userId.indexOf(":");
+    if (colon === -1) return target.userId;
+    const local = target.userId.slice(0, colon);
+    const server = target.userId.slice(colon + 1);
+    return `${local}:${asciiServerName(server)}`;
 }
