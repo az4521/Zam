@@ -229,6 +229,12 @@ export const settingsState = $state({
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
+    /** Device-global: master switch for link previews. When OFF, no preview is
+     *  requested at all — not even the homeserver's own URL-preview call — so the
+     *  homeserver never server-side-fetches the linked URL on your behalf
+     *  (SEC-L2). Default ON. Same device-global storage rule as linkPreviewMedia:
+     *  must stay readBool/writeBool, never the scoped reader. */
+    linkPreviewsEnabled: readBool("linkPreviewsEnabled", true),
     /** Device-global: which link-preview media may load automatically.
      *  "proxied" (default) loads only the copies our own homeserver serves, so
      *  third-party hosts never learn the reader's IP or when they read a message;
@@ -681,6 +687,11 @@ export function setAutoUpdateEnabled(value: boolean): void {
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
+}
+
+export function setLinkPreviewsEnabled(value: boolean): void {
+    settingsState.linkPreviewsEnabled = value;
+    writeBool("linkPreviewsEnabled", value);
 }
 
 export function setLinkPreviewMedia(value: LinkPreviewMedia): void {
