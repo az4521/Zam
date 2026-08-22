@@ -1,6 +1,8 @@
 <script lang="ts">
+    import { onDestroy } from "svelte";
     import { deleteMessage } from "$lib/matrix/client";
     import {
+        clearModalIfOwner,
         closeModal,
         interfaceState,
         openModal,
@@ -28,11 +30,12 @@
     let reason = $state("");
     let status = $state<"idle" | "sending" | "error">("idle");
     let error = $state("");
+    let token = 0;
 
     function show() {
         below = (buttonEl?.getBoundingClientRect().top ?? 400) < 400;
         // Claim first - a same-id handover runs the outgoing close.
-        openModal("redact-message", () => (open = false));
+        token = openModal("redact-message", () => (open = false));
         reason = "";
         status = "idle";
         error = "";
@@ -72,6 +75,8 @@
         document.addEventListener("mousedown", onMouseDown);
         return () => document.removeEventListener("mousedown", onMouseDown);
     });
+
+    onDestroy(() => clearModalIfOwner(token));
 </script>
 
 <div class="relative">

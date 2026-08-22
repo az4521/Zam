@@ -350,12 +350,12 @@
     // component is instantiated once per timeline row — ungated on a
     // touchscreen (which Chrome's device emulation reports) a few hundred rows
     // meant a few hundred pairs of visualViewport listeners, all firing on
-    // every scroll and resize. keyboardOffset is consumed by exactly two
-    // things: the touch emoji sheet and the report dialog.
+    // every scroll and resize. keyboardOffset is consumed by exactly three
+    // things: the touch emoji sheet, the report dialog, and the redact dialog.
     $effect(() => {
         const wanted =
             interfaceState.isTouchscreen &&
-            (showEmojiPicker || showReportDialog);
+            (showEmojiPicker || showReportDialog || showRedactDialog);
         if (!wanted) {
             keyboardOffset = 0;
             return;
