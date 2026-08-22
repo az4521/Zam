@@ -108,9 +108,9 @@ describe("linkPreviewMedia", () => {
         return await import("./settings.svelte");
     }
 
-    it("defaults to 'all' so existing users see no change", async () => {
+    it("defaults to 'proxied' so third-party hosts never learn the reader's IP by default", async () => {
         const fresh = await bootLinkPreviewWith(null);
-        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("proxied");
     });
 
     it("reads a stored value back at boot, so the choice survives a reload", async () => {
@@ -120,7 +120,7 @@ describe("linkPreviewMedia", () => {
 
     it("falls back to the default when localStorage holds junk", async () => {
         const fresh = await bootLinkPreviewWith("garbage");
-        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("proxied");
     });
 
     it("writes the value under the device-global key", () => {
@@ -140,8 +140,8 @@ describe("linkPreviewMedia", () => {
 
     it("normalizes a bad value passed to the setter", () => {
         setLinkPreviewMedia("nonsense" as never);
-        expect(settingsState.linkPreviewMedia).toBe("all");
-        expect(localStorage.getItem(LP_KEY)).toBe("all");
+        expect(settingsState.linkPreviewMedia).toBe("proxied");
+        expect(localStorage.getItem(LP_KEY)).toBe("proxied");
     });
 });
 

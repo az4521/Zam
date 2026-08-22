@@ -17,9 +17,10 @@ export type LinkPreviewMedia =
     /** Never load preview media automatically. */
     | "none";
 
-/** Default is the historical behaviour: flipping it would change what every
- *  existing user sees without them asking. */
-export const DEFAULT_LINK_PREVIEW_MEDIA: LinkPreviewMedia = "all";
+/** Default is homeserver-only for privacy: third-party hosts never learn the
+ *  reader's IP by default. Existing users get the safer default on next load,
+ *  and the per-message reveal button restores media on demand. */
+export const DEFAULT_LINK_PREVIEW_MEDIA: LinkPreviewMedia = "proxied";
 
 export function normalizeLinkPreviewMedia(
     value: string | null | undefined,
@@ -27,6 +28,20 @@ export function normalizeLinkPreviewMedia(
     return value === "all" || value === "proxied" || value === "none"
         ? value
         : DEFAULT_LINK_PREVIEW_MEDIA;
+}
+
+/**
+ * True only when a preview media URL is a homeserver-rehosted `mxc://` — the
+ * homeserver already knows the message exists, so serving its own copy leaks
+ * nothing new. A non-mxc (raw third-party) `og:image`/`og:video` is
+ * attacker-controlled and must never reach the DOM: the generic `<img>` path
+ * would hand the attacker's host the reader's IP zero-click (SEC-M1 sub-case b).
+ * Fails closed on an absent value.
+ */
+export function isMxcPreviewMedia(
+    url: string | null | undefined,
+): url is string {
+    return !!url && url.startsWith("mxc://");
 }
 
 /**
