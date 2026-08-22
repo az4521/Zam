@@ -48,6 +48,7 @@
         getRoomVersionCapability,
         type SpaceChildEntry,
         memberDisplayName,
+        isRoomStateHealed,
     } from "$lib/matrix/client";
     import {
         getRestrictedJoinState,
@@ -69,6 +70,7 @@
         roomSettingsTabLabel,
         type RoomSettingsTab,
     } from "$lib/utils/roomSettingsNav";
+    import { roomStateTrustBadge } from "$lib/utils/roomStateTrust";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
@@ -227,6 +229,13 @@
     let encConfirmInput = $state("");
     let encEnabling = $state(false);
     let encError = $state("");
+
+    // SEC-M5: flag rooms whose state was healed out-of-band (server-fetched, not
+    // synced). roomsTick so the banner appears/clears after a heal without reload.
+    const stateTrust = $derived(
+        (void roomsState.roomsTick,
+        roomStateTrustBadge(isRoomStateHealed(room.roomId))),
+    );
 
     async function doEnableEncryption() {
         if (!matchesEnableEncryptionConfirmation(encConfirmInput)) return;
@@ -972,6 +981,21 @@
 
                 <!-- Tab content -->
                 <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
+                    {#if stateTrust.unverified}
+                        <div
+                            class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-discord-textPrimary"
+                            role="note"
+                            title={stateTrust.tooltip}
+                        >
+                            <p class="font-semibold text-amber-400">
+                                {stateTrust.label}
+                            </p>
+                            <p class="mt-1 text-discord-textMuted">
+                                {stateTrust.tooltip}
+                            </p>
+                        </div>
+                    {/if}
+
                     <!-- ── General ─────────────────────────────────────────── -->
                     {#if activeTab === "general"}
                         <div class="space-y-5">

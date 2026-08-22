@@ -51,7 +51,7 @@ export function roomStateTrustBadge(healed: boolean): RoomStateTrustBadge {
         unverified: true,
         label: "Unverified room state",
         tooltip:
-            "Some of this room's details — roles, membership, and permissions — " +
+            "Some of this room's details (roles, membership, and permissions) " +
             "were fetched directly from the server and haven't been confirmed " +
             "through sync, so they may be inaccurate. Actions are still enforced " +
             "by the server regardless of what is shown here.",
