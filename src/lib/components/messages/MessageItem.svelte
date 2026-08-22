@@ -1121,7 +1121,7 @@
         // flag into the cache key means a hit computed BEFORE the chunk arrived is
         // never reused AFTER it arrives, so code blocks still upgrade to coloured.
         const engine = highlighterFor(html);
-        return twemojiCache.get(`${engine ? "1" : "0"} ${html}`, () => {
+        return twemojiCache.get(`${engine ? "1" : "0"}\u0000${html}`, () => {
             const emojiRendered = mapOutsideCode(html, (fragment) =>
                 renderHtml(fragment, "twemoji"),
             );
@@ -1237,10 +1237,10 @@
         if (!html) return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
         // Key on (homeserver base URL, raw html): sanitize rewrites mxc:// URIs to
         // absolute homeserver media URLs via mxcToHttp, so the SAME body resolves
-        // differently across an account switch.   is a safe separator (never
-        // present in a URL or in Matrix HTML).
+        // differently across an account switch. A NUL (U+0000) is a safe
+        // separator (never present in a URL or in Matrix HTML).
         const base = getHomeserverBaseUrl() ?? "";
-        return sanitizeCache.get(`${base} ${html}`, () =>
+        return sanitizeCache.get(`${base}\u0000${html}`, () =>
             sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
         );
     }
