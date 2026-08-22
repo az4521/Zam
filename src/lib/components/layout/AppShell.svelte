@@ -74,6 +74,7 @@
     } from "$lib/desktopUpdater";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
+    import CryptoUnavailableBanner from "$lib/components/layout/CryptoUnavailableBanner.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -81,6 +82,8 @@
         getNotificationCount,
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
+    import { sessionHealthState } from "$lib/stores/sessionHealth.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
         getRoomsInSpace,
@@ -1104,6 +1107,15 @@
     onMount(() => {
         reloadAccountSettings();
 
+        // Sync store fell back to memory this session (audit SEC-M6): warn once
+        // that offline history won't persist. The flag is reset per session in
+        // createAuthenticatedClient, so this fires only on a real fallback.
+        if (sessionHealthState.syncStoreFallback) {
+            showErrorToast(
+                "Offline message storage is unavailable this session — history won't be saved for next time.",
+            );
+        }
+
         // Desktop (Electron) auto-updater: tell the main process the persisted
         // auto-update preference at boot, so the ~10s launch update-check
         // honours a previously-set OFF before it fires. No-op off Electron.
@@ -1858,4 +1870,5 @@
 <ScreenSharePicker />
 
 <UpdateBanner />
+<CryptoUnavailableBanner />
 <JoinConsentDialog />
