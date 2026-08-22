@@ -101,6 +101,10 @@ import {
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
+import {
+    markSyncStoreFallback,
+    resetSyncStoreFallback,
+} from "$lib/stores/sessionHealth.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
@@ -430,6 +434,7 @@ async function createAuthenticatedClient(opts: {
     });
 
     if (store) {
+        resetSyncStoreFallback();
         try {
             await store.startup();
             matrixStore = store;
@@ -438,6 +443,7 @@ async function createAuthenticatedClient(opts: {
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
                 err,
             );
+            markSyncStoreFallback();
             client = createClient(commonOpts);
         }
     }

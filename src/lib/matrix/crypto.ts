@@ -73,6 +73,7 @@ import { securitySetupState } from "$lib/utils/securityStatusView";
 import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
+import { setSessionCryptoStatus } from "$lib/stores/sessionHealth.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
@@ -124,6 +125,7 @@ export async function initCrypto(
     deviceId: string,
 ): Promise<void> {
     cryptoAvailable = false;
+    setSessionCryptoStatus(null);
     // Session expiry drops back to the login view in place (no reload), so a
     // re-login re-enters here in the same JS context — against a fresh crypto
     // store that knows nothing about sender devices. Verdicts memoised for the
@@ -135,6 +137,7 @@ export async function initCrypto(
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });
         cryptoAvailable = true;
+        setSessionCryptoStatus(true);
         // `globalBlacklistUnverifiedDevices` is in-memory only on the crypto
         // api, so the persisted preference has to be re-applied every session.
         // Read straight from storage, scoped to the `userId` we were handed,
@@ -156,6 +159,7 @@ export async function initCrypto(
                 "placeholders and this session can't send to encrypted rooms",
             err,
         );
+        setSessionCryptoStatus(false);
     }
 }
 
