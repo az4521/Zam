@@ -241,6 +241,7 @@ import {
     ENCRYPTION_ALGORITHM,
     encryptionInitialState,
 } from "$lib/utils/roomEncryption";
+import { createHealedRoomRegistry } from "$lib/utils/roomStateTrust";
 import {
     coercePl,
     effectivePowerLevel,
@@ -3793,6 +3794,9 @@ export async function sendEdit(
 const seedingRooms = new Set<string>();
 const roomUpdateSubscribers = new Set<() => void>();
 const roomHealedSubscribers = new Set<(roomId: string) => void>();
+// Rooms whose state we healed out-of-band this session (see roomStateTrust.ts).
+// Read by the UI to flag server-fetched trust indicators as unverified (SEC-M5).
+const healedRoomRegistry = createHealedRoomRegistry();
 
 /**
  * Fires after a state-less stub room has been seeded and backfilled — the
@@ -3802,6 +3806,15 @@ const roomHealedSubscribers = new Set<(roomId: string) => void>();
 export function onRoomHealed(callback: (roomId: string) => void): () => void {
     roomHealedSubscribers.add(callback);
     return () => roomHealedSubscribers.delete(callback);
+}
+
+/**
+ * Whether this room's current state was healed out-of-band (fetched from
+ * `/rooms/{id}/state`) rather than delivered through /sync this session. The UI
+ * uses it to flag server-controlled trust indicators as unverified (SEC-M5).
+ */
+export function isRoomStateHealed(roomId: string): boolean {
+    return healedRoomRegistry.isHealed(roomId);
 }
 
 function roomLacksState(room: Room): boolean {
@@ -3901,6 +3914,7 @@ export async function seedRoomStateIfMissing(
         if (!ownedClient(owner)) return false;
         for (const cb of roomUpdateSubscribers) cb();
         for (const cb of roomHealedSubscribers) cb(roomId);
+        healedRoomRegistry.markHealed(roomId);
         return true;
     } catch (err) {
         console.error("Failed to seed room state:", err);
