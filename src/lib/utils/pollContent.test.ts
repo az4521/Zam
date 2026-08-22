@@ -439,21 +439,26 @@ describe("aggregatePollVotes — MSC3381 vote aggregation", () => {
 // ── canEndPoll / pickPollEndTs ──────────────────────────────────────────────
 
 describe("canEndPoll — who may close a poll", () => {
-    it("always allows the poll creator", () => {
-        expect(canEndPoll("@me:hs", "@me:hs", {})).toBe(true);
+    it("lets the poll creator close their own poll regardless of power", () => {
+        // creator, effective PL 0, redact 50 → still allowed (creator short-circuit)
+        expect(canEndPoll("@me:hs", "@me:hs", 0, 50)).toBe(true);
     });
-
-    it("allows users at or above the redact power level", () => {
-        const pl = { redact: 50, users: { "@mod:hs": 50, "@user:hs": 0 } };
-        expect(canEndPoll("@mod:hs", "@creator:hs", pl)).toBe(true);
-        expect(canEndPoll("@user:hs", "@creator:hs", pl)).toBe(false);
+    it("lets a non-creator who reaches the redact level close it", () => {
+        expect(canEndPoll("@mod:hs", "@creator:hs", 50, 50)).toBe(true);
     });
-
-    it("applies spec defaults (redact 50, users_default 0)", () => {
-        expect(canEndPoll("@rando:hs", "@creator:hs", {})).toBe(false);
-        expect(
-            canEndPoll("@rando:hs", "@creator:hs", { users_default: 50 }),
-        ).toBe(true);
+    it("denies a non-creator below the redact level", () => {
+        expect(canEndPoll("@user:hs", "@creator:hs", 49, 50)).toBe(false);
+    });
+    it("denies a non-creator with no power (default 0)", () => {
+        expect(canEndPoll("@rando:hs", "@creator:hs", 0, 50)).toBe(false);
+    });
+    // S-A1: a room-v12 creator who did NOT start this poll — the caller passes
+    // their effective power (CREATOR_POWER_LEVEL 100 via getUserPowerLevel), so
+    // they clear the redact gate even though they aren't the poll creator.
+    it("lets a room-v12 creator close someone else's poll via effective power", () => {
+        expect(canEndPoll("@roomcreator:hs", "@polluser:hs", 100, 50)).toBe(
+            true,
+        );
     });
 });
 

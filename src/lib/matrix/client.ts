@@ -7273,7 +7273,13 @@ export function getPollView(
         related
             .filter((e) => isPollEndEventType(e.getType()))
             .map((e) => ({ sender: e.getSender() ?? "", ts: e.getTs() })),
-        (sender) => canEndPoll(sender, creator, powerLevels),
+        (sender) =>
+            canEndPoll(
+                sender,
+                creator,
+                getUserPowerLevel(room, sender),
+                powerLevels.redact,
+            ),
     );
 
     const responses = related
@@ -7295,7 +7301,15 @@ export function getPollView(
         myAnswers: (me && tally.votesBySender[me]) || [],
         ended: endTs !== null,
         showResults: poll.kind === "disclosed" || endTs !== null,
-        canEnd: endTs === null && !!me && canEndPoll(me, creator, powerLevels),
+        canEnd:
+            endTs === null &&
+            !!me &&
+            canEndPoll(
+                me,
+                creator,
+                getUserPowerLevel(room, me),
+                powerLevels.redact,
+            ),
     };
 }
 
@@ -7343,7 +7357,14 @@ export async function sendPollEnd(
     const me = matrixClient.getUserId() ?? "";
     if (room) {
         const creator = pollStartEvent.getSender() ?? "";
-        if (!canEndPoll(me, creator, getRoomPowerLevels(room)))
+        if (
+            !canEndPoll(
+                me,
+                creator,
+                getUserPowerLevel(room, me),
+                getRoomPowerLevels(room).redact,
+            )
+        )
             throw new Error("You can't close this poll");
     }
     const { eventType, content } = buildPollEnd(pollStartId);
