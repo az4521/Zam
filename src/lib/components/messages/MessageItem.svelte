@@ -177,6 +177,7 @@
     }: Props = $props();
 
     const canPin = $derived.by(() => {
+        void roomsState.roomsTick;
         const myPl = getMyPowerLevel(room);
         const pl = getRoomPowerLevels(room);
         const pinPl = pl.events?.["m.room.pinned_events"] ?? pl.state_default;
