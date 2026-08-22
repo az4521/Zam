@@ -425,6 +425,14 @@ async function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             preload: path.join(__dirname, "preload.cjs"),
+            // The window hides to the tray on close and keeps running as a
+            // background client. Chromium throttles a hidden window's timers by
+            // default, which clamps the matrix-js-sdk sync loop's next-poll
+            // scheduling — so an incoming call that lands during a throttled gap
+            // rings late (or waits for the window to be restored). Disable
+            // throttling so sync, ringing, and notifications stay prompt while
+            // minimised to the tray.
+            backgroundThrottling: false,
         },
     });
 
