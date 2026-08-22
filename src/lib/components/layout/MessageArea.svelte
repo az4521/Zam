@@ -376,9 +376,16 @@
         let el = document.querySelector(`[data-event-id="${eventId}"]`);
         if (!el) {
             jumpingToEventId = eventId;
+            // MessageArea is one persistent instance (not keyed by room), so
+            // `room` can change during this await. Capture the room we started
+            // in and drop the fetched window if we've since switched — otherwise
+            // room A's context window is written into room B, which renders A's
+            // messages under B's header and freezes B's live updates until
+            // "Return to live" (F1). Mirrors recoverScrollback's rid capture.
+            const rid = room.roomId;
             try {
                 const win = await createContextWindow(room, eventId);
-                if (win) {
+                if (win && room.roomId === rid) {
                     contextWindow = win;
                     contextMessages = getContextWindowEvents(win);
                     await tick();
@@ -715,6 +722,10 @@
         replyToEvent = null;
         contextWindow = null;
         contextMessages = null;
+        // Release the backfill lock so the new room's initial backfill isn't
+        // blocked by a load still in flight for the previous room (F2). The
+        // finally in loadOlderMessages only clears the lock for its own room.
+        loadingOlder = false;
     });
 
     // Load messages when room changes — always reload from SDK state (fast, in-memory)
@@ -1260,6 +1271,11 @@
             return;
         }
         loadingOlder = true;
+        // Capture the room we started paginating. MessageArea is one persistent
+        // instance, so `room` can change while the load awaits; on a mismatch we
+        // drop the result so room A's "no more history" verdict is never written
+        // into room B (which would leave B un-paginatable) (F2).
+        const rid = room.roomId;
         // Scroll preservation across a history prepend. The reference is the
         // oldest rendered message; after prepending we nudge it back to the
         // viewport offset it held just before — a self-correcting form that lands
@@ -1281,22 +1297,29 @@
         try {
             if (isContextView && contextWindow) {
                 await paginateContextWindow(contextWindow, false);
+                if (room.roomId !== rid) return;
                 const refEl = scrollEl?.querySelector("[data-event-id]");
                 refId = (refEl as HTMLElement | null)?.dataset.eventId;
                 prevTop = refEl?.getBoundingClientRect().top;
                 contextMessages = getContextWindowEvents(contextWindow);
             } else {
                 const hasMore = await loadPreviousMessages(room);
-                if (!hasMore) setCanLoadMore(roomId, false);
+                if (room.roomId !== rid) return;
+                if (!hasMore) setCanLoadMore(rid, false);
                 const events = getTimelineMessages(room);
                 const refEl = scrollEl?.querySelector("[data-event-id]");
                 refId = (refEl as HTMLElement | null)?.dataset.eventId;
                 prevTop = refEl?.getBoundingClientRect().top;
-                setMessages(roomId, events);
+                setMessages(rid, events);
             }
 
             await tick();
-            if (scrollEl && refId !== undefined && prevTop !== undefined) {
+            if (
+                room.roomId === rid &&
+                scrollEl &&
+                refId !== undefined &&
+                prevTop !== undefined
+            ) {
                 const el = scrollEl.querySelector(`[data-event-id="${refId}"]`);
                 if (el) {
                     scrollEl.scrollTop +=
@@ -1304,7 +1327,10 @@
                 }
             }
         } finally {
-            loadingOlder = false;
+            // Only release the lock for our own room. On a mid-load switch the
+            // room-switch effect already reset it for the new room; clearing it
+            // unconditionally here would corrupt that room's in-flight load (F2).
+            if (room.roomId === rid) loadingOlder = false;
         }
     }
 
