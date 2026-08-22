@@ -161,7 +161,11 @@ import {
 } from "$lib/utils/roomClassification";
 import { mapUserSearchResults } from "$lib/utils/userSearch";
 import { mapPublicRooms, type DirectoryRoom } from "$lib/utils/roomDirectory";
-import { buildKnockOpts, matrixErrorMessage } from "$lib/utils/knock";
+import {
+    buildKnockOpts,
+    matrixErrorMessage,
+    knockReasonFromContent,
+} from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
@@ -6662,6 +6666,20 @@ export async function unbanUser(roomId: string, userId: string): Promise<void> {
 
 export function getBannedMembers(room: Room): RoomMember[] {
     return room.getMembers().filter((m) => m.membership === "ban");
+}
+
+/** Members currently knocking on the room (membership === "knock"). */
+export function getKnockingMembers(room: Room): RoomMember[] {
+    return room.getMembers().filter((m) => m.membership === "knock");
+}
+
+/**
+ * The trimmed, non-empty knock reason a member supplied when knocking, or
+ * undefined. Reads the member's m.room.member event content; the value is
+ * untrusted user text (render escaped, never via {@html}).
+ */
+export function getMemberKnockReason(member: RoomMember): string | undefined {
+    return knockReasonFromContent(member.events.member?.getContent());
 }
 
 /** The user ids on the account's m.ignored_user_list (empty when logged out). */
