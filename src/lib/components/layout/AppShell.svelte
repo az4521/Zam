@@ -82,7 +82,10 @@
         getNotificationCount,
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
-    import { sessionHealthState } from "$lib/stores/sessionHealth.svelte";
+    import {
+        sessionHealthState,
+        resetSyncStoreFallback,
+    } from "$lib/stores/sessionHealth.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
@@ -1114,6 +1117,9 @@
             showErrorToast(
                 "Offline message storage is unavailable this session, so history won't be saved for next time.",
             );
+            // Consume the flag so an SPA remount (e.g. "add account" → cancel →
+            // goto("/")) does not re-fire the toast without a new fallback.
+            resetSyncStoreFallback();
         }
 
         // Desktop (Electron) auto-updater: tell the main process the persisted

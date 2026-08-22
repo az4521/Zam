@@ -2,6 +2,7 @@
     // Consent gate before a click-to-join (audit SEC-M3). Rendered once in
     // AppShell; shows when the join-consent store has a pending request. Text
     // only — the identifiers are plain strings, never {@html}.
+    import { onMount } from "svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import {
         joinConsentState,
@@ -14,6 +15,13 @@
     const showResolved = $derived(
         !!pending && pending.display !== pending.resolvedRoomId,
     );
+
+    // Clear any stale pending consent from an in-place-expired prior session.
+    // requestJoinConsent is only called from timeline link clicks, which happen
+    // AFTER AppShell mounts, so pending is always null in a healthy flow.
+    onMount(() => {
+        resolveJoinConsent(false);
+    });
 </script>
 
 {#if pending}
