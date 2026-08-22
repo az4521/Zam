@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { sortSpaceChildIds, type SpaceChildDescriptor } from "./spaceChildren";
+import {
+    sortSpaceChildIds,
+    type SpaceChildDescriptor,
+    isSuggestedChild,
+} from "./spaceChildren";
 
 function child(
     partial: Partial<SpaceChildDescriptor> & { stateKey: string },
@@ -110,5 +114,21 @@ describe("sortSpaceChildIds", () => {
                 child({ stateKey: "!a:s", ts: 200 }),
             ]),
         ).toEqual(["!z:s", "!a:s"]);
+    });
+});
+
+describe("isSuggestedChild", () => {
+    it("is true only for an explicit boolean true", () => {
+        expect(isSuggestedChild({ suggested: true })).toBe(true);
+    });
+    it("is false for absent, false, or non-boolean values (MSC1772: boolean only)", () => {
+        expect(isSuggestedChild({})).toBe(false);
+        expect(isSuggestedChild({ suggested: false })).toBe(false);
+        expect(isSuggestedChild({ suggested: "true" })).toBe(false);
+        expect(isSuggestedChild({ suggested: 1 })).toBe(false);
+    });
+    it("is false for null/undefined content", () => {
+        expect(isSuggestedChild(null)).toBe(false);
+        expect(isSuggestedChild(undefined)).toBe(false);
     });
 });
