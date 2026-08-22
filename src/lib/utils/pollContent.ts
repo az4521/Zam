@@ -30,6 +30,21 @@ export function isPollEndEventType(type: string): boolean {
     return (POLL_END_TYPES as readonly string[]).includes(type);
 }
 
+/**
+ * True for a timeline event that changes a rendered poll: a response, an end,
+ * or an `m.replace` EDIT of the poll start. MSC3381 poll edits are folded into
+ * the start event's `getContent()` by the SDK (`makeReplaced`), but a VISIBLE
+ * poll only re-derives its view when we signal a change — so an edit must count
+ * here or a live-edited poll stays stale until the next tally or re-mount.
+ */
+export function affectsPollView(
+    type: string,
+    relType: string | undefined,
+): boolean {
+    if (isPollResponseEventType(type) || isPollEndEventType(type)) return true;
+    return isPollStartEventType(type) && relType === "m.replace";
+}
+
 export interface PollAnswer {
     id: string;
     text: string;

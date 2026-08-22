@@ -187,6 +187,7 @@ import {
     buildPollResponse,
     buildPollStart,
     buildPollEnd,
+    affectsPollView,
 } from "$lib/utils/pollContent";
 import {
     mediaItemFromEvent,
@@ -7381,17 +7382,15 @@ export async function fetchPollRelations(
     return events;
 }
 
-/** Fires when a poll response or end event lands on a timeline, so visible
- *  polls can re-tally. */
+/** Fires when a poll response, end, or start-edit lands on a timeline, so visible polls can re-tally/re-render. */
 export function onPollEvent(
     callback: (event: MatrixEvent, room: Room) => void,
 ): () => void {
     if (!matrixClient) return () => {};
     const handler = (event: MatrixEvent, room: Room | undefined) => {
-        const type = event.getType();
         if (
             room &&
-            (isPollResponseEventType(type) || isPollEndEventType(type))
+            affectsPollView(event.getType(), event.getRelation()?.rel_type)
         ) {
             callback(event, room);
         }

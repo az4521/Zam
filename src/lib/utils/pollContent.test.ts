@@ -13,6 +13,7 @@ import {
     draftToPollData,
     buildPollStart,
     buildPollEnd,
+    affectsPollView,
     type PollStartData,
     type PollResponse,
     type PollDraft,
@@ -546,5 +547,34 @@ describe("buildPollEnd", () => {
             rel_type: "m.reference",
             event_id: "$poll1",
         });
+    });
+});
+
+describe("affectsPollView", () => {
+    it("matches poll response and end events (both namespaces)", () => {
+        expect(affectsPollView("m.poll.response", undefined)).toBe(true);
+        expect(
+            affectsPollView("org.matrix.msc3381.poll.response", undefined),
+        ).toBe(true);
+        expect(affectsPollView("m.poll.end", undefined)).toBe(true);
+        expect(affectsPollView("org.matrix.msc3381.poll.end", undefined)).toBe(
+            true,
+        );
+    });
+    it("matches a poll-start edit (m.replace) so the view re-renders", () => {
+        expect(affectsPollView("m.poll.start", "m.replace")).toBe(true);
+        expect(
+            affectsPollView("org.matrix.msc3381.poll.start", "m.replace"),
+        ).toBe(true);
+    });
+    it("ignores a brand-new poll start (no m.replace relation)", () => {
+        expect(affectsPollView("m.poll.start", undefined)).toBe(false);
+        expect(
+            affectsPollView("org.matrix.msc3381.poll.start", "m.reference"),
+        ).toBe(false);
+    });
+    it("ignores unrelated events and unrelated relations", () => {
+        expect(affectsPollView("m.room.message", "m.replace")).toBe(false);
+        expect(affectsPollView("m.reaction", "m.annotation")).toBe(false);
     });
 });
