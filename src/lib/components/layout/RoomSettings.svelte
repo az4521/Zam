@@ -11,10 +11,13 @@
         getRoomPowerLevels,
         setRoomPowerLevels,
         setUserPowerLevel,
+        inviteUser,
         kickUser,
         banUser,
         unbanUser,
         getBannedMembers,
+        getKnockingMembers,
+        getMemberKnockReason,
         setRoomName,
         setRoomTopic,
         setRoomAvatar,
@@ -684,6 +687,14 @@
     const bannedMembers = $derived(
         (void roomsState.roomsTick, getBannedMembers(room)),
     );
+    const knockingMembers = $derived(
+        (void roomsState.roomsTick, getKnockingMembers(room)),
+    );
+    // A moderator who can approve (invite) OR deny (kick) a knock; tick so the
+    // section shows/hides live on a promote/demote.
+    const canModerateKnocks = $derived(
+        (void roomsState.roomsTick, canInvite || canKick),
+    );
 
     const filteredMembers = $derived(
         allMembers
@@ -745,6 +756,30 @@
         memberError = "";
         try {
             await unbanUser(room.roomId, userId);
+        } catch (e: any) {
+            memberError = e?.message ?? "Failed";
+        } finally {
+            memberActionPending = null;
+        }
+    }
+
+    async function doApproveKnock(userId: string) {
+        memberActionPending = userId;
+        memberError = "";
+        try {
+            await inviteUser(room.roomId, userId);
+        } catch (e: any) {
+            memberError = e?.message ?? "Failed";
+        } finally {
+            memberActionPending = null;
+        }
+    }
+
+    async function doDenyKnock(userId: string) {
+        memberActionPending = userId;
+        memberError = "";
+        try {
+            await kickUser(room.roomId, userId);
         } catch (e: any) {
             memberError = e?.message ?? "Failed";
         } finally {
@@ -1652,6 +1687,85 @@
                                     >
                                         {memberError}
                                     </p>{/if}
+
+                                {#if canModerateKnocks && knockingMembers.length > 0}
+                                    <div class="space-y-1">
+                                        <p
+                                            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                        >
+                                            Pending join requests ({knockingMembers.length})
+                                        </p>
+                                        {#each knockingMembers as member (member.userId)}
+                                            {@const reason =
+                                                getMemberKnockReason(member)}
+                                            <div
+                                                class="rounded bg-discord-backgroundTertiary overflow-hidden"
+                                            >
+                                                <div
+                                                    class="flex items-center gap-3 p-2"
+                                                >
+                                                    <Avatar
+                                                        src={mxcToHttp(
+                                                            member.getMxcAvatarUrl(),
+                                                        )}
+                                                        name={member.name}
+                                                        id={member.userId}
+                                                        size={28}
+                                                    />
+                                                    <div class="flex-1 min-w-0">
+                                                        <p
+                                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                                        >
+                                                            {memberDisplayName(
+                                                                member,
+                                                            )}
+                                                        </p>
+                                                        <p
+                                                            class="text-xs text-discord-textMuted truncate"
+                                                        >
+                                                            {member.userId}
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="flex gap-2 flex-shrink-0"
+                                                    >
+                                                        {#if canKick}
+                                                            <button
+                                                                onclick={() =>
+                                                                    doDenyKnock(
+                                                                        member.userId,
+                                                                    )}
+                                                                disabled={memberActionPending ===
+                                                                    member.userId}
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50"
+                                                                >Deny</button
+                                                            >
+                                                        {/if}
+                                                        {#if canInvite}
+                                                            <button
+                                                                onclick={() =>
+                                                                    doApproveKnock(
+                                                                        member.userId,
+                                                                    )}
+                                                                disabled={memberActionPending ===
+                                                                    member.userId}
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                                                                >Approve</button
+                                                            >
+                                                        {/if}
+                                                    </div>
+                                                </div>
+                                                {#if reason}
+                                                    <div
+                                                        class="px-3 pb-2 -mt-1 text-xs text-discord-textMuted break-words"
+                                                    >
+                                                        "{reason}"
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
 
                                 {#if showBanned}
                                     <!-- Banned members -->
