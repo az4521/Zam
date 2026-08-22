@@ -13,7 +13,10 @@ export interface NotificationRouteSession {
 
 export type NotificationRouteDecision =
     | { action: "navigate"; roomId: string }
-    | { action: "drop"; reason: "no-room" | "signed-out" | "other-account" };
+    | {
+          action: "drop";
+          reason: "no-room" | "signed-out" | "other-account" | "no-poster";
+      };
 
 /**
  * Should a notification tap open a room in the session that is live RIGHT NOW?
@@ -26,13 +29,14 @@ export type NotificationRouteDecision =
  * — the "clicking later routes an old room ID into another account" half of
  * audit finding PRIV-02.
  *
- * An UNKNOWN poster navigates. Every surface this app posts from now stamps
- * the account that posted it, so an unstamped notification can only have come
- * from a build older than this one — a population that ages out. Failing
- * closed there would silently break taps on notifications already in the tray
- * at update time. The case that unknown-fails-open would otherwise leave open
- * is handled at POST time instead: a surface with no identity omits the room
- * id entirely, so its notification is not routable in the first place.
+ * A notification with NO recorded poster is DROPPED (fail closed — audit
+ * SEC-M4). Every surface this build posts stamps the account it came from and
+ * omits the room id when it cannot (see `sw.js` `notificationData` and Android
+ * `MainActivity.handleRoomIntent`), so a routable-but-unstamped target can only
+ * be an old pre-stamp notification still in the tray — whose tap we accept
+ * breaking — or a forged Android intent from another app trying to force this
+ * session into an attacker-chosen room. Dropping both is the safe choice; the
+ * app is still surfaced by the caller, only the navigation is withheld.
  */
 export function decideNotificationRoute(
     target: NotificationRouteTarget,
@@ -45,7 +49,8 @@ export function decideNotificationRoute(
     if (!sessionUserId) return { action: "drop", reason: "signed-out" };
 
     const postedBy = target.userId;
-    if (postedBy && postedBy !== sessionUserId)
+    if (!postedBy) return { action: "drop", reason: "no-poster" };
+    if (postedBy !== sessionUserId)
         return { action: "drop", reason: "other-account" };
 
     return { action: "navigate", roomId };
