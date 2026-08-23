@@ -231,6 +231,7 @@
         }
     });
     let confirmingDelete = $state(false);
+    let pinning = $state(false);
     let showForwardDialog = $state(false);
     let previousTap: TapPoint | null = null;
 
@@ -2012,20 +2013,28 @@
                 {#if fileUrl || file}
                     <button
                         onclick={async () => {
-                            const blobUrl = file
-                                ? await fetchDecryptedAttachmentBlob(
-                                      file,
-                                      (content?.info as any)?.mimetype,
-                                  )
-                                : await fetchAttachmentBlob(fileUrl!);
-                            const a = document.createElement("a");
-                            a.href = blobUrl;
-                            a.download = fileName;
-                            a.click();
-                            setTimeout(
-                                () => URL.revokeObjectURL(blobUrl),
-                                10000,
-                            );
+                            try {
+                                const blobUrl = file
+                                    ? await fetchDecryptedAttachmentBlob(
+                                          file,
+                                          (content?.info as any)?.mimetype,
+                                      )
+                                    : await fetchAttachmentBlob(fileUrl!);
+                                const a = document.createElement("a");
+                                a.href = blobUrl;
+                                a.download = fileName;
+                                a.click();
+                                setTimeout(
+                                    () => URL.revokeObjectURL(blobUrl),
+                                    10000,
+                                );
+                            } catch (e) {
+                                console.error(
+                                    "Failed to download attachment",
+                                    e,
+                                );
+                                showErrorToast("Failed to download attachment");
+                            }
                         }}
                         class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
                         title="Download"
@@ -2315,6 +2324,8 @@
             <button
                 data-message-action
                 onclick={async () => {
+                    if (pinning) return;
+                    pinning = true;
                     const wasPinned = isPinned;
                     try {
                         if (wasPinned) await unpinMessage(room, eventId);
@@ -2326,9 +2337,12 @@
                                 ? "Failed to unpin message"
                                 : "Failed to pin message",
                         );
+                    } finally {
+                        pinning = false;
                     }
                 }}
-                class="p-1.5 rounded hover:bg-discord-messageHover transition-colors {isPinned
+                disabled={pinning}
+                class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
                     ? 'text-discord-accent'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                 title={isPinned ? "Unpin message" : "Pin message"}

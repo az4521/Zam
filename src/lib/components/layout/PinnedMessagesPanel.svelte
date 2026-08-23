@@ -48,6 +48,9 @@
     });
     let fetchedEvents = $state<MatrixEvent[]>([]);
     let loading = $state(false);
+    // Per-event guard so a double-click on Unpin can't fire two redundant
+    // writes (the second would just 403 / no-op). F10.
+    let pendingUnpin = $state(new Set<string>());
     // A pin lookup can outlive the room it was asked for — the panel is not
     // keyed by room — and a sync can re-trigger the fetch mid-flight. Only the
     // newest run may write, and it is the only one that clears the spinner.
@@ -185,11 +188,13 @@
                                 >
                                 <button
                                     onclick={async () => {
+                                        const id = event.getId()!;
+                                        if (pendingUnpin.has(id)) return;
+                                        pendingUnpin = new Set(
+                                            pendingUnpin,
+                                        ).add(id);
                                         try {
-                                            await unpinMessage(
-                                                room,
-                                                event.getId()!,
-                                            );
+                                            await unpinMessage(room, id);
                                         } catch (e) {
                                             console.error(
                                                 "Failed to unpin message",
@@ -198,9 +203,16 @@
                                             showErrorToast(
                                                 "Failed to unpin message",
                                             );
+                                        } finally {
+                                            pendingUnpin = new Set(
+                                                [...pendingUnpin].filter(
+                                                    (x) => x !== id,
+                                                ),
+                                            );
                                         }
                                     }}
-                                    class="text-xs text-discord-textMuted hover:text-discord-danger transition-colors"
+                                    disabled={pendingUnpin.has(event.getId()!)}
+                                    class="text-xs text-discord-textMuted hover:text-discord-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >Unpin</button
                                 >
                             {/if}

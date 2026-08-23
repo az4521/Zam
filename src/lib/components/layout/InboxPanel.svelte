@@ -10,6 +10,7 @@
         getInviteSender,
     } from "$lib/matrix/client";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
 
     interface Props {
@@ -28,6 +29,7 @@
             setActiveRoom(roomId);
         } catch (e) {
             console.error("Failed to accept invite", e);
+            showErrorToast("Failed to accept invite");
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
@@ -39,6 +41,7 @@
             await rejectInvite(roomId);
         } catch (e) {
             console.error("Failed to reject invite", e);
+            showErrorToast("Failed to reject invite");
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
@@ -50,6 +53,7 @@
             await cancelKnock(roomId);
         } catch (e) {
             console.error("Failed to cancel join request", e);
+            showErrorToast("Failed to cancel join request");
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }

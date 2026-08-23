@@ -1557,7 +1557,7 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
     return [...timeline, ...pending];
 }
 
-export function getLatestTimelineEvent(room: Room): MatrixEvent {
+export function getLatestTimelineEvent(room: Room): MatrixEvent | undefined {
     const timeline = room.getLiveTimeline().getEvents();
     return timeline[timeline.length - 1];
 }
@@ -1759,15 +1759,14 @@ export async function ensureThreadsLoaded(room: Room): Promise<void> {
     // (fetchRoomThreads no-ops once threadsReady). fetchRoomThreads internally
     // feature-detects Thread.hasServerSideListSupport (⚑5): with the MSC3856
     // list endpoint it pages the server list; without it (continuwuity/tuwunel)
-    // it falls back to a client-side m.thread-relation scan. try/catch degrades
-    // to sync-known threads if the server rejects the fallback filter.
+    // it falls back to a client-side m.thread-relation scan. On failure this
+    // REJECTS so the caller can surface it (toast + retry, F6) instead of
+    // silently showing an empty thread list; the UI still degrades to
+    // sync-known threads because getRoomThreads reads room.getThreads(), which
+    // sync populates independently of this fetch.
     if (!matrixClient?.supportsThreads()) return;
-    try {
-        await room.createThreadsTimelineSets();
-        await room.fetchRoomThreads();
-    } catch (err) {
-        console.error("Failed to load room threads:", err);
-    }
+    await room.createThreadsTimelineSets();
+    await room.fetchRoomThreads();
 }
 
 /**
@@ -2098,7 +2097,7 @@ export async function stopLiveBeacon(
     const room = matrixClient.getRoom(roomId);
     const me = matrixClient.getUserId();
     if (!room || !me) return;
-    const own = Array.from(room.currentState.beacons.values()).find(
+    const own = Array.from(room.currentState?.beacons?.values() ?? []).find(
         (b) => b.beaconInfoOwner === me && b.isLive,
     );
     // Distinguish "genuinely never shared here" (no-op is correct — don't
@@ -2138,14 +2137,16 @@ export async function sendLiveBeaconLocation(
 
 /** All Beacon models currently tracked in the room's state. */
 export function getRoomBeacons(room: Room): Beacon[] {
-    return Array.from(room.currentState.beacons.values());
+    return Array.from(room.currentState?.beacons?.values() ?? []);
 }
 
 /** PL gate: may the current user send a beacon_info state event here? */
 export function canShareLiveBeacon(room: Room): boolean {
     const me = matrixClient?.getUserId();
     if (!me) return false;
-    return room.currentState.maySendStateEvent(M_BEACON_INFO.name, me);
+    return (
+        room.currentState?.maySendStateEvent(M_BEACON_INFO.name, me) ?? false
+    );
 }
 
 /** Subscribe to beacon lifecycle changes across all rooms. Calls monitorLiveness()
@@ -2166,7 +2167,7 @@ export function onBeaconUpdate(callback: () => void): () => void {
     // beacons already in room state (from initial sync) so their expiry drives
     // LivenessChange too — otherwise a pre-subscription share never expires.
     for (const room of matrixClient.getRooms()) {
-        for (const beacon of room.currentState.beacons.values()) {
+        for (const beacon of room.currentState?.beacons?.values() ?? []) {
             beacon.monitorLiveness();
         }
     }
@@ -2194,7 +2195,7 @@ export function getOwnLiveBeacons(): {
         expiresAt: number;
     }[] = [];
     for (const room of matrixClient.getRooms()) {
-        for (const b of room.currentState.beacons.values()) {
+        for (const b of room.currentState?.beacons?.values() ?? []) {
             if (b.beaconInfoOwner === me && b.isLive) {
                 const info = b.beaconInfo;
                 const timeout = info?.timeout ?? 0;
