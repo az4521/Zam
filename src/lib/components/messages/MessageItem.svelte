@@ -1,3 +1,15 @@
+<script module lang="ts">
+    import { createLruMemo } from "$lib/utils/lruMemo";
+
+    // Module scope is deliberate: a room switch unmounts every MessageItem and
+    // re-mounts them, so an instance-scoped cache would die before it could
+    // ever hit. Bounded LRU (~500) because message bodies are stable per event
+    // id. Each key carries the FULL render inputs (see the wrappers below) so a
+    // cache hit can never return output computed under different conditions.
+    const sanitizeCache = createLruMemo<string>(500);
+    const twemojiCache = createLruMemo<string>(500);
+</script>
+
 <script lang="ts">
     import { EventStatus } from "matrix-js-sdk";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
@@ -40,6 +52,7 @@
         seedRoomStateIfMissing,
         getRoomIdForAlias,
         getThreadSummary,
+        getHomeserverBaseUrl,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
@@ -1136,16 +1149,18 @@
     });
 
     function withTwemoji(html: string): string {
-        const emojiRendered = mapOutsideCode(html, (fragment) =>
-            renderHtml(fragment, "twemoji"),
-        );
-        // highlighterFor() is null until the highlight.js chunk lands; the
-        // read subscribes this render to its arrival, which re-runs this
-        // expression and recolours an already-painted code block.
-        return highlightCodeBlocks(
-            emojiRendered,
-            highlighterFor(emojiRendered),
-        );
+        // Read the highlighter FIRST and unconditionally — this read is the
+        // reactive subscription that re-runs this render when the highlight.js
+        // chunk lands (engine: null -> loaded, exactly once). Folding the loaded
+        // flag into the cache key means a hit computed BEFORE the chunk arrived is
+        // never reused AFTER it arrives, so code blocks still upgrade to coloured.
+        const engine = highlighterFor(html);
+        return twemojiCache.get(`${engine ? "1" : "0"}\u0000${html}`, () => {
+            const emojiRendered = mapOutsideCode(html, (fragment) =>
+                renderHtml(fragment, "twemoji"),
+            );
+            return highlightCodeBlocks(emojiRendered, engine);
+        });
     }
 
     $effect(() => {
@@ -1253,7 +1268,15 @@
     }
 
     function sanitize(html: string): string {
-        return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
+        if (!html) return sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp });
+        // Key on (homeserver base URL, raw html): sanitize rewrites mxc:// URIs to
+        // absolute homeserver media URLs via mxcToHttp, so the SAME body resolves
+        // differently across an account switch. A NUL (U+0000) is a safe
+        // separator (never present in a URL or in Matrix HTML).
+        const base = getHomeserverBaseUrl() ?? "";
+        return sanitizeCache.get(`${base}\u0000${html}`, () =>
+            sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+        );
     }
 
     async function navigateToMatrixTarget(
