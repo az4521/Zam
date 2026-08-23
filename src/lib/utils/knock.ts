@@ -62,3 +62,17 @@ export function buildKnockOpts(reason?: string, via?: string[]): KnockOpts {
     if (via?.length) opts.viaServers = via;
     return opts;
 }
+
+/**
+ * Extract a trimmed, non-empty knock `reason` from an m.room.member content
+ * object (the incoming-knock side; see buildKnockOpts for the outgoing side).
+ * Total: returns undefined for any shape without a usable string reason. The
+ * result is untrusted user text — render it escaped, never via {@html}.
+ */
+export function knockReasonFromContent(content: unknown): string | undefined {
+    if (typeof content !== "object" || content === null) return undefined;
+    const reason = (content as { reason?: unknown }).reason;
+    if (typeof reason !== "string") return undefined;
+    const trimmed = reason.trim();
+    return trimmed ? trimmed : undefined;
+}

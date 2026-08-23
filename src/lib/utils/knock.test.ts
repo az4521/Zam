@@ -5,6 +5,7 @@ import {
     shouldOfferKnock,
     matrixErrorMessage,
     buildKnockOpts,
+    knockReasonFromContent,
 } from "./knock";
 
 describe("isKnockJoinRule", () => {
@@ -153,4 +154,38 @@ describe("buildKnockOpts", () => {
             viaServers: ["a.org"],
         });
     });
+});
+
+describe("knockReasonFromContent", () => {
+    it("returns a trimmed non-empty reason", () => {
+        expect(
+            knockReasonFromContent({
+                membership: "knock",
+                reason: "  let me in  ",
+            }),
+        ).toBe("let me in");
+    });
+
+    it("returns undefined when reason is missing", () => {
+        expect(knockReasonFromContent({ membership: "knock" })).toBeUndefined();
+    });
+
+    it("returns undefined for a whitespace-only reason", () => {
+        expect(knockReasonFromContent({ reason: "   " })).toBeUndefined();
+    });
+
+    it("returns undefined for a non-string reason", () => {
+        expect(knockReasonFromContent({ reason: 42 })).toBeUndefined();
+        expect(
+            knockReasonFromContent({ reason: { text: "x" } }),
+        ).toBeUndefined();
+        expect(knockReasonFromContent({ reason: null })).toBeUndefined();
+    });
+
+    it.each([null, undefined, "boom", 42, [], new Error("plain")])(
+        "returns undefined for non-object content %j",
+        (content) => {
+            expect(knockReasonFromContent(content)).toBeUndefined();
+        },
+    );
 });
