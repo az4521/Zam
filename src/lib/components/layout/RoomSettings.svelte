@@ -39,6 +39,7 @@
         getSpaceChildren,
         setSpaceChildOrder,
         removeSpaceChild,
+        setSpaceChildSuggested,
         getRoomMembers,
         getRoomAvatar,
         getRoomTopic,
@@ -856,6 +857,24 @@
             onUpdate?.();
         } catch (e: any) {
             roomsError = e?.message ?? "Failed";
+        } finally {
+            roomActionPending = null;
+        }
+    }
+
+    async function toggleSuggested(child: SpaceChildEntry) {
+        roomActionPending = child.roomId;
+        roomsError = "";
+        try {
+            const next = !child.suggested;
+            await setSpaceChildSuggested(room.roomId, child.roomId, next);
+            spaceChildren = spaceChildren.map((c) =>
+                c.roomId === child.roomId ? { ...c, suggested: next } : c,
+            );
+            onUpdate?.();
+        } catch (e) {
+            roomsError =
+                e instanceof Error ? e.message : "Failed to update suggestion";
         } finally {
             roomActionPending = null;
         }
@@ -1989,6 +2008,30 @@
                                                 {child.roomId}
                                             </p>
                                         </div>
+                                        {#if child.suggested}
+                                            <span
+                                                class="text-xs font-semibold text-discord-accent bg-discord-accent/10 rounded px-2 py-0.5 flex-shrink-0"
+                                                >Suggested</span
+                                            >
+                                        {/if}
+                                        {#if canEditState}
+                                            <button
+                                                type="button"
+                                                onclick={() =>
+                                                    toggleSuggested(child)}
+                                                disabled={roomActionPending ===
+                                                    child.roomId}
+                                                class="px-2.5 py-1 rounded text-xs font-semibold {child.suggested
+                                                    ? 'text-discord-textMuted hover:text-discord-textPrimary'
+                                                    : 'text-discord-accent hover:underline'} transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                title={child.suggested
+                                                    ? "Remove suggested hint"
+                                                    : "Mark as suggested"}
+                                                >{child.suggested
+                                                    ? "Unsuggest"
+                                                    : "Suggest"}</button
+                                            >
+                                        {/if}
                                         {#if canEditState}
                                             <input
                                                 bind:value={

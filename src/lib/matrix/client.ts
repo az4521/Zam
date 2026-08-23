@@ -160,6 +160,7 @@ import { lazyModule } from "$lib/utils/lazyModule";
 import {
     sortSpaceChildIds,
     type SpaceChildDescriptor,
+    isSuggestedChild,
 } from "$lib/utils/spaceChildren";
 import {
     classifyRooms,
@@ -193,6 +194,7 @@ import {
     buildPollResponse,
     buildPollStart,
     buildPollEnd,
+    affectsPollView,
 } from "$lib/utils/pollContent";
 import {
     mediaItemFromEvent,
@@ -6899,6 +6901,8 @@ export interface SpaceChildEntry {
     // origin_server_ts of the m.space.child event — the spec's primary
     // tie-break when two children share (or both lack) an `order`.
     originTs: number;
+    // MSC1772 m.space.child.suggested — a client hint to promote this child.
+    suggested: boolean;
 }
 
 export function getSpaceChildren(room: Room): SpaceChildEntry[] {
@@ -6919,6 +6923,7 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
                 avatarUrl: child ? getRoomAvatar(child) : null,
                 isJoined: joined.has(childId),
                 originTs: ev.getTs(),
+                suggested: isSuggestedChild(ev.getContent()),
             };
         })
         .sort((a, b) => {
@@ -7030,6 +7035,39 @@ export async function reorderSpaceChild(
     for (let i = 0; i < list.length; i++) {
         await setSpaceChildOrder(spaceId, list[i], keys[i], viaOf(list[i]));
     }
+}
+
+/**
+ * Set (or clear) the MSC1772 `suggested` hint on a space child, preserving the
+ * child's other `m.space.child` content (via/order). Clearing writes the key
+ * away rather than `false`, keeping the state event minimal.
+ */
+export async function setSpaceChildSuggested(
+    spaceId: string,
+    childRoomId: string,
+    suggested: boolean,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const existing =
+        matrixClient
+            .getRoom(spaceId)
+            ?.getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("m.space.child", childRoomId)
+            ?.getContent() ?? {};
+    const via = (existing as { via?: unknown }).via;
+    if (!(via as { length?: number } | undefined)?.length) {
+        throw new Error("Cannot set suggested on a space child with no via");
+    }
+    const next: Record<string, unknown> = { ...existing };
+    if (suggested) next.suggested = true;
+    else delete next.suggested;
+    await (matrixClient as any).sendStateEvent(
+        spaceId,
+        "m.space.child",
+        next,
+        childRoomId,
+    );
 }
 
 export async function removeSpaceChild(
@@ -7433,17 +7471,15 @@ export async function fetchPollRelations(
     return events;
 }
 
-/** Fires when a poll response or end event lands on a timeline, so visible
- *  polls can re-tally. */
+/** Fires when a poll response, end, or start-edit lands on a timeline, so visible polls can re-tally/re-render. */
 export function onPollEvent(
     callback: (event: MatrixEvent, room: Room) => void,
 ): () => void {
     if (!matrixClient) return () => {};
     const handler = (event: MatrixEvent, room: Room | undefined) => {
-        const type = event.getType();
         if (
             room &&
-            (isPollResponseEventType(type) || isPollEndEventType(type))
+            affectsPollView(event.getType(), event.getRelation()?.rel_type)
         ) {
             callback(event, room);
         }

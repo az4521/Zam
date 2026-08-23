@@ -41,3 +41,16 @@ export function sortSpaceChildIds(events: SpaceChildDescriptor[]): string[] {
         .map((e) => e.stateKey)
         .filter(Boolean);
 }
+
+/**
+ * MSC1772 `m.space.child.suggested`: a hint that clients should promote this
+ * child (e.g. auto-open/join). Per the spec it is a BOOLEAN; treat only an
+ * explicit `true` as suggested — an absent, false, or non-boolean value means
+ * "not suggested".
+ */
+export function isSuggestedChild(content: unknown): boolean {
+    return (
+        (content as { suggested?: unknown } | null | undefined)?.suggested ===
+        true
+    );
+}
