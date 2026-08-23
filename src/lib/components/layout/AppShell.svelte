@@ -1214,9 +1214,10 @@
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
         // The second argument is the account MatrixMessagingService posted
-        // under; it is optional so an APK older than this change still works
-        // (an unstamped tap routes, which is safe because a build that cannot
-        // name the account no longer attaches a room id at all).
+        // under; decideNotificationRoute now fails CLOSED when it is missing
+        // (audit SEC-M4), so an unstamped tap — an old pre-stamp notification or
+        // a forged intent from another app — surfaces the app but does not
+        // navigate. Current builds always stamp it alongside the room id.
         // Shared by web-push (service worker) and native (MainActivity) taps.
         // A plain tap opens the room; Accept on a call notification passes
         // joinCall to open the room AND join, under the same account guard.

@@ -99,6 +99,7 @@ import {
     decryptAttachment,
     type EncryptedFileInfo,
 } from "$lib/utils/decryptAttachment";
+import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -251,6 +252,7 @@ import {
     effectivePowerLevel,
     normalizePowerLevels,
     roomVersionHasImmutableCreators,
+    validatePowerLevelsContent,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
@@ -2421,8 +2423,11 @@ export async function fetchDecryptedAttachmentBlob(
     }
     const ciphertext = await resp.arrayBuffer();
     const plaintext = await decryptAttachment(ciphertext, file);
+    // The sender controls `mimetype`; pin it to an inert-media allowlist so a
+    // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
+    // text/html blob in our origin (audit SEC-L9).
     const blob = new Blob([plaintext], {
-        type: mimetype || "application/octet-stream",
+        type: safeAttachmentMimeType(mimetype),
     });
     return URL.createObjectURL(blob);
 }
@@ -6621,10 +6626,15 @@ export async function setRoomPowerLevels(
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     const current =
         state?.getStateEvents("m.room.power_levels", "")?.getContent() ?? {};
+    const content = { ...current, ...updated };
+    // Shape-check before writing so a malformed level surfaces as a clear error
+    // instead of a cryptic server 400 (audit SEC-L12).
+    const shapeError = validatePowerLevelsContent(content);
+    if (shapeError) throw new Error(`Invalid power levels: ${shapeError}`);
     await (matrixClient as any).sendStateEvent(
         room.roomId,
         "m.room.power_levels",
-        { ...current, ...updated },
+        content,
     );
 }
 

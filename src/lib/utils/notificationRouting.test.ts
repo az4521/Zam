@@ -48,14 +48,14 @@ describe("decideNotificationRoute", () => {
         ).toEqual({ action: "drop", reason: "no-room" });
     });
 
-    it("navigates when the poster is unknown but somebody is signed in (older builds did not stamp)", () => {
+    it("drops an unknown-poster notification even when signed in (fail closed — SEC-M4: a forged intent / pre-stamp tray notification cannot force navigation)", () => {
         for (const userId of [undefined, null, ""])
             expect(
                 decideNotificationRoute(
                     { roomId: "!r:example.org", userId },
                     SESSION,
                 ),
-            ).toEqual({ action: "navigate", roomId: "!r:example.org" });
+            ).toEqual({ action: "drop", reason: "no-poster" });
     });
 
     it("still drops an unknown-poster notification when nobody is signed in", () => {

@@ -6,6 +6,7 @@ import {
     mergeViaServers,
     matrixToUrl,
     matrixLinkTitle,
+    asciiServerName,
 } from "./matrixLinks";
 
 describe("parseMatrixLink — matrix.to URLs", () => {
@@ -511,5 +512,46 @@ describe("matrixLinkTitle", () => {
         expect(matrixLinkTitle(null)).toBeNull();
         expect(matrixLinkTitle(undefined)).toBeNull();
         expect(matrixLinkTitle("")).toBeNull();
+    });
+
+    it("renders a homograph server name as punycode so it can't spoof a trusted one (SEC-L5)", () => {
+        // localpart "victim", server "еxаmple.org" with Cyrillic е and а.
+        const spoof = "https://matrix.to/#/@victim:еxаmple.org";
+        const title = matrixLinkTitle(spoof);
+        expect(title).toBe("@victim:xn--xmple-4ve7a.org");
+        // The rendered title must be pure ASCII — no lookalike left in it.
+        // eslint-disable-next-line no-control-regex
+        expect(/^[\x00-\x7f]*$/.test(title ?? "")).toBe(true);
+    });
+});
+
+describe("asciiServerName", () => {
+    it("passes a plain ASCII server name through unchanged", () => {
+        expect(asciiServerName("example.org")).toBe("example.org");
+        expect(asciiServerName("matrix.mystravil.xyz")).toBe(
+            "matrix.mystravil.xyz",
+        );
+    });
+
+    it("converts an internationalized (homograph) host to punycode", () => {
+        // Cyrillic е and а that look like ASCII e and a.
+        expect(asciiServerName("еxаmple.org")).toBe("xn--xmple-4ve7a.org");
+    });
+
+    it("preserves an explicit :port on a homograph host", () => {
+        expect(asciiServerName("еxаmple.org:8448")).toBe(
+            "xn--xmple-4ve7a.org:8448",
+        );
+    });
+
+    it("leaves ASCII names with ports and IP literals untouched", () => {
+        expect(asciiServerName("example.org:8448")).toBe("example.org:8448");
+        expect(asciiServerName("1.2.3.4:8448")).toBe("1.2.3.4:8448");
+        expect(asciiServerName("[::1]:8448")).toBe("[::1]:8448");
+    });
+
+    it("returns the raw input unchanged when it cannot be parsed as a host", () => {
+        expect(asciiServerName("")).toBe("");
+        expect(asciiServerName("not a host")).toBe("not a host");
     });
 });
