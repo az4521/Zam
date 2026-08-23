@@ -186,8 +186,10 @@
         });
     });
 
-    const myPowerLevel = $derived(getMyPowerLevel(room));
-    const pl = $derived(getRoomPowerLevels(room));
+    const myPowerLevel = $derived(
+        (void roomsState.roomsTick, getMyPowerLevel(room)),
+    );
+    const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
     const canEditState = $derived(myPowerLevel >= pl.state_default);
     const canEditEmojis = $derived(
         myPowerLevel >=

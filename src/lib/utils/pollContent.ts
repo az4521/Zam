@@ -240,22 +240,19 @@ export function aggregatePollVotes(
 
 /**
  * Whether `sender` may close a poll created by `creator`: the creator
- * themselves, or anyone whose power level reaches the room's redact level
- * (MSC3381's proxy for "may moderate the poll").
+ * themselves, or anyone whose EFFECTIVE power level reaches the room's redact
+ * level (MSC3381's proxy for "may moderate the poll"). The caller supplies the
+ * already-effective level (see `getUserPowerLevel`) so a room-v12 creator's
+ * implicit power — absent from the raw `users` map — is honored.
  */
 export function canEndPoll(
     sender: string,
     creator: string,
-    powerLevels: {
-        redact?: number;
-        users?: Record<string, number>;
-        users_default?: number;
-    },
+    senderPowerLevel: number,
+    redactLevel: number,
 ): boolean {
     if (sender === creator) return true;
-    const senderLevel =
-        powerLevels.users?.[sender] ?? powerLevels.users_default ?? 0;
-    return senderLevel >= (powerLevels.redact ?? 50);
+    return senderPowerLevel >= redactLevel;
 }
 
 /**
