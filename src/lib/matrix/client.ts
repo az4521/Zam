@@ -5550,9 +5550,18 @@ export async function removeReaction(
 export async function deleteMessage(
     roomId: string,
     eventId: string,
+    reason?: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
-    await matrixClient.redactEvent(roomId, eventId);
+    // 4-arg form: txnId undefined (SDK generates one), opts carries the
+    // optional redaction reason. Omitting opts entirely when there is no
+    // reason keeps the request byte-identical to the old 2-arg call.
+    await matrixClient.redactEvent(
+        roomId,
+        eventId,
+        undefined,
+        reason ? { reason } : undefined,
+    );
 }
 
 /**

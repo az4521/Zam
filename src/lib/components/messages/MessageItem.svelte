@@ -9,6 +9,7 @@
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
+    import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
     import EventShield from "./EventShield.svelte";
     import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
@@ -54,6 +55,7 @@
     } from "$lib/utils/joinConsent";
     import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
         stripBodyFallback,
@@ -192,6 +194,14 @@
     const isPinned = $derived.by(() => {
         void roomsState.roomsTick;
         return getPinnedEventIds(room).includes(eventId);
+    });
+    const canRedact = $derived.by(() => {
+        void roomsState.roomsTick;
+        return mayRedactEvent({
+            isOwnEvent: isOwnMessage,
+            myPowerLevel: getMyPowerLevel(room),
+            redactLevel: getRoomPowerLevels(room).redact,
+        });
     });
 
     // Reaction emoji picker. Local boolean drives this instance's render; the
@@ -340,6 +350,7 @@
     }
 
     let showReportDialog = $state(false);
+    let showRedactDialog = $state(false);
 
     let keyboardOffset = $state(0);
     // Only track the on-screen keyboard while THIS row actually has a
@@ -347,12 +358,12 @@
     // component is instantiated once per timeline row — ungated on a
     // touchscreen (which Chrome's device emulation reports) a few hundred rows
     // meant a few hundred pairs of visualViewport listeners, all firing on
-    // every scroll and resize. keyboardOffset is consumed by exactly two
-    // things: the touch emoji sheet and the report dialog.
+    // every scroll and resize. keyboardOffset is consumed by exactly three
+    // things: the touch emoji sheet, the report dialog, and the redact dialog.
     $effect(() => {
         const wanted =
             interfaceState.isTouchscreen &&
-            (showEmojiPicker || showReportDialog);
+            (showEmojiPicker || showReportDialog || showRedactDialog);
         if (!wanted) {
             keyboardOffset = 0;
             return;
@@ -2282,6 +2293,7 @@
         class="{showEmojiPicker ||
         confirmingDelete ||
         showReportDialog ||
+        showRedactDialog ||
         mobileSelected
             ? 'flex'
             : `hidden ${
@@ -2500,6 +2512,14 @@
                 {eventId}
                 {keyboardOffset}
                 bind:open={showReportDialog}
+            />
+        {/if}
+        {#if !isOwnMessage && !isFailed && canRedact}
+            <MessageRedactAction
+                roomId={room.roomId}
+                {eventId}
+                {keyboardOffset}
+                bind:open={showRedactDialog}
             />
         {/if}
     </div>

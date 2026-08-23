@@ -36,6 +36,7 @@ export type ModalId =
     | "room-directory"
     | "reaction-picker"
     | "report-message"
+    | "redact-message"
     | "forward-message"
     | "composer-picker"
     | "composer-actions"
