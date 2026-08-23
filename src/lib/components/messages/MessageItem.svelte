@@ -47,6 +47,11 @@
         linkifyPlainText,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
+    import {
+        describeJoinTarget,
+        needsJoinConsent,
+    } from "$lib/utils/joinConsent";
+    import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
@@ -1237,7 +1242,16 @@
             roomId = target.roomId;
             via = target.via;
         }
-        if (getRoom(roomId)?.getMyMembership() !== "join") {
+        const membership = getRoom(roomId)?.getMyMembership();
+        if (needsJoinConsent(membership)) {
+            const descriptor = describeJoinTarget({
+                kind: target.kind,
+                alias: target.kind === "alias" ? target.alias : undefined,
+                linkRoomId: target.kind === "room" ? target.roomId : undefined,
+                resolvedRoomId: roomId,
+            });
+            const confirmed = await requestJoinConsent(descriptor);
+            if (!confirmed) return;
             await joinRoom(roomId, via);
         } else {
             // Already joined, but possibly as a state-less stub (see

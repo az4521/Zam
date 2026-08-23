@@ -19,6 +19,7 @@
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
+    import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -73,6 +74,7 @@
     } from "$lib/desktopUpdater";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
+    import CryptoUnavailableBanner from "$lib/components/layout/CryptoUnavailableBanner.svelte";
     import {
         markNotification,
         clearReadNotifications,
@@ -80,6 +82,11 @@
         getNotificationCount,
     } from "$lib/stores/notifications.svelte";
     import { updateAccountProfile } from "$lib/stores/accounts.svelte";
+    import {
+        sessionHealthState,
+        resetSyncStoreFallback,
+    } from "$lib/stores/sessionHealth.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
         getRoomsInSpace,
@@ -1103,6 +1110,18 @@
     onMount(() => {
         reloadAccountSettings();
 
+        // Sync store fell back to memory this session (audit SEC-M6): warn once
+        // that offline history won't persist. The flag is reset per session in
+        // createAuthenticatedClient, so this fires only on a real fallback.
+        if (sessionHealthState.syncStoreFallback) {
+            showErrorToast(
+                "Offline message storage is unavailable this session, so history won't be saved for next time.",
+            );
+            // Consume the flag so an SPA remount (e.g. "add account" → cancel →
+            // goto("/")) does not re-fire the toast without a new fallback.
+            resetSyncStoreFallback();
+        }
+
         // Desktop (Electron) auto-updater: tell the main process the persisted
         // auto-update preference at boot, so the ~10s launch update-check
         // honours a previously-set OFF before it fires. No-op off Electron.
@@ -1857,3 +1876,5 @@
 <ScreenSharePicker />
 
 <UpdateBanner />
+<CryptoUnavailableBanner />
+<JoinConsentDialog />
