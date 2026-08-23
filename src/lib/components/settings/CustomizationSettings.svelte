@@ -39,6 +39,7 @@
         setAlwaysAbsolute,
         setGifDefaultTab,
         setLinkPreviewMedia,
+        setLinkPreviewsEnabled,
         setShowReadReceiptAvatars,
         setShowMatrixIds,
         settingsState,
@@ -392,6 +393,24 @@
                 checked={settingsState.showReadReceiptAvatars}
                 onChange={setShowReadReceiptAvatars}
                 label="Read receipt avatars"
+            />
+        </div>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-discord-textPrimary"
+                    >Link previews</span
+                >
+                <p class="text-xs text-discord-textMuted">
+                    When off, no link preview is loaded and your homeserver
+                    never fetches the linked page on your behalf.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.linkPreviewsEnabled}
+                onChange={setLinkPreviewsEnabled}
+                label="Link previews"
             />
         </div>
         <div

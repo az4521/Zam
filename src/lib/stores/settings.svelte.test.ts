@@ -3,6 +3,7 @@ import {
     settingsState,
     setShowReadReceiptAvatars,
     setLinkPreviewMedia,
+    setLinkPreviewsEnabled,
     saveThemePreset,
     deleteThemePreset,
     setActivePreset,
@@ -108,9 +109,9 @@ describe("linkPreviewMedia", () => {
         return await import("./settings.svelte");
     }
 
-    it("defaults to 'all' so existing users see no change", async () => {
+    it("defaults to 'proxied' so third-party hosts never learn the reader's IP by default", async () => {
         const fresh = await bootLinkPreviewWith(null);
-        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("proxied");
     });
 
     it("reads a stored value back at boot, so the choice survives a reload", async () => {
@@ -120,7 +121,7 @@ describe("linkPreviewMedia", () => {
 
     it("falls back to the default when localStorage holds junk", async () => {
         const fresh = await bootLinkPreviewWith("garbage");
-        expect(fresh.settingsState.linkPreviewMedia).toBe("all");
+        expect(fresh.settingsState.linkPreviewMedia).toBe("proxied");
     });
 
     it("writes the value under the device-global key", () => {
@@ -140,8 +141,57 @@ describe("linkPreviewMedia", () => {
 
     it("normalizes a bad value passed to the setter", () => {
         setLinkPreviewMedia("nonsense" as never);
-        expect(settingsState.linkPreviewMedia).toBe("all");
-        expect(localStorage.getItem(LP_KEY)).toBe("all");
+        expect(settingsState.linkPreviewMedia).toBe("proxied");
+        expect(localStorage.getItem(LP_KEY)).toBe("proxied");
+    });
+});
+
+describe("linkPreviewsEnabled", () => {
+    const LPE_KEY = "settings:linkPreviewsEnabled";
+
+    afterEach(() => {
+        setLinkPreviewsEnabled(true);
+        localStorage.removeItem(LPE_KEY);
+    });
+
+    async function bootLinkPreviewsEnabledWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(LPE_KEY);
+        else localStorage.setItem(LPE_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to true so link previews load by default", async () => {
+        const fresh = await bootLinkPreviewsEnabledWith(null);
+        expect(fresh.settingsState.linkPreviewsEnabled).toBe(true);
+    });
+
+    it("reads a stored 'false' back at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootLinkPreviewsEnabledWith("false");
+        expect(fresh.settingsState.linkPreviewsEnabled).toBe(false);
+    });
+
+    it("writes the value to localStorage under the device-global key", () => {
+        setLinkPreviewsEnabled(false);
+        expect(localStorage.getItem(LPE_KEY)).toBe("false");
+        setLinkPreviewsEnabled(true);
+        expect(localStorage.getItem(LPE_KEY)).toBe("true");
+    });
+
+    it("updates the store state", () => {
+        setLinkPreviewsEnabled(false);
+        expect(settingsState.linkPreviewsEnabled).toBe(false);
+        setLinkPreviewsEnabled(true);
+        expect(settingsState.linkPreviewsEnabled).toBe(true);
+    });
+
+    it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
+        setLinkPreviewsEnabled(false);
+        const keys = Object.keys(localStorage).filter((k) =>
+            k.includes("linkPreviewsEnabled"),
+        );
+        expect(keys).toEqual([LPE_KEY]);
     });
 });
 

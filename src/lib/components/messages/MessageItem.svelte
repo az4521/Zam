@@ -2108,9 +2108,11 @@
                     >
                 {/if}
             </div>
-            {#each linkedUrls as url (url)}
-                <LinkPreview {url} />
-            {/each}
+            {#if settingsState.linkPreviewsEnabled}
+                {#each linkedUrls as url (url)}
+                    <LinkPreview {url} />
+                {/each}
+            {/if}
         {/if}
 
         <!-- Thread summary chip (root only, once replies are diverted) -->

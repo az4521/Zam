@@ -4,6 +4,7 @@ import {
     allowsMediaAutoLoad,
     allowsThirdPartyEmbed,
     normalizeLinkPreviewMedia,
+    isMxcPreviewMedia,
 } from "./linkPreviewPolicy";
 
 const HS = "https://matrix.example.com";
@@ -31,8 +32,32 @@ describe("normalizeLinkPreviewMedia", () => {
         }
     });
 
-    it("defaults to 'all' so existing users see no change", () => {
-        expect(DEFAULT_LINK_PREVIEW_MEDIA).toBe("all");
+    it("defaults to 'proxied' so third-party hosts never learn the reader's IP by default", () => {
+        expect(DEFAULT_LINK_PREVIEW_MEDIA).toBe("proxied");
+    });
+});
+
+describe("isMxcPreviewMedia", () => {
+    it("accepts an mxc:// preview URL (homeserver-rehosted)", () => {
+        expect(isMxcPreviewMedia("mxc://example.com/abc123")).toBe(true);
+    });
+    it("rejects a raw third-party http(s) URL (SEC-M1 sub-case b)", () => {
+        expect(isMxcPreviewMedia("https://attacker.example/log?id=1")).toBe(
+            false,
+        );
+        expect(isMxcPreviewMedia("http://pbs.twimg.com/a.jpg")).toBe(false);
+    });
+    it("is case-sensitive to the lowercase mxc scheme", () => {
+        expect(isMxcPreviewMedia("MXC://example.com/abc")).toBe(false);
+    });
+    it("rejects a scheme-relative or bare value", () => {
+        expect(isMxcPreviewMedia("//example.com/mxc://x")).toBe(false);
+        expect(isMxcPreviewMedia("mxc:example.com/x")).toBe(false);
+    });
+    it("fails closed on null/undefined/empty", () => {
+        expect(isMxcPreviewMedia(null)).toBe(false);
+        expect(isMxcPreviewMedia(undefined)).toBe(false);
+        expect(isMxcPreviewMedia("")).toBe(false);
     });
 });
 

@@ -33,7 +33,16 @@
             localPlayer.style.width = "100%";
             localPlayer.style.height = "100%";
             container.appendChild(localPlayer);
-            localPlayer.ruffle().load({ url: currentSrc });
+            // Neuter attacker ActionScript: no network (URLLoader/Socket), no
+            // host-page script access (ExternalInterface), no navigation via getURL
+            // (SEC-M2). The click-to-activate gate already prevents zero-click Flash;
+            // this bounds what a played SWF can reach.
+            localPlayer.ruffle().load({
+                url: currentSrc,
+                allowNetworking: "none",
+                allowScriptAccess: false,
+                openUrlMode: "deny",
+            });
             player = localPlayer;
         }
 
