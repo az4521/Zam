@@ -11,6 +11,11 @@
 
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications, type Token } from "@capacitor/push-notifications";
+import {
+    checkPusherGateway,
+    type PusherGatewayStatus,
+} from "$lib/utils/pusherVerification";
+import { WEBPUSH_APP_ID } from "$lib/webPush";
 
 // URL of your Sygnal push gateway's notify endpoint, e.g.
 //   https://sygnal.example.com/_matrix/push/v1/notify
@@ -54,6 +59,10 @@ export interface PushDebugState {
     fcmToken: string | null;
     pusherRegistered: boolean;
     lastError: string | null;
+    // Set when the homeserver reports our pusher routing to a gateway other
+    // than the one we asked for (SEC-L4). Not a registration failure, so kept
+    // separate from lastError.
+    gatewayWarning: string | null;
 }
 
 export const pushDebug: PushDebugState = {
@@ -64,6 +73,7 @@ export const pushDebug: PushDebugState = {
     fcmToken: null,
     pusherRegistered: false,
     lastError: null,
+    gatewayWarning: null,
 };
 
 export async function initPush(
@@ -175,6 +185,23 @@ async function registerPusher(
         registeredPushkey = fcmToken;
         pushDebug.pusherRegistered = true;
         console.log("[push] Pusher registered");
+        // Re-read the pushers the homeserver actually kept and warn if it
+        // routed us somewhere other than our gateway (SEC-L4). Best-effort:
+        // a verification failure must never undo a successful registration.
+        try {
+            const status = await verifyPushGateways(matrixClient);
+            if (status.status === "mismatch") {
+                const warning = `Push gateway mismatch: the homeserver routes this device's pushes to ${status.mismatchedUrls.join(
+                    ", ",
+                )} instead of ${PUSH_GATEWAY_URL}`;
+                pushDebug.gatewayWarning = warning;
+                console.warn("[push] " + warning);
+            } else {
+                pushDebug.gatewayWarning = null;
+            }
+        } catch {
+            /* verification is best-effort */
+        }
     } catch (err) {
         pushDebug.pusherRegistered = false;
         pushDebug.lastError = "Failed to register pusher: " + String(err);
@@ -268,6 +295,33 @@ export async function fetchRegisteredPushers(
             pushkeyPreview: preview,
         };
     });
+}
+
+/**
+ * Re-fetch this account's pushers and verify they route to our configured
+ * gateway, covering both the FCM (Android) and webpush (browser) app ids
+ * (SEC-L4). Used by Settings to show whether the homeserver honoured the
+ * gateway URL we asked for. Never throws: a read failure yields a "none"
+ * verdict so the caller can treat it as "nothing to report".
+ */
+export async function verifyPushGateways(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+): Promise<PusherGatewayStatus> {
+    try {
+        const pushers = await fetchRegisteredPushers(matrixClient);
+        return checkPusherGateway(
+            PUSH_GATEWAY_URL,
+            [APP_ID, WEBPUSH_APP_ID],
+            pushers.map((p) => ({ app_id: p.app_id, url: p.url })),
+        );
+    } catch {
+        return {
+            status: "none",
+            ours: 0,
+            expectedUrl: PUSH_GATEWAY_URL,
+            mismatchedUrls: [],
+        };
+    }
 }
 
 export interface GatewayHealth {

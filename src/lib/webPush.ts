@@ -18,6 +18,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import { checkPusherGateway } from "$lib/utils/pusherVerification";
 
 const PUSH_GATEWAY_URL =
     (import.meta.env as Record<string, string | undefined>)
@@ -171,6 +172,26 @@ async function registerWebPusher(
             append: true,
         });
         console.log("[webpush] Pusher registered");
+        // Re-read the pushers and warn if the homeserver routed us to a gateway
+        // other than the one we asked for (SEC-L4). Best-effort: never let a
+        // verification read undo a successful registration.
+        try {
+            const res = await (matrixClient as any).getPushers();
+            const list = ((res?.pushers ?? []) as any[]).map((p) => ({
+                app_id: p.app_id as string,
+                url: p.data?.url as string | undefined,
+            }));
+            const status = checkPusherGateway(PUSH_GATEWAY_URL, [APP_ID], list);
+            if (status.status === "mismatch") {
+                console.warn(
+                    `[webpush] Push gateway mismatch: the homeserver routes this device's pushes to ${status.mismatchedUrls.join(
+                        ", ",
+                    )} instead of ${PUSH_GATEWAY_URL}`,
+                );
+            }
+        } catch {
+            /* verification is best-effort */
+        }
     } catch (err) {
         console.error("[webpush] Failed to register pusher:", err);
     }
