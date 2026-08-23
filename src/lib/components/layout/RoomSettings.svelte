@@ -49,6 +49,8 @@
         getRoomVersionCapability,
         type SpaceChildEntry,
         memberDisplayName,
+        getServerAclContent,
+        setServerAcl,
     } from "$lib/matrix/client";
     import {
         getRestrictedJoinState,
@@ -64,6 +66,15 @@
     } from "$lib/utils/roomAliases";
     import { parseMutePowerLevelInput } from "$lib/utils/mutePowerLevel";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import {
+        parseServerAcl,
+        hasServerAcl,
+        validateServerAcl,
+        parseServerListInput,
+        serverListToText,
+        DEFAULT_SERVER_ACL,
+        type ServerAcl,
+    } from "$lib/utils/serverAcl";
     import {
         roomSettingsNavView,
         roomSettingsTabs,
@@ -419,6 +430,61 @@
             accessError = e?.message ?? "Failed to save";
         } finally {
             accessSaving = false;
+        }
+    }
+
+    // ── Access tab: server ACL (m.room.server_acl) ────────────────────────────
+    const myServerName = $derived(
+        (auth.userId ?? "").split(":").slice(1).join(":"),
+    );
+    const aclContent = $derived(
+        (void roomsState.roomsTick, getServerAclContent(room)),
+    );
+    const aclPresent = $derived(hasServerAcl(aclContent));
+    // Power level for the m.room.server_acl EVENT (falls back to state_default),
+    // mirroring canSetCanonicalAlias.
+    const canEditServerAcl = $derived(
+        myPowerLevel >= (pl.events?.["m.room.server_acl"] ?? pl.state_default),
+    );
+    let aclAllowText = $state("");
+    let aclDenyText = $state("");
+    let aclAllowIp = $state(true);
+    let aclSaving = $state(false);
+    let aclError = $state("");
+    let aclSuccess = $state(false);
+    // Seed the editable fields from the live ACL whenever the room (or its ACL) changes.
+    $effect(() => {
+        const parsed = parseServerAcl(aclContent);
+        aclAllowText = serverListToText(
+            aclPresent ? parsed.allow : DEFAULT_SERVER_ACL.allow,
+        );
+        aclDenyText = serverListToText(
+            aclPresent ? parsed.deny : DEFAULT_SERVER_ACL.deny,
+        );
+        aclAllowIp = aclPresent
+            ? parsed.allowIpLiterals
+            : DEFAULT_SERVER_ACL.allowIpLiterals;
+    });
+    const aclDraft = $derived<ServerAcl>({
+        allow: parseServerListInput(aclAllowText),
+        deny: parseServerListInput(aclDenyText),
+        allowIpLiterals: aclAllowIp,
+    });
+    const aclWarnings = $derived(
+        validateServerAcl(aclDraft, myServerName).warnings,
+    );
+
+    async function saveServerAcl() {
+        aclError = "";
+        aclSaving = true;
+        try {
+            await setServerAcl(room, aclDraft);
+            aclSuccess = true;
+            setTimeout(() => (aclSuccess = false), 2000);
+        } catch (e: any) {
+            aclError = e?.message ?? "Failed to save server ACL";
+        } finally {
+            aclSaving = false;
         }
     }
 
@@ -1473,6 +1539,106 @@
                                           : "Save Changes"}</button
                                 >
                             {/if}
+
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Server access control
+                                </p>
+                                <p class="text-xs text-discord-textMuted mb-3">
+                                    Control which homeservers may participate in
+                                    this room. Wildcards: <code>*</code> matches
+                                    any characters,
+                                    <code>?</code> matches one. Denied servers are
+                                    removed from federation for this room.
+                                </p>
+
+                                {#if !aclPresent}
+                                    <p
+                                        class="text-xs text-discord-textMuted mb-3"
+                                    >
+                                        No server ACL is set. All servers may
+                                        participate.
+                                    </p>
+                                {/if}
+
+                                <label
+                                    for="acl-allow"
+                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                                    >Allowed servers (one per line)</label
+                                >
+                                <textarea
+                                    id="acl-allow"
+                                    bind:value={aclAllowText}
+                                    rows="3"
+                                    disabled={!canEditServerAcl}
+                                    placeholder="*"
+                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                ></textarea>
+
+                                <label
+                                    for="acl-deny"
+                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 mt-3"
+                                    >Denied servers (one per line)</label
+                                >
+                                <textarea
+                                    id="acl-deny"
+                                    bind:value={aclDenyText}
+                                    rows="3"
+                                    disabled={!canEditServerAcl}
+                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                ></textarea>
+
+                                <label
+                                    class="flex items-center gap-2 mt-3 text-sm text-discord-textPrimary"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        bind:checked={aclAllowIp}
+                                        disabled={!canEditServerAcl}
+                                        class="accent-discord-accent"
+                                    />
+                                    Allow servers identified by a raw IP address
+                                </label>
+
+                                {#if aclWarnings.length > 0}
+                                    <div class="mt-3 space-y-1">
+                                        {#each aclWarnings as w}
+                                            <p
+                                                class="text-sm text-discord-danger"
+                                            >
+                                                ⚠ {w}
+                                            </p>
+                                        {/each}
+                                    </div>
+                                {/if}
+                                {#if aclError}<p
+                                        class="text-sm text-discord-danger mt-2"
+                                    >
+                                        {aclError}
+                                    </p>{/if}
+
+                                {#if canEditServerAcl}
+                                    <button
+                                        onclick={saveServerAcl}
+                                        disabled={aclSaving}
+                                        class="mt-3 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >{aclSaving
+                                            ? "Saving…"
+                                            : aclSuccess
+                                              ? "Saved!"
+                                              : "Save server ACL"}</button
+                                    >
+                                {:else}
+                                    <p
+                                        class="text-xs text-discord-textMuted mt-2"
+                                    >
+                                        You do not have permission to edit the
+                                        server ACL for this room.
+                                    </p>
+                                {/if}
+                            </div>
                         </div>
 
                         <!-- ── Security ────────────────────────────────────────── -->
