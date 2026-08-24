@@ -1299,6 +1299,33 @@
         });
     });
 
+    // Outside-tap dismiss on touch. On desktop the bar follows hover/focus, so this
+    // is touch-only. Ordering is safe: pointerdown fires before click, so tapping
+    // ANOTHER row clears here then that row's onclick selects it (handover); tapping
+    // the SAME row is ignored here (target is inside it) and its onclick toggles;
+    // tapping a bar action is ignored (inside [data-message-actions]). Disabled while
+    // a modal is open so a bottom-sheet action is never interrupted.
+    $effect(() => {
+        const selectedId = interfaceState.selectedMessageId;
+        if (
+            !interfaceState.isTouchscreen ||
+            selectedId === null ||
+            interfaceState.modal !== null
+        )
+            return;
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Element | null;
+            const row = target?.closest(
+                "[data-event-id]",
+            ) as HTMLElement | null;
+            if (row?.dataset.eventId === selectedId) return; // the selected row
+            if (target?.closest("[data-message-actions]")) return; // a bar action
+            clearSelectedMessage();
+        };
+        document.addEventListener("pointerdown", onPointerDown);
+        return () => document.removeEventListener("pointerdown", onPointerDown);
+    });
+
     async function loadOlderMessages() {
         if (loadingOlder) return;
         // Context view paginates the jumped-to window; the live view paginates
