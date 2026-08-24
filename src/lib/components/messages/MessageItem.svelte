@@ -23,6 +23,11 @@
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
+    import MessageActionsSheet from "$lib/components/messages/MessageActionsSheet.svelte";
+    import {
+        messageActionsMenu,
+        type MessageActionKey,
+    } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
     import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
@@ -665,6 +670,85 @@
     });
 
     const msgtype = $derived(content?.msgtype ?? "");
+
+    // --- Mobile action overflow ("⋯ More") sheet ---
+    // Extracted so the desktop pin button and the mobile sheet run the same
+    // toggle rather than diverging copies.
+    async function togglePin() {
+        if (pinning) return;
+        pinning = true;
+        const wasPinned = isPinned;
+        try {
+            if (wasPinned) await unpinMessage(room, eventId);
+            else await pinMessage(room, eventId);
+        } catch (e) {
+            console.error("Failed to update pinned messages", e);
+            showErrorToast(
+                wasPinned ? "Failed to unpin message" : "Failed to pin message",
+            );
+        } finally {
+            pinning = false;
+        }
+    }
+
+    let showActionsSheet = $state(false);
+    // Bound to the touch-only, trigger-less Report/Redact instances so the
+    // sheet can open their dialogs (which live inside those components).
+    let reportComp = $state<{ show: () => void } | undefined>(undefined);
+    let redactComp = $state<{ show: () => void } | undefined>(undefined);
+
+    // The overflow rows for THIS message, gated exactly like the desktop
+    // buttons. Drives the mobile ⋯ sheet only; desktop keeps every button
+    // inline.
+    const overflowRows = $derived(
+        messageActionsMenu({
+            canEdit:
+                isOwnMessage &&
+                eventType === "m.room.message" &&
+                msgtype === "m.text",
+            canPin,
+            isPinned,
+            hasLink: eventId.startsWith("$") && !isFailed,
+            canReport: !isOwnMessage && !isFailed,
+            canRedact: !isOwnMessage && !isFailed && canRedact,
+            canDelete: isOwnMessage,
+        }),
+    );
+
+    function openActionsSheet() {
+        // Claim the single modal slot so opening the sheet closes any other
+        // open modal, and Escape/handover route back through closeModal.
+        slotToken = openModal("message-actions", () => {
+            showActionsSheet = false;
+        });
+        showActionsSheet = true;
+    }
+
+    function handleActionChoose(key: MessageActionKey) {
+        // The sheet has already released the modal slot (it closes before
+        // choosing), so report/redact are free to claim it via show().
+        switch (key) {
+            case "edit":
+                startEdit();
+                break;
+            case "pin":
+                togglePin();
+                break;
+            case "copy-link":
+                copyMessageLink();
+                break;
+            case "report":
+                reportComp?.show();
+                break;
+            case "redact":
+                redactComp?.show();
+                break;
+            case "delete":
+                deleteMessage(room.roomId, eventId);
+                break;
+        }
+    }
+
     const isPoll = $derived(isPollStartEventType(eventType));
     const isCallEvent = $derived(
         (void messagesState.timelineTick, isCallEventType(eventType)),
@@ -2408,7 +2492,7 @@
                       : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
               }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
     >
-        {#if isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
+        {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
             <button
                 data-message-action
                 onclick={startEdit}
@@ -2423,7 +2507,7 @@
                 </svg>
             </button>
         {/if}
-        {#if isOwnMessage}
+        {#if !interfaceState.isTouchscreen && isOwnMessage}
             {#if confirmingDelete}
                 <span class="text-xs text-discord-textMuted px-1">Delete?</span>
                 <!--
@@ -2468,27 +2552,10 @@
                 </button>
             {/if}
         {/if}
-        {#if canPin}
+        {#if !interfaceState.isTouchscreen && canPin}
             <button
                 data-message-action
-                onclick={async () => {
-                    if (pinning) return;
-                    pinning = true;
-                    const wasPinned = isPinned;
-                    try {
-                        if (wasPinned) await unpinMessage(room, eventId);
-                        else await pinMessage(room, eventId);
-                    } catch (e) {
-                        console.error("Failed to update pinned messages", e);
-                        showErrorToast(
-                            wasPinned
-                                ? "Failed to unpin message"
-                                : "Failed to pin message",
-                        );
-                    } finally {
-                        pinning = false;
-                    }
-                }}
+                onclick={togglePin}
                 disabled={pinning}
                 class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
                     ? 'text-discord-accent'
@@ -2595,7 +2662,23 @@
                 <Forward size={16} />
             </button>
         {/if}
-        {#if eventId.startsWith("$") && !isFailed}
+        {#if interfaceState.isTouchscreen && overflowRows.length > 0}
+            <button
+                data-message-action
+                onclick={openActionsSheet}
+                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title="More actions"
+                aria-label="More actions"
+                aria-haspopup="menu"
+            >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                    />
+                </svg>
+            </button>
+        {/if}
+        {#if !interfaceState.isTouchscreen && eventId.startsWith("$") && !isFailed}
             <button
                 data-message-action
                 onclick={copyMessageLink}
@@ -2610,7 +2693,7 @@
                 {/if}
             </button>
         {/if}
-        {#if !isOwnMessage && !isFailed}
+        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
             <MessageReportAction
                 roomId={room.roomId}
                 {eventId}
@@ -2618,7 +2701,7 @@
                 bind:open={showReportDialog}
             />
         {/if}
-        {#if !isOwnMessage && !isFailed && canRedact}
+        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
             <MessageRedactAction
                 roomId={room.roomId}
                 {eventId}
@@ -2628,6 +2711,41 @@
         {/if}
     </div>
 </div>
+
+<!--
+    Touch overflow: the Report/Redact dialogs live inside these components, so
+    on mobile we render them trigger-less (no inline button) and drive them
+    from the sheet via the bound `show()`. Only one of the desktop-inline or
+    these touch instances renders per device.
+-->
+{#if interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
+    <MessageReportAction
+        showTrigger={false}
+        bind:this={reportComp}
+        roomId={room.roomId}
+        {eventId}
+        {keyboardOffset}
+        bind:open={showReportDialog}
+    />
+{/if}
+{#if interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
+    <MessageRedactAction
+        showTrigger={false}
+        bind:this={redactComp}
+        roomId={room.roomId}
+        {eventId}
+        {keyboardOffset}
+        bind:open={showRedactDialog}
+    />
+{/if}
+
+{#if showActionsSheet}
+    <MessageActionsSheet
+        rows={overflowRows}
+        onChoose={handleActionChoose}
+        onClose={closeModal}
+    />
+{/if}
 
 {#if showForwardDialog}
     <ForwardMessageDialog {event} />

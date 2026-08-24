@@ -16,6 +16,12 @@
         eventId: string;
         keyboardOffset: number;
         open?: boolean;
+        /**
+         * Render the inline trigger button. False on touch, where the mobile
+         * overflow sheet drives this dialog via the exported `show()` instead —
+         * the component then renders only its dialog.
+         */
+        showTrigger?: boolean;
     }
 
     let {
@@ -23,6 +29,7 @@
         eventId,
         keyboardOffset,
         open = $bindable(false),
+        showTrigger = true,
     }: Props = $props();
     let dialogEl: HTMLDivElement | undefined = $state();
     let buttonEl: HTMLButtonElement | undefined = $state();
@@ -33,7 +40,7 @@
     let status = $state<"idle" | "sending" | "sent" | "error">("idle");
     let error = $state("");
 
-    function show() {
+    export function show() {
         below = (buttonEl?.getBoundingClientRect().top ?? 400) < 400;
         // Claim first — a same-id handover runs the outgoing close.
         openModal("report-message", () => (open = false));
@@ -85,19 +92,21 @@
         toolbar (the bar's arrow-key navigation); the report dialog's own
         controls stay out of it deliberately.
     -->
-    <button
-        data-message-action
-        bind:this={buttonEl}
-        onclick={() => (open ? closeModal() : show())}
-        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-        title="Report message"
-        aria-label="Report message"
-        aria-expanded={open}
-    >
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" />
-        </svg>
-    </button>
+    {#if showTrigger}
+        <button
+            data-message-action
+            bind:this={buttonEl}
+            onclick={() => (open ? closeModal() : show())}
+            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+            title="Report message"
+            aria-label="Report message"
+            aria-expanded={open}
+        >
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" />
+            </svg>
+        </button>
+    {/if}
     {#if open}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
