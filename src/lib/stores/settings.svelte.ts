@@ -229,6 +229,11 @@ export const settingsState = $state({
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
+    /** Device-global: pause a playing inline/embed video when it scrolls out
+     *  of the viewport (saves CPU/battery). Resume stays user-driven — we never
+     *  auto-play a video. Default ON (least surprising). Local-only, like
+     *  showReadReceiptAvatars — it does not ride customization sync. */
+    pauseVideoOnScrollOff: readBool("pauseVideoOnScrollOff", true),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -687,6 +692,11 @@ export function setAutoUpdateEnabled(value: boolean): void {
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
+}
+
+export function setPauseVideoOnScrollOff(value: boolean): void {
+    settingsState.pauseVideoOnScrollOff = value;
+    writeBool("pauseVideoOnScrollOff", value);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {
