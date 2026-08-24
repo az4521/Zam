@@ -74,6 +74,7 @@
     } from "$lib/desktopUpdater";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
+    import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
     import CryptoUnavailableBanner from "$lib/components/layout/CryptoUnavailableBanner.svelte";
     import {
         markNotification,
@@ -1702,6 +1703,7 @@
                         onOpenRoomSettings={openRoomSettings}
                     />
                 </div>
+                <UpdateBanner />
                 <ProfileFooter
                     onLogout={handleLogout}
                     onSettings={openAppSettings}
@@ -1876,6 +1878,6 @@
 <ErrorToasts />
 <ScreenSharePicker />
 
-<UpdateBanner />
+<UpdateToastWatch />
 <CryptoUnavailableBanner />
 <JoinConsentDialog />
