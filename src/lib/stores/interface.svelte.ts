@@ -35,6 +35,8 @@ export type ModalId =
     | "invite"
     | "room-directory"
     | "reaction-picker"
+    // The mobile message-actions "⋯ More" bottom sheet (MessageItem).
+    | "message-actions"
     | "report-message"
     | "redact-message"
     | "forward-message"

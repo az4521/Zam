@@ -15,6 +15,12 @@
         eventId: string;
         keyboardOffset: number;
         open?: boolean;
+        /**
+         * Render the inline trigger button. False on touch, where the mobile
+         * overflow sheet drives this dialog via the exported `show()` instead —
+         * the component then renders only its dialog.
+         */
+        showTrigger?: boolean;
     }
 
     let {
@@ -22,6 +28,7 @@
         eventId,
         keyboardOffset,
         open = $bindable(false),
+        showTrigger = true,
     }: Props = $props();
     let dialogEl: HTMLDivElement | undefined = $state();
     let buttonEl: HTMLButtonElement | undefined = $state();
@@ -32,7 +39,7 @@
     let error = $state("");
     let token = 0;
 
-    function show() {
+    export function show() {
         below = (buttonEl?.getBoundingClientRect().top ?? 400) < 400;
         // Claim first - a same-id handover runs the outgoing close.
         token = openModal("redact-message", () => (open = false));
@@ -85,21 +92,23 @@
         toolbar (the bar's arrow-key navigation); the popover's own controls
         stay out of it deliberately.
     -->
-    <button
-        data-message-action
-        bind:this={buttonEl}
-        onclick={() => (open ? closeModal() : show())}
-        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-        title="Remove message"
-        aria-label="Remove message"
-        aria-expanded={open}
-    >
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path
-                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-            />
-        </svg>
-    </button>
+    {#if showTrigger}
+        <button
+            data-message-action
+            bind:this={buttonEl}
+            onclick={() => (open ? closeModal() : show())}
+            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+            title="Remove message"
+            aria-label="Remove message"
+            aria-expanded={open}
+        >
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path
+                    d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                />
+            </svg>
+        </button>
+    {/if}
     {#if open}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
