@@ -42,6 +42,7 @@
         setLinkPreviewsEnabled,
         setShowReadReceiptAvatars,
         setShowMatrixIds,
+        setReduceMotion,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { DoubleTapAction } from "$lib/utils/doubleTap";
@@ -486,6 +487,23 @@
                 checked={settingsState.keepSidebarOpen}
                 onChange={setKeepSidebarOpen}
                 label="Keep room list open"
+            />
+        </div>
+
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">Reduce motion</p>
+                <p class="text-xs text-discord-textMuted">
+                    Minimize animations and transitions. Your device's system
+                    "reduce motion" setting is always respected as well.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.reduceMotion}
+                onChange={setReduceMotion}
+                label="Reduce motion"
             />
         </div>
 

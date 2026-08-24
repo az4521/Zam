@@ -494,3 +494,26 @@ body {
         animation-iteration-count: infinite !important;
     }
 }
+
+/* ── Reduced motion — in-app toggle (R1) ─────────────────────────────
+   The Customization → "Reduce motion" toggle forces the SAME suppression
+   the OS media query above applies, even when the OS itself requests no
+   reduction. `applyReduceMotion` (utils/theme.ts) sets/clears the
+   data-reduce-motion attribute on :root; the rule is kept separate from
+   the @media block so it fires on the toggle regardless of OS state, and
+   so both carve-outs (spinner keeps turning; message-highlight lands on
+   its final transparent frame via the collapsed duration, never frozen at
+   frame 0) stay identical. `!important` for the same reasons as above. */
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
+:root[data-reduce-motion="true"] .animate-spin {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+}
