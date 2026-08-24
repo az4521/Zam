@@ -254,6 +254,12 @@ export function showChatView(): void {
     interfaceState.callViewRoomId = null;
 }
 
+/** Clear the mobile message-actions selection (the touch-selected message
+ *  whose floating actions bar is showing). No-op when nothing is selected. */
+export function clearSelectedMessage(): void {
+    interfaceState.selectedMessageId = null;
+}
+
 /** Claim the side-panel slot, returning this occupancy's token. Same ownership
  *  and ordering rules as `openModal`. */
 export function openSidebar(id: SidebarId, close: () => void): SlotToken {
