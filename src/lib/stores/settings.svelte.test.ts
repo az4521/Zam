@@ -556,3 +556,37 @@ describe("unified theming (base + overlay)", () => {
         });
     });
 });
+
+describe("pauseVideoOnScrollOff", () => {
+    const PVK = "settings:pauseVideoOnScrollOff";
+
+    async function bootPause(stored: string | null) {
+        if (stored === null) localStorage.removeItem(PVK);
+        else localStorage.setItem(PVK, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    afterEach(() => {
+        localStorage.removeItem("settings:pauseVideoOnScrollOff");
+    });
+
+    it("defaults to true so playing videos pause off-screen out of the box", async () => {
+        const fresh = await bootPause(null);
+        expect(fresh.settingsState.pauseVideoOnScrollOff).toBe(true);
+    });
+
+    it("reads a stored false at boot (the setting actually survives a reload)", async () => {
+        const fresh = await bootPause("false");
+        expect(fresh.settingsState.pauseVideoOnScrollOff).toBe(false);
+    });
+
+    it("persists the setter's value to localStorage", async () => {
+        const fresh = await bootPause(null);
+        fresh.setPauseVideoOnScrollOff(false);
+        expect(fresh.settingsState.pauseVideoOnScrollOff).toBe(false);
+        expect(localStorage.getItem("settings:pauseVideoOnScrollOff")).toBe(
+            "false",
+        );
+    });
+});

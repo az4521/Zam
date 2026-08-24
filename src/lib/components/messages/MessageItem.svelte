@@ -153,6 +153,7 @@
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
+    import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
         audioPlaybackMode,
@@ -1916,6 +1917,9 @@
                         style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
                         onloadedmetadata={onVideoMetadata}
                         onerror={() => (videoFailed = true)}
+                        use:pauseOffscreen={{
+                            enabled: settingsState.pauseVideoOnScrollOff,
+                        }}
                     ></video>
                 {/key}
             {:else}

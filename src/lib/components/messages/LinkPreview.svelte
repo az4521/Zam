@@ -12,6 +12,7 @@
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
+    import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import {
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
@@ -651,6 +652,9 @@
                     controls
                     autoplay={videoPlaying}
                     preload={videoPlaying ? "auto" : "metadata"}
+                    use:pauseOffscreen={{
+                        enabled: settingsState.pauseVideoOnScrollOff,
+                    }}
                 ></video>
             {:else}
                 <button
