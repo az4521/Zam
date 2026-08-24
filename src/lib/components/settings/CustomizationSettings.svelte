@@ -41,6 +41,7 @@
         setLinkPreviewMedia,
         setLinkPreviewsEnabled,
         setShowReadReceiptAvatars,
+        setPauseVideoOnScrollOff,
         setShowMatrixIds,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -435,6 +436,22 @@
                 options={linkPreviewOptions}
                 onChange={setLinkPreviewMedia}
                 ariaLabel="Link preview media"
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Pause videos off-screen
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Pause a playing video when it scrolls out of view to save
+                    battery. You restart it yourself when you scroll back.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.pauseVideoOnScrollOff}
+                onChange={setPauseVideoOnScrollOff}
+                label="Pause videos off-screen"
             />
         </div>
     </section>
