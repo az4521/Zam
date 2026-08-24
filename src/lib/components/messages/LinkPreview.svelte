@@ -129,6 +129,7 @@
         imageError = false;
         directEmbed = null;
         tweetEmbed = null;
+        lightboxTweetIndex = null;
         videoPlaying = false;
         videoThumbError = false;
 
