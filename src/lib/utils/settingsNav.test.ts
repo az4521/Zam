@@ -8,11 +8,12 @@ import {
 } from "./settingsNav";
 
 describe("SETTINGS_TABS", () => {
-    it("lists the eleven settings categories in display order", () => {
+    it("lists the twelve settings categories in display order", () => {
         expect(SETTINGS_TABS.map((t) => t.id)).toEqual([
             "account",
             "sessions",
             "security",
+            "theme",
             "customization",
             "emotes",
             "notifications",

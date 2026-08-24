@@ -2,7 +2,6 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
-    import ThemeColorEditor from "$lib/components/settings/ThemeColorEditor.svelte";
     import {
         getRoomDisplayName,
         mxcToHttp,
@@ -267,10 +266,6 @@
 </script>
 
 <div class="space-y-6">
-    <section>
-        <ThemeColorEditor />
-    </section>
-
     <section>
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"

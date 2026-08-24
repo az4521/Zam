@@ -10,6 +10,7 @@ export type SettingsTab =
     | "account"
     | "sessions"
     | "security"
+    | "theme"
     | "customization"
     | "emotes"
     | "notifications"
@@ -29,6 +30,7 @@ export const SETTINGS_TABS: readonly SettingsTabEntry[] = [
     { id: "account", label: "Account" },
     { id: "sessions", label: "Sessions" },
     { id: "security", label: "Security" },
+    { id: "theme", label: "Theme" },
     { id: "customization", label: "Customization" },
     { id: "emotes", label: "My Emotes" },
     { id: "notifications", label: "Notifications" },
