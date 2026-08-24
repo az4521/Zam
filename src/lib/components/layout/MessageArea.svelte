@@ -60,6 +60,7 @@
         openModal,
         closeModal,
         showCallView,
+        clearSelectedMessage,
         type SidebarId,
     } from "$lib/stores/interface.svelte";
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
@@ -85,6 +86,7 @@
         unreadDividerBefore,
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
+    import { shouldDismissSelectionOnScroll } from "$lib/utils/scrollDismiss";
     import { daySeparator } from "$lib/utils/timeFormat";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
@@ -1174,6 +1176,11 @@
     let anchorEl: HTMLElement | null = null;
     let anchorOffset = 0;
 
+    // scrollTop captured when a touch message-selection appeared; the baseline the
+    // scroll-dismiss delta is measured from. Adjusted by restoreScrollAnchor so a
+    // content-growth correction never reads as a user scroll. null = no selection.
+    let selectionScrollTop: number | null = null;
+
     function anchoringActive(): boolean {
         return (
             !!scrollEl &&
@@ -1233,7 +1240,13 @@
         const cTop = scrollEl!.getBoundingClientRect().top;
         const delta =
             anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
-        if (delta > 2 || delta < -2) scrollEl!.scrollTop += delta;
+        if (delta > 2 || delta < -2) {
+            scrollEl!.scrollTop += delta;
+            // Keep the selection baseline pinned to content, not raw scrollTop: a
+            // reading-anchor correction (late image/preview load above) must not read
+            // as a user scroll and dismiss the actions bar.
+            if (selectionScrollTop !== null) selectionScrollTop += delta;
+        }
     }
 
     function onScroll() {
@@ -1243,6 +1256,21 @@
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
         // Track the reading position so a late content change can be undone.
         captureScrollAnchor();
+
+        // Touch: a meaningful scroll away from where a message was selected dismisses
+        // its floating actions bar. Guarded so a bottom-sheet action in progress and
+        // reading-anchor jitter don't nuke the selection (see shouldDismissSelectionOnScroll).
+        if (
+            interfaceState.isTouchscreen &&
+            shouldDismissSelectionOnScroll({
+                selectionScrollTop,
+                currentScrollTop: scrollTop,
+                modalOpen: interfaceState.modal !== null,
+            })
+        ) {
+            selectionScrollTop = null;
+            clearSelectedMessage();
+        }
 
         // Receipts advance the live read marker; in context view the bottom of
         // the window is not the live tail, so don't mark read while browsing it.
@@ -1257,6 +1285,19 @@
             if (distanceToBottom < 600) void maybeLoadNewer();
         }
     }
+
+    // When a touch selection appears, remember where the timeline was; clear the
+    // baseline when the selection goes away. `untrack` keeps isTouchscreen/scrollEl
+    // out of this effect's dependency set — only selectedMessageId should retrigger.
+    $effect(() => {
+        const selected = interfaceState.selectedMessageId;
+        untrack(() => {
+            selectionScrollTop =
+                selected !== null && interfaceState.isTouchscreen && scrollEl
+                    ? scrollEl.scrollTop
+                    : null;
+        });
+    });
 
     async function loadOlderMessages() {
         if (loadingOlder) return;
