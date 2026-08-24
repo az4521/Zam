@@ -26,7 +26,9 @@
     import EventShield from "./EventShield.svelte";
     import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
+    import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
+    import { orderReadReceipts } from "$lib/utils/readReceipts";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import SwfEmbed from "$lib/components/ui/SwfEmbed.svelte";
     import {
@@ -267,6 +269,39 @@
     let pinning = $state(false);
     let showForwardDialog = $state(false);
     let previousTap: TapPoint | null = null;
+
+    // Read-receipt reader-list popover (click/tap the avatar cluster).
+    let readerOpen = $state(false);
+    let readerTouch = $state(false);
+    let readerX = $state(0);
+    let readerY = $state(0);
+
+    const receiptCap = $derived(interfaceState.isTouchscreen ? 2 : 3);
+    const receiptCluster = $derived(
+        orderReadReceipts(receipts, auth.userId, receiptCap),
+    );
+    const receiptReaderList = $derived(
+        orderReadReceipts(receipts, auth.userId, 20),
+    );
+
+    function openReaderList(e: MouseEvent) {
+        e.stopPropagation();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        readerX = rect.left + rect.width / 2;
+        readerY = rect.top;
+        readerTouch = interfaceState.isTouchscreen;
+        readerOpen = true;
+    }
+    function closeReaderList() {
+        readerOpen = false;
+    }
+
+    // Close the reader list if this message's receipts empty out while it is
+    // open (a receipt can advance to a newer event), so it can never linger
+    // stale and spuriously reopen when receipts later return to this row.
+    $effect(() => {
+        if (receipts.length === 0) readerOpen = false;
+    });
 
     function openForwardDialog() {
         // Claim first — a same-id handover runs the outgoing close.
@@ -2225,8 +2260,11 @@
             </button>
         {/if}
 
-        <!-- Reactions -->
-        <Reactions {eventId} {room} {reactionTick} />
+        <!-- Reactions (reserve right clearance on touch so the wrapped reaction
+             row never runs under the out-of-flow read-receipt overlay) -->
+        <div class:pr-14={interfaceState.isTouchscreen && receipts.length > 0}>
+            <Reactions {eventId} {room} {reactionTick} />
+        </div>
 
         <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
         {#if isFailed}
@@ -2268,23 +2306,42 @@
              row is `relative`), OUT OF FLOW, so receipts appearing or moving
              between messages never reflows the timeline. -->
         {#if receipts.length > 0}
-            <div class="absolute bottom-0.5 right-4 flex items-center gap-0.5">
-                {#each receipts.slice(0, 5) as r (r.userId)}
-                    <div title={r.name}>
-                        <Avatar
-                            src={r.avatarUrl}
-                            name={r.name}
-                            id={r.userId}
-                            size={16}
-                        />
-                    </div>
+            <button
+                type="button"
+                onclick={openReaderList}
+                aria-label="Show who read this message"
+                title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
+                class="absolute bottom-0.5 right-4 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+            >
+                {#each receiptCluster.shown as r (r.userId)}
+                    <Avatar
+                        src={r.avatarUrl}
+                        name={r.name}
+                        id={r.userId}
+                        size={16}
+                    />
                 {/each}
-                {#if receipts.length > 5}
+                {#if receiptCluster.overflow > 0}
                     <span class="text-[10px] text-discord-textMuted ml-1"
-                        >+{receipts.length - 5}</span
+                        >+{receiptCluster.overflow}</span
                     >
                 {/if}
-            </div>
+            </button>
+            {#if readerOpen}
+                <ReactorPopover
+                    reactors={receiptReaderList.shown.map((r) => ({
+                        userId: r.userId,
+                        name: r.name,
+                        avatarUrl: r.avatarUrl,
+                    }))}
+                    overflow={receiptReaderList.overflow}
+                    touch={readerTouch}
+                    desktopDismiss
+                    x={readerX}
+                    y={readerY}
+                    onClose={closeReaderList}
+                />
+            {/if}
         {/if}
 
         <!-- Inline timestamp (non-grouped messages, shows on hover) -->
