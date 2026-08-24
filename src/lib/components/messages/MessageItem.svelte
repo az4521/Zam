@@ -54,7 +54,6 @@
         getRoomIdForAlias,
         getThreadSummary,
         getHomeserverBaseUrl,
-        getCallSummaryForEvent,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import {
@@ -70,7 +69,7 @@
     } from "$lib/utils/joinConsent";
     import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
-    import { isCallEventType } from "$lib/utils/callSummary";
+    import { isCallEventType, type CallSummary } from "$lib/utils/callSummary";
     import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
@@ -185,6 +184,7 @@
         onEditDone?: () => void;
         receipts?: ReadReceiptInfo[];
         mentionHighlight?: boolean;
+        callSummary?: CallSummary | null;
     }
 
     let {
@@ -198,6 +198,7 @@
         onEditDone,
         receipts = [],
         mentionHighlight = false,
+        callSummary = null,
     }: Props = $props();
 
     const canPin = $derived.by(() => {
@@ -631,11 +632,6 @@
     const isPoll = $derived(isPollStartEventType(eventType));
     const isCallEvent = $derived(
         (void messagesState.timelineTick, isCallEventType(eventType)),
-    );
-    const callSummary = $derived(
-        (void messagesState.timelineTick,
-        void roomsState.roomsTick,
-        isCallEvent ? getCallSummaryForEvent(room, event) : null),
     );
     // In-room verification requests ride in as m.room.message; their plain-text
     // body claims this client can't do in-chat verification (it can), so they

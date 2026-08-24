@@ -1587,6 +1587,7 @@ function isCallSummaryRenderable(s: CallSummary): boolean {
 // untouched and in order. Shared by the live timeline and the jump-to context
 // window so both show the same rows.
 function collapseCallEvents(events: MatrixEvent[]): MatrixEvent[] {
+    if (settingsState.showAllEvents) return events;
     const callInputs = events
         .filter((e) => isCallEventType(e.getType()))
         .map(toCallEventInputBasic);
@@ -7811,20 +7812,20 @@ export function getRoomCallMemberships(room: Room): VoiceMembership[] {
         }));
 }
 
-/** The call-history summary whose card should render on `event` (an anchor
- *  call event in the timeline), or null when `event` is not a call anchor.
- *  Liveness comes from the room's current MatrixRTC memberships, so a finished
- *  call reads as "answered" and only the in-progress call reads as "ongoing". */
-export function getCallSummaryForEvent(
+/** Fold call summaries from a set of ALREADY renderable-filtered events, keyed
+ *  by the anchor event that renders each call's card. Liveness comes from the
+ *  room's current MatrixRTC memberships, so a finished call reads as "answered"
+ *  and only the in-progress call reads as "ongoing". Folding over the SAME
+ *  filtered set that collapseCallEvents uses guarantees every surfaced anchor
+ *  resolves here. */
+function callSummaryMap(
     room: Room,
-    event: MatrixEvent,
-): CallSummary | null {
+    renderableEvents: MatrixEvent[],
+): Map<string, CallSummary> {
     const liveKeys = new Set(
         getRoomCallMemberships(room).map((m) => `${m.userId}|${m.deviceId}`),
     );
-    const inputs: CallEventInput[] = room
-        .getLiveTimeline()
-        .getEvents()
+    const inputs = renderableEvents
         .filter((e) => isCallEventType(e.getType()))
         .map((e) => {
             const base = toCallEventInputBasic(e);
@@ -7834,11 +7835,30 @@ export function getCallSummaryForEvent(
             }
             return base;
         });
-    const target = event.getId();
-    const summary = summariseCallEvents(inputs).find(
-        (s) => s.anchorEventId === target,
+    const map = new Map<string, CallSummary>();
+    for (const s of summariseCallEvents(inputs))
+        if (isCallSummaryRenderable(s)) map.set(s.anchorEventId, s);
+    return map;
+}
+
+/** Call summaries for the live timeline, keyed by anchor event id. */
+export function getCallSummaries(room: Room): Map<string, CallSummary> {
+    return callSummaryMap(
+        room,
+        room.getLiveTimeline().getEvents().filter(isRenderableTimelineEvent),
     );
-    return summary && isCallSummaryRenderable(summary) ? summary : null;
+}
+
+/** Call summaries for a jump-to-message context window, keyed by anchor event
+ *  id — folded over the window's own events so context rows resolve correctly. */
+export function getContextCallSummaries(
+    room: Room,
+    window: TimelineWindow,
+): Map<string, CallSummary> {
+    return callSummaryMap(
+        room,
+        window.getEvents().filter(isRenderableTimelineEvent),
+    );
 }
 
 /** Send an MSC4075 m.call.notify so a callee whose app is closed gets pushed.
