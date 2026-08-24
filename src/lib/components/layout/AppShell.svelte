@@ -152,6 +152,7 @@
     import { playPing } from "$lib/audio/soundEffects";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
+    import { decideDrawerSnap, MAX_SNAP_MS } from "$lib/utils/drawerSnap";
     import {
         notificationsToClose,
         appendPostedEventId,
@@ -196,10 +197,24 @@
     let dragStartX = 0;
     let dragBaseTranslate = 0;
 
+    // Duration of the current settle animation. A drag release computes a
+    // momentum-scaled value; every programmatic change falls back to the default.
+    let snapDurationMs = $state(MAX_SNAP_MS);
+    // One-shot: the drag-release path sets this so the sync effect below does not
+    // clobber the momentum-scaled duration when it re-runs from the same change.
+    let keepSnapDuration = false;
+    // Velocity sampling for flick detection (px/ms; + = opening).
+    let lastMoveX = 0;
+    let lastMoveT = 0;
+    let dragVelocity = 0;
+
     // Keep translate in sync when state changes programmatically (hamburger, etc.)
     $effect(() => {
+        const open = interfaceState.leftOpen;
         if (!isDragging) {
-            drawerTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
+            drawerTranslate = open ? 0 : -DRAWER_WIDTH;
+            if (keepSnapDuration) keepSnapDuration = false;
+            else snapDurationMs = MAX_SNAP_MS;
         }
     });
 
@@ -275,6 +290,9 @@
             }
             dragPending = false;
             isDragging = true;
+            lastMoveX = touch.clientX;
+            lastMoveT = e.timeStamp;
+            dragVelocity = 0;
             (document.activeElement as HTMLElement)?.blur();
         }
 
@@ -284,6 +302,14 @@
                 0,
                 Math.max(-DRAWER_WIDTH, dragBaseTranslate + dx),
             );
+            // Sample release velocity from the latest move; a pause before
+            // release drops it toward zero, which correctly cancels a flick.
+            const dt = e.timeStamp - lastMoveT;
+            if (dt > 0) {
+                dragVelocity = (touch.clientX - lastMoveX) / dt;
+                lastMoveX = touch.clientX;
+                lastMoveT = e.timeStamp;
+            }
         }
     }
 
@@ -292,12 +318,15 @@
         cleanupDocListeners();
         if (!isDragging) return;
         isDragging = false;
-        const progress = (drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH;
-        const startedOpen = dragBaseTranslate === 0;
-        interfaceState.leftOpen = startedOpen
-            ? progress >= 0.85
-            : progress > 0.15;
-        drawerTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
+        const { open, durationMs } = decideDrawerSnap(
+            drawerTranslate,
+            DRAWER_WIDTH,
+            dragVelocity,
+        );
+        snapDurationMs = durationMs;
+        keepSnapDuration = true; // survive the sync effect's re-run
+        interfaceState.leftOpen = open;
+        drawerTranslate = open ? 0 : -DRAWER_WIDTH;
     }
 
     function cleanupDocListeners() {
@@ -1727,7 +1756,7 @@
                 class="fixed inset-y-0 left-0 z-40 flex flex-col w-[312px]"
                 style="transform: translateX({drawerTranslate}px); {isDragging
                     ? ''
-                    : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {drawerTranslate <=
+                    : `transition: transform ${snapDurationMs}ms cubic-bezier(0.2, 0, 0, 1);`} {drawerTranslate <=
                 -DRAWER_WIDTH
                     ? ''
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
