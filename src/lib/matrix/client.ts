@@ -136,6 +136,14 @@ import {
     summarizeThread,
     threadReplyRootId,
 } from "$lib/utils/threadModel";
+import {
+    isCallEventType,
+    isCallMemberEventType,
+    summariseCallEvents,
+    memberDeviceId,
+    type CallEventInput,
+    type CallSummary,
+} from "$lib/utils/callSummary";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
@@ -1537,7 +1545,8 @@ function isRenderableTimelineEvent(e: MatrixEvent): boolean {
         // placeholders instead of silently dropping them. A *decrypted*
         // event already reports its cleartext type and passes above.
         e.getType() !== "m.room.encrypted" &&
-        !isPollStartEventType(e.getType())
+        !isPollStartEventType(e.getType()) &&
+        !isCallEventType(e.getType())
     )
         return false;
     const rel = e.getContent()?.["m.relates_to"];
@@ -1556,11 +1565,46 @@ function isRenderableTimelineEvent(e: MatrixEvent): boolean {
     return true;
 }
 
+function toCallEventInputBasic(e: MatrixEvent): CallEventInput {
+    return {
+        eventId: e.getId() ?? "",
+        type: e.getType(),
+        sender: e.getSender() ?? "",
+        stateKey: e.getStateKey(),
+        ts: e.getTs(),
+        content: (e.getContent() ?? {}) as Record<string, unknown>,
+    };
+}
+
+// A call worth a card: it rang or someone joined. A leave-only session (join
+// scrolled off the loaded window) is not surfaced.
+function isCallSummaryRenderable(s: CallSummary): boolean {
+    return s.notified || s.participants.length > 0;
+}
+
+// Collapse each call's many events (joins/leaves/rings) down to the single
+// anchor event that carries its summary card. Non-call events pass through
+// untouched and in order. Shared by the live timeline and the jump-to context
+// window so both show the same rows.
+function collapseCallEvents(events: MatrixEvent[]): MatrixEvent[] {
+    const callInputs = events
+        .filter((e) => isCallEventType(e.getType()))
+        .map(toCallEventInputBasic);
+    if (callInputs.length === 0) return events;
+    const anchors = new Set(
+        summariseCallEvents(callInputs)
+            .filter(isCallSummaryRenderable)
+            .map((s) => s.anchorEventId),
+    );
+    return events.filter(
+        (e) => !isCallEventType(e.getType()) || anchors.has(e.getId() ?? ""),
+    );
+}
+
 export function getTimelineMessages(room: Room): MatrixEvent[] {
-    const timeline = room
-        .getLiveTimeline()
-        .getEvents()
-        .filter(isRenderableTimelineEvent);
+    const timeline = collapseCallEvents(
+        room.getLiveTimeline().getEvents().filter(isRenderableTimelineEvent),
+    );
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
     // can see a failed send and retry/delete it (see resendMessage /
     // deleteFailedMessage); only drop ones already cancelled.
@@ -4255,7 +4299,9 @@ export async function createContextWindow(
 /** The renderable message events currently held by a context window, filtered
  *  identically to the live timeline so the jump view matches normal rendering. */
 export function getContextWindowEvents(window: TimelineWindow): MatrixEvent[] {
-    return window.getEvents().filter(isRenderableTimelineEvent);
+    return collapseCallEvents(
+        window.getEvents().filter(isRenderableTimelineEvent),
+    );
 }
 
 /** Extends a context window by `limit` events in one direction (forwards =
@@ -7763,6 +7809,36 @@ export function getRoomCallMemberships(room: Room): VoiceMembership[] {
             deviceId: m.deviceId,
             joinedTs: m.createdTs(),
         }));
+}
+
+/** The call-history summary whose card should render on `event` (an anchor
+ *  call event in the timeline), or null when `event` is not a call anchor.
+ *  Liveness comes from the room's current MatrixRTC memberships, so a finished
+ *  call reads as "answered" and only the in-progress call reads as "ongoing". */
+export function getCallSummaryForEvent(
+    room: Room,
+    event: MatrixEvent,
+): CallSummary | null {
+    const liveKeys = new Set(
+        getRoomCallMemberships(room).map((m) => `${m.userId}|${m.deviceId}`),
+    );
+    const inputs: CallEventInput[] = room
+        .getLiveTimeline()
+        .getEvents()
+        .filter((e) => isCallEventType(e.getType()))
+        .map((e) => {
+            const base = toCallEventInputBasic(e);
+            if (isCallMemberEventType(base.type)) {
+                const device = memberDeviceId(base.content);
+                base.live = liveKeys.has(`${base.sender}|${device}`);
+            }
+            return base;
+        });
+    const target = event.getId();
+    const summary = summariseCallEvents(inputs).find(
+        (s) => s.anchorEventId === target,
+    );
+    return summary && isCallSummaryRenderable(summary) ? summary : null;
 }
 
 /** Send an MSC4075 m.call.notify so a callee whose app is closed gets pushed.
