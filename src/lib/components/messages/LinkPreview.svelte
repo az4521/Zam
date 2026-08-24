@@ -17,6 +17,7 @@
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
+    import { galleryNav } from "$lib/utils/mediaGallery";
 
     interface Props {
         url: string;
@@ -128,6 +129,7 @@
         imageError = false;
         directEmbed = null;
         tweetEmbed = null;
+        lightboxTweetIndex = null;
         videoPlaying = false;
         videoThumbError = false;
 
@@ -311,10 +313,12 @@
                     {@const allMedia = [
                         ...tweetEmbed.videos.map((v) => ({
                             type: "video" as const,
+                            photoIndex: -1,
                             ...v,
                         })),
-                        ...tweetEmbed.photos.map((p) => ({
+                        ...tweetEmbed.photos.map((p, pi) => ({
                             type: "photo" as const,
+                            photoIndex: pi,
                             ...p,
                         })),
                     ]}
@@ -323,9 +327,9 @@
                         style="grid-template-columns: repeat({Math.min(
                             allMedia.length,
                             2,
-                        )}, 1fr)"
+                        )}, minmax(0, 1fr))"
                     >
-                        {#each allMedia as item, i}
+                        {#each allMedia as item}
                             <!-- width/height reserve the box before load (from the
                                  fxtwitter media dims); w-full/h-auto keep it
                                  responsive within the grid cell. -->
@@ -341,7 +345,7 @@
                                     src={item.url}
                                     width={box?.width}
                                     height={box?.height}
-                                    class="w-full h-auto max-h-72 object-contain rounded"
+                                    class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded"
                                     controls
                                     preload="metadata"
                                     onclick={(e) => e.preventDefault()}
@@ -354,12 +358,12 @@
                                     alt=""
                                     width={box?.width}
                                     height={box?.height}
-                                    class="w-full h-auto max-h-72 object-contain rounded cursor-pointer bg-black/10"
+                                    class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded cursor-pointer bg-black/10"
                                     loading="lazy"
                                     referrerpolicy="no-referrer"
                                     onclick={(e) => {
                                         e.preventDefault();
-                                        lightboxTweetIndex = i;
+                                        lightboxTweetIndex = item.photoIndex;
                                     }}
                                 />
                             {/if}
@@ -369,22 +373,24 @@
             </div>
         </a>
         {#if lightboxTweetIndex !== null}
-            {@const allMedia = [
-                ...tweetEmbed.videos.map((v) => ({
-                    type: "video" as const,
-                    ...v,
-                })),
-                ...tweetEmbed.photos.map((p) => ({
-                    type: "photo" as const,
-                    ...p,
-                })),
-            ]}
-            {@const item = allMedia[lightboxTweetIndex]}
-            {#if item?.type === "photo"}
+            {@const photo = tweetEmbed.photos[lightboxTweetIndex]}
+            {@const nav = galleryNav(
+                tweetEmbed.photos.length,
+                lightboxTweetIndex,
+            )}
+            {@const prev = nav.prevIndex}
+            {@const next = nav.nextIndex}
+            {#if photo}
                 <Lightbox
-                    src={item.url}
+                    src={photo.url}
                     alt=""
                     onClose={() => (lightboxTweetIndex = null)}
+                    onPrev={prev !== null
+                        ? () => (lightboxTweetIndex = prev)
+                        : undefined}
+                    onNext={next !== null
+                        ? () => (lightboxTweetIndex = next)
+                        : undefined}
                 />
             {/if}
         {/if}
@@ -640,7 +646,8 @@
                 <video
                     src={preview.videoUrl}
                     poster={posterUrl}
-                    class="max-w-lg max-h-96 rounded-lg block"
+                    class="max-w-lg w-full max-h-96 rounded-lg block"
+                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
                     controls
                     autoplay={videoPlaying}
                     preload={videoPlaying ? "auto" : "metadata"}
