@@ -17,6 +17,13 @@
         x?: number;
         y?: number;
         onClose?: () => void;
+        /**
+         * Desktop-only: render a transparent full-screen backdrop behind the
+         * floating card so a click OUTSIDE it dismisses. Needed when the card is
+         * opened on click (e.g. the read-receipt reader list) rather than hover —
+         * the hover callers (reactions) leave this false and are unaffected.
+         */
+        desktopDismiss?: boolean;
     }
 
     let {
@@ -27,6 +34,7 @@
         x = 0,
         y = 0,
         onClose,
+        desktopDismiss = false,
     }: Props = $props();
 
     // Clamp a fixed, centered card to the viewport and place it ABOVE the
@@ -102,6 +110,14 @@
     </Portal>
 {:else}
     <Portal>
+        {#if desktopDismiss}
+            <button
+                type="button"
+                aria-label="Close"
+                class="fixed inset-0 z-40"
+                onclick={() => onClose?.()}
+            ></button>
+        {/if}
         <div
             use:positionCard={{ x, y }}
             class="fixed z-50 pointer-events-none bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"

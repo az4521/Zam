@@ -4467,6 +4467,8 @@ export interface ReadReceiptInfo {
     userId: string;
     avatarUrl: string | null;
     name: string;
+    /** Receipt timestamp (ms); 0 when the server omitted it. Orders the reader list. */
+    ts: number;
 }
 
 /** Returns the list of other users whose latest read receipt is on this event. */
@@ -4482,6 +4484,7 @@ export function getReceiptsForEvent(
             userId: r.userId,
             avatarUrl: getMemberAvatar(room, r.userId),
             name: getMemberName(room, r.userId),
+            ts: r.data?.ts ?? 0,
         }));
 }
 
