@@ -2,6 +2,7 @@
     import { fly } from "svelte/transition";
     import { X } from "lucide-svelte";
     import { toastsState, dismissToast } from "$lib/stores/toasts.svelte";
+    import { motionOK } from "$lib/utils/motionPreference";
 </script>
 
 {#if toastsState.toasts.length}
@@ -10,7 +11,7 @@
     >
         {#each toastsState.toasts as toast (toast.id)}
             <div
-                transition:fly={{ y: 12, duration: 150 }}
+                transition:fly={{ y: 12, duration: motionOK() ? 150 : 0 }}
                 role="alert"
                 class="pointer-events-auto flex items-center gap-3 max-w-[90vw] sm:max-w-md rounded-lg border-l-4 border-discord-danger bg-discord-backgroundTertiary text-discord-textPrimary text-sm shadow-lg px-4 py-2.5"
             >

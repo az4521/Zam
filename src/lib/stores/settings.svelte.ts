@@ -10,6 +10,7 @@ import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import {
     applyTheme,
     applyPreset,
+    applyReduceMotion,
     normalizeTheme,
     themeColorsToCssText,
     type Theme,
@@ -234,6 +235,13 @@ export const settingsState = $state({
      *  auto-play a video. Default ON (least surprising). Local-only, like
      *  showReadReceiptAvatars — it does not ride customization sync. */
     pauseVideoOnScrollOff: readBool("pauseVideoOnScrollOff", true),
+    /** Device-global: minimise animations and transitions (battery-saver /
+     *  accessibility). Default OFF (motion on). Additive to the OS
+     *  `prefers-reduced-motion` query — the OS preference is still honoured
+     *  regardless of this toggle (see utils/motionPreference resolveReducedMotion).
+     *  Deliberately device-local (readBool/writeBool, no customization sync):
+     *  motion/battery is a per-device call, like the OS setting it augments. */
+    reduceMotion: readBool("reduceMotion", false),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -353,6 +361,11 @@ const bootColors =
 applyPreset(bootBase, bootColors);
 writeString("themeBase", bootBase);
 writeString("themeVars", themeColorsToCssText(bootColors));
+
+// Boot apply: reflect the stored reduce-motion preference onto the root
+// element so CSS suppression is live before first paint, not only after a
+// toggle. The OS media query works independently of this attribute.
+applyReduceMotion(settingsState.reduceMotion);
 
 /** Returns the colors for the active preset, or null if none is active or it has no overrides. */
 export function activePresetColors(): ThemeColors | null {
@@ -697,6 +710,12 @@ export function setShowReadReceiptAvatars(value: boolean): void {
 export function setPauseVideoOnScrollOff(value: boolean): void {
     settingsState.pauseVideoOnScrollOff = value;
     writeBool("pauseVideoOnScrollOff", value);
+}
+
+export function setReduceMotion(value: boolean): void {
+    settingsState.reduceMotion = value;
+    writeBool("reduceMotion", value);
+    applyReduceMotion(value);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {

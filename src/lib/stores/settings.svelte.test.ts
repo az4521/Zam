@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
     settingsState,
     setShowReadReceiptAvatars,
+    setReduceMotion,
     setLinkPreviewMedia,
     setLinkPreviewsEnabled,
     saveThemePreset,
@@ -91,6 +92,63 @@ describe("showReadReceiptAvatars", () => {
         const before = settingsState.privateReadReceipts;
         setShowReadReceiptAvatars(false);
         expect(settingsState.privateReadReceipts).toBe(before);
+    });
+});
+
+describe("reduceMotion", () => {
+    const RM_KEY = "settings:reduceMotion";
+
+    afterEach(() => {
+        setReduceMotion(false);
+        localStorage.removeItem(RM_KEY);
+        delete document.documentElement.dataset.reduceMotion;
+    });
+
+    async function bootReduceMotionWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(RM_KEY);
+        else localStorage.setItem(RM_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to false so motion stays on for existing users", async () => {
+        const fresh = await bootReduceMotionWith(null);
+        expect(fresh.settingsState.reduceMotion).toBe(false);
+    });
+
+    it("reads a stored 'true' back at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootReduceMotionWith("true");
+        expect(fresh.settingsState.reduceMotion).toBe(true);
+    });
+
+    it("writes the value to localStorage under the device-global key", () => {
+        setReduceMotion(true);
+        expect(localStorage.getItem(RM_KEY)).toBe("true");
+        setReduceMotion(false);
+        expect(localStorage.getItem(RM_KEY)).toBe("false");
+    });
+
+    it("updates the store state", () => {
+        setReduceMotion(true);
+        expect(settingsState.reduceMotion).toBe(true);
+        setReduceMotion(false);
+        expect(settingsState.reduceMotion).toBe(false);
+    });
+
+    it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
+        setReduceMotion(true);
+        const keys = Object.keys(localStorage).filter((k) =>
+            k.includes("reduceMotion"),
+        );
+        expect(keys).toEqual([RM_KEY]);
+    });
+
+    it("reflects the preference onto the root element as data-reduce-motion", () => {
+        setReduceMotion(true);
+        expect(document.documentElement.dataset.reduceMotion).toBe("true");
+        setReduceMotion(false);
+        expect(document.documentElement.dataset.reduceMotion).toBeUndefined();
     });
 });
 
