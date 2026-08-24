@@ -267,7 +267,7 @@
     <!-- svelte-ignore a11y_media_has_caption -->
     <video
         src={directEmbed.videoUrl}
-        class="max-w-lg max-h-96 rounded-lg mt-1 block"
+        class="max-w-[min(100%,32rem)] max-h-96 rounded-lg mt-1 block"
         controls
         preload="metadata"
     ></video>
@@ -459,7 +459,7 @@
                     <img
                         src={preview.imageUrl}
                         alt=""
-                        class="max-w-lg max-h-96 rounded-lg object-contain cursor-pointer block"
+                        class="max-w-[min(100%,32rem)] max-h-96 rounded-lg object-contain cursor-pointer block"
                         loading="lazy"
                         referrerpolicy="no-referrer"
                         onerror={() => (imageError = true)}
@@ -625,7 +625,7 @@
                 <video
                     src={preview.videoUrl}
                     poster={posterUrl}
-                    class="max-w-lg max-h-96 rounded-lg block pointer-events-none"
+                    class="max-w-[min(100%,32rem)] max-h-96 rounded-lg block pointer-events-none"
                     autoplay
                     muted
                     loop
