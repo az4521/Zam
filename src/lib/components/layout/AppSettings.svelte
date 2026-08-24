@@ -1,5 +1,6 @@
 <script lang="ts">
     import CustomizationSettings from "$lib/components/settings/CustomizationSettings.svelte";
+    import ThemeColorEditor from "$lib/components/settings/ThemeColorEditor.svelte";
     import NotificationSettings from "$lib/components/settings/NotificationSettings.svelte";
     import ServerSettings from "$lib/components/settings/ServerSettings.svelte";
     import BlockedUsersSettings from "$lib/components/settings/BlockedUsersSettings.svelte";
@@ -215,6 +216,8 @@
         <SessionSettings />
     {:else if tab === "security"}
         <SecuritySettings />
+    {:else if tab === "theme"}
+        <ThemeColorEditor />
     {:else if tab === "customization"}
         <CustomizationSettings />
     {:else if tab === "emotes"}
