@@ -9,10 +9,15 @@ export interface ToastAction {
     run: () => void;
 }
 
+/** Visual tone. `danger` is the red error style; `accent` is a neutral,
+ *  non-error prompt (e.g. an available update) so it doesn't read as a fault. */
+export type ToastTone = "danger" | "accent";
+
 export interface Toast {
     id: number;
     message: string;
     action?: ToastAction;
+    tone: ToastTone;
 }
 
 const TOAST_TTL_MS = 8000;
@@ -25,10 +30,22 @@ class ToastsState {
 
 export const toastsState = new ToastsState();
 
-export function showErrorToast(message: string, action?: ToastAction): void {
+/** Show a toast with an explicit tone (and optional action). */
+export function showToast(
+    message: string,
+    opts?: { action?: ToastAction; tone?: ToastTone },
+): void {
     const id = nextId++;
-    toastsState.toasts = [...toastsState.toasts, { id, message, action }];
+    toastsState.toasts = [
+        ...toastsState.toasts,
+        { id, message, action: opts?.action, tone: opts?.tone ?? "danger" },
+    ];
     setTimeout(() => dismissToast(id), TOAST_TTL_MS);
+}
+
+/** Show a red error toast — the app's generic failure surface. */
+export function showErrorToast(message: string, action?: ToastAction): void {
+    showToast(message, { action, tone: "danger" });
 }
 
 export function dismissToast(id: number): void {

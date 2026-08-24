@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { toastsState, showErrorToast, dismissToast } from "./toasts.svelte";
+import {
+    toastsState,
+    showToast,
+    showErrorToast,
+    dismissToast,
+} from "./toasts.svelte";
 
 describe("toasts with an optional action", () => {
     beforeEach(() => {
@@ -63,5 +68,25 @@ describe("toasts with an optional action", () => {
         showErrorToast("b", { label: "Retry", run: () => {} });
         const [a, b] = toastsState.toasts;
         expect(a.id).not.toBe(b.id);
+    });
+
+    it("defaults showErrorToast to the danger tone", () => {
+        showErrorToast("boom");
+        expect(toastsState.toasts[0].tone).toBe("danger");
+    });
+
+    it("carries an explicit accent tone through showToast", () => {
+        const run = vi.fn();
+        showToast("update ready", {
+            tone: "accent",
+            action: { label: "Install", run },
+        });
+        expect(toastsState.toasts[0].tone).toBe("accent");
+        expect(toastsState.toasts[0].action?.label).toBe("Install");
+    });
+
+    it("defaults showToast to the danger tone when none is given", () => {
+        showToast("plain");
+        expect(toastsState.toasts[0].tone).toBe("danger");
     });
 });
