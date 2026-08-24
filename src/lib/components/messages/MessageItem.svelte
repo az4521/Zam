@@ -18,6 +18,7 @@
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
+    import CallEventCard from "$lib/components/messages/CallEventCard.svelte";
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
@@ -68,6 +69,7 @@
     } from "$lib/utils/joinConsent";
     import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { isCallEventType, type CallSummary } from "$lib/utils/callSummary";
     import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import {
@@ -182,6 +184,7 @@
         onEditDone?: () => void;
         receipts?: ReadReceiptInfo[];
         mentionHighlight?: boolean;
+        callSummary?: CallSummary | null;
     }
 
     let {
@@ -195,6 +198,7 @@
         onEditDone,
         receipts = [],
         mentionHighlight = false,
+        callSummary = null,
     }: Props = $props();
 
     const canPin = $derived.by(() => {
@@ -626,6 +630,9 @@
 
     const msgtype = $derived(content?.msgtype ?? "");
     const isPoll = $derived(isPollStartEventType(eventType));
+    const isCallEvent = $derived(
+        (void messagesState.timelineTick, isCallEventType(eventType)),
+    );
     // In-room verification requests ride in as m.room.message; their plain-text
     // body claims this client can't do in-chat verification (it can), so they
     // get a card instead of the fallback text.
@@ -1639,7 +1646,11 @@
         {/snippet}
 
         <!-- Message body -->
-        {#if isPoll}
+        {#if isCallEvent}
+            {#if callSummary}
+                <CallEventCard summary={callSummary} {room} />
+            {/if}
+        {:else if isPoll}
             <PollBody {event} {room} />
         {:else if eventType === "m.room.encrypted"}
             <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome

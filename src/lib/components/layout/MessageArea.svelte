@@ -1,6 +1,7 @@
 <script lang="ts">
     import { tick, untrack, onMount } from "svelte";
     import type { Room, MatrixEvent, TimelineWindow } from "matrix-js-sdk";
+    import type { CallSummary } from "$lib/utils/callSummary";
     import { auth } from "$lib/stores/auth.svelte";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
@@ -41,6 +42,8 @@
         getRoomThreads,
         isVideoRoom,
         loadRoomMembersIfNeeded,
+        getCallSummaries,
+        getContextCallSummaries,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -51,6 +54,7 @@
         canLoadMore,
         setCanLoadMore,
         bumpReactionTick,
+        messagesState,
     } from "$lib/stores/messages.svelte";
     import { bumpUnreadTick, roomsState } from "$lib/stores/rooms.svelte";
     import {
@@ -712,6 +716,13 @@
     let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
+    const callSummaries = $derived(
+        (void messagesState.timelineTick,
+        void roomsState.roomsTick,
+        isContextView && contextWindow
+            ? getContextCallSummaries(room, contextWindow)
+            : getCallSummaries(room)),
+    );
 
     // The event ID the user has read up to — used to show "New messages" divider on load
     let unreadMarkerEventId = $state<string | null>(null);
@@ -1851,6 +1862,8 @@
                         onEditDone={() => messageInputEl?.focus()}
                         {receipts}
                         mentionHighlight={isHighlightEvent(event)}
+                        callSummary={callSummaries.get(event.getId() ?? "") ??
+                            null}
                     />
                 {/if}
             {/each}
