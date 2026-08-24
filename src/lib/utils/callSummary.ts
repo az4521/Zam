@@ -158,3 +158,105 @@ export function foldCallSession(events: CallEventInput[]): CallSummary {
         notified,
     };
 }
+
+const DEFAULT_RING_PAIR_WINDOW_MS = 60_000;
+
+/** Group a room's call events into per-call buckets. Events with a non-empty
+ *  call_id/slot_id are bucketed by that key. Room-scoped (empty-key) events are
+ *  segmented sequentially: a session stays open from its first event until all
+ *  joined devices have left; a ring (notify) with no join within
+ *  ringPairWindowMs is its own (missed) session. */
+export function segmentCallSessions(
+    events: CallEventInput[],
+    opts?: { ringPairWindowMs?: number },
+): CallEventInput[][] {
+    const windowMs = opts?.ringPairWindowMs ?? DEFAULT_RING_PAIR_WINDOW_MS;
+    const sorted = [...events]
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => a.e.ts - b.e.ts || a.i - b.i)
+        .map((x) => x.e);
+
+    const keyed = new Map<string, CallEventInput[]>();
+    const roomScoped: CallEventInput[] = [];
+    for (const e of sorted) {
+        const key = callEventGroupKey(e);
+        if (key) {
+            const bucket = keyed.get(key) ?? [];
+            bucket.push(e);
+            keyed.set(key, bucket);
+        } else {
+            roomScoped.push(e);
+        }
+    }
+
+    const sessions: CallEventInput[][] = [...keyed.values()];
+
+    // Sequential segmentation for empty-key events.
+    let current: CallEventInput[] | null = null;
+    const openDevices = new Set<string>();
+    let hadJoin = false;
+    let firstNotifyTs = 0;
+    const flush = () => {
+        if (current && current.length) sessions.push(current);
+        current = null;
+        openDevices.clear();
+        hadJoin = false;
+        firstNotifyTs = 0;
+    };
+    const closed = () => hadJoin && openDevices.size === 0;
+
+    for (const e of roomScoped) {
+        const device = e.stateKey ?? e.eventId;
+        if (isCallMemberEventType(e.type) && !isMembershipLeave(e.content)) {
+            // JOIN
+            if (
+                !current ||
+                closed() ||
+                (!hadJoin &&
+                    current.length > 0 &&
+                    e.ts - firstNotifyTs > windowMs)
+            )
+                (flush(), (current = []));
+            current!.push(e);
+            openDevices.add(device);
+            hadJoin = true;
+        } else if (isCallMemberEventType(e.type)) {
+            // LEAVE
+            if (!current) current = [];
+            current.push(e);
+            openDevices.delete(device);
+        } else {
+            // NOTIFY
+            if (current && (openDevices.size > 0 || !hadJoin)) {
+                current.push(e);
+                if (!hadJoin && !firstNotifyTs) firstNotifyTs = e.ts;
+            } else {
+                flush();
+                current = [e];
+                firstNotifyTs = e.ts;
+            }
+        }
+    }
+    flush();
+
+    return sessions.sort(
+        (a, b) =>
+            Math.min(...a.map((e) => e.ts)) - Math.min(...b.map((e) => e.ts)),
+    );
+}
+
+export function summariseCallEvents(
+    events: CallEventInput[],
+    opts?: { ringPairWindowMs?: number },
+): CallSummary[] {
+    return segmentCallSessions(events, opts).map(foldCallSession);
+}
+
+export function callAnchorEventIds(
+    events: CallEventInput[],
+    opts?: { ringPairWindowMs?: number },
+): Set<string> {
+    return new Set(
+        summariseCallEvents(events, opts).map((s) => s.anchorEventId),
+    );
+}

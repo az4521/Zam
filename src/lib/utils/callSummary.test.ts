@@ -7,6 +7,9 @@ import {
     memberDeviceId,
     formatCallDuration,
     foldCallSession,
+    segmentCallSessions,
+    summariseCallEvents,
+    callAnchorEventIds,
     type CallEventInput,
 } from "./callSummary";
 
@@ -221,5 +224,85 @@ describe("foldCallSession", () => {
         ]);
         expect(s.outcome).toBe("ongoing");
         expect(s.endTs).toBeNull();
+    });
+});
+
+describe("segmentCallSessions", () => {
+    it("splits two sequential room-scoped calls", () => {
+        const segs = segmentCallSessions([
+            join({ eventId: "$1", ts: 1000 }),
+            leave({ eventId: "$2", ts: 2000 }),
+            join({ eventId: "$3", ts: 100000, stateKey: "@a:s_DEV" }),
+            leave({ eventId: "$4", ts: 101000 }),
+        ]);
+        expect(segs.length).toBe(2);
+        expect(segs[0].map((e) => e.eventId)).toEqual(["$1", "$2"]);
+        expect(segs[1].map((e) => e.eventId)).toEqual(["$3", "$4"]);
+    });
+    it("keeps distinct call_id values separate", () => {
+        const segs = segmentCallSessions([
+            join({
+                eventId: "$1",
+                ts: 1000,
+                content: { call_id: "abc", device_id: "A" },
+                stateKey: "@a:s_A",
+            }),
+            join({
+                eventId: "$2",
+                ts: 1100,
+                content: { call_id: "def", device_id: "B" },
+                sender: "@b:s",
+                stateKey: "@b:s_B",
+            }),
+        ]);
+        expect(segs.length).toBe(2);
+    });
+    it("pairs a ring with a join inside the window", () => {
+        const segs = segmentCallSessions(
+            [
+                notify({ eventId: "$0", ts: 1000 }),
+                join({ eventId: "$1", ts: 5000 }),
+            ],
+            { ringPairWindowMs: 60000 },
+        );
+        expect(segs.length).toBe(1);
+        expect(segs[0].map((e) => e.eventId)).toEqual(["$0", "$1"]);
+    });
+    it("does not pair a ring with a join outside the window", () => {
+        const segs = segmentCallSessions(
+            [
+                notify({ eventId: "$0", ts: 1000 }),
+                join({ eventId: "$1", ts: 100000 }),
+            ],
+            { ringPairWindowMs: 60000 },
+        );
+        expect(segs.length).toBe(2);
+    });
+    it("does not throw on a leave with no prior join", () => {
+        expect(() =>
+            segmentCallSessions([leave({ eventId: "$1", ts: 1000 })]),
+        ).not.toThrow();
+    });
+});
+
+describe("summariseCallEvents / callAnchorEventIds", () => {
+    it("summarises a missed then an answered call", () => {
+        const summaries = summariseCallEvents([
+            notify({ eventId: "$0", ts: 1000 }),
+            join({ eventId: "$1", ts: 100000 }),
+            leave({ eventId: "$2", ts: 160000 }),
+        ]);
+        expect(summaries.length).toBe(2);
+        expect(summaries[0].outcome).toBe("missed");
+        expect(summaries[1].outcome).toBe("answered");
+    });
+    it("anchor ids are the earliest event per call", () => {
+        const ids = callAnchorEventIds([
+            join({ eventId: "$1", ts: 1000 }),
+            leave({ eventId: "$2", ts: 2000 }),
+            join({ eventId: "$3", ts: 100000, stateKey: "@a:s_DEV" }),
+            leave({ eventId: "$4", ts: 101000 }),
+        ]);
+        expect([...ids].sort()).toEqual(["$1", "$3"]);
     });
 });
