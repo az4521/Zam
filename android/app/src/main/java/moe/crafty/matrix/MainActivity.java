@@ -47,6 +47,9 @@ public class MainActivity extends BridgeActivity {
         // call. Passed as a third argument so a plain notification tap (no
         // extra) keeps the two-argument open-only behaviour.
         final boolean joinCall = intent.getBooleanExtra("join_call", false);
+        // The message this notification named, so the tap jumps to the exact
+        // event, not just the room. Absent on a room-level or pre-stamp intent.
+        final String eventId = intent.getStringExtra("event_id");
         if (getBridge() == null || getBridge().getWebView() == null) return;
         // Defer so the web app has a chance to define the hook / finish loading.
         getBridge()
@@ -64,6 +67,15 @@ public class MainActivity extends BridgeActivity {
                         // Same escaping as the room id — the asymmetry would be
                         // the defect, not the (currently impossible) quote.
                         String safeUser = userId.replace("\\", "\\\\").replace("'", "\\'");
+                        // Fourth arg: the event to jump to, or JS undefined when
+                        // the intent carried none (room-level tap).
+                        String eventArg;
+                        if (eventId == null || eventId.isEmpty()) {
+                            eventArg = "undefined";
+                        } else {
+                            String safeEvent = eventId.replace("\\", "\\\\").replace("'", "\\'");
+                            eventArg = "'" + safeEvent + "'";
+                        }
                         js =
                             "window.__matrixOpenRoom && window.__matrixOpenRoom('" +
                             safeRoom +
@@ -71,6 +83,8 @@ public class MainActivity extends BridgeActivity {
                             safeUser +
                             "', " +
                             (joinCall ? "true" : "false") +
+                            ", " +
+                            eventArg +
                             ")";
                     }
                     getBridge().getWebView().evaluateJavascript(js, null);

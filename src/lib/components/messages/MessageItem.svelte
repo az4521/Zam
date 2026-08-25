@@ -1453,7 +1453,9 @@
         if (roomId === room.roomId) {
             if (target.eventId) jumpToReply(target.eventId);
         } else {
-            navigateToRoom(roomId);
+            // Cross-room permalink: carry the event id so we land ON the linked
+            // message, not just in the room (was dropped here before).
+            navigateToRoom(roomId, target.eventId);
         }
     }
 

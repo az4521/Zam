@@ -426,6 +426,26 @@
     // Ensure the scroll loop never outlives the component (e.g. room switch).
     $effect(() => stopScrollIntoView);
 
+    // Consume a queued "jump to this message" request (a notification tap or a
+    // cross-room permalink — see navigateToRoom). It fires once pendingJump names
+    // THIS room, whether we just switched into it (the room prop catches up and
+    // re-runs this) or the request arrived while we were already here. The
+    // roomId guard is what keeps a jump meant for another room from firing in
+    // this one: a mismatch just waits, it does not consume. Clear the request
+    // before scrolling — inside untrack, so neither the read nor scrollToMessage's
+    // own state writes re-trigger this effect (the effect_update_depth landmine).
+    // scrollToMessage fetches a context window when the event isn't in the loaded
+    // timeline, so an older message still lands, and its interval-based scroll
+    // wins over the room-open scroll-to-bottom above.
+    $effect(() => {
+        const jump = roomsState.pendingJump;
+        if (!jump || jump.roomId !== room.roomId) return;
+        untrack(() => {
+            roomsState.pendingJump = null;
+            void scrollToMessage(jump.eventId);
+        });
+    });
+
     let joiningUpgrade = $state(false);
 
     const tombstone = $derived(getTombstone(room));

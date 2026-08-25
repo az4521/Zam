@@ -134,12 +134,15 @@ export async function initPush(
             "pushNotificationActionPerformed",
             (action) => {
                 const roomId = action.notification.data?.room_id;
+                // event_id_only FCM data carries the event; thread it so the tap
+                // jumps to the exact message, not just the room.
+                const eventId = action.notification.data?.event_id;
                 if (roomId) {
                     // Navigate to the room (switching space if needed) — import
                     // lazily to avoid circular deps.
                     import("$lib/stores/rooms.svelte").then(
                         ({ navigateToRoom }) => {
-                            navigateToRoom(roomId);
+                            navigateToRoom(roomId, eventId);
                         },
                     );
                 }

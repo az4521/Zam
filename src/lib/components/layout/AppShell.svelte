@@ -592,16 +592,22 @@
      * before it decides anything — gating here would make the two surfaces
      * behave differently for the same stale notification.
      */
-    function routeNotificationTap(roomId: string, postedBy?: string | null) {
+    function routeNotificationTap(
+        roomId: string,
+        postedBy?: string | null,
+        eventId?: string | null,
+    ) {
         // window.focus() alone cannot un-hide a tray-hidden Electron window;
         // restoreAppWindow() prefers the preload bridge.
         restoreAppWindow();
         const decision = decideNotificationRoute(
-            { roomId, userId: postedBy },
+            { roomId, userId: postedBy, eventId },
             { userId: auth.userId },
         );
         if (decision.action !== "navigate") return;
-        navigateToRoom(decision.roomId);
+        // decision.eventId is only present once the poster/session gates passed,
+        // so we never jump into a room the route check just refused.
+        navigateToRoom(decision.roomId, decision.eventId);
     }
 
     // Show an OS desktop notification via the Web Notification API. Works in the
@@ -655,7 +661,7 @@
                 renotify: true,
             } as NotificationOptions & { renotify?: boolean });
             n.onclick = () => {
-                routeNotificationTap(room.roomId, postedBy);
+                routeNotificationTap(room.roomId, postedBy, eventId);
             };
             // The user dismissing it themselves must drop it from the map, or
             // a later close() would target a dead notification forever.
@@ -1255,6 +1261,7 @@
             roomId: string,
             userId?: string | null,
             joinCall = false,
+            eventId?: string | null,
         ) => {
             if (!roomId) return;
             if (joinCall) {
@@ -1266,7 +1273,8 @@
                 if (decision.action === "navigate")
                     acceptIncomingCall(decision.roomId);
             } else {
-                routeNotificationTap(roomId, userId);
+                // A plain tap opens the room AND jumps to the notified message.
+                routeNotificationTap(roomId, userId, eventId);
             }
         };
 
@@ -1274,8 +1282,9 @@
             roomId: string,
             userId?: string,
             joinCall = false,
+            eventId?: string,
         ) => {
-            openRoomFromNotification(roomId, userId, joinCall);
+            openRoomFromNotification(roomId, userId, joinCall, eventId);
         };
 
         // Web push notification taps (service worker) deep-link via postMessage.
@@ -1285,6 +1294,7 @@
                     e.data.roomId,
                     e.data.userId,
                     !!e.data.joinCall,
+                    e.data.eventId,
                 );
             }
         };

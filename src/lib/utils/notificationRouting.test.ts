@@ -89,4 +89,46 @@ describe("decideNotificationRoute", () => {
             roomId: "!approved:example.org",
         });
     });
+
+    it("carries the event id into the navigate decision so the caller can jump to the exact message", () => {
+        expect(
+            decideNotificationRoute(
+                {
+                    roomId: "!r:example.org",
+                    userId: "@me:example.org",
+                    eventId: "$evt:example.org",
+                },
+                SESSION,
+            ),
+        ).toEqual({
+            action: "navigate",
+            roomId: "!r:example.org",
+            eventId: "$evt:example.org",
+        });
+    });
+
+    it("navigates with no event id when the notification did not record one (room-level jump)", () => {
+        const decision = decideNotificationRoute(
+            { roomId: "!r:example.org", userId: "@me:example.org" },
+            SESSION,
+        );
+        expect(decision).toEqual({
+            action: "navigate",
+            roomId: "!r:example.org",
+        });
+        expect((decision as { eventId?: string }).eventId).toBeUndefined();
+    });
+
+    it("an event id never bypasses the poster/session gates — a foreign-account tap still drops", () => {
+        expect(
+            decideNotificationRoute(
+                {
+                    roomId: "!r:example.org",
+                    userId: "@other:example.org",
+                    eventId: "$evt:example.org",
+                },
+                SESSION,
+            ),
+        ).toEqual({ action: "drop", reason: "other-account" });
+    });
 });
