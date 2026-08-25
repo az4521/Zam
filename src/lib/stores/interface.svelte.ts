@@ -28,6 +28,9 @@ export type ModalId =
     // sharing one id would let the two strand each other's slot.
     | "room-header-overflow"
     | "space-menu"
+    // The space-rail "+" flyout (SpaceSidebar): a compact Create-space / Join
+    // chooser. Distinct from "space-menu" (a space's right-click context menu).
+    | "space-add-menu"
     | "account-switcher"
     | "color-picker"
     | "create-room"

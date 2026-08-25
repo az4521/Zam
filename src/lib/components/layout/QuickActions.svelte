@@ -36,8 +36,12 @@
         spaceId?: string;
         /** Called after an action button is clicked (e.g. to close a dropdown) */
         onaction?: () => void;
+        /** Compact "add a space" menu: only Create-space + Join-by-address.
+         *  Used by the space-rail "+" so it reads as an add-a-server chooser,
+         *  not a full create menu. */
+        compact?: boolean;
     }
-    let { spaceId, onaction }: Props = $props();
+    let { spaceId, onaction, compact = false }: Props = $props();
 
     let mode = $state<Mode | null>(null);
     let input1 = $state(""); // room name / space name / user id / room address
@@ -229,7 +233,7 @@
 
 <!-- Action buttons -->
 <div class="flex flex-col">
-    {#if !spaceId}
+    {#if !spaceId && !compact}
         <button
             onclick={() => open("create-dm")}
             class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
@@ -247,7 +251,7 @@
             <span class="flex-1 truncate">New DM</span>
         </button>
     {/if}
-    {#if !spaceId || canAddRoomToSpace(spaceId)}
+    {#if !compact && (!spaceId || canAddRoomToSpace(spaceId))}
         <button
             onclick={() => open("create-room")}
             class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"

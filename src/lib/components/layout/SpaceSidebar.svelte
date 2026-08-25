@@ -5,6 +5,7 @@
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
+    import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import { Circle } from "lucide-svelte";
     import {
         getRoomAvatar,
@@ -597,6 +598,27 @@
         exploreOpen = true;
     }
 
+    // Space-rail "+" flyout: a compact Create-space / Join chooser (QuickActions
+    // in `compact` mode). The chooser lives on the rail so creating a space is
+    // reachable regardless of which space is active — the room-header "+" only
+    // offered it on Home. The flyout stays MOUNTED (toggled by a `hidden` class,
+    // not `{#if}`) so QuickActions' Portaled form modal survives the flyout
+    // closing when picking an action supersedes the "space-add-menu" slot.
+    let addMenuOpen = $state(false);
+    let addMenuX = $state(0);
+    let addMenuY = $state(0);
+
+    function openAddMenu(e: MouseEvent) {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        addMenuX = r.right + 8;
+        // Anchor beside the button; clamp so the two-item menu never runs off
+        // the bottom of a short viewport.
+        addMenuY = Math.min(r.top, window.innerHeight - 120);
+        // Claim first — a same-id handover runs the outgoing close.
+        openModal("space-add-menu", () => (addMenuOpen = false));
+        addMenuOpen = true;
+    }
+
     // A created room whose follow-up write failed (or timed out unconfirmed):
     // the room is real, so we open it and offer a retry of ONLY the failed
     // step. Reporting a failure here would send the user back to the form to
@@ -1174,6 +1196,22 @@
         <div class="w-8 h-px bg-discord-divider my-1 flex-shrink-0"></div>
     {/if}
 
+    <!-- Add / create a space -->
+    <button
+        onclick={openAddMenu}
+        class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0"
+        title="Add a space"
+        aria-label="Add a space"
+    >
+        <svg
+            class="w-6 h-6 text-discord-textPositive group-hover:text-white transition-colors"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
+    </button>
+
     <!-- Explore public rooms -->
     <button
         onclick={openExplore}
@@ -1229,6 +1267,27 @@
 </nav>
 
 <Portal>
+    <!-- Space-rail "+" flyout: compact Create-space / Join chooser. Kept
+         MOUNTED (class-toggled, not `{#if}`) so QuickActions' own Portaled form
+         modal survives this flyout closing when picking an action supersedes
+         the "space-add-menu" slot. Positioned `fixed` from the button's rect. -->
+    {#if addMenuOpen}
+        <button
+            type="button"
+            aria-label="Close menu"
+            class="fixed inset-0 z-40"
+            onclick={closeModal}
+        ></button>
+    {/if}
+    <div
+        class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-52 {addMenuOpen
+            ? ''
+            : 'hidden'}"
+        style="left: {addMenuX}px; top: {addMenuY}px;"
+    >
+        <QuickActions compact />
+    </div>
+
     <!-- These four are portaled, not merely tidied out of the <nav>: on mobile
          the sidebar lives inside AppShell's drawer, whose inline
          `transform: translateX(…)` (present even at 0px) makes it the
