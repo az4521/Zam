@@ -278,8 +278,21 @@
     let generalSaving = $state(false);
     let generalError = $state("");
     let generalSuccess = $state(false);
+    let idCopied = $state(false);
+    let idCopiedTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const currentAvatarUrl = $derived(getRoomAvatar(room));
+
+    async function copyRoomId() {
+        try {
+            await navigator.clipboard.writeText(room.roomId);
+            idCopied = true;
+            clearTimeout(idCopiedTimeout);
+            idCopiedTimeout = setTimeout(() => (idCopied = false), 1500);
+        } catch {
+            // Clipboard denied — fail silently, matching the app's other copy affordances.
+        }
+    }
 
     async function saveGeneral() {
         generalError = "";
@@ -1216,70 +1229,99 @@
                                 >
                             {/if}
 
-                            {#if !isSpace && roomVersionCap}
-                                <div
-                                    class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-2"
+                            <div
+                                class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-3"
+                            >
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                                 >
+                                    Advanced
+                                </p>
+
+                                <!-- Room / Space ID (read-only, copyable) -->
+                                <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                                     >
-                                        Advanced
+                                        {isSpace ? "Space ID" : "Room ID"}
                                     </p>
-                                    <p class="text-xs text-discord-textMuted">
-                                        Room version: v{room.getVersion()}
-                                    </p>
-                                    {#if upgradeState.isCurrentLatest || !upgradeState.available}
-                                        <p
-                                            class="text-sm text-discord-textMuted"
+                                    <div class="flex items-center gap-2">
+                                        <code
+                                            class="flex-1 min-w-0 select-all truncate bg-discord-backgroundTertiary text-discord-textPrimary text-xs font-mono rounded px-3 py-2"
+                                            title={room.roomId}
+                                            >{room.roomId}</code
                                         >
-                                            {upgradeState.reason}
-                                        </p>
-                                    {:else if !upgradeShowConfirm}
                                         <button
-                                            onclick={() => {
-                                                upgradeShowConfirm = true;
-                                                upgradeError = "";
-                                            }}
-                                            class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
-                                            >Upgrade room…</button
+                                            onclick={copyRoomId}
+                                            class="flex-shrink-0 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors"
+                                            >{idCopied
+                                                ? "Copied!"
+                                                : "Copy"}</button
                                         >
-                                    {:else}
-                                        <div class="space-y-2">
-                                            <p
-                                                class="text-sm text-discord-textPrimary"
-                                            >
-                                                This creates a new room on v{upgradeState.recommendedVersion}
-                                                and marks this one as replaced. Members
-                                                will be pointed to the new room.
-                                            </p>
-                                            {#if upgradeError}<p
-                                                    class="text-sm text-discord-danger"
-                                                >
-                                                    {upgradeError}
-                                                </p>{/if}
-                                            <div class="flex gap-2">
-                                                <button
-                                                    onclick={doUpgradeRoom}
-                                                    disabled={upgrading}
-                                                    class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                                    >{upgrading
-                                                        ? "Upgrading…"
-                                                        : "Upgrade room"}</button
-                                                >
-                                                <button
-                                                    onclick={() => {
-                                                        upgradeShowConfirm = false;
-                                                        upgradeError = "";
-                                                    }}
-                                                    disabled={upgrading}
-                                                    class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                                    >Cancel</button
-                                                >
-                                            </div>
-                                        </div>
-                                    {/if}
+                                    </div>
                                 </div>
-                            {/if}
+
+                                {#if !isSpace && roomVersionCap}
+                                    <div class="space-y-2">
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
+                                            Room version: v{room.getVersion()}
+                                        </p>
+                                        {#if upgradeState.isCurrentLatest || !upgradeState.available}
+                                            <p
+                                                class="text-sm text-discord-textMuted"
+                                            >
+                                                {upgradeState.reason}
+                                            </p>
+                                        {:else if !upgradeShowConfirm}
+                                            <button
+                                                onclick={() => {
+                                                    upgradeShowConfirm = true;
+                                                    upgradeError = "";
+                                                }}
+                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
+                                                >Upgrade room…</button
+                                            >
+                                        {:else}
+                                            <div class="space-y-2">
+                                                <p
+                                                    class="text-sm text-discord-textPrimary"
+                                                >
+                                                    This creates a new room on v{upgradeState.recommendedVersion}
+                                                    and marks this one as replaced.
+                                                    Members will be pointed to the
+                                                    new room.
+                                                </p>
+                                                {#if upgradeError}<p
+                                                        class="text-sm text-discord-danger"
+                                                    >
+                                                        {upgradeError}
+                                                    </p>{/if}
+                                                <div class="flex gap-2">
+                                                    <button
+                                                        onclick={doUpgradeRoom}
+                                                        disabled={upgrading}
+                                                        class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                        >{upgrading
+                                                            ? "Upgrading…"
+                                                            : "Upgrade room"}</button
+                                                    >
+                                                    <button
+                                                        onclick={() => {
+                                                            upgradeShowConfirm = false;
+                                                            upgradeError = "";
+                                                        }}
+                                                        disabled={upgrading}
+                                                        class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                        >Cancel</button
+                                                    >
+                                                </div>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/if}
+                            </div>
                         </div>
 
                         <!-- ── Access ──────────────────────────────────────────── -->
