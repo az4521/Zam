@@ -441,6 +441,21 @@
         return myPl >= pl.state_default || myPl >= pl.kick || myPl >= pl.ban;
     });
 
+    // The header "+" opens QuickActions (create room/space/dm, join) plus, in a
+    // space, Space Settings. Inside a space where you can neither add a room nor
+    // open settings, every item gates out and the dropdown renders as an empty
+    // sliver — so hide the trigger entirely there. On Home the menu always has
+    // the global create actions. Space creation itself now lives on the space
+    // rail's "+" (SpaceSidebar), reachable regardless of the active space.
+    const hasHeaderActions = $derived.by(() => {
+        void roomsState.roomsTick;
+        if (!roomsState.activeSpaceId) return true;
+        return (
+            canAddRoomToSpace(roomsState.activeSpaceId) ||
+            canAccessSpaceSettings
+        );
+    });
+
     function roomButton(room: Room) {
         const isActive = roomsState.activeRoomId === room.roomId;
         roomsState.unreadTick; // track read receipt / new message changes
@@ -687,58 +702,69 @@
                 </svg>
             {/if}
         </button>
-        <!-- Dropdown trigger -->
-        <div class="relative flex-shrink-0">
-            <button
-                onclick={() =>
-                    interfaceState.modal === "room-header-menu"
-                        ? closeModal()
-                        : openModal("room-header-menu", () => {})}
-                class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Actions"
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-            </button>
-            {#if interfaceState.modal === "room-header-menu"}
+        <!-- Actions "+" — hidden when the menu would be empty (a space where you
+             lack power to add a room or open settings), which otherwise rendered
+             an empty dropdown sliver. -->
+        {#if hasHeaderActions}
+            <!-- Dropdown trigger -->
+            <div class="relative flex-shrink-0">
                 <button
-                    type="button"
-                    aria-label="Close menu"
-                    class="fixed inset-0 z-40"
-                    onclick={closeModal}
-                ></button>
-            {/if}
-            <div
-                class="absolute right-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
-                'room-header-menu'
-                    ? ''
-                    : 'hidden'}"
-            >
-                <QuickActions spaceId={roomsState.activeSpaceId ?? undefined} />
-                {#if canAccessSpaceSettings}
-                    <div class="w-full h-px bg-discord-divider my-1"></div>
-                    <button
-                        onclick={() =>
-                            activeSpaceRoom &&
-                            onOpenSpaceSettings?.(activeSpaceRoom)}
-                        class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                        style="padding-left: 0.5rem;"
+                    onclick={() =>
+                        interfaceState.modal === "room-header-menu"
+                            ? closeModal()
+                            : openModal("room-header-menu", () => {})}
+                    class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Actions"
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
                     >
-                        <svg
-                            class="w-4 h-4 flex-shrink-0 opacity-70"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.37 1.04.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
-                            />
-                        </svg>
-                        <span class="flex-1 truncate">Space Settings</span>
-                    </button>
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+                {#if interfaceState.modal === "room-header-menu"}
+                    <button
+                        type="button"
+                        aria-label="Close menu"
+                        class="fixed inset-0 z-40"
+                        onclick={closeModal}
+                    ></button>
                 {/if}
+                <div
+                    class="absolute right-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
+                    'room-header-menu'
+                        ? ''
+                        : 'hidden'}"
+                >
+                    <QuickActions
+                        spaceId={roomsState.activeSpaceId ?? undefined}
+                    />
+                    {#if canAccessSpaceSettings}
+                        <div class="w-full h-px bg-discord-divider my-1"></div>
+                        <button
+                            onclick={() =>
+                                activeSpaceRoom &&
+                                onOpenSpaceSettings?.(activeSpaceRoom)}
+                            class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                            style="padding-left: 0.5rem;"
+                        >
+                            <svg
+                                class="w-4 h-4 flex-shrink-0 opacity-70"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.37 1.04.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
+                                />
+                            </svg>
+                            <span class="flex-1 truncate">Space Settings</span>
+                        </button>
+                    {/if}
+                </div>
             </div>
-        </div>
+        {/if}
     </div>
 
     <!-- Room list -->
