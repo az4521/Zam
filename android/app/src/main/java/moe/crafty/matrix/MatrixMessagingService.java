@@ -225,7 +225,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (isCall) {
             showCallNotification(callerName, roomId, largeIcon);
         } else {
-            showNotification(title, text, roomId, largeIcon);
+            showNotification(title, text, roomId, eventId, largeIcon);
         }
     }
 
@@ -626,7 +626,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     // ── Notification ──────────────────────────────────────────────────────────
 
-    private void showNotification(String title, String body, String roomId, Bitmap largeIcon) {
+    private void showNotification(String title, String body, String roomId, String eventId, Bitmap largeIcon) {
         createChannel();
 
         Intent intent = new Intent(this, MainActivity.class);
@@ -655,6 +655,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
             intent.putExtra("room_id", roomId);
             intent.putExtra("user_id", postedBy);
+            // The event this push named, so a tap jumps to the exact message and
+            // not just the room. Only stamped alongside a routable room id.
+            if (eventId != null && !eventId.isEmpty()) {
+                intent.putExtra("event_id", eventId);
+            }
         }
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;

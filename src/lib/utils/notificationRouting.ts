@@ -4,6 +4,14 @@ export interface NotificationRouteTarget {
     roomId?: string | null;
     /** The account that posted it, when the poster recorded one. */
     userId?: string | null;
+    /**
+     * The specific message the notification was raised for, when the poster
+     * recorded one. Carried through so the caller can jump the timeline to the
+     * exact event instead of merely opening the room. Optional: a room-level
+     * notification (or an older pre-stamp one) has none, and then the caller
+     * just opens the room.
+     */
+    eventId?: string | null;
 }
 
 export interface NotificationRouteSession {
@@ -12,7 +20,7 @@ export interface NotificationRouteSession {
 }
 
 export type NotificationRouteDecision =
-    | { action: "navigate"; roomId: string }
+    | { action: "navigate"; roomId: string; eventId?: string }
     | {
           action: "drop";
           reason: "no-room" | "signed-out" | "other-account" | "no-poster";
@@ -53,5 +61,7 @@ export function decideNotificationRoute(
     if (postedBy !== sessionUserId)
         return { action: "drop", reason: "other-account" };
 
-    return { action: "navigate", roomId };
+    // The event id rides along ONLY once every gate above has passed, so a
+    // jump target can never bypass the poster/session check.
+    return { action: "navigate", roomId, eventId: target.eventId ?? undefined };
 }

@@ -95,6 +95,13 @@ export const roomsState = $state({
     unreadTick: 0,
     roomsTick: 0,
     spaceLayout: { order: [], folders: {} } as SpaceLayout,
+    /**
+     * A message to scroll to as soon as its room's timeline is mounted — set by
+     * a notification tap or a cross-room permalink jump, and consumed + cleared
+     * by MessageArea once its active room matches. Null the rest of the time,
+     * so no steady-state reactivity depends on it.
+     */
+    pendingJump: null as { roomId: string; eventId: string } | null,
 });
 
 export function bumpUnreadTick(): void {
@@ -302,8 +309,14 @@ export function setActiveRoom(roomId: string): void {
  * Navigate to a room, also switching to the space that contains it (or Home if
  * it's a DM/orphan). Use this when jumping to a room that may not be in the
  * currently-selected space — e.g. from the notifications inbox.
+ *
+ * Pass `eventId` to also scroll the timeline to that exact message once its room
+ * is open (a notification tap or a cross-room permalink). The jump is queued on
+ * `roomsState.pendingJump`; MessageArea consumes it when its room prop catches
+ * up and, via `scrollToMessage`, fetches a context window if the event is not in
+ * the loaded timeline — so an old message still lands.
  */
-export function navigateToRoom(roomId: string): void {
+export function navigateToRoom(roomId: string, eventId?: string): void {
     const targetSpace = findSpaceForRoom(roomId);
     if (targetSpace !== roomsState.activeSpaceId) {
         roomsState.activeSpaceId = targetSpace;
@@ -314,6 +327,7 @@ export function navigateToRoom(roomId: string): void {
         saveLastSpace(targetSpace);
     }
     setActiveRoom(roomId);
+    roomsState.pendingJump = eventId ? { roomId, eventId } : null;
 }
 
 export function getActiveRoom(): Room | undefined {

@@ -684,11 +684,14 @@ function closeAllNotifications() {
  * without reopening PRIV-02: nothing this build posts is both routable and
  * unattributable.
  */
-function notificationData(roomId, isCall) {
+function notificationData(roomId, isCall, eventId) {
 	if (!userId) return {};
 	const d = roomId
 		? { roomId: roomId, userId: userId }
 		: { userId: userId };
+	// The event the push named, so a tap jumps to the exact message instead of
+	// merely opening the room. Only meaningful alongside a room id.
+	if (roomId && eventId) d.eventId = eventId;
 	// A call notification carries this so notificationclick's Accept knows to
 	// join, not just open the room.
 	if (isCall) d.isCall = true;
@@ -1054,7 +1057,7 @@ async function buildNotification(data) {
 		}
 	}
 
-	return { title, body, icon, roomId, isCall };
+	return { title, body, icon, roomId, eventId, isCall };
 }
 
 // ── Active-session suppression ────────────────────────────────────────────
@@ -1206,7 +1209,7 @@ self.addEventListener("push", (event) => {
 				badge: "/favicon_foreground.png",
 				tag: n.roomId || undefined,
 				renotify: true,
-				data: notificationData(n.roomId, n.isCall),
+				data: notificationData(n.roomId, n.isCall, n.eventId),
 				// A call persists until answered/dismissed and offers
 				// Accept/Decline; a message is a normal transient popup.
 				...(n.isCall
@@ -1248,6 +1251,7 @@ self.addEventListener("notificationclick", (event) => {
 								roomId: roomId,
 								userId: postedBy,
 								joinCall: joinCall,
+								eventId: data.eventId,
 							});
 						return;
 					}
