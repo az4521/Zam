@@ -143,6 +143,98 @@ describe("validateSchema", () => {
         expect(result.valid).toBe(false);
         expect(result.errors.length).toBeGreaterThan(0);
     });
+
+    it("rejects list with bare string sub-field", () => {
+        const schema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: ["not an object"] as any,
+            },
+        ];
+        const result = validateSchema(schema);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.includes("items"))).toBe(true);
+    });
+
+    it("rejects list sub-field with empty key", () => {
+        const schema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [{ key: "", type: "text", label: "Empty" }],
+            },
+        ];
+        const result = validateSchema(schema);
+        expect(result.valid).toBe(false);
+        expect(
+            result.errors.some((e) => e.includes("items") && e.includes("key")),
+        ).toBe(true);
+    });
+
+    it("rejects list sub-field with non-string label", () => {
+        const schema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [{ key: "field", type: "text", label: 123 as any }],
+            },
+        ];
+        const result = validateSchema(schema);
+        expect(result.valid).toBe(false);
+        expect(
+            result.errors.some(
+                (e) => e.includes("items") && e.includes("label"),
+            ),
+        ).toBe(true);
+    });
+
+    it("rejects list sub-field select without options", () => {
+        const schema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [
+                    { key: "choice", type: "select", label: "Choice" } as any,
+                ],
+            },
+        ];
+        const result = validateSchema(schema);
+        expect(result.valid).toBe(false);
+        expect(
+            result.errors.some(
+                (e) => e.includes("items") && e.includes("options"),
+            ),
+        ).toBe(true);
+    });
+
+    it("accepts list with well-formed scalar sub-fields", () => {
+        const schema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [
+                    { key: "title", type: "text", label: "Title" },
+                    { key: "count", type: "number", label: "Count" },
+                    { key: "enabled", type: "toggle", label: "Enabled" },
+                    {
+                        key: "mode",
+                        type: "select",
+                        label: "Mode",
+                        options: [{ value: "a", label: "A" }],
+                    },
+                ],
+            },
+        ];
+        const result = validateSchema(schema);
+        expect(result.valid).toBe(true);
+        expect(result.errors).toEqual([]);
+    });
 });
 
 describe("coerceValues", () => {
@@ -373,5 +465,43 @@ describe("coerceValues", () => {
         ];
         const result = coerceValues(edgeSchema, {});
         expect(result.choice).toBe(""); // Falls back to empty string when no options
+    });
+
+    it("coerces list default rows with wrong-typed values", () => {
+        const listSchema: SettingsSchema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [
+                    { key: "count", type: "number", label: "Count" },
+                    { key: "name", type: "text", label: "Name" },
+                ],
+                default: [
+                    { count: "123", name: 456, extra: "ignore" }, // wrong types + extra key
+                ],
+            },
+        ];
+        const result = coerceValues(listSchema, {});
+        expect(Array.isArray(result.items)).toBe(true);
+        const items = result.items as any[];
+        expect(items.length).toBe(1);
+        expect(items[0]).toEqual({ count: 123, name: "" }); // coerced + extra key removed
+        expect(items[0]).not.toHaveProperty("extra");
+    });
+
+    it("list coercion is idempotent with defaults", () => {
+        const listSchema: SettingsSchema = [
+            {
+                key: "items",
+                type: "list",
+                label: "Items",
+                fields: [{ key: "x", type: "number", label: "X" }],
+                default: [{ x: "10" }], // string number
+            },
+        ];
+        const once = coerceValues(listSchema, {});
+        const twice = coerceValues(listSchema, once);
+        expect(twice).toEqual(once);
     });
 });

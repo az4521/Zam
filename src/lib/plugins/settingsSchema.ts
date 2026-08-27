@@ -61,6 +61,46 @@ export type SettingsSchema = SettingsField[];
 const VALID_TYPES = new Set(["toggle", "text", "number", "select", "list"]);
 const SCALAR_TYPES = new Set(["toggle", "text", "number", "select"]);
 
+/** Validates a scalar field. Mutates errors array. */
+function validateScalarField(
+    field: any,
+    context: string,
+    keys: Set<string>,
+    errors: string[],
+): void {
+    if (typeof field !== "object" || field === null || Array.isArray(field)) {
+        errors.push(`${context} must be an object`);
+        return;
+    }
+
+    // Check key
+    if (typeof field.key !== "string" || field.key.trim() === "") {
+        errors.push(`${context} has invalid or empty key`);
+    } else {
+        if (keys.has(field.key)) {
+            errors.push(`${context} has duplicate key: "${field.key}"`);
+        }
+        keys.add(field.key);
+    }
+
+    // Check type
+    if (!SCALAR_TYPES.has(field.type)) {
+        errors.push(`${context} has invalid type: "${field.type}"`);
+    }
+
+    // Check label
+    if (typeof field.label !== "string") {
+        errors.push(`${context} must have a string label`);
+    }
+
+    // Type-specific validation
+    if (field.type === "select") {
+        if (!Array.isArray(field.options) || field.options.length === 0) {
+            errors.push(`${context} must have non-empty options array`);
+        }
+    }
+}
+
 /** Validates a settings schema. Never throws; collects all errors. */
 export function validateSchema(schema: unknown): {
     valid: boolean;
@@ -126,8 +166,13 @@ export function validateSchema(schema: unknown): {
                     `List field "${field.key ?? `at index ${i}`}" must have non-empty fields array`,
                 );
             } else {
-                // Check for nested lists
-                for (const subField of field.fields) {
+                // Validate each sub-field with scalar-field rules
+                const subKeys = new Set<string>();
+                for (let j = 0; j < field.fields.length; j++) {
+                    const subField = field.fields[j];
+                    const subContext = `List field "${field.key ?? `at index ${i}`}" sub-field at index ${j}`;
+
+                    // Check for nested lists first
                     if (
                         typeof subField === "object" &&
                         subField !== null &&
@@ -136,17 +181,11 @@ export function validateSchema(schema: unknown): {
                         errors.push(
                             `List field "${field.key ?? `at index ${i}`}" cannot contain nested list fields`,
                         );
+                        continue;
                     }
-                    // Also validate that list fields are scalar types
-                    if (
-                        typeof subField === "object" &&
-                        subField !== null &&
-                        !SCALAR_TYPES.has(subField.type)
-                    ) {
-                        errors.push(
-                            `List field "${field.key ?? `at index ${i}`}" can only contain scalar field types`,
-                        );
-                    }
+
+                    // Validate as a scalar field
+                    validateScalarField(subField, subContext, subKeys, errors);
                 }
             }
         }
@@ -224,22 +263,32 @@ export function coerceValues(
                 result[field.key] = field.options[0]?.value ?? "";
             }
         } else if (field.type === "list") {
+            // Determine source array: stored if valid, else default if valid, else []
+            let sourceArray: unknown[];
             if (Array.isArray(storedValue)) {
-                const coercedRows: Record<string, unknown>[] = [];
-                for (const row of storedValue) {
-                    if (
-                        typeof row === "object" &&
-                        row !== null &&
-                        !Array.isArray(row)
-                    ) {
-                        coercedRows.push(coerceValues(field.fields, row));
-                    }
-                    // Non-object rows are dropped
-                }
-                result[field.key] = coercedRows;
+                sourceArray = storedValue;
+            } else if (
+                field.default !== undefined &&
+                Array.isArray(field.default)
+            ) {
+                sourceArray = field.default;
             } else {
-                result[field.key] = field.default ?? [];
+                sourceArray = [];
             }
+
+            // Coerce all rows identically
+            const coercedRows: Record<string, unknown>[] = [];
+            for (const row of sourceArray) {
+                if (
+                    typeof row === "object" &&
+                    row !== null &&
+                    !Array.isArray(row)
+                ) {
+                    coercedRows.push(coerceValues(field.fields, row));
+                }
+                // Non-object rows are dropped
+            }
+            result[field.key] = coercedRows;
         }
     }
 
