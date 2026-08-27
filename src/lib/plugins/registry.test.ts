@@ -86,4 +86,31 @@ describe("registry core", () => {
         expect(removeEntry(d, "commands", 9999)).toBe(false);
         expect(d.tick).toBe(tickBefore);
     });
+
+    it("removePluginEntries clears one plugin across all 13 kinds, leaves the other", () => {
+        const data = createRegistryData();
+        for (const kind of EXTENSION_KINDS) {
+            addEntry(data, kind, "a", {} as never);
+            addEntry(data, kind, "b", {} as never);
+        }
+        removePluginEntries(data, "a");
+        expect(countEntries(data, "a")).toBe(0);
+        expect(countEntries(data, "b")).toBe(EXTENSION_KINDS.length);
+        for (const kind of EXTENSION_KINDS) {
+            const arr = data[kind] as { pluginId: string }[];
+            expect(arr.map((e) => e.pluginId)).toEqual(["b"]);
+        }
+    });
+
+    it("disposing one plugin's entry on a shared kind leaves the other plugin's entry", () => {
+        const data = createRegistryData();
+        const da = addEntry(data, "commands", "a", { name: "acmd" } as never);
+        addEntry(data, "commands", "b", { name: "bcmd" } as never);
+        da.dispose();
+        const cmds = data.commands.map((e) => ({
+            pluginId: e.pluginId,
+            value: e.value,
+        }));
+        expect(cmds).toEqual([{ pluginId: "b", value: { name: "bcmd" } }]);
+    });
 });

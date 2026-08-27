@@ -264,4 +264,25 @@ describe("buildHostApi — storage + settings", () => {
         // Cleanup
         hostBridge.startEdit = null;
     });
+
+    it("disposeAll leaves the other plugin's entry on a shared extension point", () => {
+        const registry = createRegistryData();
+        const a = buildHostApi({
+            pluginId: "a",
+            manifest: manifest("a"),
+            registry,
+            appVersion: "1",
+        });
+        const b = buildHostApi({
+            pluginId: "b",
+            manifest: manifest("b"),
+            registry,
+            appVersion: "1",
+        });
+        a.zam.commands.register({ name: "acmd", description: "d", run() {} });
+        b.zam.commands.register({ name: "bcmd", description: "d", run() {} });
+        a.disposeAll();
+        expect(registry.commands.map((e) => e.pluginId)).toEqual(["b"]);
+        expect(registry.commands[0].value.name).toBe("bcmd");
+    });
 });

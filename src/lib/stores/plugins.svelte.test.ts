@@ -96,4 +96,41 @@ describe("plugins store", () => {
         markPluginError("missing", "x");
         expect(installedPlugins["missing"]).toBeUndefined();
     });
+
+    it("repeated enable→disable→enable cycles leave no stale entries (baseline restored)", () => {
+        const id = "cycle-test";
+        expect(countEntries(pluginRegistry, id)).toBe(0);
+        for (let i = 0; i < 3; i++) {
+            const host = createPluginHost(id, manifest(id));
+            host.zam.commands.register({
+                name: "cmd",
+                description: "d",
+                run() {},
+            });
+            expect(countEntries(pluginRegistry, id)).toBe(1);
+            disposePluginHost(id);
+            expect(countEntries(pluginRegistry, id)).toBe(0);
+        }
+        expect(countEntries(pluginRegistry, id)).toBe(0);
+    });
+
+    it("createPluginHost self-supersede purges old entries and returns new host object", () => {
+        const id = "supersede-test";
+        const first = createPluginHost(id, manifest(id));
+        first.zam.commands.register({
+            name: "cmd1",
+            description: "d",
+            run() {},
+        });
+        first.zam.commands.register({
+            name: "cmd2",
+            description: "d",
+            run() {},
+        });
+        expect(countEntries(pluginRegistry, id)).toBe(2);
+        const second = createPluginHost(id, manifest(id));
+        expect(countEntries(pluginRegistry, id)).toBe(0);
+        expect(second).not.toBe(first);
+        expect(getPluginHost(id)).toBe(second);
+    });
 });
