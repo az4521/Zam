@@ -45,6 +45,11 @@ export type ModalId =
     | "forward-message"
     | "composer-picker"
     | "composer-actions"
+    // A plugin's custom-UI popover (zam.ui.openPopover) — a plugin renders
+    // arbitrary DOM into an anchored floating element via PluginPopoverHost.
+    // Shares the single modal slot so Escape/backdrop dismiss it through
+    // AppShell's central stack like every other popup.
+    | "plugin-popover"
     | "create-poll"
     | "share-location"
     // Fullscreen live-location map (LiveLocationMapView, mounted by
