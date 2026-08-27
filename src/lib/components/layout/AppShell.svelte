@@ -50,6 +50,11 @@
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
     import { initPlugins } from "$lib/plugins/pluginBoot";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import {
+        resolveShortcut,
+        eventToChord,
+    } from "$lib/plugins/pluginShortcuts";
     import {
         initVoiceCall,
         leaveCall,
@@ -387,6 +392,30 @@
         // Escape → dismiss the topmost popup/sidebar.
         if (e.key === "Escape") {
             if (dismissTopmost()) e.preventDefault();
+            return;
+        }
+        // Plugin-registered global shortcuts (spec §7). resolveShortcut skips
+        // any chord that collides with a core global shortcut (Escape /
+        // Ctrl+Shift+D / Ctrl+E/S/G) or lacks a modifier, so core always wins;
+        // a plugin's own combo (e.g. Ctrl+K) fires here — placed before the
+        // Ctrl-only block below, whose blanket `return` would otherwise swallow
+        // it. Plain handler (not $derived): reads the registry array live.
+        const shortcut = resolveShortcut(
+            eventToChord(e),
+            pluginRegistry.shortcuts.map((s) => s.value),
+        );
+        if (shortcut) {
+            e.preventDefault();
+            try {
+                const r = shortcut.run();
+                if (r && typeof (r as { then?: unknown }).then === "function") {
+                    (r as Promise<void>).catch((err) =>
+                        console.error("[zam] plugin shortcut threw", err),
+                    );
+                }
+            } catch (err) {
+                console.error("[zam] plugin shortcut threw", err);
+            }
             return;
         }
         // Ctrl+Shift+D → toggle the debug panel.
