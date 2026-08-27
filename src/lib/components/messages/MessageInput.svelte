@@ -90,6 +90,7 @@
         pluginCommandToSlash,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
+    import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
@@ -435,6 +436,11 @@
         return pluginRegistry.commands.map((e) =>
             pluginCommandToSlash(e.value, e.pluginId),
         );
+    });
+
+    const pluginComposerButtonViews = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginComposerButtons(pluginRegistry.composerButtons, roomId);
     });
 
     const slashCandidates = $derived.by((): SlashCommand[] =>
@@ -1905,6 +1911,7 @@
                             style="bottom: {keyboardOffset + 8}px;"
                         >
                             <ComposerActionsMenu
+                                {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
@@ -1925,6 +1932,7 @@
                     {:else}
                         <div class="absolute bottom-full left-0 mb-2 z-50">
                             <ComposerActionsMenu
+                                {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
@@ -2117,6 +2125,47 @@
                     {/if}
                 {/if}
             </div>
+
+            <!-- Plugin composer buttons -->
+            {#each pluginComposerButtonViews as btn (btn.key)}
+                <div class="flex-shrink-0">
+                    <button
+                        onclick={(e) => {
+                            try {
+                                const r = btn.onClick(e.currentTarget);
+                                if (r && typeof r.then === "function")
+                                    r.catch((err) =>
+                                        console.error(
+                                            "[zam] plugin composer button threw",
+                                            err,
+                                        ),
+                                    );
+                            } catch (err) {
+                                console.error(
+                                    "[zam] plugin composer button threw",
+                                    err,
+                                );
+                            }
+                        }}
+                        {disabled}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={btn.label}
+                        aria-label={btn.label}
+                    >
+                        {#if btn.icon}
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={btn.icon} /></svg
+                            >
+                        {:else}
+                            <span class="text-xs font-semibold"
+                                >{btn.label.slice(0, 2)}</span
+                            >
+                        {/if}
+                    </button>
+                </div>
+            {/each}
 
             <button
                 onclick={send}
