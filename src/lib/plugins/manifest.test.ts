@@ -82,19 +82,19 @@ describe("parseManifest", () => {
     });
 
     it("throws on null input", () => {
-        expect(() => parseManifest(null)).toThrow();
+        expect(() => parseManifest(null)).toThrow(/object/i);
     });
 
     it("throws on array input", () => {
-        expect(() => parseManifest([])).toThrow();
+        expect(() => parseManifest([])).toThrow(/object/i);
     });
 
     it("throws on string input", () => {
-        expect(() => parseManifest("not an object")).toThrow();
+        expect(() => parseManifest("not an object")).toThrow(/object/i);
     });
 
     it("throws on number input", () => {
-        expect(() => parseManifest(42)).toThrow();
+        expect(() => parseManifest(42)).toThrow(/object/i);
     });
 
     it("throws on missing id field with field name in message", () => {
