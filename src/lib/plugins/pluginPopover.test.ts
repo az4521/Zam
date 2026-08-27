@@ -7,7 +7,7 @@ import {
 } from "$lib/stores/interface.svelte";
 
 function anchor(): HTMLElement {
-    return { tagName: "BUTTON" } as unknown as HTMLElement;
+    return document.createElement("button");
 }
 
 beforeEach(() => {
