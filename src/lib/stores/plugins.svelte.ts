@@ -123,3 +123,31 @@ export function addPluginRepo(ref: string): void {
 export function removePluginRepo(ref: string): void {
     pluginRepos.refs = pluginRepos.refs.filter((r) => r !== ref);
 }
+
+/** Per-device update policy prefs (mirrors pluginPersist; pluginBoot keeps them
+ *  in sync with localStorage). perPlugin holds only explicit overrides;
+ *  a missing key means "use the global default". */
+export const pluginPrefs = $state<{
+    autoUpdate: boolean;
+    perPlugin: Record<string, boolean>;
+}>({ autoUpdate: false, perPlugin: {} });
+
+/** Available updates: plugin id -> latest version (present only when newer than
+ *  installed). Set by the manager after a Browse-index refresh. */
+export const pluginUpdates = $state<{ available: Record<string, string> }>({
+    available: {},
+});
+
+export function setGlobalAutoUpdateState(v: boolean): void {
+    pluginPrefs.autoUpdate = v;
+}
+export function setPluginAutoUpdateState(
+    id: string,
+    v: boolean | undefined,
+): void {
+    if (v === undefined) delete pluginPrefs.perPlugin[id];
+    else pluginPrefs.perPlugin[id] = v;
+}
+export function setUpdateAvailable(map: Record<string, string>): void {
+    pluginUpdates.available = { ...map };
+}
