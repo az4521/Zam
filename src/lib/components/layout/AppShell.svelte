@@ -430,18 +430,11 @@
             interfaceState.debugOpen = !interfaceState.debugOpen;
             return;
         }
-        // Ctrl+E / Ctrl+S / Ctrl+G → open a composer picker (only when a room
+        // Ctrl+E / Ctrl+S → open a composer picker (only when a room
         // with a composer is visible).
         if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
             const k = e.key.toLowerCase();
-            const kind =
-                k === "e"
-                    ? "emoji"
-                    : k === "s"
-                      ? "sticker"
-                      : k === "g"
-                        ? "gif"
-                        : null;
+            const kind = k === "e" ? "emoji" : k === "s" ? "sticker" : null;
             if (kind && activeRoom && !roomsState.showInbox) {
                 e.preventDefault();
                 openComposerPicker(kind);

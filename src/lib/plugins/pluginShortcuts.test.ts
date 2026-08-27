@@ -82,8 +82,8 @@ describe("chordConflict", () => {
         expect(chordConflict(parseChord("Ctrl+Shift+D"))).toBe("reserved");
         expect(chordConflict(parseChord("Ctrl+K"))).toBeNull();
     });
-    it("has the four core chords reserved", () => {
-        expect(CORE_SHORTCUT_CHORDS).toHaveLength(4);
+    it("has the three core chords reserved", () => {
+        expect(CORE_SHORTCUT_CHORDS).toHaveLength(3);
     });
 });
 

@@ -1478,8 +1478,8 @@
         ) {
             onCancelReply?.();
         }
-        // Ctrl+E / Ctrl+S / Ctrl+G (open pickers) are global shortcuts handled
-        // centrally in +page.svelte.
+        // Ctrl+E / Ctrl+S (open pickers) are global shortcuts handled
+        // centrally in AppShell.
         if (e.key === "ArrowUp" && !text) {
             e.preventDefault();
             onRequestEditLast?.();

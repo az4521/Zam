@@ -110,14 +110,13 @@ export function chordsEqual(a: Chord, b: Chord): boolean {
 }
 
 /**
- * Core global shortcuts reserved by AppShell (Ctrl+Shift+D, Ctrl+E, Ctrl+S, Ctrl+G).
+ * Core global shortcuts reserved by AppShell (Ctrl+Shift+D, Ctrl+E, Ctrl+S).
  * Plugins cannot shadow these.
  */
 export const CORE_SHORTCUT_CHORDS: Chord[] = [
     { ctrl: true, shift: true, alt: false, meta: false, key: "d" },
     { ctrl: true, shift: false, alt: false, meta: false, key: "e" },
     { ctrl: true, shift: false, alt: false, meta: false, key: "s" },
-    { ctrl: true, shift: false, alt: false, meta: false, key: "g" },
 ];
 
 export type ConflictReason = "invalid" | "no-modifier" | "reserved";
