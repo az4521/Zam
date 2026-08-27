@@ -7,6 +7,8 @@
 
 import { isValidSemver } from "./semver";
 
+const VALID_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
 export interface RepoRef {
     owner: string;
     repo: string;
@@ -29,6 +31,10 @@ export interface PluginIndexEntry {
  * Throws Error on invalid input.
  */
 export function normalizeRepoRef(slugOrUrl: string): RepoRef {
+    if (typeof slugOrUrl !== "string") {
+        throw new Error("Repo reference must be a string");
+    }
+
     if (!slugOrUrl || slugOrUrl.trim() === "") {
         throw new Error("Repo reference cannot be empty");
     }
@@ -102,7 +108,7 @@ export function normalizeRepoRef(slugOrUrl: string): RepoRef {
     if (!owner || owner.trim() === "") {
         throw new Error("Owner cannot be empty");
     }
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(owner)) {
+    if (!VALID_NAME_PATTERN.test(owner)) {
         throw new Error("Invalid owner: must match [A-Za-z0-9][A-Za-z0-9._-]*");
     }
 
@@ -110,7 +116,7 @@ export function normalizeRepoRef(slugOrUrl: string): RepoRef {
     if (!repo || repo.trim() === "") {
         throw new Error("Repo cannot be empty");
     }
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(repo)) {
+    if (!VALID_NAME_PATTERN.test(repo)) {
         throw new Error("Invalid repo: must match [A-Za-z0-9][A-Za-z0-9._-]*");
     }
 

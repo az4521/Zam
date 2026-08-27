@@ -130,6 +130,26 @@ describe("normalizeRepoRef", () => {
             /branch|\.\./i,
         );
     });
+
+    it("throws on null input", () => {
+        expect(() => normalizeRepoRef(null as any)).toThrow(/string/i);
+    });
+
+    it("throws on undefined input", () => {
+        expect(() => normalizeRepoRef(undefined as any)).toThrow(/string/i);
+    });
+
+    it("throws on number input", () => {
+        expect(() => normalizeRepoRef(42 as any)).toThrow(/string/i);
+    });
+
+    it("throws on object input", () => {
+        expect(() => normalizeRepoRef({} as any)).toThrow(/string/i);
+    });
+
+    it("throws on array input", () => {
+        expect(() => normalizeRepoRef([] as any)).toThrow(/string/i);
+    });
 });
 
 describe("rawUrl", () => {
