@@ -48,6 +48,7 @@
     import { initPresence } from "$lib/stores/presence.svelte";
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
+    import { initPlugins } from "$lib/plugins/pluginBoot";
     import {
         initVoiceCall,
         leaveCall,
@@ -1510,6 +1511,7 @@
         const unsubLiveLocation = initLiveLocation();
         const unsubOutbox = initOutbox();
         const unsubVerification = initVerification();
+        const unsubPlugins = initPlugins();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -1600,6 +1602,7 @@
             unsubLiveLocation();
             unsubOutbox();
             unsubVerification();
+            unsubPlugins();
             unsubAccountData();
             unsubUpdateWatch();
             mq.removeEventListener("change", onMqChange);
