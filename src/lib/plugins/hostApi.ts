@@ -24,6 +24,10 @@ import {
     getPluginRoomSummary,
     getPluginRoomMembers,
     sendPluginSticker,
+    getOwnUserId,
+    getPluginRecentMessages,
+    uploadPluginMedia,
+    redactOwnEvent,
 } from "../matrix/client";
 
 export interface BuildHostApiOptions {
@@ -286,6 +290,18 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             getRoomSummary: (roomId) => getPluginRoomSummary(roomId),
             getMembers: (roomId) => getPluginRoomMembers(roomId),
             react: (roomId, eventId, key) => sendReaction(roomId, eventId, key),
+            getCurrentUserId: () => getOwnUserId(),
+            getRecentMessages: (roomId, limit) =>
+                getPluginRecentMessages(roomId, limit),
+            uploadMedia: async (file, opts) => ({
+                mxcUrl: await uploadPluginMedia(
+                    file,
+                    opts?.name ?? "upload",
+                    opts?.type,
+                ),
+            }),
+            redactOwn: (roomId, eventId, reason) =>
+                redactOwnEvent(roomId, eventId, reason),
         },
 
         storage,

@@ -153,12 +153,27 @@ export interface EventSubscription {
     handler: (payload: unknown) => void;
 }
 
+/** Plain, serializable recent-message summary — never a live MatrixEvent. */
+export interface PluginTimelineMessage {
+    eventId: string;
+    sender: string;
+    msgtype: string;
+    body: string;
+    timestamp: number;
+    isRedacted: boolean;
+    isOwn: boolean;
+}
+
 /** Plain, serializable room summary handed to plugins — never a live Room. */
 export interface PluginRoomSummary {
     roomId: string;
     name: string;
     topic: string | null;
     memberCount: number;
+    /** http avatar URL (already proxied from mxc), or null. */
+    avatarUrl: string | null;
+    /** m.room.join_rules value ("invite"/"public"/…); "invite" if unset. */
+    joinRule: string;
 }
 
 /** Plain member summary — never a live RoomMember. */
@@ -243,6 +258,28 @@ export interface ZamPluginApi {
         getRoomSummary(roomId: string): PluginRoomSummary | null;
         getMembers(roomId: string): PluginMemberSummary[];
         react(roomId: string, eventId: string, key: string): Promise<void>;
+        /** The logged-in user's Matrix ID, or null if not logged in. Lets a
+         *  decorator/handler tell "is this mine?" from a bare senderId. */
+        getCurrentUserId(): string | null;
+        /** Last `limit` renderable messages in the room (default 20, max 100),
+         *  chronological, as plain summaries — never live MatrixEvents. */
+        getRecentMessages(
+            roomId: string,
+            limit?: number,
+        ): PluginTimelineMessage[];
+        /** Upload a Blob/File and resolve to its `mxc://` URL, e.g. to then
+         *  `sendImage`. Rejects if not logged in / upload fails. */
+        uploadMedia(
+            file: Blob,
+            opts?: { name?: string; type?: string },
+        ): Promise<{ mxcUrl: string }>;
+        /** Redact one of YOUR OWN events (unsend). Rejects if the event is not
+         *  yours or not found — a plugin cannot redact others' messages here. */
+        redactOwn(
+            roomId: string,
+            eventId: string,
+            reason?: string,
+        ): Promise<void>;
     };
 
     storage: {

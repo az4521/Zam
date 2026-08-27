@@ -38,7 +38,15 @@ import type {
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
-import type { PluginRoomSummary, PluginMemberSummary } from "../plugins/types";
+import type {
+    PluginRoomSummary,
+    PluginMemberSummary,
+    PluginTimelineMessage,
+} from "../plugins/types";
+import {
+    selectRecentMessages,
+    type PluginTimelineRecord,
+} from "../plugins/pluginTimeline";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
@@ -5672,6 +5680,8 @@ export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
         name: room.name ?? roomId,
         topic: getRoomTopic(room),
         memberCount: getRoomMembers(room).length,
+        avatarUrl: getRoomAvatar(room),
+        joinRule: getJoinRule(room),
     };
 }
 
@@ -5685,6 +5695,65 @@ export function getPluginRoomMembers(roomId: string): PluginMemberSummary[] {
         avatarUrl: mxcToHttp(m.getMxcAvatarUrl() ?? null),
         powerLevel: m.powerLevel ?? 0,
     }));
+}
+
+/** Last `limit` renderable messages as plain summaries for plugins. */
+export function getPluginRecentMessages(
+    roomId: string,
+    limit?: number,
+): PluginTimelineMessage[] {
+    const room = getRoom(roomId);
+    if (!room) return [];
+    const ownUserId = matrixClient?.getUserId() ?? null;
+    const records: PluginTimelineRecord[] = getTimelineMessages(room).map(
+        (e) => {
+            const content = e.getContent() ?? {};
+            return {
+                eventId: e.getId() ?? "",
+                sender: e.getSender() ?? "",
+                msgtype:
+                    typeof content.msgtype === "string"
+                        ? content.msgtype
+                        : e.getType(),
+                body: typeof content.body === "string" ? content.body : "",
+                timestamp: e.getTs() ?? 0,
+                isRedacted: e.isRedacted(),
+            };
+        },
+    );
+    return selectRecentMessages(records, limit, ownUserId);
+}
+
+/** Upload a Blob/File; resolve to its mxc:// URL (plugin media pipeline). */
+export async function uploadPluginMedia(
+    file: Blob,
+    name: string,
+    type?: string,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { content_uri } = await matrixClient.uploadContent(file, {
+        name,
+        type: type ?? (file as File).type ?? undefined,
+    });
+    return content_uri;
+}
+
+/** Redact one of the user's OWN events. Throws if the event is not the
+ *  caller's own (a plugin must not redact others' messages via this surface). */
+export async function redactOwnEvent(
+    roomId: string,
+    eventId: string,
+    reason?: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = getRoom(roomId);
+    const ev = room?.findEventById(eventId);
+    const sender = ev?.getSender();
+    const me = matrixClient.getUserId();
+    if (!sender || sender !== me) {
+        throw new Error("redactOwn: event is not yours (or not found)");
+    }
+    await deleteMessage(roomId, eventId, reason);
 }
 
 export async function deleteMessage(
