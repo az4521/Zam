@@ -29,6 +29,7 @@
         type MessageActionKey,
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
+    import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
     import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
@@ -737,6 +738,17 @@
         return pluginMessageActions(pluginRegistry.messageActions, {
             roomId: room.roomId,
             eventId,
+        });
+    });
+
+    // Additive plugin decorations for THIS message (badges/tooltips overlaid
+    // on the row). Never touches body rendering (interop rule).
+    const decorations = $derived.by(() => {
+        void pluginRegistry.tick;
+        return collectDecorations(pluginRegistry.decorators, {
+            roomId: room.roomId,
+            eventId,
+            senderId,
         });
     });
 
@@ -1679,14 +1691,18 @@
                 {#if shield}
                     <EventShield {shield} />
                 {/if}
+                <MessageDecorations {decorations} />
             </div>
-        {:else if shield}
-            <!-- Grouped messages have no header row, but a shield must never
-                 vanish just because a message follows one from the same sender.
-                 This borrows the header row's shape so the badge lands in the
-                 same column position it would have had above. -->
+        {:else if shield || decorations.length}
+            <!-- Grouped messages have no header row, but a shield/decoration
+                 must never vanish just because a message follows one from the
+                 same sender. This borrows the header row's shape so the badges
+                 land in the same column position they would have had above. -->
             <div class="flex items-baseline gap-2 mb-0.5">
-                <EventShield {shield} />
+                {#if shield}
+                    <EventShield {shield} />
+                {/if}
+                <MessageDecorations {decorations} />
             </div>
         {/if}
 
