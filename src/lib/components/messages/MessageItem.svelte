@@ -112,6 +112,8 @@
         shouldRescanReplyTarget,
         type CachedReplyTarget,
     } from "$lib/utils/replyTargetLookup";
+    import { dispatchDoubleTap } from "$lib/plugins/pluginDispatch";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
 
     import {
         messagesState,
@@ -322,6 +324,13 @@
 
     async function runDoubleTapAction() {
         if (isFailed) return;
+        // Plugin double-tap handlers fire on any confirmed double-tap, regardless
+        // of the core action setting (item 16 migrates the core behavior). The
+        // isFailed guard above keeps them off unsent local echoes.
+        dispatchDoubleTap(
+            pluginRegistry.doubleTapHandlers.map((e) => e.value),
+            { roomId: room.roomId, eventId, isOwn: isOwnMessage },
+        );
         interfaceState.selectedMessageId = null;
         const action = isOwnMessage
             ? settingsState.ownDoubleTapAction
@@ -394,7 +403,9 @@
         const action = isOwnMessage
             ? settingsState.ownDoubleTapAction
             : settingsState.otherDoubleTapAction;
-        if (action === "none") return;
+        const hasPluginDoubleTap = pluginRegistry.doubleTapHandlers.length > 0;
+        // Nothing to do → don't steal the native word-select double-click.
+        if (action === "none" && !hasPluginDoubleTap) return;
         const target = e.target as Element | null;
         if (
             target?.closest(
