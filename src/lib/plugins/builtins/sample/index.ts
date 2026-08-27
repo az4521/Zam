@@ -24,6 +24,17 @@ export const manifest: Manifest = {
             label: "Greeting",
             default: "Hello from the sample plugin!",
         },
+        {
+            key: "phrases",
+            type: "list",
+            label: "Extra phrases",
+            description: "Repeatable rows to exercise the list field type.",
+            fields: [
+                { key: "text", type: "text", label: "Phrase" },
+                { key: "loud", type: "toggle", label: "Loud", default: false },
+            ],
+            default: [],
+        },
     ],
 };
 
