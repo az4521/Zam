@@ -18,6 +18,10 @@ import {
     manifest as gifPickerManifest,
     plugin as gifPickerPlugin,
 } from "./gif-picker/index";
+import {
+    manifest as stickerPickerManifest,
+    plugin as stickerPickerPlugin,
+} from "./sticker-picker/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -35,6 +39,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: gifPickerManifest,
         module: gifPickerPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: stickerPickerManifest,
+        module: stickerPickerPlugin,
         defaultEnabled: true,
     },
 ];
