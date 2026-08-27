@@ -88,3 +88,55 @@ export function parseSyncPayload(raw: unknown): PluginSyncPayload | null {
     }
     return out;
 }
+
+export interface PullSummary {
+    reposToAdd: string[];
+    toEnable: string[];
+    toDisable: string[];
+    settingsChanges: string[];
+    notInstalledHere: {
+        id: string;
+        source: "builtin" | "repo";
+        repoRef?: string;
+    }[];
+    autoUpdateChange: boolean | null;
+}
+
+function settingsEqual(
+    a?: Record<string, unknown>,
+    b?: Record<string, unknown>,
+): boolean {
+    return JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+}
+
+export function summarizePull(
+    remote: PluginSyncPayload,
+    local: LocalSyncSnapshot,
+): PullSummary {
+    const reposToAdd = remote.repos.filter((r) => !local.repos.includes(r));
+    const toEnable: string[] = [];
+    const toDisable: string[] = [];
+    const settingsChanges: string[] = [];
+    const notInstalledHere: PullSummary["notInstalledHere"] = [];
+
+    for (const [id, r] of Object.entries(remote.plugins)) {
+        const l = local.plugins[id];
+        if (!l) {
+            notInstalledHere.push({ id, source: r.source, repoRef: r.repoRef });
+            continue;
+        }
+        if (r.enabled && !l.enabled) toEnable.push(id);
+        if (!r.enabled && l.enabled) toDisable.push(id);
+        if (!settingsEqual(r.settings, l.settings)) settingsChanges.push(id);
+    }
+
+    return {
+        reposToAdd,
+        toEnable,
+        toDisable,
+        settingsChanges,
+        notInstalledHere,
+        autoUpdateChange:
+            remote.autoUpdate !== local.autoUpdate ? remote.autoUpdate : null,
+    };
+}
