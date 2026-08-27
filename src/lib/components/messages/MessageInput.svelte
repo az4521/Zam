@@ -54,6 +54,7 @@
         closeModal,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
     import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
@@ -86,6 +87,7 @@
         parseOpArg,
         parseDeopArg,
         resolveMentionTokens,
+        pluginCommandToSlash,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
     import { resolveUserArg } from "$lib/utils/userSearch";
@@ -425,8 +427,20 @@
     let slashQuery = $state<string | null>(null); // null = popup closed
     let slashSelectedIdx = $state(0);
 
+    // Plugin-contributed slash commands, adapted to SlashCommand and re-derived
+    // whenever the registry mutates (enable/disable). void the tick so the
+    // $derived tracks registry changes (see plugins.svelte.ts reactivity note).
+    const pluginSlashCommands = $derived.by((): SlashCommand[] => {
+        void pluginRegistry.tick;
+        return pluginRegistry.commands.map((e) =>
+            pluginCommandToSlash(e.value, e.pluginId),
+        );
+    });
+
     const slashCandidates = $derived.by((): SlashCommand[] =>
-        slashQuery === null ? [] : matchSlashCommands(slashQuery),
+        slashQuery === null
+            ? []
+            : matchSlashCommands(slashQuery, pluginSlashCommands),
     );
 
     $effect(() => {
@@ -890,6 +904,28 @@
         // immediately rather than waiting out the 20s window.
         lastTypingSentAt = 0;
 
+        // Plugin-provided command: run its handler instead of the core switch.
+        // Mirrors the action branch — no local echo, clear on success only.
+        if (command.pluginRun) {
+            isSending = true;
+            try {
+                await command.pluginRun({ roomId, arg });
+                text = "";
+                slashQuery = null;
+                mentionQuery = null;
+                pendingMentions = new Map();
+                clearDraft(effComposerKey);
+                renderComposer(0);
+            } catch (err) {
+                console.error(`Plugin command /${command.name} failed:`, err);
+                showErrorToast(matrixErrorMessage(err, "Command failed"));
+            } finally {
+                isSending = false;
+                textareaEl?.focus();
+            }
+            return;
+        }
+
         // Action commands call a client.ts wrapper; they aren't messages, so no
         // local echo. Clear the composer only on success.
         if (command.kind === "action") {
@@ -1036,7 +1072,7 @@
         // Slash-command dispatch — only when no files are queued (with files the
         // text is a caption, not a command).
         if (!isSending && !disabled && fileQueue.length === 0) {
-            const parsed = parseSlashCommand(text);
+            const parsed = parseSlashCommand(text, pluginSlashCommands);
             if (parsed && "unknown" in parsed) {
                 showErrorToast(`Unknown command: /${parsed.unknown}`);
                 return;
