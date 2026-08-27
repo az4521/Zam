@@ -22,10 +22,6 @@ import {
     type TimeClock,
     type DateStyle,
 } from "$lib/utils/timeFormat";
-import {
-    normalizeDoubleTapAction,
-    type DoubleTapAction,
-} from "$lib/utils/doubleTap";
 import { normalizeGifTab, type GifTab } from "$lib/utils/klipy";
 import {
     parseAudioMap,
@@ -130,24 +126,6 @@ function readPresence(key: string, fallback: PresenceState): PresenceState {
     return isPresenceState(v) ? v : fallback;
 }
 
-function readReactionOverrides(): Record<string, string> {
-    try {
-        const parsed = JSON.parse(
-            readAccountString("doubleTapReactionBySpace") ?? "{}",
-        );
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-            return {};
-        return Object.fromEntries(
-            Object.entries(parsed).filter(
-                (entry): entry is [string, string] =>
-                    typeof entry[1] === "string" && entry[1].length > 0,
-            ),
-        );
-    } catch {
-        return {};
-    }
-}
-
 function readThemePresets(): Record<string, CustomPreset> {
     try {
         const parsed = JSON.parse(readString("themePresets") ?? "{}");
@@ -208,18 +186,6 @@ export const settingsState = $state({
      *  the UI. Default OFF (display names). Rides customization sync so it
      *  follows the account across devices, like alwaysAbsolute. */
     showMatrixIds: readBool("showMatrixIds", false),
-    ownDoubleTapAction: normalizeDoubleTapAction(
-        readAccountString("ownDoubleTapAction"),
-        "none",
-        true,
-    ),
-    otherDoubleTapAction: normalizeDoubleTapAction(
-        readAccountString("otherDoubleTapAction"),
-        "none",
-        false,
-    ),
-    doubleTapReaction: readAccountString("doubleTapReaction") || "👍",
-    doubleTapReactionBySpace: readReactionOverrides(),
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
@@ -404,10 +370,6 @@ export function customizationSnapshot(): ClientCustomization {
         gifDefaultTab: settingsState.gifDefaultTab,
         keepSidebarOpen: settingsState.keepSidebarOpen,
         showMatrixIds: settingsState.showMatrixIds,
-        ownDoubleTapAction: settingsState.ownDoubleTapAction,
-        otherDoubleTapAction: settingsState.otherDoubleTapAction,
-        doubleTapReaction: settingsState.doubleTapReaction,
-        doubleTapReactionBySpace: { ...settingsState.doubleTapReactionBySpace },
         themePresets: Object.fromEntries(
             Object.entries(settingsState.themePresets).map(([k, v]) => [
                 k,
@@ -478,41 +440,6 @@ export function applyCustomization(c: ClientCustomization): void {
         settingsState.keepSidebarOpen = c.keepSidebarOpen;
         writeBool("keepSidebarOpen", c.keepSidebarOpen);
     }
-    if (c.ownDoubleTapAction !== undefined) {
-        settingsState.ownDoubleTapAction = normalizeDoubleTapAction(
-            c.ownDoubleTapAction,
-            "none",
-            true,
-        );
-        writeAccountString(
-            "ownDoubleTapAction",
-            settingsState.ownDoubleTapAction,
-        );
-    }
-    if (c.otherDoubleTapAction !== undefined) {
-        settingsState.otherDoubleTapAction = normalizeDoubleTapAction(
-            c.otherDoubleTapAction,
-            "none",
-            false,
-        );
-        writeAccountString(
-            "otherDoubleTapAction",
-            settingsState.otherDoubleTapAction,
-        );
-    }
-    if (c.doubleTapReaction) {
-        settingsState.doubleTapReaction = c.doubleTapReaction;
-        writeAccountString("doubleTapReaction", c.doubleTapReaction);
-    }
-    if (c.doubleTapReactionBySpace !== undefined) {
-        settingsState.doubleTapReactionBySpace = {
-            ...c.doubleTapReactionBySpace,
-        };
-        writeAccountString(
-            "doubleTapReactionBySpace",
-            JSON.stringify(settingsState.doubleTapReactionBySpace),
-        );
-    }
     if (c.themePresets !== undefined) {
         const clean: Record<string, CustomPreset> = {};
         for (const [name, preset] of Object.entries(c.themePresets)) {
@@ -543,19 +470,6 @@ export function applyCustomization(c: ClientCustomization): void {
 
 /** Reload settings whose meaning belongs to the active Matrix account. */
 export function reloadAccountSettings(): void {
-    settingsState.ownDoubleTapAction = normalizeDoubleTapAction(
-        readAccountString("ownDoubleTapAction"),
-        "none",
-        true,
-    );
-    settingsState.otherDoubleTapAction = normalizeDoubleTapAction(
-        readAccountString("otherDoubleTapAction"),
-        "none",
-        false,
-    );
-    settingsState.doubleTapReaction =
-        readAccountString("doubleTapReaction") || "👍";
-    settingsState.doubleTapReactionBySpace = readReactionOverrides();
     settingsState.privateReadReceipts = readAccountBool(
         "privateReadReceipts",
         false,
@@ -641,55 +555,6 @@ export function setShowMatrixIds(value: boolean): void {
     settingsState.showMatrixIds = value;
     writeBool("showMatrixIds", value);
     customizationChanged();
-}
-
-export function setOwnDoubleTapAction(value: DoubleTapAction): void {
-    settingsState.ownDoubleTapAction = normalizeDoubleTapAction(
-        value,
-        "none",
-        true,
-    );
-    writeAccountString("ownDoubleTapAction", settingsState.ownDoubleTapAction);
-    customizationChanged();
-}
-
-export function setOtherDoubleTapAction(value: DoubleTapAction): void {
-    settingsState.otherDoubleTapAction = normalizeDoubleTapAction(
-        value,
-        "none",
-        false,
-    );
-    writeAccountString(
-        "otherDoubleTapAction",
-        settingsState.otherDoubleTapAction,
-    );
-    customizationChanged();
-}
-
-export function setDoubleTapReaction(value: string): void {
-    if (!value) return;
-    settingsState.doubleTapReaction = value;
-    writeAccountString("doubleTapReaction", value);
-    customizationChanged();
-}
-
-export function setSpaceDoubleTapReaction(
-    spaceId: string,
-    value: string | null,
-): void {
-    const next = { ...settingsState.doubleTapReactionBySpace };
-    if (value) next[spaceId] = value;
-    else delete next[spaceId];
-    settingsState.doubleTapReactionBySpace = next;
-    writeAccountString("doubleTapReactionBySpace", JSON.stringify(next));
-    customizationChanged();
-}
-
-export function getDoubleTapReaction(spaceId: string | null): string {
-    return (
-        (spaceId && settingsState.doubleTapReactionBySpace[spaceId]) ||
-        settingsState.doubleTapReaction
-    );
 }
 
 export function setShowAllEvents(value: boolean): void {

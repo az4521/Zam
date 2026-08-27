@@ -7,12 +7,10 @@ describe("sanitizeCustomization", () => {
             sanitizeCustomization({
                 theme: "light",
                 alwaysAbsolute: true,
-                doubleTapReaction: "🔥",
             }),
         ).toEqual({
             theme: "light",
             alwaysAbsolute: true,
-            doubleTapReaction: "🔥",
         });
     });
 
@@ -31,20 +29,6 @@ describe("sanitizeCustomization", () => {
         expect(Object.keys(out)).toEqual(["theme"]);
     });
 
-    it("filters the per-space reaction map to non-empty strings", () => {
-        expect(
-            sanitizeCustomization({
-                doubleTapReactionBySpace: { a: "👍", b: "", c: 3, d: "🎉" },
-            }),
-        ).toEqual({ doubleTapReactionBySpace: { a: "👍", d: "🎉" } });
-    });
-
-    it("rejects a non-object map, including an array", () => {
-        expect(
-            sanitizeCustomization({ doubleTapReactionBySpace: ["👍"] }),
-        ).toEqual({});
-    });
-
     it("survives junk input", () => {
         expect(sanitizeCustomization(null)).toEqual({});
         expect(sanitizeCustomization("nope")).toEqual({});
@@ -60,10 +44,6 @@ describe("sanitizeCustomization", () => {
             alwaysAbsolute: false,
             gifDefaultTab: "favourites",
             keepSidebarOpen: true,
-            ownDoubleTapAction: "reaction",
-            otherDoubleTapAction: "none",
-            doubleTapReaction: "👍",
-            doubleTapReactionBySpace: { "!s:x": "🎉" },
         };
         expect(JSON.stringify(sanitizeCustomization(full))).toBe(
             JSON.stringify(full),

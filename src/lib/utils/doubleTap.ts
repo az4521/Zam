@@ -1,20 +1,7 @@
-export type DoubleTapAction = "none" | "reaction" | "reply" | "edit";
-
 export interface TapPoint {
     at: number;
     x: number;
     y: number;
-}
-
-export function normalizeDoubleTapAction(
-    value: string | null,
-    fallback: DoubleTapAction,
-    allowEdit: boolean,
-): DoubleTapAction {
-    if (value === "none" || value === "reaction" || value === "reply")
-        return value;
-    if (allowEdit && value === "edit") return value;
-    return fallback;
 }
 
 export function isDoubleTap(

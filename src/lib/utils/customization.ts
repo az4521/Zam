@@ -20,10 +20,6 @@ export interface ClientCustomization {
     gifDefaultTab?: string;
     keepSidebarOpen?: boolean;
     showMatrixIds?: boolean;
-    ownDoubleTapAction?: string;
-    otherDoubleTapAction?: string;
-    doubleTapReaction?: string;
-    doubleTapReactionBySpace?: Record<string, string>;
     themePresets?: Record<string, CustomPreset>;
     activePreset?: string;
 }
@@ -34,16 +30,6 @@ function str(v: unknown): string | undefined {
 
 function bool(v: unknown): boolean | undefined {
     return typeof v === "boolean" ? v : undefined;
-}
-
-function stringMap(v: unknown): Record<string, string> | undefined {
-    if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
-    return Object.fromEntries(
-        Object.entries(v).filter(
-            (e): e is [string, string] =>
-                typeof e[1] === "string" && e[1].length > 0,
-        ),
-    );
 }
 
 function themePresetsMap(v: unknown): Record<string, CustomPreset> | undefined {
@@ -82,10 +68,6 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         gifDefaultTab: str(r.gifDefaultTab),
         keepSidebarOpen: bool(r.keepSidebarOpen),
         showMatrixIds: bool(r.showMatrixIds),
-        ownDoubleTapAction: str(r.ownDoubleTapAction),
-        otherDoubleTapAction: str(r.otherDoubleTapAction),
-        doubleTapReaction: str(r.doubleTapReaction),
-        doubleTapReactionBySpace: stringMap(r.doubleTapReactionBySpace),
         themePresets: themePresetsMap(r.themePresets),
         activePreset: str(r.activePreset),
     };
