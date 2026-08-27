@@ -49,6 +49,20 @@ describe("mergeRepoList", () => {
         const list = mergeRepoList(["o/r", "O/R", "garbage ref"]);
         expect(list.map((r) => r.ref)).toEqual([OFFICIAL_REPO, "o/r"]);
     });
+
+    it("mergeRepoList drops the official repo entered as an uppercase slug", () => {
+        const merged = mergeRepoList(["Az4521/Zam-Plugins"]);
+        // exactly one entry, and it is the official (non-removable) one
+        const officialCount = merged.filter((r) => r.official).length;
+        expect(officialCount).toBe(1);
+        expect(merged.length).toBe(1);
+    });
+
+    it("mergeRepoList drops the official repo entered with an explicit @main", () => {
+        const merged = mergeRepoList(["az4521/zam-plugins@main"]);
+        expect(merged.length).toBe(1);
+        expect(merged[0].official).toBe(true);
+    });
 });
 
 describe("canAddRepo", () => {
@@ -77,6 +91,12 @@ describe("canAddRepo", () => {
     it("keeps a non-default branch in the normalized slug", () => {
         const r = canAddRepo([], "some/thing@dev");
         expect(r).toEqual({ ok: true, normalized: "some/thing@dev" });
+    });
+
+    it("canAddRepo rejects the official repo entered as a .git URL", () => {
+        const res = canAddRepo([], "https://github.com/az4521/zam-plugins.git");
+        expect(res.ok).toBe(false);
+        expect(res.reason).toMatch(/official/i);
     });
 });
 

@@ -365,4 +365,18 @@ describe("parseManifest", () => {
         const result = parseManifest(input);
         expect(result.capabilities).toEqual([]);
     });
+
+    it("throws on non-string minAppVersion", () => {
+        const base = {
+            id: "a.b",
+            name: "N",
+            version: "1.0.0",
+            description: "d",
+            author: "a",
+            entry: "main.js",
+        };
+        expect(() => parseManifest({ ...base, minAppVersion: 123 })).toThrow(
+            /minAppVersion/,
+        );
+    });
 });

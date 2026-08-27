@@ -385,4 +385,49 @@ describe("parseIndex", () => {
         expect(result).toHaveLength(1);
         expect(result[0].id).toBe("foo");
     });
+
+    it("parseIndex drops an entry missing path, keeps valid siblings", () => {
+        const out = parseIndex({
+            schema: 1,
+            plugins: [
+                {
+                    id: "ok",
+                    name: "OK",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                    path: "plugins/ok",
+                },
+                {
+                    id: "nopath",
+                    name: "No Path",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                },
+            ],
+        });
+        expect(out.map((e) => e.id)).toEqual(["ok"]);
+    });
+
+    it("parseIndex throws when schema is a string rather than number 1", () => {
+        expect(() => parseIndex({ schema: "1", plugins: [] })).toThrow();
+    });
+
+    it("parseIndex drops an entry with a whitespace-only field", () => {
+        const out = parseIndex({
+            schema: 1,
+            plugins: [
+                {
+                    id: "x",
+                    name: "X",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "   ",
+                    path: "p",
+                },
+            ],
+        });
+        expect(out).toEqual([]);
+    });
 });
