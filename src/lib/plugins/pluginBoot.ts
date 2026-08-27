@@ -21,7 +21,6 @@ import {
     serializePersistedState,
     emptyPersistedState,
     type PersistedPluginState,
-    type PersistedPluginEntry,
 } from "./pluginPersist";
 import type { PluginModule } from "./types";
 import type { Manifest } from "./manifest";
@@ -107,20 +106,23 @@ function repoBundleUrl(repoRef: string, manifest: Manifest): string {
     return rawUrl(ref, `plugins/${manifest.id}/${manifest.entry}`);
 }
 
-function repoLoadable(
-    manifest: Manifest,
-    repoRef: string,
-    bundleUrl: string,
-): LoadablePlugin {
+function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
     return {
         manifest,
         source: "repo",
         async load() {
+            const bundleUrl = repoBundleUrl(repoRef, manifest);
             const cached = await getCachedBundle(manifest.id);
             if (isCachedBundleUsable(cached, manifest.version)) {
                 return blobImport((cached as CachedBundle).code);
             }
-            const res = await fetch(bundleUrl);
+            let res: Response;
+            try {
+                res = await fetch(bundleUrl);
+            } catch (e) {
+                if (cached) return blobImport(cached.code);
+                throw e;
+            }
             if (!res.ok) {
                 // Offline / 404: fall back to a stale cache if we have one.
                 if (cached) return blobImport(cached.code);
@@ -165,7 +167,6 @@ export function initPlugins(): () => void {
     for (const [id, entry] of Object.entries(state.plugins)) {
         if (entry.source !== "repo" || !entry.manifest || !entry.repoRef)
             continue;
-        const bundleUrl = repoBundleUrl(entry.repoRef, entry.manifest);
         setInstalledPlugin({
             manifest: entry.manifest,
             source: "repo",
@@ -173,7 +174,7 @@ export function initPlugins(): () => void {
             error: null,
             repoRef: entry.repoRef,
         });
-        const l = repoLoadable(entry.manifest, entry.repoRef, bundleUrl);
+        const l = repoLoadable(entry.manifest, entry.repoRef);
         loadables.set(id, l);
         if (entry.enabled) toBoot.push(l);
     }
