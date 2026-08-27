@@ -185,6 +185,15 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     );
                 }
             },
+            insertText: (ctx) => {
+                if (hostBridge.insertText) {
+                    hostBridge.insertText(ctx);
+                } else {
+                    console.warn(
+                        "[zam] composer.insertText is not wired yet (no composer mounted)",
+                    );
+                }
+            },
         },
 
         messages: {

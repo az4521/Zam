@@ -21,4 +21,9 @@ export const hostBridge = {
     startReply: null as
         | null
         | ((ctx: { roomId: string; eventId: string }) => void),
+    /** Set by the GIF-picker migration (item 14) — appends text to the active
+     *  main composer for a room (URL-as-text rail). */
+    insertText: null as
+        | null
+        | ((ctx: { roomId: string; text: string }) => void),
 };

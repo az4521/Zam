@@ -174,6 +174,9 @@ export interface ZamPluginApi {
         addButton(btn: ComposerButton): Disposable;
         addAction(action: ComposerAction): Disposable;
         startReply(ctx: { roomId: string; eventId: string }): void;
+        /** Append text to the active composer for the room (URL-as-text rail).
+         *  Targets the main composer; no-op if none is mounted for the room. */
+        insertText(ctx: { roomId: string; text: string }): void;
     };
 
     messages: {

@@ -39,10 +39,12 @@
         buildTextContent,
         buildFormattedContent,
     } from "$lib/utils/messageContent";
+    import { composerInsertText } from "$lib/utils/composerInsert";
     import {
         applyTextTransforms,
         applyContentTransforms,
     } from "$lib/plugins/outgoingTransforms";
+    import { hostBridge } from "$lib/plugins/hostBridge";
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
@@ -181,6 +183,27 @@
             };
         }
     });
+
+    // Plugin composer.insertText → append to THIS (main) composer's text.
+    // Only the main composer claims the global slot (mirrors focusComposer).
+    // roomId-guarded so a stale handler from a previous room drops silently.
+    // `text` is read inside the handler (a user-action callback), NOT the
+    // effect body, so the effect depends only on roomId — no re-register per
+    // keystroke, no effect_update_depth issues.
+    $effect(() => {
+        if (isThread) return;
+        const rid = roomId;
+        const handler = (ctx: { roomId: string; text: string }) => {
+            if (ctx.roomId !== rid) return;
+            setComposerText(composerInsertText(text, ctx.text));
+            textareaEl?.focus();
+        };
+        hostBridge.insertText = handler;
+        return () => {
+            if (hostBridge.insertText === handler) hostBridge.insertText = null;
+        };
+    });
+
     let fileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
