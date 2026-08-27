@@ -137,11 +137,14 @@
     async function doApplyPull() {
         if (!pullPayload) return;
         syncBusy = true;
-        await applyPull(pullPayload);
-        syncBusy = false;
-        pullSummary = null;
-        pullPayload = null;
-        syncMessage = "Applied the synced plugin set.";
+        try {
+            await applyPull(pullPayload);
+            pullSummary = null;
+            pullPayload = null;
+            syncMessage = "Applied the synced plugin set.";
+        } finally {
+            syncBusy = false;
+        }
     }
 
     // Global auto-update toggle
@@ -163,6 +166,7 @@
     async function doUpdate(id: string) {
         updateBusy[id] = true;
         await updateRepoPlugin(id);
+        refreshUpdates();
         updateBusy[id] = false;
     }
 
@@ -361,6 +365,13 @@
                             : "off"}
                     </p>
                 {/if}
+                {#if pullSummary.autoUpdateOverrides.length}
+                    <p class="text-discord-textSecondary">
+                        Set per-plugin auto-update: {pullSummary.autoUpdateOverrides
+                            .map((o) => `${o.id}=${o.value ? "on" : "off"}`)
+                            .join(", ")}
+                    </p>
+                {/if}
                 {#if pullSummary.notInstalledHere.length}
                     <p class="text-discord-textMuted text-xs">
                         Not installed on this device (install from Browse, then
@@ -369,7 +380,7 @@
                             .join(", ")}
                     </p>
                 {/if}
-                {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null}
+                {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null && pullSummary.autoUpdateOverrides.length === 0}
                     <p class="text-discord-textSecondary">
                         Nothing to change; already in sync.
                     </p>

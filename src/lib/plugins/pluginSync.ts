@@ -100,6 +100,7 @@ export interface PullSummary {
         repoRef?: string;
     }[];
     autoUpdateChange: boolean | null;
+    autoUpdateOverrides: { id: string; value: boolean }[];
 }
 
 function settingsEqual(
@@ -118,6 +119,7 @@ export function summarizePull(
     const toDisable: string[] = [];
     const settingsChanges: string[] = [];
     const notInstalledHere: PullSummary["notInstalledHere"] = [];
+    const autoUpdateOverrides: { id: string; value: boolean }[] = [];
 
     for (const [id, r] of Object.entries(remote.plugins)) {
         const l = local.plugins[id];
@@ -128,6 +130,12 @@ export function summarizePull(
         if (r.enabled && !l.enabled) toEnable.push(id);
         if (!r.enabled && l.enabled) toDisable.push(id);
         if (!settingsEqual(r.settings, l.settings)) settingsChanges.push(id);
+        if (
+            typeof r.autoUpdate === "boolean" &&
+            r.autoUpdate !== l.autoUpdate
+        ) {
+            autoUpdateOverrides.push({ id, value: r.autoUpdate });
+        }
     }
 
     return {
@@ -138,5 +146,6 @@ export function summarizePull(
         notInstalledHere,
         autoUpdateChange:
             remote.autoUpdate !== local.autoUpdate ? remote.autoUpdate : null,
+        autoUpdateOverrides,
     };
 }

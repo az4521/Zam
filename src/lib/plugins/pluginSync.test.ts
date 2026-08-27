@@ -209,5 +209,47 @@ describe("summarizePull", () => {
         expect(same.settingsChanges).toEqual([]);
         expect(same.notInstalledHere).toEqual([]);
         expect(same.autoUpdateChange).toBeNull();
+        expect(same.autoUpdateOverrides).toEqual([]);
+    });
+    it("reports per-plugin autoUpdate overrides when remote differs from local", () => {
+        const s = summarizePull(
+            {
+                version: 1,
+                repos: ["a/b"],
+                autoUpdate: false,
+                plugins: {
+                    turnOn: {
+                        enabled: true,
+                        source: "repo",
+                        autoUpdate: true,
+                    },
+                    turnOff: {
+                        enabled: true,
+                        source: "repo",
+                        autoUpdate: false,
+                    },
+                },
+            },
+            {
+                repos: ["a/b"],
+                autoUpdate: false,
+                plugins: {
+                    turnOn: { enabled: true, source: "repo" },
+                    turnOff: {
+                        enabled: true,
+                        source: "repo",
+                        autoUpdate: true,
+                    },
+                },
+            },
+        );
+        expect(s.autoUpdateOverrides).toContainEqual({
+            id: "turnOn",
+            value: true,
+        });
+        expect(s.autoUpdateOverrides).toContainEqual({
+            id: "turnOff",
+            value: false,
+        });
     });
 });
