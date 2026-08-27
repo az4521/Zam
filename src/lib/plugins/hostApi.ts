@@ -41,7 +41,7 @@ export interface PluginHost {
 }
 
 function warnNoopDisposable(what: string): Disposable {
-    console.warn(`[zam] ${what} is not wired yet — pending a later build item`);
+    console.warn(`[zam] ${what} is not wired yet (pending a later build item)`);
     return { dispose() {} };
 }
 
