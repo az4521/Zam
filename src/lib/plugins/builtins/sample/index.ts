@@ -115,6 +115,35 @@ export const plugin: PluginModule = {
                 tooltip: "Added by the sample plugin",
             })),
         );
+
+        disposables.push(
+            zam.room.addHeaderButton({
+                id: "sample-panel",
+                label: "Sample panel",
+                icon: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4v10h16V8H4z",
+                render(el, { roomId }) {
+                    const box = document.createElement("div");
+                    box.className = "p-3 text-sm text-discord-textPrimary";
+                    box.setAttribute("data-testid", "sample-panel");
+                    box.textContent = `Sample panel for ${roomId}`;
+                    el.appendChild(box);
+                    return () => box.remove();
+                },
+            }),
+        );
+
+        disposables.push(
+            zam.shortcuts.register({
+                keys: "Ctrl+Shift+Y",
+                description: "Sample plugin: fire a notification",
+                run() {
+                    zam.ui.notify({
+                        title: "Sample plugin",
+                        body: "Shortcut Ctrl+Shift+Y fired.",
+                    });
+                },
+            }),
+        );
     },
     onunload() {
         for (const d of disposables) d.dispose();
