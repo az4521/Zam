@@ -16,7 +16,7 @@ export const manifest: Manifest = {
     description: "A built-in demo plugin: one slash command and one setting.",
     author: "Zam",
     entry: "builtin",
-    capabilities: ["commands"],
+    capabilities: ["commands", "composer", "ui"],
     settings: [
         {
             key: "greeting",
@@ -53,6 +53,44 @@ export const plugin: PluginModule = {
                         "Hello!",
                     );
                     zam.ui.notify({ title: "Sample plugin", body: greeting });
+                },
+            }),
+        );
+
+        disposables.push(
+            zam.composer.addButton({
+                id: "sample-popover",
+                label: "Sample popover",
+                icon: "M4 4h16v12H5.17L4 17.17V4zm2 3v2h12V7H6zm0 4v2h8v-2H6z",
+                onClick({ anchor }) {
+                    zam.ui.openPopover({
+                        anchor,
+                        render(el) {
+                            const box = document.createElement("div");
+                            box.className = "p-3 text-sm w-56";
+                            box.setAttribute("data-testid", "sample-popover");
+                            box.textContent = zam.settings.get<string>(
+                                "greeting",
+                                "Hello from the sample plugin!",
+                            );
+                            el.appendChild(box);
+                            return () => box.remove();
+                        },
+                    });
+                },
+            }),
+        );
+
+        disposables.push(
+            zam.composer.addAction({
+                id: "sample-action",
+                label: "Sample action",
+                icon: "M12 2 15 9l7 .5-5.5 4.5L18 22l-6-4-6 4 1.5-8L2 9.5 9 9z",
+                onSelect() {
+                    zam.ui.notify({
+                        title: "Sample plugin",
+                        body: "Composer action fired.",
+                    });
                 },
             }),
         );
