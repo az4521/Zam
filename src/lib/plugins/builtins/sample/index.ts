@@ -16,7 +16,7 @@ export const manifest: Manifest = {
     description: "A built-in demo plugin: one slash command and one setting.",
     author: "Zam",
     entry: "builtin",
-    capabilities: ["commands", "composer", "ui"],
+    capabilities: ["commands", "composer", "ui", "messages:read"],
     settings: [
         {
             key: "greeting",
@@ -93,6 +93,27 @@ export const plugin: PluginModule = {
                     });
                 },
             }),
+        );
+
+        disposables.push(
+            zam.messages.addAction({
+                id: "sample-msg-action",
+                label: "Sample message action",
+                icon: "M12 2 15 9l7 .5-5.5 4.5L18 22l-6-4-6 4 1.5-8L2 9.5 9 9z",
+                onSelect({ eventId }) {
+                    zam.ui.notify({
+                        title: "Sample plugin",
+                        body: `Message action on ${eventId}`,
+                    });
+                },
+            }),
+        );
+
+        disposables.push(
+            zam.messages.decorate(() => ({
+                badge: "sample",
+                tooltip: "Added by the sample plugin",
+            })),
         );
     },
     onunload() {
