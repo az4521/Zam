@@ -10,10 +10,11 @@ export interface PersistedPluginEntry {
 export interface PersistedPluginState {
     version: 1;
     plugins: Record<string, PersistedPluginEntry>;
+    repos: string[];
 }
 
 export function emptyPersistedState(): PersistedPluginState {
-    return { version: 1, plugins: {} };
+    return { version: 1, plugins: {}, repos: [] };
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -45,6 +46,11 @@ export function parsePersistedState(raw: string | null): PersistedPluginState {
         if (isPlainObject(rawEntry.manifest))
             entry.manifest = rawEntry.manifest as unknown as Manifest;
         out.plugins[id] = entry;
+    }
+    if (Array.isArray(data.repos)) {
+        out.repos = data.repos.filter(
+            (r): r is string => typeof r === "string",
+        );
     }
     return out;
 }

@@ -56,3 +56,35 @@ describe("parsePersistedState", () => {
         );
     });
 });
+
+describe("repos persistence", () => {
+    it("emptyPersistedState has an empty repos array", () => {
+        expect(emptyPersistedState().repos).toEqual([]);
+    });
+    it("parses a repos string array", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {},
+            repos: ["a/b", "c/d@dev"],
+        });
+        expect(parsePersistedState(raw).repos).toEqual(["a/b", "c/d@dev"]);
+    });
+    it("drops non-string repo entries", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {},
+            repos: ["a/b", 5, null, "c/d"],
+        });
+        expect(parsePersistedState(raw).repos).toEqual(["a/b", "c/d"]);
+    });
+    it("defaults repos to [] when absent (back-compat)", () => {
+        const raw = JSON.stringify({ version: 1, plugins: {} });
+        expect(parsePersistedState(raw).repos).toEqual([]);
+    });
+    it("round-trips repos through serialize/parse", () => {
+        const state = { version: 1 as const, plugins: {}, repos: ["x/y"] };
+        expect(
+            parsePersistedState(serializePersistedState(state)).repos,
+        ).toEqual(["x/y"]);
+    });
+});
