@@ -4,7 +4,6 @@
     import {
         sendTextMessage,
         sendFormattedMessage,
-        sendSticker,
         sendFile,
         getMemberName,
         getMemberAvatar,
@@ -30,7 +29,6 @@
         sendThreadReply,
         sendEventContent,
         type CustomEmoji,
-        type CustomSticker,
     } from "$lib/matrix/client";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
@@ -49,7 +47,6 @@
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
-    import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -101,13 +98,7 @@
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { suppressNextClick } from "$lib/utils/suppressNextClick";
-    import {
-        Loader2,
-        Plus,
-        Sticker,
-        Smile,
-        SendHorizontal,
-    } from "lucide-svelte";
+    import { Loader2, Plus, Smile, SendHorizontal } from "lucide-svelte";
 
     interface Props {
         roomId: string;
@@ -608,11 +599,6 @@
             interfaceState.composerPicker === "emoji" &&
             interfaceState.composerPickerOwner === effComposerKey,
     );
-    const showStickerPicker = $derived(
-        composerPickerOpen &&
-            interfaceState.composerPicker === "sticker" &&
-            interfaceState.composerPickerOwner === effComposerKey,
-    );
     // Mirrors the send button's own disabled condition so the button can go
     // accent-coloured the moment the message becomes sendable.
     const canSend = $derived(
@@ -650,14 +636,14 @@
         return composerPickerOpen;
     }
 
-    function openPicker(which: "emoji" | "sticker") {
+    function openPicker(which: "emoji") {
         if (!anyPickerOpen()) {
             textareaFocusedBeforePicker = document.activeElement === textareaEl;
         }
         openComposerPicker(which, effComposerKey);
     }
 
-    function closePicker(_which: "emoji" | "sticker", refocus: boolean) {
+    function closePicker(_which: "emoji", refocus: boolean) {
         closeModal();
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
     }
@@ -1502,23 +1488,6 @@
         textareaEl?.focus();
     }
 
-    async function sendStickerMessage(sticker: CustomSticker) {
-        if (isSending || disabled) return;
-        isSending = true;
-        try {
-            await sendSticker(
-                roomId,
-                sticker,
-                isThread ? { rootEventId: threadRootId! } : undefined,
-            );
-        } catch (err) {
-            console.error("Failed to send sticker:", err);
-        } finally {
-            isSending = false;
-            textareaEl?.focus();
-        }
-    }
-
     function enqueueFile(file: File, defaultName?: string) {
         const name = file.name || defaultName || "file";
         const previewUrl = file.type.startsWith("image/")
@@ -2012,56 +1981,6 @@
                 class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
 
-            <!-- Sticker button -->
-            <!-- Wrapper `hidden` on touch mirrors the button's own `hidden` so no dead flex gap remains. -->
-            <div
-                class="flex-shrink-0 {interfaceState.isTouchscreen &&
-                !showStickerPicker
-                    ? 'hidden'
-                    : ''}"
-            >
-                <button
-                    onclick={() => openPicker("sticker")}
-                    class="{interfaceState.isTouchscreen
-                        ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Stickers"
-                    {disabled}
-                >
-                    <Sticker size={20} />
-                </button>
-                {#if showStickerPicker}
-                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                    <div
-                        class="fixed inset-0 z-40"
-                        onclick={closeModal}
-                        onkeydown={closeModal}
-                    ></div>
-                    {#if interfaceState.isTouchscreen}
-                        <div
-                            class="fixed left-0 right-0 z-50"
-                            style="bottom: {keyboardOffset}px;"
-                        >
-                            <StickerPicker
-                                {room}
-                                onSelect={sendStickerMessage}
-                                onClose={() => closePicker("sticker", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                            />
-                        </div>
-                    {:else}
-                        <div class="absolute bottom-full right-0 mb-2 z-50">
-                            <StickerPicker
-                                {room}
-                                onSelect={sendStickerMessage}
-                                onClose={() => closePicker("sticker", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                            />
-                        </div>
-                    {/if}
-                {/if}
-            </div>
-
             <!-- Emoji button -->
             <div class="flex-shrink-0">
                 <button
@@ -2087,7 +2006,6 @@
                                 onSelect={insertEmoji}
                                 onSelectCustom={insertCustomEmoji}
                                 onClose={() => closePicker("emoji", true)}
-                                onSwitchToSticker={() => openPicker("sticker")}
                             />
                         </div>
                     {:else}
@@ -2097,7 +2015,6 @@
                                 onSelect={insertEmoji}
                                 onSelectCustom={insertCustomEmoji}
                                 onClose={() => closePicker("emoji", true)}
-                                onSwitchToSticker={() => openPicker("sticker")}
                             />
                         </div>
                     {/if}
