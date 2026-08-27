@@ -21,16 +21,9 @@
         onSelect: (sticker: CustomSticker) => void;
         onClose: () => void;
         onSwitchToEmoji?: () => void;
-        onSwitchToGif?: () => void;
     }
 
-    let {
-        room = null,
-        onSelect,
-        onClose,
-        onSwitchToEmoji,
-        onSwitchToGif,
-    }: Props = $props();
+    let { room = null, onSelect, onClose, onSwitchToEmoji }: Props = $props();
 
     let search = $state("");
     let activeTab = $state("");
@@ -375,11 +368,6 @@
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
                 >Stickers</button
             >
-            {#if onSwitchToGif}<button
-                    onclick={onSwitchToGif}
-                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >GIFs</button
-                >{/if}
         </div>
     {/if}
     <!-- Search -->

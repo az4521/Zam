@@ -50,7 +50,6 @@
     import { ALL_EMOJIS } from "$lib/data/emojis";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
-    import GifPicker from "$lib/components/ui/GifPicker.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -105,7 +104,6 @@
     import {
         Loader2,
         Plus,
-        ImagePlay,
         Sticker,
         Smile,
         SendHorizontal,
@@ -611,11 +609,6 @@
             interfaceState.composerPicker === "sticker" &&
             interfaceState.composerPickerOwner === effComposerKey,
     );
-    const showGifPicker = $derived(
-        composerPickerOpen &&
-            interfaceState.composerPicker === "gif" &&
-            interfaceState.composerPickerOwner === effComposerKey,
-    );
     // Mirrors the send button's own disabled condition so the button can go
     // accent-coloured the moment the message becomes sendable.
     const canSend = $derived(
@@ -653,17 +646,14 @@
         return composerPickerOpen;
     }
 
-    function openPicker(which: "emoji" | "sticker" | "gif") {
+    function openPicker(which: "emoji" | "sticker") {
         if (!anyPickerOpen()) {
             textareaFocusedBeforePicker = document.activeElement === textareaEl;
         }
         openComposerPicker(which, effComposerKey);
     }
 
-    function closePicker(
-        _which: "emoji" | "sticker" | "gif",
-        refocus: boolean,
-    ) {
+    function closePicker(_which: "emoji" | "sticker", refocus: boolean) {
         closeModal();
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
     }
@@ -1496,13 +1486,6 @@
         }
     }
 
-    function insertGif(url: string) {
-        const next = text ? text + " " + url : url;
-        setComposerText(next);
-        closeModal();
-        textareaEl?.focus();
-    }
-
     function insertEmoji(emoji: string) {
         setComposerText(text + emoji);
         closeModal();
@@ -2025,62 +2008,6 @@
                 class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
 
-            <!-- GIF picker button -->
-            <!-- `hidden` goes on the WRAPPER too: hiding only the button leaves
-                 an empty flex item behind, and the row's gap-2 then reserves 8px
-                 of dead space on touchscreens. Gated on the picker being CLOSED
-                 because the GIF picker is also reachable on touch via another
-                 picker's tab strip (onSwitchToGif), and display:none on the
-                 wrapper would hide that picker's subtree with it. The button
-                 keeps its own `hidden` so it never becomes visible on touch. -->
-            <div
-                class="flex-shrink-0 {interfaceState.isTouchscreen &&
-                !showGifPicker
-                    ? 'hidden'
-                    : ''}"
-            >
-                <button
-                    onclick={() => openPicker("gif")}
-                    {disabled}
-                    class="{interfaceState.isTouchscreen
-                        ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Favourite GIFs"
-                >
-                    <ImagePlay size={20} />
-                </button>
-                {#if showGifPicker}
-                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                    <div
-                        class="fixed inset-0 z-40"
-                        onclick={closeModal}
-                        onkeydown={closeModal}
-                    ></div>
-                    {#if interfaceState.isTouchscreen}
-                        <div
-                            class="fixed left-0 right-0 z-50"
-                            style="bottom: {keyboardOffset}px;"
-                        >
-                            <GifPicker
-                                onSelect={insertGif}
-                                onClose={() => closePicker("gif", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToSticker={() => openPicker("sticker")}
-                            />
-                        </div>
-                    {:else}
-                        <div class="absolute bottom-full right-0 mb-2 z-50">
-                            <GifPicker
-                                onSelect={insertGif}
-                                onClose={() => closePicker("gif", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToSticker={() => openPicker("sticker")}
-                            />
-                        </div>
-                    {/if}
-                {/if}
-            </div>
-
             <!-- Sticker button -->
             <!-- Same wrapper treatment as the GIF button above. -->
             <div
@@ -2116,7 +2043,6 @@
                                 onSelect={sendStickerMessage}
                                 onClose={() => closePicker("sticker", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToGif={() => openPicker("gif")}
                             />
                         </div>
                     {:else}
@@ -2126,7 +2052,6 @@
                                 onSelect={sendStickerMessage}
                                 onClose={() => closePicker("sticker", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToGif={() => openPicker("gif")}
                             />
                         </div>
                     {/if}
@@ -2159,7 +2084,6 @@
                                 onSelectCustom={insertCustomEmoji}
                                 onClose={() => closePicker("emoji", true)}
                                 onSwitchToSticker={() => openPicker("sticker")}
-                                onSwitchToGif={() => openPicker("gif")}
                             />
                         </div>
                     {:else}
@@ -2170,7 +2094,6 @@
                                 onSelectCustom={insertCustomEmoji}
                                 onClose={() => closePicker("emoji", true)}
                                 onSwitchToSticker={() => openPicker("sticker")}
-                                onSwitchToGif={() => openPicker("gif")}
                             />
                         </div>
                     {/if}
