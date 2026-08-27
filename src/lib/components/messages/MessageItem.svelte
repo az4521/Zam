@@ -158,10 +158,7 @@
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
-    import {
-        settingsState,
-        getDoubleTapReaction,
-    } from "$lib/stores/settings.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
@@ -327,46 +324,16 @@
         showForwardDialog = true;
     }
 
-    async function runDoubleTapAction() {
+    function runDoubleTapAction() {
         if (isFailed) return;
-        // Plugin double-tap handlers fire on any confirmed double-tap, regardless
-        // of the core action setting (item 16 migrates the core behavior). The
-        // isFailed guard above keeps them off unsent local echoes.
+        // Double-tap behavior lives in the double-tap-reply built-in plugin
+        // (item 16). Core only detects the gesture and dispatches; the isFailed
+        // guard keeps it off unsent local echoes.
         dispatchDoubleTap(
             pluginRegistry.doubleTapHandlers.map((e) => e.value),
             { roomId: room.roomId, eventId, isOwn: isOwnMessage },
         );
         interfaceState.selectedMessageId = null;
-        const action = isOwnMessage
-            ? settingsState.ownDoubleTapAction
-            : settingsState.otherDoubleTapAction;
-        if (action === "none") return;
-        if (action === "reply") {
-            onReply(event);
-            return;
-        }
-        if (action === "edit") {
-            if (
-                isOwnMessage &&
-                eventType === "m.room.message" &&
-                msgtype === "m.text"
-            ) {
-                startEdit();
-                tick().then(() => editTextareaEl?.focus());
-            }
-            return;
-        }
-        try {
-            await sendReaction(
-                room.roomId,
-                eventId,
-                getDoubleTapReaction(roomsState.activeSpaceId),
-            );
-        } catch (err) {
-            showErrorToast(
-                err instanceof Error ? err.message : "Failed to react",
-            );
-        }
     }
 
     function onMessageTouchEnd(e: TouchEvent) {
@@ -401,16 +368,12 @@
     }
 
     // Mouse equivalent of the touch double-tap. A desktop dblclick would
-    // normally select a word; when a double-tap action is configured we run it
-    // instead (clearing the incidental selection). "none" leaves word-select.
+    // normally select a word; only steal it when a double-tap plugin handler
+    // is registered (the double-tap-reply plugin registers one only while an
+    // action is configured). No handler → leave native word-select.
     function onMessageDblClick(e: MouseEvent) {
         if (interfaceState.isTouchscreen) return;
-        const action = isOwnMessage
-            ? settingsState.ownDoubleTapAction
-            : settingsState.otherDoubleTapAction;
-        const hasPluginDoubleTap = pluginRegistry.doubleTapHandlers.length > 0;
-        // Nothing to do → don't steal the native word-select double-click.
-        if (action === "none" && !hasPluginDoubleTap) return;
+        if (pluginRegistry.doubleTapHandlers.length === 0) return;
         const target = e.target as Element | null;
         if (
             target?.closest(
