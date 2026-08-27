@@ -5,6 +5,8 @@
  * transforms, so it can be unit-tested in isolation.
  */
 
+import type { PluginCommand } from "$lib/plugins/types";
+
 export type CommandArgKind = "none" | "text" | "user" | "roomAlias";
 
 /** How MessageInput dispatches a matched command. */
@@ -29,6 +31,12 @@ export interface SlashCommand {
     transform?: (arg: string) => string;
     /** text-transform only: send verbatim, bypassing markdown/formatting. */
     plain?: boolean;
+    /** plugin commands only: the id of the plugin that registered this command
+     *  (dispatch routing + error attribution). Absent on core commands. */
+    pluginId?: string;
+    /** plugin commands only: the handler MessageInput calls instead of the core
+     *  dispatch switch. Its presence marks a command as plugin-provided. */
+    pluginRun?: (ctx: { roomId: string; arg: string }) => void | Promise<void>;
 }
 
 const SHRUG = "¯\\_(ツ)_/¯";
@@ -191,9 +199,55 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
 ];
 
-function findCommand(name: string): SlashCommand | undefined {
+/** Adapt a plugin's command into a `SlashCommand` the pure matchers + the
+ *  MessageInput dispatch understand. Names/aliases are lowercased (findCommand
+ *  lowercases lookups). Plugin commands are always `kind:"action"`, validate
+ *  their own args (no requiresArg), and carry `pluginRun` for dispatch. */
+export function pluginCommandToSlash(
+    cmd: PluginCommand,
+    pluginId: string,
+): SlashCommand {
+    const argKind = cmd.argKind ?? "none";
+    return {
+        name: cmd.name.toLowerCase(),
+        aliases: cmd.aliases?.map((a) => a.toLowerCase()),
+        description: cmd.description,
+        argKind,
+        argHint: argKind === "none" ? undefined : "<arg>",
+        kind: "action",
+        pluginId,
+        pluginRun: cmd.run,
+    };
+}
+
+/** Merge core commands with plugin `extra`, core-precedence. A plugin command
+ *  whose name collides with a core name/alias (or an earlier plugin's name) is
+ *  dropped — a plugin can never shadow `/ban`, `/poll`, etc. */
+export function mergeSlashCommands(
+    core: SlashCommand[],
+    extra: SlashCommand[],
+): SlashCommand[] {
+    const taken = new Set<string>();
+    for (const c of core) {
+        taken.add(c.name);
+        for (const a of c.aliases ?? []) taken.add(a);
+    }
+    const merged = [...core];
+    for (const e of extra) {
+        if (taken.has(e.name)) continue;
+        taken.add(e.name);
+        for (const a of e.aliases ?? []) taken.add(a);
+        merged.push(e);
+    }
+    return merged;
+}
+
+function findCommand(
+    name: string,
+    extra: SlashCommand[] = [],
+): SlashCommand | undefined {
     const lower = name.toLowerCase();
-    return SLASH_COMMANDS.find(
+    return mergeSlashCommands(SLASH_COMMANDS, extra).find(
         (c) => c.name === lower || (c.aliases ?? []).some((a) => a === lower),
     );
 }
@@ -209,6 +263,7 @@ export type ParsedCommand = { command: SlashCommand; arg: string };
  */
 export function parseSlashCommand(
     text: string,
+    extra: SlashCommand[] = [],
 ): ParsedCommand | { unknown: string } | null {
     const start = text.replace(/^\s+/, "");
     if (!start.startsWith("/")) return null;
@@ -217,7 +272,7 @@ export function parseSlashCommand(
     if (!m) return null; // bare "/" or "/@#!"
     const name = m[1].toLowerCase();
     const arg = m[2].trim();
-    const command = findCommand(name);
+    const command = findCommand(name, extra);
     if (!command) return { unknown: name };
     return { command, arg };
 }
@@ -226,10 +281,14 @@ export function parseSlashCommand(
  * Candidates for the autocomplete popup. A leading slash in the query is
  * tolerated. Empty query returns the whole registry (in order).
  */
-export function matchSlashCommands(query: string): SlashCommand[] {
+export function matchSlashCommands(
+    query: string,
+    extra: SlashCommand[] = [],
+): SlashCommand[] {
+    const all = mergeSlashCommands(SLASH_COMMANDS, extra);
     const q = query.replace(/^\//, "").toLowerCase();
-    if (q === "") return [...SLASH_COMMANDS];
-    return SLASH_COMMANDS.filter(
+    if (q === "") return [...all];
+    return all.filter(
         (c) =>
             c.name.startsWith(q) ||
             (c.aliases ?? []).some((a) => a.startsWith(q)),
