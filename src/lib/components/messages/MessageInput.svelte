@@ -4,7 +4,6 @@
     import {
         sendTextMessage,
         sendFormattedMessage,
-        sendReply,
         sendSticker,
         sendFile,
         getMemberName,
@@ -29,6 +28,7 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
+        sendEventContent,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
@@ -39,6 +39,10 @@
         buildTextContent,
         buildFormattedContent,
     } from "$lib/utils/messageContent";
+    import {
+        applyTextTransforms,
+        applyContentTransforms,
+    } from "$lib/plugins/outgoingTransforms";
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
@@ -1097,7 +1101,16 @@
             }
         }
 
-        const trimmed = text.trim();
+        // Sender-side text transforms (plugins, e.g. the text-replacer). Applied
+        // to a LOCAL copy so the composer text and the draft-restore snapshot
+        // (textAtSend) stay what the user typed; `trimmed` and the formatted body
+        // built below both derive from the transformed text.
+        const outgoingText = applyTextTransforms(
+            text,
+            pluginRegistry.outgoingTextTransforms.map((e) => e.value),
+            { roomId },
+        );
+        const trimmed = outgoingText.trim();
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
             return;
 
@@ -1175,7 +1188,7 @@
                 mentionedUserIds.length > 0
                     ? { user_ids: mentionedUserIds }
                     : undefined;
-            const content: Record<string, unknown> = replyToEvent
+            const baseContent: Record<string, unknown> = replyToEvent
                 ? (buildReplyContent({
                       replyEventId: replyToEvent.getId()!,
                       text: trimmed,
@@ -1185,6 +1198,11 @@
                 : html
                   ? buildFormattedContent(trimmed, html, mentions)
                   : buildTextContent(trimmed);
+            const content = applyContentTransforms(
+                baseContent,
+                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+                { roomId: targetRoomId },
+            );
             queueMessage(targetRoomId, content);
             if (replyToEvent) onCancelReply?.();
             createThreadArmed = false;
@@ -1212,28 +1230,29 @@
                         html ?? undefined,
                     );
                 } else {
-                    if (replyToEvent) {
-                        sentEventId = await sendReply(
-                            targetRoomId,
-                            trimmed,
-                            replyToEvent,
-                            html ?? undefined,
-                            mentions,
-                        );
-                        onCancelReply?.();
-                    } else if (html) {
-                        sentEventId = await sendFormattedMessage(
-                            targetRoomId,
-                            trimmed,
-                            html,
-                            mentions,
-                        );
-                    } else {
-                        sentEventId = await sendTextMessage(
-                            targetRoomId,
-                            trimmed,
-                        );
-                    }
+                    // Build the content in-component (byte-identical to the
+                    // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
+                    // utils/messageContent.ts), apply plugin content transforms,
+                    // then send. Thread replies + captions keep their own paths.
+                    const baseContent: Record<string, unknown> = replyToEvent
+                        ? (buildReplyContent({
+                              replyEventId: replyToEvent.getId()!,
+                              text: trimmed,
+                              formattedText: html ?? undefined,
+                              mentions,
+                          }) as unknown as Record<string, unknown>)
+                        : html
+                          ? buildFormattedContent(trimmed, html, mentions)
+                          : buildTextContent(trimmed);
+                    const content = applyContentTransforms(
+                        baseContent,
+                        pluginRegistry.outgoingContentTransforms.map(
+                            (e) => e.value,
+                        ),
+                        { roomId: targetRoomId },
+                    );
+                    sentEventId = await sendEventContent(targetRoomId, content);
+                    if (replyToEvent) onCancelReply?.();
                     if (createThreadArmed) {
                         createThreadArmed = false;
                         onThreadCreated?.(sentEventId);
