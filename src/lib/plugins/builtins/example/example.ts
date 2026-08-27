@@ -46,7 +46,7 @@ export function buildExampleEmbedHtml(
         `<blockquote>` +
         `<p><strong>${escapeHtml(opts.title)}</strong></p>` +
         hostLine +
-        `<p><em>Rendered by the example plugin via the host-sanitized ctx.html path — the raw link still shows above.</em></p>` +
+        `<p><em>Rendered by the example plugin via the host-sanitized ctx.html path - the raw link still shows above.</em></p>` +
         `</blockquote>`
     );
 }
