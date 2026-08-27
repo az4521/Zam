@@ -85,6 +85,10 @@ export function getPluginHost(pluginId: string): PluginHost | undefined {
     return hosts.get(pluginId);
 }
 
+export function enabledPluginIds(): string[] {
+    return [...hosts.keys()];
+}
+
 export function setInstalledPlugin(record: InstalledPluginRecord): void {
     installedPlugins[record.manifest.id] = record;
 }

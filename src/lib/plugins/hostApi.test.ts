@@ -83,6 +83,33 @@ describe("buildHostApi — registration + cleanup", () => {
         expect(countEntries(registry, "b")).toBe(1);
     });
 
+    it("self-disposed registrations are released from tracking; disposeAll still works", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "a",
+            manifest: manifest("a"),
+            registry,
+            appVersion: "1",
+        });
+        const d1 = host.zam.commands.register({
+            name: "c1",
+            description: "d",
+            run() {},
+        });
+        const d2 = host.zam.commands.register({
+            name: "c2",
+            description: "d",
+            run() {},
+        });
+        expect(registry.commands.length).toBe(2);
+        d1.dispose(); // self-dispose one
+        expect(registry.commands.length).toBe(1);
+        expect(registry.commands[0].value.name).toBe("c2");
+        // disposeAll should cleanly remove the remaining one and be a no-op for the already-disposed one
+        host.disposeAll();
+        expect(registry.commands.length).toBe(0);
+    });
+
     it("app.version is exposed and matrix.react routes to client.sendReaction", async () => {
         const registry = createRegistryData();
         const host = buildHostApi({

@@ -15,7 +15,9 @@ import {
     getPluginHost,
     setInstalledPlugin,
     markPluginEnabled,
+    markPluginError,
     removeInstalledPlugin,
+    enabledPluginIds,
 } from "./plugins.svelte";
 import { countEntries } from "$lib/plugins/registry";
 import type { Manifest } from "$lib/plugins/manifest";
@@ -32,7 +34,7 @@ const manifest = (id: string): Manifest => ({
 beforeEach(() => {
     localStorage.clear();
     // Reset shared module state between tests.
-    for (const id of Object.keys(installedPlugins)) disposePluginHost(id);
+    for (const id of enabledPluginIds()) disposePluginHost(id);
     for (const id of Object.keys(installedPlugins)) removeInstalledPlugin(id);
 });
 
@@ -78,5 +80,20 @@ describe("plugins store", () => {
         expect(installedPlugins["a"].enabled).toBe(true);
         removeInstalledPlugin("a");
         expect(installedPlugins["a"]).toBeUndefined();
+    });
+
+    it("markPluginError sets the error field; is a safe no-op for missing ids", () => {
+        setInstalledPlugin({
+            manifest: manifest("a"),
+            source: "builtin",
+            enabled: true,
+            error: null,
+        });
+        expect(installedPlugins["a"].error).toBe(null);
+        markPluginError("a", "boom");
+        expect(installedPlugins["a"].error).toBe("boom");
+        // safe no-op for missing id (does not create a record, does not throw)
+        markPluginError("missing", "x");
+        expect(installedPlugins["missing"]).toBeUndefined();
     });
 });

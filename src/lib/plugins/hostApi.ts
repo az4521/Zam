@@ -51,7 +51,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
     // Track every Disposable so disposeAll removes exactly this plugin's
     // contributions. Wrap so self-dispose and disposeAll share one idempotent
     // removal.
-    const disposables: Disposable[] = [];
+    const disposables = new Set<Disposable>();
     const track = (inner: Disposable): Disposable => {
         let done = false;
         const wrapped: Disposable = {
@@ -59,9 +59,10 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 if (done) return;
                 done = true;
                 inner.dispose();
+                disposables.delete(wrapped);
             },
         };
-        disposables.push(wrapped);
+        disposables.add(wrapped);
         return wrapped;
     };
 
@@ -173,7 +174,13 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             addAction: (action) =>
                 track(addEntry(registry, "composerActions", pluginId, action)),
             startReply: (ctx) => {
-                hostBridge.startReply?.(ctx);
+                if (hostBridge.startReply) {
+                    hostBridge.startReply(ctx);
+                } else {
+                    console.warn(
+                        "[zam] composer.startReply is not wired yet (pending a later build item)",
+                    );
+                }
             },
         },
 
@@ -219,7 +226,13 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             registerPanel: (p) =>
                 track(addEntry(registry, "panels", pluginId, p)),
             notify: (o) => {
-                hostBridge.notify?.(o);
+                if (hostBridge.notify) {
+                    hostBridge.notify(o);
+                } else {
+                    console.warn(
+                        "[zam] ui.notify is not wired yet (pending a later build item)",
+                    );
+                }
             },
         },
 
@@ -263,7 +276,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 console.error(`[plugin ${pluginId}] dispose threw`, e);
             }
         }
-        disposables.length = 0;
+        disposables.clear();
         changeListeners.clear();
     };
 
