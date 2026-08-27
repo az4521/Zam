@@ -11,9 +11,10 @@ describe("applyTextTransforms", () => {
         expect(applyTextTransforms("hi", [], ctx)).toBe("hi");
     });
     it("applies transforms in order, each feeding the next", () => {
-        const upper = (t: string) => t.toUpperCase();
-        const bang = (t: string) => t + "!";
-        expect(applyTextTransforms("hi", [upper, bang], ctx)).toBe("HI!");
+        const addA = (t: string) => t + "a"; // "x" -> "xa"
+        const addB = (t: string) => t + "b"; // "xa" -> "xab"
+        // Non-commutative: reversed order yields "xba" — proving order.
+        expect(applyTextTransforms("x", [addA, addB], ctx)).toBe("xab");
     });
     it("passes the ctx to each transform", () => {
         const spy = vi.fn((t: string) => t);
@@ -40,15 +41,16 @@ describe("applyContentTransforms", () => {
     it("returns the input unchanged with no transforms", () => {
         expect(applyContentTransforms(base, [], ctx)).toEqual(base);
     });
-    it("applies transforms in order", () => {
-        const addA = (c: Record<string, unknown>) => ({ ...c, a: 1 });
-        const addB = (c: Record<string, unknown>) => ({ ...c, b: 2 });
-        expect(applyContentTransforms(base, [addA, addB], ctx)).toEqual({
-            msgtype: "m.text",
-            body: "hi",
-            a: 1,
-            b: 2,
+    it("applies transforms in order, each feeding the next", () => {
+        const setA = (c: Record<string, unknown>) => ({ ...c, a: 5 });
+        const doubleA = (c: Record<string, unknown>) => ({
+            ...c,
+            a: (c.a as number) * 2,
         });
+        // Reversed order would double `undefined` (NaN) — proving order.
+        expect(
+            applyContentTransforms(base, [setA, doubleA], ctx),
+        ).toMatchObject({ a: 10 });
     });
     it("skips a transform that throws", () => {
         vi.spyOn(console, "error").mockImplementation(() => {});
@@ -62,11 +64,14 @@ describe("applyContentTransforms", () => {
             b: 2,
         });
     });
-    it("skips a transform that returns null / non-object / array", () => {
+    it("skips a transform that returns null / undefined / non-object / array", () => {
         const bad1 = () => null as unknown as Record<string, unknown>;
         const bad2 = () => [] as unknown as Record<string, unknown>;
+        const bad3 = () => undefined as unknown as Record<string, unknown>;
         const addB = (c: Record<string, unknown>) => ({ ...c, b: 2 });
-        expect(applyContentTransforms(base, [bad1, bad2, addB], ctx)).toEqual({
+        expect(
+            applyContentTransforms(base, [bad1, bad2, bad3, addB], ctx),
+        ).toEqual({
             msgtype: "m.text",
             body: "hi",
             b: 2,
