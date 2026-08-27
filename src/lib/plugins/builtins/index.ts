@@ -10,6 +10,10 @@ import {
     manifest as sampleManifest,
     plugin as samplePlugin,
 } from "./sample/index";
+import {
+    manifest as slashFunManifest,
+    plugin as slashFunPlugin,
+} from "./slash-fun/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -19,4 +23,5 @@ export interface BuiltinPlugin {
 
 export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     { manifest: sampleManifest, module: samplePlugin, defaultEnabled: true },
+    { manifest: slashFunManifest, module: slashFunPlugin, defaultEnabled: true },
 ];

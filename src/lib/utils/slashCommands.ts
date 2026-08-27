@@ -39,81 +39,12 @@ export interface SlashCommand {
     pluginRun?: (ctx: { roomId: string; arg: string }) => void | Promise<void>;
 }
 
-const SHRUG = "¯\\_(ツ)_/¯";
-const TABLEFLIP = "(╯°□°)╯︵ ┻━┻";
-const UNFLIP = "┬─┬ ノ( ゜-゜ノ)";
-const LENNY = "( ͡° ͜ʖ ͡°)";
-
-/** Append an emoticon to an optional message ("meh" + art, or just art). */
-function withArt(art: string): (arg: string) => string {
-    return (arg) => (arg ? `${arg} ${art}` : art);
-}
-
 /**
- * The command registry. Order is the popup order. Only commands that map to
- * existing, tested client.ts wrappers (or pure transforms) are here; dialog
- * commands (/poll, /location) register themselves when those features land.
+ * The command registry. Order is the popup order. Holds action and dialog
+ * commands; text-transform/emote commands (fun commands) are provided by the
+ * default-enabled slash-fun built-in plugin.
  */
 export const SLASH_COMMANDS: SlashCommand[] = [
-    {
-        name: "me",
-        description: "Send an action message",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "emote",
-        requiresArg: true,
-    },
-    {
-        name: "shrug",
-        description: "Append ¯\\_(ツ)_/¯ to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(SHRUG),
-    },
-    {
-        name: "tableflip",
-        description: "Append (╯°□°)╯︵ ┻━┻ to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(TABLEFLIP),
-    },
-    {
-        name: "unflip",
-        description: "Append ┬─┬ ノ( ゜-゜ノ) to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(UNFLIP),
-    },
-    {
-        name: "lenny",
-        description: "Append ( ͡° ͜ʖ ͡°) to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(LENNY),
-    },
-    {
-        name: "spoiler",
-        description: "Send your message as a spoiler",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "text-transform",
-        requiresArg: true,
-        transform: (arg) => `||${arg}||`,
-    },
-    {
-        name: "plain",
-        description: "Send your message without markdown formatting",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "text-transform",
-        requiresArg: true,
-        transform: (arg) => arg,
-        plain: true,
-    },
     {
         name: "poll",
         description: "Create a poll",

@@ -21,20 +21,20 @@ describe("parseSlashCommand", () => {
     });
 
     it("parses a known command with no argument", () => {
-        const r = parseSlashCommand("/shrug");
-        expect(r && "command" in r ? r.command.name : null).toBe("shrug");
+        const r = parseSlashCommand("/part");
+        expect(r && "command" in r ? r.command.name : null).toBe("part");
         expect(r && "command" in r ? r.arg : null).toBe("");
     });
 
     it("parses a known command with an argument", () => {
-        const r = parseSlashCommand("/me waves hello");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("/topic waves hello");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
         expect(r && "command" in r ? r.arg : null).toBe("waves hello");
     });
 
     it("tolerates leading whitespace", () => {
-        const r = parseSlashCommand("   /me hi");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("   /topic hi");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
         expect(r && "command" in r ? r.arg : null).toBe("hi");
     });
 
@@ -44,8 +44,8 @@ describe("parseSlashCommand", () => {
     });
 
     it("is case-insensitive for the command word", () => {
-        const r = parseSlashCommand("/ME hi");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("/TOPIC hi");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
     });
 
     it("flags an unknown command", () => {
@@ -64,35 +64,8 @@ describe("parseSlashCommand", () => {
     });
 
     it("keeps a multiline argument intact", () => {
-        const r = parseSlashCommand("/plain line1\nline2");
+        const r = parseSlashCommand("/topic line1\nline2");
         expect(r && "command" in r ? r.arg : null).toBe("line1\nline2");
-    });
-});
-
-describe("text transforms", () => {
-    function transformOf(name: string) {
-        const cmd = SLASH_COMMANDS.find((c) => c.name === name);
-        if (!cmd?.transform) throw new Error(`no transform for ${name}`);
-        return cmd.transform;
-    }
-
-    it("shrug appends the shrug, with and without a message", () => {
-        expect(transformOf("shrug")("")).toBe("¯\\_(ツ)_/¯");
-        expect(transformOf("shrug")("meh")).toBe("meh ¯\\_(ツ)_/¯");
-    });
-
-    it("tableflip / unflip / lenny produce their art", () => {
-        expect(transformOf("tableflip")("")).toContain("┻━┻");
-        expect(transformOf("unflip")("")).toContain("┬─┬");
-        expect(transformOf("lenny")("")).toContain("͡°");
-    });
-
-    it("spoiler wraps the message in spoiler markers", () => {
-        expect(transformOf("spoiler")("secret")).toBe("||secret||");
-    });
-
-    it("plain passes the message through unchanged", () => {
-        expect(transformOf("plain")("**bold**")).toBe("**bold**");
     });
 });
 
@@ -102,9 +75,9 @@ describe("matchSlashCommands", () => {
     });
 
     it("prefix-matches by command name", () => {
-        const names = matchSlashCommands("sh").map((c) => c.name);
-        expect(names).toContain("shrug");
-        expect(names).not.toContain("me");
+        const names = matchSlashCommands("ki").map((c) => c.name);
+        expect(names).toContain("kick");
+        expect(names).not.toContain("ban");
     });
 
     it("matches on aliases", () => {
@@ -112,11 +85,11 @@ describe("matchSlashCommands", () => {
     });
 
     it("is case-insensitive", () => {
-        expect(matchSlashCommands("SH").map((c) => c.name)).toContain("shrug");
+        expect(matchSlashCommands("KI").map((c) => c.name)).toContain("kick");
     });
 
     it("tolerates a leading slash in the query", () => {
-        expect(matchSlashCommands("/sh").map((c) => c.name)).toContain("shrug");
+        expect(matchSlashCommands("/ki").map((c) => c.name)).toContain("kick");
     });
 });
 
