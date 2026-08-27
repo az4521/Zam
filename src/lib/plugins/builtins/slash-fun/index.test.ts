@@ -18,7 +18,15 @@ describe("slash-fun manifest", () => {
 describe("slash-fun commands — set + metadata", () => {
     it("registers exactly the 7 fun commands", () => {
         expect(FUN_COMMANDS.map((c) => c.name).sort()).toEqual(
-            ["lenny", "me", "plain", "shrug", "spoiler", "tableflip", "unflip"].sort(),
+            [
+                "lenny",
+                "me",
+                "plain",
+                "shrug",
+                "spoiler",
+                "tableflip",
+                "unflip",
+            ].sort(),
         );
     });
     it("me is an emote with no transform, requiresArg", () => {

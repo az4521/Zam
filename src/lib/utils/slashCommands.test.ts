@@ -313,7 +313,12 @@ describe("pluginCommandToSlash — transform/emote commands", () => {
 
     it("emits an emote command with no transform (body = arg)", () => {
         const s = pluginCommandToSlash(
-            { name: "me", description: "action", kind: "emote", requiresArg: true },
+            {
+                name: "me",
+                description: "action",
+                kind: "emote",
+                requiresArg: true,
+            },
             "p",
         );
         expect(s.kind).toBe("emote");
@@ -324,7 +329,12 @@ describe("pluginCommandToSlash — transform/emote commands", () => {
 
     it("defaults transform-command argKind to text", () => {
         const s = pluginCommandToSlash(
-            { name: "x", description: "d", kind: "text-transform", transform: (a) => a },
+            {
+                name: "x",
+                description: "d",
+                kind: "text-transform",
+                transform: (a) => a,
+            },
             "p",
         );
         expect(s.argKind).toBe("text");

@@ -973,7 +973,16 @@
 
         // emote + text-transform both produce a message body sent like a normal
         // message (markdown + mentions), except /plain which bypasses markdown.
-        const body = command.kind === "emote" ? arg : command.transform!(arg);
+        // The transform is pure app code for core commands, but the transform
+        // command flavor is public (plugins), so guard a throwing transform.
+        let body: string;
+        try {
+            body = command.kind === "emote" ? arg : command.transform!(arg);
+        } catch (err) {
+            console.error(`Command /${command.name} transform threw:`, err);
+            showErrorToast(matrixErrorMessage(err, "Command failed"));
+            return;
+        }
         const usePlain = command.kind === "text-transform" && !!command.plain;
         // Resolve formatting before clearing the composer (buildFormattedBody
         // reads pendingMentions, reset below).

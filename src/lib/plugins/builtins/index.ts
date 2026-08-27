@@ -23,5 +23,9 @@ export interface BuiltinPlugin {
 
 export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     { manifest: sampleManifest, module: samplePlugin, defaultEnabled: true },
-    { manifest: slashFunManifest, module: slashFunPlugin, defaultEnabled: true },
+    {
+        manifest: slashFunManifest,
+        module: slashFunPlugin,
+        defaultEnabled: true,
+    },
 ];
