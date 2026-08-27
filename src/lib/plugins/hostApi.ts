@@ -186,6 +186,15 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     );
                 }
             },
+            startEdit: (ctx) => {
+                if (hostBridge.startEdit) {
+                    hostBridge.startEdit(ctx);
+                } else {
+                    console.warn(
+                        "[zam] composer.startEdit is not wired yet (no room area mounted)",
+                    );
+                }
+            },
             insertText: (ctx) => {
                 if (hostBridge.insertText) {
                     hostBridge.insertText(ctx);

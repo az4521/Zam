@@ -190,6 +190,32 @@
         };
     });
     let editRequestedEventId = $state<string | null>(null);
+    // Plugin composer.startEdit → start inline edit of your own text message.
+    // Single slot; the mounted room area owns it and only acts on its own room.
+    // Guards own + editable text (parity with requestEditLastMessage). The
+    // transient editRequestedEventId pulse is how the matching MessageItem
+    // enters edit mode (its editRequested prop → $effect → startEdit()).
+    $effect(() => {
+        const activeRoom = room;
+        const handler = async (ctx: { roomId: string; eventId: string }) => {
+            if (ctx.roomId !== activeRoom.roomId) return;
+            const ev = findEventById(activeRoom, ctx.eventId);
+            if (
+                !ev ||
+                ev.getSender() !== auth.userId ||
+                ev.getType() !== "m.room.message" ||
+                ev.getContent()?.msgtype !== "m.text"
+            )
+                return;
+            editRequestedEventId = ctx.eventId;
+            await tick();
+            editRequestedEventId = null;
+        };
+        hostBridge.startEdit = handler;
+        return () => {
+            if (hostBridge.startEdit === handler) hostBridge.startEdit = null;
+        };
+    });
     let threadRootId = $state<string | null>(null);
     // Desktop: thread replaces the timeline instead of docking as a side
     // panel. Sticky for the session so an expanded reader stays expanded

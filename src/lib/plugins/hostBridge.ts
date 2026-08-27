@@ -21,6 +21,11 @@ export const hostBridge = {
     startReply: null as
         | null
         | ((ctx: { roomId: string; eventId: string }) => void),
+    /** Set by the double-tap-reply migration (item 16) — start inline edit of
+     *  your own text message. Guards own+m.text host-side. */
+    startEdit: null as
+        | null
+        | ((ctx: { roomId: string; eventId: string }) => void),
     /** Set by the GIF-picker migration (item 14) — appends text to the active
      *  main composer for a room (URL-as-text rail). */
     insertText: null as

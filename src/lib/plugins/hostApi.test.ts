@@ -18,6 +18,7 @@ import * as client from "../matrix/client";
 import { buildHostApi } from "./hostApi";
 import { createRegistryData, countEntries } from "./registry";
 import type { Manifest } from "./manifest";
+import { hostBridge } from "./hostBridge";
 
 const manifest = (id: string): Manifest => ({
     id,
@@ -241,5 +242,26 @@ describe("buildHostApi — storage + settings", () => {
         host.disposeAll();
         host.setSettings({ t: true });
         expect(seen).toEqual([]);
+    });
+
+    it("composer.startEdit routes to hostBridge and is a safe no-op when unwired", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "zam.t",
+            manifest: manifest("zam.t"),
+            registry,
+            appVersion: "1",
+        });
+        // No-op when hostBridge.startEdit is null
+        expect(() =>
+            host.zam.composer.startEdit({ roomId: "!r", eventId: "$e" }),
+        ).not.toThrow();
+        // Routes to the bridge when set
+        const calls: unknown[] = [];
+        hostBridge.startEdit = (ctx) => calls.push(ctx);
+        host.zam.composer.startEdit({ roomId: "!r", eventId: "$e" });
+        expect(calls).toEqual([{ roomId: "!r", eventId: "$e" }]);
+        // Cleanup
+        hostBridge.startEdit = null;
     });
 });
