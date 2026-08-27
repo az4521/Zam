@@ -82,7 +82,12 @@ describe("repos persistence", () => {
         expect(parsePersistedState(raw).repos).toEqual([]);
     });
     it("round-trips repos through serialize/parse", () => {
-        const state = { version: 1 as const, plugins: {}, repos: ["x/y"] };
+        const state = {
+            version: 1 as const,
+            plugins: {},
+            repos: ["x/y"],
+            autoUpdate: false,
+        };
         expect(
             parsePersistedState(serializePersistedState(state)).repos,
         ).toEqual(["x/y"]);

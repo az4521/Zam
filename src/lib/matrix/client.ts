@@ -320,6 +320,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
+        "moe.crafty.matrix.plugins": PluginSyncAccountData;
     }
 }
 
@@ -777,12 +778,26 @@ export function deleteFailedMessage(event: MatrixEvent): void {
 // but never written again — see loadFavouriteGifs / persistFavouriteGifs.
 const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
 const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
+const PLUGIN_SYNC_KEY = "moe.crafty.matrix.plugins";
 
 export interface FavouriteGif {
     url: string;
     previewUrl: string;
     addedAt: number;
     tags?: string[];
+}
+
+/**
+ * Manual plugin-sync payload (moe.crafty.matrix.plugins). Structurally matches
+ * plugins/pluginSync.ts::PluginSyncPayload; kept a local type so client.ts
+ * imports nothing from plugins/ (the boundary runs plugins -> client, never
+ * the reverse). The plugin boot glue validates the wire shape via parseSyncPayload.
+ */
+export interface PluginSyncAccountData {
+    version: number;
+    repos: string[];
+    plugins: Record<string, unknown>;
+    autoUpdate: boolean;
 }
 
 function gifsFromEvent(
@@ -843,6 +858,23 @@ export async function persistFavouriteGifs(
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
+}
+
+/** Push the manual plugin-sync payload to the user's account data. No-op when
+ *  logged out. (Plugin boot glue is a sanctioned client.ts consumer, like hostApi.ts.) */
+export async function persistPluginSync(
+    content: PluginSyncAccountData,
+): Promise<void> {
+    if (!matrixClient) return;
+    await matrixClient.setAccountData(PLUGIN_SYNC_KEY, content);
+}
+
+/** Read the manual plugin-sync payload from account data, or null if absent. */
+export function loadPluginSync(): PluginSyncAccountData | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(PLUGIN_SYNC_KEY);
+    if (!event) return null;
+    return event.getContent() as PluginSyncAccountData;
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
