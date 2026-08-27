@@ -371,7 +371,7 @@
                 {/if}
                 {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null}
                     <p class="text-discord-textSecondary">
-                        Nothing to change — already in sync.
+                        Nothing to change; already in sync.
                     </p>
                 {/if}
                 <div class="flex gap-2 pt-1">
