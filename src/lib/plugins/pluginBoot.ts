@@ -30,8 +30,18 @@ import {
     setInstalledPlugin,
     markPluginEnabled,
     markPluginError,
+    setPluginRepos,
+    addPluginRepo,
+    removePluginRepo,
+    removeInstalledPlugin,
+    enabledPluginIds,
 } from "$lib/stores/plugins.svelte";
 import { normalizeRepoRef, rawUrl } from "./repo";
+import { parseManifest } from "./manifest";
+import { satisfiesMinAppVersion } from "./semver";
+import { deleteCachedBundle } from "./bundleCache";
+import { APP_VERSION } from "$lib/update";
+import type { PluginIndexEntry } from "./repo";
 
 const STORAGE_KEY = "zam_plugins";
 
@@ -146,6 +156,7 @@ const loadables = new Map<string, LoadablePlugin>();
 
 export function initPlugins(): () => void {
     const state = readState();
+    setPluginRepos(state.repos);
 
     // 1) Register built-ins (respect a persisted enable override).
     const toBoot: LoadablePlugin[] = [];
@@ -201,4 +212,102 @@ export async function enablePlugin(pluginId: string): Promise<boolean> {
 export async function disablePlugin(pluginId: string): Promise<void> {
     await loader.disable(pluginId);
     setEnabledFlag(pluginId, false);
+}
+
+export function getUserRepos(): string[] {
+    return readState().repos;
+}
+
+/** Persist + reactively add a user repo (already normalized by canAddRepo). */
+export function addRepo(normalizedRef: string): void {
+    const state = readState();
+    if (!state.repos.includes(normalizedRef)) {
+        state.repos = [...state.repos, normalizedRef];
+        writeState(state);
+    }
+    addPluginRepo(normalizedRef);
+}
+
+/** Persist + reactively remove a user repo. */
+export function removeRepo(normalizedRef: string): void {
+    const state = readState();
+    state.repos = state.repos.filter((r) => r !== normalizedRef);
+    writeState(state);
+    removePluginRepo(normalizedRef);
+}
+
+/** Install a repo plugin: fetch + validate the manifest, cache the bundle
+ *  (NO code runs — enable is a separate explicit action), record it disabled,
+ *  and make it enablable without a reboot. Returns {ok:false,error} on any
+ *  failure — never throws to the caller. */
+export async function installRepoPlugin(
+    repoRef: string,
+    entry: PluginIndexEntry,
+): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const ref = normalizeRepoRef(repoRef);
+        const manRes = await fetch(rawUrl(ref, `${entry.path}/manifest.json`));
+        if (!manRes.ok)
+            return { ok: false, error: `manifest fetch ${manRes.status}` };
+        const manifest = parseManifest(await manRes.json());
+        if (
+            manifest.minAppVersion &&
+            !satisfiesMinAppVersion(APP_VERSION, manifest.minAppVersion)
+        ) {
+            return {
+                ok: false,
+                error: `requires app ${manifest.minAppVersion}+`,
+            };
+        }
+        const bundleRes = await fetch(
+            rawUrl(ref, `${entry.path}/${manifest.entry}`),
+        );
+        if (!bundleRes.ok)
+            return { ok: false, error: `bundle fetch ${bundleRes.status}` };
+        const code = await bundleRes.text();
+        await putCachedBundle({
+            pluginId: manifest.id,
+            version: manifest.version,
+            code,
+            cachedAt: Date.now(),
+        });
+        setInstalledPlugin({
+            manifest,
+            source: "repo",
+            enabled: false,
+            error: null,
+            repoRef,
+        });
+        const s = readState();
+        s.plugins[manifest.id] = {
+            enabled: false,
+            source: "repo",
+            repoRef,
+            manifest,
+        };
+        writeState(s);
+        loadables.set(manifest.id, repoLoadable(manifest, repoRef));
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
+    }
+}
+
+/** Uninstall a repo plugin: disable it, drop its loadable + cached bundle,
+ *  remove its installed record, and delete its persisted entry. */
+export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
+    if (loader.isLoaded(pluginId)) await loader.disable(pluginId);
+    loadables.delete(pluginId);
+    await deleteCachedBundle(pluginId);
+    removeInstalledPlugin(pluginId);
+    const state = readState();
+    delete state.plugins[pluginId];
+    writeState(state);
+}
+
+/** Kill switch (spec §3.4): disable every currently-enabled plugin. */
+export async function disableAllPlugins(): Promise<void> {
+    for (const id of enabledPluginIds()) {
+        await disablePlugin(id);
+    }
 }

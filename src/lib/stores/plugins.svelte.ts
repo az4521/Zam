@@ -106,3 +106,20 @@ export function markPluginError(pluginId: string, error: string | null): void {
 export function removeInstalledPlugin(pluginId: string): void {
     delete installedPlugins[pluginId];
 }
+
+/** User-added third-party repo refs (per-device UI state). The official repo is
+ *  a constant merged in by the manager — it is NOT stored here. Wrapped in an
+ *  object so the whole list can be replaced reactively at boot. */
+export const pluginRepos = $state<{ refs: string[] }>({ refs: [] });
+
+export function setPluginRepos(refs: string[]): void {
+    pluginRepos.refs = [...refs];
+}
+export function addPluginRepo(ref: string): void {
+    if (!pluginRepos.refs.includes(ref)) {
+        pluginRepos.refs = [...pluginRepos.refs, ref];
+    }
+}
+export function removePluginRepo(ref: string): void {
+    pluginRepos.refs = pluginRepos.refs.filter((r) => r !== ref);
+}
