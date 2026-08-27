@@ -9,6 +9,14 @@
 import type { Manifest } from "../../manifest";
 import type { PluginModule, Disposable } from "../../types";
 
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
 export const manifest: Manifest = {
     id: "zam.sample",
     name: "Sample Plugin",
@@ -114,6 +122,35 @@ export const plugin: PluginModule = {
                 badge: "sample",
                 tooltip: "Added by the sample plugin",
             })),
+        );
+
+        disposables.push(
+            zam.messages.registerEmbed({
+                match(url) {
+                    try {
+                        const h = new URL(url).hostname.replace(/^www\./, "");
+                        return (
+                            h === "example.com" ||
+                            h === "example.org" ||
+                            h === "example.net"
+                        );
+                    } catch {
+                        return false;
+                    }
+                },
+                render(el, ctx) {
+                    // Host sanitizes this markup (sanitizeMatrixHtml). No <script>,
+                    // no event handlers, no third-party <img src> survive — the demo
+                    // renders text + structure only.
+                    ctx.html(
+                        `<div class="mt-1 max-w-lg rounded border border-discord-divider bg-discord-backgroundSecondary p-3">` +
+                            `<p class="text-xs text-discord-textMuted">Zam demo embed</p>` +
+                            `<p class="text-sm font-semibold text-discord-accent">Custom renderer for ${escapeHtml(new URL(ctx.url).hostname)}</p>` +
+                            `<p class="text-xs text-discord-textSecondary">Rendered by the sample plugin (the raw link still shows above).</p>` +
+                            `</div>`,
+                    );
+                },
+            }),
         );
 
         disposables.push(
