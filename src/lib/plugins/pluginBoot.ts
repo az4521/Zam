@@ -43,6 +43,7 @@ import { deleteCachedBundle } from "./bundleCache";
 import { APP_VERSION } from "$lib/update";
 import { hostBridge } from "./hostBridge";
 import { openPluginPopover } from "./pluginPopover.svelte";
+import { dispatchPluginEvent } from "./pluginDispatch";
 import type { PluginIndexEntry } from "./repo";
 import {
     buildSyncPayload,
@@ -59,7 +60,15 @@ import {
 } from "./updateCheck";
 // Sanctioned host consumer of the SDK boundary (like hostApi.ts) — sync writes
 // self-scoped account data; plugins never import client.ts.
-import { persistPluginSync, loadPluginSync } from "../matrix/client";
+import {
+    persistPluginSync,
+    loadPluginSync,
+    onTimelineEvent,
+    onReactionEvent,
+    onRoomUpdate,
+    onSyncPrepared,
+    onSyncReconnected,
+} from "../matrix/client";
 import { readPluginSettings, writePluginSettings } from "./pluginSettingsStore";
 import {
     installedPlugins,
@@ -67,6 +76,7 @@ import {
     setGlobalAutoUpdateState,
     setPluginAutoUpdateState,
     setUpdateAvailable,
+    pluginRegistry,
 } from "$lib/stores/plugins.svelte";
 
 const STORAGE_KEY = "zam_plugins";
@@ -208,10 +218,105 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
 // re-enable without rebuilding boot state.
 const loadables = new Map<string, LoadablePlugin>();
 
+/** Subscribe the globally-available client events and fan them out to plugin
+ *  `events.on(...)` handlers. Payloads are plain + serializable (never live
+ *  SDK objects), matching the §6 boundary. dispatchPluginEvent reads
+ *  pluginRegistry.eventSubs at fire time, so late-registered subs are seen.
+ *  Deferred (registered but not fired in v1, no consumer this run): typing
+ *  (needs a per-room Room), member-join, message-sent, room-enter, notification.
+ *  Returns an unsubscribe-all. */
+function initEventBus(): () => void {
+    const unsubs: Array<() => void> = [];
+
+    unsubs.push(
+        onTimelineEvent((event, room) => {
+            const payload = {
+                roomId: room.roomId,
+                eventId: event.getId() ?? "",
+                sender: event.getSender() ?? "",
+                type: event.getType(),
+                content: event.getContent(),
+            };
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "message",
+                payload,
+            );
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "timeline",
+                payload,
+            );
+        }),
+    );
+
+    unsubs.push(
+        onReactionEvent((event, room) => {
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "reaction-added",
+                {
+                    roomId: room.roomId,
+                    eventId: event.getId() ?? "",
+                    sender: event.getSender() ?? "",
+                    relatesTo: event.getContent()["m.relates_to"] ?? null,
+                },
+            );
+        }),
+    );
+
+    unsubs.push(
+        onRoomUpdate(() => {
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "room-update",
+                {},
+            );
+        }),
+    );
+
+    unsubs.push(
+        onSyncPrepared(() => {
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "sync",
+                {
+                    state: "PREPARED",
+                },
+            );
+        }),
+    );
+    unsubs.push(
+        onSyncReconnected(() => {
+            dispatchPluginEvent(
+                pluginRegistry.eventSubs.map((e) => e.value),
+                "sync",
+                {
+                    state: "RECONNECTED",
+                },
+            );
+        }),
+    );
+
+    return () => {
+        for (const u of unsubs) {
+            try {
+                u();
+            } catch {
+                /* best-effort teardown */
+            }
+        }
+    };
+}
+
 export function initPlugins(): () => void {
     // Wire the imperative UI seam item 8 owns: zam.ui.openPopover routes
     // through hostBridge.openPopover (hostApi.ts). Set once at boot.
     hostBridge.openPopover = openPluginPopover;
+
+    // Fan client events out to plugin events.on(...) handlers (no-ops safely if
+    // the client is not ready yet; the on* helpers guard internally).
+    const disposeEventBus = initEventBus();
 
     const state = readState();
     setPluginRepos(state.repos);
@@ -256,8 +361,9 @@ export function initPlugins(): () => void {
     // 3) Boot-load enabled plugins (built-ins first, each error-isolated).
     void loader.bootLoad(toBoot);
 
-    // Disposer: disable every currently-loaded plugin on logout/unmount.
+    // Disposer: unsubscribe the event bus + disable every loaded plugin.
     return () => {
+        disposeEventBus();
         for (const id of [...loadables.keys()]) {
             if (loader.isLoaded(id)) void loader.disable(id);
         }
