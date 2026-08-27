@@ -167,4 +167,53 @@ describe("createPluginLoader", () => {
             ),
         ).resolves.toBe(false);
     });
+
+    it("isolates a module missing onload (malformed bundle)", async () => {
+        const f = fakeOps();
+        const loader = createPluginLoader(f.ops);
+        const ok = await loader.enable(
+            loadable("nofn", "repo", () =>
+                Promise.resolve({} as unknown as PluginModule),
+            ),
+        );
+        expect(ok).toBe(false);
+        expect(f.enabled["nofn"]).toBe(false);
+        expect(f.errors["nofn"]).toBeTruthy();
+        expect(loader.isLoaded("nofn")).toBe(false);
+    });
+
+    it("disable() survives an async-rejecting onunload", async () => {
+        const f = fakeOps();
+        const loader = createPluginLoader(f.ops);
+        await loader.enable(
+            loadable("p", "builtin", {
+                onload() {},
+                onunload: () => Promise.reject(new Error("async unload boom")),
+            }),
+        );
+        await expect(loader.disable("p")).resolves.toBeUndefined();
+        expect(f.disposed).toContain("p");
+        expect(f.enabled["p"]).toBe(false);
+    });
+
+    it("disable() of a never-enabled plugin resolves and still disposes", async () => {
+        const f = fakeOps();
+        const loader = createPluginLoader(f.ops);
+        await expect(loader.disable("ghost")).resolves.toBeUndefined();
+        expect(f.disposed).toContain("ghost");
+        expect(f.enabled["ghost"]).toBe(false);
+        expect(loader.isLoaded("ghost")).toBe(false);
+    });
+
+    it("bootLoad does not mutate the input array order", async () => {
+        const f = fakeOps();
+        const loader = createPluginLoader(f.ops);
+        const input = [
+            loadable("repoX", "repo", { onload() {} }),
+            loadable("builtinY", "builtin", { onload() {} }),
+        ];
+        const before = input.map((p) => p.manifest.id);
+        await loader.bootLoad(input);
+        expect(input.map((p) => p.manifest.id)).toEqual(before);
+    });
 });
