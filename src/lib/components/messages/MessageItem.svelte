@@ -113,6 +113,10 @@
         type CachedReplyTarget,
     } from "$lib/utils/replyTargetLookup";
     import { dispatchDoubleTap } from "$lib/plugins/pluginDispatch";
+    import {
+        pluginMessageActions,
+        collectDecorations,
+    } from "$lib/utils/pluginMessageActions";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
 
     import {
@@ -726,6 +730,16 @@
         }),
     );
 
+    // Plugin-contributed message actions for THIS message, filtered by each
+    // action's `when` gate. Additive — never replaces a core action.
+    const pluginActionViews = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginMessageActions(pluginRegistry.messageActions, {
+            roomId: room.roomId,
+            eventId,
+        });
+    });
+
     function openActionsSheet() {
         // Claim the single modal slot so opening the sheet closes any other
         // open modal, and Escape/handover route back through closeModal.
@@ -757,6 +771,20 @@
             case "delete":
                 deleteMessage(room.roomId, eventId);
                 break;
+        }
+    }
+
+    function handlePluginAction(key: string) {
+        const view = pluginActionViews.find((v) => v.key === key);
+        if (!view) return;
+        try {
+            const r = view.run();
+            if (r && typeof r.then === "function")
+                r.catch((err) =>
+                    console.error("[zam] plugin message action threw", err),
+                );
+        } catch (err) {
+            console.error("[zam] plugin message action threw", err);
         }
     }
 
@@ -2675,7 +2703,7 @@
                 <Forward size={16} />
             </button>
         {/if}
-        {#if interfaceState.isTouchscreen && overflowRows.length > 0}
+        {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
             <button
                 data-message-action
                 onclick={openActionsSheet}
@@ -2755,7 +2783,9 @@
 {#if showActionsSheet}
     <MessageActionsSheet
         rows={overflowRows}
+        pluginRows={pluginActionViews}
         onChoose={handleActionChoose}
+        onChoosePlugin={handlePluginAction}
         onClose={closeModal}
     />
 {/if}

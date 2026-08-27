@@ -5,16 +5,27 @@
         MessageActionKey,
         MessageActionRow,
     } from "$lib/utils/messageActionsMenu";
+    import type { PluginMessageActionView } from "$lib/utils/pluginMessageActions";
 
     interface Props {
         /** Ordered overflow rows from `messageActionsMenu`. */
         rows: MessageActionRow[];
-        /** Run the chosen action. The sheet closes itself first. */
+        /** Plugin-contributed action rows (appended after core rows). */
+        pluginRows?: PluginMessageActionView[];
+        /** Run the chosen core action. The sheet closes itself first. */
         onChoose: (key: MessageActionKey) => void;
+        /** Run the chosen plugin action. The sheet closes itself first. */
+        onChoosePlugin?: (key: string) => void;
         /** Dismiss the sheet (backdrop tap / Escape / after a choice). */
         onClose: () => void;
     }
-    let { rows, onChoose, onClose }: Props = $props();
+    let {
+        rows,
+        pluginRows = [],
+        onChoose,
+        onChoosePlugin,
+        onClose,
+    }: Props = $props();
 
     // A row flagged `confirm` swaps the menu for an inline "are you sure?" step
     // instead of running straight away — today only Delete, which has no
@@ -47,6 +58,13 @@
         // sheet must release it before the action runs.
         onClose();
         onChoose(key);
+    }
+
+    function runPlugin(key: string) {
+        // Close FIRST (release the single modal slot), mirroring core rows:
+        // a plugin action may open its own popover/modal.
+        onClose();
+        onChoosePlugin?.(key);
     }
 </script>
 
@@ -93,6 +111,27 @@
                             fill="currentColor"
                             viewBox="0 0 24 24"><path d={ICONS[row.key]} /></svg
                         >
+                        <span class="flex-1 truncate">{row.label}</span>
+                    </button>
+                {/each}
+                {#each pluginRows as row (row.key)}
+                    <button
+                        role="menuitem"
+                        onclick={() => runPlugin(row.key)}
+                        class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover text-discord-textPrimary"
+                    >
+                        {#if row.icon}
+                            <svg
+                                class="w-5 h-5 flex-shrink-0 text-discord-textMuted"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={row.icon} /></svg
+                            >
+                        {:else}
+                            <span
+                                class="w-5 h-5 flex-shrink-0 grid place-items-center text-xs font-semibold text-discord-textMuted"
+                                >{row.label.slice(0, 1)}</span
+                            >
+                        {/if}
                         <span class="flex-1 truncate">{row.label}</span>
                     </button>
                 {/each}
