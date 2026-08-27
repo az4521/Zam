@@ -30,6 +30,10 @@ import {
     manifest as textReplacerManifest,
     plugin as textReplacerPlugin,
 } from "./text-replacer/index";
+import {
+    manifest as exampleManifest,
+    plugin as examplePlugin,
+} from "./example/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -64,4 +68,5 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
         module: textReplacerPlugin,
         defaultEnabled: true,
     },
+    { manifest: exampleManifest, module: examplePlugin, defaultEnabled: false },
 ];
