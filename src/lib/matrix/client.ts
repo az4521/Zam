@@ -38,6 +38,7 @@ import type {
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
+import type { PluginRoomSummary, PluginMemberSummary } from "../plugins/types";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
@@ -5614,6 +5615,44 @@ export async function removeReaction(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.redactEvent(roomId, reactionEventId);
+}
+
+// --- Plugin host bridge (the ONLY plugin-facing client.ts surface; hostApi.ts
+// wraps these). Returns plain summaries, never live SDK objects. ---
+
+/** Send a fully-built event content object. 2-arg sendMessage form ONLY (the
+ *  threadId overload mangles $-prefixed text — CLAUDE.md landmine). */
+export async function sendEventContent(
+    roomId: string,
+    content: Record<string, unknown>,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.sendMessage(roomId, content as never);
+    return res.event_id;
+}
+
+/** Plain room summary for plugins — never returns a live Room. */
+export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
+    const room = getRoom(roomId);
+    if (!room) return null;
+    return {
+        roomId,
+        name: room.name ?? roomId,
+        topic: getRoomTopic(room),
+        memberCount: getRoomMembers(room).length,
+    };
+}
+
+/** Plain joined-member summaries for plugins — never returns live RoomMembers. */
+export function getPluginRoomMembers(roomId: string): PluginMemberSummary[] {
+    const room = getRoom(roomId);
+    if (!room) return [];
+    return getRoomMembers(room).map((m) => ({
+        userId: m.userId,
+        displayName: m.name ?? null,
+        avatarUrl: mxcToHttp(m.getMxcAvatarUrl() ?? null),
+        powerLevel: m.powerLevel ?? 0,
+    }));
 }
 
 export async function deleteMessage(
