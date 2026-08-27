@@ -26,6 +26,10 @@ import {
     manifest as doubleTapReplyManifest,
     plugin as doubleTapReplyPlugin,
 } from "./double-tap-reply/index";
+import {
+    manifest as textReplacerManifest,
+    plugin as textReplacerPlugin,
+} from "./text-replacer/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -53,6 +57,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: doubleTapReplyManifest,
         module: doubleTapReplyPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: textReplacerManifest,
+        module: textReplacerPlugin,
         defaultEnabled: true,
     },
 ];
