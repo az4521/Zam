@@ -17,6 +17,7 @@ export type SettingsTab =
     | "voice"
     | "blocked"
     | "server"
+    | "plugins"
     | "about"
     | "debug";
 
@@ -37,6 +38,7 @@ export const SETTINGS_TABS: readonly SettingsTabEntry[] = [
     { id: "voice", label: "Voice & Audio" },
     { id: "blocked", label: "Blocked Users" },
     { id: "server", label: "Server" },
+    { id: "plugins", label: "Plugins" },
     { id: "about", label: "About" },
     { id: "debug", label: "Debug Info" },
 ];
