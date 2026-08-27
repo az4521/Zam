@@ -2703,6 +2703,29 @@
                 <Forward size={16} />
             </button>
         {/if}
+        {#if !interfaceState.isTouchscreen}
+            {#each pluginActionViews as view (view.key)}
+                <button
+                    data-message-action
+                    onclick={() => handlePluginAction(view.key)}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={view.label}
+                    aria-label={view.label}
+                >
+                    {#if view.icon}
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"><path d={view.icon} /></svg
+                        >
+                    {:else}
+                        <span class="text-xs font-semibold"
+                            >{view.label.slice(0, 1)}</span
+                        >
+                    {/if}
+                </button>
+            {/each}
+        {/if}
         {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
             <button
                 data-message-action
