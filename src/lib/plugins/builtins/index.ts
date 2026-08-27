@@ -14,6 +14,10 @@ import {
     manifest as slashFunManifest,
     plugin as slashFunPlugin,
 } from "./slash-fun/index";
+import {
+    manifest as gifPickerManifest,
+    plugin as gifPickerPlugin,
+} from "./gif-picker/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -26,6 +30,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: slashFunManifest,
         module: slashFunPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: gifPickerManifest,
+        module: gifPickerPlugin,
         defaultEnabled: true,
     },
 ];
