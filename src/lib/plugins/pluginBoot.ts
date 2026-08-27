@@ -42,6 +42,30 @@ import { satisfiesMinAppVersion } from "./semver";
 import { deleteCachedBundle } from "./bundleCache";
 import { APP_VERSION } from "$lib/update";
 import type { PluginIndexEntry } from "./repo";
+import {
+    buildSyncPayload,
+    parseSyncPayload,
+    summarizePull,
+    type PluginSyncPayload,
+    type LocalSyncSnapshot,
+    type PullSummary,
+} from "./pluginSync";
+import {
+    computeUpdateStatus,
+    pluginsToAutoUpdate,
+    type InstalledForUpdate,
+} from "./updateCheck";
+// Sanctioned host consumer of the SDK boundary (like hostApi.ts) — sync writes
+// self-scoped account data; plugins never import client.ts.
+import { persistPluginSync, loadPluginSync } from "../matrix/client";
+import { readPluginSettings, writePluginSettings } from "./pluginSettingsStore";
+import {
+    installedPlugins,
+    pluginPrefs,
+    setGlobalAutoUpdateState,
+    setPluginAutoUpdateState,
+    setUpdateAvailable,
+} from "$lib/stores/plugins.svelte";
 
 const STORAGE_KEY = "zam_plugins";
 
@@ -74,6 +98,34 @@ function setEnabledFlag(pluginId: string, enabled: boolean): void {
         };
     }
     writeState(state);
+}
+
+// --- auto-update get/set (persist + store mirror) ---
+
+export function getGlobalAutoUpdate(): boolean {
+    return readState().autoUpdate;
+}
+
+export function setGlobalAutoUpdate(v: boolean): void {
+    const state = readState();
+    state.autoUpdate = v;
+    writeState(state);
+    setGlobalAutoUpdateState(v);
+}
+
+export function getPluginAutoUpdate(id: string): boolean | undefined {
+    return readState().plugins[id]?.autoUpdate;
+}
+
+export function setPluginAutoUpdate(id: string, v: boolean | undefined): void {
+    const state = readState();
+    const entry = state.plugins[id];
+    if (entry) {
+        if (v === undefined) delete entry.autoUpdate;
+        else entry.autoUpdate = v;
+        writeState(state);
+    }
+    setPluginAutoUpdateState(id, v);
 }
 
 // --- loader wired to the item-2 store ---
@@ -157,6 +209,11 @@ const loadables = new Map<string, LoadablePlugin>();
 export function initPlugins(): () => void {
     const state = readState();
     setPluginRepos(state.repos);
+    setGlobalAutoUpdateState(state.autoUpdate);
+    for (const [id, entry] of Object.entries(state.plugins)) {
+        if (typeof entry.autoUpdate === "boolean")
+            setPluginAutoUpdateState(id, entry.autoUpdate);
+    }
 
     // 1) Register built-ins (respect a persisted enable override).
     const toBoot: LoadablePlugin[] = [];
@@ -309,5 +366,179 @@ export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
 export async function disableAllPlugins(): Promise<void> {
     for (const id of enabledPluginIds()) {
         await disablePlugin(id);
+    }
+}
+
+// --- sync + update orchestration ---
+
+/** Build the local plugin snapshot from persisted state + live settings. */
+function localSnapshot(): LocalSyncSnapshot {
+    const state = readState();
+    const plugins: LocalSyncSnapshot["plugins"] = {};
+    for (const [id, record] of Object.entries(installedPlugins)) {
+        const persisted = state.plugins[id];
+        const schema = record.manifest.settings;
+        const settings = schema ? readPluginSettings(id, schema) : undefined;
+        plugins[id] = {
+            enabled: record.enabled,
+            source: record.source,
+            version: record.manifest.version,
+            repoRef: record.repoRef,
+            autoUpdate: persisted?.autoUpdate,
+            settings,
+        };
+    }
+    return { repos: state.repos, autoUpdate: state.autoUpdate, plugins };
+}
+
+/** Push the local plugin set + settings to account data. Never throws. */
+export async function pushPluginSync(): Promise<{
+    ok: boolean;
+    error?: string;
+}> {
+    try {
+        await persistPluginSync(buildSyncPayload(localSnapshot()));
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
+    }
+}
+
+/** Read remote account data and diff it against local state. Runs NO plugin
+ *  code and mutates nothing — the summary drives the consent UI; applyPull does
+ *  the work only after explicit confirmation. */
+export async function getPullSummary(): Promise<{
+    ok: boolean;
+    summary?: PullSummary;
+    payload?: PluginSyncPayload;
+    error?: string;
+}> {
+    try {
+        const raw = loadPluginSync();
+        if (!raw)
+            return {
+                ok: false,
+                error: "No plugin sync data on your account yet.",
+            };
+        const payload = parseSyncPayload(raw);
+        if (!payload)
+            return {
+                ok: false,
+                error: "The sync data on your account is malformed.",
+            };
+        return {
+            ok: true,
+            summary: summarizePull(payload, localSnapshot()),
+            payload,
+        };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
+    }
+}
+
+/** Apply a pulled payload: add repos, enable/disable + reset settings for
+ *  plugins ALREADY installed here, and set the global auto-update flag. Repo
+ *  plugins not installed locally are intentionally left alone (the consent
+ *  summary lists them; the user installs them from Browse, then re-pulls) — a
+ *  pull never silently fetches/runs third-party remote code. */
+export async function applyPull(payload: PluginSyncPayload): Promise<void> {
+    for (const ref of payload.repos) addRepo(ref);
+    setGlobalAutoUpdate(payload.autoUpdate);
+    for (const [id, entry] of Object.entries(payload.plugins)) {
+        const record = installedPlugins[id];
+        if (!record) continue; // not installed here — skip (listed in summary)
+        // Reset settings first so a plugin re-enabled below reads the pulled values.
+        if (entry.settings && record.manifest.settings) {
+            writePluginSettings(id, record.manifest.settings, entry.settings);
+        }
+        if (typeof entry.autoUpdate === "boolean")
+            setPluginAutoUpdate(id, entry.autoUpdate);
+        if (entry.enabled && !record.enabled) await enablePlugin(id);
+        else if (!entry.enabled && record.enabled) await disablePlugin(id);
+    }
+}
+
+/** Given the latest versions seen in Browse indexes, publish the update badges
+ *  and auto-update any plugin whose effective policy allows it. */
+export async function applyUpdateCheck(
+    latestVersions: Record<string, string>,
+): Promise<void> {
+    const installed: InstalledForUpdate[] = Object.values(installedPlugins).map(
+        (r) => ({
+            id: r.manifest.id,
+            version: r.manifest.version,
+            source: r.source,
+        }),
+    );
+    const status = computeUpdateStatus(installed, latestVersions);
+    const available: Record<string, string> = {};
+    for (const s of status) if (s.hasUpdate) available[s.id] = s.latestVersion;
+    setUpdateAvailable(available);
+
+    const auto = pluginsToAutoUpdate(
+        status,
+        pluginPrefs.autoUpdate,
+        pluginPrefs.perPlugin,
+    );
+    for (const id of auto) await updateRepoPlugin(id);
+}
+
+/** Pull the newest bundle for an installed repo plugin: re-fetch manifest +
+ *  bundle, re-cache, update the installed record, and reload if enabled.
+ *  Preserves the enabled state (unlike install, which records disabled). */
+export async function updateRepoPlugin(
+    pluginId: string,
+): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const state = readState();
+        const persisted = state.plugins[pluginId];
+        if (!persisted || persisted.source !== "repo" || !persisted.repoRef)
+            return { ok: false, error: "not an installed repo plugin" };
+        const ref = normalizeRepoRef(persisted.repoRef);
+        const manRes = await fetch(
+            rawUrl(ref, `plugins/${pluginId}/manifest.json`),
+        );
+        if (!manRes.ok)
+            return { ok: false, error: `manifest fetch ${manRes.status}` };
+        const manifest = parseManifest(await manRes.json());
+        if (
+            manifest.minAppVersion &&
+            !satisfiesMinAppVersion(APP_VERSION, manifest.minAppVersion)
+        )
+            return {
+                ok: false,
+                error: `requires app ${manifest.minAppVersion}+`,
+            };
+        const bundleRes = await fetch(
+            rawUrl(ref, `plugins/${pluginId}/${manifest.entry}`),
+        );
+        if (!bundleRes.ok)
+            return { ok: false, error: `bundle fetch ${bundleRes.status}` };
+        const code = await bundleRes.text();
+        await putCachedBundle({
+            pluginId: manifest.id,
+            version: manifest.version,
+            code,
+            cachedAt: Date.now(),
+        });
+        const wasEnabled = loader.isLoaded(pluginId);
+        // Update record + persist, preserving enabled state.
+        setInstalledPlugin({
+            manifest,
+            source: "repo",
+            enabled: wasEnabled,
+            error: null,
+            repoRef: persisted.repoRef,
+        });
+        persisted.manifest = manifest;
+        writeState(state);
+        loadables.set(manifest.id, repoLoadable(manifest, persisted.repoRef));
+        if (wasEnabled) {
+            await disablePlugin(pluginId);
+            await enablePlugin(pluginId);
+        }
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
     }
 }
