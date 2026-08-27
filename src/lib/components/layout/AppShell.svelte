@@ -20,6 +20,7 @@
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
+    import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -1898,6 +1899,10 @@
 
 {#if interfaceState.modal === "share-location" && locationDialogState.roomId}
     <ShareLocationDialog />
+{/if}
+
+{#if interfaceState.modal === "plugin-popover"}
+    <PluginPopoverHost />
 {/if}
 
 {#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}

@@ -41,6 +41,8 @@ import { parseManifest } from "./manifest";
 import { satisfiesMinAppVersion } from "./semver";
 import { deleteCachedBundle } from "./bundleCache";
 import { APP_VERSION } from "$lib/update";
+import { hostBridge } from "./hostBridge";
+import { openPluginPopover } from "./pluginPopover.svelte";
 import type { PluginIndexEntry } from "./repo";
 import {
     buildSyncPayload,
@@ -207,6 +209,10 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
 const loadables = new Map<string, LoadablePlugin>();
 
 export function initPlugins(): () => void {
+    // Wire the imperative UI seam item 8 owns: zam.ui.openPopover routes
+    // through hostBridge.openPopover (hostApi.ts). Set once at boot.
+    hostBridge.openPopover = openPluginPopover;
+
     const state = readState();
     setPluginRepos(state.repos);
     setGlobalAutoUpdateState(state.autoUpdate);
