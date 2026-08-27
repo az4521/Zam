@@ -13,13 +13,38 @@ export interface Disposable {
     dispose(): void;
 }
 
-export interface PluginCommand {
+interface PluginCommandBase {
     name: string;
     aliases?: string[];
     description: string;
     argKind?: "none" | "text" | "user" | "roomAlias";
+}
+
+/** Action command — MessageInput calls `run(ctx)`; the host composes nothing.
+ *  The default plugin-command flavor (sample plugin, third-party tools). */
+export interface PluginActionCommand extends PluginCommandBase {
     run(ctx: { roomId: string; arg: string }): void | Promise<void>;
 }
+
+/** Transform/emote command — the host composes a standard `m.text`/`m.emote`
+ *  from the command's pure `transform` (text-transform) or the raw arg (emote),
+ *  routed through the SAME core send path as a built-in slash command, so
+ *  markdown, mentions, thread targeting and reply-clear are all preserved.
+ *  Used by the built-in fun commands. `transform` MUST be pure and MUST NOT
+ *  throw (the host guards, but treat it as a contract). */
+export interface PluginTransformCommand extends PluginCommandBase {
+    kind: "text-transform" | "emote";
+    /** text-transform: rewrite the arg into the body. Omit for emote (body = arg). */
+    transform?: (arg: string) => string;
+    /** text-transform: send verbatim, bypassing markdown (like core /plain). */
+    plain?: boolean;
+    /** A missing arg is a usage error (shows a toast, sends nothing). */
+    requiresArg?: boolean;
+    /** Popup hint, e.g. "[message]" / "<message>". */
+    argHint?: string;
+}
+
+export type PluginCommand = PluginActionCommand | PluginTransformCommand;
 
 export interface ComposerButton {
     id: string;

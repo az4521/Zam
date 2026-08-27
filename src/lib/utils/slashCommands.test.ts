@@ -298,6 +298,66 @@ describe("pluginCommandToSlash", () => {
     });
 });
 
+describe("pluginCommandToSlash — transform/emote commands", () => {
+    it("emits a core-dispatched text-transform command (transform, no pluginRun)", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "Shrug",
+                description: "Append shrug",
+                kind: "text-transform",
+                argKind: "text",
+                argHint: "[message]",
+                transform: (a) => (a ? `${a} shrug` : "shrug"),
+            },
+            "zam.slash-fun",
+        );
+        expect(s.name).toBe("shrug");
+        expect(s.kind).toBe("text-transform");
+        expect(s.pluginId).toBe("zam.slash-fun");
+        expect(s.pluginRun).toBeUndefined();
+        expect(s.transform?.("hi")).toBe("hi shrug");
+        expect(s.transform?.("")).toBe("shrug");
+        expect(s.argHint).toBe("[message]");
+        expect(s.argKind).toBe("text");
+    });
+
+    it("carries plain + requiresArg for a /plain-style command", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "plain",
+                description: "no markdown",
+                kind: "text-transform",
+                requiresArg: true,
+                plain: true,
+                transform: (a) => a,
+            },
+            "p",
+        );
+        expect(s.plain).toBe(true);
+        expect(s.requiresArg).toBe(true);
+        expect(s.pluginRun).toBeUndefined();
+    });
+
+    it("emits an emote command with no transform (body = arg)", () => {
+        const s = pluginCommandToSlash(
+            { name: "me", description: "action", kind: "emote", requiresArg: true },
+            "p",
+        );
+        expect(s.kind).toBe("emote");
+        expect(s.transform).toBeUndefined();
+        expect(s.requiresArg).toBe(true);
+        expect(s.pluginRun).toBeUndefined();
+    });
+
+    it("defaults transform-command argKind to text", () => {
+        const s = pluginCommandToSlash(
+            { name: "x", description: "d", kind: "text-transform", transform: (a) => a },
+            "p",
+        );
+        expect(s.argKind).toBe("text");
+    });
+});
+
 describe("mergeSlashCommands (core precedence)", () => {
     const plug = (name: string): SlashCommand =>
         pluginCommandToSlash({ name, description: "d", run: () => {} }, "p");

@@ -201,12 +201,30 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 
 /** Adapt a plugin's command into a `SlashCommand` the pure matchers + the
  *  MessageInput dispatch understand. Names/aliases are lowercased (findCommand
- *  lowercases lookups). Plugin commands are always `kind:"action"`, validate
- *  their own args (no requiresArg), and carry `pluginRun` for dispatch. */
+ *  lowercases lookups). Plugin commands are either action-flavor (carry
+ *  `pluginRun`) or transform/emote-flavor (core-dispatched, no `pluginRun`). */
 export function pluginCommandToSlash(
     cmd: PluginCommand,
     pluginId: string,
 ): SlashCommand {
+    // Transform/emote flavor → core-dispatched (no pluginRun). Flows through
+    // MessageInput's emote/text-transform branch exactly like a built-in
+    // command, so markdown / mentions / thread / reply-clear are preserved.
+    if ("kind" in cmd) {
+        return {
+            name: cmd.name.toLowerCase(),
+            aliases: cmd.aliases?.map((a) => a.toLowerCase()),
+            description: cmd.description,
+            argKind: cmd.argKind ?? "text",
+            argHint: cmd.argHint,
+            kind: cmd.kind,
+            transform: cmd.transform,
+            plain: cmd.plain,
+            requiresArg: cmd.requiresArg,
+            pluginId,
+        };
+    }
+    // Action flavor (existing behavior) — dispatched via pluginRun.
     const argKind = cmd.argKind ?? "none";
     return {
         name: cmd.name.toLowerCase(),
