@@ -235,7 +235,9 @@ function initEventBus(): () => void {
                 eventId: event.getId() ?? "",
                 sender: event.getSender() ?? "",
                 type: event.getType(),
-                content: event.getContent(),
+                // Shallow-clone so a plugin that mutates the handed-out content
+                // can't corrupt the SDK's stored event (full-trust footgun).
+                content: { ...event.getContent() },
             };
             dispatchPluginEvent(
                 pluginRegistry.eventSubs.map((e) => e.value),
