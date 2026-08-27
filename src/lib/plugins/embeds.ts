@@ -9,6 +9,8 @@
  */
 import type { RegistryEntry } from "./registry";
 import type { MessageEmbed } from "./types";
+import { pluginMount } from "./pluginMount";
+import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
 
 /**
  * First registered embed whose `match(url)` returns truthy, in registry order
@@ -35,4 +37,26 @@ export function resolveEmbed(
         if (ok) return e;
     }
     return null;
+}
+
+/**
+ * Svelte action: mount a matched embed into `node`. Hands the plugin a
+ * host-sanitized `ctx.html(markup)` (the only path where Zam renders a
+ * plugin's HTML — always through `sanitizeMatrixHtml`, never a raw `{@html}`).
+ * Delegates isolation + cleanup to `pluginMount` (render/cleanup try/catch).
+ * Re-mount on embed/url change is the caller's job via `{#key}`.
+ */
+export function mountEmbed(
+    node: HTMLElement,
+    params: { embed: MessageEmbed; url: string },
+): { destroy(): void } {
+    const { embed, url } = params;
+    return pluginMount(node, (el) =>
+        embed.render(el, {
+            url,
+            html: (markup: string) => {
+                el.innerHTML = sanitizeMatrixHtml(markup);
+            },
+        }),
+    );
 }

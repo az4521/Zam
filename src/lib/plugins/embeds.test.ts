@@ -1,6 +1,6 @@
 // src/lib/plugins/embeds.test.ts
 import { describe, it, expect, vi } from "vitest";
-import { resolveEmbed } from "./embeds";
+import { resolveEmbed, mountEmbed } from "./embeds";
 import type { RegistryEntry } from "./registry";
 import type { MessageEmbed } from "./types";
 
@@ -56,5 +56,87 @@ describe("resolveEmbed", () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         expect(resolveEmbed([thrower], "https://x")).toBeNull();
         spy.mockRestore();
+    });
+});
+
+describe("mountEmbed", () => {
+    it("renders imperative plugin DOM into the node", () => {
+        const embed: MessageEmbed = {
+            match: () => true,
+            render(el) {
+                const p = document.createElement("p");
+                p.textContent = "hi";
+                el.appendChild(p);
+            },
+        };
+        const node = document.createElement("div");
+        mountEmbed(node, { embed, url: "https://x" });
+        expect(node.querySelector("p")?.textContent).toBe("hi");
+    });
+
+    it("sanitizes HTML rendered via ctx.html — strips <script> and onerror", () => {
+        const embed: MessageEmbed = {
+            match: () => true,
+            render(el, ctx) {
+                ctx.html(
+                    '<div class="card">ok<img src="x" onerror="alert(1)"><script>alert(2)</script></div>',
+                );
+            },
+        };
+        const node = document.createElement("div");
+        mountEmbed(node, { embed, url: "https://x" });
+        expect(node.querySelector("script")).toBeNull();
+        const img = node.querySelector("img");
+        // Sanitizer drops non-mxc img src AND the onerror handler.
+        expect(img?.getAttribute("onerror")).toBeNull();
+        expect(node.textContent).toContain("ok");
+    });
+
+    it("passes the url through to render ctx", () => {
+        let seen = "";
+        const embed: MessageEmbed = {
+            match: () => true,
+            render(_el, ctx) {
+                seen = ctx.url;
+            },
+        };
+        mountEmbed(document.createElement("div"), {
+            embed,
+            url: "https://seen.example",
+        });
+        expect(seen).toBe("https://seen.example");
+    });
+
+    it("does not throw when the plugin render throws", () => {
+        const embed: MessageEmbed = {
+            match: () => true,
+            render() {
+                throw new Error("boom");
+            },
+        };
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        expect(() =>
+            mountEmbed(document.createElement("div"), {
+                embed,
+                url: "https://x",
+            }),
+        ).not.toThrow();
+        spy.mockRestore();
+    });
+
+    it("runs the plugin cleanup on destroy", () => {
+        const cleanup = vi.fn();
+        const embed: MessageEmbed = {
+            match: () => true,
+            render() {
+                return cleanup;
+            },
+        };
+        const handle = mountEmbed(document.createElement("div"), {
+            embed,
+            url: "https://x",
+        });
+        handle.destroy();
+        expect(cleanup).toHaveBeenCalledOnce();
     });
 });

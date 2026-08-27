@@ -51,7 +51,21 @@ export type MessageDecorator = (ctx: {
 
 export interface MessageEmbed {
     match(url: string): boolean;
-    render(el: HTMLElement, ctx: { url: string }): void | (() => void);
+    render(
+        el: HTMLElement,
+        ctx: {
+            url: string;
+            /**
+             * Set `el`'s content from an HTML string, sanitized by the host
+             * through `sanitizeMatrixHtml` (Matrix allowlist: no <script>,
+             * event handlers, <style>, <iframe>, non-mxc <img src>). This is
+             * the host-sanitized render path (spec §6/§7). A plugin may also
+             * build DOM imperatively on `el` (its own full-trust DOM, like
+             * ui.openPopover); only `ctx.html` is host-sanitized.
+             */
+            html(markup: string): void;
+        },
+    ): void | (() => void);
 }
 
 export interface HeaderButton {
