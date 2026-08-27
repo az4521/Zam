@@ -61,7 +61,9 @@ export interface MessageEmbed {
              * event handlers, <style>, <iframe>, non-mxc <img src>). This is
              * the host-sanitized render path (spec §6/§7). A plugin may also
              * build DOM imperatively on `el` (its own full-trust DOM, like
-             * ui.openPopover); only `ctx.html` is host-sanitized.
+             * ui.openPopover); only `ctx.html` is host-sanitized. The Matrix
+             * allowlist also strips `class` and `style` attributes; for custom
+             * styling build DOM on `el` rather than via `ctx.html`.
              */
             html(markup: string): void;
         },

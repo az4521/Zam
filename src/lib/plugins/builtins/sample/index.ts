@@ -143,11 +143,11 @@ export const plugin: PluginModule = {
                     // no event handlers, no third-party <img src> survive — the demo
                     // renders text + structure only.
                     ctx.html(
-                        `<div class="mt-1 max-w-lg rounded border border-discord-divider bg-discord-backgroundSecondary p-3">` +
-                            `<p class="text-xs text-discord-textMuted">Zam demo embed</p>` +
-                            `<p class="text-sm font-semibold text-discord-accent">Custom renderer for ${escapeHtml(new URL(ctx.url).hostname)}</p>` +
-                            `<p class="text-xs text-discord-textSecondary">Rendered by the sample plugin (the raw link still shows above).</p>` +
-                            `</div>`,
+                        `<blockquote>` +
+                            `<p><strong>Zam demo embed</strong></p>` +
+                            `<p>Custom renderer for <code>${escapeHtml(new URL(ctx.url).hostname)}</code></p>` +
+                            `<p><em>Rendered by the sample plugin via the host-sanitized ctx.html path - the raw link still shows above.</em></p>` +
+                            `</blockquote>`,
                     );
                 },
             }),
