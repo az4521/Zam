@@ -357,7 +357,7 @@
             </svg>
         </button>
     {/if}
-    {#if interfaceState.isTouchscreen}
+    {#if interfaceState.isTouchscreen && onSwitchToEmoji}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}

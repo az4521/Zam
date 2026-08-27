@@ -2009,7 +2009,7 @@
             ></div>
 
             <!-- Sticker button -->
-            <!-- Same wrapper treatment as the GIF button above. -->
+            <!-- Wrapper `hidden` on touch mirrors the button's own `hidden` so no dead flex gap remains. -->
             <div
                 class="flex-shrink-0 {interfaceState.isTouchscreen &&
                 !showStickerPicker
