@@ -95,6 +95,7 @@
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import { createBackfillGate } from "$lib/utils/backfillGate";
+    import { hostBridge } from "$lib/plugins/hostBridge";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { preventDefault } from "svelte/legacy";
@@ -161,6 +162,22 @@
     // sentinel observer won't re-fire without an intersection transition).
     const backfillGate = createBackfillGate();
     let replyToEvent = $state<MatrixEvent | null>(null);
+    // Plugin composer.startReply → set this room's reply target. Single slot;
+    // the mounted room area owns it, resolving the event id in its own room
+    // only. Cleanup nulls the slot only if it is still ours, so a room switch
+    // that re-registers is not clobbered by the previous instance's teardown.
+    $effect(() => {
+        const activeRoom = room;
+        const handler = (ctx: { roomId: string; eventId: string }) => {
+            if (ctx.roomId !== activeRoom.roomId) return;
+            const ev = findEventById(activeRoom, ctx.eventId);
+            if (ev) replyToEvent = ev;
+        };
+        hostBridge.startReply = handler;
+        return () => {
+            if (hostBridge.startReply === handler) hostBridge.startReply = null;
+        };
+    });
     let editRequestedEventId = $state<string | null>(null);
     let threadRootId = $state<string | null>(null);
     // Desktop: thread replaces the timeline instead of docking as a side
