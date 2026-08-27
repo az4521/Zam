@@ -419,7 +419,13 @@
             return;
         }
         // Ctrl+Shift+D → toggle the debug panel.
-        if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        if (
+            e.ctrlKey &&
+            e.shiftKey &&
+            !e.altKey &&
+            !e.metaKey &&
+            (e.key === "D" || e.key === "d")
+        ) {
             e.preventDefault();
             interfaceState.debugOpen = !interfaceState.debugOpen;
             return;

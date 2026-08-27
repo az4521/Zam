@@ -12,6 +12,9 @@
  * **Conflict detection:** rejects chords that: (a) fail to parse, (b) have no modifier
  * (blocks bare Escape and plain typing), (c) collide with a core global shortcut.
  * Core always wins; plugins fire after Escape and before the Ctrl-only fallback.
+ *
+ * **Limitation:** prefer letter keys for plugin chords. With Shift held, `e.key` becomes
+ * the shifted character (`Shift+1` → `"!"`), so digit/punctuation chords won't match.
  */
 
 export interface Chord {

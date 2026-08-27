@@ -106,4 +106,10 @@ describe("resolveShortcut", () => {
             resolveShortcut(parseChord("Ctrl+K")!, [reg("Ctrl+J", "j")]),
         ).toBeNull();
     });
+    it("allows Ctrl+Shift+Alt+D (only strict Ctrl+Shift+D is core-reserved)", () => {
+        const regs = [reg("Ctrl+Shift+Alt+D", "variant")];
+        expect(resolveShortcut(parseChord("Ctrl+Shift+Alt+D")!, regs)?.id).toBe(
+            "variant",
+        );
+    });
 });
