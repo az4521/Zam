@@ -4,6 +4,8 @@
         installedPlugins,
         pluginRegistry,
         pluginRepos,
+        pluginPrefs,
+        pluginUpdates,
     } from "$lib/stores/plugins.svelte";
     import {
         enablePlugin,
@@ -13,6 +15,13 @@
         installRepoPlugin,
         uninstallRepoPlugin,
         disableAllPlugins,
+        pushPluginSync,
+        getPullSummary,
+        applyPull,
+        applyUpdateCheck,
+        updateRepoPlugin,
+        setGlobalAutoUpdate,
+        setPluginAutoUpdate,
     } from "$lib/plugins/pluginBoot";
     import {
         OFFICIAL_REPO,
@@ -26,6 +35,10 @@
         parseIndex,
         type PluginIndexEntry,
     } from "$lib/plugins/repo";
+    import type {
+        PullSummary,
+        PluginSyncPayload,
+    } from "$lib/plugins/pluginSync";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         Settings,
@@ -74,6 +87,85 @@
         settingsForPluginId = null;
     }
 
+    // Sync sub-view state
+    let syncView = $state(false);
+    let syncBusy = $state(false);
+    let syncMessage = $state("");
+    let syncError = $state("");
+    let pullSummary = $state<PullSummary | null>(null);
+    let pullPayload = $state<PluginSyncPayload | null>(null);
+
+    function openSync() {
+        syncView = true;
+        syncMessage = "";
+        syncError = "";
+        pullSummary = null;
+        pullPayload = null;
+    }
+    function closeSync() {
+        syncView = false;
+        pullSummary = null;
+        pullPayload = null;
+    }
+
+    async function doPush() {
+        syncBusy = true;
+        syncError = "";
+        syncMessage = "";
+        const res = await pushPluginSync();
+        syncBusy = false;
+        if (res.ok) syncMessage = "Pushed your plugin set to your account.";
+        else syncError = res.error ?? "Push failed.";
+    }
+
+    async function doPullPreview() {
+        syncBusy = true;
+        syncError = "";
+        syncMessage = "";
+        pullSummary = null;
+        pullPayload = null;
+        const res = await getPullSummary();
+        syncBusy = false;
+        if (res.ok && res.summary && res.payload) {
+            pullSummary = res.summary;
+            pullPayload = res.payload;
+        } else {
+            syncError = res.error ?? "Pull failed.";
+        }
+    }
+
+    async function doApplyPull() {
+        if (!pullPayload) return;
+        syncBusy = true;
+        await applyPull(pullPayload);
+        syncBusy = false;
+        pullSummary = null;
+        pullPayload = null;
+        syncMessage = "Applied the synced plugin set.";
+    }
+
+    // Global auto-update toggle
+    async function toggleAutoUpdate(next: boolean) {
+        setGlobalAutoUpdate(next);
+    }
+
+    // Per-plugin override select value: "default" | "on" | "off"
+    function overrideValue(id: string): "default" | "on" | "off" {
+        const v = pluginPrefs.perPlugin[id];
+        return v === undefined ? "default" : v ? "on" : "off";
+    }
+    function setOverride(id: string, val: string) {
+        setPluginAutoUpdate(id, val === "default" ? undefined : val === "on");
+    }
+
+    // Update a single repo plugin now
+    let updateBusy = $state<Record<string, boolean>>({});
+    async function doUpdate(id: string) {
+        updateBusy[id] = true;
+        await updateRepoPlugin(id);
+        updateBusy[id] = false;
+    }
+
     // On DESKTOP only, register the form's close with the central dismiss stack so
     // Escape / back pops the form before the settings dialog. On mobile, AppSettings
     // already owns the sub-page slot for the plugins drill-down; claiming it here
@@ -117,7 +209,7 @@
         addRepo(res.normalized!);
         repoError = "";
         repoInput = "";
-        void loadRepo(res.normalized!);
+        void loadRepo(res.normalized!).then(refreshUpdates);
     }
 
     // Browse state per repo
@@ -157,10 +249,21 @@
 
     // Initial Browse fetch on mount
     onMount(() => {
-        for (const r of mergeRepoList(pluginRepos.refs)) {
-            void loadRepo(r.ref);
-        }
+        (async () => {
+            await Promise.all(
+                mergeRepoList(pluginRepos.refs).map((r) => loadRepo(r.ref)),
+            );
+            refreshUpdates();
+        })();
     });
+
+    function refreshUpdates() {
+        const latest: Record<string, string> = {};
+        for (const state of Object.values(browse)) {
+            for (const entry of state.entries) latest[entry.id] = entry.version;
+        }
+        void applyUpdateCheck(latest);
+    }
 
     // Install a repo plugin
     let installError = $state("");
@@ -184,6 +287,116 @@
         pluginId={settingsForPluginId}
         onBack={closeSettingsForm}
     />
+{:else if syncView}
+    <div class="space-y-4">
+        <button
+            type="button"
+            onclick={closeSync}
+            class="text-sm text-discord-textMuted hover:text-discord-textPrimary"
+        >
+            ← Back
+        </button>
+        <p class="text-xs text-discord-textMuted">
+            Sync your enabled plugins + settings to your Matrix account
+            (per-device otherwise). Pulling shows what will change before
+            anything runs.
+        </p>
+        <div class="flex gap-2">
+            <button
+                type="button"
+                onclick={doPush}
+                disabled={syncBusy}
+                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+            >
+                Push to account
+            </button>
+            <button
+                type="button"
+                onclick={doPullPreview}
+                disabled={syncBusy}
+                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+            >
+                Pull from account
+            </button>
+        </div>
+        {#if syncMessage}
+            <p class="text-sm text-discord-textSecondary">{syncMessage}</p>
+        {/if}
+        {#if syncError}
+            <p class="text-sm text-discord-danger">{syncError}</p>
+        {/if}
+        {#if pullSummary}
+            <div
+                class="p-3 rounded bg-discord-backgroundTertiary space-y-2 text-sm"
+            >
+                <p class="font-semibold text-discord-textPrimary">
+                    This pull will:
+                </p>
+                {#if pullSummary.reposToAdd.length}
+                    <p class="text-discord-textSecondary">
+                        Add repos: {pullSummary.reposToAdd.join(", ")}
+                    </p>
+                {/if}
+                {#if pullSummary.toEnable.length}
+                    <p class="text-discord-textSecondary">
+                        Enable: {pullSummary.toEnable.join(", ")}
+                    </p>
+                {/if}
+                {#if pullSummary.toDisable.length}
+                    <p class="text-discord-textSecondary">
+                        Disable: {pullSummary.toDisable.join(", ")}
+                    </p>
+                {/if}
+                {#if pullSummary.settingsChanges.length}
+                    <p class="text-discord-textSecondary">
+                        Update settings for: {pullSummary.settingsChanges.join(
+                            ", ",
+                        )}
+                    </p>
+                {/if}
+                {#if pullSummary.autoUpdateChange !== null}
+                    <p class="text-discord-textSecondary">
+                        Set auto-update: {pullSummary.autoUpdateChange
+                            ? "on"
+                            : "off"}
+                    </p>
+                {/if}
+                {#if pullSummary.notInstalledHere.length}
+                    <p class="text-discord-textMuted text-xs">
+                        Not installed on this device (install from Browse, then
+                        pull again): {pullSummary.notInstalledHere
+                            .map((n) => n.id)
+                            .join(", ")}
+                    </p>
+                {/if}
+                {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null}
+                    <p class="text-discord-textSecondary">
+                        Nothing to change — already in sync.
+                    </p>
+                {/if}
+                <div class="flex gap-2 pt-1">
+                    <button
+                        type="button"
+                        onclick={doApplyPull}
+                        disabled={syncBusy}
+                        class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => {
+                            pullSummary = null;
+                            pullPayload = null;
+                        }}
+                        class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        {/if}
+    </div>
 {:else}
     <div class="space-y-6">
         <!-- Installed -->
@@ -226,6 +439,27 @@
                                         </p>
                                     </div>
                                 {/if}
+                                {#if pluginUpdates.available[p.id]}
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span
+                                            class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
+                                        >
+                                            Update to v{pluginUpdates.available[
+                                                p.id
+                                            ]}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onclick={() => doUpdate(p.id)}
+                                            disabled={updateBusy[p.id]}
+                                            class="text-xs text-discord-accent hover:underline disabled:opacity-50"
+                                        >
+                                            {updateBusy[p.id]
+                                                ? "Updating..."
+                                                : "Update"}
+                                        </button>
+                                    </div>
+                                {/if}
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
                                 {#if hasSettings}
@@ -248,6 +482,22 @@
                                         : undefined}
                                 />
                                 {#if p.source === "repo"}
+                                    <select
+                                        value={overrideValue(p.id)}
+                                        onchange={(e) =>
+                                            setOverride(
+                                                p.id,
+                                                e.currentTarget.value,
+                                            )}
+                                        title="Auto-update this plugin"
+                                        class="text-xs rounded bg-discord-backgroundSecondary text-discord-textMuted border border-discord-divider px-1 py-0.5"
+                                    >
+                                        <option value="default"
+                                            >Auto: Default</option
+                                        >
+                                        <option value="on">Auto: On</option>
+                                        <option value="off">Auto: Off</option>
+                                    </select>
                                     <button
                                         type="button"
                                         onclick={() => remove(p.id)}
@@ -421,9 +671,8 @@
             <div class="space-y-3">
                 <button
                     type="button"
-                    disabled
-                    title="Coming in a later update"
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:hover:bg-discord-backgroundTertiary"
+                    onclick={openSync}
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 >
                     <RefreshCw size={16} />
                     Sync plugins
@@ -446,14 +695,13 @@
                             Auto-update plugins
                         </p>
                         <p class="text-xs text-discord-textMuted">
-                            Coming soon.
+                            Automatically pull newer versions of repo plugins.
                         </p>
                     </div>
                     <ToggleSwitch
-                        checked={false}
-                        onChange={() => {}}
+                        checked={pluginPrefs.autoUpdate}
+                        onChange={(next) => toggleAutoUpdate(next)}
                         label="Auto-update plugins"
-                        title="Coming in a later update"
                     />
                 </div>
             </div>
