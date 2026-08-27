@@ -88,11 +88,11 @@ export const plugin: PluginModule = {
                     eventId: ctx.eventId,
                 });
             } else if (action === "reaction") {
-                void zam.matrix.react(
-                    ctx.roomId,
-                    ctx.eventId,
-                    zam.settings.get<string>("reaction", "👍"),
-                );
+                const key = zam.settings.get<string>("reaction", "👍") || "👍";
+                zam.matrix.react(ctx.roomId, ctx.eventId, key).catch((err) => {
+                    console.error("[zam.double-tap-reply] react failed", err);
+                    zam.ui.notify({ body: "Failed to react" });
+                });
             }
         };
 
