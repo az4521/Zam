@@ -16,6 +16,7 @@ import {
     coerceValues,
     type SettingsSchema,
 } from "./settingsSchema";
+import { settingsStorageKey } from "./pluginSettingsStore";
 import { hostBridge } from "./hostBridge";
 import {
     sendEventContent,
@@ -94,7 +95,9 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
     };
 
     // --- settings: schema-driven, namespaced, coerced ---
-    const settingsKey = `zam.plugin.${pluginId}.settings`;
+    // Key sourced from pluginSettingsStore so the Manager's settings form and
+    // this host read/write the exact same localStorage entry.
+    const settingsKey = settingsStorageKey(pluginId);
     let schema: SettingsSchema = manifest.settings ?? [];
     const changeListeners = new Set<(v: Record<string, unknown>) => void>();
     const readStored = (): Record<string, unknown> => {
