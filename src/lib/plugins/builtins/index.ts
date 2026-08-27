@@ -22,6 +22,10 @@ import {
     manifest as stickerPickerManifest,
     plugin as stickerPickerPlugin,
 } from "./sticker-picker/index";
+import {
+    manifest as doubleTapReplyManifest,
+    plugin as doubleTapReplyPlugin,
+} from "./double-tap-reply/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -44,6 +48,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: stickerPickerManifest,
         module: stickerPickerPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: doubleTapReplyManifest,
+        module: doubleTapReplyPlugin,
         defaultEnabled: true,
     },
 ];
