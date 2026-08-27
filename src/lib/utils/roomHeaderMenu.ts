@@ -6,6 +6,9 @@
 // exist, what they say and how they badge lives here so it can be tested
 // without a DOM; MessageArea only supplies the numbers and renders the result.
 
+import type { RegistryEntry } from "$lib/plugins/registry";
+import type { HeaderButton } from "$lib/plugins/types";
+
 /** The panels that move off the header and into the overflow menu. */
 export type RoomHeaderMenuKey =
     | "threads"
@@ -89,4 +92,81 @@ export function roomHeaderMenuRows(
             dot: false,
         },
     ];
+}
+
+/**
+ * Plugin room-header button exports (zam.room.addHeaderButton, spec §6).
+ * Pure adapters for the plugin header-button registry → UI views, tested
+ * without a DOM. The overflow menu's plugin rows reuse the same structure.
+ */
+
+/**
+ * Stable key for a plugin's header button, namespaced by plugin + button id.
+ * Mirrors pluginComposer.pluginContribKey.
+ */
+export function pluginHeaderKey(pluginId: string, id: string): string {
+    return `plugin:${pluginId}:${id}`;
+}
+
+/**
+ * UI view of a plugin header button — the stable key + label + icon + render.
+ * Matches PluginPanelState's render signature (HTMLElement + roomId context).
+ */
+export interface PluginHeaderButtonView {
+    key: string;
+    label: string;
+    icon?: string;
+    render(el: HTMLElement, ctx: { roomId: string }): void | (() => void);
+}
+
+/**
+ * Map plugin header-button registry entries to UI views, deduplicating by key
+ * (first registration wins). Preserves order — the desktop inline buttons and
+ * mobile overflow rows render in registration order.
+ */
+export function pluginHeaderButtons(
+    entries: RegistryEntry<HeaderButton>[],
+): PluginHeaderButtonView[] {
+    const seen = new Set<string>();
+    const views: PluginHeaderButtonView[] = [];
+
+    for (const entry of entries) {
+        const key = pluginHeaderKey(entry.pluginId, entry.value.id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        views.push({
+            key,
+            label: entry.value.label,
+            icon: entry.value.icon,
+            render: entry.value.render,
+        });
+    }
+
+    return views;
+}
+
+/**
+ * Row model for the mobile overflow menu's plugin section (matches the core
+ * RoomHeaderMenuRow structure but without badge/dot — plugins use a fixed icon).
+ */
+export interface PluginHeaderMenuRow {
+    key: string;
+    label: string;
+    active: boolean;
+}
+
+/**
+ * Build overflow-menu rows for plugin header buttons, marking the active row
+ * (the panel whose header button is currently open). Used by RoomHeaderOverflowMenu.
+ */
+export function pluginHeaderMenuRows(
+    buttons: { key: string; label: string }[],
+    activeKey: string | null,
+): PluginHeaderMenuRow[] {
+    return buttons.map((btn) => ({
+        key: btn.key,
+        label: btn.label,
+        active: btn.key === activeKey,
+    }));
 }
