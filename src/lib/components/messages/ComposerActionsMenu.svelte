@@ -75,12 +75,20 @@
             roomId,
         ).map((item) => ({ ...item, icon: item.icon || FALLBACK_ICON }));
     });
-    function choose(run: () => void) {
+    function choose(run: () => void | Promise<void>) {
         // Close this menu FIRST — it shares the single modal slot, so if `run`
         // opens another modal (e.g. the create-poll dialog), closing afterwards
         // would tear that freshly-opened modal right back down.
         onClose();
-        run();
+        try {
+            const r = run();
+            if (r && typeof (r as Promise<void>).then === "function")
+                (r as Promise<void>).catch((err) =>
+                    console.error("[zam] composer action threw", err),
+                );
+        } catch (err) {
+            console.error("[zam] composer action threw", err);
+        }
     }
 </script>
 

@@ -49,7 +49,9 @@
             use:positionCard={current.anchor}
             class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl overflow-hidden"
         >
-            <div use:pluginMount={current.render}></div>
+            {#key current}
+                <div use:pluginMount={current.render}></div>
+            {/key}
         </div>
     </Portal>
 {/if}

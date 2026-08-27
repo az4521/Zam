@@ -7,11 +7,7 @@
  * `pluginPopover.current` holds the anchor + the plugin's render fn; the single
  * global PluginPopoverHost renders it. No SDK/client import: this is UI state.
  */
-import {
-    openModal,
-    closeModal,
-    clearModalIfOwner,
-} from "$lib/stores/interface.svelte";
+import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
 import type { Disposable } from "./types";
 
 export interface PluginPopoverState {
