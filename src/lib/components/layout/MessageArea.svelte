@@ -96,6 +96,12 @@
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { hostBridge } from "$lib/plugins/hostBridge";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import {
+        pluginPanel,
+        openPluginPanel,
+    } from "$lib/plugins/pluginPanel.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
     import { rollupRoomThreadUnread } from "$lib/utils/threadUnread";
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { preventDefault } from "svelte/legacy";
@@ -110,9 +116,14 @@
         Hash,
         Image,
         MoreHorizontal,
+        X,
     } from "lucide-svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
-    import type { RoomHeaderMenuKey } from "$lib/utils/roomHeaderMenu";
+    import {
+        pluginHeaderButtons,
+        pluginHeaderMenuRows,
+        type RoomHeaderMenuKey,
+    } from "$lib/utils/roomHeaderMenu";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
@@ -335,6 +346,60 @@
         return getPinnedEventIds(room).length;
     });
 
+    // Plugin room-header buttons (zam.room.addHeaderButton). tick-gated so a
+    // mid-session enable/disable re-derives.
+    const pluginHeaderBtns = $derived(
+        (void pluginRegistry.tick,
+        pluginHeaderButtons(pluginRegistry.headerButtons)),
+    );
+    // Which plugin panel (if any) is open, for the active accent.
+    const activePluginPanelKey = $derived(
+        interfaceState.sidebar === "plugin"
+            ? (pluginPanel.current?.key ?? null)
+            : null,
+    );
+    const pluginOverflowRows = $derived(
+        pluginHeaderMenuRows(
+            pluginHeaderBtns.map((b) => ({ key: b.key, label: b.label })),
+            activePluginPanelKey,
+        ),
+    );
+
+    /** Open (or toggle off) a plugin's header panel in the single sidebar slot,
+     *  binding the plugin's render to the current room. */
+    function openPluginHeaderPanel(btn: {
+        key: string;
+        label: string;
+        render(el: HTMLElement, ctx: { roomId: string }): void | (() => void);
+    }) {
+        if (
+            interfaceState.sidebar === "plugin" &&
+            pluginPanel.current?.key === btn.key
+        ) {
+            closeSidebar();
+            return;
+        }
+        const roomId = room.roomId;
+        openPluginPanel({
+            key: btn.key,
+            title: btn.label,
+            roomId,
+            render: (el) => btn.render(el, { roomId }),
+        });
+    }
+
+    /** Mobile overflow → open a plugin panel by key. */
+    function choosePluginOverflow(key: string) {
+        const btn = pluginHeaderBtns.find((b) => b.key === key);
+        if (btn) openPluginHeaderPanel(btn);
+    }
+
+    /** Id-guarded release of a stranded plugin-panel slot (mirrors
+     *  releaseOverflowSlot). */
+    function releasePluginPanelSlot() {
+        if (interfaceState.sidebar === "plugin") closeSidebar();
+    }
+
     // Mobile only: threads / pinned / notifications / members move off the
     // header into a "⋯" sheet so the room name and topic get width at 412px.
     // It uses the shared modal slot, so Escape and Android's back button
@@ -352,7 +417,8 @@
             showThreadsPanel ||
             showPinnedPanel ||
             showNotificationsPanel ||
-            showMemberList,
+            showMemberList ||
+            interfaceState.sidebar === "plugin",
     );
 
     function toggleOverflowMenu() {
@@ -389,6 +455,41 @@
 
     // Unmount half, mirroring Lightbox's teardown.
     onMount(() => releaseOverflowSlot);
+
+    // Close a plugin panel when the room changes (MessageArea is one persistent
+    // instance — the panel was imperatively bound to the old roomId). Tracked
+    // dep = room.roomId; store read+write in untrack (no self-retrigger).
+    $effect(() => {
+        const rid = room.roomId;
+        untrack(() => {
+            if (
+                interfaceState.sidebar === "plugin" &&
+                pluginPanel.current &&
+                pluginPanel.current.roomId !== rid
+            ) {
+                closeSidebar();
+            }
+        });
+    });
+
+    // Close a plugin panel when its owning header button disappears (plugin
+    // disabled/disposed → registry entry removed). Tracked dep =
+    // pluginRegistry.tick.
+    $effect(() => {
+        void pluginRegistry.tick;
+        untrack(() => {
+            const cur = pluginPanel.current;
+            if (
+                interfaceState.sidebar === "plugin" &&
+                cur &&
+                !pluginHeaderBtns.some((b) => b.key === cur.key)
+            ) {
+                closeSidebar();
+            }
+        });
+    });
+
+    onMount(() => releasePluginPanelSlot);
 
     // Any loud (red) notification anywhere → badge the mobile hamburger.
     const hasAnyLoud = $derived(getLoudNotificationCount() > 0);
@@ -1807,6 +1908,29 @@
                 >
                     <Users size={20} />
                 </button>
+                {#each pluginHeaderBtns as btn (btn.key)}
+                    <button
+                        onclick={() => openPluginHeaderPanel(btn)}
+                        class="p-1.5 rounded transition-colors {activePluginPanelKey ===
+                        btn.key
+                            ? 'text-discord-accent bg-discord-messageHover'
+                            : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        title={btn.label}
+                        aria-label={btn.label}
+                    >
+                        {#if btn.icon}
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={btn.icon} /></svg
+                            >
+                        {:else}
+                            <span class="text-xs font-semibold"
+                                >{btn.label.slice(0, 2)}</span
+                            >
+                        {/if}
+                    </button>
+                {/each}
             {:else}
                 <button
                     onclick={toggleOverflowMenu}
@@ -2235,6 +2359,66 @@
         <MemberList {room} />
     {/if}
 
+    <!-- Plugin room-header panel (single sidebar slot). Additive: no inbound
+         rendering touched. Title is escaped text; body is the plugin's own DOM
+         mounted via pluginMount (cleanup runs on unmount/close/supersede). -->
+    {#if pluginPanel.current}
+        {@const panel = pluginPanel.current}
+        {#if isMobile}
+            <div
+                class="absolute inset-0 z-40 flex flex-col bg-discord-backgroundPrimary"
+            >
+                <div
+                    class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                >
+                    <span
+                        class="font-semibold text-discord-textPrimary truncate"
+                        >{panel.title}</span
+                    >
+                    <button
+                        onclick={closeSidebar}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                        aria-label="Close panel"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                {#key panel.key}
+                    <div
+                        class="flex-1 overflow-y-auto"
+                        use:pluginMount={panel.render}
+                    ></div>
+                {/key}
+            </div>
+        {:else}
+            <div
+                class="w-80 flex-shrink-0 flex flex-col border-l border-discord-divider bg-discord-backgroundSecondary"
+            >
+                <div
+                    class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                >
+                    <span
+                        class="font-semibold text-discord-textPrimary truncate"
+                        >{panel.title}</span
+                    >
+                    <button
+                        onclick={closeSidebar}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                        aria-label="Close panel"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                {#key panel.key}
+                    <div
+                        class="flex-1 overflow-y-auto"
+                        use:pluginMount={panel.render}
+                    ></div>
+                {/key}
+            </div>
+        {/if}
+    {/if}
+
     <!-- Thread panel. Mobile: always fullscreen over the timeline (the w-80
          side sheet was unusably cramped). Desktop: side panel by default,
          with an expand toggle that swaps it to fullscreen. -->
@@ -2277,7 +2461,9 @@
         threadMentions={threadRollup.mentions}
         threadAnyUnread={threadRollup.anyUnread}
         {pinnedCount}
+        pluginRows={pluginOverflowRows}
         onChoose={chooseOverflowItem}
+        onChoosePlugin={choosePluginOverflow}
         onClose={closeModal}
     />
 {/if}

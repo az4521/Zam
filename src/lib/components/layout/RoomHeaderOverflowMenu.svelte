@@ -4,6 +4,7 @@
     import {
         roomHeaderMenuRows,
         type RoomHeaderMenuKey,
+        type PluginHeaderMenuRow,
     } from "$lib/utils/roomHeaderMenu";
 
     interface Props {
@@ -12,7 +13,9 @@
         threadMentions: number;
         threadAnyUnread: boolean;
         pinnedCount: number;
+        pluginRows?: PluginHeaderMenuRow[];
         onChoose: (key: RoomHeaderMenuKey) => void;
+        onChoosePlugin?: (key: string) => void;
         onClose: () => void;
     }
     let {
@@ -20,7 +23,9 @@
         threadMentions,
         threadAnyUnread,
         pinnedCount,
+        pluginRows = [],
         onChoose,
+        onChoosePlugin,
         onClose,
     }: Props = $props();
 
@@ -99,6 +104,11 @@
         onClose();
         onChoose(key);
     }
+
+    function choosePlugin(key: string) {
+        onClose();
+        onChoosePlugin?.(key);
+    }
 </script>
 
 <Portal>
@@ -157,6 +167,28 @@
                         ></span>
                         <span class="sr-only">unread</span>
                     {/if}
+                </button>
+            {/each}
+            {#each pluginRows as row (row.key)}
+                <button
+                    role="menuitemcheckbox"
+                    aria-checked={row.active}
+                    onclick={() => choosePlugin(row.key)}
+                    class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover {row.active
+                        ? 'text-discord-accent'
+                        : 'text-discord-textPrimary'}"
+                >
+                    <svg
+                        class="w-5 h-5 flex-shrink-0 {row.active
+                            ? 'text-discord-accent'
+                            : 'text-discord-textMuted'}"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4v10h16V8H4z"
+                        /></svg
+                    >
+                    <span class="flex-1 truncate">{row.label}</span>
                 </button>
             {/each}
         </div>
