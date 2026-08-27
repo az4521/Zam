@@ -50,7 +50,13 @@ export interface ComposerButton {
     id: string;
     label: string;
     icon?: string;
-    onClick(ctx: { roomId: string; anchor: HTMLElement }): void | Promise<void>;
+    onClick(ctx: {
+        roomId: string;
+        anchor: HTMLElement;
+        /** Root event id when opened from a thread composer, else null —
+         *  lets a plugin post to the active thread (e.g. sticker send). */
+        threadRootId: string | null;
+    }): void | Promise<void>;
 }
 
 export interface ComposerAction {

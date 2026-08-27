@@ -58,18 +58,23 @@ export function pluginButtonToView(
     btn: ComposerButton,
     pluginId: string,
     roomId: string,
+    threadRootId: string | null = null,
 ): ComposerButtonView {
     return {
         key: pluginContribKey(pluginId, btn.id),
         label: btn.label,
         icon: btn.icon,
-        onClick: (anchor: HTMLElement) => btn.onClick({ roomId, anchor }),
+        onClick: (anchor: HTMLElement) =>
+            btn.onClick({ roomId, anchor, threadRootId }),
     };
 }
 
 export function pluginComposerButtons(
     entries: RegistryEntry<ComposerButton>[],
     roomId: string,
+    threadRootId: string | null = null,
 ): ComposerButtonView[] {
-    return entries.map((e) => pluginButtonToView(e.value, e.pluginId, roomId));
+    return entries.map((e) =>
+        pluginButtonToView(e.value, e.pluginId, roomId, threadRootId),
+    );
 }

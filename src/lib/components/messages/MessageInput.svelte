@@ -465,7 +465,11 @@
 
     const pluginComposerButtonViews = $derived.by(() => {
         void pluginRegistry.tick;
-        return pluginComposerButtons(pluginRegistry.composerButtons, roomId);
+        return pluginComposerButtons(
+            pluginRegistry.composerButtons,
+            roomId,
+            isThread ? (threadRootId ?? null) : null,
+        );
     });
 
     const slashCandidates = $derived.by((): SlashCommand[] =>

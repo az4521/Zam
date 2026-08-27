@@ -72,7 +72,7 @@ describe("mergeComposerActions", () => {
 });
 
 describe("pluginButtonToView / pluginComposerButtons", () => {
-    it("onClick forwards roomId + anchor", () => {
+    it("onClick forwards roomId + anchor + threadRootId (null by default)", () => {
         const onClick = vi.fn();
         const view = pluginButtonToView(
             { id: "b1", label: "Btn", onClick },
@@ -82,7 +82,28 @@ describe("pluginButtonToView / pluginComposerButtons", () => {
         expect(view.key).toBe("plugin:p:b1");
         const anchor = { tagName: "BUTTON" } as unknown as HTMLElement;
         view.onClick(anchor);
-        expect(onClick).toHaveBeenCalledWith({ roomId: "!r:s", anchor });
+        expect(onClick).toHaveBeenCalledWith({
+            roomId: "!r:s",
+            anchor,
+            threadRootId: null,
+        });
+    });
+
+    it("onClick forwards the thread root id when in a thread composer", () => {
+        const onClick = vi.fn();
+        const view = pluginButtonToView(
+            { id: "b1", label: "Btn", onClick },
+            "p",
+            "!r:s",
+            "$root:s",
+        );
+        const anchor = { tagName: "BUTTON" } as unknown as HTMLElement;
+        view.onClick(anchor);
+        expect(onClick).toHaveBeenCalledWith({
+            roomId: "!r:s",
+            anchor,
+            threadRootId: "$root:s",
+        });
     });
 
     it("maps every registry entry to a view", () => {
@@ -98,7 +119,7 @@ describe("pluginButtonToView / pluginComposerButtons", () => {
                 value: { id: "y", label: "Y", icon: "M2", onClick: () => {} },
             },
         ];
-        const views = pluginComposerButtons(entries, "!r:s");
+        const views = pluginComposerButtons(entries, "!r:s", null);
         expect(views.map((v) => v.key)).toEqual(["plugin:p1:x", "plugin:p2:y"]);
         expect(views[1].icon).toBe("M2");
     });
