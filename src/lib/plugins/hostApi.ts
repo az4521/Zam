@@ -23,6 +23,7 @@ import {
     sendReaction,
     getPluginRoomSummary,
     getPluginRoomMembers,
+    sendPluginSticker,
 } from "../matrix/client";
 
 export interface BuildHostApiOptions {
@@ -271,6 +272,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     url: file.url,
                     info: file.info ?? {},
                 }).then(() => {}),
+            sendSticker: (roomId, sticker, thread) =>
+                sendPluginSticker(roomId, sticker, thread),
             getRoomSummary: (roomId) => getPluginRoomSummary(roomId),
             getMembers: (roomId) => getPluginRoomMembers(roomId),
             react: (roomId, eventId, key) => sendReaction(roomId, eventId, key),

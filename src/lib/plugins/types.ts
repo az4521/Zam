@@ -169,6 +169,16 @@ export interface PluginMemberSummary {
     powerLevel: number;
 }
 
+/** Plain, serializable sticker payload a plugin sends — the compose side of
+ *  `m.sticker` (rendering stays core, interop rule). Structurally satisfied by
+ *  the object the sticker picker yields on select. */
+export interface PluginSticker {
+    mxcUrl: string;
+    body?: string;
+    shortcode?: string;
+    info?: object;
+}
+
 /** The `zam` object a plugin's `onload` receives (spec §6). */
 export interface ZamPluginApi {
     app: { version: string };
@@ -219,6 +229,13 @@ export interface ZamPluginApi {
         sendImage(
             roomId: string,
             file: { url: string; info?: object; body?: string },
+        ): Promise<void>;
+        /** Send a standard `m.sticker` (compose side of the sticker picker).
+         *  `thread.rootEventId` targets a thread; omit for the main timeline. */
+        sendSticker(
+            roomId: string,
+            sticker: PluginSticker,
+            thread?: { rootEventId: string },
         ): Promise<void>;
         getRoomSummary(roomId: string): PluginRoomSummary | null;
         getMembers(roomId: string): PluginMemberSummary[];

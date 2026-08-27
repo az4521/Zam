@@ -7295,6 +7295,35 @@ export async function sendSticker(
     await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
 }
 
+/** Plugin-facing sticker send (host API `zam.matrix.sendSticker`). Same
+ *  `m.sticker` content shape as `sendSticker`, but accepts the minimal plain
+ *  payload a plugin passes (no `url` field required). */
+export async function sendPluginSticker(
+    roomId: string,
+    sticker: {
+        mxcUrl: string;
+        body?: string;
+        shortcode?: string;
+        info?: object;
+    },
+    thread?: { rootEventId: string },
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not connected");
+    const content: Record<string, unknown> = {
+        body: sticker.body || sticker.shortcode || "sticker",
+        url: sticker.mxcUrl,
+        info: sticker.info ?? {},
+        "m.mentions": {},
+    };
+    const finalContent = thread
+        ? withThreadRelation(
+              content,
+              threadRelationParams(roomId, thread.rootEventId),
+          )
+        : content;
+    await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
+}
+
 export function onReactionEvent(
     callback: (event: MatrixEvent, room: Room) => void,
 ): () => void {
