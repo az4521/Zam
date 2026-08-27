@@ -75,7 +75,7 @@ export function canAddRepo(
     if (id === repoIdentity(OFFICIAL_REPO)) {
         return {
             ok: false,
-            reason: "That is the official repo — it is already included.",
+            reason: "That is the official repo (already included).",
         };
     }
     for (const existing of userRepos) {
