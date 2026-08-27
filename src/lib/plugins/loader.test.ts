@@ -150,4 +150,21 @@ describe("createPluginLoader", () => {
         expect(loader.isLoaded("builtinBad")).toBe(false);
         expect(loader.isLoaded("repo1")).toBe(true);
     });
+
+    it("does not re-throw when a cleanup op throws during a failed enable", async () => {
+        const f = fakeOps();
+        f.ops.markError = vi.fn(() => {
+            throw new Error("store write failed");
+        });
+        const loader = createPluginLoader(f.ops);
+        await expect(
+            loader.enable(
+                loadable("bad", "builtin", {
+                    onload() {
+                        throw new Error("boom");
+                    },
+                }),
+            ),
+        ).resolves.toBe(false);
+    });
 });

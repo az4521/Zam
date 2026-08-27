@@ -53,15 +53,20 @@ export function createPluginLoader(ops: LoaderHostOps): PluginLoader {
             return true;
         } catch (e) {
             // Error isolation: never let a bad plugin reach boot. Purge any
-            // partial registrations, flag the plugin, keep going.
+            // partial registrations, flag the plugin, keep going. The cleanup
+            // ops are wired to store/localStorage writes that can themselves
+            // throw — guard them so nothing escapes.
             modules.delete(id);
             try {
                 ops.disposeHost(id);
-            } catch (de) {
-                console.error(`[plugin ${id}] disposeHost threw`, de);
+                ops.markEnabled(id, false);
+                ops.markError(id, errMessage(e));
+            } catch (cleanupErr) {
+                console.error(
+                    `[plugin ${id}] cleanup after failed enable threw`,
+                    cleanupErr,
+                );
             }
-            ops.markEnabled(id, false);
-            ops.markError(id, errMessage(e));
             console.error(`[plugin ${id}] failed to enable`, e);
             return false;
         }
@@ -77,8 +82,12 @@ export function createPluginLoader(ops: LoaderHostOps): PluginLoader {
             }
         }
         modules.delete(pluginId);
-        ops.disposeHost(pluginId);
-        ops.markEnabled(pluginId, false);
+        try {
+            ops.disposeHost(pluginId);
+            ops.markEnabled(pluginId, false);
+        } catch (e) {
+            console.error(`[plugin ${pluginId}] disable cleanup threw`, e);
+        }
     }
 
     async function bootLoad(plugins: LoadablePlugin[]): Promise<void> {
