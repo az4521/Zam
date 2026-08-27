@@ -70,7 +70,11 @@ export type SidebarId =
     | "notifications"
     | "search"
     | "threads"
-    | "media";
+    | "media"
+    // A plugin's room-header panel (zam.room.addHeaderButton). Shares the
+    // single sidebar slot so Escape/back dismiss it via AppShell like every
+    // core panel; MessageArea renders pluginPanel.current into it.
+    | "plugin";
 
 export const interfaceState = $state({
     isMobile: false,
