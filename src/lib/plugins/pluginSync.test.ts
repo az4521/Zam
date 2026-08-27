@@ -42,8 +42,9 @@ describe("buildSyncPayload", () => {
     });
     it("whitelists entry fields (drops unknown keys)", () => {
         const s = snap();
-        (s.plugins["zam.sample"] as Record<string, unknown>).secretToken =
-            "leak";
+        (
+            s.plugins["zam.sample"] as unknown as Record<string, unknown>
+        ).secretToken = "leak";
         const p = buildSyncPayload(s);
         expect("secretToken" in p.plugins["zam.sample"]).toBe(false);
     });
@@ -108,5 +109,18 @@ describe("parseSyncPayload", () => {
         });
         expect(back!.plugins.a.settings).toEqual({ k: 1 });
         expect(back!.plugins.b.settings).toBeUndefined();
+    });
+    it("parseSyncPayload returns a fresh settings object (not the raw ref)", () => {
+        const raw = {
+            version: 1,
+            repos: [],
+            autoUpdate: false,
+            plugins: {
+                a: { enabled: true, source: "builtin", settings: { k: 1 } },
+            },
+        };
+        const back = parseSyncPayload(raw);
+        expect(back!.plugins.a.settings).not.toBe(raw.plugins.a.settings);
+        expect(back!.plugins.a.settings).toEqual({ k: 1 });
     });
 });

@@ -82,7 +82,7 @@ export function parseSyncPayload(raw: unknown): PluginSyncPayload | null {
             if (typeof rawEntry.autoUpdate === "boolean")
                 entry.autoUpdate = rawEntry.autoUpdate;
             if (isPlainObject(rawEntry.settings))
-                entry.settings = rawEntry.settings;
+                entry.settings = { ...rawEntry.settings };
             out.plugins[id] = entry;
         }
     }
