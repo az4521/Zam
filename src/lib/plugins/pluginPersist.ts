@@ -5,16 +5,18 @@ export interface PersistedPluginEntry {
     source: "builtin" | "repo";
     repoRef?: string;
     manifest?: Manifest;
+    autoUpdate?: boolean;
 }
 
 export interface PersistedPluginState {
     version: 1;
     plugins: Record<string, PersistedPluginEntry>;
     repos: string[];
+    autoUpdate: boolean;
 }
 
 export function emptyPersistedState(): PersistedPluginState {
-    return { version: 1, plugins: {}, repos: [] };
+    return { version: 1, plugins: {}, repos: [], autoUpdate: false };
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -34,6 +36,7 @@ export function parsePersistedState(raw: string | null): PersistedPluginState {
     if (!isPlainObject(data.plugins)) return emptyPersistedState();
 
     const out = emptyPersistedState();
+    if (typeof data.autoUpdate === "boolean") out.autoUpdate = data.autoUpdate;
     for (const [id, rawEntry] of Object.entries(data.plugins)) {
         if (!isPlainObject(rawEntry)) continue;
         const enabled = rawEntry.enabled;
@@ -45,6 +48,8 @@ export function parsePersistedState(raw: string | null): PersistedPluginState {
             entry.repoRef = rawEntry.repoRef;
         if (isPlainObject(rawEntry.manifest))
             entry.manifest = rawEntry.manifest as unknown as Manifest;
+        if (typeof rawEntry.autoUpdate === "boolean")
+            entry.autoUpdate = rawEntry.autoUpdate;
         out.plugins[id] = entry;
     }
     if (Array.isArray(data.repos)) {

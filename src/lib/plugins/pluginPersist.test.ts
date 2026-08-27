@@ -88,3 +88,67 @@ describe("repos persistence", () => {
         ).toEqual(["x/y"]);
     });
 });
+
+describe("autoUpdate persistence", () => {
+    it("defaults global autoUpdate to false when absent (back-compat)", () => {
+        const raw = JSON.stringify({ version: 1, plugins: {}, repos: [] });
+        expect(parsePersistedState(raw).autoUpdate).toBe(false);
+    });
+
+    it("parses a global autoUpdate=true", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {},
+            repos: [],
+            autoUpdate: true,
+        });
+        expect(parsePersistedState(raw).autoUpdate).toBe(true);
+    });
+
+    it("ignores a non-boolean global autoUpdate (falls back to false)", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {},
+            repos: [],
+            autoUpdate: "yes",
+        });
+        expect(parsePersistedState(raw).autoUpdate).toBe(false);
+    });
+
+    it("parses a per-entry autoUpdate override when boolean", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {
+                "a.b": { enabled: true, source: "repo", autoUpdate: true },
+            },
+            repos: [],
+        });
+        expect(parsePersistedState(raw).plugins["a.b"].autoUpdate).toBe(true);
+    });
+
+    it("omits a per-entry autoUpdate when not boolean", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            plugins: {
+                "a.b": { enabled: true, source: "repo", autoUpdate: "on" },
+            },
+            repos: [],
+        });
+        expect(
+            parsePersistedState(raw).plugins["a.b"].autoUpdate,
+        ).toBeUndefined();
+    });
+
+    it("round-trips global + per-entry autoUpdate through serialize/parse", () => {
+        const state = emptyPersistedState();
+        state.autoUpdate = true;
+        state.plugins["a.b"] = {
+            enabled: false,
+            source: "repo",
+            autoUpdate: false,
+        };
+        const back = parsePersistedState(serializePersistedState(state));
+        expect(back.autoUpdate).toBe(true);
+        expect(back.plugins["a.b"].autoUpdate).toBe(false);
+    });
+});
