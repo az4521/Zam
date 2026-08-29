@@ -22,8 +22,8 @@ beforeEach(() => localStorage.clear());
 
 describe("settingsStorageKey", () => {
     it("is the stable per-plugin key", () => {
-        expect(settingsStorageKey("zam.sample")).toBe(
-            "zam.plugin.zam.sample.settings",
+        expect(settingsStorageKey("zam.slash-fun")).toBe(
+            "zam.plugin.zam.slash-fun.settings",
         );
     });
 });
@@ -67,8 +67,11 @@ describe("writePluginSettings", () => {
         });
     });
     it("round-trips through the same key hostApi uses", () => {
-        writePluginSettings("zam.sample", schema, { greeting: "x", count: 1 });
-        const raw = localStorage.getItem(settingsStorageKey("zam.sample"));
+        writePluginSettings("zam.slash-fun", schema, {
+            greeting: "x",
+            count: 1,
+        });
+        const raw = localStorage.getItem(settingsStorageKey("zam.slash-fun"));
         expect(JSON.parse(raw!)).toEqual({ greeting: "x", count: 1 });
     });
 });

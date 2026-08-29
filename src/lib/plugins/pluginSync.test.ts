@@ -10,7 +10,7 @@ const snap = (): LocalSyncSnapshot => ({
     repos: ["a/b"],
     autoUpdate: true,
     plugins: {
-        "zam.sample": {
+        "zam.slash-fun": {
             enabled: true,
             source: "builtin",
             version: "1.0.0",
@@ -32,7 +32,7 @@ describe("buildSyncPayload", () => {
         expect(p.version).toBe(1);
         expect(p.repos).toEqual(["a/b"]);
         expect(p.autoUpdate).toBe(true);
-        expect(p.plugins["zam.sample"].settings).toEqual({ greeting: "hi" });
+        expect(p.plugins["zam.slash-fun"].settings).toEqual({ greeting: "hi" });
         expect(p.plugins["x.y"].repoRef).toBe("a/b");
     });
     it("returns a fresh object (not the same refs)", () => {
@@ -44,10 +44,10 @@ describe("buildSyncPayload", () => {
     it("whitelists entry fields (drops unknown keys)", () => {
         const s = snap();
         (
-            s.plugins["zam.sample"] as unknown as Record<string, unknown>
+            s.plugins["zam.slash-fun"] as unknown as Record<string, unknown>
         ).secretToken = "leak";
         const p = buildSyncPayload(s);
-        expect("secretToken" in p.plugins["zam.sample"]).toBe(false);
+        expect("secretToken" in p.plugins["zam.slash-fun"]).toBe(false);
     });
 });
 

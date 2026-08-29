@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { isCachedBundleUsable, type CachedBundle } from "./bundleCache";
 
 const base: CachedBundle = {
-    pluginId: "zam.sample",
+    pluginId: "zam.slash-fun",
     version: "1.0.0",
     code: "export function onload(){}",
     cachedAt: 0,

@@ -20,7 +20,7 @@ describe("parsePersistedState", () => {
         const raw = JSON.stringify({
             version: 1,
             plugins: {
-                "zam.sample": { enabled: true, source: "builtin" },
+                "zam.slash-fun": { enabled: true, source: "builtin" },
                 "com.x.y": {
                     enabled: false,
                     source: "repo",
@@ -29,7 +29,7 @@ describe("parsePersistedState", () => {
             },
         });
         const parsed = parsePersistedState(raw);
-        expect(parsed.plugins["zam.sample"]).toEqual({
+        expect(parsed.plugins["zam.slash-fun"]).toEqual({
             enabled: true,
             source: "builtin",
         });
@@ -50,7 +50,7 @@ describe("parsePersistedState", () => {
     });
     it("round-trips through serialize", () => {
         const state = emptyPersistedState();
-        state.plugins["zam.sample"] = { enabled: true, source: "builtin" };
+        state.plugins["zam.slash-fun"] = { enabled: true, source: "builtin" };
         expect(parsePersistedState(serializePersistedState(state))).toEqual(
             state,
         );

@@ -18,8 +18,8 @@ function actionEntry(
 
 describe("pluginContribKey", () => {
     it("namespaces by plugin id + contribution id", () => {
-        expect(pluginContribKey("zam.sample", "b1")).toBe(
-            "plugin:zam.sample:b1",
+        expect(pluginContribKey("zam.slash-fun", "b1")).toBe(
+            "plugin:zam.slash-fun:b1",
         );
     });
 });
