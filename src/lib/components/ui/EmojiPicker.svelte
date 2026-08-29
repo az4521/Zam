@@ -24,6 +24,7 @@
         onSelectCustom?: (emoji: CustomEmoji) => void;
         onClose: () => void;
         onSwitchToSticker?: () => void;
+        onSwitchToGif?: () => void;
     }
 
     let {
@@ -32,6 +33,7 @@
         onSelectCustom,
         onClose,
         onSwitchToSticker,
+        onSwitchToGif,
     }: Props = $props();
 
     let search = $state("");
@@ -463,7 +465,7 @@
             </svg>
         </button>
     {/if}
-    {#if interfaceState.isTouchscreen && onSwitchToSticker}
+    {#if interfaceState.isTouchscreen && (onSwitchToSticker || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             <button
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
@@ -473,6 +475,11 @@
                     onclick={onSwitchToSticker}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
                     >Stickers</button
+                >{/if}
+            {#if onSwitchToGif}<button
+                    onclick={onSwitchToGif}
+                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    >GIFs</button
                 >{/if}
         </div>
     {/if}

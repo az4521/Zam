@@ -21,9 +21,16 @@
         onSelect: (sticker: CustomSticker) => void;
         onClose: () => void;
         onSwitchToEmoji?: () => void;
+        onSwitchToGif?: () => void;
     }
 
-    let { roomId = null, onSelect, onClose, onSwitchToEmoji }: Props = $props();
+    let {
+        roomId = null,
+        onSelect,
+        onClose,
+        onSwitchToEmoji,
+        onSwitchToGif,
+    }: Props = $props();
 
     // The picker reads the room's own sticker packs; resolve the live Room
     // from the id so plugin callers (which only hold a roomId string) work.
@@ -361,7 +368,7 @@
             </svg>
         </button>
     {/if}
-    {#if interfaceState.isTouchscreen && onSwitchToEmoji}
+    {#if interfaceState.isTouchscreen && (onSwitchToEmoji || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
@@ -372,6 +379,11 @@
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
                 >Stickers</button
             >
+            {#if onSwitchToGif}<button
+                    onclick={onSwitchToGif}
+                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    >GIFs</button
+                >{/if}
         </div>
     {/if}
     <!-- Search -->
