@@ -205,7 +205,11 @@
     let repoError = $state("");
 
     function submitAddRepo() {
-        const res = canAddRepo(pluginRepos.refs, repoInput);
+        const res = canAddRepo(
+            pluginRepos.refs,
+            repoInput,
+            import.meta.env.DEV,
+        );
         if (!res.ok) {
             repoError = res.reason ?? "Cannot add this repo.";
             return;

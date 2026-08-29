@@ -98,6 +98,29 @@ describe("canAddRepo", () => {
         expect(res.ok).toBe(false);
         expect(res.reason).toMatch(/official/i);
     });
+
+    it("rejects the official repo with default allowOfficial=false", () => {
+        const r = canAddRepo([], OFFICIAL_REPO);
+        expect(r.ok).toBe(false);
+        expect(r.reason).toBe("That is the official repo (already included).");
+    });
+
+    it("allows the official repo when allowOfficial=true", () => {
+        const r = canAddRepo([], OFFICIAL_REPO, true);
+        expect(r.ok).toBe(true);
+        expect(r.normalized).toBe("az4521/zam-plugins");
+    });
+
+    it("still rejects malformed input when allowOfficial=true", () => {
+        const r = canAddRepo([], "not a repo!!", true);
+        expect(r.ok).toBe(false);
+    });
+
+    it("still rejects duplicate official repo when allowOfficial=true", () => {
+        const r = canAddRepo([OFFICIAL_REPO], OFFICIAL_REPO, true);
+        expect(r.ok).toBe(false);
+        expect(r.reason).toBe("That repo is already added.");
+    });
 });
 
 describe("sortInstalledPlugins", () => {

@@ -53,10 +53,12 @@ export interface AddRepoResult {
 
 /** Validate a candidate repo for adding: must parse, must not be the official
  *  repo, must not duplicate an existing user repo. Returns the normalized slug
- *  to persist (`@branch` omitted when it is the default `main`). */
+ *  to persist (`@branch` omitted when it is the default `main`).
+ *  @param allowOfficial — skip the official-repo check (DEV only). */
 export function canAddRepo(
     userRepos: readonly string[],
     candidate: string,
+    allowOfficial = false,
 ): AddRepoResult {
     const trimmed = (candidate ?? "").trim();
     if (!trimmed) {
@@ -72,7 +74,7 @@ export function canAddRepo(
         return { ok: false, reason: (e as Error).message };
     }
     const id = `${owner.toLowerCase()}/${repo.toLowerCase()}@${branch}`;
-    if (id === repoIdentity(OFFICIAL_REPO)) {
+    if (!allowOfficial && id === repoIdentity(OFFICIAL_REPO)) {
         return {
             ok: false,
             reason: "That is the official repo (already included).",
