@@ -17,6 +17,7 @@ export const KNOWN_CAPABILITIES = [
     "rooms:read",
     "storage",
     "network",
+    "unsafe",
 ] as const;
 
 export type Capability = (typeof KNOWN_CAPABILITIES)[number];

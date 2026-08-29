@@ -28,6 +28,7 @@ import {
     getPluginRecentMessages,
     uploadPluginMedia,
     redactOwnEvent,
+    getClient,
 } from "../matrix/client";
 
 export interface BuildHostApiOptions {
@@ -302,6 +303,10 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             }),
             redactOwn: (roomId, eventId, reason) =>
                 redactOwnEvent(roomId, eventId, reason),
+        },
+
+        unsafe: {
+            getClient: () => getClient(),
         },
 
         storage,

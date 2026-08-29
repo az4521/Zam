@@ -295,6 +295,14 @@ export interface ZamPluginApi {
             handler: (values: Record<string, unknown>) => void,
         ): Disposable;
     };
+
+    /** Full-power escape hatch (full-trust model). Returns the live matrix-js-sdk
+     *  client instance (or null before login). You own the stability + safety risk —
+     *  this is unmediated SDK access that can change across app refactors. Prefer the
+     *  curated `matrix.*` API where it covers your need. */
+    unsafe: {
+        getClient(): unknown;
+    };
 }
 
 /** The shape a plugin bundle's default export (or built-in module) satisfies. */

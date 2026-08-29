@@ -12,6 +12,7 @@ vi.mock("../matrix/client", () => ({
         memberCount: 2,
     }),
     getPluginRoomMembers: vi.fn().mockReturnValue([]),
+    getClient: vi.fn().mockReturnValue({ __sentinel: "client" }),
 }));
 
 import * as client from "../matrix/client";
@@ -284,5 +285,18 @@ describe("buildHostApi — storage + settings", () => {
         a.disposeAll();
         expect(registry.commands.map((e) => e.pluginId)).toEqual(["b"]);
         expect(registry.commands[0].value.name).toBe("bcmd");
+    });
+
+    it("zam.unsafe.getClient returns the live SDK client sentinel", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "zam.t",
+            manifest: manifest("zam.t"),
+            registry,
+            appVersion: "1",
+        });
+        const result = host.zam.unsafe.getClient();
+        expect(result).toEqual({ __sentinel: "client" });
+        expect(client.getClient).toHaveBeenCalled();
     });
 });
