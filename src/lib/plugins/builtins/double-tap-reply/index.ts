@@ -31,7 +31,7 @@ export const manifest: Manifest = {
             key: "ownAction",
             type: "select",
             label: "Double-tap your messages",
-            default: "none",
+            default: "edit",
             options: [
                 { value: "none", label: "Nothing" },
                 { value: "reaction", label: "Reaction" },
@@ -43,7 +43,7 @@ export const manifest: Manifest = {
             key: "otherAction",
             type: "select",
             label: "Double-tap other messages",
-            default: "none",
+            default: "reaction",
             options: [
                 { value: "none", label: "Nothing" },
                 { value: "reaction", label: "Reaction" },

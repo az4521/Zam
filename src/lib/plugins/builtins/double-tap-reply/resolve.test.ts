@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveDoubleTapAction, isActive } from "./resolve";
+import { manifest } from "./index";
+import { coerceValues } from "../../settingsSchema";
 
 describe("resolveDoubleTapAction", () => {
     it("returns the own action for own messages", () => {
@@ -43,5 +45,16 @@ describe("isActive", () => {
     });
     it("treats other=edit alone as inactive (edit maps to none for others)", () => {
         expect(isActive("none", "edit")).toBe(false);
+    });
+});
+
+describe("schema defaults", () => {
+    it("coerces empty object to sensible action defaults", () => {
+        const result = coerceValues(manifest.settings!, {});
+        expect(result).toEqual({
+            ownAction: "edit",
+            otherAction: "reaction",
+            reaction: "👍",
+        });
     });
 });
