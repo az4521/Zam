@@ -383,9 +383,10 @@ run with the same privileges as app code, an Obsidian-style trust model where th
 plugins installed**. Nothing that _displays_ an inbound event or msgtype (`m.room.message` of any
 kind, `m.sticker`, `m.poll`, `m.location`, voice, reactions) may be gated behind a plugin. Only
 sender-side / compose UI, local enhancements that degrade gracefully, and non-message tools are
-pluginable. This is why the migrations moved the sticker and GIF **pickers** into plugins while
-`m.sticker` and image **rendering** stayed core — a migration that would make an inbound type
-invisible without its plugin is wrong by construction.
+pluginable. The emoji, GIF, and sticker pickers are **core composer UI** that mount app-internal
+Svelte components, not plugins. The plugin system's extension points — `zam.composer.addButton`,
+`zam.ui.openPopover`, `zam.composer.insertText`, `zam.matrix.sendImage` and `sendSticker` — remain
+available for third-party plugins to use; the app's own pickers just don't route through them.
 
 **The `zam` host API.** `types.ts` is the full contract; `hostApi.ts` builds a per-plugin instance.
 It is grouped into namespaces: `commands` (slash commands), `composer` (buttons, "+" actions,
@@ -395,9 +396,12 @@ panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`ope
 `registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
 boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendImage`, `sendSticker`,
 `react`, and plain room/member summaries, never live SDK objects), `storage` (per-plugin namespaced
-key/value), and `settings` (schema-driven — see below). Every `register` / `add` / `on` returns a
-**`Disposable`**, and the host tracks all of a plugin's disposables so disabling it removes exactly
-its contributions.
+key/value), `settings` (schema-driven — see below), and `unsafe` (`getClient()` — the escape hatch).
+The curated `matrix` API is a stability/ergonomics layer and a seam for a future sandbox, not a
+security cage. **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for
+anything the curated API doesn't cover, with the plugin owning the stability and safety risk. Every
+`register` / `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's
+disposables so disabling it removes exactly its contributions.
 
 **The registry** (`registry.ts` plus `stores/plugins.svelte.ts`) is a reactive `$state` store keyed
 per plugin, with one array per extension point — commands, composer buttons and actions, message
@@ -441,15 +445,11 @@ toggle, gear, update badge, remove), Browse (per-repo `index.json` listings plus
 official repo, non-removable, plus user-added repos behind a third-party consent warning), and
 Actions (Sync, a Disable-all kill switch, and the auto-update toggle).
 
-**Built-in plugins** (`builtins/`, all default-enabled) both dogfood the system and prove the interop
-rule by migration: `zam.slash-fun` (the novelty text-transform commands `/me`, `/shrug`, `/spoiler`,
-…), `zam.gif-picker` and `zam.sticker-picker` (the migrated compose-side pickers — only the picker
-moved, rendering stayed core), `zam.double-tap-reply` (double-tap a message to reply, edit or react
-per its settings; it registers its gesture handler only while an action is configured, so default
-word-selection is preserved), and `zam.text-replacer` (user-configured outgoing text substitutions).
-`zam.sample` is a throwaway that exercises every hook — the end-to-end proof and the template a plugin
-author copies; **disable or delete it before a production merge**, since it adds visible sample UI for
-every user.
+**Built-in plugins** (`builtins/`, all default-enabled): `zam.slash-fun` (the novelty text-transform
+commands `/me`, `/shrug`, `/spoiler`, …), `zam.double-tap-reply` (double-tap a message to reply, edit
+or react per its settings; it registers its gesture handler only while an action is configured, so
+default word-selection is preserved), and `zam.text-replacer` (user-configured outgoing text
+substitutions).
 
 ## Security
 
