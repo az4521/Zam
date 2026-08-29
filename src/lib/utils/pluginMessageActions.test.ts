@@ -134,6 +134,27 @@ describe("pluginMessageActions", () => {
         );
         expect(view.icon).toBe("M0 0h1");
     });
+
+    it("keys on entryId to avoid duplicate-id collision (buggy plugin safe)", () => {
+        const views = pluginMessageActions(
+            [
+                actionEntry("p.buggy", 1, {
+                    id: "act",
+                    label: "First",
+                    onSelect: vi.fn(),
+                }),
+                actionEntry("p.buggy", 2, {
+                    id: "act",
+                    label: "Second",
+                    onSelect: vi.fn(),
+                }),
+            ],
+            ACTX,
+        );
+        expect(views[0].entryId).toBe(1);
+        expect(views[1].entryId).toBe(2);
+        expect(views[0].entryId).not.toBe(views[1].entryId);
+    });
 });
 
 describe("collectDecorations", () => {

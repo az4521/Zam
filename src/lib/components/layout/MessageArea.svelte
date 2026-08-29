@@ -1934,7 +1934,7 @@
                 >
                     <Users size={20} />
                 </button>
-                {#each pluginHeaderBtns as btn (btn.key)}
+                {#each pluginHeaderBtns as btn (btn.entryId)}
                     <button
                         onclick={() => openPluginHeaderPanel(btn)}
                         class="p-1.5 rounded transition-colors {activePluginPanelKey ===

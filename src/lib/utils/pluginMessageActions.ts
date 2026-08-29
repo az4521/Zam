@@ -16,6 +16,7 @@ import { pluginContribKey } from "./pluginComposer";
 export interface PluginMessageActionView {
     /** `plugin:<pluginId>:<id>` — stable {#each} key + dispatch id. */
     key: string;
+    entryId: number;
     label: string;
     /** SVG path `d` string (rendered via <path d=...>); NOT raw markup. */
     icon?: string;
@@ -35,7 +36,7 @@ export function pluginMessageActions(
     ctx: { roomId: string; eventId: string },
 ): PluginMessageActionView[] {
     const views: PluginMessageActionView[] = [];
-    for (const { pluginId, value } of entries) {
+    for (const { pluginId, entryId, value } of entries) {
         if (value.when) {
             let ok = false;
             try {
@@ -51,6 +52,7 @@ export function pluginMessageActions(
         }
         views.push({
             key: pluginContribKey(pluginId, value.id),
+            entryId,
             label: value.label,
             icon: value.icon,
             run: () => value.onSelect(ctx),

@@ -114,7 +114,7 @@
                         <span class="flex-1 truncate">{row.label}</span>
                     </button>
                 {/each}
-                {#each pluginRows as row (row.key)}
+                {#each pluginRows as row (row.entryId)}
                     <button
                         role="menuitem"
                         onclick={() => runPlugin(row.key)}

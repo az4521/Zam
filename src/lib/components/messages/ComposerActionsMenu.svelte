@@ -96,7 +96,7 @@
     class="w-52 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg py-1"
     role="menu"
 >
-    {#each items as item (item.key)}
+    {#each items as item ((item as any).entryId ?? item.key)}
         <button
             role="menuitem"
             onclick={() => choose(item.run)}

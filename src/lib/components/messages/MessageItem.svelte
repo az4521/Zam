@@ -2683,7 +2683,7 @@
             </button>
         {/if}
         {#if !interfaceState.isTouchscreen}
-            {#each pluginActionViews as view (view.key)}
+            {#each pluginActionViews as view (view.entryId)}
                 <button
                     data-message-action
                     onclick={() => handlePluginAction(view.key)}

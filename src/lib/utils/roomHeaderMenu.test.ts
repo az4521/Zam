@@ -211,6 +211,25 @@ describe("pluginHeaderButtons", () => {
         expect(views).toHaveLength(1);
         expect(views[0].label).toBe("First");
     });
+
+    it("carries entryId through for Svelte keying", () => {
+        const views = pluginHeaderButtons([
+            {
+                pluginId: "p1",
+                entryId: 5,
+                value: { id: "a", label: "A", render: () => {} },
+            },
+            {
+                pluginId: "p2",
+                entryId: 7,
+                value: { id: "b", label: "B", render: () => {} },
+            },
+        ]);
+        expect(views[0].entryId).toBe(5);
+        expect(views[1].entryId).toBe(7);
+        // Distinct entryIds provide collision-proof keys for {#each}
+        expect(views[0].entryId).not.toBe(views[1].entryId);
+    });
 });
 
 describe("pluginHeaderMenuRows", () => {

@@ -2022,7 +2022,7 @@
             </div>
 
             <!-- Plugin composer buttons -->
-            {#each pluginComposerButtonViews as btn (btn.key)}
+            {#each pluginComposerButtonViews as btn (btn.entryId)}
                 <div class="flex-shrink-0">
                     <button
                         onclick={(e) => {

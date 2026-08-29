@@ -114,6 +114,7 @@ export function pluginHeaderKey(pluginId: string, id: string): string {
  */
 export interface PluginHeaderButtonView {
     key: string;
+    entryId: number;
     label: string;
     icon?: string;
     render(el: HTMLElement, ctx: { roomId: string }): void | (() => void);
@@ -137,6 +138,7 @@ export function pluginHeaderButtons(
 
         views.push({
             key,
+            entryId: entry.entryId,
             label: entry.value.label,
             icon: entry.value.icon,
             render: entry.value.render,

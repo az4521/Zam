@@ -16,6 +16,7 @@ export function pluginContribKey(pluginId: string, id: string): string {
 
 export interface ComposerActionMenuItem {
     key: string;
+    entryId: number;
     label: string;
     icon?: string;
     run(): void | Promise<void>;
@@ -24,10 +25,12 @@ export interface ComposerActionMenuItem {
 export function pluginActionToMenuItem(
     action: ComposerAction,
     pluginId: string,
+    entryId: number,
     roomId: string,
 ): ComposerActionMenuItem {
     return {
         key: pluginContribKey(pluginId, action.id),
+        entryId,
         label: action.label,
         icon: action.icon,
         run: () => action.onSelect({ roomId }),
@@ -42,13 +45,14 @@ export function mergeComposerActions<T>(
     return [
         ...core,
         ...entries.map((e) =>
-            pluginActionToMenuItem(e.value, e.pluginId, roomId),
+            pluginActionToMenuItem(e.value, e.pluginId, e.entryId, roomId),
         ),
     ];
 }
 
 export interface ComposerButtonView {
     key: string;
+    entryId: number;
     label: string;
     icon?: string;
     onClick(anchor: HTMLElement): void | Promise<void>;
@@ -57,11 +61,13 @@ export interface ComposerButtonView {
 export function pluginButtonToView(
     btn: ComposerButton,
     pluginId: string,
+    entryId: number,
     roomId: string,
     threadRootId: string | null = null,
 ): ComposerButtonView {
     return {
         key: pluginContribKey(pluginId, btn.id),
+        entryId,
         label: btn.label,
         icon: btn.icon,
         onClick: (anchor: HTMLElement) =>
@@ -75,6 +81,12 @@ export function pluginComposerButtons(
     threadRootId: string | null = null,
 ): ComposerButtonView[] {
     return entries.map((e) =>
-        pluginButtonToView(e.value, e.pluginId, roomId, threadRootId),
+        pluginButtonToView(
+            e.value,
+            e.pluginId,
+            e.entryId,
+            roomId,
+            threadRootId,
+        ),
     );
 }

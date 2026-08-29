@@ -30,11 +30,13 @@ describe("pluginActionToMenuItem", () => {
         const item = pluginActionToMenuItem(
             { id: "act", label: "Do it", icon: "M1 1", onSelect },
             "p.one",
+            1,
             "!r:s",
         );
         expect(item.key).toBe("plugin:p.one:act");
         expect(item.label).toBe("Do it");
         expect(item.icon).toBe("M1 1");
+        expect(item.entryId).toBe(1);
     });
 
     it("run() invokes onSelect with the current roomId", () => {
@@ -42,6 +44,7 @@ describe("pluginActionToMenuItem", () => {
         const item = pluginActionToMenuItem(
             { id: "act", label: "L", onSelect },
             "p",
+            1,
             "!room:server",
         );
         item.run();
@@ -69,6 +72,26 @@ describe("mergeComposerActions", () => {
         const core = [{ key: "upload" }];
         expect(mergeComposerActions(core, [], "!r:s")).toEqual(core);
     });
+
+    it("keys on entryId to avoid duplicate-id collision (buggy plugin safe)", () => {
+        const entries: RegistryEntry<ComposerAction>[] = [
+            {
+                pluginId: "p.buggy",
+                entryId: 1,
+                value: { id: "act", label: "First", onSelect: () => {} },
+            },
+            {
+                pluginId: "p.buggy",
+                entryId: 2,
+                value: { id: "act", label: "Second", onSelect: () => {} },
+            },
+        ];
+        const merged = mergeComposerActions([], entries, "!r:s");
+        const pluginItems = merged as unknown as { entryId: number }[];
+        expect(pluginItems[0].entryId).toBe(1);
+        expect(pluginItems[1].entryId).toBe(2);
+        expect(pluginItems[0].entryId).not.toBe(pluginItems[1].entryId);
+    });
 });
 
 describe("pluginButtonToView / pluginComposerButtons", () => {
@@ -77,9 +100,11 @@ describe("pluginButtonToView / pluginComposerButtons", () => {
         const view = pluginButtonToView(
             { id: "b1", label: "Btn", onClick },
             "p",
+            1,
             "!r:s",
         );
         expect(view.key).toBe("plugin:p:b1");
+        expect(view.entryId).toBe(1);
         const anchor = { tagName: "BUTTON" } as unknown as HTMLElement;
         view.onClick(anchor);
         expect(onClick).toHaveBeenCalledWith({
@@ -94,6 +119,7 @@ describe("pluginButtonToView / pluginComposerButtons", () => {
         const view = pluginButtonToView(
             { id: "b1", label: "Btn", onClick },
             "p",
+            1,
             "!r:s",
             "$root:s",
         );
@@ -122,5 +148,25 @@ describe("pluginButtonToView / pluginComposerButtons", () => {
         const views = pluginComposerButtons(entries, "!r:s", null);
         expect(views.map((v) => v.key)).toEqual(["plugin:p1:x", "plugin:p2:y"]);
         expect(views[1].icon).toBe("M2");
+    });
+
+    it("keys on entryId to avoid duplicate-id collision (buggy plugin safe)", () => {
+        const entries: RegistryEntry<ComposerButton>[] = [
+            {
+                pluginId: "p.buggy",
+                entryId: 1,
+                value: { id: "btn", label: "First", onClick: () => {} },
+            },
+            {
+                pluginId: "p.buggy",
+                entryId: 2,
+                value: { id: "btn", label: "Second", onClick: () => {} },
+            },
+        ];
+        const views = pluginComposerButtons(entries, "!r:s", null);
+        expect(views[0].entryId).toBe(1);
+        expect(views[1].entryId).toBe(2);
+        // Distinct entryIds make distinct keys for {#each} keying
+        expect(views[0].entryId).not.toBe(views[1].entryId);
     });
 });
