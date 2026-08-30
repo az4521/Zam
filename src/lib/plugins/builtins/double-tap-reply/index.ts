@@ -23,7 +23,7 @@ export const manifest: Manifest = {
     name: "Double-tap & swipe actions",
     version: "1.0.0",
     description:
-        "Double-tap a message to reply, react, or edit — or swipe it left to reply / edit.",
+        "Double-tap a message to reply, react, or edit, or swipe it left to reply / edit.",
     author: "Zam",
     entry: "builtin",
     capabilities: ["composer", "messages:read", "messages:send"],
