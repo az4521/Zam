@@ -192,6 +192,13 @@ export const settingsState = $state({
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
+    /** Device-global (desktop/Electron only): when the window close (X) button
+     *  is pressed, keep Zam running in the system tray instead of quitting.
+     *  Default ON (today's hardcoded behaviour). Pushed to the Electron main
+     *  process over the preload/IPC bridge at boot and on change; a no-op on
+     *  web/mobile (no bridge). Device-local like reduceMotion/autoUpdateEnabled:
+     *  readBool/writeBool, never customization sync. */
+    minimizeToTrayOnClose: readBool("minimizeToTrayOnClose", true),
     /** Device-global: render the read-receipt avatars under messages. Default
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
@@ -565,6 +572,11 @@ export function setShowAllEvents(value: boolean): void {
 export function setAutoUpdateEnabled(value: boolean): void {
     settingsState.autoUpdateEnabled = value;
     writeBool("autoUpdateEnabled", value);
+}
+
+export function setMinimizeToTrayOnClose(value: boolean): void {
+    settingsState.minimizeToTrayOnClose = value;
+    writeBool("minimizeToTrayOnClose", value);
 }
 
 export function setShowReadReceiptAvatars(value: boolean): void {

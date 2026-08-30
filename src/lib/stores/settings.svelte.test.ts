@@ -15,6 +15,7 @@ import {
     forkActivePreset,
     setTheme,
     renameCustomPreset,
+    setMinimizeToTrayOnClose,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import * as themeModule from "$lib/utils/theme";
@@ -646,5 +647,54 @@ describe("pauseVideoOnScrollOff", () => {
         expect(localStorage.getItem("settings:pauseVideoOnScrollOff")).toBe(
             "false",
         );
+    });
+});
+
+describe("minimizeToTrayOnClose", () => {
+    const MTT_KEY = "settings:minimizeToTrayOnClose";
+
+    afterEach(() => {
+        setMinimizeToTrayOnClose(true);
+        localStorage.removeItem(MTT_KEY);
+    });
+
+    async function bootMinimizeToTrayWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(MTT_KEY);
+        else localStorage.setItem(MTT_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to true so the window hides to tray on close by default", async () => {
+        const fresh = await bootMinimizeToTrayWith(null);
+        expect(fresh.settingsState.minimizeToTrayOnClose).toBe(true);
+    });
+
+    it("reads a stored 'false' back at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootMinimizeToTrayWith("false");
+        expect(fresh.settingsState.minimizeToTrayOnClose).toBe(false);
+    });
+
+    it("writes the value to localStorage under the device-global key", () => {
+        setMinimizeToTrayOnClose(false);
+        expect(localStorage.getItem(MTT_KEY)).toBe("false");
+        setMinimizeToTrayOnClose(true);
+        expect(localStorage.getItem(MTT_KEY)).toBe("true");
+    });
+
+    it("updates the store state", () => {
+        setMinimizeToTrayOnClose(false);
+        expect(settingsState.minimizeToTrayOnClose).toBe(false);
+        setMinimizeToTrayOnClose(true);
+        expect(settingsState.minimizeToTrayOnClose).toBe(true);
+    });
+
+    it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
+        setMinimizeToTrayOnClose(false);
+        const keys = Object.keys(localStorage).filter((k) =>
+            k.includes("minimizeToTrayOnClose"),
+        );
+        expect(keys).toEqual([MTT_KEY]);
     });
 });
