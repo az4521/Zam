@@ -612,10 +612,12 @@ if (!app.requestSingleInstanceLock()) {
         isQuitting = true;
     });
 
-    // With minimise-to-tray ON the window is only hidden (never destroyed), so
-    // this never fires. It fires only when the user chose quit-on-close (toggle
-    // OFF) and the window actually closed → quit for real. No macOS
-    // stay-resident exception: the tray is this app's only always-on
+    // With minimise-to-tray ON the window is only hidden on a normal close (X),
+    // so the normal-close path never reaches here. This fires when the window is
+    // actually destroyed: the toggle is OFF (quit-on-close) — then quit for
+    // real — or on an explicit quit (tray Quit / before-quit / quit-and-install),
+    // where the guard below no-ops because that path already called app.quit().
+    // No macOS stay-resident exception: the tray is this app's only always-on
     // affordance, and it is gone once the app quits.
     app.on("window-all-closed", () => {
         if (!minimizeToTrayOnClose) app.quit();
