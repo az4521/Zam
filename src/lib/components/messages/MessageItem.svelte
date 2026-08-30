@@ -160,6 +160,12 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
+    import { longPress } from "$lib/actions/longPress";
+    import {
+        shouldOpenMessageMenu,
+        menuModeFromSetting,
+        type MessageMenuMode,
+    } from "$lib/utils/messageGesture";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
@@ -278,7 +284,17 @@
     let confirmingDelete = $state(false);
     let pinning = $state(false);
     let showForwardDialog = $state(false);
+
+    // Elements that own their own tap/gesture — a row tap/hold must defer to
+    // them (links, buttons, media, reaction pills, the composer, etc.).
+    const INTERACTIVE_TARGET_SELECTOR =
+        "button, a, input, textarea, select, video, audio, [role='button'], [contenteditable='true'], .cursor-pointer";
+
     let previousTap: TapPoint | null = null;
+
+    // Set by a fired long-press so onMessageTouchEnd does not also record the
+    // hold-release as a tap (which could make the next tap read as a double-tap).
+    let heldJustFired = false;
 
     // Read-receipt reader-list popover (click/tap the avatar cluster).
     let readerOpen = $state(false);
@@ -336,15 +352,25 @@
         interfaceState.selectedMessageId = null;
     }
 
+    function handleRowGesture(kind: "tap" | "hold") {
+        if (!interfaceState.isTouchscreen) return;
+        if (!shouldOpenMessageMenu(menuMode, kind)) return;
+        interfaceState.selectedMessageId =
+            interfaceState.selectedMessageId === eventId ? null : eventId;
+    }
+
     function onMessageTouchEnd(e: TouchEvent) {
         if (!interfaceState.isTouchscreen || e.changedTouches.length !== 1)
             return;
+
+        if (heldJustFired) {
+            heldJustFired = false;
+            previousTap = null;
+            return;
+        }
+
         const target = e.target as Element | null;
-        if (
-            target?.closest(
-                "button, a, input, textarea, select, video, audio, [role='button'], [contenteditable='true'], .cursor-pointer",
-            )
-        ) {
+        if (target?.closest(INTERACTIVE_TARGET_SELECTOR)) {
             previousTap = null;
             return;
         }
@@ -484,6 +510,11 @@
         interfaceState.isTouchscreen &&
             interfaceState.selectedMessageId === eventId,
     );
+
+    const menuMode: MessageMenuMode = $derived(
+        menuModeFromSetting(settingsState.holdToOpenMessageMenu),
+    );
+
     const isOwnMessage = $derived(event.getSender() === auth.userId);
     const isEdited = $derived.by(() => {
         reactionTick;
@@ -1594,13 +1625,21 @@
     onmouseleave={() => {
         if (!confirmingDelete) return;
     }}
-    onclick={() => {
-        if (interfaceState.isTouchscreen)
-            interfaceState.selectedMessageId = mobileSelected ? null : eventId;
-    }}
+    onclick={() => handleRowGesture("tap")}
     ontouchend={onMessageTouchEnd}
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
+    use:longPress={{
+        onTrigger: () => {
+            heldJustFired = true;
+            handleRowGesture("hold");
+        },
+        shouldStart: (e) => {
+            if (menuMode !== "hold") return false;
+            const t = e.target as Element | null;
+            return !t?.closest(INTERACTIVE_TARGET_SELECTOR);
+        },
+    }}
     use:rovingToolbar={{
         toolbarSelector: "[data-message-actions]",
         // Explicit marker rather than the action's default `button` selector:
