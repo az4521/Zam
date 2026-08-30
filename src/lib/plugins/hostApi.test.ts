@@ -296,7 +296,10 @@ describe("buildHostApi — storage + settings", () => {
             appVersion: "1",
         });
         const result = host.zam.unsafe.getClient();
-        expect(result).toEqual({ __sentinel: "client" });
+        // same live client reference on every call — proves the hatch hands the client
+        // through unchanged rather than wrapping/copying it
+        expect(result).toBe(host.zam.unsafe.getClient());
+        expect(result).toStrictEqual({ __sentinel: "client" });
         expect(client.getClient).toHaveBeenCalled();
     });
 });
