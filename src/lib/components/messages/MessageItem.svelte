@@ -163,6 +163,11 @@
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
+    import { bodyImageGallery } from "$lib/actions/bodyImageGallery";
+    import {
+        galleryNav,
+        type GalleryImage,
+    } from "$lib/utils/messageBodyGallery";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
         audioPlaybackMode,
@@ -469,6 +474,14 @@
         }
     }
     let imageLightboxOpen = $state(false);
+    // Paged lightbox over a single message's OWN inline body images (rich/bridged
+    // messages with several <img> in the formatted_body). Null = closed.
+    let bodyGallery = $state<{ images: GalleryImage[]; index: number } | null>(
+        null,
+    );
+    function openBodyGallery(images: GalleryImage[], index: number) {
+        bodyGallery = { images, index };
+    }
     let emojiPickerBelow = $state(false);
     let reactionBtnEl: HTMLButtonElement | undefined = $state();
     let isEditing = $state(false);
@@ -1769,6 +1782,7 @@
                 <div
                     use:spoilers
                     use:matrixLinks
+                    use:bodyImageGallery={{ onOpen: openBodyGallery }}
                     class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 >
                     {#if formattedBody()}
@@ -2310,6 +2324,7 @@
             <div
                 use:spoilers
                 use:matrixLinks
+                use:bodyImageGallery={{ onOpen: openBodyGallery }}
                 class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                 class:emoji-only={emojiOnly}
                 class:italic={msgtype === "m.emote"}
@@ -2339,6 +2354,33 @@
                 {#each linkedUrls as url (url)}
                     <LinkPreview {url} />
                 {/each}
+            {/if}
+        {/if}
+
+        <!-- Paged lightbox for this message's OWN inline body images. A single
+             media image opens with no dead nav; ≥2 page with the chevrons /
+             arrow keys. Mounted once at row level so it covers both the text
+             body and a media caption. -->
+        {#if bodyGallery}
+            {@const g = bodyGallery}
+            {@const nav = galleryNav(g.images.length, g.index)}
+            {@const cur = g.images[g.index]}
+            {@const prev = nav.prevIndex}
+            {@const next = nav.nextIndex}
+            {#if cur}
+                <Lightbox
+                    src={cur.src}
+                    alt={cur.alt}
+                    onClose={() => (bodyGallery = null)}
+                    onPrev={prev !== null
+                        ? () =>
+                              (bodyGallery = { images: g.images, index: prev })
+                        : undefined}
+                    onNext={next !== null
+                        ? () =>
+                              (bodyGallery = { images: g.images, index: next })
+                        : undefined}
+                />
             {/if}
         {/if}
 

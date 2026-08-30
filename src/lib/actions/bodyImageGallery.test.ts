@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { bodyImageGallery } from "./bodyImageGallery";
+import type { GalleryImage } from "$lib/utils/messageBodyGallery";
 
 function media(src: string, alt = ""): HTMLImageElement {
     const img = document.createElement("img");
@@ -33,12 +34,14 @@ function clickOn(el: Element, init: MouseEventInit = {}): boolean {
 
 describe("bodyImageGallery action", () => {
     let node: HTMLDivElement;
-    let onOpen: ReturnType<typeof vi.fn>;
+    let onOpen: ReturnType<
+        typeof vi.fn<(images: GalleryImage[], index: number) => void>
+    >;
     beforeEach(() => {
         document.body.innerHTML = "";
         node = document.createElement("div");
         document.body.appendChild(node);
-        onOpen = vi.fn();
+        onOpen = vi.fn<(images: GalleryImage[], index: number) => void>();
         // jsdom leaves selection collapsed by default → the guard passes.
     });
 
