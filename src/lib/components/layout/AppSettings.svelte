@@ -12,6 +12,7 @@
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
+    import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { tick, untrack } from "svelte";
     import {
@@ -19,6 +20,10 @@
         openSubPage,
         clearSubPageIfOwner,
     } from "$lib/stores/interface.svelte";
+    import {
+        settingsState,
+        setRightAlignOwnBubbles,
+    } from "$lib/stores/settings.svelte";
     import {
         SETTINGS_TABS,
         settingsTabLabel,
@@ -218,7 +223,27 @@
     {:else if tab === "security"}
         <SecuritySettings />
     {:else if tab === "theme"}
-        <ThemeColorEditor />
+        <div class="space-y-6">
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        Right-align my messages (bubble layout)
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Display your own messages on the right in a colored
+                        bubble
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.rightAlignOwnBubbles}
+                    onChange={setRightAlignOwnBubbles}
+                    label="Right-align my messages (bubble layout)"
+                />
+            </div>
+            <ThemeColorEditor />
+        </div>
     {:else if tab === "customization"}
         <CustomizationSettings />
     {:else if tab === "emotes"}
