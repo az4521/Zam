@@ -227,6 +227,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 ),
             onDoubleTap: (h) =>
                 track(addEntry(registry, "doubleTapHandlers", pluginId, h)),
+            onSwipe: (h) =>
+                track(addEntry(registry, "swipeHandlers", pluginId, h)),
             addAction: (a) =>
                 track(addEntry(registry, "messageActions", pluginId, a)),
             decorate: (fn) =>

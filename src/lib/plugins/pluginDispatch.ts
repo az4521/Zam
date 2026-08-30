@@ -7,6 +7,8 @@
  */
 import type {
     DoubleTapHandler,
+    SwipeHandler,
+    SwipeThreshold,
     EventSubscription,
     PluginEventName,
 } from "./types";
@@ -20,6 +22,24 @@ export function dispatchDoubleTap(
             handler(ctx);
         } catch (e) {
             console.error("[zam] onDoubleTap handler threw", e);
+        }
+    }
+}
+
+export function dispatchSwipe(
+    handlers: SwipeHandler[],
+    ctx: {
+        roomId: string;
+        eventId: string;
+        isOwn: boolean;
+        threshold: SwipeThreshold;
+    },
+): void {
+    for (const handler of handlers) {
+        try {
+            handler(ctx);
+        } catch (e) {
+            console.error("[zam] onSwipe handler threw", e);
         }
     }
 }

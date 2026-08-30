@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { dispatchDoubleTap, dispatchPluginEvent } from "./pluginDispatch";
+import {
+    dispatchDoubleTap,
+    dispatchPluginEvent,
+    dispatchSwipe,
+} from "./pluginDispatch";
 import type { EventSubscription } from "./types";
 
 const tapCtx = { roomId: "!r:s", eventId: "$e", isOwn: true };
@@ -50,5 +54,37 @@ describe("dispatchPluginEvent", () => {
         ];
         dispatchPluginEvent(subs, "message", null);
         expect(after).toHaveBeenCalledOnce();
+    });
+});
+
+describe("dispatchSwipe", () => {
+    it("fans out to every handler with the context", () => {
+        const seen: unknown[] = [];
+        dispatchSwipe([(c) => seen.push(c), (c) => seen.push(c)], {
+            roomId: "!r",
+            eventId: "$e",
+            isOwn: true,
+            threshold: "far",
+        });
+        expect(seen).toHaveLength(2);
+        expect(seen[0]).toEqual({
+            roomId: "!r",
+            eventId: "$e",
+            isOwn: true,
+            threshold: "far",
+        });
+    });
+    it("isolates a throwing handler so later handlers still run", () => {
+        const seen: string[] = [];
+        dispatchSwipe(
+            [
+                () => {
+                    throw new Error("boom");
+                },
+                () => seen.push("ran"),
+            ],
+            { roomId: "!r", eventId: "$e", isOwn: false, threshold: "short" },
+        );
+        expect(seen).toEqual(["ran"]);
     });
 });

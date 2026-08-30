@@ -136,6 +136,15 @@ export type DoubleTapHandler = (ctx: {
     isOwn: boolean;
 }) => void;
 
+export type SwipeThreshold = "short" | "far";
+
+export type SwipeHandler = (ctx: {
+    roomId: string;
+    eventId: string;
+    isOwn: boolean;
+    threshold: SwipeThreshold;
+}) => void;
+
 export type PluginEventName =
     | "message"
     | "message-sent"
@@ -217,6 +226,10 @@ export interface ZamPluginApi {
         transformOutgoing(fn: OutgoingTextTransform): Disposable;
         transformOutgoingContent(fn: OutgoingContentTransform): Disposable;
         onDoubleTap(handler: DoubleTapHandler): Disposable;
+        /** Fired when a message row is swiped left past a threshold (item 6).
+         *  short = reply intent, far = edit intent (edit gated on isOwn by the
+         *  consumer). Detection stays core; the action is the plugin's. */
+        onSwipe(handler: SwipeHandler): Disposable;
         addAction(action: MessageActionItem): Disposable;
         decorate(fn: MessageDecorator): Disposable;
         registerEmbed(embed: MessageEmbed): Disposable;

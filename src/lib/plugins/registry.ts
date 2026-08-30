@@ -21,6 +21,7 @@ import type {
     OutgoingTextTransform,
     OutgoingContentTransform,
     DoubleTapHandler,
+    SwipeHandler,
     EventSubscription,
 } from "./types";
 
@@ -43,6 +44,7 @@ export interface PluginRegistryData {
     outgoingTextTransforms: RegistryEntry<OutgoingTextTransform>[];
     outgoingContentTransforms: RegistryEntry<OutgoingContentTransform>[];
     doubleTapHandlers: RegistryEntry<DoubleTapHandler>[];
+    swipeHandlers: RegistryEntry<SwipeHandler>[];
     eventSubs: RegistryEntry<EventSubscription>[];
     tick: number;
     nextEntryId: number;
@@ -66,6 +68,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "outgoingTextTransforms",
     "outgoingContentTransforms",
     "doubleTapHandlers",
+    "swipeHandlers",
     "eventSubs",
 ];
 
@@ -83,6 +86,7 @@ export function createRegistryData(): PluginRegistryData {
         outgoingTextTransforms: [],
         outgoingContentTransforms: [],
         doubleTapHandlers: [],
+        swipeHandlers: [],
         eventSubs: [],
         tick: 0,
         nextEntryId: 1,
