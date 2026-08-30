@@ -42,6 +42,9 @@ declare global {
                     sourceName?: string,
                 ) => void;
             };
+            tray?: {
+                setMinimizeToClose: (enabled: boolean) => void;
+            };
         };
     }
 }
