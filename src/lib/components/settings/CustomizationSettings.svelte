@@ -36,8 +36,10 @@
         setPauseVideoOnScrollOff,
         setShowMatrixIds,
         setReduceMotion,
+        setMinimizeToTrayOnClose,
         settingsState,
     } from "$lib/stores/settings.svelte";
+    import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { type GifTab } from "$lib/utils/klipy";
     import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
     import {
@@ -93,6 +95,11 @@
         // pattern never blanks every timestamp in the app.
         if (previewDatePattern(customDraft) !== null)
             setCustomDatePattern(customDraft);
+    }
+
+    function onToggleMinimizeToTray(next: boolean): void {
+        setMinimizeToTrayOnClose(next);
+        setMinimizeToTray(next);
     }
 
     type Room = ReturnType<typeof getRooms>[number];
@@ -487,6 +494,28 @@
                 label="Reduce motion"
             />
         </div>
+
+        {#if isDesktopTray()}
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        Minimise to tray on close
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        Keep Zam running in the system tray when you close the
+                        window instead of quitting. Use the tray icon to reopen
+                        or quit.
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.minimizeToTrayOnClose}
+                    onChange={onToggleMinimizeToTray}
+                    label="Minimise to tray on close"
+                />
+            </div>
+        {/if}
     </section>
 
     <section>
