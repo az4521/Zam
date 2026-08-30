@@ -208,6 +208,12 @@ export const settingsState = $state({
      *  Deliberately device-local (readBool/writeBool, no customization sync):
      *  motion/battery is a per-device call, like the OS setting it augments. */
     reduceMotion: readBool("reduceMotion", false),
+    /** Device-global: open the mobile message actions bar on HOLD instead of
+     *  TAP (Tap XOR Hold). Default OFF (tap opens the menu — today's behaviour).
+     *  Deliberately device-local (readBool/writeBool, no customization sync):
+     *  a touch-interaction preference is a per-device call, like reduceMotion.
+     *  Item 6 (swipe-to-reply) coexists with this on touch devices. */
+    holdToOpenMessageMenu: readBool("holdToOpenMessageMenu", false),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -581,6 +587,11 @@ export function setReduceMotion(value: boolean): void {
     settingsState.reduceMotion = value;
     writeBool("reduceMotion", value);
     applyReduceMotion(value);
+}
+
+export function setHoldToOpenMessageMenu(value: boolean): void {
+    settingsState.holdToOpenMessageMenu = value;
+    writeBool("holdToOpenMessageMenu", value);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {
