@@ -16,13 +16,14 @@
 import type { Manifest } from "../../manifest";
 import type { PluginModule, Disposable } from "../../types";
 import { resolveDoubleTapAction, isActive } from "./resolve";
+import { resolveSwipeAction as resolveSwipe } from "./swipeResolve";
 
 export const manifest: Manifest = {
     id: "zam.double-tap-reply",
-    name: "Double-tap to reply",
+    name: "Double-tap & swipe actions",
     version: "1.0.0",
     description:
-        "Double-tap (or double-click) a message to reply, react, or edit.",
+        "Double-tap a message to reply, react, or edit — or swipe it left to reply / edit.",
     author: "Zam",
     entry: "builtin",
     capabilities: ["composer", "messages:read", "messages:send"],
@@ -56,6 +57,14 @@ export const manifest: Manifest = {
             label: "Reaction emoji",
             default: "👍",
             description: "Sent when a double-tap action is set to Reaction.",
+        },
+        {
+            key: "swipeEnabled",
+            type: "toggle",
+            label: "Swipe to reply / edit",
+            default: true,
+            description:
+                "Swipe a message left to reply; swipe your own further to edit.",
         },
     ],
 };
@@ -95,6 +104,32 @@ export const plugin: PluginModule = {
                 });
             }
         };
+
+        const handleSwipe = (ctx: {
+            roomId: string;
+            eventId: string;
+            isOwn: boolean;
+            threshold: "short" | "far";
+        }) => {
+            const action = resolveSwipe(
+                ctx.threshold,
+                ctx.isOwn,
+                zam.settings.get<boolean>("swipeEnabled", true),
+            );
+            if (action === "reply") {
+                zam.composer.startReply({
+                    roomId: ctx.roomId,
+                    eventId: ctx.eventId,
+                });
+            } else if (action === "edit") {
+                zam.composer.startEdit({
+                    roomId: ctx.roomId,
+                    eventId: ctx.eventId,
+                });
+            }
+        };
+
+        disposables.push(zam.messages.onSwipe(handleSwipe));
 
         // Register the gesture handler only while an action is configured, so
         // the desktop word-select is preserved at none/none.
