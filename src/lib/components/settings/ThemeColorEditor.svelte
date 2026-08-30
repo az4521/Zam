@@ -9,6 +9,8 @@
         activeBase,
         getPresetColors,
         renameCustomPreset,
+        setMessageFontSize,
+        setMessageFont,
     } from "$lib/stores/settings.svelte";
     import { applyThemeColors } from "$lib/utils/theme";
     import {
@@ -18,6 +20,11 @@
         type ThemeColors,
         type ThemeTokenKey,
     } from "$lib/utils/themePalette";
+    import {
+        MESSAGE_FONTS,
+        messageFontFamily,
+        type MessageFontKey,
+    } from "$lib/utils/messageDisplay";
     import {
         encodeThemePreset,
         decodeThemePreset,
@@ -605,4 +612,58 @@
             </div>
         </div>
     {/if}
+
+    <!-- Message display -->
+    <div class="mt-6 pt-4 border-t border-discord-divider">
+        <p class="text-sm font-semibold text-discord-textPrimary">
+            Message display
+        </p>
+        <p class="text-xs text-discord-textMuted mb-3">
+            Saved on this device only. Not synced across your account.
+        </p>
+
+        <label
+            class="block text-sm text-discord-textPrimary mb-1"
+            for="msg-size-range"
+        >
+            Text size: {settingsState.messageFontSize}px
+        </label>
+        <input
+            id="msg-size-range"
+            type="range"
+            min="12"
+            max="24"
+            step="1"
+            class="w-full accent-discord-accent"
+            value={settingsState.messageFontSize}
+            oninput={(e) => setMessageFontSize(Number(e.currentTarget.value))}
+        />
+
+        <label
+            class="block text-sm text-discord-textPrimary mt-4 mb-1"
+            for="msg-font-select"
+        >
+            Font
+        </label>
+        <select
+            id="msg-font-select"
+            class="input-dark rounded px-2 py-1 w-full"
+            value={settingsState.messageFont}
+            onchange={(e) =>
+                setMessageFont(e.currentTarget.value as MessageFontKey)}
+        >
+            {#each MESSAGE_FONTS as f (f.key)}
+                <option value={f.key}>{f.label}</option>
+            {/each}
+        </select>
+
+        <p
+            class="mt-3 text-discord-textPrimary"
+            style="font-size: {settingsState.messageFontSize}px; font-family: {messageFontFamily(
+                settingsState.messageFont,
+            ) ?? 'inherit'};"
+        >
+            The quick brown fox jumps over the lazy dog.
+        </p>
+    </div>
 </div>
