@@ -25,7 +25,8 @@ export type ThemeTokenKey =
     | "dnd"
     | "offline"
     | "divider"
-    | "spoilerBackground";
+    | "spoilerBackground"
+    | "ownBubbleBackground";
 
 export type ThemeColors = Partial<Record<ThemeTokenKey, string>>;
 
@@ -156,6 +157,12 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
         hexVars: ["--discord-spoiler-bg"],
         rgbVars: [],
     },
+    {
+        key: "ownBubbleBackground",
+        label: "Own message bubble",
+        hexVars: ["--discord-own-bubble"],
+        rgbVars: [],
+    },
 ];
 
 /**
@@ -188,6 +195,7 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#747f8d",
         divider: "#41444e",
         spoilerBackground: "#1e1f22",
+        ownBubbleBackground: "#5865f2",
     },
     light: {
         accent: "#5865c7",
@@ -208,6 +216,7 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#80848e",
         divider: "#d4d7dc",
         spoilerBackground: "#c9ccd1",
+        ownBubbleBackground: "#5865c7",
     },
     amoled: {
         accent: "#5865f2",
@@ -228,6 +237,7 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#747f8d",
         divider: "#23262c",
         spoilerBackground: "#000000",
+        ownBubbleBackground: "#5865f2",
     },
 } as const;
 
@@ -303,7 +313,7 @@ export function themeColorsToCssVars(
 
 /**
  * Resolve effective theme colors by overlaying partial overrides on a base theme.
- * Returns a complete map with all 18 tokens.
+ * Returns a complete map with all 19 tokens.
  */
 export function resolveEffectiveColors(
     base: "dark" | "light" | "amoled",

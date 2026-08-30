@@ -112,6 +112,9 @@ body {
     --discord-spoiler-bg: #1e1f22;
     --discord-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
 
+    /* ── Own message bubble ──────────────────────────── */
+    --discord-own-bubble: #5865f2;
+
     /* ── Syntax highlighting ─────────────────────────── */
     --syntax-keyword: #ff7ab2;
     --syntax-string: #a8cc8c;
@@ -193,6 +196,8 @@ body {
     --discord-spoiler-bg: #c9ccd1;
     --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
 
+    --discord-own-bubble: #5865c7;
+
     --syntax-keyword: #a626a4;
     --syntax-string: #40781f;
     --syntax-number: #7c3ab5;
@@ -221,6 +226,8 @@ body {
 
     /* Spoiler cover on true black */
     --discord-spoiler-bg: #000000;
+
+    --discord-own-bubble: #5865f2;
 }
 
 * {
