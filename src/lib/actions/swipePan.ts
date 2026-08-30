@@ -11,6 +11,9 @@ import {
     type SwipeStage,
 } from "$lib/utils/swipeGesture";
 
+// Vertical scroll dominates over horizontal swipe beyond this threshold.
+const VERTICAL_LOCK_PX = 8;
+
 export interface SwipePanParams {
     enabled: boolean;
     onEngage?: () => void;
@@ -52,7 +55,10 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
         if (!engaged) {
-            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+            if (
+                Math.abs(dy) > Math.abs(dx) &&
+                Math.abs(dy) > VERTICAL_LOCK_PX
+            ) {
                 // Clearly vertical — hand the gesture back to the scroller.
                 reset();
                 return;

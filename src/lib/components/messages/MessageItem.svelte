@@ -308,6 +308,8 @@
     // drives the reveal button's icon; swipeAnimating enables the snap-back
     // transition; swipedThisTouch suppresses the tap/double-tap that would else
     // fire on the same touch release (set during the engaged move, before touchend).
+    const SWIPE_SNAP_MS = 180;
+    const SWIPE_SNAP_RESET_MS = 200; // Runs slightly after transition ends.
     let swipeTranslate = $state(0);
     let swipeStageNow = $state<SwipeStage>("none");
     let swipeAnimating = $state(false);
@@ -315,7 +317,7 @@
 
     const swipeStyle = $derived(
         swipeTranslate !== 0 || swipeAnimating
-            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating ? " transition: transform 180ms cubic-bezier(0.2,0,0,1);" : ""}`
+            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating ? ` transition: transform ${SWIPE_SNAP_MS}ms cubic-bezier(0.2,0,0,1);` : ""}`
             : "",
     );
 
@@ -415,13 +417,13 @@
         swipeAnimating = true;
         swipeTranslate = 0;
         swipeStageNow = "none";
-        setTimeout(() => (swipeAnimating = false), 200);
+        setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
     }
     function onSwipeCancel() {
         swipeAnimating = true;
         swipeTranslate = 0;
         swipeStageNow = "none";
-        setTimeout(() => (swipeAnimating = false), 200);
+        setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
     }
 
     function onMessageTouchEnd(e: TouchEvent) {
@@ -429,6 +431,7 @@
             return;
 
         if (swipedThisTouch) {
+            e.preventDefault();
             swipedThisTouch = false;
             previousTap = null;
             return;
@@ -2595,7 +2598,7 @@
     {/if}
 
     <!-- Swipe reveal button (reply arrow or edit pencil) -->
-    {#if swipeRevealIcon !== "none"}
+    {#if swipeRevealIcon !== "none" && !isFailed}
         <div
             class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
             'edit'
