@@ -350,7 +350,10 @@ body {
    Unlayered so it beats Tailwind's `text-sm` utility (in @layer utilities)
    with no markup change. The vars are set on :root by applyMessageFontSize /
    applyMessageFont (utils/messageDisplay); unset -> falls back to the current
-   0.875rem / inherited family, so the default look is unchanged. Code keeps
+   0.875rem / inherited family. At the default (14px / system) the timeline
+   looks the same as before at a 16px root; note the slider is absolute px, so
+   a user with a non-default browser base size gets fixed px here where
+   `text-sm` was rem-relative (an intentional px-slider tradeoff). Code keeps
    its own monospace family + fixed size (see MessageItem.svelte
    `.message-body pre code`) because a directly-set font-family beats an
    inherited one. */
