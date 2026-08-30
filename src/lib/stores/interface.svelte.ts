@@ -45,6 +45,11 @@ export type ModalId =
     | "forward-message"
     | "composer-picker"
     | "composer-actions"
+    // A plugin's custom-UI popover (zam.ui.openPopover) — a plugin renders
+    // arbitrary DOM into an anchored floating element via PluginPopoverHost.
+    // Shares the single modal slot so Escape/backdrop dismiss it through
+    // AppShell's central stack like every other popup.
+    | "plugin-popover"
     | "create-poll"
     | "share-location"
     // Fullscreen live-location map (LiveLocationMapView, mounted by
@@ -65,7 +70,11 @@ export type SidebarId =
     | "notifications"
     | "search"
     | "threads"
-    | "media";
+    | "media"
+    // A plugin's room-header panel (zam.room.addHeaderButton). Shares the
+    // single sidebar slot so Escape/back dismiss it via AppShell like every
+    // core panel; MessageArea renders pluginPanel.current into it.
+    | "plugin";
 
 export const interfaceState = $state({
     isMobile: false,

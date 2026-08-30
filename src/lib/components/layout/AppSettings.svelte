@@ -11,6 +11,7 @@
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
+    import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { tick, untrack } from "svelte";
     import {
@@ -230,6 +231,8 @@
         <ServerSettings />
     {:else if tab === "blocked"}
         <BlockedUsersSettings />
+    {:else if tab === "plugins"}
+        <PluginsSettings />
     {:else if tab === "about"}
         <AboutSettings />
     {:else if tab === "debug"}

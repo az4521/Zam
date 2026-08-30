@@ -163,3 +163,88 @@ describe("roomHeaderMenuRows", () => {
         expect(threads.dot).toBe(true);
     });
 });
+
+import {
+    pluginHeaderKey,
+    pluginHeaderButtons,
+    pluginHeaderMenuRows,
+} from "./roomHeaderMenu";
+import type { RegistryEntry } from "$lib/plugins/registry";
+import type { HeaderButton } from "$lib/plugins/types";
+
+const entry = (
+    pluginId: string,
+    id: string,
+    label: string,
+): RegistryEntry<HeaderButton> => ({
+    pluginId,
+    entryId: 1,
+    value: { id, label, icon: "M0 0h1v1H0z", render: () => {} },
+});
+
+describe("pluginHeaderKey", () => {
+    it("namespaces by plugin id", () => {
+        expect(pluginHeaderKey("com.acme", "panel")).toBe(
+            "plugin:com.acme:panel",
+        );
+    });
+});
+
+describe("pluginHeaderButtons", () => {
+    it("maps entries to views preserving order + carrying icon/render", () => {
+        const views = pluginHeaderButtons([
+            entry("a", "one", "One"),
+            entry("b", "two", "Two"),
+        ]);
+        expect(views.map((v) => [v.key, v.label])).toEqual([
+            ["plugin:a:one", "One"],
+            ["plugin:b:two", "Two"],
+        ]);
+        expect(views[0].icon).toBe("M0 0h1v1H0z");
+        expect(typeof views[0].render).toBe("function");
+    });
+    it("dedupes a repeated plugin+id (first wins)", () => {
+        const views = pluginHeaderButtons([
+            entry("a", "one", "First"),
+            entry("a", "one", "Second"),
+        ]);
+        expect(views).toHaveLength(1);
+        expect(views[0].label).toBe("First");
+    });
+
+    it("carries entryId through for Svelte keying", () => {
+        const views = pluginHeaderButtons([
+            {
+                pluginId: "p1",
+                entryId: 5,
+                value: { id: "a", label: "A", render: () => {} },
+            },
+            {
+                pluginId: "p2",
+                entryId: 7,
+                value: { id: "b", label: "B", render: () => {} },
+            },
+        ]);
+        expect(views[0].entryId).toBe(5);
+        expect(views[1].entryId).toBe(7);
+        // Distinct entryIds provide collision-proof keys for {#each}
+        expect(views[0].entryId).not.toBe(views[1].entryId);
+    });
+});
+
+describe("pluginHeaderMenuRows", () => {
+    it("marks the active row", () => {
+        const rows = pluginHeaderMenuRows(
+            [
+                { key: "plugin:a:one", label: "One" },
+                { key: "plugin:b:two", label: "Two" },
+            ],
+            "plugin:b:two",
+        );
+        expect(rows.map((r) => r.active)).toEqual([false, true]);
+    });
+    it("none active when activeKey is null", () => {
+        const rows = pluginHeaderMenuRows([{ key: "k", label: "L" }], null);
+        expect(rows[0].active).toBe(false);
+    });
+});

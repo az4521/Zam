@@ -5,6 +5,8 @@
  * transforms, so it can be unit-tested in isolation.
  */
 
+import type { PluginCommand } from "$lib/plugins/types";
+
 export type CommandArgKind = "none" | "text" | "user" | "roomAlias";
 
 /** How MessageInput dispatches a matched command. */
@@ -29,83 +31,20 @@ export interface SlashCommand {
     transform?: (arg: string) => string;
     /** text-transform only: send verbatim, bypassing markdown/formatting. */
     plain?: boolean;
-}
-
-const SHRUG = "¯\\_(ツ)_/¯";
-const TABLEFLIP = "(╯°□°)╯︵ ┻━┻";
-const UNFLIP = "┬─┬ ノ( ゜-゜ノ)";
-const LENNY = "( ͡° ͜ʖ ͡°)";
-
-/** Append an emoticon to an optional message ("meh" + art, or just art). */
-function withArt(art: string): (arg: string) => string {
-    return (arg) => (arg ? `${arg} ${art}` : art);
+    /** plugin commands only: the id of the plugin that registered this command
+     *  (dispatch routing + error attribution). Absent on core commands. */
+    pluginId?: string;
+    /** plugin commands only: the handler MessageInput calls instead of the core
+     *  dispatch switch. Its presence marks a command as plugin-provided. */
+    pluginRun?: (ctx: { roomId: string; arg: string }) => void | Promise<void>;
 }
 
 /**
- * The command registry. Order is the popup order. Only commands that map to
- * existing, tested client.ts wrappers (or pure transforms) are here; dialog
- * commands (/poll, /location) register themselves when those features land.
+ * The command registry. Order is the popup order. Holds action and dialog
+ * commands; text-transform/emote commands (fun commands) are provided by the
+ * default-enabled slash-fun built-in plugin.
  */
 export const SLASH_COMMANDS: SlashCommand[] = [
-    {
-        name: "me",
-        description: "Send an action message",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "emote",
-        requiresArg: true,
-    },
-    {
-        name: "shrug",
-        description: "Append ¯\\_(ツ)_/¯ to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(SHRUG),
-    },
-    {
-        name: "tableflip",
-        description: "Append (╯°□°)╯︵ ┻━┻ to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(TABLEFLIP),
-    },
-    {
-        name: "unflip",
-        description: "Append ┬─┬ ノ( ゜-゜ノ) to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(UNFLIP),
-    },
-    {
-        name: "lenny",
-        description: "Append ( ͡° ͜ʖ ͡°) to your message",
-        argHint: "[message]",
-        argKind: "text",
-        kind: "text-transform",
-        transform: withArt(LENNY),
-    },
-    {
-        name: "spoiler",
-        description: "Send your message as a spoiler",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "text-transform",
-        requiresArg: true,
-        transform: (arg) => `||${arg}||`,
-    },
-    {
-        name: "plain",
-        description: "Send your message without markdown formatting",
-        argHint: "<message>",
-        argKind: "text",
-        kind: "text-transform",
-        requiresArg: true,
-        transform: (arg) => arg,
-        plain: true,
-    },
     {
         name: "poll",
         description: "Create a poll",
@@ -191,9 +130,73 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
 ];
 
-function findCommand(name: string): SlashCommand | undefined {
+/** Adapt a plugin's command into a `SlashCommand` the pure matchers + the
+ *  MessageInput dispatch understand. Names/aliases are lowercased (findCommand
+ *  lowercases lookups). Plugin commands are either action-flavor (carry
+ *  `pluginRun`) or transform/emote-flavor (core-dispatched, no `pluginRun`). */
+export function pluginCommandToSlash(
+    cmd: PluginCommand,
+    pluginId: string,
+): SlashCommand {
+    // Transform/emote flavor → core-dispatched (no pluginRun). Flows through
+    // MessageInput's emote/text-transform branch exactly like a built-in
+    // command, so markdown / mentions / thread / reply-clear are preserved.
+    if ("kind" in cmd) {
+        return {
+            name: cmd.name.toLowerCase(),
+            aliases: cmd.aliases?.map((a) => a.toLowerCase()),
+            description: cmd.description,
+            argKind: cmd.argKind ?? "text",
+            argHint: cmd.argHint,
+            kind: cmd.kind,
+            transform: cmd.transform,
+            plain: cmd.plain,
+            requiresArg: cmd.requiresArg,
+            pluginId,
+        };
+    }
+    // Action flavor (existing behavior) — dispatched via pluginRun.
+    const argKind = cmd.argKind ?? "none";
+    return {
+        name: cmd.name.toLowerCase(),
+        aliases: cmd.aliases?.map((a) => a.toLowerCase()),
+        description: cmd.description,
+        argKind,
+        argHint: argKind === "none" ? undefined : "<arg>",
+        kind: "action",
+        pluginId,
+        pluginRun: cmd.run,
+    };
+}
+
+/** Merge core commands with plugin `extra`, core-precedence. A plugin command
+ *  whose name collides with a core name/alias (or an earlier plugin's name) is
+ *  dropped — a plugin can never shadow `/ban`, `/poll`, etc. */
+export function mergeSlashCommands(
+    core: SlashCommand[],
+    extra: SlashCommand[],
+): SlashCommand[] {
+    const taken = new Set<string>();
+    for (const c of core) {
+        taken.add(c.name);
+        for (const a of c.aliases ?? []) taken.add(a);
+    }
+    const merged = [...core];
+    for (const e of extra) {
+        if (taken.has(e.name)) continue;
+        taken.add(e.name);
+        for (const a of e.aliases ?? []) taken.add(a);
+        merged.push(e);
+    }
+    return merged;
+}
+
+function findCommand(
+    name: string,
+    extra: SlashCommand[] = [],
+): SlashCommand | undefined {
     const lower = name.toLowerCase();
-    return SLASH_COMMANDS.find(
+    return mergeSlashCommands(SLASH_COMMANDS, extra).find(
         (c) => c.name === lower || (c.aliases ?? []).some((a) => a === lower),
     );
 }
@@ -209,6 +212,7 @@ export type ParsedCommand = { command: SlashCommand; arg: string };
  */
 export function parseSlashCommand(
     text: string,
+    extra: SlashCommand[] = [],
 ): ParsedCommand | { unknown: string } | null {
     const start = text.replace(/^\s+/, "");
     if (!start.startsWith("/")) return null;
@@ -217,7 +221,7 @@ export function parseSlashCommand(
     if (!m) return null; // bare "/" or "/@#!"
     const name = m[1].toLowerCase();
     const arg = m[2].trim();
-    const command = findCommand(name);
+    const command = findCommand(name, extra);
     if (!command) return { unknown: name };
     return { command, arg };
 }
@@ -226,10 +230,14 @@ export function parseSlashCommand(
  * Candidates for the autocomplete popup. A leading slash in the query is
  * tolerated. Empty query returns the whole registry (in order).
  */
-export function matchSlashCommands(query: string): SlashCommand[] {
+export function matchSlashCommands(
+    query: string,
+    extra: SlashCommand[] = [],
+): SlashCommand[] {
+    const all = mergeSlashCommands(SLASH_COMMANDS, extra);
     const q = query.replace(/^\//, "").toLowerCase();
-    if (q === "") return [...SLASH_COMMANDS];
-    return SLASH_COMMANDS.filter(
+    if (q === "") return [...all];
+    return all.filter(
         (c) =>
             c.name.startsWith(q) ||
             (c.aliases ?? []).some((a) => a.startsWith(q)),

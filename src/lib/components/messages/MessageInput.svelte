@@ -4,7 +4,6 @@
     import {
         sendTextMessage,
         sendFormattedMessage,
-        sendReply,
         sendSticker,
         sendFile,
         getMemberName,
@@ -29,6 +28,7 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
+        sendEventContent,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
@@ -39,6 +39,12 @@
         buildTextContent,
         buildFormattedContent,
     } from "$lib/utils/messageContent";
+    import { composerInsertText } from "$lib/utils/composerInsert";
+    import {
+        applyTextTransforms,
+        applyContentTransforms,
+    } from "$lib/plugins/outgoingTransforms";
+    import { hostBridge } from "$lib/plugins/hostBridge";
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
@@ -54,6 +60,7 @@
         closeModal,
         openComposerPicker,
     } from "$lib/stores/interface.svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
     import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
@@ -86,8 +93,10 @@
         parseOpArg,
         parseDeopArg,
         resolveMentionTokens,
+        pluginCommandToSlash,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
+    import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
@@ -174,6 +183,27 @@
             };
         }
     });
+
+    // Plugin composer.insertText → append to THIS (main) composer's text.
+    // Only the main composer claims the global slot (mirrors focusComposer).
+    // roomId-guarded so a stale handler from a previous room drops silently.
+    // `text` is read inside the handler (a user-action callback), NOT the
+    // effect body, so the effect depends only on roomId — no re-register per
+    // keystroke, no effect_update_depth issues.
+    $effect(() => {
+        if (isThread) return;
+        const rid = roomId;
+        const handler = (ctx: { roomId: string; text: string }) => {
+            if (ctx.roomId !== rid) return;
+            setComposerText(composerInsertText(text, ctx.text));
+            textareaEl?.focus();
+        };
+        hostBridge.insertText = handler;
+        return () => {
+            if (hostBridge.insertText === handler) hostBridge.insertText = null;
+        };
+    });
+
     let fileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -425,8 +455,29 @@
     let slashQuery = $state<string | null>(null); // null = popup closed
     let slashSelectedIdx = $state(0);
 
+    // Plugin-contributed slash commands, adapted to SlashCommand and re-derived
+    // whenever the registry mutates (enable/disable). void the tick so the
+    // $derived tracks registry changes (see plugins.svelte.ts reactivity note).
+    const pluginSlashCommands = $derived.by((): SlashCommand[] => {
+        void pluginRegistry.tick;
+        return pluginRegistry.commands.map((e) =>
+            pluginCommandToSlash(e.value, e.pluginId),
+        );
+    });
+
+    const pluginComposerButtonViews = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginComposerButtons(
+            pluginRegistry.composerButtons,
+            roomId,
+            isThread ? (threadRootId ?? null) : null,
+        );
+    });
+
     const slashCandidates = $derived.by((): SlashCommand[] =>
-        slashQuery === null ? [] : matchSlashCommands(slashQuery),
+        slashQuery === null
+            ? []
+            : matchSlashCommands(slashQuery, pluginSlashCommands),
     );
 
     $effect(() => {
@@ -890,6 +941,28 @@
         // immediately rather than waiting out the 20s window.
         lastTypingSentAt = 0;
 
+        // Plugin-provided command: run its handler instead of the core switch.
+        // Mirrors the action branch — no local echo, clear on success only.
+        if (command.pluginRun) {
+            isSending = true;
+            try {
+                await command.pluginRun({ roomId, arg });
+                text = "";
+                slashQuery = null;
+                mentionQuery = null;
+                pendingMentions = new Map();
+                clearDraft(effComposerKey);
+                renderComposer(0);
+            } catch (err) {
+                console.error(`Plugin command /${command.name} failed:`, err);
+                showErrorToast(matrixErrorMessage(err, "Command failed"));
+            } finally {
+                isSending = false;
+                textareaEl?.focus();
+            }
+            return;
+        }
+
         // Action commands call a client.ts wrapper; they aren't messages, so no
         // local echo. Clear the composer only on success.
         if (command.kind === "action") {
@@ -927,7 +1000,16 @@
 
         // emote + text-transform both produce a message body sent like a normal
         // message (markdown + mentions), except /plain which bypasses markdown.
-        const body = command.kind === "emote" ? arg : command.transform!(arg);
+        // The transform is pure app code for core commands, but the transform
+        // command flavor is public (plugins), so guard a throwing transform.
+        let body: string;
+        try {
+            body = command.kind === "emote" ? arg : command.transform!(arg);
+        } catch (err) {
+            console.error(`Command /${command.name} transform threw:`, err);
+            showErrorToast(matrixErrorMessage(err, "Command failed"));
+            return;
+        }
         const usePlain = command.kind === "text-transform" && !!command.plain;
         // Resolve formatting before clearing the composer (buildFormattedBody
         // reads pendingMentions, reset below).
@@ -1036,7 +1118,7 @@
         // Slash-command dispatch — only when no files are queued (with files the
         // text is a caption, not a command).
         if (!isSending && !disabled && fileQueue.length === 0) {
-            const parsed = parseSlashCommand(text);
+            const parsed = parseSlashCommand(text, pluginSlashCommands);
             if (parsed && "unknown" in parsed) {
                 showErrorToast(`Unknown command: /${parsed.unknown}`);
                 return;
@@ -1055,7 +1137,16 @@
             }
         }
 
-        const trimmed = text.trim();
+        // Sender-side text transforms (plugins, e.g. the text-replacer). Applied
+        // to a LOCAL copy so the composer text and the draft-restore snapshot
+        // (textAtSend) stay what the user typed; `trimmed` and the formatted body
+        // built below both derive from the transformed text.
+        const outgoingText = applyTextTransforms(
+            text,
+            pluginRegistry.outgoingTextTransforms.map((e) => e.value),
+            { roomId },
+        );
+        const trimmed = outgoingText.trim();
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
             return;
 
@@ -1133,7 +1224,7 @@
                 mentionedUserIds.length > 0
                     ? { user_ids: mentionedUserIds }
                     : undefined;
-            const content: Record<string, unknown> = replyToEvent
+            const baseContent: Record<string, unknown> = replyToEvent
                 ? (buildReplyContent({
                       replyEventId: replyToEvent.getId()!,
                       text: trimmed,
@@ -1143,6 +1234,11 @@
                 : html
                   ? buildFormattedContent(trimmed, html, mentions)
                   : buildTextContent(trimmed);
+            const content = applyContentTransforms(
+                baseContent,
+                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+                { roomId: targetRoomId },
+            );
             queueMessage(targetRoomId, content);
             if (replyToEvent) onCancelReply?.();
             createThreadArmed = false;
@@ -1170,28 +1266,29 @@
                         html ?? undefined,
                     );
                 } else {
-                    if (replyToEvent) {
-                        sentEventId = await sendReply(
-                            targetRoomId,
-                            trimmed,
-                            replyToEvent,
-                            html ?? undefined,
-                            mentions,
-                        );
-                        onCancelReply?.();
-                    } else if (html) {
-                        sentEventId = await sendFormattedMessage(
-                            targetRoomId,
-                            trimmed,
-                            html,
-                            mentions,
-                        );
-                    } else {
-                        sentEventId = await sendTextMessage(
-                            targetRoomId,
-                            trimmed,
-                        );
-                    }
+                    // Build the content in-component (byte-identical to the
+                    // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
+                    // utils/messageContent.ts), apply plugin content transforms,
+                    // then send. Thread replies + captions keep their own paths.
+                    const baseContent: Record<string, unknown> = replyToEvent
+                        ? (buildReplyContent({
+                              replyEventId: replyToEvent.getId()!,
+                              text: trimmed,
+                              formattedText: html ?? undefined,
+                              mentions,
+                          }) as unknown as Record<string, unknown>)
+                        : html
+                          ? buildFormattedContent(trimmed, html, mentions)
+                          : buildTextContent(trimmed);
+                    const content = applyContentTransforms(
+                        baseContent,
+                        pluginRegistry.outgoingContentTransforms.map(
+                            (e) => e.value,
+                        ),
+                        { roomId: targetRoomId },
+                    );
+                    sentEventId = await sendEventContent(targetRoomId, content);
+                    if (replyToEvent) onCancelReply?.();
                     if (createThreadArmed) {
                         createThreadArmed = false;
                         onThreadCreated?.(sentEventId);
@@ -1395,19 +1492,12 @@
         ) {
             onCancelReply?.();
         }
-        // Ctrl+E / Ctrl+S / Ctrl+G (open pickers) are global shortcuts handled
-        // centrally in +page.svelte.
+        // Ctrl+E / Ctrl+S (open pickers) are global shortcuts handled
+        // centrally in AppShell.
         if (e.key === "ArrowUp" && !text) {
             e.preventDefault();
             onRequestEditLast?.();
         }
-    }
-
-    function insertGif(url: string) {
-        const next = text ? text + " " + url : url;
-        setComposerText(next);
-        closeModal();
-        textareaEl?.focus();
     }
 
     function insertEmoji(emoji: string) {
@@ -1418,6 +1508,13 @@
 
     function insertCustomEmoji(emoji: CustomEmoji) {
         setComposerText(text + `:${emoji.shortcode}:`);
+        closeModal();
+        textareaEl?.focus();
+    }
+
+    function insertGif(url: string) {
+        const next = text ? text + " " + url : url;
+        setComposerText(next);
         closeModal();
         textareaEl?.focus();
     }
@@ -1869,6 +1966,7 @@
                             style="bottom: {keyboardOffset + 8}px;"
                         >
                             <ComposerActionsMenu
+                                {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
@@ -1889,6 +1987,7 @@
                     {:else}
                         <div class="absolute bottom-full left-0 mb-2 z-50">
                             <ComposerActionsMenu
+                                {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
                                 onCreatePoll={() =>
@@ -1987,7 +2086,7 @@
             </div>
 
             <!-- Sticker button -->
-            <!-- Same wrapper treatment as the GIF button above. -->
+            <!-- Wrapper `hidden` on touch mirrors the button's own `hidden` so no dead flex gap remains. -->
             <div
                 class="flex-shrink-0 {interfaceState.isTouchscreen &&
                 !showStickerPicker
@@ -2017,7 +2116,7 @@
                             style="bottom: {keyboardOffset}px;"
                         >
                             <StickerPicker
-                                {room}
+                                {roomId}
                                 onSelect={sendStickerMessage}
                                 onClose={() => closePicker("sticker", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
@@ -2027,7 +2126,7 @@
                     {:else}
                         <div class="absolute bottom-full right-0 mb-2 z-50">
                             <StickerPicker
-                                {room}
+                                {roomId}
                                 onSelect={sendStickerMessage}
                                 onClose={() => closePicker("sticker", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
@@ -2081,6 +2180,47 @@
                     {/if}
                 {/if}
             </div>
+
+            <!-- Plugin composer buttons -->
+            {#each pluginComposerButtonViews as btn (btn.entryId)}
+                <div class="flex-shrink-0">
+                    <button
+                        onclick={(e) => {
+                            try {
+                                const r = btn.onClick(e.currentTarget);
+                                if (r && typeof r.then === "function")
+                                    r.catch((err) =>
+                                        console.error(
+                                            "[zam] plugin composer button threw",
+                                            err,
+                                        ),
+                                    );
+                            } catch (err) {
+                                console.error(
+                                    "[zam] plugin composer button threw",
+                                    err,
+                                );
+                            }
+                        }}
+                        {disabled}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={btn.label}
+                        aria-label={btn.label}
+                    >
+                        {#if btn.icon}
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={btn.icon} /></svg
+                            >
+                        {:else}
+                            <span class="text-xs font-semibold"
+                                >{btn.label.slice(0, 2)}</span
+                            >
+                        {/if}
+                    </button>
+                </div>
+            {/each}
 
             <button
                 onclick={send}

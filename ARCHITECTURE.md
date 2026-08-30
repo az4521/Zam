@@ -56,6 +56,8 @@ src/
     actions/                         -- focusTrap, longPress, resizeHandle, videoTrack
     audio/                           -- device enumeration, mic/output meters, speaker test
     data/emojis.ts                   -- unicode emoji catalog
+    plugins/                         -- the plugin subsystem: zam host API, loader, registry,
+                                        built-in plugins (see "Plugin system")
 static/                              -- sw.js, manifest.webmanifest, icons, ruffle/, sounds/,
                                         twemoji/
 electron/                            -- main.cjs, preload.cjs
@@ -128,9 +130,14 @@ Sanctioned exceptions, all deliberate:
   import a few SDK enums.
 - Two components pull exactly one runtime enum each (`DebugPanel.svelte` → `EventType`,
   `MessageItem.svelte` → `EventStatus`). Tolerated, not a pattern to copy.
+- **`src/lib/plugins/hostApi.ts`** and **`pluginBoot.ts`** — the plugin host's only two `client.ts`
+  consumers. Plugins never touch `client.ts` themselves; they call the `zam` host API, and only
+  these two modules translate it into `client.ts` wrappers (`hostApi` per plugin, `pluginBoot` for
+  host-level account-data sync). `client.ts` imports back exactly one type-only leaf
+  (`plugins/types` summaries), so the graph stays acyclic. See "Plugin system".
 
-Everything else in `src/` — 30-odd files — imports SDK types only. When adding an SDK capability,
-add a thin wrapper in `client.ts` first.
+Everything else in `src/` imports SDK types only. When adding an SDK capability, add a thin wrapper
+in `client.ts` first.
 
 `client.ts` is large and grouped by concern: lifecycle, rooms/spaces, creation/join, display
 helpers, messages, threads, reactions/receipts/typing, unread + loud, notifications, push rules,
@@ -185,7 +192,7 @@ between its timeline and the call UI):
 - **`modal`** — one `ModalId` at a time (app settings, room settings, quick actions, the various
   context menus, pickers, lightbox, live map, …).
 - **`sidebar`** — one `SidebarId` at a time: `members`, `pinned`, `notifications`, `search`,
-  `threads`, `media`.
+  `threads`, `media`, and `plugin` (a plugin room-panel; see "Plugin system").
 
 Each slot holds at most one owner, but **the slots are not exclusive of one another** — a sub-page
 exists precisely while its modal is also open. `dismissTopmost()` (and therefore Escape, and the
@@ -364,6 +371,86 @@ Live location is MSC3672 beacons with throttled publishes and expiry timers
 (`LocationMap.svelte`, `LiveLocationMapView.svelte`). Polls are MSC3381, parsed and tallied by the
 pure `utils/pollContent.ts`, which accepts both stable and unstable poll event names on read.
 
+### Plugin system
+
+A first-party plugin subsystem (`src/lib/plugins/`). Plugins are **full-trust JavaScript** — they
+run with the same privileges as app code, an Obsidian-style trust model where the safety story is
+**consent before code**, not a sandbox. A plugin is a module exporting `onload(zam)` and an optional
+`onunload()`; it is written against the **`zam` host API** and never imports `client.ts`,
+`localStorage`, or `matrix-js-sdk` directly.
+
+**The interop rule is absolute.** Zam must render everything any Matrix client can send with **zero
+plugins installed**. Nothing that _displays_ an inbound event or msgtype (`m.room.message` of any
+kind, `m.sticker`, `m.poll`, `m.location`, voice, reactions) may be gated behind a plugin. Only
+sender-side / compose UI, local enhancements that degrade gracefully, and non-message tools are
+pluginable. The emoji, GIF, and sticker pickers are **core composer UI** that mount app-internal
+Svelte components, not plugins. The plugin system's extension points — `zam.composer.addButton`,
+`zam.ui.openPopover`, `zam.composer.insertText`, `zam.matrix.sendImage` and `sendSticker` — remain
+available for third-party plugins to use; the app's own pickers just don't route through them.
+
+**The `zam` host API.** `types.ts` is the full contract; `hostApi.ts` builds a per-plugin instance.
+It is grouped into namespaces: `commands` (slash commands), `composer` (buttons, "+" actions,
+`startReply` / `startEdit` / `insertText`), `messages` (outgoing text and content transforms,
+double-tap handlers, action-menu items, decorators, custom embeds), `room` (header buttons and
+panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`openPopover`,
+`registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
+boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendImage`, `sendSticker`,
+`react`, and plain room/member summaries, never live SDK objects), `storage` (per-plugin namespaced
+key/value), `settings` (schema-driven — see below), and `unsafe` (`getClient()` — the escape hatch).
+The curated `matrix` API is a stability/ergonomics layer and a seam for a future sandbox, not a
+security cage. **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for
+anything the curated API doesn't cover, with the plugin owning the stability and safety risk. Every
+`register` / `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's
+disposables so disabling it removes exactly its contributions.
+
+**The registry** (`registry.ts` plus `stores/plugins.svelte.ts`) is a reactive `$state` store keyed
+per plugin, with one array per extension point — commands, composer buttons and actions, message
+actions, decorators, embeds, header buttons, shortcuts, panels, outgoing text and content
+transforms, double-tap handlers, event subscriptions — plus a mutation tick. Core UI reads
+`[...core, ...pluginRegistry.x]` and re-derives on the tick. **Core always wins on a conflict**: a
+full-trust plugin can never shadow `/ban` or a reserved hotkey, because the merge drops the colliding
+plugin entry.
+
+**Two load paths** (`loader.ts` plus `pluginBoot.ts`). Built-in plugins live in
+`src/lib/plugins/builtins/` and register directly — the loader just calls the in-app module's
+`onload`. Repo plugins are fetched from GitHub (`fetch` the bundle text from `raw.githubusercontent
+.com` → wrap it in a `Blob` → `import(blobUrl)` → `onload`), which needs **no CSP change** because
+`blob:` is already in `script-src`. Fetched bundles are cached in IndexedDB (`bundleCache.ts`, keyed
+by plugin id and exact version) and reused when offline. Every load, `onload` and `onunload` is
+wrapped in try/catch: a throwing plugin is auto-disabled and flagged, never fatal to boot. Boot runs
+after login/sync (`initPlugins`), built-ins first, loading only the enabled set.
+
+**State and sync.** Per-device state lives in `localStorage["zam_plugins"]` (`pluginPersist.ts` —
+which plugins are installed and enabled, their source and repo ref, cached manifest, auto-update
+flag); per-plugin settings live under their own namespaced key (`pluginSettingsStore.ts`). There is
+**no background sync**. A manual "Sync plugins" button pushes and pulls the enabled list and settings
+through Matrix account data (`moe.crafty.matrix.plugins`, `pluginSync.ts`). A pull is **two-step
+consent**: it shows a summary of what would be enabled, disabled or changed, and never fetches or runs
+a repo plugin that isn't already installed on this device.
+
+**Settings are schema-driven** (`settingsSchema.ts`, `settingsForm.ts`). A plugin declares fields —
+`toggle`, `text`, `number`, `select`, and a **`list`** of records — and the Manager renders a
+consistent form (`PluginSettingsForm.svelte`, reached from the gear button). Labels and values render
+as escaped text.
+
+**Host-rendered plugin HTML is sanitized.** A plugin builds its own DOM inside `ui`, panel and
+popover mounts — that is the plugin's own responsibility under the full-trust model — but anywhere
+Zam renders HTML _on a plugin's behalf_ it passes through `sanitizeMatrixHtml`: custom-embed markup
+via `embeds.ts` `mountEmbed` (`el.innerHTML = sanitizeMatrixHtml(markup)`), and message decorators
+render as escaped text, never `{@html}`. Plugin popovers claim a `plugin-popover` modal slot and
+plugin room-panels a `plugin` sidebar slot, sharing the UI slot system like core UI.
+
+**The Manager UI** is the "Plugins" settings tab (`PluginsSettings.svelte`): Installed (enable
+toggle, gear, update badge, remove), Browse (per-repo `index.json` listings plus Install), Repos (the
+official repo, non-removable, plus user-added repos behind a third-party consent warning), and
+Actions (Sync, a Disable-all kill switch, and the auto-update toggle).
+
+**Built-in plugins** (`builtins/`, all default-enabled): `zam.slash-fun` (the novelty text-transform
+commands `/me`, `/shrug`, `/spoiler`, …), `zam.double-tap-reply` (double-tap a message to reply, edit
+or react per its settings; it registers its gesture handler only while an action is configured, so
+default word-selection is preserved), and `zam.text-replacer` (user-configured outgoing text
+substitutions).
+
 ## Security
 
 - **Untrusted HTML must be sanitized.** Other users' `formatted_body` and reaction keys are
@@ -426,3 +513,8 @@ file can leave every test green.
     immediate child of a block, not of a plain element.
 12. **The timeline is a plain chronological flex column** — DOM order is visual order. Do not
     reintroduce `flex-col-reverse`; it breaks cross-message text selection.
+13. **Plugins extend, never gate.** New optional or compose-side behaviour can be a plugin, but
+    never gate the _rendering_ of any inbound event or msgtype behind one — Zam displays everything
+    with zero plugins installed. Plugins call the `zam` host API only; only `hostApi.ts` and
+    `pluginBoot.ts` reach `client.ts`, and any plugin HTML the host renders goes through
+    `sanitizeMatrixHtml`. See "Plugin system".

@@ -1,9 +1,9 @@
 <script lang="ts">
     import { tick } from "svelte";
-    import type { Room } from "matrix-js-sdk";
     import {
         getCustomStickerPacks,
         getOwnAvatarUrl,
+        getRoom,
         type CustomSticker,
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
@@ -17,7 +17,7 @@
     import { stickerOptionKeys } from "$lib/utils/pickerOptionKeys";
 
     interface Props {
-        room?: Room | null;
+        roomId?: string | null;
         onSelect: (sticker: CustomSticker) => void;
         onClose: () => void;
         onSwitchToEmoji?: () => void;
@@ -25,12 +25,16 @@
     }
 
     let {
-        room = null,
+        roomId = null,
         onSelect,
         onClose,
         onSwitchToEmoji,
         onSwitchToGif,
     }: Props = $props();
+
+    // The picker reads the room's own sticker packs; resolve the live Room
+    // from the id so plugin callers (which only hold a roomId string) work.
+    const room = $derived(roomId ? getRoom(roomId) : null);
 
     let search = $state("");
     let activeTab = $state("");
@@ -364,7 +368,7 @@
             </svg>
         </button>
     {/if}
-    {#if interfaceState.isTouchscreen}
+    {#if interfaceState.isTouchscreen && (onSwitchToEmoji || onSwitchToGif)}
         <div class="flex border-b border-discord-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}

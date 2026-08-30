@@ -21,20 +21,20 @@ describe("parseSlashCommand", () => {
     });
 
     it("parses a known command with no argument", () => {
-        const r = parseSlashCommand("/shrug");
-        expect(r && "command" in r ? r.command.name : null).toBe("shrug");
+        const r = parseSlashCommand("/part");
+        expect(r && "command" in r ? r.command.name : null).toBe("part");
         expect(r && "command" in r ? r.arg : null).toBe("");
     });
 
     it("parses a known command with an argument", () => {
-        const r = parseSlashCommand("/me waves hello");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("/topic waves hello");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
         expect(r && "command" in r ? r.arg : null).toBe("waves hello");
     });
 
     it("tolerates leading whitespace", () => {
-        const r = parseSlashCommand("   /me hi");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("   /topic hi");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
         expect(r && "command" in r ? r.arg : null).toBe("hi");
     });
 
@@ -44,8 +44,8 @@ describe("parseSlashCommand", () => {
     });
 
     it("is case-insensitive for the command word", () => {
-        const r = parseSlashCommand("/ME hi");
-        expect(r && "command" in r ? r.command.name : null).toBe("me");
+        const r = parseSlashCommand("/TOPIC hi");
+        expect(r && "command" in r ? r.command.name : null).toBe("topic");
     });
 
     it("flags an unknown command", () => {
@@ -64,35 +64,8 @@ describe("parseSlashCommand", () => {
     });
 
     it("keeps a multiline argument intact", () => {
-        const r = parseSlashCommand("/plain line1\nline2");
+        const r = parseSlashCommand("/topic line1\nline2");
         expect(r && "command" in r ? r.arg : null).toBe("line1\nline2");
-    });
-});
-
-describe("text transforms", () => {
-    function transformOf(name: string) {
-        const cmd = SLASH_COMMANDS.find((c) => c.name === name);
-        if (!cmd?.transform) throw new Error(`no transform for ${name}`);
-        return cmd.transform;
-    }
-
-    it("shrug appends the shrug, with and without a message", () => {
-        expect(transformOf("shrug")("")).toBe("¯\\_(ツ)_/¯");
-        expect(transformOf("shrug")("meh")).toBe("meh ¯\\_(ツ)_/¯");
-    });
-
-    it("tableflip / unflip / lenny produce their art", () => {
-        expect(transformOf("tableflip")("")).toContain("┻━┻");
-        expect(transformOf("unflip")("")).toContain("┬─┬");
-        expect(transformOf("lenny")("")).toContain("͡°");
-    });
-
-    it("spoiler wraps the message in spoiler markers", () => {
-        expect(transformOf("spoiler")("secret")).toBe("||secret||");
-    });
-
-    it("plain passes the message through unchanged", () => {
-        expect(transformOf("plain")("**bold**")).toBe("**bold**");
     });
 });
 
@@ -102,9 +75,9 @@ describe("matchSlashCommands", () => {
     });
 
     it("prefix-matches by command name", () => {
-        const names = matchSlashCommands("sh").map((c) => c.name);
-        expect(names).toContain("shrug");
-        expect(names).not.toContain("me");
+        const names = matchSlashCommands("ki").map((c) => c.name);
+        expect(names).toContain("kick");
+        expect(names).not.toContain("ban");
     });
 
     it("matches on aliases", () => {
@@ -112,11 +85,11 @@ describe("matchSlashCommands", () => {
     });
 
     it("is case-insensitive", () => {
-        expect(matchSlashCommands("SH").map((c) => c.name)).toContain("shrug");
+        expect(matchSlashCommands("KI").map((c) => c.name)).toContain("kick");
     });
 
     it("tolerates a leading slash in the query", () => {
-        expect(matchSlashCommands("/sh").map((c) => c.name)).toContain("shrug");
+        expect(matchSlashCommands("/ki").map((c) => c.name)).toContain("kick");
     });
 });
 
@@ -255,5 +228,231 @@ describe("admin command registry", () => {
             const r = parseSlashCommand(`/${name} x`);
             expect(r && "command" in r ? r.command.name : null).toBe(name);
         }
+    });
+});
+
+import {
+    pluginCommandToSlash,
+    mergeSlashCommands,
+    type SlashCommand,
+} from "./slashCommands";
+import type { PluginCommand } from "$lib/plugins/types";
+
+describe("pluginCommandToSlash", () => {
+    const base: PluginCommand = {
+        name: "Greet",
+        description: "Say hi",
+        run: () => {},
+    };
+
+    it("lowercases the name and aliases so lookups match", () => {
+        const s = pluginCommandToSlash(
+            { ...base, aliases: ["Hi", "HELLO"] },
+            "p.one",
+        );
+        expect(s.name).toBe("greet");
+        expect(s.aliases).toEqual(["hi", "hello"]);
+    });
+
+    it("marks it as an action carrying pluginId + pluginRun, no requiresArg", () => {
+        const s = pluginCommandToSlash(base, "p.one");
+        expect(s.kind).toBe("action");
+        expect(s.pluginId).toBe("p.one");
+        expect(typeof s.pluginRun).toBe("function");
+        expect(s.requiresArg).toBeFalsy();
+    });
+
+    it("defaults argKind to none (no hint) and derives a hint otherwise", () => {
+        expect(pluginCommandToSlash(base, "p").argKind).toBe("none");
+        expect(pluginCommandToSlash(base, "p").argHint).toBeUndefined();
+        const withArg = pluginCommandToSlash({ ...base, argKind: "text" }, "p");
+        expect(withArg.argKind).toBe("text");
+        expect(withArg.argHint).toBe("<arg>");
+    });
+});
+
+describe("pluginCommandToSlash — transform/emote commands", () => {
+    it("emits a core-dispatched text-transform command (transform, no pluginRun)", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "Shrug",
+                description: "Append shrug",
+                kind: "text-transform",
+                argKind: "text",
+                argHint: "[message]",
+                transform: (a) => (a ? `${a} shrug` : "shrug"),
+            },
+            "zam.slash-fun",
+        );
+        expect(s.name).toBe("shrug");
+        expect(s.kind).toBe("text-transform");
+        expect(s.pluginId).toBe("zam.slash-fun");
+        expect(s.pluginRun).toBeUndefined();
+        expect(s.transform?.("hi")).toBe("hi shrug");
+        expect(s.transform?.("")).toBe("shrug");
+        expect(s.argHint).toBe("[message]");
+        expect(s.argKind).toBe("text");
+    });
+
+    it("carries plain + requiresArg for a /plain-style command", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "plain",
+                description: "no markdown",
+                kind: "text-transform",
+                requiresArg: true,
+                plain: true,
+                transform: (a) => a,
+            },
+            "p",
+        );
+        expect(s.plain).toBe(true);
+        expect(s.requiresArg).toBe(true);
+        expect(s.pluginRun).toBeUndefined();
+    });
+
+    it("emits an emote command with no transform (body = arg)", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "me",
+                description: "action",
+                kind: "emote",
+                requiresArg: true,
+            },
+            "p",
+        );
+        expect(s.kind).toBe("emote");
+        expect(s.transform).toBeUndefined();
+        expect(s.requiresArg).toBe(true);
+        expect(s.pluginRun).toBeUndefined();
+    });
+
+    it("defaults transform-command argKind to text", () => {
+        const s = pluginCommandToSlash(
+            {
+                name: "x",
+                description: "d",
+                kind: "text-transform",
+                transform: (a) => a,
+            },
+            "p",
+        );
+        expect(s.argKind).toBe("text");
+    });
+});
+
+describe("mergeSlashCommands (core precedence)", () => {
+    const plug = (name: string): SlashCommand =>
+        pluginCommandToSlash({ name, description: "d", run: () => {} }, "p");
+
+    it("appends plugin commands after core, in order", () => {
+        const merged = mergeSlashCommands(
+            [{ name: "me", description: "d", argKind: "text", kind: "emote" }],
+            [plug("greet")],
+        );
+        expect(merged.map((c) => c.name)).toEqual(["me", "greet"]);
+    });
+
+    it("drops a plugin command whose name collides with a core name", () => {
+        const merged = mergeSlashCommands(
+            [
+                {
+                    name: "ban",
+                    description: "d",
+                    argKind: "user",
+                    kind: "action",
+                },
+            ],
+            [plug("ban")],
+        );
+        expect(merged.filter((c) => c.name === "ban").length).toBe(1);
+        expect(merged[0].pluginRun).toBeUndefined(); // the core one survived
+    });
+
+    it("drops a plugin command whose name collides with a core alias", () => {
+        const core: SlashCommand[] = [
+            {
+                name: "part",
+                aliases: ["leave"],
+                description: "d",
+                argKind: "none",
+                kind: "action",
+            },
+        ];
+        const merged = mergeSlashCommands(core, [plug("leave")]);
+        expect(merged.length).toBe(1);
+    });
+
+    it("keeps the first plugin when two plugins share a name", () => {
+        const a = plug("dup");
+        a.description = "first";
+        const b = plug("dup");
+        b.description = "second";
+        const merged = mergeSlashCommands([], [a, b]);
+        expect(merged.length).toBe(1);
+        expect(merged[0].description).toBe("first");
+    });
+});
+
+describe("matchSlashCommands with plugin extras", () => {
+    const greet = pluginCommandToSlash(
+        { name: "greet", aliases: ["hi"], description: "d", run: () => {} },
+        "p",
+    );
+
+    it("includes a plugin command by name prefix", () => {
+        expect(matchSlashCommands("gr", [greet]).map((c) => c.name)).toContain(
+            "greet",
+        );
+    });
+
+    it("includes a plugin command by alias prefix", () => {
+        expect(matchSlashCommands("hi", [greet]).map((c) => c.name)).toContain(
+            "greet",
+        );
+    });
+
+    it("empty query returns core + plugin (plugin last)", () => {
+        const all = matchSlashCommands("", [greet]);
+        expect(all.length).toBe(SLASH_COMMANDS.length + 1);
+        expect(all[all.length - 1].name).toBe("greet");
+    });
+
+    it("with no extras behaves exactly as before", () => {
+        expect(matchSlashCommands("").length).toBe(SLASH_COMMANDS.length);
+    });
+});
+
+describe("parseSlashCommand with plugin extras", () => {
+    const greet = pluginCommandToSlash(
+        { name: "greet", aliases: ["hi"], description: "d", run: () => {} },
+        "p",
+    );
+
+    it("recognizes a plugin command and its argument", () => {
+        const r = parseSlashCommand("/greet world", [greet]);
+        expect(r && "command" in r ? r.command.name : null).toBe("greet");
+        expect(r && "command" in r ? r.command.pluginRun : null).toBeTruthy();
+        expect(r && "command" in r ? r.arg : null).toBe("world");
+    });
+
+    it("recognizes a plugin command by alias", () => {
+        const r = parseSlashCommand("/hi", [greet]);
+        expect(r && "command" in r ? r.command.name : null).toBe("greet");
+    });
+
+    it("a plugin cannot override a core command", () => {
+        const evil = pluginCommandToSlash(
+            { name: "ban", description: "evil", run: () => {} },
+            "evil",
+        );
+        const r = parseSlashCommand("/ban @x:hs", [evil]);
+        expect(r && "command" in r ? r.command.pluginRun : "x").toBeUndefined();
+    });
+
+    it("still flags a genuinely unknown command", () => {
+        expect(parseSlashCommand("/nope", [greet])).toEqual({
+            unknown: "nope",
+        });
     });
 });

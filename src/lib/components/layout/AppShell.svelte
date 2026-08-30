@@ -20,6 +20,7 @@
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
+    import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
 
     import { auth, clearSession } from "$lib/stores/auth.svelte";
     import {
@@ -48,6 +49,12 @@
     import { initPresence } from "$lib/stores/presence.svelte";
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
+    import { initPlugins } from "$lib/plugins/pluginBoot";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import {
+        resolveShortcut,
+        eventToChord,
+    } from "$lib/plugins/pluginShortcuts";
     import {
         initVoiceCall,
         leaveCall,
@@ -387,24 +394,47 @@
             if (dismissTopmost()) e.preventDefault();
             return;
         }
+        // Plugin-registered global shortcuts (spec §7). resolveShortcut skips
+        // any chord that collides with a core global shortcut (Escape /
+        // Ctrl+Shift+D / Ctrl+E/S/G) or lacks a modifier, so core always wins;
+        // a plugin's own combo (e.g. Ctrl+K) fires here — placed before the
+        // Ctrl-only block below, whose blanket `return` would otherwise swallow
+        // it. Plain handler (not $derived): reads the registry array live.
+        const shortcut = resolveShortcut(
+            eventToChord(e),
+            pluginRegistry.shortcuts.map((s) => s.value),
+        );
+        if (shortcut) {
+            e.preventDefault();
+            try {
+                const r = shortcut.run();
+                if (r && typeof (r as { then?: unknown }).then === "function") {
+                    (r as Promise<void>).catch((err) =>
+                        console.error("[zam] plugin shortcut threw", err),
+                    );
+                }
+            } catch (err) {
+                console.error("[zam] plugin shortcut threw", err);
+            }
+            return;
+        }
         // Ctrl+Shift+D → toggle the debug panel.
-        if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+        if (
+            e.ctrlKey &&
+            e.shiftKey &&
+            !e.altKey &&
+            !e.metaKey &&
+            (e.key === "D" || e.key === "d")
+        ) {
             e.preventDefault();
             interfaceState.debugOpen = !interfaceState.debugOpen;
             return;
         }
-        // Ctrl+E / Ctrl+S / Ctrl+G → open a composer picker (only when a room
+        // Ctrl+E / Ctrl+S → open a composer picker (only when a room
         // with a composer is visible).
         if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
             const k = e.key.toLowerCase();
-            const kind =
-                k === "e"
-                    ? "emoji"
-                    : k === "s"
-                      ? "sticker"
-                      : k === "g"
-                        ? "gif"
-                        : null;
+            const kind = k === "e" ? "emoji" : k === "s" ? "sticker" : null;
             if (kind && activeRoom && !roomsState.showInbox) {
                 e.preventDefault();
                 openComposerPicker(kind);
@@ -1510,6 +1540,7 @@
         const unsubLiveLocation = initLiveLocation();
         const unsubOutbox = initOutbox();
         const unsubVerification = initVerification();
+        const unsubPlugins = initPlugins();
         const unsubAccountData = onAccountData((type) => {
             if (
                 type === "im.client.space_layout" ||
@@ -1600,6 +1631,7 @@
             unsubLiveLocation();
             unsubOutbox();
             unsubVerification();
+            unsubPlugins();
             unsubAccountData();
             unsubUpdateWatch();
             mq.removeEventListener("change", onMqChange);
@@ -1895,6 +1927,10 @@
 
 {#if interfaceState.modal === "share-location" && locationDialogState.roomId}
     <ShareLocationDialog />
+{/if}
+
+{#if interfaceState.modal === "plugin-popover"}
+    <PluginPopoverHost />
 {/if}
 
 {#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}

@@ -29,6 +29,7 @@
         type MessageActionKey,
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
+    import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
     import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
@@ -112,6 +113,12 @@
         shouldRescanReplyTarget,
         type CachedReplyTarget,
     } from "$lib/utils/replyTargetLookup";
+    import { dispatchDoubleTap } from "$lib/plugins/pluginDispatch";
+    import {
+        pluginMessageActions,
+        collectDecorations,
+    } from "$lib/utils/pluginMessageActions";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
 
     import {
         messagesState,
@@ -151,10 +158,7 @@
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
-    import {
-        settingsState,
-        getDoubleTapReaction,
-    } from "$lib/stores/settings.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
@@ -320,39 +324,16 @@
         showForwardDialog = true;
     }
 
-    async function runDoubleTapAction() {
+    function runDoubleTapAction() {
         if (isFailed) return;
+        // Double-tap behavior lives in the double-tap-reply built-in plugin
+        // (item 16). Core only detects the gesture and dispatches; the isFailed
+        // guard keeps it off unsent local echoes.
+        dispatchDoubleTap(
+            pluginRegistry.doubleTapHandlers.map((e) => e.value),
+            { roomId: room.roomId, eventId, isOwn: isOwnMessage },
+        );
         interfaceState.selectedMessageId = null;
-        const action = isOwnMessage
-            ? settingsState.ownDoubleTapAction
-            : settingsState.otherDoubleTapAction;
-        if (action === "none") return;
-        if (action === "reply") {
-            onReply(event);
-            return;
-        }
-        if (action === "edit") {
-            if (
-                isOwnMessage &&
-                eventType === "m.room.message" &&
-                msgtype === "m.text"
-            ) {
-                startEdit();
-                tick().then(() => editTextareaEl?.focus());
-            }
-            return;
-        }
-        try {
-            await sendReaction(
-                room.roomId,
-                eventId,
-                getDoubleTapReaction(roomsState.activeSpaceId),
-            );
-        } catch (err) {
-            showErrorToast(
-                err instanceof Error ? err.message : "Failed to react",
-            );
-        }
     }
 
     function onMessageTouchEnd(e: TouchEvent) {
@@ -387,14 +368,12 @@
     }
 
     // Mouse equivalent of the touch double-tap. A desktop dblclick would
-    // normally select a word; when a double-tap action is configured we run it
-    // instead (clearing the incidental selection). "none" leaves word-select.
+    // normally select a word; only steal it when a double-tap plugin handler
+    // is registered (the double-tap-reply plugin registers one only while an
+    // action is configured). No handler → leave native word-select.
     function onMessageDblClick(e: MouseEvent) {
         if (interfaceState.isTouchscreen) return;
-        const action = isOwnMessage
-            ? settingsState.ownDoubleTapAction
-            : settingsState.otherDoubleTapAction;
-        if (action === "none") return;
+        if (pluginRegistry.doubleTapHandlers.length === 0) return;
         const target = e.target as Element | null;
         if (
             target?.closest(
@@ -715,6 +694,27 @@
         }),
     );
 
+    // Plugin-contributed message actions for THIS message, filtered by each
+    // action's `when` gate. Additive — never replaces a core action.
+    const pluginActionViews = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginMessageActions(pluginRegistry.messageActions, {
+            roomId: room.roomId,
+            eventId,
+        });
+    });
+
+    // Additive plugin decorations for THIS message (badges/tooltips overlaid
+    // on the row). Never touches body rendering (interop rule).
+    const decorations = $derived.by(() => {
+        void pluginRegistry.tick;
+        return collectDecorations(pluginRegistry.decorators, {
+            roomId: room.roomId,
+            eventId,
+            senderId,
+        });
+    });
+
     function openActionsSheet() {
         // Claim the single modal slot so opening the sheet closes any other
         // open modal, and Escape/handover route back through closeModal.
@@ -746,6 +746,20 @@
             case "delete":
                 deleteMessage(room.roomId, eventId);
                 break;
+        }
+    }
+
+    function handlePluginAction(key: string) {
+        const view = pluginActionViews.find((v) => v.key === key);
+        if (!view) return;
+        try {
+            const r = view.run();
+            if (r && typeof r.then === "function")
+                r.catch((err) =>
+                    console.error("[zam] plugin message action threw", err),
+                );
+        } catch (err) {
+            console.error("[zam] plugin message action threw", err);
         }
     }
 
@@ -1640,14 +1654,18 @@
                 {#if shield}
                     <EventShield {shield} />
                 {/if}
+                <MessageDecorations {decorations} />
             </div>
-        {:else if shield}
-            <!-- Grouped messages have no header row, but a shield must never
-                 vanish just because a message follows one from the same sender.
-                 This borrows the header row's shape so the badge lands in the
-                 same column position it would have had above. -->
+        {:else if shield || decorations.length}
+            <!-- Grouped messages have no header row, but a shield/decoration
+                 must never vanish just because a message follows one from the
+                 same sender. This borrows the header row's shape so the badges
+                 land in the same column position they would have had above. -->
             <div class="flex items-baseline gap-2 mb-0.5">
-                <EventShield {shield} />
+                {#if shield}
+                    <EventShield {shield} />
+                {/if}
+                <MessageDecorations {decorations} />
             </div>
         {/if}
 
@@ -2664,7 +2682,30 @@
                 <Forward size={16} />
             </button>
         {/if}
-        {#if interfaceState.isTouchscreen && overflowRows.length > 0}
+        {#if !interfaceState.isTouchscreen}
+            {#each pluginActionViews as view (view.entryId)}
+                <button
+                    data-message-action
+                    onclick={() => handlePluginAction(view.key)}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={view.label}
+                    aria-label={view.label}
+                >
+                    {#if view.icon}
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"><path d={view.icon} /></svg
+                        >
+                    {:else}
+                        <span class="text-xs font-semibold"
+                            >{view.label.slice(0, 1)}</span
+                        >
+                    {/if}
+                </button>
+            {/each}
+        {/if}
+        {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
             <button
                 data-message-action
                 onclick={openActionsSheet}
@@ -2744,7 +2785,9 @@
 {#if showActionsSheet}
     <MessageActionsSheet
         rows={overflowRows}
+        pluginRows={pluginActionViews}
         onChoose={handleActionChoose}
+        onChoosePlugin={handlePluginAction}
         onClose={closeModal}
     />
 {/if}

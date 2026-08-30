@@ -19,6 +19,8 @@
     } from "$lib/utils/linkPreviewPolicy";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav } from "$lib/utils/mediaGallery";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
 
     interface Props {
         url: string;
@@ -42,6 +44,15 @@
         revealed ? ("all" as const) : settingsState.linkPreviewMedia,
     );
     const embedsAllowed = $derived(allowsThirdPartyEmbed(policy));
+
+    // A plugin-registered custom embed for THIS url, if any. ADDITIVE: null → the
+    // normal preview chain runs unchanged; the inbound message body/link is
+    // rendered in MessageItem and never touched here (interop, spec §2). Reads the
+    // registry tick so enabling/disabling an embed plugin re-derives live.
+    const matchedEmbed = $derived.by(() => {
+        void pluginRegistry.tick;
+        return resolveEmbed(pluginRegistry.embeds, url);
+    });
 
     function canLoad(mediaUrl: string | null | undefined): boolean {
         return allowsMediaAutoLoad(policy, mediaUrl, hsBaseUrl);
@@ -396,6 +407,16 @@
             {/if}
         {/if}
     </div>
+{:else if matchedEmbed}
+    <!-- Plugin custom embed: renders a nicer card for a matching URL. ADDITIVE
+         and host-sanitized — see src/lib/plugins/embeds.ts. Keyed so a change
+         of matched embed (plugin toggled/reordered) or url forces a re-mount. -->
+    {#key `${matchedEmbed.entryId}:${url}`}
+        <div
+            class="mt-1"
+            use:mountEmbed={{ embed: matchedEmbed.value, url }}
+        ></div>
+    {/key}
 {:else if preview}
     {#if isGifSite && preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- GIF-sharing sites: bare inline gif-style video -->

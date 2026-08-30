@@ -38,6 +38,15 @@ import type {
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
+import type {
+    PluginRoomSummary,
+    PluginMemberSummary,
+    PluginTimelineMessage,
+} from "../plugins/types";
+import {
+    selectRecentMessages,
+    type PluginTimelineRecord,
+} from "../plugins/pluginTimeline";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
@@ -319,6 +328,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
+        "moe.crafty.matrix.plugins": PluginSyncAccountData;
     }
 }
 
@@ -776,12 +786,26 @@ export function deleteFailedMessage(event: MatrixEvent): void {
 // but never written again — see loadFavouriteGifs / persistFavouriteGifs.
 const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
 const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
+const PLUGIN_SYNC_KEY = "moe.crafty.matrix.plugins";
 
 export interface FavouriteGif {
     url: string;
     previewUrl: string;
     addedAt: number;
     tags?: string[];
+}
+
+/**
+ * Manual plugin-sync payload (moe.crafty.matrix.plugins). Structurally matches
+ * plugins/pluginSync.ts::PluginSyncPayload; kept a local type so client.ts
+ * imports nothing from plugins/ (the boundary runs plugins -> client, never
+ * the reverse). The plugin boot glue validates the wire shape via parseSyncPayload.
+ */
+export interface PluginSyncAccountData {
+    version: number;
+    repos: string[];
+    plugins: Record<string, unknown>;
+    autoUpdate: boolean;
 }
 
 function gifsFromEvent(
@@ -842,6 +866,23 @@ export async function persistFavouriteGifs(
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
+}
+
+/** Push the manual plugin-sync payload to the user's account data. No-op when
+ *  logged out. (Plugin boot glue is a sanctioned client.ts consumer, like hostApi.ts.) */
+export async function persistPluginSync(
+    content: PluginSyncAccountData,
+): Promise<void> {
+    if (!matrixClient) return;
+    await matrixClient.setAccountData(PLUGIN_SYNC_KEY, content);
+}
+
+/** Read the manual plugin-sync payload from account data, or null if absent. */
+export function loadPluginSync(): PluginSyncAccountData | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(PLUGIN_SYNC_KEY);
+    if (!event) return null;
+    return event.getContent() as PluginSyncAccountData;
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
@@ -5616,6 +5657,105 @@ export async function removeReaction(
     await matrixClient.redactEvent(roomId, reactionEventId);
 }
 
+// --- Plugin host bridge (the ONLY plugin-facing client.ts surface; hostApi.ts
+// wraps these). Returns plain summaries, never live SDK objects. ---
+
+/** Send a fully-built event content object. 2-arg sendMessage form ONLY (the
+ *  threadId overload mangles $-prefixed text — CLAUDE.md landmine). */
+export async function sendEventContent(
+    roomId: string,
+    content: Record<string, unknown>,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const res = await matrixClient.sendMessage(roomId, content as never);
+    return res.event_id;
+}
+
+/** Plain room summary for plugins — never returns a live Room. */
+export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
+    const room = getRoom(roomId);
+    if (!room) return null;
+    return {
+        roomId,
+        name: room.name ?? roomId,
+        topic: getRoomTopic(room),
+        memberCount: getRoomMembers(room).length,
+        avatarUrl: getRoomAvatar(room),
+        joinRule: getJoinRule(room),
+    };
+}
+
+/** Plain joined-member summaries for plugins — never returns live RoomMembers. */
+export function getPluginRoomMembers(roomId: string): PluginMemberSummary[] {
+    const room = getRoom(roomId);
+    if (!room) return [];
+    return getRoomMembers(room).map((m) => ({
+        userId: m.userId,
+        displayName: m.name ?? null,
+        avatarUrl: mxcToHttp(m.getMxcAvatarUrl() ?? null),
+        powerLevel: m.powerLevel ?? 0,
+    }));
+}
+
+/** Last `limit` renderable messages as plain summaries for plugins. */
+export function getPluginRecentMessages(
+    roomId: string,
+    limit?: number,
+): PluginTimelineMessage[] {
+    const room = getRoom(roomId);
+    if (!room) return [];
+    const ownUserId = matrixClient?.getUserId() ?? null;
+    const records: PluginTimelineRecord[] = getTimelineMessages(room).map(
+        (e) => {
+            const content = e.getContent() ?? {};
+            return {
+                eventId: e.getId() ?? "",
+                sender: e.getSender() ?? "",
+                msgtype:
+                    typeof content.msgtype === "string"
+                        ? content.msgtype
+                        : e.getType(),
+                body: typeof content.body === "string" ? content.body : "",
+                timestamp: e.getTs() ?? 0,
+                isRedacted: e.isRedacted(),
+            };
+        },
+    );
+    return selectRecentMessages(records, limit, ownUserId);
+}
+
+/** Upload a Blob/File; resolve to its mxc:// URL (plugin media pipeline). */
+export async function uploadPluginMedia(
+    file: Blob,
+    name: string,
+    type?: string,
+): Promise<string> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const { content_uri } = await matrixClient.uploadContent(file, {
+        name,
+        type: type ?? (file as File).type ?? undefined,
+    });
+    return content_uri;
+}
+
+/** Redact one of the user's OWN events. Throws if the event is not the
+ *  caller's own (a plugin must not redact others' messages via this surface). */
+export async function redactOwnEvent(
+    roomId: string,
+    eventId: string,
+    reason?: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    const room = getRoom(roomId);
+    const ev = room?.findEventById(eventId);
+    const sender = ev?.getSender();
+    const me = matrixClient.getUserId();
+    if (!sender || sender !== me) {
+        throw new Error("redactOwn: event is not yours (or not found)");
+    }
+    await deleteMessage(roomId, eventId, reason);
+}
+
 export async function deleteMessage(
     roomId: string,
     eventId: string,
@@ -7213,6 +7353,35 @@ export async function sendSticker(
         info: sticker.info ?? {},
         // Always present (spec recommendation) so the receiver skips legacy
         // body-scan push rules; a sticker never carries intentional mentions.
+        "m.mentions": {},
+    };
+    const finalContent = thread
+        ? withThreadRelation(
+              content,
+              threadRelationParams(roomId, thread.rootEventId),
+          )
+        : content;
+    await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
+}
+
+/** Plugin-facing sticker send (host API `zam.matrix.sendSticker`). Same
+ *  `m.sticker` content shape as `sendSticker`, but accepts the minimal plain
+ *  payload a plugin passes (no `url` field required). */
+export async function sendPluginSticker(
+    roomId: string,
+    sticker: {
+        mxcUrl: string;
+        body?: string;
+        shortcode?: string;
+        info?: object;
+    },
+    thread?: { rootEventId: string },
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not connected");
+    const content: Record<string, unknown> = {
+        body: sticker.body || sticker.shortcode || "sticker",
+        url: sticker.mxcUrl,
+        info: sticker.info ?? {},
         "m.mentions": {},
     };
     const finalContent = thread
