@@ -79,6 +79,7 @@
         isDesktopUpdater,
         desktopSetAutoDownload,
     } from "$lib/desktopUpdater";
+    import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
@@ -1193,6 +1194,13 @@
         // honours a previously-set OFF before it fires. No-op off Electron.
         if (isDesktopUpdater())
             desktopSetAutoDownload(settingsState.autoUpdateEnabled);
+
+        // Desktop (Electron): tell the main process the persisted minimise-to-
+        // tray preference at boot, so a previously-set OFF takes effect on the
+        // first window close even before the user opens Settings. No-op off
+        // Electron. Default ON matches main.cjs's own default.
+        if (isDesktopTray())
+            setMinimizeToTray(settingsState.minimizeToTrayOnClose);
 
         // App-wide update watch: mirror the desktop launch-check status into the
         // in-app banner, and run the Android launch check + download here
