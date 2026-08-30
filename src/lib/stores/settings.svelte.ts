@@ -49,6 +49,13 @@ import {
     type CustomPreset,
     type ThemeBase,
 } from "$lib/utils/themePreset";
+import {
+    resolveMessageFontSize,
+    resolveMessageFont,
+    applyMessageFontSize,
+    applyMessageFont,
+    type MessageFontKey,
+} from "$lib/utils/messageDisplay";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -208,6 +215,13 @@ export const settingsState = $state({
      *  Deliberately device-local (readBool/writeBool, no customization sync):
      *  motion/battery is a per-device call, like the OS setting it augments. */
     reduceMotion: readBool("reduceMotion", false),
+    /** Device-local message text size in px (12-24, default 14). NOT synced:
+     *  a per-device readability choice, not a synced look-and-feel token.
+     *  Bare key via readString/writeString, never customizationChanged. */
+    messageFontSize: resolveMessageFontSize(readString("messageFontSize")),
+    /** Device-local message font family key ("system" | "inter" | "atkinson").
+     *  NOT synced: a bundled font binary cannot ride the JSON theme sync. */
+    messageFont: resolveMessageFont(readString("messageFont")),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -332,6 +346,11 @@ writeString("themeVars", themeColorsToCssText(bootColors));
 // element so CSS suppression is live before first paint, not only after a
 // toggle. The OS media query works independently of this attribute.
 applyReduceMotion(settingsState.reduceMotion);
+
+// Boot apply: reflect the stored message text size + font onto the root so
+// the timeline is sized/styled before first paint, mirroring applyReduceMotion.
+applyMessageFontSize(settingsState.messageFontSize);
+applyMessageFont(settingsState.messageFont);
 
 /** Returns the colors for the active preset, or null if none is active or it has no overrides. */
 export function activePresetColors(): ThemeColors | null {
@@ -581,6 +600,20 @@ export function setReduceMotion(value: boolean): void {
     settingsState.reduceMotion = value;
     writeBool("reduceMotion", value);
     applyReduceMotion(value);
+}
+
+export function setMessageFontSize(px: number): void {
+    const size = resolveMessageFontSize(px);
+    settingsState.messageFontSize = size;
+    writeString("messageFontSize", String(size));
+    applyMessageFontSize(size);
+}
+
+export function setMessageFont(key: MessageFontKey): void {
+    const font = resolveMessageFont(key);
+    settingsState.messageFont = font;
+    writeString("messageFont", font);
+    applyMessageFont(font);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {

@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bundled message fonts (device-local font picker, item 1). Self-hosted
+   woff2, no external CDN (prod CSP is font-src 'self'). Inter is a variable
+   font covering 400-700; Atkinson Hyperlegible is static (two weights). */
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+    src: url("/fonts/inter.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/atkinson-400.woff2") format("woff2");
+}
+@font-face {
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/atkinson-700.woff2") format("woff2");
+}
+
 html,
 body {
     overscroll-behavior-x: none;
@@ -319,6 +344,19 @@ body {
 
 .animate-fade-in {
     animation: fadeIn 0.2s ease-out;
+}
+
+/* Adjustable message text size + font (device-local, item 1).
+   Unlayered so it beats Tailwind's `text-sm` utility (in @layer utilities)
+   with no markup change. The vars are set on :root by applyMessageFontSize /
+   applyMessageFont (utils/messageDisplay); unset -> falls back to the current
+   0.875rem / inherited family, so the default look is unchanged. Code keeps
+   its own monospace family + fixed size (see MessageItem.svelte
+   `.message-body pre code`) because a directly-set font-family beats an
+   inherited one. */
+.message-body {
+    font-size: var(--zam-msg-font-size, 0.875rem);
+    font-family: var(--zam-font-family, inherit);
 }
 
 /* Links inside message content.
