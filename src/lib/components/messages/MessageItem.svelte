@@ -64,6 +64,7 @@
         getHomeserverBaseUrl,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
+    import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
         parseMatrixLink,
         matrixLinkTitle,
@@ -485,6 +486,13 @@
             interfaceState.selectedMessageId === eventId,
     );
     const isOwnMessage = $derived(event.getSender() === auth.userId);
+    const bubble = $derived(
+        resolveBubbleLayout({
+            isOwn: isOwnMessage,
+            alignOwnEnabled: settingsState.rightAlignOwnBubbles,
+            showHeader,
+        }),
+    );
     const isEdited = $derived.by(() => {
         reactionTick;
         return !!event.replacingEvent();
@@ -1611,8 +1619,8 @@
     }}
 >
     <!-- Avatar column -->
-    <div class="w-10 flex-shrink-0 mt-0.5">
-        {#if showHeader}
+    <div class="w-10 flex-shrink-0 mt-0.5" class:hidden={bubble.alignOwn}>
+        {#if bubble.showAvatar}
             <button
                 onclick={(e) => {
                     e.stopPropagation();
@@ -1632,9 +1640,14 @@
     </div>
 
     <!-- Content column -->
-    <div class="flex-1 min-w-0">
+    <div
+        class="flex-1 min-w-0"
+        class:flex={bubble.alignOwn}
+        class:flex-col={bubble.alignOwn}
+        class:items-end={bubble.alignOwn}
+    >
         <!-- Sender + timestamp -->
-        {#if showHeader}
+        {#if bubble.showSenderName}
             <div class="flex items-baseline gap-2 mb-0.5 min-w-0">
                 <button
                     onclick={(e) => {
@@ -1646,6 +1659,18 @@
                 >
                     {displayName}
                 </button>
+                <span
+                    class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                    title={fullTimestamp(timestamp)}
+                    >{messageTimestamp(timestamp)}</span
+                >
+                {#if shield}
+                    <EventShield {shield} />
+                {/if}
+                <MessageDecorations {decorations} />
+            </div>
+        {:else if bubble.showTimeOnlyHeader}
+            <div class="flex items-baseline gap-2 mb-0.5 justify-end">
                 <span
                     class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
                     title={fullTimestamp(timestamp)}
@@ -2307,33 +2332,35 @@
                 </div>
             </div>
         {:else}
-            <div
-                use:spoilers
-                use:matrixLinks
-                class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
-                class:emoji-only={emojiOnly}
-                class:italic={msgtype === "m.emote"}
-                class:opacity-70={msgtype === "m.notice"}
-            >
-                {#if msgtype === "m.emote"}
-                    <!-- m.emote: prefix the action with the sender's name so it
-                         reads "* Name does something" even in grouped messages
-                         where the header is hidden. Uses the same member-name
-                         helper as the header (displayName). Rendered as its own
-                         span, NEVER concatenated into the {@html} body (that
-                         would corrupt the sanitized/escaped output). -->
-                    <span>* {displayName}{" "}</span>
-                {/if}
-                {#if formattedBody()}
-                    {@html withTwemoji(sanitize(formattedBody()!))}
-                {:else}
-                    {@html withTwemoji(plainToHtml(body()))}
-                {/if}
-                {#if isEdited}
-                    <span class="text-xs text-discord-textMuted ml-1"
-                        >(edited)</span
-                    >
-                {/if}
+            <div class={bubble.bubble ? "own-bubble" : "contents"}>
+                <div
+                    use:spoilers
+                    use:matrixLinks
+                    class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                    class:emoji-only={emojiOnly}
+                    class:italic={msgtype === "m.emote"}
+                    class:opacity-70={msgtype === "m.notice"}
+                >
+                    {#if msgtype === "m.emote"}
+                        <!-- m.emote: prefix the action with the sender's name so it
+                             reads "* Name does something" even in grouped messages
+                             where the header is hidden. Uses the same member-name
+                             helper as the header (displayName). Rendered as its own
+                             span, NEVER concatenated into the {@html} body (that
+                             would corrupt the sanitized/escaped output). -->
+                        <span>* {displayName}{" "}</span>
+                    {/if}
+                    {#if formattedBody()}
+                        {@html withTwemoji(sanitize(formattedBody()!))}
+                    {:else}
+                        {@html withTwemoji(plainToHtml(body()))}
+                    {/if}
+                    {#if isEdited}
+                        <span class="text-xs text-discord-textMuted ml-1"
+                            >(edited)</span
+                        >
+                    {/if}
+                </div>
             </div>
             {#if settingsState.linkPreviewsEnabled}
                 {#each linkedUrls as url (url)}
@@ -2370,7 +2397,11 @@
 
         <!-- Reactions (reserve right clearance on touch so the wrapped reaction
              row never runs under the out-of-flow read-receipt overlay) -->
-        <div class:pr-14={interfaceState.isTouchscreen && receipts.length > 0}>
+        <div
+            class:pr-14={interfaceState.isTouchscreen && receipts.length > 0}
+            class:flex={bubble.alignOwn}
+            class:justify-end={bubble.alignOwn}
+        >
             <Reactions {eventId} {room} {reactionTick} />
         </div>
 
@@ -2453,7 +2484,7 @@
         {/if}
 
         <!-- Inline timestamp (non-grouped messages, shows on hover) -->
-        {#if !showHeader}
+        {#if bubble.showInlineHoverTime}
             <span
                 class="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
             >
