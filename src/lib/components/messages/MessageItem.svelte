@@ -401,12 +401,7 @@
         if (interfaceState.isTouchscreen) return;
         if (pluginRegistry.doubleTapHandlers.length === 0) return;
         const target = e.target as Element | null;
-        if (
-            target?.closest(
-                "button, a, input, textarea, select, video, audio, [role='button'], [contenteditable='true'], .cursor-pointer",
-            )
-        )
-            return;
+        if (target?.closest(INTERACTIVE_TARGET_SELECTOR)) return;
         e.preventDefault();
         window.getSelection()?.removeAllRanges();
         runDoubleTapAction();
@@ -1627,6 +1622,9 @@
     }}
     onclick={() => handleRowGesture("tap")}
     ontouchend={onMessageTouchEnd}
+    ontouchcancel={() => {
+        heldJustFired = false;
+    }}
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
     use:longPress={{
