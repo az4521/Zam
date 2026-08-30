@@ -30,7 +30,7 @@
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
     import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
-    import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
+    import { Check, Forward, Link, Lock, Reply, Pencil } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
@@ -113,7 +113,10 @@
         shouldRescanReplyTarget,
         type CachedReplyTarget,
     } from "$lib/utils/replyTargetLookup";
-    import { dispatchDoubleTap } from "$lib/plugins/pluginDispatch";
+    import {
+        dispatchDoubleTap,
+        dispatchSwipe,
+    } from "$lib/plugins/pluginDispatch";
     import {
         pluginMessageActions,
         collectDecorations,
@@ -161,6 +164,11 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { longPress } from "$lib/actions/longPress";
+    import { swipePan } from "$lib/actions/swipePan";
+    import {
+        resolveSwipeAction,
+        type SwipeStage,
+    } from "$lib/utils/swipeGesture";
     import {
         shouldOpenMessageMenu,
         menuModeFromSetting,
@@ -296,8 +304,29 @@
     // hold-release as a tap (which could make the next tap read as a double-tap).
     let heldJustFired = false;
 
-    // swipe-to-reply: placeholder; item-6 wiring replaces with a $derived.
-    const swipeStyle = "";
+    // Swipe-to-reply (item 6). swipeTranslate drives the row slide; swipeStageNow
+    // drives the reveal button's icon; swipeAnimating enables the snap-back
+    // transition; swipedThisTouch suppresses the tap/double-tap that would else
+    // fire on the same touch release (set during the engaged move, before touchend).
+    let swipeTranslate = $state(0);
+    let swipeStageNow = $state<SwipeStage>("none");
+    let swipeAnimating = $state(false);
+    let swipedThisTouch = false;
+
+    const swipeStyle = $derived(
+        swipeTranslate !== 0 || swipeAnimating
+            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating ? " transition: transform 180ms cubic-bezier(0.2,0,0,1);" : ""}`
+            : "",
+    );
+
+    const swipeEnabledHere = $derived(
+        (void pluginRegistry.tick,
+        interfaceState.isTouchscreen &&
+            pluginRegistry.swipeHandlers.length > 0 &&
+            interfaceState.modal === null &&
+            !interfaceState.lightboxOpen &&
+            interfaceState.sidebar === null),
+    );
 
     // Read-receipt reader-list popover (click/tap the avatar cluster).
     let readerOpen = $state(false);
@@ -362,9 +391,48 @@
             interfaceState.selectedMessageId === eventId ? null : eventId;
     }
 
+    function onSwipeEngage() {
+        swipedThisTouch = true;
+        swipeAnimating = false;
+    }
+    function onSwipeMove(translateX: number, stage: SwipeStage) {
+        swipeTranslate = translateX;
+        swipeStageNow = stage;
+    }
+    function onSwipeRelease(stage: SwipeStage) {
+        if (stage !== "none" && !isFailed) {
+            dispatchSwipe(
+                pluginRegistry.swipeHandlers.map((e) => e.value),
+                {
+                    roomId: room.roomId,
+                    eventId,
+                    isOwn: isOwnMessage,
+                    threshold: stage, // "short" | "far" (never "none" here)
+                },
+            );
+        }
+        // Snap back.
+        swipeAnimating = true;
+        swipeTranslate = 0;
+        swipeStageNow = "none";
+        setTimeout(() => (swipeAnimating = false), 200);
+    }
+    function onSwipeCancel() {
+        swipeAnimating = true;
+        swipeTranslate = 0;
+        swipeStageNow = "none";
+        setTimeout(() => (swipeAnimating = false), 200);
+    }
+
     function onMessageTouchEnd(e: TouchEvent) {
         if (!interfaceState.isTouchscreen || e.changedTouches.length !== 1)
             return;
+
+        if (swipedThisTouch) {
+            swipedThisTouch = false;
+            previousTap = null;
+            return;
+        }
 
         if (heldJustFired) {
             heldJustFired = false;
@@ -518,6 +586,11 @@
         reactionTick;
         return !!event.replacingEvent();
     });
+
+    // Swipe reveal icon: "none" | "reply" | "edit" (depends on isOwnMessage).
+    const swipeRevealIcon = $derived(
+        resolveSwipeAction(swipeStageNow, isOwnMessage),
+    );
 
     // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
     // further sends in this room until it's retried or removed.
@@ -1627,6 +1700,7 @@
     ontouchend={onMessageTouchEnd}
     ontouchcancel={() => {
         heldJustFired = false;
+        swipedThisTouch = false;
     }}
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
@@ -1648,6 +1722,13 @@
         // buttons must stay out of the roving set (and keep their own
         // tabindexes and arrow keys).
         itemSelector: "[data-message-action]:not([disabled])",
+    }}
+    use:swipePan={{
+        enabled: swipeEnabledHere,
+        onEngage: onSwipeEngage,
+        onMove: onSwipeMove,
+        onRelease: onSwipeRelease,
+        onCancel: onSwipeCancel,
     }}
 >
     <div class="swipe-shift flex gap-3 min-w-0 flex-1" style={swipeStyle}>
@@ -2511,6 +2592,23 @@
         >
             {timeOnly(timestamp)}
         </span>
+    {/if}
+
+    <!-- Swipe reveal button (reply arrow or edit pencil) -->
+    {#if swipeRevealIcon !== "none"}
+        <div
+            class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
+            'edit'
+                ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                : 'bg-discord-accent text-white'}"
+            aria-hidden="true"
+        >
+            {#if swipeRevealIcon === "edit"}
+                <Pencil class="w-4 h-4" />
+            {:else}
+                <Reply class="w-4 h-4" />
+            {/if}
+        </div>
     {/if}
 
     <!--
