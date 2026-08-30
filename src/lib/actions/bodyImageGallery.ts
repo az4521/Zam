@@ -7,11 +7,10 @@
  *
  * Delegated (one listener on the container) so images rendered later — after an
  * edit or a late decryption swaps the `{@html}` body — are covered too, exactly
- * like the sibling `matrixLinks` action. Attach it AFTER `use:matrixLinks`: for
- * a media image inside an `<a>`, this handler runs second, preventDefault-s the
- * click so the anchor does not navigate, and opens the lightbox instead;
- * matrixLinks (which acts only on matrix-link anchors) then early-returns on
- * `defaultPrevented`.
+ * like the sibling `matrixLinks` action. Attach it AFTER `use:matrixLinks`:
+ * matrixLinks runs first and ignores non-matrix anchors (parseMatrixLink returns
+ * null); this handler then runs and, for a media image, opens the lightbox and
+ * calls preventDefault so a wrapping plain (https) anchor does not navigate.
  *
  * The image `src` is already the resolved full-res http URL: the sanitizer
  * rewrites body `img` mxc → http via `mxcToHttp` (no thumbnail dimensions).
@@ -54,6 +53,12 @@ export function bodyImageGallery(
         ) as HTMLImageElement | null;
         if (!img || !node.contains(img)) return;
         if (!isGalleryImage(describe(img))) return;
+        // A spoiler-wrapped image must stay behind its spoiler: the sibling
+        // `spoilers` action (registered first) reveals it on click; opening the
+        // lightbox here would expose it on the first tap. Leave spoilered images
+        // to inline reveal only.
+        const spoiler = img.closest("[data-mx-spoiler]");
+        if (spoiler && node.contains(spoiler)) return;
         // Don't hijack a text-selection drag that happens to release on an image.
         const sel =
             typeof window !== "undefined" && window.getSelection

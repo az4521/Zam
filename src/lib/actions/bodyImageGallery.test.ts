@@ -118,4 +118,17 @@ describe("bodyImageGallery action", () => {
         clickOn(a);
         expect(onOpen2).not.toHaveBeenCalled();
     });
+
+    it("does not open the lightbox for an image inside a spoiler", () => {
+        const a = document.createElement("img");
+        a.setAttribute("src", "A");
+        const spoiler = document.createElement("span");
+        spoiler.setAttribute("data-mx-spoiler", "");
+        spoiler.appendChild(a);
+        node.appendChild(spoiler);
+        bodyImageGallery(node, { onOpen });
+        const prevented = clickOn(a);
+        expect(onOpen).not.toHaveBeenCalled();
+        expect(prevented).toBe(false);
+    });
 });
