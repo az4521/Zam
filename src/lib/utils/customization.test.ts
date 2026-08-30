@@ -160,3 +160,19 @@ describe("sanitizeCustomization showMatrixIds", () => {
         expect(sanitizeCustomization({ showMatrixIds: "yes" })).toEqual({});
     });
 });
+
+describe("sanitizeCustomization rightAlignOwnBubbles", () => {
+    it("keeps a boolean rightAlignOwnBubbles", () => {
+        expect(sanitizeCustomization({ rightAlignOwnBubbles: true })).toEqual({
+            rightAlignOwnBubbles: true,
+        });
+        expect(sanitizeCustomization({ rightAlignOwnBubbles: false })).toEqual({
+            rightAlignOwnBubbles: false,
+        });
+    });
+    it("drops a non-boolean rightAlignOwnBubbles", () => {
+        expect(sanitizeCustomization({ rightAlignOwnBubbles: "yes" })).toEqual(
+            {},
+        );
+    });
+});

@@ -20,6 +20,7 @@ export interface ClientCustomization {
     gifDefaultTab?: string;
     keepSidebarOpen?: boolean;
     showMatrixIds?: boolean;
+    rightAlignOwnBubbles?: boolean;
     themePresets?: Record<string, CustomPreset>;
     activePreset?: string;
 }
@@ -68,6 +69,7 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         gifDefaultTab: str(r.gifDefaultTab),
         keepSidebarOpen: bool(r.keepSidebarOpen),
         showMatrixIds: bool(r.showMatrixIds),
+        rightAlignOwnBubbles: bool(r.rightAlignOwnBubbles),
         themePresets: themePresetsMap(r.themePresets),
         activePreset: str(r.activePreset),
     };
