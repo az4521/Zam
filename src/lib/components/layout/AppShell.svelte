@@ -166,6 +166,7 @@
         type PostedNotificationEntry,
     } from "$lib/utils/notificationDismiss";
     import { decideNotificationRoute } from "$lib/utils/notificationRouting";
+    import { parseDeepLinkHash } from "$lib/utils/deepLinkHash";
     import {
         registerNotificationSurface,
         clearAllNotificationSurfaces,
@@ -1516,6 +1517,25 @@
         });
         reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
+        // PWA cold-start deep-link. When a notification is tapped with no
+        // focused client, the service worker opens `/#room=<id>&event=<id>`
+        // (static/sw.js). The in-app SW postMessage path only reaches an
+        // already-open client, so on a cold start nothing routes it — parse the
+        // boot hash here. This runs AFTER reloadLastLocationFromStorage() on
+        // purpose: the deep-link must override the restored last room.
+        // navigateToRoom → markRoomPendingArrival protects the target across the
+        // per-sync rebuild and queues roomsState.pendingJump for MessageArea,
+        // exactly like a notification tap. Strip the fragment afterwards so an
+        // in-session remount (session expiry → re-auth) can't re-fire the jump.
+        const deepLink = parseDeepLinkHash(window.location.hash);
+        if (deepLink) {
+            navigateToRoom(deepLink.roomId, deepLink.eventId);
+            history.replaceState(
+                history.state,
+                "",
+                window.location.pathname + window.location.search,
+            );
+        }
         // Refresh the registry's cached profile for this account so the
         // account switcher shows a current name/avatar even when this
         // account is later inactive. Fire-and-forget.
