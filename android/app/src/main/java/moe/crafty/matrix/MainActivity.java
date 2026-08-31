@@ -5,6 +5,8 @@ import android.os.Bundle;
 
 import com.getcapacitor.BridgeActivity;
 
+import org.json.JSONObject;
+
 public class MainActivity extends BridgeActivity {
 
     @Override
@@ -50,6 +52,12 @@ public class MainActivity extends BridgeActivity {
         // The message this notification named, so the tap jumps to the exact
         // event, not just the room. Absent on a room-level or pre-stamp intent.
         final String eventId = intent.getStringExtra("event_id");
+        // Quick-reply action: MessageActionReceiver extracted the RemoteInput
+        // text and passed it here. The web bridge routes it through the Matrix
+        // SDK (crypto-correct, no cleartext leak).
+        final String replyText = intent.getStringExtra("reply_text");
+        // Mark-read action: silent receipt send, no window focus.
+        final boolean markRead = intent.getBooleanExtra("mark_read", false);
         if (getBridge() == null || getBridge().getWebView() == null) return;
         // Defer so the web app has a chance to define the hook / finish loading.
         getBridge()
@@ -59,6 +67,9 @@ public class MainActivity extends BridgeActivity {
                     String safeRoom = roomId.replace("\\", "\\\\").replace("'", "\\'");
                     String js;
                     if (userId == null || userId.isEmpty()) {
+                        // Backwards-compat: PendingIntent from a pre-update APK
+                        // carries only room_id, no user_id. Still route it
+                        // (unattributed) for a one-argument __matrixOpenRoom call.
                         js =
                             "window.__matrixOpenRoom && window.__matrixOpenRoom('" +
                             safeRoom +
@@ -76,16 +87,52 @@ public class MainActivity extends BridgeActivity {
                             String safeEvent = eventId.replace("\\", "\\\\").replace("'", "\\'");
                             eventArg = "'" + safeEvent + "'";
                         }
-                        js =
-                            "window.__matrixOpenRoom && window.__matrixOpenRoom('" +
-                            safeRoom +
-                            "', '" +
-                            safeUser +
-                            "', " +
-                            (joinCall ? "true" : "false") +
-                            ", " +
-                            eventArg +
-                            ")";
+                        // Branch on the action: reply / mark-read / open.
+                        if (replyText != null) {
+                            // Quick-reply: the web guard decideNotificationRoute
+                            // DROPS the action if the poster userId is missing
+                            // (fail-closed, audit SEC-M4). Pass safeUser as the
+                            // poster arg so the guard correctly validates it.
+                            // JSONObject.quote handles quotes/backslashes/newlines
+                            // in the free-text reply the simple .replace() idiom
+                            // does NOT (returns a fully-quoted JS/JSON string
+                            // literal including the surrounding quotes).
+                            js =
+                                "window.__matrixReplyFromNotification && " +
+                                "window.__matrixReplyFromNotification('" +
+                                safeRoom +
+                                "', " +
+                                eventArg +
+                                ", " +
+                                JSONObject.quote(replyText) +
+                                ", '" +
+                                safeUser +
+                                "')";
+                        } else if (markRead) {
+                            // Mark-read: silent receipt send (the bridge skips
+                            // window focus), same fail-closed guard.
+                            js =
+                                "window.__matrixMarkAsRead && " +
+                                "window.__matrixMarkAsRead('" +
+                                safeRoom +
+                                "', " +
+                                eventArg +
+                                ", '" +
+                                safeUser +
+                                "')";
+                        } else {
+                            // Plain notification tap or call Accept: open the room.
+                            js =
+                                "window.__matrixOpenRoom && window.__matrixOpenRoom('" +
+                                safeRoom +
+                                "', '" +
+                                safeUser +
+                                "', " +
+                                (joinCall ? "true" : "false") +
+                                ", " +
+                                eventArg +
+                                ")";
+                        }
                     }
                     getBridge().getWebView().evaluateJavascript(js, null);
                 },

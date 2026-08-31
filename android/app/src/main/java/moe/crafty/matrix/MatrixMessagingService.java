@@ -16,6 +16,7 @@ import android.media.RingtoneManager;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.RemoteInput;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -682,6 +683,50 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pending);
+
+        // Quick-reply (RemoteInput) + mark-as-read actions, only when routable
+        // (same guard as the content-intent stamp: an unattributable notification
+        // must stay non-actionable too). The reply PendingIntent is FLAG_MUTABLE
+        // (RemoteInput fills the intent on Android 12+; FLAG_IMMUTABLE breaks it).
+        if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
+            RemoteInput remoteInput = new RemoteInput.Builder("key_text_reply")
+                .setLabel("Reply")
+                .build();
+
+            int replyFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                replyFlags |= PendingIntent.FLAG_MUTABLE;
+            }
+
+            Intent replyIntent = new Intent(this, MessageActionReceiver.class);
+            replyIntent.setAction(MessageActionReceiver.ACTION_REPLY);
+            replyIntent.putExtra("room_id", roomId);
+            replyIntent.putExtra("user_id", postedBy);
+            if (eventId != null && !eventId.isEmpty()) {
+                replyIntent.putExtra("event_id", eventId);
+            }
+            PendingIntent replyPending = PendingIntent.getBroadcast(
+                this, (roomId + ":reply").hashCode(), replyIntent, replyFlags);
+
+            NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
+                0, "Reply", replyPending)
+                .addRemoteInput(remoteInput)
+                .setAllowGeneratedReplies(false)
+                .build();
+
+            Intent markReadIntent = new Intent(this, MessageActionReceiver.class);
+            markReadIntent.setAction(MessageActionReceiver.ACTION_MARK_READ);
+            markReadIntent.putExtra("room_id", roomId);
+            markReadIntent.putExtra("user_id", postedBy);
+            if (eventId != null && !eventId.isEmpty()) {
+                markReadIntent.putExtra("event_id", eventId);
+            }
+            PendingIntent markReadPending = PendingIntent.getBroadcast(
+                this, (roomId + ":markread").hashCode(), markReadIntent, flags);
+
+            builder.addAction(replyAction);
+            builder.addAction(0, "Mark as read", markReadPending);
+        }
 
         if (largeIcon != null) builder.setLargeIcon(largeIcon);
 

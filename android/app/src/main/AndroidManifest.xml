@@ -56,6 +56,14 @@
         <receiver
             android:name=".CallActionReceiver"
             android:exported="false" />
+
+        <!-- Reply and Mark-read actions on a message notification: extract the
+             RemoteInput text (if any), launch MainActivity with the action data,
+             and cancel the notification. Not exported — only our own PendingIntent
+             fires it. -->
+        <receiver
+            android:name=".MessageActionReceiver"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
