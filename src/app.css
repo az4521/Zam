@@ -404,6 +404,9 @@ body {
     background: var(--discord-own-bubble, var(--discord-accent-fill, #5865f2));
     color: #fff;
 }
+.own-bubble .message-body {
+    color: #fff;
+}
 /* Keep code/pre readable inside a coloured bubble (they carry their own bg). */
 .own-bubble :where(code, pre) {
     color: var(--discord-text-primary);
