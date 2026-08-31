@@ -30,7 +30,7 @@
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
     import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
-    import { Check, Forward, Link, Lock, Reply } from "lucide-svelte";
+    import { Check, Forward, Link, Lock, Reply, Pencil } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
@@ -114,7 +114,10 @@
         shouldRescanReplyTarget,
         type CachedReplyTarget,
     } from "$lib/utils/replyTargetLookup";
-    import { dispatchDoubleTap } from "$lib/plugins/pluginDispatch";
+    import {
+        dispatchDoubleTap,
+        dispatchSwipe,
+    } from "$lib/plugins/pluginDispatch";
     import {
         pluginMessageActions,
         collectDecorations,
@@ -162,6 +165,11 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { longPress } from "$lib/actions/longPress";
+    import { swipePan } from "$lib/actions/swipePan";
+    import {
+        resolveSwipeAction,
+        type SwipeStage,
+    } from "$lib/utils/swipeGesture";
     import {
         shouldOpenMessageMenu,
         menuModeFromSetting,
@@ -302,6 +310,32 @@
     // hold-release as a tap (which could make the next tap read as a double-tap).
     let heldJustFired = false;
 
+    // Swipe-to-reply (item 6). swipeTranslate drives the row slide; swipeStageNow
+    // drives the reveal button's icon; swipeAnimating enables the snap-back
+    // transition; swipedThisTouch suppresses the tap/double-tap that would else
+    // fire on the same touch release (set during the engaged move, before touchend).
+    const SWIPE_SNAP_MS = 180;
+    const SWIPE_SNAP_RESET_MS = 200; // Runs slightly after transition ends.
+    let swipeTranslate = $state(0);
+    let swipeStageNow = $state<SwipeStage>("none");
+    let swipeAnimating = $state(false);
+    let swipedThisTouch = false;
+
+    const swipeStyle = $derived(
+        swipeTranslate !== 0 || swipeAnimating
+            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating ? ` transition: transform ${SWIPE_SNAP_MS}ms cubic-bezier(0.2,0,0,1);` : ""}`
+            : "",
+    );
+
+    const swipeEnabledHere = $derived(
+        (void pluginRegistry.tick,
+        interfaceState.isTouchscreen &&
+            pluginRegistry.swipeHandlers.length > 0 &&
+            interfaceState.modal === null &&
+            !interfaceState.lightboxOpen &&
+            interfaceState.sidebar === null),
+    );
+
     // Read-receipt reader-list popover (click/tap the avatar cluster).
     let readerOpen = $state(false);
     let readerTouch = $state(false);
@@ -365,9 +399,49 @@
             interfaceState.selectedMessageId === eventId ? null : eventId;
     }
 
+    function onSwipeEngage() {
+        swipedThisTouch = true;
+        swipeAnimating = false;
+    }
+    function onSwipeMove(translateX: number, stage: SwipeStage) {
+        swipeTranslate = translateX;
+        swipeStageNow = stage;
+    }
+    function onSwipeRelease(stage: SwipeStage) {
+        if (stage !== "none" && !isFailed) {
+            dispatchSwipe(
+                pluginRegistry.swipeHandlers.map((e) => e.value),
+                {
+                    roomId: room.roomId,
+                    eventId,
+                    isOwn: isOwnMessage,
+                    threshold: stage, // "short" | "far" (never "none" here)
+                },
+            );
+        }
+        // Snap back.
+        swipeAnimating = true;
+        swipeTranslate = 0;
+        swipeStageNow = "none";
+        setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
+    }
+    function onSwipeCancel() {
+        swipeAnimating = true;
+        swipeTranslate = 0;
+        swipeStageNow = "none";
+        setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
+    }
+
     function onMessageTouchEnd(e: TouchEvent) {
         if (!interfaceState.isTouchscreen || e.changedTouches.length !== 1)
             return;
+
+        if (swipedThisTouch) {
+            e.preventDefault();
+            swipedThisTouch = false;
+            previousTap = null;
+            return;
+        }
 
         if (heldJustFired) {
             heldJustFired = false;
@@ -536,6 +610,11 @@
         reactionTick;
         return !!event.replacingEvent();
     });
+
+    // Swipe reveal icon: "none" | "reply" | "edit" (depends on isOwnMessage).
+    const swipeRevealIcon = $derived(
+        resolveSwipeAction(swipeStageNow, isOwnMessage),
+    );
 
     // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
     // further sends in this room until it's retried or removed.
@@ -1632,7 +1711,7 @@
     bind:this={rootEl}
     class="group {interfaceState.isTouchscreen
         ? ''
-        : 'hover:bg-discord-messageHover'} relative flex gap-3 px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
+        : 'hover:bg-discord-messageHover'} relative px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
         ? 'bg-discord-warning/10 border-l-2 border-discord-warning'
         : ''}"
     class:pt-3={showHeader}
@@ -1667,86 +1746,94 @@
         // tabindexes and arrow keys).
         itemSelector: "[data-message-action]:not([disabled])",
     }}
+    use:swipePan={{
+        enabled: swipeEnabledHere,
+        onEngage: onSwipeEngage,
+        onMove: onSwipeMove,
+        onRelease: onSwipeRelease,
+        onCancel: onSwipeCancel,
+    }}
 >
-    <!-- Avatar column -->
-    <div class="w-10 flex-shrink-0 mt-0.5" class:hidden={bubble.alignOwn}>
-        {#if bubble.showAvatar}
-            <button
-                onclick={(e) => {
-                    e.stopPropagation();
-                    openProfileCard(senderId, e.currentTarget);
-                }}
-                class="block rounded-full"
-                title="View profile"
-            >
-                <Avatar
-                    src={avatarSrc}
-                    name={displayName}
-                    id={senderId}
-                    size={40}
-                />
-            </button>
-        {/if}
-    </div>
-
-    <!-- Content column -->
-    <div
-        class="flex-1 min-w-0"
-        class:flex={bubble.alignOwn}
-        class:flex-col={bubble.alignOwn}
-        class:items-end={bubble.alignOwn}
-    >
-        <!-- Sender + timestamp -->
-        {#if bubble.showSenderName}
-            <div class="flex items-baseline gap-2 mb-0.5 min-w-0">
+    <div class="swipe-shift flex gap-3 min-w-0 flex-1" style={swipeStyle}>
+        <!-- Avatar column -->
+        <div class="w-10 flex-shrink-0 mt-0.5" class:hidden={bubble.alignOwn}>
+            {#if bubble.showAvatar}
                 <button
                     onclick={(e) => {
                         e.stopPropagation();
                         openProfileCard(senderId, e.currentTarget);
                     }}
-                    title={displayName}
-                    class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
+                    class="block rounded-full"
+                    title="View profile"
                 >
-                    {displayName}
+                    <Avatar
+                        src={avatarSrc}
+                        name={displayName}
+                        id={senderId}
+                        size={40}
+                    />
                 </button>
-                <span
-                    class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
-                    title={fullTimestamp(timestamp)}
-                    >{messageTimestamp(timestamp)}</span
-                >
-                {#if shield}
-                    <EventShield {shield} />
-                {/if}
-                <MessageDecorations {decorations} />
-            </div>
-        {:else if bubble.showTimeOnlyHeader}
-            <div class="flex items-baseline gap-2 mb-0.5 justify-end">
-                <span
-                    class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
-                    title={fullTimestamp(timestamp)}
-                    >{messageTimestamp(timestamp)}</span
-                >
-                {#if shield}
-                    <EventShield {shield} />
-                {/if}
-                <MessageDecorations {decorations} />
-            </div>
-        {:else if shield || decorations.length}
-            <!-- Grouped messages have no header row, but a shield/decoration
+            {/if}
+        </div>
+
+        <!-- Content column -->
+        <div
+            class="flex-1 min-w-0"
+            class:flex={bubble.alignOwn}
+            class:flex-col={bubble.alignOwn}
+            class:items-end={bubble.alignOwn}
+        >
+            <!-- Sender + timestamp -->
+            {#if bubble.showSenderName}
+                <div class="flex items-baseline gap-2 mb-0.5 min-w-0">
+                    <button
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            openProfileCard(senderId, e.currentTarget);
+                        }}
+                        title={displayName}
+                        class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
+                    >
+                        {displayName}
+                    </button>
+                    <span
+                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                        title={fullTimestamp(timestamp)}
+                        >{messageTimestamp(timestamp)}</span
+                    >
+                    {#if shield}
+                        <EventShield {shield} />
+                    {/if}
+                    <MessageDecorations {decorations} />
+                </div>
+            {:else if bubble.showTimeOnlyHeader}
+                <div class="flex items-baseline gap-2 mb-0.5 justify-end">
+                    <span
+                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                        title={fullTimestamp(timestamp)}
+                        >{messageTimestamp(timestamp)}</span
+                    >
+                    {#if shield}
+                        <EventShield {shield} />
+                    {/if}
+                    <MessageDecorations {decorations} />
+                </div>
+            {:else if shield || decorations.length}
+                <!-- Grouped messages have no header row, but a shield/decoration
                  must never vanish just because a message follows one from the
                  same sender. This borrows the header row's shape so the badges
                  land in the same column position they would have had above. -->
-            <div class="flex items-baseline gap-2 mb-0.5">
-                {#if shield}
-                    <EventShield {shield} />
-                {/if}
-                <MessageDecorations {decorations} />
-            </div>
-        {/if}
+                <div class="flex items-baseline gap-2 mb-0.5">
+                    {#if shield}
+                        <EventShield {shield} />
+                    {/if}
+                    <MessageDecorations {decorations} />
+                </div>
+            {/if}
 
-        <!-- Reply quote block -->
-        {#if replyTarget && replyTargetSender && replyTargetBody()}
-            <!--
+            <!-- Reply quote block -->
+            {#if replyTarget && replyTargetSender && replyTargetBody()}
+                <!--
                 A real <button>, not `role="button"`: the quote renders only
                 plain-text spans (no {@html}, no link, no nested control), so
                 the native element is safe — and it gets Enter/Space activation
@@ -1761,816 +1848,845 @@
                 child it prefixes them instead. `sr-only` is position:absolute,
                 so it is out of flow and adds no flex item and no `gap-1` gap.
             -->
-            <button
-                type="button"
-                class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
-                onclick={(e) => {
-                    e.preventDefault();
-                    jumpToReply(replyTarget.getId()!);
-                }}
-            >
-                <span class="sr-only">Jump to the replied-to message:</span>
-                <Reply
-                    class="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0 self-center"
-                />
-                <div
-                    class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
-                ></div>
-                <div class="flex items-center gap-1.5 min-w-0">
-                    <span
-                        class="text-xs font-semibold text-discord-textSecondary flex-shrink-0"
-                    >
-                        {replyTargetSender}
-                    </span>
-                    <span
-                        class="text-xs text-discord-textSecondary truncate opacity-80"
-                    >
-                        {replyTargetBody()}
-                    </span>
-                </div>
-            </button>
-        {:else if inReplyToId}
-            <!-- Referenced event not in timeline — clickable to load context -->
-            {@const fallbackLine = (() => {
-                const body: string = content?.body ?? "";
-                const line = body.split("\n")[0];
-                if (!line.startsWith("> ")) return null;
-                // Format: "> <@sender:server> text" or "> * <@sender:server> text"
-                const m = line.match(/^> (?:\* )?<(@[^>]+)> ?(.*)/);
-                return m ? { sender: m[1], text: m[2] } : null;
-            })()}
-            <!-- Same <button> choice, and the same sr-only-child labelling, as
-                 the resolved quote above, so both previews behave identically
-                 from the keyboard and read identically to assistive tech. -->
-            <button
-                type="button"
-                class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
-                onclick={(e) => {
-                    e.preventDefault();
-                    jumpToReply(inReplyToId);
-                }}
-            >
-                <span class="sr-only">Jump to the replied-to message:</span>
-                <div
-                    class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0"
-                ></div>
-                <div class="flex items-center gap-1.5 min-w-0">
-                    {#if fallbackLine}
+                <button
+                    type="button"
+                    class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    onclick={(e) => {
+                        e.preventDefault();
+                        jumpToReply(replyTarget.getId()!);
+                    }}
+                >
+                    <span class="sr-only">Jump to the replied-to message:</span>
+                    <Reply
+                        class="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0 self-center"
+                    />
+                    <div
+                        class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
+                    ></div>
+                    <div class="flex items-center gap-1.5 min-w-0">
                         <span
                             class="text-xs font-semibold text-discord-textSecondary flex-shrink-0"
-                            >{fallbackLine.sender}</span
                         >
-                        <span class="text-xs text-discord-textMuted truncate"
-                            >{fallbackLine.text || "…"}</span
+                            {replyTargetSender}
+                        </span>
+                        <span
+                            class="text-xs text-discord-textSecondary truncate opacity-80"
                         >
-                    {:else}
-                        <!-- A fetched parent with no previewable content was
+                            {replyTargetBody()}
+                        </span>
+                    </div>
+                </button>
+            {:else if inReplyToId}
+                <!-- Referenced event not in timeline — clickable to load context -->
+                {@const fallbackLine = (() => {
+                    const body: string = content?.body ?? "";
+                    const line = body.split("\n")[0];
+                    if (!line.startsWith("> ")) return null;
+                    // Format: "> <@sender:server> text" or "> * <@sender:server> text"
+                    const m = line.match(/^> (?:\* )?<(@[^>]+)> ?(.*)/);
+                    return m ? { sender: m[1], text: m[2] } : null;
+                })()}
+                <!-- Same <button> choice, and the same sr-only-child labelling, as
+                 the resolved quote above, so both previews behave identically
+                 from the keyboard and read identically to assistive tech. -->
+                <button
+                    type="button"
+                    class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    onclick={(e) => {
+                        e.preventDefault();
+                        jumpToReply(inReplyToId);
+                    }}
+                >
+                    <span class="sr-only">Jump to the replied-to message:</span>
+                    <div
+                        class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0"
+                    ></div>
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        {#if fallbackLine}
+                            <span
+                                class="text-xs font-semibold text-discord-textSecondary flex-shrink-0"
+                                >{fallbackLine.sender}</span
+                            >
+                            <span
+                                class="text-xs text-discord-textMuted truncate"
+                                >{fallbackLine.text || "…"}</span
+                            >
+                        {:else}
+                            <!-- A fetched parent with no previewable content was
                              deleted; otherwise the fetch is pending/failed. -->
-                        <span class="text-xs text-discord-textMuted italic"
-                            >{replyTarget
-                                ? "Original message deleted"
-                                : "Original message not loaded"}</span
-                        >
-                    {/if}
-                </div>
-            </button>
-        {/if}
+                            <span class="text-xs text-discord-textMuted italic"
+                                >{replyTarget
+                                    ? "Original message deleted"
+                                    : "Original message not loaded"}</span
+                            >
+                        {/if}
+                    </div>
+                </button>
+            {/if}
 
-        <!-- Media caption (MSC2530): rendered as a normal message above the
+            <!-- Media caption (MSC2530): rendered as a normal message above the
              media, so an image/video/etc. with a caption reads like a message
              followed by the attachment. -->
-        {#snippet mediaCaption()}
-            {#if hasCaption()}
-                <div
-                    use:spoilers
-                    use:matrixLinks
-                    use:bodyImageGallery={{ onOpen: openBodyGallery }}
-                    class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
-                >
-                    {#if formattedBody()}
-                        {@html withTwemoji(sanitize(formattedBody()!))}
-                    {:else}
-                        {@html withTwemoji(plainToHtml(body()))}
-                    {/if}
-                    {#if isEdited}
-                        <span class="text-xs text-discord-textMuted ml-1"
-                            >(edited)</span
-                        >
-                    {/if}
-                </div>
-            {/if}
-        {/snippet}
+            {#snippet mediaCaption()}
+                {#if hasCaption()}
+                    <div
+                        use:spoilers
+                        use:matrixLinks
+                        use:bodyImageGallery={{ onOpen: openBodyGallery }}
+                        class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                    >
+                        {#if formattedBody()}
+                            {@html withTwemoji(sanitize(formattedBody()!))}
+                        {:else}
+                            {@html withTwemoji(plainToHtml(body()))}
+                        {/if}
+                        {#if isEdited}
+                            <span class="text-xs text-discord-textMuted ml-1"
+                                >(edited)</span
+                            >
+                        {/if}
+                    </div>
+                {/if}
+            {/snippet}
 
-        <!-- Message body -->
-        {#if isCallEvent}
-            {#if callSummary}
-                <CallEventCard summary={callSummary} {room} />
-            {/if}
-        {:else if isPoll}
-            <PollBody {event} {room} />
-        {:else if eventType === "m.room.encrypted"}
-            <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
+            <!-- Message body -->
+            {#if isCallEvent}
+                {#if callSummary}
+                    <CallEventCard summary={callSummary} {room} />
+                {/if}
+            {:else if isPoll}
+                <PollBody {event} {room} />
+            {:else if eventType === "m.room.encrypted"}
+                <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
                  (avatar / sender / timestamp) is cleartext; only the body is
                  unavailable. When keys arrive mid-session the decryption tick
                  re-runs this derived timeline and the row swaps to real
                  content automatically. -->
-            <div
-                class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
-            >
-                <Lock size={14} class="flex-shrink-0" />
-                <span>{utdText}</span>
-            </div>
-        {:else if eventType === "m.sticker"}
-            {#if mediaImgRetry.src && !mediaImgRetry.failed}
-                {#if stickerBox}
-                    <img
-                        src={mediaImgRetry.src}
-                        alt={content?.body ?? "sticker"}
-                        width={stickerBox.width}
-                        height={stickerBox.height}
-                        class="max-w-full h-auto object-contain mt-1"
-                        loading="lazy"
-                        onerror={mediaImgRetry.onError}
-                    />
-                {:else}
-                    <img
-                        src={mediaImgRetry.src}
-                        alt={content?.body ?? "sticker"}
-                        class="max-w-48 max-h-48 object-contain mt-1"
-                        loading="lazy"
-                        onerror={mediaImgRetry.onError}
-                    />
-                {/if}
-            {/if}
-        {:else if msgtype === "m.image"}
-            {@render mediaCaption()}
-            {@const file = content?.file as EncryptedFile | undefined}
-            {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
-            {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
-            {#if file && imageDecrypting}
                 <div
-                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
+                    class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
                 >
-                    <div
-                        class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
-                    ></div>
-                    <span class="text-xs text-discord-textMuted"
-                        >Decrypting image...</span
-                    >
+                    <Lock size={14} class="flex-shrink-0" />
+                    <span>{utdText}</span>
                 </div>
-            {:else if file && imageDecryptFailed}
-                <div
-                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
-                >
-                    <svg
-                        class="w-4 h-4 text-discord-danger"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+            {:else if eventType === "m.sticker"}
+                {#if mediaImgRetry.src && !mediaImgRetry.failed}
+                    {#if stickerBox}
+                        <img
+                            src={mediaImgRetry.src}
+                            alt={content?.body ?? "sticker"}
+                            width={stickerBox.width}
+                            height={stickerBox.height}
+                            class="max-w-full h-auto object-contain mt-1"
+                            loading="lazy"
+                            onerror={mediaImgRetry.onError}
                         />
-                    </svg>
-                    <span class="text-xs text-discord-danger"
-                        >Couldn't decrypt image</span
-                    >
-                </div>
-            {:else if thumb && !mediaImgRetry.failed}
-                <div class="relative inline-block group/img mt-1">
-                    <a
-                        href={full}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onclick={(e) => {
-                            e.preventDefault();
-                            imageLightboxOpen = true;
-                        }}
-                    >
-                        {#if imageBox}
-                            <img
-                                src={mediaImgRetry.src}
-                                alt={mediaFilename}
-                                width={imageBox.width}
-                                height={imageBox.height}
-                                class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
-                                loading="lazy"
-                                onerror={mediaImgRetry.onError}
-                            />
-                        {:else}
-                            <img
-                                src={mediaImgRetry.src}
-                                alt={mediaFilename}
-                                class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
-                                loading="lazy"
-                                onerror={mediaImgRetry.onError}
-                            />
-                        {/if}
-                    </a>
-                    {#if isGif}
-                        <button
-                            onclick={toggleImageFavourite}
-                            title={imageIsFavourited
-                                ? "Remove from favourites"
-                                : "Add to favourites"}
-                            class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
-                        >
-                            {#if imageIsFavourited}
-                                <svg
-                                    class="w-4 h-4 text-discord-warning"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                    />
-                                </svg>
-                            {:else}
-                                <svg
-                                    class="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                    />
-                                </svg>
-                            {/if}
-                        </button>
+                    {:else}
+                        <img
+                            src={mediaImgRetry.src}
+                            alt={content?.body ?? "sticker"}
+                            class="max-w-48 max-h-48 object-contain mt-1"
+                            loading="lazy"
+                            onerror={mediaImgRetry.onError}
+                        />
                     {/if}
-                </div>
-                {#if imageLightboxOpen && full}
-                    <Lightbox
-                        src={full}
-                        alt={mediaFilename}
-                        favourite={isGif
-                            ? { url: full, previewUrl: thumb ?? full }
-                            : undefined}
-                        onClose={() => (imageLightboxOpen = false)}
-                    />
                 {/if}
-            {:else}
-                <span class="text-xs text-discord-textMuted italic"
-                    >[Image unavailable]</span
-                >
-            {/if}
-        {:else if msgtype === "m.video"}
-            {@render mediaCaption()}
-            {#if videoDecrypting}
-                <div
-                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
-                >
+            {:else if msgtype === "m.image"}
+                {@render mediaCaption()}
+                {@const file = content?.file as EncryptedFile | undefined}
+                {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
+                {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
+                {#if file && imageDecrypting}
                     <div
-                        class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
-                    ></div>
-                    <span class="text-xs text-discord-textMuted"
-                        >Decrypting video...</span
+                        class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
                     >
-                </div>
-            {:else if videoDecryptFailed}
-                <div
-                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
-                >
-                    <svg
-                        class="w-4 h-4 text-discord-danger"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
+                        <div
+                            class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                        ></div>
+                        <span class="text-xs text-discord-textMuted"
+                            >Decrypting image...</span
+                        >
+                    </div>
+                {:else if file && imageDecryptFailed}
+                    <div
+                        class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
                     >
-                        <path
-                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                        <svg
+                            class="w-4 h-4 text-discord-danger"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                            />
+                        </svg>
+                        <span class="text-xs text-discord-danger"
+                            >Couldn't decrypt image</span
+                        >
+                    </div>
+                {:else if thumb && !mediaImgRetry.failed}
+                    <div class="relative inline-block group/img mt-1">
+                        <a
+                            href={full}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onclick={(e) => {
+                                e.preventDefault();
+                                imageLightboxOpen = true;
+                            }}
+                        >
+                            {#if imageBox}
+                                <img
+                                    src={mediaImgRetry.src}
+                                    alt={mediaFilename}
+                                    width={imageBox.width}
+                                    height={imageBox.height}
+                                    class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                                    loading="lazy"
+                                    onerror={mediaImgRetry.onError}
+                                />
+                            {:else}
+                                <img
+                                    src={mediaImgRetry.src}
+                                    alt={mediaFilename}
+                                    class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
+                                    loading="lazy"
+                                    onerror={mediaImgRetry.onError}
+                                />
+                            {/if}
+                        </a>
+                        {#if isGif}
+                            <button
+                                onclick={toggleImageFavourite}
+                                title={imageIsFavourited
+                                    ? "Remove from favourites"
+                                    : "Add to favourites"}
+                                class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
+                            >
+                                {#if imageIsFavourited}
+                                    <svg
+                                        class="w-4 h-4 text-discord-warning"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                        />
+                                    </svg>
+                                {:else}
+                                    <svg
+                                        class="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                        />
+                                    </svg>
+                                {/if}
+                            </button>
+                        {/if}
+                    </div>
+                    {#if imageLightboxOpen && full}
+                        <Lightbox
+                            src={full}
+                            alt={mediaFilename}
+                            favourite={isGif
+                                ? { url: full, previewUrl: thumb ?? full }
+                                : undefined}
+                            onClose={() => (imageLightboxOpen = false)}
                         />
-                    </svg>
-                    <span class="text-xs text-discord-danger"
-                        >Couldn't decrypt video</span
+                    {/if}
+                {:else}
+                    <span class="text-xs text-discord-textMuted italic"
+                        >[Image unavailable]</span
                     >
-                </div>
-            {:else if videoSrcUrl() === null}
-                <!-- Nothing this client can play: a malformed url. Deliberately NOT
+                {/if}
+            {:else if msgtype === "m.video"}
+                {@render mediaCaption()}
+                {#if videoDecrypting}
+                    <div
+                        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+                    >
+                        <div
+                            class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                        ></div>
+                        <span class="text-xs text-discord-textMuted"
+                            >Decrypting video...</span
+                        >
+                    </div>
+                {:else if videoDecryptFailed}
+                    <div
+                        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+                    >
+                        <svg
+                            class="w-4 h-4 text-discord-danger"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                            />
+                        </svg>
+                        <span class="text-xs text-discord-danger"
+                            >Couldn't decrypt video</span
+                        >
+                    </div>
+                {:else if videoSrcUrl() === null}
+                    <!-- Nothing this client can play: a malformed url. Deliberately NOT
                      clickable — a play affordance that can never resolve a
                      source is a dead click, which is exactly how this gets
                      reported as "videos cannot be played at all". -->
-                <div
-                    class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
-                >
                     <div
-                        class="w-10 h-10 rounded-full bg-discord-backgroundSecondary flex items-center justify-center flex-shrink-0"
+                        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
                     >
-                        <svg
-                            class="w-5 h-5 text-discord-textMuted"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                        <div
+                            class="w-10 h-10 rounded-full bg-discord-backgroundSecondary flex items-center justify-center flex-shrink-0"
                         >
+                            <svg
+                                class="w-5 h-5 text-discord-textMuted"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path d="M8 5v14l11-7z" /></svg
+                            >
+                        </div>
+                        <div class="min-w-0">
+                            <p
+                                class="text-sm font-medium text-discord-textPrimary truncate"
+                            >
+                                {mediaFilename || "Video"}
+                            </p>
+                            <p class="text-xs text-discord-textMuted">
+                                Can't be played here
+                            </p>
+                        </div>
                     </div>
-                    <div class="min-w-0">
-                        <p
-                            class="text-sm font-medium text-discord-textPrimary truncate"
-                        >
-                            {mediaFilename || "Video"}
-                        </p>
-                        <p class="text-xs text-discord-textMuted">
-                            Can't be played here
-                        </p>
-                    </div>
-                </div>
-            {:else if videoAttempt > 0 && !videoFailed}
-                <!-- Keyed so a retry after a failure remounts the element: the
+                {:else if videoAttempt > 0 && !videoFailed}
+                    <!-- Keyed so a retry after a failure remounts the element: the
                      src is unchanged, so without this Svelte would patch
                      nothing and the browser would never re-attempt the load. -->
-                {#key videoAttempt}
-                    <!-- svelte-ignore a11y_media_has_caption -->
-                    <!-- The played box is drawn identically to the poster: same
+                    {#key videoAttempt}
+                        <!-- svelte-ignore a11y_media_has_caption -->
+                        <!-- The played box is drawn identically to the poster: same
                          `aspect-ratio` and `max-height`, plus object-contain and
                          a black backdrop. Without an explicit box the <video>
                          sizes to its intrinsic dimensions, which (a) jumps the
                          box vs the poster on play and (b) lets a wide clip's
                          min-content width push past the column and overflow. -->
-                    <video
-                        src={videoSrcUrl()}
-                        controls
-                        autoplay
-                        playsinline
-                        preload="auto"
-                        class="max-w-lg w-full rounded-lg mt-1 block object-contain bg-black"
-                        style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
-                        onloadedmetadata={onVideoMetadata}
-                        onerror={() => (videoFailed = true)}
-                        use:pauseOffscreen={{
-                            enabled: settingsState.pauseVideoOnScrollOff,
-                        }}
-                    ></video>
-                {/key}
-            {:else}
-                <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-                <div
-                    class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
-                    style={videoThumbnailUrl && !videoThumbFailed
-                        ? `aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`
-                        : ""}
-                    onclick={playVideo}
-                >
-                    {#if videoThumbnailUrl && !videoThumbFailed}
-                        <img
-                            src={videoThumbnailUrl}
-                            alt=""
-                            class="w-full h-full object-cover"
-                            onerror={() => (videoThumbFailed = true)}
-                        />
-                        <div
-                            class="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors"
-                        >
+                        <video
+                            src={videoSrcUrl()}
+                            controls
+                            autoplay
+                            playsinline
+                            preload="auto"
+                            class="max-w-lg w-full rounded-lg mt-1 block object-contain bg-black"
+                            style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
+                            onloadedmetadata={onVideoMetadata}
+                            onerror={() => (videoFailed = true)}
+                            use:pauseOffscreen={{
+                                enabled: settingsState.pauseVideoOnScrollOff,
+                            }}
+                        ></video>
+                    {/key}
+                {:else}
+                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+                    <div
+                        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
+                        style={videoThumbnailUrl && !videoThumbFailed
+                            ? `aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`
+                            : ""}
+                        onclick={playVideo}
+                    >
+                        {#if videoThumbnailUrl && !videoThumbFailed}
+                            <img
+                                src={videoThumbnailUrl}
+                                alt=""
+                                class="w-full h-full object-cover"
+                                onerror={() => (videoThumbFailed = true)}
+                            />
                             <div
-                                class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                                class="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors"
                             >
-                                <svg
-                                    class="w-7 h-7 text-white ml-1"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                    ><path d="M8 5v14l11-7z" /></svg
+                                <div
+                                    class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
                                 >
+                                    <svg
+                                        class="w-7 h-7 text-white ml-1"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                        ><path d="M8 5v14l11-7z" /></svg
+                                    >
+                                </div>
+                                <p
+                                    class="mt-2 text-xs text-white font-medium drop-shadow px-2 py-1 text-center line-clamp-1 rounded-full bg-black/60"
+                                >
+                                    {mediaFilename}
+                                </p>
                             </div>
-                            <p
-                                class="mt-2 text-xs text-white font-medium drop-shadow px-2 py-1 text-center line-clamp-1 rounded-full bg-black/60"
-                            >
-                                {mediaFilename}
-                            </p>
-                        </div>
-                    {:else}
-                        <!-- No sender-uploaded thumbnail: a deliberate neutral
+                        {:else}
+                            <!-- No sender-uploaded thumbnail: a deliberate neutral
                              card carrying the play affordance, the filename and
                              the duration when the sender gave one. Nothing is
                              requested from the server until it is clicked —
                              asking /media/thumbnail for the video itself would
                              download the whole file (see videoThumbnailUrl). -->
-                        <div
-                            class="flex items-center gap-3 px-4 py-3 bg-discord-backgroundTertiary group-hover:bg-discord-messageHover transition-colors rounded-lg"
-                        >
                             <div
-                                class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 {videoFailed
-                                    ? 'bg-discord-danger'
-                                    : 'bg-discord-accent'}"
+                                class="flex items-center gap-3 px-4 py-3 bg-discord-backgroundTertiary group-hover:bg-discord-messageHover transition-colors rounded-lg"
                             >
+                                <div
+                                    class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 {videoFailed
+                                        ? 'bg-discord-danger'
+                                        : 'bg-discord-accent'}"
+                                >
+                                    <svg
+                                        class="w-5 h-5 text-white ml-0.5"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                        ><path d="M8 5v14l11-7z" /></svg
+                                    >
+                                </div>
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-sm font-medium text-discord-textPrimary truncate"
+                                    >
+                                        {mediaFilename || "Video"}
+                                    </p>
+                                    <!-- A failed load has to SAY so. Silently
+                                     dropping back to "Click to play" is
+                                     indistinguishable from the click having
+                                     done nothing at all. -->
+                                    <p
+                                        class="text-xs {videoFailed
+                                            ? 'text-discord-danger'
+                                            : 'text-discord-textMuted'}"
+                                    >
+                                        {videoFailed
+                                            ? "Playback failed · Click to retry"
+                                            : videoDuration
+                                              ? `${videoDuration} · Click to play`
+                                              : "Click to play"}
+                                    </p>
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+            {:else if msgtype === "m.audio"}
+                {@render mediaCaption()}
+                {#if voiceMsg}
+                    {@const file = content?.file as EncryptedFile | undefined}
+                    <VoiceMessagePlayer
+                        mxcUrl={file ? undefined : (content?.url as string)}
+                        encryptedFile={file}
+                        mimetype={(
+                            content?.info as { mimetype?: string } | undefined
+                        )?.mimetype}
+                        waveform={voiceMsg.waveform}
+                        durationMs={voiceMsg.durationMs}
+                    />
+                {:else}
+                    <div
+                        class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
+                    >
+                        <!-- svelte-ignore a11y_consider_explicit_label -->
+                        <button
+                            onclick={() => {
+                                if (audioBlobUrl) return;
+                                if (audioFailed) {
+                                    audioFailed = false;
+                                    audioAttempt++;
+                                } else {
+                                    audioClicked = true;
+                                }
+                            }}
+                            class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                            disabled={audioLoading}
+                        >
+                            {#if audioLoading}
+                                <div
+                                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                ></div>
+                            {:else if !audioBlobUrl}
                                 <svg
-                                    class="w-5 h-5 text-white ml-0.5"
+                                    class="w-4 h-4 text-white ml-0.5"
                                     fill="currentColor"
                                     viewBox="0 0 24 24"
                                     ><path d="M8 5v14l11-7z" /></svg
                                 >
-                            </div>
-                            <div class="min-w-0">
-                                <p
-                                    class="text-sm font-medium text-discord-textPrimary truncate"
+                            {:else}
+                                <svg
+                                    class="w-4 h-4 text-white"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path
+                                        d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
+                                    /></svg
                                 >
-                                    {mediaFilename || "Video"}
-                                </p>
-                                <!-- A failed load has to SAY so. Silently
-                                     dropping back to "Click to play" is
-                                     indistinguishable from the click having
-                                     done nothing at all. -->
+                            {/if}
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <p
+                                class="text-discord-textPrimary text-xs font-medium truncate mb-1"
+                            >
+                                {mediaFilename || "Audio"}
+                            </p>
+                            {#if audioBlobUrl}
+                                <!-- svelte-ignore a11y_media_has_caption -->
+                                <audio
+                                    controls
+                                    autoplay
+                                    src={audioBlobUrl}
+                                    class="w-full h-8"
+                                ></audio>
+                            {:else}
                                 <p
-                                    class="text-xs {videoFailed
+                                    class="text-xs {audioMode === 'failed'
                                         ? 'text-discord-danger'
                                         : 'text-discord-textMuted'}"
                                 >
-                                    {videoFailed
-                                        ? "Playback failed · Click to retry"
-                                        : videoDuration
-                                          ? `${videoDuration} · Click to play`
-                                          : "Click to play"}
+                                    {audioStatusLabel(audioMode)}
                                 </p>
-                            </div>
+                            {/if}
                         </div>
+                    </div>
+                {/if}
+            {:else if isVerificationRequest}
+                <VerificationRequestMessage
+                    eventId={event.getId() ?? ""}
+                    senderName={displayName}
+                    isOwn={isOwnMessage}
+                />
+            {:else if msgtype === "m.location"}
+                <LocationBody
+                    {content}
+                    senderName={displayName}
+                    senderAvatarUrl={avatarSrc}
+                    isSelf={isOwnMessage}
+                />
+            {:else if msgtype === "m.file"}
+                {@const file = content?.file as EncryptedFile | undefined}
+                {@const fileUrl = file
+                    ? null
+                    : mxcToHttp(content?.url as string)}
+                {@const fileSize = (content?.info as any)?.size}
+                {@const fileName = mediaFilename}
+                {@const isSwf = fileName.toLowerCase().endsWith(".swf")}
+                {@render mediaCaption()}
+                {#if isSwf && fileUrl}
+                    <SwfEmbed getSrc={() => fetchAttachmentBlob(fileUrl)} />
+                {/if}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
+                >
+                    <svg
+                        class="w-8 h-8 text-discord-accent flex-shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+                        />
+                    </svg>
+                    <div class="min-w-0 flex-1">
+                        <p
+                            class="text-discord-textPrimary text-sm font-medium truncate"
+                        >
+                            {fileName}
+                        </p>
+                        <p class="text-discord-textMuted text-xs">
+                            {#if fileSize}{fileSize / 1024 < 1024
+                                    ? (fileSize / 1024).toFixed(1) + " KB"
+                                    : (fileSize / 1048576).toFixed(1) +
+                                      " MB"}{:else}File attachment{/if}
+                        </p>
+                    </div>
+                    {#if fileUrl || file}
+                        <button
+                            onclick={async () => {
+                                try {
+                                    const blobUrl = file
+                                        ? await fetchDecryptedAttachmentBlob(
+                                              file,
+                                              (content?.info as any)?.mimetype,
+                                          )
+                                        : await fetchAttachmentBlob(fileUrl!);
+                                    const a = document.createElement("a");
+                                    a.href = blobUrl;
+                                    a.download = fileName;
+                                    a.click();
+                                    setTimeout(
+                                        () => URL.revokeObjectURL(blobUrl),
+                                        10000,
+                                    );
+                                } catch (e) {
+                                    console.error(
+                                        "Failed to download attachment",
+                                        e,
+                                    );
+                                    showErrorToast(
+                                        "Failed to download attachment",
+                                    );
+                                }
+                            }}
+                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                            title="Download"
+                        >
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"
+                                />
+                            </svg>
+                        </button>
                     {/if}
                 </div>
-            {/if}
-        {:else if msgtype === "m.audio"}
-            {@render mediaCaption()}
-            {#if voiceMsg}
-                {@const file = content?.file as EncryptedFile | undefined}
-                <VoiceMessagePlayer
-                    mxcUrl={file ? undefined : (content?.url as string)}
-                    encryptedFile={file}
-                    mimetype={(
-                        content?.info as { mimetype?: string } | undefined
-                    )?.mimetype}
-                    waveform={voiceMsg.waveform}
-                    durationMs={voiceMsg.durationMs}
-                />
-            {:else}
-                <div
-                    class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
-                >
-                    <!-- svelte-ignore a11y_consider_explicit_label -->
-                    <button
-                        onclick={() => {
-                            if (audioBlobUrl) return;
-                            if (audioFailed) {
-                                audioFailed = false;
-                                audioAttempt++;
-                            } else {
-                                audioClicked = true;
-                            }
-                        }}
-                        class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
-                        disabled={audioLoading}
-                    >
-                        {#if audioLoading}
-                            <div
-                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                            ></div>
-                        {:else if !audioBlobUrl}
-                            <svg
-                                class="w-4 h-4 text-white ml-0.5"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                                ><path d="M8 5v14l11-7z" /></svg
-                            >
-                        {:else}
-                            <svg
-                                class="w-4 h-4 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                                ><path
-                                    d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
-                                /></svg
-                            >
-                        {/if}
-                    </button>
-                    <div class="flex-1 min-w-0">
-                        <p
-                            class="text-discord-textPrimary text-xs font-medium truncate mb-1"
+            {:else if isEditing}
+                <div class="mt-1">
+                    <textarea
+                        bind:this={editTextareaEl}
+                        bind:value={editText}
+                        onkeydown={onEditKeydown}
+                        rows="1"
+                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none resize-none focus:ring-1 focus:ring-discord-accent/50"
+                        style="field-sizing: content; max-height: 200px;"
+                    ></textarea>
+                    <p class="text-xs text-discord-textMuted mt-1">
+                        <kbd class="font-mono">Enter</kbd> to save &middot;
+                        <kbd class="font-mono">Esc</kbd> to cancel
+                    </p>
+                    <div class="flex gap-2 mt-1">
+                        <button
+                            onclick={saveEdit}
+                            disabled={isSavingEdit || !editText.trim()}
+                            class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
+                            >Save</button
                         >
-                            {mediaFilename || "Audio"}
-                        </p>
-                        {#if audioBlobUrl}
-                            <!-- svelte-ignore a11y_media_has_caption -->
-                            <audio
-                                controls
-                                autoplay
-                                src={audioBlobUrl}
-                                class="w-full h-8"
-                            ></audio>
-                        {:else}
-                            <p
-                                class="text-xs {audioMode === 'failed'
-                                    ? 'text-discord-danger'
-                                    : 'text-discord-textMuted'}"
-                            >
-                                {audioStatusLabel(audioMode)}
-                            </p>
-                        {/if}
+                        <button
+                            onclick={cancelEdit}
+                            class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
+                            >Cancel</button
+                        >
                     </div>
                 </div>
-            {/if}
-        {:else if isVerificationRequest}
-            <VerificationRequestMessage
-                eventId={event.getId() ?? ""}
-                senderName={displayName}
-                isOwn={isOwnMessage}
-            />
-        {:else if msgtype === "m.location"}
-            <LocationBody
-                {content}
-                senderName={displayName}
-                senderAvatarUrl={avatarSrc}
-                isSelf={isOwnMessage}
-            />
-        {:else if msgtype === "m.file"}
-            {@const file = content?.file as EncryptedFile | undefined}
-            {@const fileUrl = file ? null : mxcToHttp(content?.url as string)}
-            {@const fileSize = (content?.info as any)?.size}
-            {@const fileName = mediaFilename}
-            {@const isSwf = fileName.toLowerCase().endsWith(".swf")}
-            {@render mediaCaption()}
-            {#if isSwf && fileUrl}
-                <SwfEmbed getSrc={() => fetchAttachmentBlob(fileUrl)} />
-            {/if}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div
-                class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
-            >
-                <svg
-                    class="w-8 h-8 text-discord-accent flex-shrink-0"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
-                    />
-                </svg>
-                <div class="min-w-0 flex-1">
-                    <p
-                        class="text-discord-textPrimary text-sm font-medium truncate"
+            {:else}
+                <div class={bubble.bubble ? "own-bubble" : "contents"}>
+                    <div
+                        use:spoilers
+                        use:matrixLinks
+                        use:bodyImageGallery={{ onOpen: openBodyGallery }}
+                        class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                        class:emoji-only={emojiOnly}
+                        class:italic={msgtype === "m.emote"}
+                        class:opacity-70={msgtype === "m.notice"}
                     >
-                        {fileName}
-                    </p>
-                    <p class="text-discord-textMuted text-xs">
-                        {#if fileSize}{fileSize / 1024 < 1024
-                                ? (fileSize / 1024).toFixed(1) + " KB"
-                                : (fileSize / 1048576).toFixed(1) +
-                                  " MB"}{:else}File attachment{/if}
-                    </p>
-                </div>
-                {#if fileUrl || file}
-                    <button
-                        onclick={async () => {
-                            try {
-                                const blobUrl = file
-                                    ? await fetchDecryptedAttachmentBlob(
-                                          file,
-                                          (content?.info as any)?.mimetype,
-                                      )
-                                    : await fetchAttachmentBlob(fileUrl!);
-                                const a = document.createElement("a");
-                                a.href = blobUrl;
-                                a.download = fileName;
-                                a.click();
-                                setTimeout(
-                                    () => URL.revokeObjectURL(blobUrl),
-                                    10000,
-                                );
-                            } catch (e) {
-                                console.error(
-                                    "Failed to download attachment",
-                                    e,
-                                );
-                                showErrorToast("Failed to download attachment");
-                            }
-                        }}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
-                        title="Download"
-                    >
-                        <svg
-                            class="w-5 h-5"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"
-                            />
-                        </svg>
-                    </button>
-                {/if}
-            </div>
-        {:else if isEditing}
-            <div class="mt-1">
-                <textarea
-                    bind:this={editTextareaEl}
-                    bind:value={editText}
-                    onkeydown={onEditKeydown}
-                    rows="1"
-                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none resize-none focus:ring-1 focus:ring-discord-accent/50"
-                    style="field-sizing: content; max-height: 200px;"
-                ></textarea>
-                <p class="text-xs text-discord-textMuted mt-1">
-                    <kbd class="font-mono">Enter</kbd> to save &middot;
-                    <kbd class="font-mono">Esc</kbd> to cancel
-                </p>
-                <div class="flex gap-2 mt-1">
-                    <button
-                        onclick={saveEdit}
-                        disabled={isSavingEdit || !editText.trim()}
-                        class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
-                        >Save</button
-                    >
-                    <button
-                        onclick={cancelEdit}
-                        class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
-                        >Cancel</button
-                    >
-                </div>
-            </div>
-        {:else}
-            <div class={bubble.bubble ? "own-bubble" : "contents"}>
-                <div
-                    use:spoilers
-                    use:matrixLinks
-                    use:bodyImageGallery={{ onOpen: openBodyGallery }}
-                    class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
-                    class:emoji-only={emojiOnly}
-                    class:italic={msgtype === "m.emote"}
-                    class:opacity-70={msgtype === "m.notice"}
-                >
-                    {#if msgtype === "m.emote"}
-                        <!-- m.emote: prefix the action with the sender's name so it
+                        {#if msgtype === "m.emote"}
+                            <!-- m.emote: prefix the action with the sender's name so it
                              reads "* Name does something" even in grouped messages
                              where the header is hidden. Uses the same member-name
                              helper as the header (displayName). Rendered as its own
                              span, NEVER concatenated into the {@html} body (that
                              would corrupt the sanitized/escaped output). -->
-                        <span>* {displayName}{" "}</span>
-                    {/if}
-                    {#if formattedBody()}
-                        {@html withTwemoji(sanitize(formattedBody()!))}
-                    {:else}
-                        {@html withTwemoji(plainToHtml(body()))}
-                    {/if}
-                    {#if isEdited}
-                        <span class="text-xs text-discord-textMuted ml-1"
-                            >(edited)</span
-                        >
-                    {/if}
+                            <span>* {displayName}{" "}</span>
+                        {/if}
+                        {#if formattedBody()}
+                            {@html withTwemoji(sanitize(formattedBody()!))}
+                        {:else}
+                            {@html withTwemoji(plainToHtml(body()))}
+                        {/if}
+                        {#if isEdited}
+                            <span class="text-xs text-discord-textMuted ml-1"
+                                >(edited)</span
+                            >
+                        {/if}
+                    </div>
                 </div>
-            </div>
-            {#if settingsState.linkPreviewsEnabled}
-                {#each linkedUrls as url (url)}
-                    <LinkPreview {url} />
-                {/each}
+                {#if settingsState.linkPreviewsEnabled}
+                    {#each linkedUrls as url (url)}
+                        <LinkPreview {url} />
+                    {/each}
+                {/if}
             {/if}
-        {/if}
 
-        <!-- Paged lightbox for this message's OWN inline body images. A single
+            <!-- Paged lightbox for this message's OWN inline body images. A single
              media image opens with no dead nav; ≥2 page with the chevrons /
              arrow keys. Mounted once at row level so it covers both the text
              body and a media caption. -->
-        {#if bodyGallery}
-            {@const g = bodyGallery}
-            {@const nav = galleryNav(g.images.length, g.index)}
-            {@const cur = g.images[g.index]}
-            {@const prev = nav.prevIndex}
-            {@const next = nav.nextIndex}
-            {#if cur}
-                <Lightbox
-                    src={cur.src}
-                    alt={cur.alt}
-                    onClose={() => (bodyGallery = null)}
-                    onPrev={prev !== null
-                        ? () =>
-                              (bodyGallery = { images: g.images, index: prev })
-                        : undefined}
-                    onNext={next !== null
-                        ? () =>
-                              (bodyGallery = { images: g.images, index: next })
-                        : undefined}
-                />
-            {/if}
-        {/if}
-
-        <!-- Thread summary chip (root only, once replies are diverted) -->
-        {#if isThreadRoot}
-            <button
-                onclick={() => onOpenThread?.(eventId)}
-                class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
-                title="Open thread"
-            >
-                <svg
-                    class="w-3 h-3 flex-shrink-0"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+            {#if bodyGallery}
+                {@const g = bodyGallery}
+                {@const nav = galleryNav(g.images.length, g.index)}
+                {@const cur = g.images[g.index]}
+                {@const prev = nav.prevIndex}
+                {@const next = nav.nextIndex}
+                {#if cur}
+                    <Lightbox
+                        src={cur.src}
+                        alt={cur.alt}
+                        onClose={() => (bodyGallery = null)}
+                        onPrev={prev !== null
+                            ? () =>
+                                  (bodyGallery = {
+                                      images: g.images,
+                                      index: prev,
+                                  })
+                            : undefined}
+                        onNext={next !== null
+                            ? () =>
+                                  (bodyGallery = {
+                                      images: g.images,
+                                      index: next,
+                                  })
+                            : undefined}
                     />
-                </svg>
-                {threadSummary.count}
-                {threadSummary.count === 1 ? "reply" : "replies"}
-                {#if threadSummary.latestTs > 0}
-                    <span class="text-discord-textMuted"
-                        >&middot; {timeOnly(threadSummary.latestTs)}</span
-                    >
                 {/if}
-            </button>
-        {/if}
+            {/if}
 
-        <!-- Reactions (reserve right clearance on touch so the wrapped reaction
+            <!-- Thread summary chip (root only, once replies are diverted) -->
+            {#if isThreadRoot}
+                <button
+                    onclick={() => onOpenThread?.(eventId)}
+                    class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
+                    title="Open thread"
+                >
+                    <svg
+                        class="w-3 h-3 flex-shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+                        />
+                    </svg>
+                    {threadSummary.count}
+                    {threadSummary.count === 1 ? "reply" : "replies"}
+                    {#if threadSummary.latestTs > 0}
+                        <span class="text-discord-textMuted"
+                            >&middot; {timeOnly(threadSummary.latestTs)}</span
+                        >
+                    {/if}
+                </button>
+            {/if}
+
+            <!-- Reactions (reserve right clearance on touch so the wrapped reaction
              row never runs under the out-of-flow read-receipt overlay) -->
-        <div
-            class:pr-14={interfaceState.isTouchscreen && receipts.length > 0}
-            class:flex={bubble.alignOwn}
-            class:justify-end={bubble.alignOwn}
-        >
-            <Reactions {eventId} {room} {reactionTick} />
-        </div>
-
-        <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
-        {#if isFailed}
             <div
-                class="flex items-center gap-2 px-4 py-0.5 text-xs text-discord-danger"
+                class:pr-14={interfaceState.isTouchscreen &&
+                    receipts.length > 0}
+                class:flex={bubble.alignOwn}
+                class:justify-end={bubble.alignOwn}
             >
-                <svg
-                    class="w-4 h-4 flex-shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                <span>Failed to send.</span>
-                <button
-                    class="font-semibold underline hover:no-underline disabled:opacity-50"
-                    disabled={isResending}
-                    onclick={retrySend}
-                >
-                    {isResending ? "Retrying…" : "Retry"}
-                </button>
-                <span class="text-discord-textMuted">·</span>
-                <button
-                    class="font-semibold underline hover:no-underline"
-                    onclick={() => deleteFailedMessage(event)}
-                >
-                    Delete
-                </button>
+                <Reactions {eventId} {room} {reactionTick} />
             </div>
-        {/if}
 
-        <!-- Read receipts: absolutely anchored to the row's bottom-right (the
+            <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
+            {#if isFailed}
+                <div
+                    class="flex items-center gap-2 px-4 py-0.5 text-xs text-discord-danger"
+                >
+                    <svg
+                        class="w-4 h-4 flex-shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>Failed to send.</span>
+                    <button
+                        class="font-semibold underline hover:no-underline disabled:opacity-50"
+                        disabled={isResending}
+                        onclick={retrySend}
+                    >
+                        {isResending ? "Retrying…" : "Retry"}
+                    </button>
+                    <span class="text-discord-textMuted">·</span>
+                    <button
+                        class="font-semibold underline hover:no-underline"
+                        onclick={() => deleteFailedMessage(event)}
+                    >
+                        Delete
+                    </button>
+                </div>
+            {/if}
+
+            <!-- Read receipts: absolutely anchored to the row's bottom-right (the
              row is `relative`), OUT OF FLOW, so receipts appearing or moving
              between messages never reflows the timeline. -->
-        {#if receipts.length > 0}
-            <button
-                type="button"
-                onclick={openReaderList}
-                aria-label="Show who read this message"
-                title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
-                class="absolute bottom-0.5 right-4 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
-            >
-                {#each receiptCluster.shown as r (r.userId)}
-                    <Avatar
-                        src={r.avatarUrl}
-                        name={r.name}
-                        id={r.userId}
-                        size={16}
+            {#if receipts.length > 0}
+                <button
+                    type="button"
+                    onclick={openReaderList}
+                    aria-label="Show who read this message"
+                    title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
+                    class="absolute bottom-0.5 right-4 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+                >
+                    {#each receiptCluster.shown as r (r.userId)}
+                        <Avatar
+                            src={r.avatarUrl}
+                            name={r.name}
+                            id={r.userId}
+                            size={16}
+                        />
+                    {/each}
+                    {#if receiptCluster.overflow > 0}
+                        <span class="text-[10px] text-discord-textMuted ml-1"
+                            >+{receiptCluster.overflow}</span
+                        >
+                    {/if}
+                </button>
+                {#if readerOpen}
+                    <ReactorPopover
+                        reactors={receiptReaderList.shown.map((r) => ({
+                            userId: r.userId,
+                            name: r.name,
+                            avatarUrl: r.avatarUrl,
+                        }))}
+                        overflow={receiptReaderList.overflow}
+                        touch={readerTouch}
+                        desktopDismiss
+                        x={readerX}
+                        y={readerY}
+                        onClose={closeReaderList}
                     />
-                {/each}
-                {#if receiptCluster.overflow > 0}
-                    <span class="text-[10px] text-discord-textMuted ml-1"
-                        >+{receiptCluster.overflow}</span
-                    >
                 {/if}
-            </button>
-            {#if readerOpen}
-                <ReactorPopover
-                    reactors={receiptReaderList.shown.map((r) => ({
-                        userId: r.userId,
-                        name: r.name,
-                        avatarUrl: r.avatarUrl,
-                    }))}
-                    overflow={receiptReaderList.overflow}
-                    touch={readerTouch}
-                    desktopDismiss
-                    x={readerX}
-                    y={readerY}
-                    onClose={closeReaderList}
-                />
             {/if}
-        {/if}
 
-        <!-- Inline timestamp (non-grouped messages, shows on hover) -->
-        {#if bubble.showInlineHoverTime}
-            <span
-                class="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
-            >
-                {timeOnly(timestamp)}
-            </span>
-        {/if}
+            <!-- Inline timestamp (non-grouped messages, shows on hover) -->
+            {#if bubble.showInlineHoverTime}
+                <span
+                    class="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
+                >
+                    {timeOnly(timestamp)}
+                </span>
+            {/if}
+        </div>
     </div>
+    {#if swipeRevealIcon !== "none" && !isFailed}
+        <div
+            class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
+            'edit'
+                ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                : 'bg-discord-accent text-white'}"
+            aria-hidden="true"
+        >
+            {#if swipeRevealIcon === "edit"}
+                <Pencil class="w-4 h-4" />
+            {:else}
+                <Reply class="w-4 h-4" />
+            {/if}
+        </div>
+    {/if}
 
     <!--
         Hover action bar: always visible when a picker/dialog is open, otherwise

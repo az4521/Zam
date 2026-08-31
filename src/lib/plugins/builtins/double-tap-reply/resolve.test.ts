@@ -55,6 +55,7 @@ describe("schema defaults", () => {
             ownAction: "edit",
             otherAction: "reaction",
             reaction: "👍",
+            swipeEnabled: true,
         });
     });
 });

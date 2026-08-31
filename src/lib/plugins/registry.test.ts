@@ -113,4 +113,19 @@ describe("registry core", () => {
         }));
         expect(cmds).toEqual([{ pluginId: "b", value: { name: "bcmd" } }]);
     });
+
+    it("createRegistryData seeds an empty swipeHandlers array", () => {
+        expect(createRegistryData().swipeHandlers).toEqual([]);
+    });
+    it("EXTENSION_KINDS includes swipeHandlers", () => {
+        expect(EXTENSION_KINDS).toContain("swipeHandlers");
+    });
+    it("addEntry/removeEntry round-trips a swipe handler", () => {
+        const d = createRegistryData();
+        const h = () => {};
+        const disp = addEntry(d, "swipeHandlers", "p1", h);
+        expect(d.swipeHandlers).toHaveLength(1);
+        disp.dispose();
+        expect(d.swipeHandlers).toHaveLength(0);
+    });
 });
