@@ -1144,7 +1144,14 @@ function scheduleRingAutoDismiss(roomId) {
 			Promise.resolve()
 				.then(() => self.registration.getNotifications({ tag: roomId }))
 				.then((list) => {
-					for (const notification of list) notification.close();
+					for (const notification of list) {
+						// Only take down the ring itself — a same-room MESSAGE
+						// notification can share this tag (both use tag=roomId) and
+						// must not be closed by the ring timer.
+						if (notification.data && notification.data.isCall) {
+							notification.close();
+						}
+					}
 				})
 				.catch(() => {})
 				.then(resolve);
