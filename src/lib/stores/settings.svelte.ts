@@ -193,6 +193,10 @@ export const settingsState = $state({
      *  the UI. Default OFF (display names). Rides customization sync so it
      *  follows the account across devices, like alwaysAbsolute. */
     showMatrixIds: readBool("showMatrixIds", false),
+    /** Right-align own message bubbles in a distinct coloured bubble (Discord/
+     *  iMessage convention). Default OFF (Discord uniform-left). Rides
+     *  customization sync so it follows the account across devices. */
+    rightAlignOwnBubbles: readBool("rightAlignOwnBubbles", false),
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
@@ -395,6 +399,7 @@ export function customizationSnapshot(): ClientCustomization {
         gifDefaultTab: settingsState.gifDefaultTab,
         keepSidebarOpen: settingsState.keepSidebarOpen,
         showMatrixIds: settingsState.showMatrixIds,
+        rightAlignOwnBubbles: settingsState.rightAlignOwnBubbles,
         themePresets: Object.fromEntries(
             Object.entries(settingsState.themePresets).map(([k, v]) => [
                 k,
@@ -456,6 +461,10 @@ export function applyCustomization(c: ClientCustomization): void {
     if (c.showMatrixIds !== undefined) {
         settingsState.showMatrixIds = c.showMatrixIds;
         writeBool("showMatrixIds", c.showMatrixIds);
+    }
+    if (c.rightAlignOwnBubbles !== undefined) {
+        settingsState.rightAlignOwnBubbles = c.rightAlignOwnBubbles;
+        writeBool("rightAlignOwnBubbles", c.rightAlignOwnBubbles);
     }
     if (c.gifDefaultTab !== undefined) {
         settingsState.gifDefaultTab = normalizeGifTab(c.gifDefaultTab);
@@ -579,6 +588,12 @@ export function setAlwaysAbsolute(value: boolean): void {
 export function setShowMatrixIds(value: boolean): void {
     settingsState.showMatrixIds = value;
     writeBool("showMatrixIds", value);
+    customizationChanged();
+}
+
+export function setRightAlignOwnBubbles(value: boolean): void {
+    settingsState.rightAlignOwnBubbles = value;
+    writeBool("rightAlignOwnBubbles", value);
     customizationChanged();
 }
 

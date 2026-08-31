@@ -113,7 +113,7 @@ describe("paletteContrastWarnings", () => {
 });
 
 describe("18-token expansion", () => {
-    it("THEME_TOKENS registry contains all 18 keys", () => {
+    it("THEME_TOKENS registry contains all 19 keys", () => {
         const keys = THEME_TOKENS.map((t) => t.key);
         expect(keys).toContain("accent");
         expect(keys).toContain("link");
@@ -124,7 +124,8 @@ describe("18-token expansion", () => {
         expect(keys).toContain("offline");
         expect(keys).toContain("divider");
         expect(keys).toContain("spoilerBackground");
-        expect(keys).toHaveLength(18);
+        expect(keys).toContain("ownBubbleBackground");
+        expect(keys).toHaveLength(19);
     });
 
     it("link token expands to both hex and rgb vars", () => {
@@ -171,9 +172,9 @@ describe("18-token expansion", () => {
         expect(pairs).toEqual([["--discord-spoiler-bg", "#1e1f22"]]);
     });
 
-    it("DEFAULT_THEME_COLORS.dark has all 18 tokens", () => {
+    it("DEFAULT_THEME_COLORS.dark has all 19 tokens", () => {
         const keys = Object.keys(DEFAULT_THEME_COLORS.dark);
-        expect(keys).toHaveLength(18);
+        expect(keys).toHaveLength(19);
         expect(DEFAULT_THEME_COLORS.dark.link).toBe("#8fa1e2");
         expect(DEFAULT_THEME_COLORS.dark.warning).toBe("#faa61a");
         expect(DEFAULT_THEME_COLORS.dark.online).toBe("#3ba55c");
@@ -184,9 +185,9 @@ describe("18-token expansion", () => {
         expect(DEFAULT_THEME_COLORS.dark.spoilerBackground).toBe("#1e1f22");
     });
 
-    it("DEFAULT_THEME_COLORS.light has all 18 tokens", () => {
+    it("DEFAULT_THEME_COLORS.light has all 19 tokens", () => {
         const keys = Object.keys(DEFAULT_THEME_COLORS.light);
-        expect(keys).toHaveLength(18);
+        expect(keys).toHaveLength(19);
         expect(DEFAULT_THEME_COLORS.light.link).toBe("#4d5bc1");
         expect(DEFAULT_THEME_COLORS.light.warning).toBe("#a86600");
         expect(DEFAULT_THEME_COLORS.light.online).toBe("#248046");
@@ -197,10 +198,10 @@ describe("18-token expansion", () => {
         expect(DEFAULT_THEME_COLORS.light.spoilerBackground).toBe("#c9ccd1");
     });
 
-    it("DEFAULT_THEME_COLORS.amoled exists and has all 18 tokens", () => {
+    it("DEFAULT_THEME_COLORS.amoled exists and has all 19 tokens", () => {
         expect(DEFAULT_THEME_COLORS.amoled).toBeDefined();
         const keys = Object.keys(DEFAULT_THEME_COLORS.amoled);
-        expect(keys).toHaveLength(18);
+        expect(keys).toHaveLength(19);
         expect(DEFAULT_THEME_COLORS.amoled.background).toBe("#000000");
         expect(DEFAULT_THEME_COLORS.amoled.backgroundSecondary).toBe("#000000");
         expect(DEFAULT_THEME_COLORS.amoled.backgroundTertiary).toBe("#000000");
