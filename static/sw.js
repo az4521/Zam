@@ -968,6 +968,27 @@ async function mxGet(path) {
 	}
 }
 
+async function mxPost(path, body) {
+	await authReady;
+	if (!accessToken || !homeserverUrl) return false;
+	const base = homeserverUrl.endsWith("/")
+		? homeserverUrl.slice(0, -1)
+		: homeserverUrl;
+	try {
+		const res = await fetch(base + path, {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(body),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
 async function buildNotification(data) {
 	// Never compose a body before the privacy flag has been hydrated from
 	// IndexedDB — reading it early would default to "show bodies".
@@ -1211,7 +1232,8 @@ self.addEventListener("push", (event) => {
 				renotify: true,
 				data: notificationData(n.roomId, n.isCall, n.eventId),
 				// A call persists until answered/dismissed and offers
-				// Accept/Decline; a message is a normal transient popup.
+				// Accept/Decline; a message is a normal transient popup with
+				// Reply/Mark-as-read actions (when routable).
 				...(n.isCall
 					? {
 							requireInteraction: true,
@@ -1220,11 +1242,99 @@ self.addEventListener("push", (event) => {
 								{ action: "decline", title: "Decline" },
 							],
 						}
-					: {}),
+					: n.roomId
+						? {
+								actions: [
+									{
+										action: "reply",
+										type: "text",
+										title: "Reply",
+										placeholder: "Reply…",
+									},
+									{ action: "markread", title: "Mark as read" },
+								],
+							}
+						: {}),
 			});
 		})(),
 	);
 });
+
+// Quick-action handlers for notification actions (Reply / Mark as read).
+// Hand-mirrors the messageNotificationActions() contract from
+// src/lib/utils/notifActions.ts — the SW cannot import TypeScript.
+// Produces postMessage shapes consumed by Task 3 (page-side handlers).
+async function handleQuickReply(roomId, replyText, eventId, userId) {
+	try {
+		const clients = await self.clients.matchAll({
+			type: "window",
+			includeUncontrolled: true,
+		});
+		const open = clients.find((c) => "focus" in c);
+		const text = (replyText || "").trim();
+		// If we have inline text AND an open page, post the reply for the page
+		// to send through the crypto-correct path (never send cleartext from SW).
+		if (text && open) {
+			open.focus();
+			open.postMessage({
+				type: "NOTIF_REPLY",
+				roomId: roomId,
+				text: text,
+				eventId: eventId,
+				userId: userId,
+			});
+			return;
+		}
+		// No inline text OR no open page → open the room to compose. Never a
+		// direct cleartext send.
+		if (open) {
+			open.focus();
+			open.postMessage({
+				type: "OPEN_ROOM",
+				roomId: roomId,
+				userId: userId,
+				eventId: eventId,
+			});
+		} else {
+			self.clients.openWindow(
+				roomId ? `/#room=${encodeURIComponent(roomId)}` : "/",
+			);
+		}
+	} catch {
+		// Swallow — waitUntil must never reject.
+	}
+}
+
+async function handleQuickMarkRead(roomId, eventId, userId) {
+	try {
+		const clients = await self.clients.matchAll({
+			type: "window",
+			includeUncontrolled: true,
+		});
+		const open = clients.find((c) => "focus" in c);
+		// If a page is open, let it handle the read receipt (crypto context).
+		// Do NOT focus/open — a mark-read is a silent dismiss.
+		if (open) {
+			open.postMessage({
+				type: "NOTIF_MARK_READ",
+				roomId: roomId,
+				eventId: eventId,
+				userId: userId,
+			});
+			return;
+		}
+		// No open page → send a plaintext read receipt directly (hand-mirrors
+		// buildReadReceiptPath from src/lib/utils/notifActions.ts).
+		if (roomId && eventId) {
+			await mxPost(
+				`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
+				{},
+			);
+		}
+	} catch {
+		// Swallow — waitUntil must never reject.
+	}
+}
 
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
@@ -1235,6 +1345,20 @@ self.addEventListener("notificationclick", (event) => {
 	const postedBy = data.userId;
 	// Decline on a call notification just takes it down — open nothing.
 	if (event.action === "decline") return;
+	// Quick-reply: routes to page postMessage when open+text, else opens room.
+	if (event.action === "reply") {
+		event.waitUntil(
+			handleQuickReply(roomId, event.reply, data.eventId, postedBy),
+		);
+		return;
+	}
+	// Quick-mark-read: silent dismiss (postMessage to page if open, else HTTP).
+	if (event.action === "markread") {
+		event.waitUntil(
+			handleQuickMarkRead(roomId, data.eventId, postedBy),
+		);
+		return;
+	}
 	// Accept on a call → open the room AND join; every other tap just opens
 	// the room. The page reads this flag off the OPEN_ROOM message.
 	const joinCall = !!data.isCall && event.action === "accept";
