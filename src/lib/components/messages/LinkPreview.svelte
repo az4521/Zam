@@ -19,6 +19,7 @@
     } from "$lib/utils/linkPreviewPolicy";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav } from "$lib/utils/mediaGallery";
+    import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
 
@@ -250,6 +251,8 @@
             return false;
         }
     });
+
+    const isInstagram = $derived(isInstagramUrl(url));
 
     // A direct embed we declined to mount (YouTube/X) — known without fetching
     // anything, so the button can appear immediately.
@@ -575,23 +578,52 @@
                     </div>
 
                     <!-- Preview image -->
-                    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
                     {#if preview.imageUrl && !imageError && canLoad(preview.imageUrl)}
-                        <!-- svelte-ignore a11y_click_events_have_key_events -->
-                        <img
-                            src={preview.imageUrl}
-                            alt={preview.title ?? ""}
-                            width={cardImageBox?.width}
-                            height={cardImageBox?.height}
-                            onerror={() => (imageError = true)}
-                            class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
-                            loading="lazy"
-                            referrerpolicy="no-referrer"
-                            onclick={(e) => {
-                                e.preventDefault();
-                                lightboxOpen = true;
-                            }}
-                        />
+                        {#if isInstagram}
+                            <div class="relative inline-block">
+                                <img
+                                    src={preview.imageUrl}
+                                    alt={preview.title ?? ""}
+                                    width={cardImageBox?.width}
+                                    height={cardImageBox?.height}
+                                    onerror={() => (imageError = true)}
+                                    class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
+                                    loading="lazy"
+                                    referrerpolicy="no-referrer"
+                                />
+                                <div
+                                    class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                                >
+                                    <div
+                                        class="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center"
+                                    >
+                                        <svg
+                                            class="w-5 h-5 text-white ml-0.5"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                            ><path d="M8 5v14l11-7z" /></svg
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        {:else}
+                            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                            <!-- svelte-ignore a11y_click_events_have_key_events -->
+                            <img
+                                src={preview.imageUrl}
+                                alt={preview.title ?? ""}
+                                width={cardImageBox?.width}
+                                height={cardImageBox?.height}
+                                onerror={() => (imageError = true)}
+                                class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
+                                loading="lazy"
+                                referrerpolicy="no-referrer"
+                                onclick={(e) => {
+                                    e.preventDefault();
+                                    lightboxOpen = true;
+                                }}
+                            />
+                        {/if}
                     {/if}
                 </div>
             </a>
