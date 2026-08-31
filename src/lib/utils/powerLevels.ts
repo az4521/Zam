@@ -125,6 +125,49 @@ export function normalizePowerLevels(
     };
 }
 
+/**
+ * The three MatrixRTC call-membership state-event types a client may send to
+ * join a call. A user needs power >= the required level for at least one of
+ * these; new rooms created by this client set all three to 0 at creation.
+ */
+export const CALL_MEMBER_EVENT_TYPES = [
+    "org.matrix.msc3401.call.member",
+    "m.call.member",
+    "m.rtc.member",
+] as const;
+
+/**
+ * The effective "power level required to join a call" from a normalized power
+ * levels view. For each call-member type, the required level is its entry in
+ * the `events` map, or `state_default` when the map omits it. The join
+ * requirement is the MIN across the three: a user can join as soon as they can
+ * send ANY one of the types. When the map sets none, the result is
+ * `state_default`.
+ */
+export function effectiveCallJoinLevel(pl: {
+    events: Record<string, number>;
+    state_default: number;
+}): number {
+    const levels = CALL_MEMBER_EVENT_TYPES.map((t) =>
+        t in pl.events ? pl.events[t] : pl.state_default,
+    );
+    return Math.min(...levels);
+}
+
+/**
+ * Return a new `events` map with all three call-member types set to `level`,
+ * preserving every other entry. Callers pass the result as the FULL `events`
+ * object to `setRoomPowerLevels` (which replaces `events` wholesale).
+ */
+export function mergeCallJoinLevel(
+    events: Record<string, number>,
+    level: number,
+): Record<string, number> {
+    const next = { ...events };
+    for (const t of CALL_MEMBER_EVENT_TYPES) next[t] = level;
+    return next;
+}
+
 // `m.room.power_levels` scalar action levels — each must be a number.
 const PL_SCALAR_KEYS = [
     "ban",

@@ -273,6 +273,7 @@ import {
 } from "$lib/utils/roomEncryption";
 import { createHealedRoomRegistry } from "$lib/utils/roomStateTrust";
 import {
+    CALL_MEMBER_EVENT_TYPES,
     coercePl,
     effectivePowerLevel,
     normalizePowerLevels,
@@ -4983,11 +4984,9 @@ export async function getPublicRooms(
 // Rooms created by this client let every member join MatrixRTC calls: the
 // spec default (state_default 50) would otherwise reserve calls for
 // moderators. Element sets the same overrides at creation.
-const CALL_POWER_LEVEL_EVENTS = {
-    "org.matrix.msc3401.call.member": 0,
-    "m.call.member": 0,
-    "m.rtc.member": 0,
-};
+const CALL_POWER_LEVEL_EVENTS: Record<string, number> = Object.fromEntries(
+    CALL_MEMBER_EVENT_TYPES.map((t) => [t, 0]),
+);
 
 /**
  * How long to wait for a just-created room to reach the SDK store via /sync.
