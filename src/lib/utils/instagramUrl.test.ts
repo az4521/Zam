@@ -50,6 +50,12 @@ describe("isInstagramUrl", () => {
         expect(isInstagramUrl("https://myinstagram.io/x")).toBe(false);
     });
 
+    it("rejects look-alike Instagram TLDs (only .com is real)", () => {
+        expect(isInstagramUrl("https://instagram.net/p/x")).toBe(false);
+        expect(isInstagramUrl("https://instagram.co/p/x")).toBe(false);
+        expect(isInstagramUrl("https://instagram.org/p/x")).toBe(false);
+    });
+
     it("rejects twitter URL", () => {
         expect(isInstagramUrl("https://twitter.com/a/status/1")).toBe(false);
     });

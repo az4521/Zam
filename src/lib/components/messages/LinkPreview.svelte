@@ -580,7 +580,12 @@
                     <!-- Preview image -->
                     {#if preview.imageUrl && !imageError && canLoad(preview.imageUrl)}
                         {#if isInstagram}
-                            <div class="relative inline-block">
+                            <!-- w-fit + self-start so the wrapper shrink-wraps
+                                 the reserved-width thumbnail instead of stretching
+                                 to the flex column's full width; otherwise the
+                                 absolute play overlay would centre over empty card
+                                 space beside a narrow (portrait reel) poster. -->
+                            <div class="relative w-fit self-start">
                                 <img
                                     src={preview.imageUrl}
                                     alt={preview.title ?? ""}
