@@ -1147,6 +1147,39 @@ async function shouldStayQuiet() {
 	}
 }
 
+// Auto-dismiss delay for an unanswered incoming-call ring notification (ms).
+// Mirrors CALL_RING_TIMEOUT_MS in src/lib/utils/callRingTimeout.ts and
+// MatrixMessagingService.java — keep the three in sync. A closed-device call
+// push has no "call ended" signal, so without this the ring lingers forever.
+const RING_AUTO_DISMISS_MS = 45000;
+
+// After a call notification is shown, take it down after the ring timeout so an
+// unanswered call reads as "missed" instead of lingering. Keeps the push event
+// alive (via the push handler's waitUntil) for the wait; if the SW is killed
+// first the notification just lingers as it did before — no regression. Never
+// throws: a failed auto-dismiss must degrade to "lingers as today".
+function scheduleRingAutoDismiss(roomId) {
+	if (!roomId) return Promise.resolve();
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			Promise.resolve()
+				.then(() => self.registration.getNotifications({ tag: roomId }))
+				.then((list) => {
+					for (const notification of list) {
+						// Only take down the ring itself — a same-room MESSAGE
+						// notification can share this tag (both use tag=roomId) and
+						// must not be closed by the ring timer.
+						if (notification.data && notification.data.isCall) {
+							notification.close();
+						}
+					}
+				})
+				.catch(() => {})
+				.then(resolve);
+		}, RING_AUTO_DISMISS_MS);
+	});
+}
+
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
@@ -1224,7 +1257,7 @@ self.addEventListener("push", (event) => {
 				icon: "/favicon.png",
 				roomId: data.room_id,
 			}));
-			return self.registration.showNotification(n.title, {
+			await self.registration.showNotification(n.title, {
 				body: n.body,
 				icon: n.icon,
 				badge: "/favicon_foreground.png",
@@ -1256,6 +1289,13 @@ self.addEventListener("push", (event) => {
 							}
 						: {}),
 			});
+			// An unanswered ring must not linger forever (a closed-device call
+			// push carries no "call ended" signal); a message notification is
+			// transient already, so only a call gets the auto-dismiss timer.
+			if (n.isCall) {
+				await scheduleRingAutoDismiss(n.roomId);
+			}
+			return;
 		})(),
 	);
 });

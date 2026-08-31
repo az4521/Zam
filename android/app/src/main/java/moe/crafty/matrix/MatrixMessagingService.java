@@ -78,6 +78,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // the longest duration Settings can produce (2h custom ceiling) — this
     // clamp is silent, so a lower value would quietly shorten the setting.
     private static final long MAX_GRACE_MS = 7200000L;
+
+    // Auto-dismiss an unanswered incoming-call ring after this long (ms), so a
+    // missed call does not linger forever. Mirrors CALL_RING_TIMEOUT_MS in
+    // src/lib/utils/callRingTimeout.ts and RING_AUTO_DISMISS_MS in static/sw.js.
+    private static final long CALL_RING_TIMEOUT_MS = 45000L;
     private static final String KEY_HIDE_BODY = "matrix_hide_notification_body";
 
     private static final int CONNECT_TIMEOUT = 5000;
@@ -828,6 +833,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
             .setAutoCancel(false)
+            .setTimeoutAfter(CALL_RING_TIMEOUT_MS)
             .setContentIntent(openPending)
             .setFullScreenIntent(answerPending, true)
             .addAction(0, "Accept", answerPending)
