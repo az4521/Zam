@@ -15,6 +15,7 @@ import {
     forkActivePreset,
     setTheme,
     renameCustomPreset,
+    setHoldToOpenMessageMenu,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import * as themeModule from "$lib/utils/theme";
@@ -646,5 +647,21 @@ describe("pauseVideoOnScrollOff", () => {
         expect(localStorage.getItem("settings:pauseVideoOnScrollOff")).toBe(
             "false",
         );
+    });
+});
+
+describe("holdToOpenMessageMenu (device-local)", () => {
+    it("persists to the bare (non-account-scoped) key", () => {
+        setHoldToOpenMessageMenu(true);
+        expect(settingsState.holdToOpenMessageMenu).toBe(true);
+        expect(localStorage.getItem("settings:holdToOpenMessageMenu")).toBe(
+            "true",
+        );
+        setHoldToOpenMessageMenu(false); // restore
+    });
+
+    it("is NOT part of the synced customization snapshot", () => {
+        const snap = customizationSnapshot() as Record<string, unknown>;
+        expect("holdToOpenMessageMenu" in snap).toBe(false);
     });
 });

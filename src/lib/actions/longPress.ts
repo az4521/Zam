@@ -8,6 +8,10 @@ export interface LongPressParams {
     /** Movement past this many px cancels the press (lets scrolling win).
      *  Default 10. */
     moveTolerancePx?: number;
+    /** Optional gate: return false for a touchstart to NOT begin the press
+     *  (no timer, no vibrate). Undefined = always start. Lets a caller arm the
+     *  gesture conditionally and skip interactive children. */
+    shouldStart?: (e: TouchEvent) => boolean;
 }
 
 /** True when a touch has moved past `tol` px from its start point. */
@@ -37,6 +41,7 @@ export function longPress(node: HTMLElement, params: LongPressParams) {
     }
 
     function onTouchStart(e: TouchEvent) {
+        if (p.shouldStart && !p.shouldStart(e)) return;
         const t = e.touches[0];
         startX = t.clientX;
         startY = t.clientY;

@@ -222,6 +222,12 @@ export const settingsState = $state({
     /** Device-local message font family key ("system" | "inter" | "atkinson").
      *  NOT synced: a bundled font binary cannot ride the JSON theme sync. */
     messageFont: resolveMessageFont(readString("messageFont")),
+    /** Device-global: open the mobile message actions bar on HOLD instead of
+     *  TAP (Tap XOR Hold). Default OFF (tap opens the menu — today's behaviour).
+     *  Deliberately device-local (readBool/writeBool, no customization sync):
+     *  a touch-interaction preference is a per-device call, like reduceMotion.
+     *  Item 6 (swipe-to-reply) coexists with this on touch devices. */
+    holdToOpenMessageMenu: readBool("holdToOpenMessageMenu", false),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -614,6 +620,11 @@ export function setMessageFont(key: MessageFontKey): void {
     settingsState.messageFont = font;
     writeString("messageFont", font);
     applyMessageFont(font);
+}
+
+export function setHoldToOpenMessageMenu(value: boolean): void {
+    settingsState.holdToOpenMessageMenu = value;
+    writeBool("holdToOpenMessageMenu", value);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {
