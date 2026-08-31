@@ -127,6 +127,8 @@
         updateServiceWorkerNotificationPrivacy,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
+        sendTextMessage,
+        markRoomAsRead,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -1308,6 +1310,41 @@
             }
         };
 
+        const quickReplyFromNotification = async (
+            roomId: string,
+            userId?: string | null,
+            text?: string,
+        ) => {
+            if (!roomId || !text || !text.trim()) return;
+            const decision = decideNotificationRoute(
+                { roomId, userId },
+                { userId: auth.userId },
+            );
+            if (decision.action !== "navigate") return;
+            try {
+                await sendTextMessage(decision.roomId, text.trim());
+            } catch {
+                /* swallow — a failed background reply must not crash the shell */
+            }
+        };
+
+        const quickMarkReadFromNotification = async (
+            roomId: string,
+            userId?: string | null,
+        ) => {
+            if (!roomId) return;
+            const decision = decideNotificationRoute(
+                { roomId, userId },
+                { userId: auth.userId },
+            );
+            if (decision.action !== "navigate") return;
+            try {
+                await markRoomAsRead(decision.roomId);
+            } catch {
+                /* swallow — a failed background mark-read must not crash the shell */
+            }
+        };
+
         (window as any).__matrixOpenRoom = (
             roomId: string,
             userId?: string,
@@ -1316,6 +1353,17 @@
         ) => {
             openRoomFromNotification(roomId, userId, joinCall, eventId);
         };
+
+        (window as any).__matrixReplyFromNotification = (
+            roomId: string,
+            eventId?: string,
+            text?: string,
+        ) => quickReplyFromNotification(roomId, undefined, text);
+
+        (window as any).__matrixMarkAsRead = (
+            roomId: string,
+            eventId?: string,
+        ) => quickMarkReadFromNotification(roomId, undefined);
 
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
@@ -1326,6 +1374,14 @@
                     !!e.data.joinCall,
                     e.data.eventId,
                 );
+            } else if (e.data?.type === "NOTIF_REPLY" && e.data.roomId) {
+                quickReplyFromNotification(
+                    e.data.roomId,
+                    e.data.userId,
+                    e.data.text,
+                );
+            } else if (e.data?.type === "NOTIF_MARK_READ" && e.data.roomId) {
+                quickMarkReadFromNotification(e.data.roomId, e.data.userId);
             }
         };
         if ("serviceWorker" in navigator) {
