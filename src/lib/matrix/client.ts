@@ -4276,7 +4276,18 @@ export function fetchSingleEvent(
     if (!promise) {
         promise = matrixClient
             .fetchRoomEvent(roomId, eventId)
-            .then((raw) => matrixClient!.getEventMapper()(raw))
+            .then(async (raw) => {
+                const ev = matrixClient!.getEventMapper()(raw);
+                // The mapper kicks off decryption but returns synchronously, so a
+                // reply target from an encrypted room would otherwise resolve
+                // still-encrypted and render as "Original message unavailable".
+                // A one-off fetched event is not attached to a room's re-emitter,
+                // so the client's Decrypted listener never fires for it (no
+                // timelineTick bump) — await it here instead. No-op when the room
+                // is unencrypted.
+                await matrixClient!.decryptEventIfNeeded(ev);
+                return ev;
+            })
             .catch(() => {
                 singleEventCache.delete(key);
                 return null;

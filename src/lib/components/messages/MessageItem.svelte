@@ -1030,7 +1030,13 @@
               getMemberName(room, replyTarget.getSender() ?? ""))
             : null,
     );
-    const replyTargetBody = $derived(() => {
+    const replyTargetBody = $derived.by(() => {
+        // Depend on timelineTick: an encrypted target arrives as m.room.encrypted
+        // (no body) and decrypts later IN PLACE on the same MatrixEvent reference,
+        // which does not change replyTarget's identity. Decryption bumps
+        // timelineTick (crypto.ts), so reading it here re-derives the body then —
+        // without it the row stays on the "unavailable" fallback until a reload.
+        void messagesState.timelineTick;
         if (!replyTarget) return null;
         const c = replyTarget.getContent();
         if (replyTarget.getType() === "m.room.message") {
@@ -1832,7 +1838,7 @@
             {/if}
 
             <!-- Reply quote block -->
-            {#if replyTarget && replyTargetSender && replyTargetBody()}
+            {#if replyTarget && replyTargetSender && replyTargetBody}
                 <!--
                 A real <button>, not `role="button"`: the quote renders only
                 plain-text spans (no {@html}, no link, no nested control), so
@@ -1872,7 +1878,7 @@
                         <span
                             class="text-xs text-discord-textSecondary truncate opacity-80"
                         >
-                            {replyTargetBody()}
+                            {replyTargetBody}
                         </span>
                     </div>
                 </button>
@@ -1912,12 +1918,18 @@
                                 >{fallbackLine.text || "…"}</span
                             >
                         {:else}
-                            <!-- A fetched parent with no previewable content was
-                             deleted; otherwise the fetch is pending/failed. -->
+                            <!-- Only a genuinely redacted parent is "deleted". A
+                                 present-but-bodyless parent is either still
+                                 decrypting (encrypted room, keys not yet applied)
+                                 or a non-message type (sticker/poll) — call that
+                                 "unavailable", not "deleted", so a decrypting
+                                 target is not mislabelled. No parent = not loaded. -->
                             <span class="text-xs text-discord-textMuted italic"
-                                >{replyTarget
-                                    ? "Original message deleted"
-                                    : "Original message not loaded"}</span
+                                >{!replyTarget
+                                    ? "Original message not loaded"
+                                    : replyTarget.isRedacted()
+                                      ? "Original message deleted"
+                                      : "Original message unavailable"}</span
                             >
                         {/if}
                     </div>
