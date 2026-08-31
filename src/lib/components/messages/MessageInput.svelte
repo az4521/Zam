@@ -2009,6 +2009,11 @@
                 {/if}
             </div>
 
+            <!-- autocapitalize/spellcheck: Android IMEs (Samsung One UI
+                 especially) suppress the suggestion strip on a bare
+                 contenteditable that sets neither, so a rich-composer div
+                 needs them spelled out to get the word suggestions a plain
+                 <textarea> would get for free. -->
             <div
                 bind:this={textareaEl}
                 role="textbox"
@@ -2025,6 +2030,8 @@
                 }}
                 placeholder={composerPlaceholder}
                 contenteditable={!disabled}
+                autocapitalize="sentences"
+                spellcheck="true"
                 tabindex={disabled ? -1 : 0}
                 class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
