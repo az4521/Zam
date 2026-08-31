@@ -693,8 +693,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 .setLabel("Reply")
                 .build();
 
+            // FLAG_MUTABLE is required for RemoteInput on Android 12+ (API 31).
+            // On older versions, PendingIntents are mutable by default.
             int replyFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 replyFlags |= PendingIntent.FLAG_MUTABLE;
             }
 
