@@ -1354,16 +1354,21 @@
             openRoomFromNotification(roomId, userId, joinCall, eventId);
         };
 
+        // Android notification-action bridges: must forward the poster userId from
+        // the intent so the guard can verify it matches the active account — the
+        // guard fails closed when userId is missing (audit SEC-M4 / PRIV-02).
         (window as any).__matrixReplyFromNotification = (
             roomId: string,
             eventId?: string,
             text?: string,
-        ) => quickReplyFromNotification(roomId, undefined, text);
+            userId?: string,
+        ) => quickReplyFromNotification(roomId, userId, text);
 
         (window as any).__matrixMarkAsRead = (
             roomId: string,
             eventId?: string,
-        ) => quickMarkReadFromNotification(roomId, undefined);
+            userId?: string,
+        ) => quickMarkReadFromNotification(roomId, userId);
 
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
