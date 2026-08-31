@@ -97,4 +97,32 @@ describe("swipePan", () => {
         expect(calls.engage).not.toHaveBeenCalled();
         handle.destroy();
     });
+
+    it("stops touchstart reaching ancestor drawer handlers when enabled", () => {
+        const parent = document.createElement("div");
+        const node = document.createElement("div");
+        parent.appendChild(node);
+        document.body.appendChild(parent);
+        const ancestor = vi.fn();
+        parent.addEventListener("touchstart", ancestor);
+        const handle = swipePan(node, { enabled: true });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        expect(ancestor).not.toHaveBeenCalled();
+        handle.destroy();
+        parent.remove();
+    });
+
+    it("lets touchstart reach ancestor drawer handlers when disabled", () => {
+        const parent = document.createElement("div");
+        const node = document.createElement("div");
+        parent.appendChild(node);
+        document.body.appendChild(parent);
+        const ancestor = vi.fn();
+        parent.addEventListener("touchstart", ancestor);
+        const handle = swipePan(node, { enabled: false });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        expect(ancestor).toHaveBeenCalledTimes(1);
+        handle.destroy();
+        parent.remove();
+    });
 });

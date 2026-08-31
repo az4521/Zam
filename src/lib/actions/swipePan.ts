@@ -39,6 +39,15 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
             reset();
             return;
         }
+        // Claim the touch from ancestor right-drawer swipe handlers. The member
+        // list + pinned panel (MessageArea's container `ontouchstart`) open on a
+        // LEFTWARD drag anywhere in the timeline — the SAME direction as the
+        // reply-swipe — so without this a row swipe also drags the members drawer
+        // open. stopPropagation keeps the touchstart from reaching that ancestor.
+        // Gated on `enabled`, so a swipe-off build keeps the timeline-swipe
+        // drawers. Not an edge gesture, so it never fights the Android system
+        // back-swipe. onTouchEnd stays non-passive to also suppress the tap.
+        e.stopPropagation();
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         armed = true;
