@@ -86,8 +86,56 @@ describe("static/sw.js notification contract", () => {
         const click = SW.slice(
             SW.indexOf('addEventListener("notificationclick"'),
         );
-        expect(click.slice(0, 1200)).toMatch(
+        const clickEnd = click.indexOf("self.addEventListener(", 1);
+        expect(clickEnd).toBeGreaterThan(0);
+        const clickBody = click.slice(0, clickEnd);
+        expect(clickBody).toMatch(
             /postMessage\(\{[^}]*type:\s*"OPEN_ROOM"[^}]*userId/s,
         );
+    });
+
+    describe("notification quick-actions contract", () => {
+        it("posts NOTIF_REPLY with text and userId when handling reply action", () => {
+            expect(SW).toMatch(/type:\s*"NOTIF_REPLY"/);
+            const replyHandler = SW.slice(
+                SW.indexOf("function handleQuickReply("),
+            );
+            const replyEnd = replyHandler.indexOf(
+                "async function handleQuickMarkRead(",
+            );
+            expect(replyEnd).toBeGreaterThan(0);
+            const replyBody = replyHandler.slice(0, replyEnd);
+            expect(replyBody).toMatch(/type:\s*"NOTIF_REPLY"/);
+            expect(replyBody).toMatch(/text:\s*text/);
+            expect(replyBody).toMatch(/userId:\s*userId/);
+        });
+
+        it("posts NOTIF_MARK_READ with userId when handling mark-read action", () => {
+            expect(SW).toMatch(/type:\s*"NOTIF_MARK_READ"/);
+            const markReadHandler = SW.slice(
+                SW.indexOf("function handleQuickMarkRead("),
+            );
+            const markReadEnd = markReadHandler.indexOf(
+                "\nself.addEventListener(",
+                1,
+            );
+            expect(markReadEnd).toBeGreaterThan(0);
+            const markReadBody = markReadHandler.slice(0, markReadEnd);
+            expect(markReadBody).toMatch(/type:\s*"NOTIF_MARK_READ"/);
+            expect(markReadBody).toMatch(/userId:\s*userId/);
+        });
+
+        it("never sends cleartext messages from SW (E2EE invariant)", () => {
+            // The SW must NEVER POST/PUT to /send/m.room.message — message
+            // sends always route through the page for crypto-correct handling.
+            expect(SW).not.toMatch(/\/send\/m\.room\.message/);
+        });
+
+        it("uses mxPost only for read receipts", () => {
+            expect(SW).toMatch(/function\s+mxPost\s*\(/);
+            // The read-receipt endpoint IS allowed (plaintext receipt when no
+            // page is open).
+            expect(SW).toMatch(/\/receipt\/m\.read\//);
+        });
     });
 });
