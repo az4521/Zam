@@ -31,6 +31,14 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+// Device-local "minimise to tray on close" preference, seeded from the renderer
+// at boot (tray:set-minimize-to-close) and updated when the user toggles it.
+// Default ON = today's behaviour (close hides to tray). See the hide-vs-close
+// contract in src/lib/utils/trayClose.ts (resolveWindowCloseAction) — this file
+// is plain CommonJS required as-is and cannot import that TS util, so it mirrors
+// the same branch inline.
+let minimizeToTrayOnClose = true;
+
 const MIME = {
     ".html": "text/html",
     ".js": "text/javascript",
@@ -277,6 +285,10 @@ ipcMain.on("updates:set-auto", (_e, enabled) => {
     // Stored, not applied to autoDownload directly: each check sets autoDownload
     // from its own manual/background context (a manual check always stays off).
     autoUpdatePref = !!enabled;
+});
+
+ipcMain.on("tray:set-minimize-to-close", (_e, enabled) => {
+    minimizeToTrayOnClose = !!enabled;
 });
 
 ipcMain.on("updates:quit-and-install", () => {
@@ -542,10 +554,12 @@ async function createWindow() {
         }
     });
 
-    // Close button → hide to the system tray instead of quitting (removes the
-    // taskbar button; restore via the tray icon).
+    // Close button (X): hide to the system tray, or quit, per the device-local
+    // "minimise to tray on close" preference (default ON). An explicit quit
+    // (tray Quit / before-quit / quit-and-install sets isQuitting) always
+    // closes. Mirrors resolveWindowCloseAction in src/lib/utils/trayClose.ts.
     mainWindow.on("close", (e) => {
-        if (!isQuitting) {
+        if (!isQuitting && minimizeToTrayOnClose) {
             e.preventDefault();
             mainWindow.hide();
         }
@@ -598,8 +612,14 @@ if (!app.requestSingleInstanceLock()) {
         isQuitting = true;
     });
 
-    // Keep running in the tray when the window is "closed" (minimised).
+    // With minimise-to-tray ON the window is only hidden on a normal close (X),
+    // so the normal-close path never reaches here. This fires when the window is
+    // actually destroyed: the toggle is OFF (quit-on-close) — then quit for
+    // real — or on an explicit quit (tray Quit / before-quit / quit-and-install),
+    // where the guard below no-ops because that path already called app.quit().
+    // No macOS stay-resident exception: the tray is this app's only always-on
+    // affordance, and it is gone once the app quits.
     app.on("window-all-closed", () => {
-        // Intentionally do nothing — quit only via the tray's Quit item.
+        if (!minimizeToTrayOnClose) app.quit();
     });
 }
