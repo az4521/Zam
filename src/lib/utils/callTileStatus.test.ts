@@ -6,16 +6,16 @@ describe("deviceCountByUser", () => {
         expect(deviceCountByUser([])).toEqual(new Map());
     });
     it("counts one per single-device user", () => {
-        expect(deviceCountByUser([{ userId: "@a:s" }])).toEqual(
+        expect(deviceCountByUser([{ userId: "@a:s", deviceId: "D1" }])).toEqual(
             new Map([["@a:s", 1]]),
         );
     });
     it("counts multiple devices of one user", () => {
         expect(
             deviceCountByUser([
-                { userId: "@a:s" },
-                { userId: "@a:s" },
-                { userId: "@b:s" },
+                { userId: "@a:s", deviceId: "D1" },
+                { userId: "@a:s", deviceId: "D2" },
+                { userId: "@b:s", deviceId: "D3" },
             ]),
         ).toEqual(
             new Map([
@@ -23,6 +23,14 @@ describe("deviceCountByUser", () => {
                 ["@b:s", 1],
             ]),
         );
+    });
+    it("counts a repeated (user, device) as one device", () => {
+        expect(
+            deviceCountByUser([
+                { userId: "@a:s", deviceId: "D1" },
+                { userId: "@a:s", deviceId: "D1" },
+            ]),
+        ).toEqual(new Map([["@a:s", 1]]));
     });
 });
 

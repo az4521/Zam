@@ -4,14 +4,20 @@
  * stays unit-testable. See src/lib/utils/voiceCall.ts for the same pattern.
  */
 
-/** Devices per user in the PRE-dedupe membership list (a user on 2 devices
- *  → 2). Used to badge multi-device participants that dedupeParticipants hides. */
+/** Distinct devices per user in the PRE-dedupe membership list (a user on 2
+ *  distinct devices → 2). A repeated (user, device) counts once. Used to
+ *  badge multi-device participants that dedupeParticipants hides. */
 export function deviceCountByUser(
-    memberships: { userId: string }[],
+    memberships: { userId: string; deviceId: string }[],
 ): Map<string, number> {
+    const devices = new Map<string, Set<string>>();
+    for (const m of memberships) {
+        let set = devices.get(m.userId);
+        if (!set) devices.set(m.userId, (set = new Set()));
+        set.add(m.deviceId);
+    }
     const counts = new Map<string, number>();
-    for (const m of memberships)
-        counts.set(m.userId, (counts.get(m.userId) ?? 0) + 1);
+    for (const [userId, set] of devices) counts.set(userId, set.size);
     return counts;
 }
 
