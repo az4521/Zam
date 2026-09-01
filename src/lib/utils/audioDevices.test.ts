@@ -3,6 +3,7 @@ import {
     toDeviceOptions,
     resolveDeviceId,
     outputPickerMode,
+    buildDeviceConstraint,
 } from "./audioDevices";
 
 const dev = (deviceId: string, kind: string, label = "") => ({
@@ -98,5 +99,20 @@ describe("outputPickerMode", () => {
                 canSelectAudioOutput: false,
             }),
         ).toBe("hidden");
+    });
+});
+
+describe("buildDeviceConstraint", () => {
+    it("uses `exact` so the browser honors the chosen device", () => {
+        expect(buildDeviceConstraint("mic-1")).toEqual({ exact: "mic-1" });
+    });
+    it("returns undefined for the default (null) device", () => {
+        expect(buildDeviceConstraint(null)).toBeUndefined();
+    });
+    it("returns undefined for an empty id", () => {
+        expect(buildDeviceConstraint("")).toBeUndefined();
+    });
+    it("returns undefined for an absent id", () => {
+        expect(buildDeviceConstraint(undefined)).toBeUndefined();
     });
 });
