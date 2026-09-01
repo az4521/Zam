@@ -154,12 +154,15 @@
         });
     }
 
-    // Close before opening the card: openProfileCard() claims the single modal
-    // slot, so opening it first and closing afterwards would shut the card.
+    // Open the card BEFORE closing the menu: openProfileCard() measures the
+    // anchor's rect, and onClose() unmounts this menu (and its Portal), which
+    // would detach the anchor and zero the rect. Ordering is safe because our
+    // onClose releases the slot with clearModalIfOwner (a stale-token no-op once
+    // the card owns the modal), so it can't shut the freshly-opened card.
     const onProfile = (e: MouseEvent) => {
         const anchor = e.currentTarget as HTMLElement;
-        onClose();
         openProfileCard(userId, anchor);
+        onClose();
     };
     const onMessage = act(
         "message",
@@ -220,12 +223,19 @@
         <div class="w-full h-px bg-discord-divider my-1"></div>
 
         <div class="px-3 py-1.5">
-            <label
-                for="user-volume-{userId}"
-                class="block text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
-            >
-                User Volume
-            </label>
+            <div class="flex items-center justify-between gap-2">
+                <label
+                    for="user-volume-{userId}"
+                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                >
+                    User Volume
+                </label>
+                <span
+                    class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                >
+                    {Math.round(audio.volume * 100)}%
+                </span>
+            </div>
             <input
                 id="user-volume-{userId}"
                 type="range"

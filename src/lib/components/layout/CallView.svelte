@@ -18,6 +18,7 @@
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
+    import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
         getRoomCallMemberships,
@@ -690,3 +691,9 @@
         }}
     />
 {/if}
+
+<!-- The profile card lives in MessageArea too, but AppShell renders CallView
+     INSTEAD of MessageArea during a call (mutually exclusive), so without this
+     mount the "Profile" entry in a call-tile menu opens a card nothing renders.
+     Only one of the two is ever mounted, so there is never a double instance. -->
+<UserProfileCard {room} />
