@@ -34,6 +34,7 @@
         searchSettings,
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
     interface Props {
@@ -74,7 +75,20 @@
     async function selectResult(entry: SettingsSearchEntry) {
         searchQuery = "";
         selectedTab = entry.tab;
+        // Let the panel for the new tab render before we look for the anchor.
         await tick();
+        if (!entry.anchor) return;
+        const el = dialogEl?.querySelector<HTMLElement>(
+            `[data-setting-anchor="${entry.anchor}"]`,
+        );
+        if (!el) return; // control not rendered (conditional / different layout) — landing on the tab is enough
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+        // Re-trigger the one-shot highlight even if it ran before: remove, force a
+        // reflow, re-add. `.message-highlight` is animation-fill-mode:forwards and
+        // fades to transparent, so a lingering class is harmless.
+        el.classList.remove("message-highlight");
+        void el.offsetWidth;
+        el.classList.add("message-highlight");
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -102,6 +116,7 @@
     let backButtonEl: HTMLButtonElement | null = null;
     let categoryEls: HTMLButtonElement[] = [];
     let sidebarEls: Record<string, HTMLButtonElement | null> = {};
+    let dialogEl: HTMLDivElement | null = null;
     let lastMode: string | null = null;
 
     // EVERY mode change destroys the element that had focus — drilling in,
@@ -142,6 +157,7 @@
          close the whole dialog on the first Escape and the mobile sub-page could
          never be popped. Escape is owned by AppShell.dismissTopmost(). -->
     <div
+        bind:this={dialogEl}
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-settings-title"
@@ -289,6 +305,7 @@
     {:else if tab === "theme"}
         <div class="space-y-6">
             <div
+                data-setting-anchor="theme-rightalign"
                 class="flex items-center gap-3 py-2 border-b border-discord-divider"
             >
                 <div class="flex-1 min-w-0">
