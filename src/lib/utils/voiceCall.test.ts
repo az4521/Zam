@@ -10,6 +10,7 @@ import {
     callEndedMembershipMessage,
     identityToUserId,
     usersFromIdentities,
+    callBannerDecision,
 } from "./voiceCall";
 
 describe("screenShareCaptureResolution", () => {
@@ -200,5 +201,83 @@ describe("identityToUserId / usersFromIdentities", () => {
     });
     it("is empty for no identities", () => {
         expect(usersFromIdentities([])).toEqual(new Set());
+    });
+});
+
+describe("callBannerDecision", () => {
+    const me = "@me:s";
+
+    it("shows Leave while in a call with others", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: true,
+                participantUserIds: [me, "@a:s"],
+                selfUserId: me,
+            }),
+        ).toEqual({ visible: true, action: "leave" });
+    });
+
+    it("shows Leave while in a call alone (ringing out / solo host)", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: true,
+                participantUserIds: [me],
+                selfUserId: me,
+            }),
+        ).toEqual({ visible: true, action: "leave" });
+    });
+
+    it("shows Join when someone else is in a call we are not in", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: [me, "@a:s"],
+                selfUserId: me,
+            }),
+        ).toEqual({ visible: true, action: "join" });
+    });
+
+    it("shows Join when another user is alone in a call we started watching", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: ["@a:s"],
+                selfUserId: me,
+            }),
+        ).toEqual({ visible: true, action: "join" });
+    });
+
+    it("hides when the roster is empty and we are not in the call", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: [],
+                selfUserId: me,
+            }),
+        ).toEqual({ visible: false, action: null });
+    });
+
+    // The bug this item fixes: leaving a call we were alone in flips
+    // inThisCall false a beat before our own stale membership leaves the
+    // roster. That transient state must never render a "Join" banner for a
+    // call whose only member is us.
+    it("never yields a can-join state on a leave-while-alone transition", () => {
+        const decision = callBannerDecision({
+            inThisCall: false,
+            participantUserIds: [me],
+            selfUserId: me,
+        });
+        expect(decision).toEqual({ visible: false, action: null });
+        expect(decision.visible && decision.action === "join").toBe(false);
+    });
+
+    it("treats every participant as another user before self is known", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: ["@a:s"],
+                selfUserId: null,
+            }),
+        ).toEqual({ visible: true, action: "join" });
     });
 });
