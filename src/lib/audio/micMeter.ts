@@ -3,6 +3,11 @@
  * (independent of any live call) so the tab can test the mic without joining.
  */
 
+import {
+    buildDeviceConstraint,
+    isOverconstrainedError,
+} from "$lib/utils/audioDevices";
+
 export interface MicMeterOptions {
     deviceId: string | null;
     noiseSuppression: boolean;
@@ -20,15 +25,34 @@ export interface MicMeterHandle {
 export async function startMicMeter(
     opts: MicMeterOptions,
 ): Promise<MicMeterHandle> {
-    const constraints: MediaTrackConstraints = {
+    const audioBase: MediaTrackConstraints = {
         noiseSuppression: opts.noiseSuppression,
         echoCancellation: opts.echoCancellation,
         autoGainControl: opts.autoGainControl,
     };
-    if (opts.deviceId) constraints.deviceId = { ideal: opts.deviceId };
-    const stream = await navigator.mediaDevices.getUserMedia({
-        audio: constraints,
-    });
+    // `exact` (via buildDeviceConstraint), not `ideal`: `ideal` is a soft hint
+    // the browser ignored, so the meter watched the DEFAULT mic no matter which
+    // device was selected — reading as both "wrong device" and "laggy" (weak
+    // reverberant bleed off the default mic).
+    const wanted = buildDeviceConstraint(opts.deviceId);
+    let stream: MediaStream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: wanted ? { ...audioBase, deviceId: wanted } : audioBase,
+        });
+    } catch (e) {
+        // `exact` rejects with OverconstrainedError when the chosen mic vanished
+        // (unplugged mid-session). Retry once on the default mic so the meter
+        // keeps working; any other error (permission denied) propagates so the
+        // caller can surface it.
+        if (wanted && isOverconstrainedError(e)) {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: audioBase,
+            });
+        } else {
+            throw e;
+        }
+    }
     // `new AudioContext()` and the graph wiring can throw — browsers cap how
     // many contexts a document may hold, and this app builds several. Without
     // this the granted stream would stay live with its only handle never
@@ -40,6 +64,13 @@ export async function startMicMeter(
         const source = ctx.createMediaStreamSource(stream);
         analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
+        // Keep the analyser un-smoothed. NOTE: this meter reads the time-domain
+        // waveform (getByteTimeDomainData), which smoothingTimeConstant does NOT
+        // affect — it only smooths the frequency-domain reads — so this is a
+        // no-op for the current meter, kept defensively for any future switch to
+        // getByteFrequencyData. The real responsiveness fix is the exact-device
+        // constraint above (the meter now watches the mic you actually chose).
+        analyser.smoothingTimeConstant = 0;
         source.connect(analyser);
     } catch (e) {
         stream.getTracks().forEach((t) => t.stop());
