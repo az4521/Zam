@@ -59,7 +59,7 @@
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
     {#if isMobile}
         <div
-            class="h-12 flex items-center gap-2 px-3 border-b border-discord-backgroundTertiary shrink-0"
+            class="themed-topbar h-12 flex items-center gap-2 px-3 border-b border-discord-backgroundTertiary shrink-0"
         >
             <button
                 onclick={onMenuOpen}

@@ -248,7 +248,7 @@
 <div class="flex-1 flex flex-col min-w-0 bg-discord-backgroundTertiary">
     <!-- Header -->
     <div
-        class="h-12 px-4 flex items-center gap-2 flex-shrink-0 border-b border-discord-divider bg-discord-background"
+        class="themed-topbar h-12 px-4 flex items-center gap-2 flex-shrink-0 border-b border-discord-divider"
     >
         {#if isMobile}
             <button
