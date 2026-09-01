@@ -15,7 +15,10 @@
         toggleCamera,
         toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
-    import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import {
+        dedupeParticipants,
+        callBannerDecision,
+    } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
@@ -56,9 +59,20 @@
             participants[0].userId === auth.userId &&
             isDm,
     );
+    // Show + Leave/Join decision. Visibility requires a NON-self participant
+    // when we are not in the call, so leaving a call we were alone in never
+    // flashes a "Join" banner during the beat between inThisCall flipping
+    // false and our own stale membership leaving the roster.
+    const decision = $derived(
+        callBannerDecision({
+            inThisCall,
+            participantUserIds: participants.map((p) => p.userId),
+            selfUserId: auth.userId,
+        }),
+    );
 </script>
 
-{#if participants.length > 0}
+{#if decision.visible}
     <div
         class="flex items-center gap-3 px-4 py-2 bg-discord-backgroundSecondary border-b border-discord-divider"
     >
@@ -96,7 +110,7 @@
                 {/if}
             </span>
         </button>
-        {#if inThisCall}
+        {#if decision.action === "leave"}
             <!-- Camera/share sit here as well as in CallView so a user who
                  stayed on the timeline never has to open the call view to
                  start video. Same store toggles, same support gate. -->

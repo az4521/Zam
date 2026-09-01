@@ -23,6 +23,45 @@ export function dedupeParticipants(
     return [...byUser.values()].sort((a, b) => a.joinedTs - b.joinedTs);
 }
 
+export type CallBannerAction = "leave" | "join";
+
+export interface CallBannerInput {
+    /** Whether we are connected to THIS room's call. */
+    inThisCall: boolean;
+    /** Deduped roster user ids currently in the call (may include self). */
+    participantUserIds: string[];
+    /** Our own user id, or null before it is known. */
+    selfUserId: string | null;
+}
+
+export interface CallBannerDecision {
+    visible: boolean;
+    /** The right-hand action, or null while the banner is hidden. */
+    action: CallBannerAction | null;
+}
+
+/**
+ * Whether the active-call banner shows, and whether its action is Leave or
+ * Join. Visible when we are in the call OR some OTHER user is in it.
+ *
+ * Excluding self from the "someone is here" test is what kills the solo-leave
+ * flicker. On leave, `inThisCall` flips false the instant our connection drops,
+ * but the roster still holds our own stale membership for a beat. A plain "any
+ * participant" test would keep the banner up showing "Join" — a call whose only
+ * member is us, which we are not in — until the roster empties. Requiring a
+ * NON-self participant means that transient state never renders, while a call
+ * someone else started (they are the sole member, we are not in it yet) still
+ * shows a Join banner.
+ */
+export function callBannerDecision(input: CallBannerInput): CallBannerDecision {
+    const hasOthers = input.participantUserIds.some(
+        (id) => id !== input.selfUserId,
+    );
+    const visible = input.inThisCall || hasOthers;
+    if (!visible) return { visible: false, action: null };
+    return { visible: true, action: input.inThisCall ? "leave" : "join" };
+}
+
 export type VoiceConnState = "connecting" | "connected" | "reconnecting" | null;
 
 export function connStateLabel(state: VoiceConnState): string {
