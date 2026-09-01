@@ -377,7 +377,7 @@
 
 <div class="space-y-6">
     {#if permission !== "granted"}
-        <section>
+        <section data-setting-anchor="notif-system">
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
@@ -419,7 +419,7 @@
         </section>
     {/if}
 
-    <section>
+    <section data-setting-anchor="notif-sound">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
@@ -480,7 +480,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="notif-devices">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
@@ -575,7 +575,7 @@
         {/if}
     </section>
 
-    <section>
+    <section data-setting-anchor="notif-privacy">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
@@ -620,7 +620,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="notif-rules">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
         >
@@ -658,7 +658,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="notif-keywords">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
         >

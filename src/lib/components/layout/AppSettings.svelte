@@ -30,6 +30,11 @@
         settingsNavView,
         type SettingsTab,
     } from "$lib/utils/settingsNav";
+    import {
+        searchSettings,
+        type SettingsSearchEntry,
+    } from "$lib/utils/settingsSearch";
+    import { scrollBehavior } from "$lib/utils/motionPreference";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
     interface Props {
@@ -59,12 +64,40 @@
         pluginsNavTick++;
     }
 
+    let searchQuery = $state("");
+    const searchResults = $derived(searchSettings(searchQuery));
+    const searchActive = $derived(searchQuery.trim().length > 0);
+
     // Stable identity: it is the ownership token for the sub-page slot, so it
     // must NOT be recreated on every render. It resets local state ONLY — it
     // runs from inside the store's own close/supersede paths, so reaching back
     // into the store here would pop the wrong owner.
     function goBackToList() {
         selectedTab = null;
+    }
+
+    // A search result was chosen: navigate to the owning tab via the existing
+    // selectedTab mechanism (drills in on mobile, selects the sidebar tab on
+    // desktop) and clear the query so the normal panel shows. Scroll/highlight of
+    // the target section is added in a later step; kept OUT of an $effect (it must
+    // not retrigger) — this runs once, in the click handler.
+    async function selectResult(entry: SettingsSearchEntry) {
+        searchQuery = "";
+        selectedTab = entry.tab;
+        // Let the panel for the new tab render before we look for the anchor.
+        await tick();
+        if (!entry.anchor) return;
+        const el = dialogEl?.querySelector<HTMLElement>(
+            `[data-setting-anchor="${entry.anchor}"]`,
+        );
+        if (!el) return; // control not rendered (conditional / different layout) — landing on the tab is enough
+        el.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+        // Re-trigger the one-shot highlight even if it ran before: remove, force a
+        // reflow, re-add. `.message-highlight` is animation-fill-mode:forwards and
+        // fades to transparent, so a lingering class is harmless.
+        el.classList.remove("message-highlight");
+        void el.offsetWidth;
+        el.classList.add("message-highlight");
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -92,6 +125,7 @@
     let backButtonEl: HTMLButtonElement | null = null;
     let categoryEls: HTMLButtonElement[] = [];
     let sidebarEls: Record<string, HTMLButtonElement | null> = {};
+    let dialogEl: HTMLDivElement | null = null;
     let lastMode: string | null = null;
 
     // EVERY mode change destroys the element that had focus — drilling in,
@@ -132,6 +166,7 @@
          close the whole dialog on the first Escape and the mobile sub-page could
          never be popped. Escape is owned by AppShell.dismissTopmost(). -->
     <div
+        bind:this={dialogEl}
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-settings-title"
@@ -174,7 +209,52 @@
             </button>
         </div>
 
-        {#if view.mode === "list"}
+        {#if view.mode !== "detail"}
+            <div
+                class="px-6 py-3 border-b border-discord-divider flex-shrink-0"
+            >
+                <input
+                    type="search"
+                    bind:value={searchQuery}
+                    placeholder="Search settings…"
+                    aria-label="Search settings"
+                    class="w-full px-3 py-2 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                />
+            </div>
+        {/if}
+
+        {#if searchActive}
+            <div
+                class="flex-1 overflow-y-auto py-2"
+                role="listbox"
+                aria-label="Search results"
+            >
+                {#if searchResults.length === 0}
+                    <p
+                        class="px-6 py-8 text-sm text-discord-textMuted text-center"
+                    >
+                        No settings match "{searchQuery}".
+                    </p>
+                {:else}
+                    {#each searchResults as result (result.tab + result.label)}
+                        <button
+                            type="button"
+                            onclick={() => selectResult(result)}
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3 text-left hover:bg-discord-messageHover transition-colors"
+                        >
+                            <span
+                                class="min-w-0 truncate text-sm text-discord-textPrimary"
+                                >{result.label}</span
+                            >
+                            <span
+                                class="flex-shrink-0 text-xs text-discord-textMuted"
+                                >{settingsTabLabel(result.tab)}</span
+                            >
+                        </button>
+                    {/each}
+                {/if}
+            </div>
+        {:else if view.mode === "list"}
             <!-- Mobile root: drill-down category list. -->
             <nav class="flex-1 overflow-y-auto py-2">
                 {#each SETTINGS_TABS as tab, i (tab.id)}
@@ -234,6 +314,7 @@
     {:else if tab === "theme"}
         <div class="space-y-6">
             <div
+                data-setting-anchor="theme-rightalign"
                 class="flex items-center gap-3 py-2 border-b border-discord-divider"
             >
                 <div class="flex-1 min-w-0">

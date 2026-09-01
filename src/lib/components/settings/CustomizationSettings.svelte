@@ -243,7 +243,7 @@
 </script>
 
 <div class="space-y-6">
-    <section>
+    <section data-setting-anchor="cust-timestamps">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
@@ -327,7 +327,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="cust-messages">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
@@ -429,7 +429,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="cust-gifs">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
@@ -454,7 +454,7 @@
         </div>
     </section>
 
-    <section>
+    <section data-setting-anchor="cust-behavior">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
@@ -537,7 +537,7 @@
         {/if}
     </section>
 
-    <section>
+    <section data-setting-anchor="cust-roomorder">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
