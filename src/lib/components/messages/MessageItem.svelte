@@ -2586,10 +2586,12 @@
             {/if}
 
             <!-- Reactions (reserve right clearance on touch so the wrapped reaction
-             row never runs under the out-of-flow read-receipt overlay) -->
+             row never runs under the out-of-flow read-receipt overlay; not needed
+             when own bubbles are right-aligned — the overlay is on the LEFT then) -->
             <div
                 class:pr-14={interfaceState.isTouchscreen &&
-                    receipts.length > 0}
+                    receipts.length > 0 &&
+                    !bubble.alignOwn}
                 class:flex={bubble.alignOwn}
                 class:justify-end={bubble.alignOwn}
             >
@@ -2632,16 +2634,20 @@
                 </div>
             {/if}
 
-            <!-- Read receipts: absolutely anchored to the row's bottom-right (the
+            <!-- Read receipts: absolutely anchored to the row's bottom corner (the
              row is `relative`), OUT OF FLOW, so receipts appearing or moving
-             between messages never reflows the timeline. -->
+             between messages never reflows the timeline. Anchored bottom-RIGHT
+             by default; when own bubbles are right-aligned the bubble hugs the
+             right edge, so the cluster moves to the bottom-LEFT to clear it. -->
             {#if receipts.length > 0}
                 <button
                     type="button"
                     onclick={openReaderList}
                     aria-label="Show who read this message"
                     title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
-                    class="absolute bottom-0.5 right-4 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+                    class="absolute bottom-0.5 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+                    class:right-4={!bubble.alignOwn}
+                    class:left-4={bubble.alignOwn}
                 >
                     {#each receiptCluster.shown as r (r.userId)}
                         <Avatar
