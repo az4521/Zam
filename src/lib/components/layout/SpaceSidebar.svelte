@@ -736,25 +736,43 @@
     }
 
     function positionMenu(node: HTMLElement, pos: { x: number; y: number }) {
-        node.style.visibility = "hidden";
-        node.style.left = "0px";
-        node.style.top = "0px";
-        requestAnimationFrame(() => {
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const w = node.offsetWidth;
-            const h = node.offsetHeight;
-            let left = Math.min(pos.x, vw - w - 4);
-            if (left < 4) left = 4;
-            let top = pos.y;
-            if (top + h > vh - 4) top = pos.y - h;
-            if (top < 4) top = 4;
-            const maxH = vh - top - 4;
-            if (h > maxH) node.style.maxHeight = maxH + "px";
-            node.style.left = left + "px";
-            node.style.top = top + "px";
-            node.style.visibility = "";
-        });
+        let raf = 0;
+        // Re-run on `update` too: a context menu reopened on a NEW target while
+        // one is already open can reuse this same node (Svelte keeps the block),
+        // so mount-only positioning would strand the menu at the old target's
+        // coordinates. Reset maxHeight each time so a prior clamp doesn't leak.
+        function place(p: { x: number; y: number }) {
+            node.style.visibility = "hidden";
+            node.style.left = "0px";
+            node.style.top = "0px";
+            node.style.maxHeight = "";
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const w = node.offsetWidth;
+                const h = node.offsetHeight;
+                let left = Math.min(p.x, vw - w - 4);
+                if (left < 4) left = 4;
+                let top = p.y;
+                if (top + h > vh - 4) top = p.y - h;
+                if (top < 4) top = 4;
+                const maxH = vh - top - 4;
+                if (h > maxH) node.style.maxHeight = maxH + "px";
+                node.style.left = left + "px";
+                node.style.top = top + "px";
+                node.style.visibility = "";
+            });
+        }
+        place(pos);
+        return {
+            update(next: { x: number; y: number }) {
+                place(next);
+            },
+            destroy() {
+                cancelAnimationFrame(raf);
+            },
+        };
     }
 
     function toggleFolder(folderId: string) {
