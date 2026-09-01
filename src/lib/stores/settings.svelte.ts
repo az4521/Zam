@@ -619,6 +619,17 @@ export function setMinimizeToTrayOnClose(value: boolean): void {
     writeBool("minimizeToTrayOnClose", value);
 }
 
+/** Device-local: the app version whose "What's New" the user has already seen.
+ *  Bare key via readString/writeString — a per-device acknowledgement, never
+ *  synced (a new device gets its own first-run treatment). */
+export function getLastSeenVersion(): string | null {
+    return readString("lastSeenVersion");
+}
+
+export function setLastSeenVersion(version: string): void {
+    writeString("lastSeenVersion", version);
+}
+
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
