@@ -50,6 +50,15 @@
         settingsNavView({ isMobile: interfaceState.isMobile, selectedTab }),
     );
 
+    // Bumped on every settings-tab (re)selection. Reselecting the already-active
+    // tab is a $state no-op for `selectedTab`, so this monotonic counter is what
+    // signals a child panel (PluginsSettings) to reset its own sub-view state.
+    let pluginsNavTick = $state(0);
+    function selectTab(id: SettingsTab) {
+        selectedTab = id;
+        pluginsNavTick++;
+    }
+
     // Stable identity: it is the ownership token for the sub-page slot, so it
     // must NOT be recreated on every render. It resets local state ONLY — it
     // runs from inside the store's own close/supersede paths, so reaching back
@@ -171,7 +180,7 @@
                 {#each SETTINGS_TABS as tab, i (tab.id)}
                     <button
                         bind:this={categoryEls[i]}
-                        onclick={() => (selectedTab = tab.id)}
+                        onclick={() => selectTab(tab.id)}
                         class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
                     >
                         <span class="min-w-0 truncate">{tab.label}</span>
@@ -197,7 +206,7 @@
                     {#each SETTINGS_TABS as tab (tab.id)}
                         <button
                             bind:this={sidebarEls[tab.id]}
-                            onclick={() => (selectedTab = tab.id)}
+                            onclick={() => selectTab(tab.id)}
                             class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
                             class:bg-discord-messageHover={view.tab === tab.id}
                             class:text-discord-textPrimary={view.tab === tab.id}
@@ -257,7 +266,7 @@
     {:else if tab === "blocked"}
         <BlockedUsersSettings />
     {:else if tab === "plugins"}
-        <PluginsSettings />
+        <PluginsSettings navSignal={pluginsNavTick} />
     {:else if tab === "about"}
         <AboutSettings />
     {:else if tab === "debug"}
