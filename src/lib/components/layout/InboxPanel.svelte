@@ -62,7 +62,7 @@
 
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
     <div
-        class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
+        class="themed-topbar h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
     >
         {#if isMobile}
             <button

@@ -48,6 +48,18 @@ body {
     animation: message-highlight-fade 2s ease-out forwards;
 }
 
+/* Themed top app bar (R2): tint the in-app header/navbar with the ACTIVE accent
+   color so the chrome follows the theme instead of reading as flat gray. Applied
+   to the main content-panel headers (room / inbox / space-landing / call). The
+   tint composites over the panel background, so primary text stays readable.
+   Follows the theme live — --discord-accent-rgb is re-set on preset switch and on
+   an accent edit. Tune the alpha below (or drop the class from the headers to
+   revert to the plain background). For a bolder Material-style solid bar, raise the
+   alpha toward 1 and switch the header text/icons to white for contrast. */
+.themed-topbar {
+    background-color: rgb(var(--discord-accent-rgb) / 0.18);
+}
+
 :root {
     color-scheme: dark;
     /* ── Brand (blurple) ─────────────────────────────────
