@@ -16,6 +16,7 @@
     import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
     import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
+    import WhatsNewModal from "$lib/components/layout/WhatsNewModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
@@ -74,11 +75,14 @@
         reloadAccountSettings,
         setActiveSessionGraceMs,
         settingsState,
+        getLastSeenVersion,
+        setLastSeenVersion,
     } from "$lib/stores/settings.svelte";
     import {
         isDesktopUpdater,
         desktopSetAutoDownload,
     } from "$lib/desktopUpdater";
+    import { APP_VERSION } from "$lib/update";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
@@ -170,6 +174,7 @@
     } from "$lib/utils/notificationDismiss";
     import { decideNotificationRoute } from "$lib/utils/notificationRouting";
     import { parseDeepLinkHash } from "$lib/utils/deepLinkHash";
+    import { shouldShowWhatsNew } from "$lib/utils/changelog";
     import {
         registerNotificationSurface,
         clearAllNotificationSurfaces,
@@ -191,6 +196,14 @@
 
     // Room shown in the RoomSettings modal (covers both room and space settings).
     let settingsRoom = $state<Room | null>(null);
+
+    // One-time "What's New" popup on version change
+    let showWhatsNew = $state(false);
+
+    function dismissWhatsNew() {
+        showWhatsNew = false;
+        setLastSeenVersion(APP_VERSION);
+    }
 
     function openAppSettings() {
         openModal("app-settings", () => {});
@@ -1180,6 +1193,17 @@
     onMount(() => {
         reloadAccountSettings();
 
+        // One-time "What's New": pop up once on the first launch after the version
+        // changes. A first-ever launch (no recorded version) shows nothing and just
+        // records the current build. Runs once per shell mount; after dismiss the
+        // recorded version equals the current build so it never re-fires.
+        const lastSeenVersion = getLastSeenVersion();
+        if (shouldShowWhatsNew(lastSeenVersion, APP_VERSION)) {
+            showWhatsNew = true;
+        } else if (lastSeenVersion === null) {
+            setLastSeenVersion(APP_VERSION);
+        }
+
         // Sync store fell back to memory this session (audit SEC-M6): warn once
         // that offline history won't persist. The flag is reset per session in
         // createAuthenticatedClient, so this fires only on a real fallback.
@@ -2038,6 +2062,10 @@
 {/if}
 
 <VerificationModal />
+
+{#if showWhatsNew}
+    <WhatsNewModal onClose={dismissWhatsNew} />
+{/if}
 
 <ErrorToasts />
 <ScreenSharePicker />

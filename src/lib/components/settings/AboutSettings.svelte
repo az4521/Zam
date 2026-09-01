@@ -10,6 +10,7 @@
     } from "$lib/update";
     import { clearCacheAndReload } from "$lib/matrix/client";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import WhatsNew from "./WhatsNew.svelte";
     import {
         updateStatusView,
         type UpdateStatusInput,
@@ -386,6 +387,8 @@
             </p>
         {/if}
     {/if}
+
+    <WhatsNew />
 
     <section>
         <p

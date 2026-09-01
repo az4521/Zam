@@ -14,6 +14,7 @@ import {
     GITHUB_REPO,
     type ReleaseAsset,
 } from "$lib/utils/androidUpdate";
+import { normalizeRelease, type ChangelogRelease } from "$lib/utils/changelog";
 
 /** Current build version (from package.json via the Vite `define`). */
 export const APP_VERSION: string =
@@ -117,6 +118,91 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
             `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
         assets: parseReleaseAssets(data.assets),
     };
+}
+
+const RELEASES_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
+const CHANGELOG_CACHE_PREFIX = "whatsnew:";
+
+function changelogCacheGet(key: string): string | null {
+    try {
+        return localStorage.getItem(CHANGELOG_CACHE_PREFIX + key);
+    } catch {
+        return null;
+    }
+}
+
+function changelogCacheSet(key: string, value: string): void {
+    try {
+        localStorage.setItem(CHANGELOG_CACHE_PREFIX + key, value);
+    } catch {
+        // ignore (private mode / quota)
+    }
+}
+
+/**
+ * Recent releases (newest first) for the Settings "What's New" section. Caches
+ * the parsed list device-locally; on a network / rate-limit / API failure
+ * returns the cached copy if present, else rethrows so the caller shows the
+ * "unavailable" fallback.
+ */
+export async function fetchReleaseList(
+    perPage = 10,
+): Promise<ChangelogRelease[]> {
+    try {
+        const res = await fetch(`${RELEASES_API}?per_page=${perPage}`, {
+            headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+        const data = await res.json();
+        const list = Array.isArray(data)
+            ? data
+                  .map(normalizeRelease)
+                  .filter((r): r is ChangelogRelease => r !== null)
+            : [];
+        changelogCacheSet("list", JSON.stringify(list));
+        return list;
+    } catch (e) {
+        const cached = changelogCacheGet("list");
+        if (cached) {
+            try {
+                const list = JSON.parse(cached);
+                if (Array.isArray(list)) return list as ChangelogRelease[];
+            } catch {
+                // fall through to rethrow
+            }
+        }
+        throw e;
+    }
+}
+
+/**
+ * The markdown body of one version's release notes. Tries the exact tag
+ * `v{version}`, falls back to `/latest` on a 404 (an unreleased dev build).
+ * Caches by version; returns the cached body on a network failure, else
+ * rethrows so the caller shows the "unavailable" fallback.
+ */
+export async function fetchReleaseNotes(version: string): Promise<string> {
+    const key = `notes:${version}`;
+    try {
+        let res = await fetch(
+            `${RELEASES_API}/tags/v${encodeURIComponent(version)}`,
+            { headers: { Accept: "application/vnd.github+json" } },
+        );
+        if (res.status === 404) {
+            res = await fetch(`${RELEASES_API}/latest`, {
+                headers: { Accept: "application/vnd.github+json" },
+            });
+        }
+        if (!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+        const data = await res.json();
+        const body = typeof data.body === "string" ? data.body : "";
+        changelogCacheSet(key, body);
+        return body;
+    } catch (e) {
+        const cached = changelogCacheGet(key);
+        if (cached !== null) return cached;
+        throw e;
+    }
 }
 
 /** Open the release page so the user can download the new build. */
