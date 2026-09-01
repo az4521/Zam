@@ -82,6 +82,7 @@
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import { longPress } from "$lib/actions/longPress";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
 
@@ -148,25 +149,43 @@
     } | null>(null);
 
     function positionMenu(node: HTMLElement, pos: { x: number; y: number }) {
-        node.style.visibility = "hidden";
-        node.style.left = "0px";
-        node.style.top = "0px";
-        requestAnimationFrame(() => {
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const w = node.offsetWidth;
-            const h = node.offsetHeight;
-            let left = Math.min(pos.x, vw - w - 4);
-            if (left < 4) left = 4;
-            let top = pos.y;
-            if (top + h > vh - 4) top = pos.y - h;
-            if (top < 4) top = 4;
-            const maxH = vh - top - 4;
-            if (h > maxH) node.style.maxHeight = maxH + "px";
-            node.style.left = left + "px";
-            node.style.top = top + "px";
-            node.style.visibility = "";
-        });
+        let raf = 0;
+        // Re-run on `update` too: a context menu reopened on a NEW target while
+        // one is already open can reuse this same node (Svelte keeps the block),
+        // so mount-only positioning would strand the menu at the old target's
+        // coordinates. Reset maxHeight each time so a prior clamp doesn't leak.
+        function place(p: { x: number; y: number }) {
+            node.style.visibility = "hidden";
+            node.style.left = "0px";
+            node.style.top = "0px";
+            node.style.maxHeight = "";
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const w = node.offsetWidth;
+                const h = node.offsetHeight;
+                let left = Math.min(p.x, vw - w - 4);
+                if (left < 4) left = 4;
+                let top = p.y;
+                if (top + h > vh - 4) top = p.y - h;
+                if (top < 4) top = 4;
+                const maxH = vh - top - 4;
+                if (h > maxH) node.style.maxHeight = maxH + "px";
+                node.style.left = left + "px";
+                node.style.top = top + "px";
+                node.style.visibility = "";
+            });
+        }
+        place(pos);
+        return {
+            update(next: { x: number; y: number }) {
+                place(next);
+            },
+            destroy() {
+                cancelAnimationFrame(raf);
+            },
+        };
     }
 
     function openContextMenu(
@@ -1429,12 +1448,14 @@
     {#if contextMenu}
         {@const cm = contextMenu}
         {@const currentSetting = getRoomNotificationSetting(cm.roomId)}
-        <button
-            type="button"
-            aria-label="Close menu"
-            class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
-            onclick={closeModal}
-        ></button>
+        {#if cm.touch}
+            <button
+                type="button"
+                aria-label="Close menu"
+                class="fixed inset-0 z-50 bg-black/40"
+                onclick={closeModal}
+            ></button>
+        {/if}
 
         {#snippet menuItems()}
             <button
@@ -1551,6 +1572,7 @@
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}
                 use:focusTrap={{ onEscape: closeModal }}
+                use:dismissOnOutsidePointer={{ onDismiss: closeModal }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-52 overflow-y-auto"
             >
                 {@render menuItems()}
