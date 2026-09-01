@@ -10,16 +10,22 @@
         PhoneOff,
         Phone,
         Volume2,
+        VolumeX,
         Video,
         VideoOff,
         MonitorUp,
         EllipsisVertical,
+        Smartphone,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
+    import {
+        deviceCountByUser,
+        callTileStatus,
+    } from "$lib/utils/callTileStatus";
     import {
         getRoomCallMemberships,
         getRoomDisplayName,
@@ -38,6 +44,7 @@
         toggleScreenShare,
         focusTile,
         clearFocus,
+        participantAudioFor,
     } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
@@ -64,10 +71,13 @@
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
-    const participants = $derived(
-        (void voiceCallState.voiceTick,
-        dedupeParticipants(getRoomCallMemberships(room))),
+    // Pre-dedupe roster: dedupeParticipants collapses a user's devices to one
+    // tile; deviceCountByUser reads the raw list so we can badge multi-device.
+    const rawCallMemberships = $derived(
+        (void voiceCallState.voiceTick, getRoomCallMemberships(room)),
     );
+    const participants = $derived(dedupeParticipants(rawCallMemberships));
+    const deviceCounts = $derived(deviceCountByUser(rawCallMemberships));
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
     const speaking = $derived(voiceCallState.speakingUserIds);
     // Contract: a user absent from this set is unmuted, never "unknown".
@@ -487,6 +497,15 @@
                     {@const avatar =
                         (void roomsState.roomsTick,
                         getMemberAvatar(room, p.userId))}
+                    {@const status = callTileStatus({
+                        isOwn: isLocalIdentity(identity),
+                        remoteMuted: muted.has(p.userId),
+                        speaking: speaking.has(p.userId),
+                        locallyMuted: participantAudioFor(p.userId).muted,
+                        selfMicMuted: voiceCallState.micMuted,
+                        selfDeafened: voiceCallState.deafened,
+                        deviceCount: deviceCounts.get(p.userId) ?? 1,
+                    })}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
@@ -529,14 +548,38 @@
                                     spotlightTile(cam.key);
                                 }}
                             ></button>
-                            {#if muted.has(p.userId) && !speaking.has(p.userId)}
+                            {#if status.micOff || status.deafened || status.locallyMuted || status.multiDevice}
                                 <div
-                                    class="absolute top-2 left-2 flex items-center px-1.5 py-0.5 rounded bg-black/60"
+                                    class="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60"
                                 >
-                                    <MicOff
-                                        size={14}
-                                        class="text-discord-danger flex-shrink-0"
-                                    />
+                                    {#if status.micOff}
+                                        <MicOff
+                                            size={14}
+                                            class="text-discord-danger flex-shrink-0"
+                                        />
+                                    {/if}
+                                    {#if status.deafened}
+                                        <HeadphoneOff
+                                            size={14}
+                                            class="text-discord-danger flex-shrink-0"
+                                        />
+                                    {/if}
+                                    {#if status.locallyMuted}
+                                        <VolumeX
+                                            size={14}
+                                            class="text-discord-textMuted flex-shrink-0"
+                                        />
+                                    {/if}
+                                    {#if status.multiDevice}
+                                        <span
+                                            class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
+                                            title="Joined from multiple devices"
+                                        >
+                                            <Smartphone
+                                                size={12}
+                                            />{deviceCounts.get(p.userId) ?? 1}
+                                        </span>
+                                    {/if}
                                 </div>
                             {/if}
                         {:else}
@@ -549,11 +592,33 @@
                             <div
                                 class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
                             >
-                                {#if muted.has(p.userId) && !speaking.has(p.userId)}
+                                {#if status.micOff}
                                     <MicOff
                                         size={14}
                                         class="text-discord-danger flex-shrink-0"
                                     />
+                                {/if}
+                                {#if status.deafened}
+                                    <HeadphoneOff
+                                        size={14}
+                                        class="text-discord-danger flex-shrink-0"
+                                    />
+                                {/if}
+                                {#if status.locallyMuted}
+                                    <VolumeX
+                                        size={14}
+                                        class="text-discord-textMuted flex-shrink-0"
+                                    />
+                                {/if}
+                                {#if status.multiDevice}
+                                    <span
+                                        class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
+                                        title="Joined from multiple devices"
+                                    >
+                                        <Smartphone
+                                            size={12}
+                                        />{deviceCounts.get(p.userId) ?? 1}
+                                    </span>
                                 {/if}
                                 <span class="text-xs text-white truncate"
                                     >{name}</span
