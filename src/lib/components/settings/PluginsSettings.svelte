@@ -55,6 +55,8 @@
     } from "$lib/stores/interface.svelte";
     import { untrack } from "svelte";
 
+    let { navSignal = 0 }: { navSignal?: number } = $props();
+
     // Installed list — reactively sorted, re-renders on tick
     const installedList = $derived(
         (void pluginRegistry.tick,
@@ -107,6 +109,19 @@
         pullSummary = null;
         pullPayload = null;
     }
+
+    // Reselecting the "Plugins" tab (or navigating to it) bumps `navSignal` in
+    // AppSettings. Without a remount, re-assigning the already-active tab is a
+    // no-op, so a plugin's settings form / the sync sub-view would stay open.
+    // Snap back to the manager list whenever the signal changes. This reads ONLY
+    // `navSignal`; its writes (settingsForPluginId, syncView, pull*) don't feed
+    // back into navSignal, so it cannot self-retrigger. On the initial mount the
+    // list is already showing, so the reset is a harmless no-op.
+    $effect(() => {
+        void navSignal;
+        closeSettingsForm();
+        closeSync();
+    });
 
     async function doPush() {
         syncBusy = true;
