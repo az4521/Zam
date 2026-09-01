@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+    CALL_MEMBER_EVENT_TYPES,
     CREATOR_POWER_LEVEL,
     coercePl,
+    effectiveCallJoinLevel,
     effectivePowerLevel,
+    mergeCallJoinLevel,
     normalizePowerLevels,
     parsePowerLevelInput,
     roomVersionHasImmutableCreators,
@@ -295,5 +298,71 @@ describe("validatePowerLevelsContent", () => {
         expect(
             validatePowerLevelsContent({ events: { "m.room.name": null } }),
         ).toContain("events");
+    });
+});
+
+describe("CALL_MEMBER_EVENT_TYPES", () => {
+    it("lists the three call-member state-event types", () => {
+        expect([...CALL_MEMBER_EVENT_TYPES]).toEqual([
+            "org.matrix.msc3401.call.member",
+            "m.call.member",
+            "m.rtc.member",
+        ]);
+    });
+});
+
+describe("effectiveCallJoinLevel", () => {
+    it("falls back to state_default when no call-member type is present", () => {
+        expect(effectiveCallJoinLevel({ events: {}, state_default: 50 })).toBe(
+            50,
+        );
+    });
+    it("returns the min across present types, defaulting absent ones to state_default", () => {
+        expect(
+            effectiveCallJoinLevel({
+                events: { "m.rtc.member": 0 },
+                state_default: 50,
+            }),
+        ).toBe(0);
+    });
+    it("takes the lowest requirement when a present type is high but another defaults low", () => {
+        expect(
+            effectiveCallJoinLevel({
+                events: { "m.call.member": 100 },
+                state_default: 0,
+            }),
+        ).toBe(0);
+    });
+    it("returns the shared value when all three are equal", () => {
+        expect(
+            effectiveCallJoinLevel({
+                events: {
+                    "org.matrix.msc3401.call.member": 25,
+                    "m.call.member": 25,
+                    "m.rtc.member": 25,
+                },
+                state_default: 50,
+            }),
+        ).toBe(25);
+    });
+});
+
+describe("mergeCallJoinLevel", () => {
+    it("sets all three call-member types to the given level", () => {
+        expect(mergeCallJoinLevel({}, 0)).toEqual({
+            "org.matrix.msc3401.call.member": 0,
+            "m.call.member": 0,
+            "m.rtc.member": 0,
+        });
+    });
+    it("preserves other event-type levels already in the map", () => {
+        const out = mergeCallJoinLevel({ "m.room.name": 50 }, 30);
+        expect(out["m.room.name"]).toBe(50);
+        expect(out["m.call.member"]).toBe(30);
+    });
+    it("does not mutate the input object", () => {
+        const input = { "m.room.name": 50 };
+        mergeCallJoinLevel(input, 10);
+        expect(input).toEqual({ "m.room.name": 50 });
     });
 });
