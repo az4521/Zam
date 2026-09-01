@@ -43,6 +43,7 @@
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { mapWithConcurrency } from "$lib/utils/async";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
 
@@ -1545,12 +1546,14 @@
 
     {#if contextMenu}
         {@const cm = contextMenu}
-        <button
-            type="button"
-            aria-label="Close menu"
-            class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
-            onclick={closeModal}
-        ></button>
+        {#if cm.touch}
+            <button
+                type="button"
+                aria-label="Close menu"
+                class="fixed inset-0 z-50 bg-black/40"
+                onclick={closeModal}
+            ></button>
+        {/if}
         {#snippet menuContent()}
             {#if cm.kind === "space"}
                 <button
@@ -1667,6 +1670,7 @@
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}
                 use:focusTrap={{ onEscape: closeModal }}
+                use:dismissOnOutsidePointer={{ onDismiss: closeModal }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 overflow-y-auto"
             >
                 {@render menuContent()}

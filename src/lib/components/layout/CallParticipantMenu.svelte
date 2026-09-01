@@ -38,6 +38,7 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { Circle } from "lucide-svelte";
 
     interface Props {
@@ -285,12 +286,14 @@
 {/snippet}
 
 <Portal>
-    <button
-        type="button"
-        aria-label="Close menu"
-        class="fixed inset-0 z-50 {touch ? 'bg-black/40' : ''}"
-        onclick={onClose}
-    ></button>
+    {#if touch}
+        <button
+            type="button"
+            aria-label="Close menu"
+            class="fixed inset-0 z-50 bg-black/40"
+            onclick={onClose}
+        ></button>
+    {/if}
 
     {#if touch}
         <BottomSheet {onClose}>
@@ -300,6 +303,7 @@
         <div
             use:positionMenu={{ x, y }}
             use:focusTrap={{ onEscape: onClose }}
+            use:dismissOnOutsidePointer={{ onDismiss: onClose }}
             class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-56 overflow-y-auto"
         >
             {@render menuItems()}

@@ -82,6 +82,7 @@
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import { longPress } from "$lib/actions/longPress";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
 
@@ -1429,12 +1430,14 @@
     {#if contextMenu}
         {@const cm = contextMenu}
         {@const currentSetting = getRoomNotificationSetting(cm.roomId)}
-        <button
-            type="button"
-            aria-label="Close menu"
-            class="fixed inset-0 z-50 {cm.touch ? 'bg-black/40' : ''}"
-            onclick={closeModal}
-        ></button>
+        {#if cm.touch}
+            <button
+                type="button"
+                aria-label="Close menu"
+                class="fixed inset-0 z-50 bg-black/40"
+                onclick={closeModal}
+            ></button>
+        {/if}
 
         {#snippet menuItems()}
             <button
@@ -1551,6 +1554,7 @@
             <div
                 use:positionMenu={{ x: cm.x, y: cm.y }}
                 use:focusTrap={{ onEscape: closeModal }}
+                use:dismissOnOutsidePointer={{ onDismiss: closeModal }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-52 overflow-y-auto"
             >
                 {@render menuItems()}
