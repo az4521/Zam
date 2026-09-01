@@ -69,6 +69,10 @@
         type CanonicalAliasContent,
     } from "$lib/utils/roomAliases";
     import { parseMutePowerLevelInput } from "$lib/utils/mutePowerLevel";
+    import {
+        effectiveCallJoinLevel,
+        mergeCallJoinLevel,
+    } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
     import {
         parseServerAcl,
@@ -706,6 +710,18 @@
     let plEventsDefault = $state(untrack(() => pl.events_default));
     let plStateDefault = $state(untrack(() => pl.state_default));
     let plUsersDefault = $state(untrack(() => pl.users_default));
+    // "Power to join voice/video calls" is not a top-level PL field — it lives in
+    // the `events` map (the three call-member state-event types). The effective
+    // level is the min the user must clear to send ANY of them (absent types fall
+    // back to state_default). On save we merge all three back into the events map.
+    let plCallJoin = $state(
+        untrack(() =>
+            effectiveCallJoinLevel({
+                events: pl.events,
+                state_default: pl.state_default,
+            }),
+        ),
+    );
     // Frozen snapshot of the levels the editor was seeded with, so a Save can
     // tell whether the user actually changed anything. Without this guard,
     // saving in a room that has NO m.room.power_levels event would materialize a
@@ -718,6 +734,10 @@
         events_default: pl.events_default,
         state_default: pl.state_default,
         users_default: pl.users_default,
+        callJoin: effectiveCallJoinLevel({
+            events: pl.events,
+            state_default: pl.state_default,
+        }),
     }));
     let permSaving = $state(false);
     let permError = $state("");
@@ -727,6 +747,7 @@
         permError = "";
         // No-op save guard: if nothing changed, don't write a PL event (which,
         // in a room with none, would create one from the defaults).
+        const callJoinChanged = plCallJoin !== permInitial.callJoin;
         const changed =
             plBan !== permInitial.ban ||
             plKick !== permInitial.kick ||
@@ -734,7 +755,8 @@
             plInvite !== permInitial.invite ||
             plEventsDefault !== permInitial.events_default ||
             plStateDefault !== permInitial.state_default ||
-            plUsersDefault !== permInitial.users_default;
+            plUsersDefault !== permInitial.users_default ||
+            callJoinChanged;
         if (!changed) {
             permSuccess = true;
             setTimeout(() => (permSuccess = false), 2000);
@@ -742,7 +764,7 @@
         }
         permSaving = true;
         try {
-            await setRoomPowerLevels(room, {
+            const updated: Parameters<typeof setRoomPowerLevels>[1] = {
                 ban: plBan,
                 kick: plKick,
                 redact: plRedact,
@@ -750,7 +772,17 @@
                 events_default: plEventsDefault,
                 state_default: plStateDefault,
                 users_default: plUsersDefault,
-            });
+            };
+            // Only touch the events map when the call-join level actually
+            // changed, so a normal permissions save never materializes the three
+            // call-member types into a room that inherited state_default. Merge
+            // into the LIVE events map (pl is roomsTick-derived) to preserve every
+            // other event-type override — setRoomPowerLevels replaces `events`
+            // wholesale, so we must pass the full merged object, not a partial.
+            if (callJoinChanged) {
+                updated.events = mergeCallJoinLevel(pl.events, plCallJoin);
+            }
+            await setRoomPowerLevels(room, updated);
             permSuccess = true;
             setTimeout(() => (permSuccess = false), 2000);
         } catch (e: any) {
@@ -1879,6 +1911,36 @@
                                     </div>
                                 </div>
                             {/each}
+
+                            <!-- Call-join lives in the events map (3 call-member
+                            types), not a top-level PL field, so it sits outside
+                            the scalar loop above and binds to plCallJoin. -->
+                            <div
+                                class="flex items-center justify-between gap-4"
+                            >
+                                <span class="text-sm text-discord-textPrimary"
+                                    >Join calls (voice/video)</span
+                                >
+                                <div class="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={plCallJoin}
+                                        oninput={(e) =>
+                                            (plCallJoin = Number(
+                                                (e.target as HTMLInputElement)
+                                                    .value,
+                                            ))}
+                                        disabled={!canEditState}
+                                        class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
+                                    />
+                                    <span
+                                        class="text-xs text-discord-textMuted w-16"
+                                        >{plLabel(plCallJoin)}</span
+                                    >
+                                </div>
+                            </div>
 
                             {#if permError}<p
                                     class="text-sm text-discord-danger"
