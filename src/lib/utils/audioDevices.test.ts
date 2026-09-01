@@ -4,6 +4,7 @@ import {
     resolveDeviceId,
     outputPickerMode,
     buildDeviceConstraint,
+    isOverconstrainedError,
 } from "./audioDevices";
 
 const dev = (deviceId: string, kind: string, label = "") => ({
@@ -114,5 +115,23 @@ describe("buildDeviceConstraint", () => {
     });
     it("returns undefined for an absent id", () => {
         expect(buildDeviceConstraint(undefined)).toBeUndefined();
+    });
+});
+
+describe("isOverconstrainedError", () => {
+    it("true for a getUserMedia OverconstrainedError (device vanished)", () => {
+        const e = new Error("device gone");
+        e.name = "OverconstrainedError";
+        expect(isOverconstrainedError(e)).toBe(true);
+    });
+    it("false for a permission denial (NotAllowedError)", () => {
+        const e = new Error("denied");
+        e.name = "NotAllowedError";
+        expect(isOverconstrainedError(e)).toBe(false);
+    });
+    it("false for non-error values", () => {
+        expect(isOverconstrainedError(null)).toBe(false);
+        expect(isOverconstrainedError(undefined)).toBe(false);
+        expect(isOverconstrainedError("OverconstrainedError")).toBe(false);
     });
 });

@@ -69,6 +69,21 @@ export function buildDeviceConstraint(
     return deviceId ? { exact: deviceId } : undefined;
 }
 
+/**
+ * True when a getUserMedia rejection is an OverconstrainedError — the browser
+ * signalling that an `exact` deviceId could not be satisfied (the chosen device
+ * vanished mid-session). Callers use this to retry once with the default device
+ * rather than surfacing a misleading "permission" error. Any other rejection
+ * (NotAllowedError, NotReadableError…) is NOT overconstrained and propagates.
+ */
+export function isOverconstrainedError(e: unknown): boolean {
+    return (
+        typeof e === "object" &&
+        e !== null &&
+        (e as { name?: string }).name === "OverconstrainedError"
+    );
+}
+
 export type OutputPickerMode = "picker" | "browser-prompt" | "hidden";
 
 /** Platform gate for the output-device picker (see spec's setSinkId matrix). */
