@@ -103,7 +103,7 @@ describe("startMicMeter", () => {
         expect(cancelAnimationFrame).toHaveBeenCalled();
     });
 
-    it("asks for the requested device as an ideal constraint", async () => {
+    it("asks for the requested device as an exact constraint", async () => {
         const stream = fakeStream();
         stubDevices(stream);
         stubAudioContext();
@@ -114,13 +114,66 @@ describe("startMicMeter", () => {
 
         await startMicMeter({ ...OPTS, deviceId: "mic-2" });
 
+        // `exact`, not `ideal`: `ideal` is a soft hint the browser ignores, so
+        // the meter used to watch the default mic regardless of the selection.
         expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
             audio: {
                 noiseSuppression: true,
                 echoCancellation: true,
                 autoGainControl: true,
-                deviceId: { ideal: "mic-2" },
+                deviceId: { exact: "mic-2" },
             },
         });
+    });
+
+    it("retries on the default mic when the chosen device is overconstrained", async () => {
+        const stream = fakeStream();
+        const overconstrained = Object.assign(new Error("gone"), {
+            name: "OverconstrainedError",
+        });
+        const getUserMedia = vi
+            .fn()
+            .mockRejectedValueOnce(overconstrained)
+            .mockResolvedValueOnce(stream);
+        vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+        stubAudioContext();
+        vi.stubGlobal(
+            "requestAnimationFrame",
+            vi.fn(() => 1),
+        );
+
+        await startMicMeter({ ...OPTS, deviceId: "gone-mic" });
+
+        expect(getUserMedia).toHaveBeenCalledTimes(2);
+        // First tried the exact device, then fell back with NO deviceId.
+        expect(getUserMedia).toHaveBeenNthCalledWith(1, {
+            audio: {
+                noiseSuppression: true,
+                echoCancellation: true,
+                autoGainControl: true,
+                deviceId: { exact: "gone-mic" },
+            },
+        });
+        expect(getUserMedia).toHaveBeenNthCalledWith(2, {
+            audio: {
+                noiseSuppression: true,
+                echoCancellation: true,
+                autoGainControl: true,
+            },
+        });
+    });
+
+    it("does NOT retry a non-overconstrained rejection", async () => {
+        const denied = Object.assign(new Error("denied"), {
+            name: "NotAllowedError",
+        });
+        const getUserMedia = vi.fn().mockRejectedValue(denied);
+        vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+        stubAudioContext();
+
+        await expect(
+            startMicMeter({ ...OPTS, deviceId: "mic-2" }),
+        ).rejects.toThrow("denied");
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
 });

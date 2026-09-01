@@ -23,6 +23,8 @@
         toDeviceOptions,
         resolveDeviceId,
         outputPickerMode,
+        buildDeviceConstraint,
+        isOverconstrainedError,
         type DeviceOption,
     } from "$lib/utils/audioDevices";
     import {
@@ -200,14 +202,25 @@
         cameraError = null;
         let granted: MediaStream;
         try {
-            const constraints: MediaTrackConstraints = {};
-            if (settingsState.videoInputDeviceId)
-                constraints.deviceId = {
-                    ideal: settingsState.videoInputDeviceId,
-                };
-            granted = await navigator.mediaDevices.getUserMedia({
-                video: constraints,
-            });
+            // `exact` (not `ideal`) so the browser honors the chosen camera;
+            // `ideal` was ignored, so selecting a camera never switched the
+            // preview off the default device.
+            const wanted = buildDeviceConstraint(
+                settingsState.videoInputDeviceId,
+            );
+            try {
+                granted = await navigator.mediaDevices.getUserMedia({
+                    video: wanted ? { deviceId: wanted } : {},
+                });
+            } catch (e) {
+                // Chosen camera vanished → retry once on the default so the
+                // preview falls back instead of dying; other errors (permission
+                // denied) rethrow to the handler below.
+                if (!wanted || !isOverconstrainedError(e)) throw e;
+                granted = await navigator.mediaDevices.getUserMedia({
+                    video: {},
+                });
+            }
         } catch {
             if (isCaptureCurrent(cameraCapture, ticket))
                 cameraError = "Camera unavailable - check browser permissions";
