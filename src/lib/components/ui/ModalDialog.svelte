@@ -1,6 +1,8 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
+    import { fade, scale } from "svelte/transition";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { motionOK } from "$lib/utils/motionPreference";
 
     interface Props {
         /** Dismiss the dialog. Wired to the backdrop and (by default) Escape. */
@@ -103,6 +105,7 @@
     <button
         type="button"
         aria-label={closeLabel}
+        transition:fade={{ duration: motionOK() ? 150 : 0 }}
         class="absolute inset-0 -z-10 {backdropClass}"
         onclick={onClose}
     ></button>
@@ -120,6 +123,11 @@
         aria-labelledby={labelledBy}
         aria-label={label}
         tabindex="-1"
+        transition:scale={{
+            start: 0.96,
+            opacity: 0,
+            duration: motionOK() ? 150 : 0,
+        }}
         class="z-10 {panelClass}"
         onkeydown={onKeydown}
         use:focusTrap={handlesEscape ? { onEscape: onClose } : {}}
