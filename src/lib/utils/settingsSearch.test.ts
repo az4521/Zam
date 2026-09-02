@@ -4,12 +4,13 @@ import {
     SETTINGS_SEARCH_INDEX,
     type SettingsSearchEntry,
 } from "./settingsSearch";
+import { SETTINGS_TABS } from "./settingsNav";
 
 const FIXTURE: readonly SettingsSearchEntry[] = [
     { tab: "voice", label: "Noise suppression", keywords: ["denoise"] },
     { tab: "voice", label: "Input device", keywords: ["microphone", "mic"] },
-    { tab: "customization", label: "Reduce motion", keywords: ["animations"] },
-    { tab: "theme", label: "Text size", keywords: ["font size"] },
+    { tab: "appearance", label: "Reduce motion", keywords: ["animations"] },
+    { tab: "appearance", label: "Text size", keywords: ["font size"] },
 ];
 
 describe("searchSettings", () => {
@@ -77,13 +78,20 @@ describe("searchSettings", () => {
 
     it("defaults to the real index and finds a known setting", () => {
         const r = searchSettings("reduce motion");
-        expect(r.some((e) => e.tab === "customization")).toBe(true);
+        expect(r.some((e) => e.tab === "appearance")).toBe(true);
     });
 
     it("every real index entry has a non-empty label and a valid tab", () => {
         for (const e of SETTINGS_SEARCH_INDEX) {
             expect(e.label.trim().length).toBeGreaterThan(0);
             expect(typeof e.tab).toBe("string");
+        }
+    });
+
+    it("every real index entry's tab is a valid SettingsTab", () => {
+        const validTabs = new Set(SETTINGS_TABS.map((t) => t.id));
+        for (const e of SETTINGS_SEARCH_INDEX) {
+            expect(validTabs.has(e.tab)).toBe(true);
         }
     });
 });

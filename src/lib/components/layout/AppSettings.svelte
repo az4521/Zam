@@ -1,9 +1,11 @@
 <script lang="ts">
-    import CustomizationSettings from "$lib/components/settings/CustomizationSettings.svelte";
-    import ThemeColorEditor from "$lib/components/settings/ThemeColorEditor.svelte";
+    import AppearanceSettings from "$lib/components/settings/AppearanceSettings.svelte";
+    import MessagesMediaSettings from "$lib/components/settings/MessagesMediaSettings.svelte";
+    import GeneralSettings from "$lib/components/settings/GeneralSettings.svelte";
+    import PrivacySafetySettings from "$lib/components/settings/PrivacySafetySettings.svelte";
+    import PushDiagnostics from "$lib/components/settings/PushDiagnostics.svelte";
     import NotificationSettings from "$lib/components/settings/NotificationSettings.svelte";
     import ServerSettings from "$lib/components/settings/ServerSettings.svelte";
-    import BlockedUsersSettings from "$lib/components/settings/BlockedUsersSettings.svelte";
     import AboutSettings from "$lib/components/settings/AboutSettings.svelte";
     import DebugSettings from "$lib/components/settings/DebugSettings.svelte";
     import SessionSettings from "$lib/components/settings/SessionSettings.svelte";
@@ -12,7 +14,6 @@
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
-    import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { tick, untrack } from "svelte";
     import {
@@ -21,11 +22,8 @@
         clearSubPageIfOwner,
     } from "$lib/stores/interface.svelte";
     import {
-        settingsState,
-        setRightAlignOwnBubbles,
-    } from "$lib/stores/settings.svelte";
-    import {
         SETTINGS_TABS,
+        SETTINGS_GROUPS,
         settingsTabLabel,
         settingsNavView,
         type SettingsTab,
@@ -123,7 +121,7 @@
     // whole point.
     // svelte-ignore non_reactive_update
     let backButtonEl: HTMLButtonElement | null = null;
-    let categoryEls: HTMLButtonElement[] = [];
+    let categoryEls: Record<string, HTMLButtonElement | null> = {};
     let sidebarEls: Record<string, HTMLButtonElement | null> = {};
     let dialogEl: HTMLDivElement | null = null;
     let lastMode: string | null = null;
@@ -148,7 +146,7 @@
         // After the DOM is patched — `bind:this` has not necessarily landed yet.
         void tick().then(() => {
             if (mode === "detail") backButtonEl?.focus();
-            else if (mode === "list") categoryEls[0]?.focus();
+            else if (mode === "list") categoryEls[SETTINGS_TABS[0].id]?.focus();
             else if (tab) sidebarEls[tab]?.focus();
         });
     });
@@ -257,19 +255,26 @@
         {:else if view.mode === "list"}
             <!-- Mobile root: drill-down category list. -->
             <nav class="flex-1 overflow-y-auto py-2">
-                {#each SETTINGS_TABS as tab, i (tab.id)}
-                    <button
-                        bind:this={categoryEls[i]}
-                        onclick={() => selectTab(tab.id)}
-                        class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
+                {#each SETTINGS_GROUPS as group (group.title)}
+                    <div
+                        class="px-6 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                     >
-                        <span class="min-w-0 truncate">{tab.label}</span>
-                        <ChevronRight
-                            size={20}
-                            aria-hidden="true"
-                            class="flex-shrink-0 text-discord-textMuted"
-                        />
-                    </button>
+                        {group.title}
+                    </div>
+                    {#each group.tabs as tab (tab.id)}
+                        <button
+                            bind:this={categoryEls[tab.id]}
+                            onclick={() => selectTab(tab.id)}
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
+                        >
+                            <span class="min-w-0 truncate">{tab.label}</span>
+                            <ChevronRight
+                                size={20}
+                                aria-hidden="true"
+                                class="flex-shrink-0 text-discord-textMuted"
+                            />
+                        </button>
+                    {/each}
                 {/each}
             </nav>
         {:else if view.mode === "detail"}
@@ -283,16 +288,25 @@
                 <nav
                     class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
                 >
-                    {#each SETTINGS_TABS as tab (tab.id)}
-                        <button
-                            bind:this={sidebarEls[tab.id]}
-                            onclick={() => selectTab(tab.id)}
-                            class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
-                            class:bg-discord-messageHover={view.tab === tab.id}
-                            class:text-discord-textPrimary={view.tab === tab.id}
-                            class:text-discord-textMuted={view.tab !== tab.id}
-                            >{tab.label}</button
+                    {#each SETTINGS_GROUPS as group (group.title)}
+                        <div
+                            class="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                         >
+                            {group.title}
+                        </div>
+                        {#each group.tabs as tab (tab.id)}
+                            <button
+                                bind:this={sidebarEls[tab.id]}
+                                onclick={() => selectTab(tab.id)}
+                                class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
+                                class:bg-discord-messageHover={view.tab ===
+                                    tab.id}
+                                class:text-discord-textPrimary={view.tab ===
+                                    tab.id}
+                                class:text-discord-textMuted={view.tab !==
+                                    tab.id}>{tab.label}</button
+                            >
+                        {/each}
                     {/each}
                 </nav>
 
@@ -307,50 +321,35 @@
 {#snippet panel(tab: SettingsTab)}
     {#if tab === "account"}
         <AccountSettings {onLogout} />
-    {:else if tab === "sessions"}
-        <SessionSettings />
     {:else if tab === "security"}
-        <SecuritySettings />
-    {:else if tab === "theme"}
-        <div class="space-y-6">
-            <div
-                data-setting-anchor="theme-rightalign"
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
-            >
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
-                        Right-align my messages (bubble layout)
-                    </p>
-                    <p class="text-xs text-discord-textMuted">
-                        Display your own messages on the right in a colored
-                        bubble
-                    </p>
-                </div>
-                <ToggleSwitch
-                    checked={settingsState.rightAlignOwnBubbles}
-                    onChange={setRightAlignOwnBubbles}
-                    label="Right-align my messages (bubble layout)"
-                />
-            </div>
-            <ThemeColorEditor />
+        <div class="space-y-8">
+            <SecuritySettings />
+            <SessionSettings />
         </div>
-    {:else if tab === "customization"}
-        <CustomizationSettings />
-    {:else if tab === "emotes"}
-        <CustomPackSettings kind="emotes" />
+    {:else if tab === "privacy"}
+        <PrivacySafetySettings />
+    {:else if tab === "appearance"}
+        <AppearanceSettings />
+    {:else if tab === "messages-media"}
+        <MessagesMediaSettings />
     {:else if tab === "notifications"}
         <NotificationSettings />
     {:else if tab === "voice"}
         <VoiceAudioSettings />
-    {:else if tab === "server"}
-        <ServerSettings />
-    {:else if tab === "blocked"}
-        <BlockedUsersSettings />
+    {:else if tab === "emotes"}
+        <CustomPackSettings kind="emotes" />
+    {:else if tab === "general"}
+        <GeneralSettings />
     {:else if tab === "plugins"}
         <PluginsSettings navSignal={pluginsNavTick} />
+    {:else if tab === "server"}
+        <ServerSettings />
     {:else if tab === "about"}
         <AboutSettings />
     {:else if tab === "debug"}
-        <DebugSettings />
+        <div class="space-y-6">
+            <DebugSettings />
+            <PushDiagnostics />
+        </div>
     {/if}
 {/snippet}
