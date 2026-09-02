@@ -275,6 +275,8 @@
                 {event}
                 {room}
                 showHeader={shouldShowHeader(messages, i)}
+                timelineEvents={messages}
+                timelineIndex={i}
                 onReply={() => {}}
                 jumpToReply={() => {}}
             />
