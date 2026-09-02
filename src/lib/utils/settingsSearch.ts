@@ -184,12 +184,6 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["system tray", "background", "desktop"],
         anchor: "cust-behavior",
     },
-    {
-        tab: "customization",
-        label: "Room order",
-        keywords: ["reorder", "sort rooms", "favorites"],
-        anchor: "cust-roomorder",
-    },
     // emotes
     {
         tab: "emotes",
