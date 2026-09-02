@@ -50,7 +50,11 @@
         clearFocus,
         participantAudioFor,
     } from "$lib/stores/voiceCall.svelte";
-    import { dedupeParticipants, callControlMode } from "$lib/utils/voiceCall";
+    import {
+        dedupeParticipants,
+        callControlMode,
+        isRecentlyLeftHere,
+    } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import {
         showChatView,
@@ -110,6 +114,11 @@
             inThisCall,
             participantUserIds: participants.map((p) => p.userId),
             selfUserId: auth.userId,
+            recentlyLeftHere: isRecentlyLeftHere(
+                voiceCallState.lastLeftCall,
+                room.roomId,
+                Date.now(),
+            ),
         }),
     );
     const speaking = $derived(voiceCallState.speakingUserIds);

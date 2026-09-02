@@ -35,6 +35,7 @@ import {
     usersFromIdentities,
     type MuteState,
     type VoiceConnState,
+    type LastLeftCall,
 } from "$lib/utils/voiceCall";
 import {
     diffPeerSounds,
@@ -91,6 +92,10 @@ class VoiceCallState {
     /** When the current call first connected — held across reconnects so a
      *  blip doesn't reset the timer. Null when not in a call. */
     connectedAt = $state<number | null>(null);
+    /** Set when THIS device leaves/tears down a room's call; read by the call
+     *  surfaces to suppress the solo-leave "Join" flicker for a short window
+     *  (isRecentlyLeftHere). Per-room. Cleared on connect. */
+    lastLeftCall = $state<LastLeftCall | null>(null);
     /** Renderable video tiles for the current call (remote + local). */
     videoTiles = $state<VideoTileDescriptor[]>([]);
     /** Whether WE are currently publishing a screen share / camera. Derived
@@ -142,6 +147,7 @@ export function initVoiceCall(): () => void {
         peerIds = ids;
     });
     const unsubConn = onVoiceConnStateChanged((state, roomId) => {
+        const prevRoomId = voiceCallState.roomId;
         const { sound, state: nextState } = nextSelfSound(state, selfSound);
         selfSound = nextState;
         if (sound) playCallSound(sound);
@@ -153,6 +159,7 @@ export function initVoiceCall(): () => void {
             // here as reconnecting → connected without passing through null.
             if (voiceCallState.connectedAt === null)
                 voiceCallState.connectedAt = Date.now();
+            voiceCallState.lastLeftCall = null;
         }
         voiceCallState.connState = state;
         voiceCallState.roomId = state === null ? null : roomId;
@@ -169,6 +176,11 @@ export function initVoiceCall(): () => void {
             voiceCallState.screenSharing = false;
             voiceCallState.cameraOn = false;
             voiceCallState.focusedTileKey = null;
+            if (prevRoomId)
+                voiceCallState.lastLeftCall = {
+                    roomId: prevRoomId,
+                    ts: Date.now(),
+                };
         }
         voiceCallState.voiceTick++;
     });
