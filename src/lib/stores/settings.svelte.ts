@@ -52,7 +52,7 @@ import {
 import {
     resolveMessageFontSize,
     resolveMessageFont,
-    applyMessageFontSize,
+    applyAppTextScale,
     applyMessageFont,
     type MessageFontKey,
 } from "$lib/utils/messageDisplay";
@@ -234,9 +234,7 @@ export const settingsState = $state({
      *  Deliberately device-local (readBool/writeBool, no customization sync):
      *  motion/battery is a per-device call, like the OS setting it augments. */
     reduceMotion: readBool("reduceMotion", false),
-    /** Device-local message text size in px (12-24, default 14). NOT synced:
-     *  a per-device readability choice, not a synced look-and-feel token.
-     *  Bare key via readString/writeString, never customizationChanged. */
+    /** Device-local app-wide text scale, stored as px (12-24, default 16 = 100%). Drives the root font-size so all text + spacing scale. NOT synced. */
     messageFontSize: resolveMessageFontSize(readString("messageFontSize")),
     /** Device-local message font family key ("system" | "inter" | "atkinson").
      *  NOT synced: a bundled font binary cannot ride the JSON theme sync. */
@@ -379,7 +377,7 @@ applyReduceMotion(settingsState.reduceMotion);
 
 // Boot apply: reflect the stored message text size + font onto the root so
 // the timeline is sized/styled before first paint, mirroring applyReduceMotion.
-applyMessageFontSize(settingsState.messageFontSize);
+applyAppTextScale(settingsState.messageFontSize);
 applyMessageFont(settingsState.messageFont);
 
 // Boot apply: register the uploaded custom font (if any) from IndexedDB, then
@@ -700,7 +698,7 @@ export function setMessageFontSize(px: number): void {
     const size = resolveMessageFontSize(px);
     settingsState.messageFontSize = size;
     writeString("messageFontSize", String(size));
-    applyMessageFontSize(size);
+    applyAppTextScale(size);
 }
 
 export function setMessageFont(key: MessageFontKey): void {
