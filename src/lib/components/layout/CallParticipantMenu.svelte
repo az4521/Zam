@@ -48,9 +48,15 @@
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
-    import { Circle } from "lucide-svelte";
+    import { Circle, ChevronRight } from "lucide-svelte";
     import { listMediaDevices } from "$lib/audio/devices";
     import { toDeviceOptions } from "$lib/utils/audioDevices";
+    import {
+        toggleSubmenu,
+        activeDeviceLabel,
+        type SubmenuSection,
+    } from "$lib/utils/callMenuSubmenu";
+    import { tick } from "svelte";
 
     interface Props {
         room: Room;
@@ -93,6 +99,7 @@
     // Device enumeration for self audio device switching.
     let mics = $state<{ id: string; label: string }[]>([]);
     let speakers = $state<{ id: string; label: string }[]>([]);
+    let openSection = $state<SubmenuSection | null>(null);
 
     async function loadDevices(): Promise<void> {
         const all = await listMediaDevices();
@@ -110,6 +117,68 @@
     function pickSpeaker(id: string | null): void {
         setAudioOutputDeviceId(id);
         setVoiceOutputDevice(id);
+    }
+
+    // Keyboard navigation helpers for the accordion.
+    function getMenuRoot(target: HTMLElement): HTMLElement | null {
+        return (
+            target.closest("[data-call-menu-root]") || target.closest(".fixed")
+        );
+    }
+
+    async function handleParentKeydown(
+        e: KeyboardEvent,
+        section: SubmenuSection,
+    ): Promise<void> {
+        const key = e.key;
+        if (key === "ArrowRight" || key === "ArrowDown") {
+            e.preventDefault();
+            openSection = section;
+            await tick();
+            const root = getMenuRoot(e.currentTarget as HTMLElement);
+            if (root) {
+                const first = root.querySelector<HTMLElement>(
+                    `[data-submenu-device="${section}"]`,
+                );
+                first?.focus();
+            }
+        } else if (key === "ArrowLeft") {
+            e.preventDefault();
+            openSection = null;
+        }
+    }
+
+    async function handleDeviceKeydown(
+        e: KeyboardEvent,
+        section: SubmenuSection,
+    ): Promise<void> {
+        const key = e.key;
+        const root = getMenuRoot(e.currentTarget as HTMLElement);
+        if (!root) return;
+
+        if (key === "ArrowDown" || key === "ArrowUp") {
+            e.preventDefault();
+            const devices = Array.from(
+                root.querySelectorAll<HTMLElement>(
+                    `[data-submenu-device="${section}"]`,
+                ),
+            );
+            const current = devices.indexOf(e.currentTarget as HTMLElement);
+            if (current === -1) return;
+            const next =
+                key === "ArrowDown"
+                    ? Math.min(current + 1, devices.length - 1)
+                    : Math.max(current - 1, 0);
+            devices[next]?.focus();
+        } else if (key === "ArrowLeft") {
+            e.preventDefault();
+            openSection = null;
+            await tick();
+            const parent = root.querySelector<HTMLElement>(
+                `[data-submenu-parent="${section}"]`,
+            );
+            parent?.focus();
+        }
     }
 
     // Same viewport-clamping action the room/space context menus use.
@@ -277,73 +346,120 @@
     >
     {#if isSelf}
         <div class="w-full h-px bg-discord-divider my-1"></div>
-        <div
-            class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
-        >
-            Microphone
-        </div>
+
+        <!-- Input (Microphone) accordion -->
         <button
-            onclick={() => pickMic(null)}
-            aria-pressed={!settingsState.audioInputDeviceId}
+            onclick={() => (openSection = toggleSubmenu(openSection, "input"))}
+            onmouseenter={touch ? undefined : () => (openSection = "input")}
+            onkeydown={(e) => handleParentKeydown(e, "input")}
+            aria-expanded={openSection === "input"}
+            data-submenu-parent="input"
             class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
-            <span class="w-3 flex items-center justify-center">
-                {#if !settingsState.audioInputDeviceId}<Circle
-                        size={8}
-                        fill="currentColor"
-                    />{/if}
+            <ChevronRight
+                size={14}
+                class="transition-transform flex-shrink-0 {openSection ===
+                'input'
+                    ? 'rotate-90'
+                    : ''}"
+            />
+            <span class="flex-shrink-0">Input</span>
+            <span class="text-xs text-discord-textMuted truncate ml-auto">
+                {activeDeviceLabel(mics, settingsState.audioInputDeviceId)}
             </span>
-            Default
         </button>
-        {#each mics as m (m.id)}
+        {#if openSection === "input"}
             <button
-                onclick={() => pickMic(m.id)}
-                aria-pressed={settingsState.audioInputDeviceId === m.id}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                onclick={() => pickMic(null)}
+                onkeydown={(e) => handleDeviceKeydown(e, "input")}
+                aria-pressed={!settingsState.audioInputDeviceId}
+                data-submenu-device="input"
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
             >
                 <span class="w-3 flex items-center justify-center">
-                    {#if settingsState.audioInputDeviceId === m.id}<Circle
+                    {#if !settingsState.audioInputDeviceId}<Circle
                             size={8}
                             fill="currentColor"
                         />{/if}
                 </span>
-                <span class="truncate">{m.label}</span>
+                Default
             </button>
-        {/each}
+            {#each mics as m (m.id)}
+                <button
+                    onclick={() => pickMic(m.id)}
+                    onkeydown={(e) => handleDeviceKeydown(e, "input")}
+                    aria-pressed={settingsState.audioInputDeviceId === m.id}
+                    data-submenu-device="input"
+                    class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if settingsState.audioInputDeviceId === m.id}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
+                    <span class="truncate">{m.label}</span>
+                </button>
+            {/each}
+        {/if}
+
         <div class="w-full h-px bg-discord-divider my-1"></div>
-        <div
-            class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
-        >
-            Speaker
-        </div>
+
+        <!-- Output (Speaker) accordion -->
         <button
-            onclick={() => pickSpeaker(null)}
-            aria-pressed={!settingsState.audioOutputDeviceId}
+            onclick={() => (openSection = toggleSubmenu(openSection, "output"))}
+            onmouseenter={touch ? undefined : () => (openSection = "output")}
+            onkeydown={(e) => handleParentKeydown(e, "output")}
+            aria-expanded={openSection === "output"}
+            data-submenu-parent="output"
             class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
-            <span class="w-3 flex items-center justify-center">
-                {#if !settingsState.audioOutputDeviceId}<Circle
-                        size={8}
-                        fill="currentColor"
-                    />{/if}
+            <ChevronRight
+                size={14}
+                class="transition-transform flex-shrink-0 {openSection ===
+                'output'
+                    ? 'rotate-90'
+                    : ''}"
+            />
+            <span class="flex-shrink-0">Output</span>
+            <span class="text-xs text-discord-textMuted truncate ml-auto">
+                {activeDeviceLabel(speakers, settingsState.audioOutputDeviceId)}
             </span>
-            Default
         </button>
-        {#each speakers as s (s.id)}
+        {#if openSection === "output"}
             <button
-                onclick={() => pickSpeaker(s.id)}
-                aria-pressed={settingsState.audioOutputDeviceId === s.id}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                onclick={() => pickSpeaker(null)}
+                onkeydown={(e) => handleDeviceKeydown(e, "output")}
+                aria-pressed={!settingsState.audioOutputDeviceId}
+                data-submenu-device="output"
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
             >
                 <span class="w-3 flex items-center justify-center">
-                    {#if settingsState.audioOutputDeviceId === s.id}<Circle
+                    {#if !settingsState.audioOutputDeviceId}<Circle
                             size={8}
                             fill="currentColor"
                         />{/if}
                 </span>
-                <span class="truncate">{s.label}</span>
+                Default
             </button>
-        {/each}
+            {#each speakers as s (s.id)}
+                <button
+                    onclick={() => pickSpeaker(s.id)}
+                    onkeydown={(e) => handleDeviceKeydown(e, "output")}
+                    aria-pressed={settingsState.audioOutputDeviceId === s.id}
+                    data-submenu-device="output"
+                    class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                >
+                    <span class="w-3 flex items-center justify-center">
+                        {#if settingsState.audioOutputDeviceId === s.id}<Circle
+                                size={8}
+                                fill="currentColor"
+                            />{/if}
+                    </span>
+                    <span class="truncate">{s.label}</span>
+                </button>
+            {/each}
+        {/if}
     {/if}
     {#if !isSelf}
         <button
@@ -466,6 +582,7 @@
             use:positionMenu={{ x, y }}
             use:focusTrap={{ onEscape: onClose }}
             use:dismissOnOutsidePointer={{ onDismiss: onClose }}
+            data-call-menu-root
             class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-56 overflow-y-auto"
         >
             {@render menuItems()}
