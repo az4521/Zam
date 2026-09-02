@@ -105,7 +105,7 @@
     <button
         type="button"
         aria-label={closeLabel}
-        transition:fade={{ duration: motionOK() ? 150 : 0 }}
+        in:fade={{ duration: motionOK() ? 150 : 0 }}
         class="absolute inset-0 -z-10 {backdropClass}"
         onclick={onClose}
     ></button>
@@ -123,7 +123,7 @@
         aria-labelledby={labelledBy}
         aria-label={label}
         tabindex="-1"
-        transition:scale={{
+        in:scale={{
             start: 0.96,
             opacity: 0,
             duration: motionOK() ? 150 : 0,

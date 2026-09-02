@@ -27,7 +27,7 @@
 -->
 <div
     use:focusTrap={{ onEscape: onClose }}
-    transition:fly={{ y: 32, duration: motionOK() ? 220 : 0 }}
+    in:fly={{ y: 32, duration: motionOK() ? 220 : 0 }}
     class="fixed bottom-0 left-0 right-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto"
 >
     <div class="w-10 h-1 bg-discord-divider rounded-full mx-auto mb-2"></div>

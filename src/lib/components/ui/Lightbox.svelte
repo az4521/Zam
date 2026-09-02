@@ -419,7 +419,7 @@
     <button
         type="button"
         aria-label="Close {mediaNoun} viewer"
-        transition:fade={{ duration: motionOK() ? 150 : 0 }}
+        in:fade={{ duration: motionOK() ? 150 : 0 }}
         class="absolute inset-0 bg-black/80"
         onclick={onClose}
     ></button>
@@ -432,7 +432,7 @@
         role="dialog"
         aria-modal="true"
         aria-label="{isVideo ? 'Video' : 'Image'} viewer"
-        transition:scaleTransition={{
+        in:scaleTransition={{
             start: 0.97,
             opacity: 0,
             duration: motionOK() ? 150 : 0,
