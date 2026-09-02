@@ -26,6 +26,8 @@
         MESSAGE_FONTS,
         messageFontFamily,
         type MessageFontKey,
+        appTextScalePercent,
+        MSG_FONT_SIZE_DEFAULT,
     } from "$lib/utils/messageDisplay";
     import {
         encodeThemePreset,
@@ -646,12 +648,23 @@
             Saved on this device only. Not synced across your account.
         </p>
 
-        <label
-            class="block text-sm text-discord-textPrimary mb-1"
-            for="msg-size-range"
-        >
-            Text size: {settingsState.messageFontSize}px
-        </label>
+        <div class="flex items-center justify-between mb-1">
+            <label
+                class="block text-sm text-discord-textPrimary"
+                for="msg-size-range"
+            >
+                App text size: {Math.round(
+                    appTextScalePercent(settingsState.messageFontSize),
+                )}%
+            </label>
+            <button
+                type="button"
+                class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                onclick={() => setMessageFontSize(MSG_FONT_SIZE_DEFAULT)}
+            >
+                Reset to default
+            </button>
+        </div>
         <input
             id="msg-size-range"
             type="range"
@@ -662,6 +675,9 @@
             value={settingsState.messageFontSize}
             oninput={(e) => setMessageFontSize(Number(e.currentTarget.value))}
         />
+        <p class="mt-1 text-xs text-discord-textMuted">
+            Scales all text and spacing across the app.
+        </p>
 
         <label
             class="block text-sm text-discord-textPrimary mt-4 mb-1"
@@ -723,7 +739,7 @@
 
         <p
             class="mt-3 text-discord-textPrimary"
-            style="font-size: {settingsState.messageFontSize}px; font-family: {messageFontFamily(
+            style="font-size: 0.875rem; font-family: {messageFontFamily(
                 settingsState.messageFont,
             ) ?? 'inherit'};"
         >

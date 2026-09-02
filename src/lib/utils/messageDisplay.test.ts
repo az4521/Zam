@@ -1,25 +1,26 @@
 import { describe, it, expect } from "vitest";
 import {
     resolveMessageFontSize,
-    messageFontSizeCss,
     resolveMessageFont,
     messageFontFamily,
     MESSAGE_FONTS,
     MSG_FONT_SIZE_DEFAULT,
-    applyMessageFontSize,
+    appTextScalePercent,
+    appTextScaleCss,
+    applyAppTextScale,
     applyMessageFont,
     CUSTOM_FONT_FAMILY,
 } from "./messageDisplay";
 
 describe("resolveMessageFontSize", () => {
     it("defaults when unset/garbage", () => {
-        expect(resolveMessageFontSize(null)).toBe(14);
-        expect(resolveMessageFontSize(undefined)).toBe(14);
-        expect(resolveMessageFontSize("")).toBe(14);
-        expect(resolveMessageFontSize("   ")).toBe(14);
-        expect(resolveMessageFontSize("abc")).toBe(14);
-        expect(resolveMessageFontSize(NaN)).toBe(14);
-        expect(resolveMessageFontSize(Infinity)).toBe(14);
+        expect(resolveMessageFontSize(null)).toBe(16);
+        expect(resolveMessageFontSize(undefined)).toBe(16);
+        expect(resolveMessageFontSize("")).toBe(16);
+        expect(resolveMessageFontSize("   ")).toBe(16);
+        expect(resolveMessageFontSize("abc")).toBe(16);
+        expect(resolveMessageFontSize(NaN)).toBe(16);
+        expect(resolveMessageFontSize(Infinity)).toBe(16);
     });
     it("parses stored strings and numbers", () => {
         expect(resolveMessageFontSize("16")).toBe(16);
@@ -36,11 +37,22 @@ describe("resolveMessageFontSize", () => {
     });
 });
 
-describe("messageFontSizeCss", () => {
-    it("appends px and clamps invalid", () => {
-        expect(messageFontSizeCss(16)).toBe("16px");
-        expect(messageFontSizeCss(999)).toBe("24px");
-        expect(messageFontSizeCss(NaN)).toBe("14px");
+describe("appTextScalePercent / appTextScaleCss", () => {
+    it("maps px to a percentage of 16", () => {
+        expect(appTextScalePercent(16)).toBe(100);
+        expect(appTextScalePercent(12)).toBe(75);
+        expect(appTextScalePercent(24)).toBe(150);
+        expect(appTextScalePercent(14)).toBe(87.5);
+    });
+    it("clamps out-of-range and defaults garbage before mapping", () => {
+        expect(appTextScalePercent(999)).toBe(150); // clamps to 24 -> 150
+        expect(appTextScalePercent(4)).toBe(75); // clamps to 12 -> 75
+        expect(appTextScalePercent(NaN)).toBe(100); // default 16 -> 100
+    });
+    it("appTextScaleCss appends a percent sign", () => {
+        expect(appTextScaleCss(16)).toBe("100%");
+        expect(appTextScaleCss(12)).toBe("75%");
+        expect(appTextScaleCss(14)).toBe("87.5%");
     });
 });
 
@@ -74,20 +86,18 @@ describe("messageFontFamily / MESSAGE_FONTS", () => {
             expect(messageFontFamily(f.key)).toBe(f.stack);
         }
     });
-    it("system is first option and default size is 14", () => {
+    it("system is first option and default size is 16", () => {
         expect(MESSAGE_FONTS[0].key).toBe("system");
-        expect(MSG_FONT_SIZE_DEFAULT).toBe(14);
+        expect(MSG_FONT_SIZE_DEFAULT).toBe(16);
     });
 });
 
-describe("applyMessageFontSize (jsdom)", () => {
-    it("sets the css var in px", () => {
-        applyMessageFontSize(18);
-        expect(
-            document.documentElement.style.getPropertyValue(
-                "--zam-msg-font-size",
-            ),
-        ).toBe("18px");
+describe("applyAppTextScale (jsdom)", () => {
+    it("sets the root font-size as a percentage", () => {
+        applyAppTextScale(24);
+        expect(document.documentElement.style.fontSize).toBe("150%");
+        applyAppTextScale(16);
+        expect(document.documentElement.style.fontSize).toBe("100%");
     });
 });
 

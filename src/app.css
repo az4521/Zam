@@ -367,17 +367,16 @@ body {
 
 /* Adjustable message text size + font (device-local, item 1).
    Unlayered so it beats Tailwind's `text-sm` utility (in @layer utilities)
-   with no markup change. The vars are set on :root by applyMessageFontSize /
-   applyMessageFont (utils/messageDisplay); unset -> falls back to the current
-   0.875rem / inherited family. At the default (14px / system) the timeline
-   looks the same as before at a 16px root; note the slider is absolute px, so
-   a user with a non-default browser base size gets fixed px here where
-   `text-sm` was rem-relative (an intentional px-slider tradeoff). Code keeps
-   its own monospace family + fixed size (see MessageItem.svelte
-   `.message-body pre code`) because a directly-set font-family beats an
-   inherited one. */
+   with no markup change. The root font-size is scaled by applyAppTextScale
+   (utils/messageDisplay, sets document.documentElement.style.fontSize as a %
+   of the browser base). .message-body uses a plain rem so it follows the
+   scaled root instead of scaling twice; --zam-font-family is still set by
+   applyMessageFont. At the default (16px = 100%) the timeline looks the same
+   as before at a 16px root. Code keeps its own monospace family + fixed size
+   (see MessageItem.svelte `.message-body pre code`) because a directly-set
+   font-family beats an inherited one. */
 .message-body {
-    font-size: var(--zam-msg-font-size, 0.875rem);
+    font-size: 0.875rem;
     font-family: var(--zam-font-family, inherit);
 }
 
