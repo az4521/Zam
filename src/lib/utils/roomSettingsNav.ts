@@ -11,6 +11,7 @@
 export type RoomSettingsTab =
     | "general"
     | "access"
+    | "notifications"
     | "security"
     | "permissions"
     | "members"
@@ -28,6 +29,7 @@ export const DEFAULT_ROOM_SETTINGS_TAB: RoomSettingsTab = "general";
 const LABELS: Record<RoomSettingsTab, string> = {
     general: "General",
     access: "Access",
+    notifications: "Notifications",
     security: "Security",
     permissions: "Permissions",
     members: "Members",
@@ -48,6 +50,7 @@ export function roomSettingsTabs(args: {
     const ids: RoomSettingsTab[] = [
         "general",
         "access",
+        "notifications",
         ...(isSpace ? [] : (["security"] as RoomSettingsTab[])),
         "permissions",
         "members",

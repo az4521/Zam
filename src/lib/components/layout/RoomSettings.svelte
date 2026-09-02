@@ -55,6 +55,11 @@
         getServerAclContent,
         setServerAcl,
         isRoomStateHealed,
+        getRoomNotificationSetting,
+        setRoomNotificationSetting,
+        getRoomsInSpace,
+        getSpaceChildIds,
+        type RoomNotificationSetting,
     } from "$lib/matrix/client";
     import {
         getRestrictedJoinState,
@@ -91,7 +96,7 @@
     } from "$lib/utils/roomSettingsNav";
     import { roomStateTrustBadge } from "$lib/utils/roomStateTrust";
     import { focusTrap } from "$lib/actions/focusTrap";
-    import { ChevronRight, ArrowLeft } from "lucide-svelte";
+    import { ChevronRight, ArrowLeft, Circle } from "lucide-svelte";
 
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -112,6 +117,9 @@
         unblockUser,
         isUserBlocked,
     } from "$lib/stores/ignoredUsers.svelte";
+    import { mapWithConcurrency } from "$lib/utils/async";
+    import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     interface Props {
         room: Room;
@@ -150,6 +158,54 @@
     function goBackToList() {
         selectedTab = null;
         showInvite = false;
+    }
+
+    // Reactive: re-derives after any push-rule write (getter reads
+    // pushRulesState.revision; the setter bumps it).
+    const notifSetting = $derived<RoomNotificationSetting>(
+        getRoomNotificationSetting(room.roomId),
+    );
+    let notifSaving = $state(false);
+
+    const NOTIF_LEVELS: readonly [RoomNotificationSetting, string, string][] = [
+        ["default", "Default", "Use your global notification settings."],
+        ["all", "All Messages", "Notify for every message."],
+        [
+            "mentions",
+            "Mentions Only",
+            "Notify only for @mentions and keywords.",
+        ],
+        ["mute", "Mute", "Never notify."],
+    ];
+
+    async function applyNotification(setting: RoomNotificationSetting) {
+        if (notifSaving) return;
+        notifSaving = true;
+        try {
+            if (isSpace) {
+                const ids = collectSpaceAndDescendantRoomIds(room.roomId, {
+                    roomsInSpace: (id) =>
+                        getRoomsInSpace(id).map((r) => r.roomId),
+                    childSpaceIds: (id) =>
+                        getSpaceChildIds(id).filter(
+                            (cid) => getRoom(cid)?.isSpaceRoom() ?? false,
+                        ),
+                });
+                await mapWithConcurrency(ids, 4, (id) =>
+                    setRoomNotificationSetting(id, setting),
+                );
+            } else {
+                await setRoomNotificationSetting(room.roomId, setting);
+            }
+        } catch (err) {
+            showErrorToast(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to update notifications.",
+            );
+        } finally {
+            notifSaving = false;
+        }
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -1771,6 +1827,61 @@
                                         server ACL for this room.
                                     </p>
                                 {/if}
+                            </div>
+                        </div>
+
+                        <!-- ── Notifications ───────────────────────────────── -->
+                    {:else if activeTab === "notifications"}
+                        <div class="space-y-5">
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    Notifications
+                                </p>
+                                <p class="text-xs text-discord-textMuted mb-3">
+                                    Choose how this {isSpace ? "space" : "room"} notifies
+                                    you.{#if isSpace}{" "}Applies to the space
+                                        and all its rooms.{/if}
+                                </p>
+                                <div
+                                    class="flex flex-col gap-1"
+                                    role="radiogroup"
+                                    aria-label="Notification level"
+                                >
+                                    {#each NOTIF_LEVELS as [val, label, desc] (val)}
+                                        <button
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={notifSetting === val}
+                                            disabled={notifSaving}
+                                            onclick={() =>
+                                                applyNotification(val)}
+                                            class="w-full text-left px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-discord-messageHover disabled:opacity-60"
+                                            class:bg-discord-messageHover={notifSetting ===
+                                                val}
+                                        >
+                                            <span
+                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-discord-accent"
+                                            >
+                                                {#if notifSetting === val}<Circle
+                                                        size={8}
+                                                        fill="currentColor"
+                                                    />{/if}
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span
+                                                    class="block text-sm font-medium text-discord-textPrimary"
+                                                    >{label}</span
+                                                >
+                                                <span
+                                                    class="block text-xs text-discord-textMuted"
+                                                    >{desc}</span
+                                                >
+                                            </span>
+                                        </button>
+                                    {/each}
+                                </div>
                             </div>
                         </div>
 

@@ -12,6 +12,7 @@ describe("roomSettingsTabs", () => {
         expect(ids).toEqual([
             "general",
             "access",
+            "notifications",
             "security",
             "permissions",
             "members",
@@ -24,6 +25,7 @@ describe("roomSettingsTabs", () => {
         expect(ids).toEqual([
             "general",
             "access",
+            "notifications",
             "permissions",
             "members",
             "emotes",
