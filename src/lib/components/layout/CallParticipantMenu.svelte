@@ -99,7 +99,9 @@
         mics = toDeviceOptions(all, "audioinput");
         speakers = toDeviceOptions(all, "audiooutput");
     }
-    if (userId === auth.userId) void loadDevices();
+    $effect(() => {
+        if (isSelf) void loadDevices();
+    });
 
     function pickMic(id: string | null): void {
         setAudioInputDeviceId(id);
