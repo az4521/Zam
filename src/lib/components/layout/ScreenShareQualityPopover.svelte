@@ -72,7 +72,9 @@
         <BottomSheet {onClose}>
             <div class="p-4 space-y-4">
                 <ScreenShareQualityChips
-                    onQualityChange={mode === "live" ? setScreenShareQuality : undefined}
+                    onQualityChange={mode === "live"
+                        ? setScreenShareQuality
+                        : undefined}
                 />
                 {#if mode === "pre-share"}
                     <button
@@ -95,7 +97,9 @@
             aria-label="Screen share quality"
         >
             <ScreenShareQualityChips
-                onQualityChange={mode === "live" ? setScreenShareQuality : undefined}
+                onQualityChange={mode === "live"
+                    ? setScreenShareQuality
+                    : undefined}
             />
             {#if mode === "pre-share"}
                 <button
