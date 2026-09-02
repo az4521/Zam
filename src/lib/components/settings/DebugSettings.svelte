@@ -216,7 +216,7 @@
     {#if webPush?.supported}
         <section class="space-y-1 text-xs font-mono text-discord-textMuted">
             <p
-                class="font-sans font-semibold uppercase tracking-wide text-discord-textMuted"
+                class="font-semibold uppercase tracking-wide text-discord-textMuted"
             >
                 Web Push (PWA)
             </p>
