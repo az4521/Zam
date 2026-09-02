@@ -32,7 +32,16 @@ export function toDeviceOptions(
             label: d.label || `${KIND_LABELS[kind]} ${result.length + 1}`,
         });
     }
-    return result;
+    // Numbered fallback labels are assigned above in enumeration order (so the
+    // Nth unlabeled device stays "Microphone N"); sorting afterwards is a stable
+    // sort keyed on the final label. numeric-aware so "Device 2" precedes
+    // "Device 10"; base sensitivity so case never reorders siblings.
+    return result.sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, {
+            numeric: true,
+            sensitivity: "base",
+        }),
+    );
 }
 
 export interface ResolvedDevice {
