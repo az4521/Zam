@@ -1,3 +1,4 @@
+import { tick } from "svelte";
 import {
     normalizeSharePayload,
     type ShareInput,
@@ -42,15 +43,20 @@ export function receiveShare(input: ShareInput): boolean {
  * Deliver the pending share into the given room's composer, navigate to that
  * room, and dismiss the picker. No-op if no share is pending.
  */
-export function deliverShareToRoom(roomId: string): void {
+export function deliverShareToRoom(
+    roomId: string,
+    opts?: { caption?: string; send?: boolean },
+): void {
     const p = shareInboxState.payload;
     if (!p) return;
 
+    const text = opts?.caption ?? p.text;
+    const wasActive = roomsState.activeRoomId === roomId;
+
     // Deliver text: via hostBridge if the room is already mounted and active,
     // otherwise merge into the draft.
-    const text = p.text;
     if (text) {
-        if (roomsState.activeRoomId === roomId && hostBridge.insertText) {
+        if (wasActive && hostBridge.insertText) {
             hostBridge.insertText({ roomId, text });
         } else {
             const d = getDraft(roomId);
@@ -72,6 +78,23 @@ export function deliverShareToRoom(roomId: string): void {
                 f.name || "file",
                 f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
             );
+        }
+    }
+
+    // One-step send (explicit user Send tap only). Queue the send; the composer
+    // drains hostBridge.pendingSend one tick after its draft-restore effect sets
+    // `text` (mirrors pendingMention). An already-active room's composer won't
+    // re-run that effect, so fire the imperative send after a tick, once staging
+    // is in and the file-queue derived has updated.
+    if (opts?.send) {
+        hostBridge.pendingSend = { roomId };
+        if (wasActive) {
+            void tick().then(() => {
+                if (hostBridge.pendingSend?.roomId === roomId) {
+                    hostBridge.pendingSend = null;
+                    hostBridge.sendNow?.({ roomId });
+                }
+            });
         }
     }
 
