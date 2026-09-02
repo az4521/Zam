@@ -1,10 +1,10 @@
 // Device-local message text size and font family logic.
 // Pure resolution, clamping, and DOM-apply helpers for adjustable message
-// display. Sets --zam-msg-font-size and --zam-font-family CSS custom properties.
+// display. Sets --zam-font-family and the ROOT font-size (app-wide scale).
 
 export const MSG_FONT_SIZE_MIN = 12;
 export const MSG_FONT_SIZE_MAX = 24;
-export const MSG_FONT_SIZE_DEFAULT = 14;
+export const MSG_FONT_SIZE_DEFAULT = 16;
 
 export type MessageFontKey = "system" | "inter" | "atkinson" | "custom";
 
@@ -63,10 +63,20 @@ export function resolveMessageFontSize(
 }
 
 /**
- * Returns CSS pixel value for message font size (always valid).
+ * Maps the stored text-size px (12-24) to an app-wide scale percentage of a
+ * 16px base (16 -> 100, 12 -> 75, 24 -> 150). Resolves/clamps garbage first.
  */
-export function messageFontSizeCss(px: number): string {
-    return `${resolveMessageFontSize(px)}px`;
+export function appTextScalePercent(
+    raw: string | number | null | undefined,
+): number {
+    return (resolveMessageFontSize(raw) / 16) * 100;
+}
+
+/** The scale as a CSS percentage string (e.g. "87.5%") for the root font-size. */
+export function appTextScaleCss(
+    raw: string | number | null | undefined,
+): string {
+    return `${appTextScalePercent(raw)}%`;
 }
 
 /**
@@ -91,14 +101,14 @@ export function messageFontFamily(key: MessageFontKey): string | null {
 }
 
 /**
- * Applies message font size to the DOM via CSS custom property.
+ * Applies the app-wide text scale by setting the ROOT font-size (as a % of the
+ * browser base). All rem/Tailwind sizing follows, so the whole app scales.
+ * Message text follows the root via .message-body's plain rem — it must NOT
+ * also read a px var, or it would scale twice.
  */
-export function applyMessageFontSize(px: number): void {
+export function applyAppTextScale(px: number): void {
     if (typeof document === "undefined") return;
-    document.documentElement.style.setProperty(
-        "--zam-msg-font-size",
-        messageFontSizeCss(px),
-    );
+    document.documentElement.style.fontSize = appTextScaleCss(px);
 }
 
 /**
