@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import {
     joinVoiceCall,
     leaveVoiceCall,
@@ -33,6 +34,7 @@ import {
     toggleMute,
     toggleDeafen,
     usersFromIdentities,
+    RECENTLY_LEFT_WINDOW_MS,
     type MuteState,
     type VoiceConnState,
     type LastLeftCall,
@@ -122,6 +124,13 @@ export function initVoiceCall(): () => void {
     let selfSound: SelfSoundState = INITIAL_SELF_SOUND_STATE;
     let peerIds: string[] | null = null;
     const lastPlayed = new Map<CallSoundName, number>();
+    let recentlyLeftTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearRecentlyLeftTimer = () => {
+        if (recentlyLeftTimer !== null) {
+            clearTimeout(recentlyLeftTimer);
+            recentlyLeftTimer = null;
+        }
+    };
     const playGated = (name: CallSoundName) => {
         const now = Date.now();
         if (!soundGate(lastPlayed.get(name) ?? null, now)) return;
@@ -160,6 +169,7 @@ export function initVoiceCall(): () => void {
             if (voiceCallState.connectedAt === null)
                 voiceCallState.connectedAt = Date.now();
             voiceCallState.lastLeftCall = null;
+            clearRecentlyLeftTimer();
         }
         voiceCallState.connState = state;
         voiceCallState.roomId = state === null ? null : roomId;
@@ -176,11 +186,23 @@ export function initVoiceCall(): () => void {
             voiceCallState.screenSharing = false;
             voiceCallState.cameraOn = false;
             voiceCallState.focusedTileKey = null;
-            if (prevRoomId)
+            if (prevRoomId) {
+                clearRecentlyLeftTimer();
                 voiceCallState.lastLeftCall = {
                     roomId: prevRoomId,
                     ts: Date.now(),
                 };
+                // Date.now() in the call-surface $deriveds is not reactive, so a
+                // persistent self-only roster would otherwise stay frozen at
+                // recentlyLeftHere=true past the window with no tick to recompute it.
+                // One deterministic tick bump at window expiry restores "Join".
+                recentlyLeftTimer = setTimeout(() => {
+                    recentlyLeftTimer = null;
+                    untrack(() => {
+                        voiceCallState.voiceTick++;
+                    });
+                }, RECENTLY_LEFT_WINDOW_MS);
+            }
         }
         voiceCallState.voiceTick++;
     });
@@ -216,6 +238,7 @@ export function initVoiceCall(): () => void {
         voiceCallState.voiceTick++;
     });
     return () => {
+        clearRecentlyLeftTimer();
         unsubSessions();
         unsubConn();
         unsubSpeakers();
