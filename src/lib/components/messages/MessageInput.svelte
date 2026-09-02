@@ -242,9 +242,20 @@
         };
         hostBridge.insertMention = handler;
         // Drain a mention queued before this composer mounted (call→chat flip).
+        // Deferred one tick so it runs AFTER the per-room draft-restore effect's
+        // synchronous body (which sets `text = draft.text`) — otherwise draft
+        // restore clobbers the just-inserted mention. Re-checked at drain time
+        // so it stays idempotent (the direct-call path may have cleared it).
         untrack(() => {
             const q = hostBridge.pendingMention;
-            if (q && q.roomId === rid) handler(q);
+            if (q && q.roomId === rid) {
+                void tick().then(() => {
+                    const q2 = hostBridge.pendingMention;
+                    if (q2 && q2.roomId === rid && q2.userId === q.userId) {
+                        handler(q2);
+                    }
+                });
+            }
         });
         return () => {
             if (hostBridge.insertMention === handler)
