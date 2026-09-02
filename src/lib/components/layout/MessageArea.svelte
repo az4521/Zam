@@ -2108,6 +2108,8 @@
                         {event}
                         {room}
                         showHeader={shouldShowHeader(messages, i)}
+                        timelineEvents={messages}
+                        timelineIndex={i}
                         onReply={(e) => {
                             replyToEvent = e;
                         }}
