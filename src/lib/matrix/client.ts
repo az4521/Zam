@@ -62,7 +62,10 @@ import {
     sfuJwtUrl,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
-import { screenShareEncodingFor } from "$lib/utils/screenShareEncoding";
+import {
+    screenShareEncodingFor,
+    applyScreenShareEncoding,
+} from "$lib/utils/screenShareEncoding";
 import {
     buildVideoTiles,
     type VideoPublicationInput,
@@ -8921,6 +8924,37 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         console.error("Screen share failed:", err);
         notifyVoiceNotice("Could not start screen share");
         return false;
+    }
+}
+
+/** Re-encode the currently published screen share to a new quality without
+ *  re-acquiring the capture (capture resolution can't change live; the publish
+ *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
+ *  is being shared. */
+export async function setScreenShareQuality(
+    resKey: string,
+    fps: number,
+): Promise<void> {
+    const call = activeVoice;
+    if (!call) return;
+    const track = call.lkRoom.localParticipant.getTrackPublication(
+        call.lk.Track.Source.ScreenShare,
+    )?.videoTrack;
+    const sender = track?.sender;
+    if (!track || !sender) return;
+    try {
+        const params = sender.getParameters();
+        if (
+            applyScreenShareEncoding(
+                params,
+                screenShareEncodingFor(resKey, fps),
+            )
+        ) {
+            await sender.setParameters(params);
+        }
+        await track.setDegradationPreference("maintain-framerate");
+    } catch (err) {
+        console.error("Screen share quality change failed:", err);
     }
 }
 
