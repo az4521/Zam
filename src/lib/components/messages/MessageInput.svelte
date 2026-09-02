@@ -84,7 +84,7 @@
         shouldClearComposerAfterSend,
         shouldClearStoredDraft,
     } from "$lib/utils/composerClear";
-    import { insertMention } from "$lib/utils/mentionInsert";
+    import { insertMention, appendMention } from "$lib/utils/mentionInsert";
     import {
         parseSlashCommand,
         matchSlashCommands,
@@ -201,6 +201,65 @@
         hostBridge.insertText = handler;
         return () => {
             if (hostBridge.insertText === handler) hostBridge.insertText = null;
+        };
+    });
+
+    // Plugin/call-menu insertMention → append an @mention to THIS (main) composer.
+    // Same structure as insertText: main composer only, roomId-guarded, no effect
+    // deps on `text`/`pendingMentions` — the handler reads+writes them, but those
+    // reads are inside the handler callback (not the effect body) so they don't
+    // become reactive dependencies. The mount-time drain is wrapped in untrack()
+    // to ensure reading pendingMention and writing text/pendingMentions inside the
+    // handler does not trigger effect_update_depth_exceeded.
+    $effect(() => {
+        if (isThread) return;
+        const rid = roomId;
+        const handler = (ctx: { roomId: string; userId: string }) => {
+            if (ctx.roomId !== rid) return;
+            const member = (room &&
+                getRoomMembers(room).find((m) => m.userId === ctx.userId)) || {
+                userId: ctx.userId,
+                rawDisplayName: undefined,
+            };
+            const label = mentionLabelFor(member);
+            const inserted = appendMention(text, label);
+            text = inserted.text;
+            pendingMentions = new Map([
+                ...pendingMentions,
+                ["@" + label, ctx.userId],
+            ]);
+            if (
+                hostBridge.pendingMention &&
+                hostBridge.pendingMention.roomId === ctx.roomId &&
+                hostBridge.pendingMention.userId === ctx.userId
+            ) {
+                hostBridge.pendingMention = null;
+            }
+            tick().then(() => {
+                renderComposer(inserted.caret);
+                textareaEl?.focus();
+            });
+        };
+        hostBridge.insertMention = handler;
+        // Drain a mention queued before this composer mounted (call→chat flip).
+        // Deferred one tick so it runs AFTER the per-room draft-restore effect's
+        // synchronous body (which sets `text = draft.text`) — otherwise draft
+        // restore clobbers the just-inserted mention. Re-checked at drain time
+        // so it stays idempotent (the direct-call path may have cleared it).
+        untrack(() => {
+            const q = hostBridge.pendingMention;
+            if (q && q.roomId === rid) {
+                void tick().then(() => {
+                    const q2 = hostBridge.pendingMention;
+                    if (q2 && q2.roomId === rid && q2.userId === q.userId) {
+                        handler(q2);
+                    }
+                });
+            }
+        });
+        return () => {
+            if (hostBridge.insertMention === handler)
+                hostBridge.insertMention = null;
         };
     });
 

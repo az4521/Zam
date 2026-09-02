@@ -10,11 +10,14 @@ export interface ParticipantAudio {
     volume: number;
     /** Local mute, held apart from the slider so unmuting restores the level. */
     muted: boolean;
+    /** Local per-user video hide flag. */
+    videoHidden: boolean;
 }
 
 export const DEFAULT_PARTICIPANT_AUDIO: ParticipantAudio = {
     volume: 1,
     muted: false,
+    videoHidden: false,
 };
 
 /** Clamp to [0,1]. Non-finite input falls back to unity rather than silence —
@@ -45,12 +48,28 @@ export function withLocalMute(
     return { ...p, muted };
 }
 
-/** Persisted shape: {"@user:server": {v: 0.5, m: true}}. Defaults are dropped. */
+export function withVideoHidden(
+    p: ParticipantAudio,
+    videoHidden: boolean,
+): ParticipantAudio {
+    return { ...p, videoHidden };
+}
+
+/** Persisted shape: {"@user:server": {v: 0.5, m: true, h?: true}}. Defaults are dropped. */
 export function serializeAudioMap(map: Map<string, ParticipantAudio>): string {
-    const out: Record<string, { v: number; m: boolean }> = {};
+    const out: Record<string, { v: number; m: boolean; h?: boolean }> = {};
     for (const [userId, p] of map) {
-        if (p.volume === DEFAULT_PARTICIPANT_AUDIO.volume && !p.muted) continue;
-        out[userId] = { v: p.volume, m: p.muted };
+        if (
+            p.volume === DEFAULT_PARTICIPANT_AUDIO.volume &&
+            !p.muted &&
+            !p.videoHidden
+        )
+            continue;
+        out[userId] = {
+            v: p.volume,
+            m: p.muted,
+            ...(p.videoHidden ? { h: true } : {}),
+        };
     }
     return JSON.stringify(out);
 }
@@ -74,15 +93,17 @@ export function parseAudioMap(
         raw as Record<string, unknown>,
     )) {
         if (typeof value !== "object" || value === null) continue;
-        const { v, m } = value as { v?: unknown; m?: unknown };
+        const { v, m, h } = value as { v?: unknown; m?: unknown; h?: unknown };
         const hasVolume = typeof v === "number";
         const hasMute = typeof m === "boolean";
-        if (!hasVolume && !hasMute) continue;
+        const hasVideoHidden = typeof h === "boolean";
+        if (!hasVolume && !hasMute && !hasVideoHidden) continue;
         map.set(userId, {
             volume: hasVolume
                 ? clampVolume(v)
                 : DEFAULT_PARTICIPANT_AUDIO.volume,
             muted: m === true,
+            videoHidden: h === true,
         });
     }
     return map;

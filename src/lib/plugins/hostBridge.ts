@@ -31,4 +31,13 @@ export const hostBridge = {
     insertText: null as
         | null
         | ((ctx: { roomId: string; text: string }) => void),
+    /** Set by item 7 (call-menu "Mention") — insert an @mention for a user into
+     *  the active room's main composer. */
+    insertMention: null as
+        | null
+        | ((ctx: { roomId: string; userId: string }) => void),
+    /** Queue slot: a mention requested before the composer has claimed the hook
+     *  (the composer mounts asynchronously after the call→chat view flip).
+     *  Drained + cleared by the composer's claim effect. */
+    pendingMention: null as null | { roomId: string; userId: string },
 };

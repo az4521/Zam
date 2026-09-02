@@ -80,6 +80,7 @@ import {
     effectiveVolume,
     withVolume,
     withLocalMute,
+    withVideoHidden,
     DEFAULT_PARTICIPANT_AUDIO,
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
@@ -8226,6 +8227,27 @@ export function setParticipantLocalMute(userId: string, muted: boolean): void {
     applyVolumeForUser(userId);
 }
 
+export function setParticipantVideoHidden(
+    userId: string,
+    hidden: boolean,
+): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withVideoHidden(current, hidden));
+    applyVideoHiddenForUser(userId, hidden);
+}
+
+function applyVideoHiddenForUser(userId: string, hidden: boolean): void {
+    if (!activeVoice) return;
+    const lk = activeVoice.lk;
+    const lkRoom = activeVoice.lkRoom;
+    for (const p of lkRoom.remoteParticipants.values()) {
+        if (userIdFromIdentity(p.identity) !== userId) continue;
+        for (const pub of p.videoTrackPublications.values()) {
+            if (pub.source === lk.Track.Source.Camera) pub.setEnabled(!hidden);
+        }
+    }
+}
+
 function applyVoiceSink(el: HTMLAudioElement): void {
     const sinkEl = el as HTMLAudioElement & {
         setSinkId?: (id: string) => Promise<void>;
@@ -8639,9 +8661,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             lk.RoomEvent.TrackSubscribed,
             (
                 track: RemoteTrack,
-                _pub: RemoteTrackPublication,
+                pub: RemoteTrackPublication,
                 participant: RemoteParticipant,
             ) => {
+                if (track.kind === lk.Track.Kind.Video) {
+                    const uid = userIdFromIdentity(participant.identity);
+                    if (
+                        participantAudio.get(uid)?.videoHidden &&
+                        pub.source === lk.Track.Source.Camera
+                    ) {
+                        pub.setEnabled(false);
+                    }
+                    return;
+                }
                 if (track.kind !== lk.Track.Kind.Audio) return;
                 if (activeVoice !== call) {
                     // Call already superseded/left — don't attach at all.

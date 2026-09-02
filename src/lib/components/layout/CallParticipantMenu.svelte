@@ -4,6 +4,8 @@
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { showChatView } from "$lib/stores/interface.svelte";
+    import { hostBridge } from "$lib/plugins/hostBridge";
     import {
         getMyPowerLevel,
         getUserPowerLevel,
@@ -14,6 +16,8 @@
         createDirectMessage,
         retryRoomFollowUp,
         getRoom,
+        setVoiceInputDevice,
+        setVoiceOutputDevice,
     } from "$lib/matrix/client";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { menuGates } from "$lib/utils/callMenu";
@@ -22,12 +26,17 @@
         shouldWarnPlaintextDmReuse,
         PLAINTEXT_DM_REUSE_WARNING,
     } from "$lib/utils/roomEncryption";
-    import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        settingsState,
+        setAudioInputDeviceId,
+        setAudioOutputDeviceId,
+    } from "$lib/stores/settings.svelte";
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         setUserVolume,
         setUserLocalMute,
         participantAudioFor,
+        setUserVideoHidden,
     } from "$lib/stores/voiceCall.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import {
@@ -40,6 +49,8 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { Circle } from "lucide-svelte";
+    import { listMediaDevices } from "$lib/audio/devices";
+    import { toDeviceOptions } from "$lib/utils/audioDevices";
 
     interface Props {
         room: Room;
@@ -78,6 +89,28 @@
     });
     const audio = $derived(participantAudioFor(userId));
     const blocked = $derived(isUserBlocked(userId));
+
+    // Device enumeration for self audio device switching.
+    let mics = $state<{ id: string; label: string }[]>([]);
+    let speakers = $state<{ id: string; label: string }[]>([]);
+
+    async function loadDevices(): Promise<void> {
+        const all = await listMediaDevices();
+        mics = toDeviceOptions(all, "audioinput");
+        speakers = toDeviceOptions(all, "audiooutput");
+    }
+    $effect(() => {
+        if (isSelf) void loadDevices();
+    });
+
+    function pickMic(id: string | null): void {
+        setAudioInputDeviceId(id);
+        void setVoiceInputDevice(id);
+    }
+    function pickSpeaker(id: string | null): void {
+        setAudioOutputDeviceId(id);
+        setVoiceOutputDevice(id);
+    }
 
     // Same viewport-clamping action the room/space context menus use.
     function positionMenu(node: HTMLElement, pos: { x: number; y: number }) {
@@ -223,6 +256,17 @@
         () => banUser(room.roomId, userId),
         () => `Could not ban ${name}`,
     );
+    const onMention = () => {
+        const ctx = { roomId: room.roomId, userId };
+        hostBridge.pendingMention = ctx;
+        setActiveRoom(room.roomId);
+        showChatView();
+        // If a composer for this room is already mounted (menu opened from the room
+        // list while its chat is showing), insert immediately; the handler clears
+        // the queue on success and self-guards on roomId, so this never double-inserts.
+        hostBridge.insertMention?.(ctx);
+        onClose();
+    };
 </script>
 
 {#snippet menuItems()}
@@ -231,12 +275,87 @@
         class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
         >Profile</button
     >
+    {#if isSelf}
+        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div
+            class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+        >
+            Microphone
+        </div>
+        <button
+            onclick={() => pickMic(null)}
+            aria-pressed={!settingsState.audioInputDeviceId}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+        >
+            <span class="w-3 flex items-center justify-center">
+                {#if !settingsState.audioInputDeviceId}<Circle
+                        size={8}
+                        fill="currentColor"
+                    />{/if}
+            </span>
+            Default
+        </button>
+        {#each mics as m (m.id)}
+            <button
+                onclick={() => pickMic(m.id)}
+                aria-pressed={settingsState.audioInputDeviceId === m.id}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            >
+                <span class="w-3 flex items-center justify-center">
+                    {#if settingsState.audioInputDeviceId === m.id}<Circle
+                            size={8}
+                            fill="currentColor"
+                        />{/if}
+                </span>
+                <span class="truncate">{m.label}</span>
+            </button>
+        {/each}
+        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div
+            class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+        >
+            Speaker
+        </div>
+        <button
+            onclick={() => pickSpeaker(null)}
+            aria-pressed={!settingsState.audioOutputDeviceId}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+        >
+            <span class="w-3 flex items-center justify-center">
+                {#if !settingsState.audioOutputDeviceId}<Circle
+                        size={8}
+                        fill="currentColor"
+                    />{/if}
+            </span>
+            Default
+        </button>
+        {#each speakers as s (s.id)}
+            <button
+                onclick={() => pickSpeaker(s.id)}
+                aria-pressed={settingsState.audioOutputDeviceId === s.id}
+                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            >
+                <span class="w-3 flex items-center justify-center">
+                    {#if settingsState.audioOutputDeviceId === s.id}<Circle
+                            size={8}
+                            fill="currentColor"
+                        />{/if}
+                </span>
+                <span class="truncate">{s.label}</span>
+            </button>
+        {/each}
+    {/if}
     {#if !isSelf}
         <button
             onclick={onMessage}
             disabled={pending !== null}
             class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors disabled:opacity-50"
             >{pending === "message" ? "Opening…" : "Message"}</button
+        >
+        <button
+            onclick={onMention}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+            >Mention</button
         >
 
         <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -277,6 +396,19 @@
             </span>
             Mute
         </button>
+        <button
+            onclick={() => setUserVideoHidden(userId, !audio.videoHidden)}
+            aria-pressed={audio.videoHidden}
+            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+        >
+            <span class="w-3 flex items-center justify-center">
+                {#if audio.videoHidden}<Circle
+                        size={8}
+                        fill="currentColor"
+                    />{/if}
+            </span>
+            Hide video
+        </button>
 
         <div class="w-full h-px bg-discord-divider my-1"></div>
 
@@ -299,7 +431,9 @@
                 onclick={onKick}
                 disabled={pending !== null}
                 class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
-                >{pending === "kick" ? "Kicking…" : `Kick ${name}`}</button
+                >{pending === "kick"
+                    ? "Kicking…"
+                    : `Kick ${name} from room`}</button
             >
         {/if}
         {#if gates.canBan}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { insertMention } from "./mentionInsert";
+import { insertMention, appendMention } from "./mentionInsert";
 
 // The composer commits a mention by splicing "@label " over the "@query" the
 // user was typing. These cases pin the string maths: the remainder of the
@@ -93,5 +93,27 @@ describe("insertMention", () => {
                 label: "bob",
             }),
         ).toEqual({ text: "@bob  world", caret: 5 });
+    });
+});
+
+describe("appendMention", () => {
+    it("appends to empty text with no leading space", () => {
+        expect(appendMention("", "alice")).toEqual({
+            text: "@alice ",
+            caret: 7,
+        });
+    });
+    it("inserts a single leading space when text does not end in whitespace", () => {
+        expect(appendMention("hi", "alice").text).toBe("hi @alice ");
+    });
+    it("does not double a trailing space", () => {
+        expect(appendMention("hi ", "alice").text).toBe("hi @alice ");
+    });
+    it("treats a trailing newline as whitespace", () => {
+        expect(appendMention("hi\n", "alice").text).toBe("hi\n@alice ");
+    });
+    it("caret lands just past the trailing space", () => {
+        const r = appendMention("hi", "alice");
+        expect(r.caret).toBe(r.text.length);
     });
 });

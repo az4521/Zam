@@ -44,3 +44,17 @@ export function insertMention(params: {
         caret: mentionStart + token.length + 1,
     };
 }
+
+/**
+ * Append a mention at the end of the composer text. Adds one leading space only
+ * when the text is non-empty and does not already end in whitespace. Always adds
+ * a trailing space so the user can type after the pill.
+ */
+export function appendMention(
+    text: string,
+    label: string,
+): MentionInsertResult {
+    const needsGap = text.length > 0 && !/\s$/.test(text);
+    const next = text + (needsGap ? " " : "") + "@" + label + " ";
+    return { text: next, caret: next.length };
+}
