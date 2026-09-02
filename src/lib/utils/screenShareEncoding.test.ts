@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { screenShareEncodingFor } from "./screenShareEncoding";
+import {
+    screenShareEncodingFor,
+    applyScreenShareEncoding,
+} from "./screenShareEncoding";
 
 describe("screenShareEncodingFor", () => {
     it("maps every resolution row at 30 fps", () => {
@@ -75,5 +78,59 @@ describe("screenShareEncodingFor", () => {
             maxBitrate: 6_000_000,
             maxFramerate: 30,
         });
+    });
+});
+
+describe("applyScreenShareEncoding", () => {
+    it("sets maxBitrate + maxFramerate on a single encoding and returns true", () => {
+        const params = {
+            encodings: [{ rid: "h", active: true }],
+        } as RTCRtpSendParameters;
+        const applied = applyScreenShareEncoding(params, {
+            maxBitrate: 8_000_000,
+            maxFramerate: 60,
+        });
+        expect(applied).toBe(true);
+        expect(params.encodings![0]).toMatchObject({
+            rid: "h",
+            active: true,
+            maxBitrate: 8_000_000,
+            maxFramerate: 60,
+        });
+    });
+
+    it("caps every encoding when simulcast layers are present", () => {
+        const params = {
+            encodings: [{ rid: "q" }, { rid: "h" }],
+        } as RTCRtpSendParameters;
+        applyScreenShareEncoding(params, {
+            maxBitrate: 4_000_000,
+            maxFramerate: 30,
+        });
+        expect(
+            params.encodings!.every(
+                (e) => e.maxBitrate === 4_000_000 && e.maxFramerate === 30,
+            ),
+        ).toBe(true);
+    });
+
+    it("returns false and mutates nothing when encodings is empty", () => {
+        const params = { encodings: [] } as unknown as RTCRtpSendParameters;
+        expect(
+            applyScreenShareEncoding(params, {
+                maxBitrate: 4_000_000,
+                maxFramerate: 30,
+            }),
+        ).toBe(false);
+    });
+
+    it("returns false when encodings is undefined", () => {
+        const params = {} as RTCRtpSendParameters;
+        expect(
+            applyScreenShareEncoding(params, {
+                maxBitrate: 4_000_000,
+                maxFramerate: 30,
+            }),
+        ).toBe(false);
     });
 });
