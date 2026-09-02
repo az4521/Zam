@@ -8162,6 +8162,11 @@ let activeVoice: ActiveVoiceCall | null = null;
 // in-flight invocation bails out at its next staleness check instead of
 // reconnecting a room it no longer owns.
 let voiceJoinSeq = 0;
+// Serialize screen-share quality changes so concurrent setScreenShareQuality
+// calls don't interleave their getParameters/setParameters on the sender
+// (WebRTC requires each setParameters to be preceded by a fresh getParameters
+// with nothing else calling setParameters in between).
+let screenShareQualityChain: Promise<void> = Promise.resolve();
 let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
@@ -8931,7 +8936,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
  *  re-acquiring the capture (capture resolution can't change live; the publish
  *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
  *  is being shared. */
-export async function setScreenShareQuality(
+async function applyScreenShareQualityNow(
     resKey: string,
     fps: number,
 ): Promise<void> {
@@ -8956,6 +8961,16 @@ export async function setScreenShareQuality(
     } catch (err) {
         console.error("Screen share quality change failed:", err);
     }
+}
+
+export function setScreenShareQuality(
+    resKey: string,
+    fps: number,
+): Promise<void> {
+    screenShareQualityChain = screenShareQualityChain.then(() =>
+        applyScreenShareQualityNow(resKey, fps),
+    );
+    return screenShareQualityChain;
 }
 
 /** Start/stop publishing the camera, using the configured input device. */
