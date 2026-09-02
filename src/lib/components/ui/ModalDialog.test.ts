@@ -25,7 +25,13 @@ function nextFrame() {
 type FixtureProps = ComponentProps<typeof ModalDialogFixture>;
 
 function render(props: FixtureProps) {
-    app = mount(ModalDialogFixture, { target, props });
+    // `intro: false`: the shell now carries entrance transitions (backdrop fade,
+    // panel scale). jsdom implements no Web Animations API, so letting Svelte run
+    // an intro here throws `element.animate is not a function`. These tests cover
+    // dialog semantics and focus, never the animation, so the intro is suppressed
+    // — the real browser still animates on open. Outros are not a concern: the
+    // teardown below uses `unmount`, whose `outro` defaults to false.
+    app = mount(ModalDialogFixture, { target, props, intro: false });
     flushSync();
 }
 
