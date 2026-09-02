@@ -74,7 +74,7 @@
                     Show who has read each message as small avatars underneath
                     it. This only changes what you see on this device - to stop
                     others seeing how far you've read, use Private read receipts
-                    in Notifications.
+                    in Privacy & Safety.
                 </p>
             </div>
             <ToggleSwitch
