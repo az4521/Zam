@@ -161,6 +161,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["autoplay", "battery", "video"],
         anchor: "cust-messages",
     },
+    {
+        tab: "messages-media",
+        label: "Hold to open message menu",
+        keywords: ["touch", "long press", "tap"],
+        anchor: "cust-messages",
+    },
     // messages-media (gifs)
     {
         tab: "messages-media",
@@ -169,18 +175,6 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         anchor: "cust-gifs",
     },
     // general (behavior)
-    {
-        tab: "general",
-        label: "Keep room list open",
-        keywords: ["sidebar", "drawer"],
-        anchor: "cust-behavior",
-    },
-    {
-        tab: "general",
-        label: "Hold to open message menu",
-        keywords: ["touch", "long press", "tap"],
-        anchor: "cust-behavior",
-    },
     {
         tab: "general",
         label: "Minimise to tray on close",
@@ -193,6 +187,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         label: "Reduce motion",
         keywords: ["animations", "accessibility", "battery"],
         anchor: "appearance-reducemotion",
+    },
+    // appearance (sidebar)
+    {
+        tab: "appearance",
+        label: "Keep room list open",
+        keywords: ["sidebar", "drawer"],
+        anchor: "appearance-keepsidebar",
     },
     // emotes
     {

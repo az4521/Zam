@@ -94,4 +94,28 @@ describe("searchSettings", () => {
             expect(validTabs.has(e.tab)).toBe(true);
         }
     });
+
+    it("routes 'Keep room list open' to the Appearance tab with the keepsidebar anchor", () => {
+        const entry = SETTINGS_SEARCH_INDEX.find(
+            (e) => e.label === "Keep room list open",
+        );
+        expect(entry?.tab).toBe("appearance");
+        expect(entry?.anchor).toBe("appearance-keepsidebar");
+    });
+
+    it("routes 'Hold to open message menu' to the Messages & Media tab", () => {
+        const entry = SETTINGS_SEARCH_INDEX.find(
+            (e) => e.label === "Hold to open message menu",
+        );
+        expect(entry?.tab).toBe("messages-media");
+        expect(entry?.anchor).toBe("cust-messages");
+    });
+
+    it("keeps 'Minimise to tray on close' in the General tab", () => {
+        const entry = SETTINGS_SEARCH_INDEX.find(
+            (e) => e.label === "Minimise to tray on close",
+        );
+        expect(entry?.tab).toBe("general");
+        expect(entry?.anchor).toBe("cust-behavior");
+    });
 });
