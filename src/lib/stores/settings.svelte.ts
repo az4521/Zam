@@ -56,6 +56,14 @@ import {
     applyMessageFont,
     type MessageFontKey,
 } from "$lib/utils/messageDisplay";
+import {
+    validateCustomFontFile,
+    getStoredFont,
+    putStoredFont,
+    deleteStoredFont,
+    registerCustomFontFace,
+    unregisterCustomFontFace,
+} from "$lib/utils/customFont";
 
 const STORAGE_PREFIX = "settings:";
 
@@ -233,6 +241,11 @@ export const settingsState = $state({
     /** Device-local message font family key ("system" | "inter" | "atkinson").
      *  NOT synced: a bundled font binary cannot ride the JSON theme sync. */
     messageFont: resolveMessageFont(readString("messageFont")),
+    /** Device-local display name of the uploaded custom message font, or null.
+     *  The font BINARY lives in IndexedDB (never synced — a font file cannot
+     *  ride the JSON theme). Registered as a FontFace at boot (initCustomFont).
+     *  "" is coerced to null so a cleared slot renders no picker option. */
+    customFontName: readString("customFontName") || null,
     /** Device-global: open the mobile message actions bar on HOLD instead of
      *  TAP (Tap XOR Hold). Default OFF (tap opens the menu — today's behaviour).
      *  Deliberately device-local (readBool/writeBool, no customization sync):
@@ -368,6 +381,33 @@ applyReduceMotion(settingsState.reduceMotion);
 // the timeline is sized/styled before first paint, mirroring applyReduceMotion.
 applyMessageFontSize(settingsState.messageFontSize);
 applyMessageFont(settingsState.messageFont);
+
+// Boot apply: register the uploaded custom font (if any) from IndexedDB, then
+// re-apply the font var so a "custom" selection paints with real glyphs once
+// the FontFace is live. A missing/corrupt blob deselects to the system default
+// — a dangling "custom" selection must never stick. Fire-and-forget: async
+// registration cannot block first paint (the var is already set synchronously
+// above; the browser swaps glyphs in when the FontFace resolves).
+export async function initCustomFont(): Promise<void> {
+    if (typeof document === "undefined") return;
+    if (!settingsState.customFontName) return;
+    const rec = await getStoredFont();
+    const registered = rec ? await registerCustomFontFace(rec.data) : false;
+    if (registered) {
+        if (settingsState.messageFont === "custom") applyMessageFont("custom");
+        return;
+    }
+    // Missing or corrupt: clear the slot and deselect any "custom" choice.
+    unregisterCustomFontFace();
+    settingsState.customFontName = null;
+    writeString("customFontName", "");
+    if (settingsState.messageFont === "custom") {
+        settingsState.messageFont = "system";
+        writeString("messageFont", "system");
+        applyMessageFont("system");
+    }
+}
+void initCustomFont();
 
 /** Returns the colors for the active preset, or null if none is active or it has no overrides. */
 export function activePresetColors(): ThemeColors | null {
@@ -658,6 +698,53 @@ export function setMessageFont(key: MessageFontKey): void {
     settingsState.messageFont = font;
     writeString("messageFont", font);
     applyMessageFont(font);
+}
+
+/** Upload + register a custom font (single slot). Validates, reads the bytes,
+ *  registers the FontFace (rejecting a corrupt file), persists the blob to
+ *  IndexedDB, records the display name, and auto-selects the new font. Purely
+ *  device-local — never touches the synced customization snapshot. */
+export async function uploadCustomFont(
+    file: File,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const v = validateCustomFontFile({ name: file.name, size: file.size });
+    if (!v.ok) return { ok: false, reason: v.reason };
+    let data: ArrayBuffer;
+    try {
+        data = await file.arrayBuffer();
+    } catch {
+        return { ok: false, reason: "Could not read that file." };
+    }
+    const registered = await registerCustomFontFace(data);
+    if (!registered)
+        return { ok: false, reason: "That file isn't a valid font." };
+    await putStoredFont({
+        id: "custom",
+        name: v.displayName,
+        ext: v.ext,
+        data,
+        storedAt: Date.now(),
+    });
+    settingsState.customFontName = v.displayName;
+    writeString("customFontName", v.displayName);
+    settingsState.messageFont = "custom";
+    writeString("messageFont", "custom");
+    applyMessageFont("custom");
+    return { ok: true };
+}
+
+/** Remove the custom font: delete the blob, unregister the FontFace, clear the
+ *  name, and deselect if it was the active font. */
+export async function removeCustomFont(): Promise<void> {
+    await deleteStoredFont();
+    unregisterCustomFontFace();
+    settingsState.customFontName = null;
+    writeString("customFontName", "");
+    if (settingsState.messageFont === "custom") {
+        settingsState.messageFont = "system";
+        writeString("messageFont", "system");
+        applyMessageFont("system");
+    }
 }
 
 export function setHoldToOpenMessageMenu(value: boolean): void {
