@@ -5,35 +5,12 @@
         setShowMatrixIds,
         setShowReadReceiptAvatars,
         setLinkPreviewsEnabled,
-        setLinkPreviewMedia,
         setPauseVideoOnScrollOff,
         setGifDefaultTab,
         settingsState,
     } from "$lib/stores/settings.svelte";
-    import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
     import { type GifTab } from "$lib/utils/klipy";
 
-    const linkPreviewOptions: Array<{
-        value: LinkPreviewMedia;
-        label: string;
-        title: string;
-    }> = [
-        {
-            value: "all",
-            label: "All",
-            title: "Load preview media from wherever it is hosted",
-        },
-        {
-            value: "proxied",
-            label: "Homeserver only",
-            title: "Only load preview media your own homeserver serves",
-        },
-        {
-            value: "none",
-            label: "Off",
-            title: "Never load preview media automatically",
-        },
-    ];
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
         { value: "favourites", label: "Favourites" },
@@ -92,37 +69,14 @@
                 >
                 <p class="text-xs text-discord-textMuted">
                     When off, no link preview is loaded and your homeserver
-                    never fetches the linked page on your behalf.
+                    never fetches the linked page on your behalf. Control where
+                    preview media loads from in Privacy & Safety.
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.linkPreviewsEnabled}
                 onChange={setLinkPreviewsEnabled}
                 label="Link previews"
-            />
-        </div>
-        <div
-            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
-        >
-            <div class="flex-1 min-w-0">
-                <span class="text-sm text-discord-textPrimary"
-                    >Link preview media</span
-                >
-                <p class="text-xs text-discord-textMuted">
-                    Preview images and videos usually come straight from the
-                    site that hosts them, so that site learns your IP address
-                    and when you read the message. "Homeserver only" loads just
-                    the copies your own server serves; "Off" loads none of it.
-                    Both also hide embedded YouTube players and X/Twitter cards,
-                    which always load straight from those sites. Either way,
-                    each affected preview keeps a button to load its media.
-                </p>
-            </div>
-            <OptionSelector
-                value={settingsState.linkPreviewMedia}
-                options={linkPreviewOptions}
-                onChange={setLinkPreviewMedia}
-                ariaLabel="Link preview media"
             />
         </div>
         <div class="flex items-center gap-3 py-2">
