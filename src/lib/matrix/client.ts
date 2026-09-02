@@ -62,6 +62,7 @@ import {
     sfuJwtUrl,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
+import { screenShareEncodingFor } from "$lib/utils/screenShareEncoding";
 import {
     buildVideoTiles,
     type VideoPublicationInput,
@@ -8896,13 +8897,24 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
     try {
-        await call.lkRoom.localParticipant.setScreenShareEnabled(on, {
-            audio: settingsState.shareSystemAudio,
-            resolution: screenShareCaptureResolution(
-                settingsState.screenShareResolution,
-                Number(settingsState.screenShareFps),
-            ),
-        });
+        await call.lkRoom.localParticipant.setScreenShareEnabled(
+            on,
+            {
+                audio: settingsState.shareSystemAudio,
+                resolution: screenShareCaptureResolution(
+                    settingsState.screenShareResolution,
+                    Number(settingsState.screenShareFps),
+                ),
+                contentHint: "motion",
+            },
+            {
+                screenShareEncoding: screenShareEncodingFor(
+                    settingsState.screenShareResolution,
+                    Number(settingsState.screenShareFps),
+                ),
+                degradationPreference: "maintain-framerate",
+            },
+        );
         return on;
     } catch (err) {
         if (isUserCancel(err)) return false;
