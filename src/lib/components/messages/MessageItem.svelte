@@ -608,7 +608,11 @@
         };
         if (c?.msgtype !== "m.image") return false;
         if (c?.file) return false;
-        return typeof c?.url === "string" && (c.url as string).length > 0;
+        if (typeof c?.url !== "string" || (c.url as string).length === 0)
+            return false;
+        // Must resolve to a real http URL: a non-mxc/malformed url yields null
+        // from mxcToHttp and would otherwise page as a broken empty-src image.
+        return mxcToHttp(c.url as string) != null;
     }
 
     function uploadImageOf(e: MatrixEvent): GalleryImage {
