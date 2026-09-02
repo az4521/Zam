@@ -28,6 +28,10 @@ export function receiveShare(input: ShareInput): boolean {
     const n = normalizeSharePayload(input);
     if (!n) return false;
 
+    // Drop any orphaned one-step-send request from a prior, abandoned share so it
+    // can't latently auto-fire when a later composer mounts.
+    hostBridge.pendingSend = null;
+
     // ORDERING CONTRACT: claim the slot FIRST, then assign the payload.
     // Opening supersedes any prior owner and runs its close synchronously —
     // reversing this order would let a superseded modal's close null the

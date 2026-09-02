@@ -43,6 +43,8 @@
         if (p && p !== lastPayloadRef) {
             lastPayloadRef = p;
             caption = p.text;
+            selectedRoomId = null;
+            query = "";
         }
     });
 
