@@ -99,7 +99,7 @@
         mics = toDeviceOptions(all, "audioinput");
         speakers = toDeviceOptions(all, "audiooutput");
     }
-    if (isSelf) void loadDevices();
+    if (userId === auth.userId) void loadDevices();
 
     function pickMic(id: string | null): void {
         setAudioInputDeviceId(id);
