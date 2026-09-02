@@ -183,6 +183,7 @@
         galleryNav,
         type GalleryImage,
     } from "$lib/utils/messageBodyGallery";
+    import { siblingUploadIndices } from "$lib/utils/uploadSiblings";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
         audioPlaybackMode,
@@ -217,6 +218,12 @@
         receipts?: ReadReceiptInfo[];
         mentionHighlight?: boolean;
         callSummary?: CallSummary | null;
+        /** The chronological event list this row lives in (main timeline or
+         *  thread), and this event's index in it. Supplied by the parent so an
+         *  image upload can page across its same-burst sibling uploads. When
+         *  absent (e.g. a context with no list), the upload opens single-image. */
+        timelineEvents?: MatrixEvent[];
+        timelineIndex?: number;
     }
 
     let {
@@ -231,6 +238,8 @@
         receipts = [],
         mentionHighlight = false,
         callSummary = null,
+        timelineEvents,
+        timelineIndex,
     }: Props = $props();
 
     const canPin = $derived.by(() => {
@@ -578,6 +587,62 @@
     function openBodyGallery(images: GalleryImage[], index: number) {
         bodyGallery = { images, index };
     }
+
+    // Paged lightbox over this sender's ADJACENT image UPLOADS in the same burst
+    // (a run of consecutive m.image messages). Null = closed. Distinct from
+    // bodyGallery (inline formatted_body images of ONE message).
+    let uploadGallery = $state<{
+        images: GalleryImage[];
+        index: number;
+    } | null>(null);
+
+    // A timeline event is a pageable image upload iff it is a plain m.image with
+    // a resolvable url. Encrypted uploads (content.file) are excluded — they need
+    // an async per-event decrypt, so an encrypted room keeps single-image opens.
+    function isPageableImageUpload(e: MatrixEvent): boolean {
+        if (e.getType() !== "m.room.message") return false;
+        const c = e.getContent() as {
+            msgtype?: string;
+            url?: unknown;
+            file?: unknown;
+        };
+        if (c?.msgtype !== "m.image") return false;
+        if (c?.file) return false;
+        return typeof c?.url === "string" && (c.url as string).length > 0;
+    }
+
+    function uploadImageOf(e: MatrixEvent): GalleryImage {
+        const c = e.getContent() as {
+            url?: string;
+            filename?: string;
+            body?: string;
+        };
+        return {
+            src: mxcToHttp(c.url as string) ?? "",
+            alt: (c.filename ?? c.body ?? "") as string,
+        };
+    }
+
+    // Called by the m.image tile onclick. Opens the PAGED lightbox when this
+    // upload has ≥2 same-burst sibling uploads; otherwise the unchanged
+    // single-image lightbox (which also covers encrypted images).
+    function openImageUpload() {
+        const events = timelineEvents;
+        const idx = timelineIndex;
+        if (events && idx != null && idx >= 0 && idx < events.length) {
+            const pageable = events.map(isPageableImageUpload);
+            const indices = siblingUploadIndices(events, pageable, idx);
+            if (indices.length > 1) {
+                uploadGallery = {
+                    images: indices.map((i) => uploadImageOf(events[i])),
+                    index: indices.indexOf(idx),
+                };
+                return;
+            }
+        }
+        imageLightboxOpen = true;
+    }
+
     let emojiPickerBelow = $state(false);
     let reactionBtnEl: HTMLButtonElement | undefined = $state();
     let isEditing = $state(false);
@@ -2043,7 +2108,7 @@
                             rel="noopener noreferrer"
                             onclick={(e) => {
                                 e.preventDefault();
-                                imageLightboxOpen = true;
+                                openImageUpload();
                             }}
                         >
                             {#if imageBox}
@@ -2111,6 +2176,34 @@
                                 : undefined}
                             onClose={() => (imageLightboxOpen = false)}
                         />
+                    {/if}
+                    {#if uploadGallery}
+                        {@const ug = uploadGallery}
+                        {@const unav = galleryNav(ug.images.length, ug.index)}
+                        {@const ucur = ug.images[ug.index]}
+                        {@const uprev = unav.prevIndex}
+                        {@const unext = unav.nextIndex}
+                        {#if ucur}
+                            <Lightbox
+                                src={ucur.src}
+                                alt={ucur.alt}
+                                onClose={() => (uploadGallery = null)}
+                                onPrev={uprev !== null
+                                    ? () =>
+                                          (uploadGallery = {
+                                              images: ug.images,
+                                              index: uprev,
+                                          })
+                                    : undefined}
+                                onNext={unext !== null
+                                    ? () =>
+                                          (uploadGallery = {
+                                              images: ug.images,
+                                              index: unext,
+                                          })
+                                    : undefined}
+                            />
+                        {/if}
                     {/if}
                 {:else}
                     <span class="text-xs text-discord-textMuted italic"
