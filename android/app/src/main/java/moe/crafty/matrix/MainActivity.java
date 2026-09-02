@@ -1,13 +1,28 @@
 package moe.crafty.matrix;
 
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
+import android.util.Base64;
 
 import com.getcapacitor.BridgeActivity;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
+
+    // A shared file is base64'd and passed through evaluateJavascript, so keep
+    // it bounded. Larger files are skipped (device residual — the reliable
+    // path is text/URL; large-file share is verified on-device).
+    private static final long MAX_SHARE_FILE_BYTES = 25L * 1024L * 1024L;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -16,6 +31,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ApkUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
         handleRoomIntent(getIntent());
+        handleShareIntent(getIntent());
     }
 
     @Override
@@ -23,6 +39,7 @@ public class MainActivity extends BridgeActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleRoomIntent(intent);
+        handleShareIntent(intent);
     }
 
     /**
@@ -138,5 +155,128 @@ public class MainActivity extends BridgeActivity {
                 },
                 500
             );
+    }
+
+    /**
+     * Forward an Android share-sheet intent (ACTION_SEND / ACTION_SEND_MULTIPLE)
+     * into the web layer via window.__matrixShare(json). The web side only
+     * STAGES the payload into the room picker — a forged intent cannot send
+     * anything (audit SEC-M4). Mirrors handleRoomIntent's bridge pattern.
+     */
+    private void handleShareIntent(Intent intent) {
+        if (intent == null) return;
+        final String action = intent.getAction();
+        if (
+            !Intent.ACTION_SEND.equals(action) &&
+            !Intent.ACTION_SEND_MULTIPLE.equals(action)
+        ) return;
+
+        final String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+        final String subject = intent.getStringExtra(Intent.EXTRA_SUBJECT);
+
+        final List<Uri> uris = new ArrayList<>();
+        if (Intent.ACTION_SEND.equals(action)) {
+            Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) uris.add(u);
+        } else {
+            ArrayList<Uri> list = intent.getParcelableArrayListExtra(
+                Intent.EXTRA_STREAM
+            );
+            if (list != null) uris.addAll(list);
+        }
+
+        // Nothing usable → do not disturb the app.
+        if ((text == null || text.isEmpty()) && uris.isEmpty()) return;
+
+        final JSONArray files = new JSONArray();
+        for (Uri uri : uris) {
+            String b64 = readUriBase64(uri);
+            if (b64 == null) continue; // unreadable or over the size cap — skip
+            try {
+                JSONObject f = new JSONObject();
+                f.put("name", queryDisplayName(uri));
+                String type = getContentResolver().getType(uri);
+                f.put("mimeType", type != null ? type : "application/octet-stream");
+                f.put("dataBase64", b64);
+                files.put(f);
+            } catch (JSONException e) {
+                /* skip a file we can't encode; text still forwards */
+            }
+        }
+
+        final JSONObject payload = new JSONObject();
+        try {
+            payload.put("source", "android");
+            if (text != null && !text.isEmpty()) payload.put("text", text);
+            if (subject != null && !subject.isEmpty())
+                payload.put("subject", subject);
+            if (files.length() > 0) payload.put("files", files);
+        } catch (JSONException e) {
+            return;
+        }
+
+        // If a file read failed AND there was no text, there's nothing to send.
+        if (payload.length() <= 1) return;
+
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        final String json = payload.toString();
+        // Defer so the web app has defined window.__matrixShare (same 500ms the
+        // notification bridge uses).
+        getBridge()
+            .getWebView()
+            .postDelayed(
+                () -> {
+                    String js =
+                        "window.__matrixShare && window.__matrixShare(" +
+                        JSONObject.quote(json) +
+                        ")";
+                    getBridge().getWebView().evaluateJavascript(js, null);
+                },
+                500
+            );
+    }
+
+    /** Read a content:// URI to base64, or null if unreadable or over the cap. */
+    private String readUriBase64(Uri uri) {
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) return null;
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            long total = 0;
+            while ((n = in.read(buf)) != -1) {
+                total += n;
+                if (total > MAX_SHARE_FILE_BYTES) return null;
+                out.write(buf, 0, n);
+            }
+            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Best-effort display name for a shared content:// URI. */
+    private String queryDisplayName(Uri uri) {
+        try (
+            Cursor c = getContentResolver()
+                .query(
+                    uri,
+                    new String[] { OpenableColumns.DISPLAY_NAME },
+                    null,
+                    null,
+                    null
+                )
+        ) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) {
+                    String name = c.getString(idx);
+                    if (name != null && !name.isEmpty()) return name;
+                }
+            }
+        } catch (Exception ignored) {
+            /* fall through to default */
+        }
+        return "file";
     }
 }

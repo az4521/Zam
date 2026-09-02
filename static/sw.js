@@ -848,6 +848,51 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+	// Web Share Target (manifest share_target.action). The browser POSTs the
+	// shared payload here; stash it in IndexedDB and redirect to a normal GET
+	// the app boot consumes (/?share_target=1). UNTRUSTED input — we only
+	// STASH, never act on it.
+	{
+		let shareUrl;
+		try {
+			shareUrl = new URL(event.request.url);
+		} catch {
+			shareUrl = null;
+		}
+		if (
+			event.request.method === "POST" &&
+			shareUrl &&
+			shareUrl.pathname === "/share-target"
+		) {
+			event.respondWith(
+				(async () => {
+					try {
+						const form = await event.request.formData();
+						const files = form
+							.getAll("files")
+							.filter(
+								(f) =>
+									f &&
+									typeof f === "object" &&
+									"size" in f,
+							);
+						await dbSet("share_target_payload", {
+							title: form.get("title") || "",
+							text: form.get("text") || "",
+							url: form.get("url") || "",
+							files,
+							ts: Date.now(),
+						});
+					} catch (e) {
+						/* malformed multipart — still redirect to a clean page */
+					}
+					return Response.redirect("/?share_target=1", 303);
+				})(),
+			);
+			return;
+		}
+	}
+
 	// Offline app shell first (audit PWA-01). Returns null for everything it
 	// does not own — navigations and /_app/immutable/ GETs only — so the twimg
 	// and media-auth branches below are unchanged and respondWith is never

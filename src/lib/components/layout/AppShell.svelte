@@ -11,6 +11,7 @@
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
     import CreatePollDialog from "$lib/components/messages/CreatePollDialog.svelte";
     import ShareLocationDialog from "$lib/components/messages/ShareLocationDialog.svelte";
+    import ShareTargetSheet from "$lib/components/messages/ShareTargetSheet.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
@@ -44,6 +45,14 @@
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
     import { pollDialogState } from "$lib/stores/pollDialog.svelte";
     import { locationDialogState } from "$lib/stores/locationDialog.svelte";
+    import {
+        shareInboxState,
+        receiveShare,
+    } from "$lib/stores/shareInbox.svelte";
+    import {
+        consumeWebShareStash,
+        base64ToFile,
+    } from "$lib/utils/webShareStash";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -1387,6 +1396,34 @@
             openRoomFromNotification(roomId, userId, joinCall, eventId);
         };
 
+        // Android share-sheet bridge (MainActivity forwards ACTION_SEND extras
+        // here). The JSON is UNTRUSTED — receiveShare only STAGES it into the
+        // picker, never sends. Mirrors __matrixOpenRoom.
+        (window as any).__matrixShare = (json: string) => {
+            try {
+                const raw = JSON.parse(json) as {
+                    text?: string;
+                    subject?: string;
+                    files?: {
+                        name?: string;
+                        mimeType?: string;
+                        dataBase64?: string;
+                    }[];
+                };
+                const files = (raw.files ?? [])
+                    .map((f) => base64ToFile(f))
+                    .filter((f): f is File => f != null);
+                receiveShare({
+                    source: "android",
+                    text: raw.text,
+                    subject: raw.subject,
+                    files,
+                });
+            } catch {
+                /* malformed bridge payload — ignore */
+            }
+        };
+
         // Android notification-action bridges: must forward the poster userId from
         // the intent so the guard can verify it matches the active account — the
         // guard fails closed when userId is missing (audit SEC-M4 / PRIV-02).
@@ -1628,6 +1665,33 @@
                 "",
                 window.location.pathname + window.location.search,
             );
+        }
+        // Web Share Target cold/warm start: the service worker stashed the
+        // shared payload in IndexedDB and redirected to /?share_target=1.
+        // Consume it and open the picker. Strip the param FIRST so a remount
+        // can't re-open, then read the stash (async, fire-and-forget).
+        if (new URLSearchParams(window.location.search).has("share_target")) {
+            history.replaceState(
+                history.state,
+                "",
+                window.location.pathname + window.location.hash,
+            );
+            (async () => {
+                try {
+                    const stash = await consumeWebShareStash();
+                    if (stash) {
+                        receiveShare({
+                            source: "web",
+                            title: stash.title,
+                            text: stash.text,
+                            url: stash.url,
+                            files: stash.files ?? [],
+                        });
+                    }
+                } catch {
+                    /* no stash / IDB unavailable — ignore */
+                }
+            })();
         }
         // Refresh the registry's cached profile for this account so the
         // account switcher shows a current name/avatar even when this
@@ -2044,6 +2108,10 @@
 
 {#if interfaceState.modal === "plugin-popover"}
     <PluginPopoverHost />
+{/if}
+
+{#if interfaceState.modal === "share-target" && shareInboxState.payload}
+    <ShareTargetSheet />
 {/if}
 
 {#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}
