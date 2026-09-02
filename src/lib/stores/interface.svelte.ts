@@ -43,6 +43,7 @@ export type ModalId =
     | "report-message"
     | "redact-message"
     | "forward-message"
+    | "share-target"
     | "composer-picker"
     | "composer-actions"
     // A plugin's custom-UI popover (zam.ui.openPopover) — a plugin renders
