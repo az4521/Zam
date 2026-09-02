@@ -9,6 +9,7 @@
         setCustomDatePattern,
         setAlwaysAbsolute,
         setReduceMotion,
+        setKeepSidebarOpen,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
@@ -59,6 +60,23 @@
             checked={settingsState.rightAlignOwnBubbles}
             onChange={setRightAlignOwnBubbles}
             label="Right-align my messages (bubble layout)"
+        />
+    </div>
+    <div
+        data-setting-anchor="appearance-keepsidebar"
+        class="flex items-center gap-3 py-2 border-b border-discord-divider"
+    >
+        <div class="flex-1 min-w-0">
+            <p class="text-sm text-discord-textPrimary">Keep room list open</p>
+            <p class="text-xs text-discord-textMuted">
+                Don't auto-close the room list when switching between spaces or
+                Home. Opening a room or DM always closes it.
+            </p>
+        </div>
+        <ToggleSwitch
+            checked={settingsState.keepSidebarOpen}
+            onChange={setKeepSidebarOpen}
+            label="Keep room list open"
         />
     </div>
     <ThemeColorEditor />
