@@ -11,6 +11,7 @@ import {
     identityToUserId,
     usersFromIdentities,
     callBannerDecision,
+    callControlMode,
 } from "./voiceCall";
 
 describe("screenShareCaptureResolution", () => {
@@ -279,5 +280,70 @@ describe("callBannerDecision", () => {
                 selfUserId: null,
             }),
         ).toEqual({ visible: true, action: "join" });
+    });
+});
+
+describe("callControlMode", () => {
+    const self = "@me:s";
+    it("in the call → controls, whoever else is in the roster", () => {
+        expect(
+            callControlMode({
+                inThisCall: true,
+                participantUserIds: [self],
+                selfUserId: self,
+            }),
+        ).toBe("controls");
+        expect(
+            callControlMode({
+                inThisCall: true,
+                participantUserIds: [self, "@a:s"],
+                selfUserId: self,
+            }),
+        ).toBe("controls");
+    });
+    it("not in the call, another user present → join", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: ["@a:s"],
+                selfUserId: self,
+            }),
+        ).toBe("join");
+    });
+    it("not in the call, empty roster → join (fresh start stays available)", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [],
+                selfUserId: self,
+            }),
+        ).toBe("join");
+    });
+    it("solo-leave transient (only our own stale membership) → none", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [self],
+                selfUserId: self,
+            }),
+        ).toBe("none");
+    });
+    it("not in the call, self plus another → join (someone else is here)", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [self, "@a:s"],
+                selfUserId: self,
+            }),
+        ).toBe("join");
+    });
+    it("self unknown → falls back to join, never hides (no stale detection)", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [self],
+                selfUserId: null,
+            }),
+        ).toBe("join");
     });
 });
