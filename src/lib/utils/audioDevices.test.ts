@@ -40,6 +40,57 @@ describe("toDeviceOptions", () => {
             { id: "c", label: "Camera 1" },
         ]);
     });
+    it("sorts options alphabetically, case-insensitively", () => {
+        const list = [
+            dev("z", "audioinput", "Zoom Mic"),
+            dev("a", "audioinput", "apple mic"),
+            dev("b", "audioinput", "Blue Yeti"),
+        ];
+        expect(toDeviceOptions(list, "audioinput").map((o) => o.label)).toEqual(
+            ["apple mic", "Blue Yeti", "Zoom Mic"],
+        );
+    });
+    it("sorts numerically, not lexically (Device 2 before Device 10)", () => {
+        const list = [
+            dev("d10", "audioinput", "Device 10"),
+            dev("d2", "audioinput", "Device 2"),
+            dev("d1", "audioinput", "Device 1"),
+        ];
+        expect(toDeviceOptions(list, "audioinput").map((o) => o.label)).toEqual(
+            ["Device 1", "Device 2", "Device 10"],
+        );
+    });
+    it("is stable for equal labels (keeps enumeration order)", () => {
+        const list = [
+            dev("first", "audioinput", "Same Mic"),
+            dev("second", "audioinput", "Same Mic"),
+            dev("third", "audioinput", "Same Mic"),
+        ];
+        expect(toDeviceOptions(list, "audioinput").map((o) => o.id)).toEqual([
+            "first",
+            "second",
+            "third",
+        ]);
+    });
+    it("sorts generated numbered labels naturally (Microphone 2 before Microphone 10)", () => {
+        const list = Array.from({ length: 10 }, (_, i) =>
+            dev(`m${i}`, "audioinput"),
+        );
+        expect(toDeviceOptions(list, "audioinput").map((o) => o.label)).toEqual(
+            [
+                "Microphone 1",
+                "Microphone 2",
+                "Microphone 3",
+                "Microphone 4",
+                "Microphone 5",
+                "Microphone 6",
+                "Microphone 7",
+                "Microphone 8",
+                "Microphone 9",
+                "Microphone 10",
+            ],
+        );
+    });
 });
 
 describe("resolveDeviceId", () => {
