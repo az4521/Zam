@@ -266,7 +266,19 @@ body {
     padding: 0;
     background-color: var(--discord-bg);
     color: var(--discord-text-primary);
-    font-family: "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    /* The user-picked font (bundled or custom upload) applies APP-WIDE: the
+       whole UI inherits from here (Tailwind preflight makes form controls
+       inherit too). --zam-font-family is set/removed by applyMessageFont;
+       unset ("system") falls back to the stock stack. Monospace surfaces
+       (code blocks, font-mono) set their own family directly and win. */
+    font-family: var(
+        --zam-font-family,
+        "gg sans",
+        "Helvetica Neue",
+        Helvetica,
+        Arial,
+        sans-serif
+    );
 }
 
 #app {
@@ -353,19 +365,18 @@ body {
     animation: fadeIn 0.2s ease-out;
 }
 
-/* Adjustable message text size + font (device-local, item 1).
+/* Adjustable message text size (device-local, item 1).
    Unlayered so it beats Tailwind's `text-sm` utility (in @layer utilities)
    with no markup change. The root font-size is scaled by applyAppTextScale
    (utils/messageDisplay, sets document.documentElement.style.fontSize as a %
    of the browser base). .message-body uses a plain rem so it follows the
-   scaled root instead of scaling twice; --zam-font-family is still set by
-   applyMessageFont. At the default (16px = 100%) the timeline looks the same
-   as before at a 16px root. Code keeps its own monospace family + fixed size
-   (see MessageItem.svelte `.message-body pre code`) because a directly-set
-   font-family beats an inherited one. */
+   scaled root instead of scaling twice. The picked FONT is app-wide since
+   v1.6.1 (inherited from body — see the html,body rule), so no family here.
+   Code keeps its own monospace family + fixed size (see MessageItem.svelte
+   `.message-body pre code`) because a directly-set font-family beats an
+   inherited one. */
 .message-body {
     font-size: 0.875rem;
-    font-family: var(--zam-font-family, inherit);
 }
 
 /* Links inside message content.
