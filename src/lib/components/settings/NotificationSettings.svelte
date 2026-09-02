@@ -5,24 +5,15 @@
         DEFAULT_PUSH_RULES,
         getClient,
         getDefaultPushRuleLevel,
-        getDirectRooms,
-        getOrphanRooms,
-        getRoomDisplayName,
-        getRoomNotificationSetting,
-        getRoomsInSpace,
-        getSpaces,
         publishActiveSession,
         setDefaultPushRuleLevel,
-        setRoomNotificationSetting,
         getKeywordRules,
         addKeywordRule,
         setKeywordRuleBehavior,
         setKeywordRuleEnabled,
         deleteKeywordRule,
         type PushRuleLevel,
-        type RoomNotificationSetting,
         type KeywordBehavior,
-        updateServiceWorkerNotificationPrivacy,
     } from "$lib/matrix/client";
     import {
         GRACE_OPTIONS,
@@ -37,15 +28,9 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         setActiveSessionGraceMs,
-        setPrivateReadReceipts,
-        setHideNotificationBody,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
-    import { verifyPushGateways, PUSH_GATEWAY_NOTIFY_URL } from "$lib/push";
-    import type { PusherGatewayStatus } from "$lib/utils/pusherVerification";
-    import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
-    import { onMount } from "svelte";
 
     function currentPermission(): NotificationPermission | "unsupported" {
         return typeof Notification === "undefined"
@@ -56,15 +41,6 @@
     let permission = $state(currentPermission());
     let permissionLoading = $state(false);
 
-    // SEC-L4: after login, re-read the pushers the homeserver actually kept and
-    // report whether it honoured our gateway URL. null while the check is in
-    // flight or when there is no client to ask.
-    let gatewayStatus = $state<PusherGatewayStatus | null>(null);
-    onMount(async () => {
-        const client = getClient();
-        if (!client) return;
-        gatewayStatus = await verifyPushGateways(client).catch(() => null);
-    });
     let soundEnabled = $state(
         localStorage.getItem("notifSoundEnabled") !== "false",
     );
@@ -175,68 +151,6 @@
     const selectClass =
         "flex-shrink-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50";
 
-    function onToggleHideNotificationBody(value: boolean) {
-        setHideNotificationBody(value);
-        // The service worker and the Android FCM service each keep their own
-        // copy of this flag — they cannot read localStorage.
-        updateServiceWorkerNotificationPrivacy(value);
-        syncNativeNotificationPrivacy(value).catch(() => {});
-    }
-
-    type NotifRoom = { roomId: string; name: string };
-    type NotifGroup = { label: string; rooms: NotifRoom[] };
-    const groups = $derived.by((): NotifGroup[] => {
-        const result: NotifGroup[] = [];
-        for (const space of getSpaces()) {
-            const rooms = getRoomsInSpace(space.roomId).map((room) => ({
-                roomId: room.roomId,
-                name: getRoomDisplayName(room),
-            }));
-            if (rooms.length > 0) {
-                result.push({ label: getRoomDisplayName(space), rooms });
-            }
-        }
-        const addGroup = (
-            label: string,
-            rooms: ReturnType<typeof getSpaces>,
-        ) => {
-            if (rooms.length === 0) return;
-            result.push({
-                label,
-                rooms: rooms.map((room) => ({
-                    roomId: room.roomId,
-                    name: getRoomDisplayName(room),
-                })),
-            });
-        };
-        addGroup("Other Rooms", getOrphanRooms());
-        addGroup("Direct Messages", getDirectRooms());
-        return result;
-    });
-
-    const roomOptions: Array<{
-        value: RoomNotificationSetting;
-        label: string;
-        title: string;
-    }> = [
-        {
-            value: "default",
-            label: "Default",
-            title: "Use global notification settings",
-        },
-        {
-            value: "all",
-            label: "All Messages",
-            title: "Notify for every message",
-        },
-        {
-            value: "mentions",
-            label: "Mentions Only",
-            title: "Notify for mentions only",
-        },
-        { value: "mute", label: "Mute", title: "No notifications" },
-    ];
-
     const ruleLevels = $derived.by(() => {
         void defaultRulesTick;
         return Object.fromEntries(
@@ -272,20 +186,6 @@
             );
         } finally {
             defaultRulesTick++;
-        }
-    }
-
-    async function setRoomLevel(
-        roomId: string,
-        name: string,
-        setting: RoomNotificationSetting,
-    ) {
-        try {
-            await setRoomNotificationSetting(roomId, setting);
-        } catch (e) {
-            showErrorToast(
-                toastMessage(e, `Could not save notifications for ${name}`),
-            );
         }
     }
 
@@ -376,6 +276,12 @@
 </script>
 
 <div class="space-y-6">
+    <h3
+        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+    >
+        This device
+    </h3>
+
     {#if permission !== "granted"}
         <section data-setting-anchor="notif-system">
             <p
@@ -441,42 +347,6 @@
                 onChange={setSoundEnabled}
                 label="Notification sound"
             />
-        </div>
-    </section>
-
-    <section>
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-        >
-            Push Gateway
-        </p>
-        <div class="py-2 border-b border-discord-divider">
-            <p class="text-sm text-discord-textPrimary">Notification relay</p>
-            <p class="text-xs text-discord-textMuted mb-1">
-                Push notifications are relayed through this gateway. It can see
-                which rooms and senders notify you, but never your message text.
-            </p>
-            <p class="text-xs font-mono text-discord-textMuted break-all">
-                {PUSH_GATEWAY_NOTIFY_URL}
-            </p>
-            {#if gatewayStatus?.status === "mismatch"}
-                <p class="text-xs text-discord-danger mt-1">
-                    Warning: your homeserver is routing this device's push
-                    notifications to a different gateway ({gatewayStatus.mismatchedUrls.join(
-                        ", ",
-                    )}). That gateway, not the one above, sees your notification
-                    metadata.
-                </p>
-            {:else if gatewayStatus?.status === "verified"}
-                <p class="text-xs text-discord-textPositive mt-1">
-                    Verified: your homeserver routes notifications to this
-                    gateway.
-                </p>
-            {:else if gatewayStatus?.status === "none"}
-                <p class="text-xs text-discord-textMuted mt-1 italic">
-                    No push notifications are registered on this account yet.
-                </p>
-            {/if}
         </div>
     </section>
 
@@ -575,50 +445,11 @@
         {/if}
     </section>
 
-    <section data-setting-anchor="notif-privacy">
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-        >
-            Privacy
-        </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    Private read receipts
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    Hide your read receipts from other users. Your unread counts
-                    still work; others just can't see how far you've read.
-                </p>
-            </div>
-            <ToggleSwitch
-                checked={settingsState.privateReadReceipts}
-                onChange={setPrivateReadReceipts}
-                label="Private read receipts"
-            />
-        </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    Hide message text in notifications
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    Notifications on this device say who messaged you, but not
-                    what they said. The sender and room names are still shown.
-                    Applies to this device only.
-                </p>
-            </div>
-            <ToggleSwitch
-                checked={settingsState.hideNotificationBody}
-                onChange={onToggleHideNotificationBody}
-                label="Hide message text in notifications"
-            />
-        </div>
-    </section>
+    <h3
+        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+    >
+        Rules
+    </h3>
 
     <section data-setting-anchor="notif-rules">
         <p
@@ -729,43 +560,4 @@
             </div>
         {/if}
     </section>
-
-    {#if groups.length > 0}
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide -mb-2"
-        >
-            Per-room Overrides
-        </p>
-    {/if}
-    {#each groups as group}
-        <section>
-            <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-            >
-                {group.label}
-            </p>
-            <div class="space-y-1">
-                {#each group.rooms as room}
-                    <div
-                        class="flex items-center gap-3 py-2 border-b border-discord-divider"
-                    >
-                        <span
-                            class="flex-1 text-sm text-discord-textPrimary truncate"
-                            >{room.name}</span
-                        >
-                        <OptionSelector
-                            value={getRoomNotificationSetting(room.roomId)}
-                            options={roomOptions}
-                            onChange={(setting) =>
-                                setRoomLevel(room.roomId, room.name, setting)}
-                            ariaLabel={`Notifications for ${room.name}`}
-                        />
-                    </div>
-                {/each}
-            </div>
-        </section>
-    {/each}
-    {#if groups.length === 0}
-        <p class="text-sm text-discord-textMuted italic">No rooms found.</p>
-    {/if}
 </div>

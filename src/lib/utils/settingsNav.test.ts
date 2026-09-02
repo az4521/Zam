@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     SETTINGS_TABS,
+    SETTINGS_GROUPS,
     DEFAULT_SETTINGS_TAB,
     settingsTabLabel,
     settingsNavView,
@@ -11,16 +12,16 @@ describe("SETTINGS_TABS", () => {
     it("lists the thirteen settings categories in display order", () => {
         expect(SETTINGS_TABS.map((t) => t.id)).toEqual([
             "account",
-            "sessions",
             "security",
-            "theme",
-            "customization",
-            "emotes",
+            "privacy",
+            "appearance",
+            "messages-media",
             "notifications",
             "voice",
-            "blocked",
-            "server",
+            "emotes",
+            "general",
             "plugins",
+            "server",
             "about",
             "debug",
         ]);
@@ -45,10 +46,29 @@ describe("SETTINGS_TABS", () => {
     });
 });
 
+describe("SETTINGS_GROUPS", () => {
+    it("has the correct group titles", () => {
+        expect(SETTINGS_GROUPS.map((g) => g.title)).toEqual([
+            "Account",
+            "App",
+            "Advanced",
+        ]);
+    });
+
+    it("flattens to SETTINGS_TABS", () => {
+        expect(SETTINGS_GROUPS.flatMap((g) => g.tabs)).toEqual(SETTINGS_TABS);
+    });
+
+    it("has no duplicate ids across all groups", () => {
+        const ids = SETTINGS_GROUPS.flatMap((g) => g.tabs).map((t) => t.id);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+});
+
 describe("settingsTabLabel", () => {
     it("returns the table's label", () => {
-        expect(settingsTabLabel("voice")).toBe("Voice & Audio");
-        expect(settingsTabLabel("emotes")).toBe("My Emotes");
+        expect(settingsTabLabel("voice")).toBe("Voice & Video");
+        expect(settingsTabLabel("emotes")).toBe("Emotes");
     });
 
     it("falls back to the raw id for an unknown tab", () => {
@@ -86,7 +106,7 @@ describe("settingsNavView", () => {
 
     it("keeps the drilled-into tab when the viewport grows to desktop", () => {
         expect(
-            settingsNavView({ isMobile: false, selectedTab: "blocked" }),
-        ).toEqual({ mode: "desktop", tab: "blocked" });
+            settingsNavView({ isMobile: false, selectedTab: "privacy" }),
+        ).toEqual({ mode: "desktop", tab: "privacy" });
     });
 });

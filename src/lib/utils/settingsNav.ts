@@ -1,23 +1,24 @@
 // Pure navigation model for the app-settings dialog.
 //
-// Desktop renders a persistent category sidebar beside the active panel.
-// Mobile (< 768px) instead drills down: a root list of categories that pushes
-// a full-screen sub-page. `settingsNavView` is the single place that decides
-// which of those three surfaces is showing, so the component stays declarative
-// and the behaviour is unit-testable. No Svelte, no SDK imports.
+// Settings are organized into three groups (Account / App / Advanced), each
+// containing related tabs. Desktop renders a persistent grouped sidebar beside
+// the active panel. Mobile (< 768px) instead drills down: a root list of grouped
+// categories that pushes a full-screen sub-page. `settingsNavView` is the single
+// place that decides which of those three surfaces is showing, so the component
+// stays declarative and the behaviour is unit-testable. No Svelte, no SDK imports.
 
 export type SettingsTab =
     | "account"
-    | "sessions"
     | "security"
-    | "theme"
-    | "customization"
-    | "emotes"
+    | "privacy"
+    | "appearance"
+    | "messages-media"
     | "notifications"
     | "voice"
-    | "blocked"
-    | "server"
+    | "emotes"
+    | "general"
     | "plugins"
+    | "server"
     | "about"
     | "debug";
 
@@ -26,22 +27,47 @@ export interface SettingsTabEntry {
     label: string;
 }
 
-/** The settings categories, in display order (shared by both layouts). */
-export const SETTINGS_TABS: readonly SettingsTabEntry[] = [
-    { id: "account", label: "Account" },
-    { id: "sessions", label: "Sessions" },
-    { id: "security", label: "Security" },
-    { id: "theme", label: "Theme" },
-    { id: "customization", label: "Customization" },
-    { id: "emotes", label: "My Emotes" },
-    { id: "notifications", label: "Notifications" },
-    { id: "voice", label: "Voice & Audio" },
-    { id: "blocked", label: "Blocked Users" },
-    { id: "server", label: "Server" },
-    { id: "plugins", label: "Plugins" },
-    { id: "about", label: "About" },
-    { id: "debug", label: "Debug Info" },
+/**
+ * The settings groups and their tabs, in display order. This is the source of truth
+ * for the grouped navigation structure (Account / App / Advanced).
+ */
+export const SETTINGS_GROUPS: readonly {
+    title: string;
+    tabs: readonly SettingsTabEntry[];
+}[] = [
+    {
+        title: "Account",
+        tabs: [
+            { id: "account", label: "Account" },
+            { id: "security", label: "Security & Sessions" },
+            { id: "privacy", label: "Privacy & Safety" },
+        ],
+    },
+    {
+        title: "App",
+        tabs: [
+            { id: "appearance", label: "Appearance" },
+            { id: "messages-media", label: "Messages & Media" },
+            { id: "notifications", label: "Notifications" },
+            { id: "voice", label: "Voice & Video" },
+            { id: "emotes", label: "Emotes" },
+        ],
+    },
+    {
+        title: "Advanced",
+        tabs: [
+            { id: "general", label: "General" },
+            { id: "plugins", label: "Plugins" },
+            { id: "server", label: "Server" },
+            { id: "about", label: "About" },
+            { id: "debug", label: "Debug" },
+        ],
+    },
 ];
+
+/** The settings categories, in display order (derived from groups). */
+export const SETTINGS_TABS: readonly SettingsTabEntry[] =
+    SETTINGS_GROUPS.flatMap((g) => g.tabs);
 
 /** Tab the desktop layout falls back to before the user picks one. */
 export const DEFAULT_SETTINGS_TAB: SettingsTab = "account";

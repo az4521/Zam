@@ -56,19 +56,19 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         label: "Deactivate account",
         keywords: ["delete account", "close account", "remove account"],
     },
-    // sessions
+    // security (sessions subsection)
     {
-        tab: "sessions",
+        tab: "security",
         label: "Sessions",
         keywords: ["devices", "logins", "sign out other"],
     },
     {
-        tab: "sessions",
+        tab: "security",
         label: "Encrypt new direct messages",
         keywords: ["encryption", "e2e", "dm", "private"],
     },
     {
-        tab: "sessions",
+        tab: "security",
         label: "Only send to verified devices",
         keywords: ["verified", "trust", "cross-signing"],
     },
@@ -88,101 +88,105 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         label: "Verify this session",
         keywords: ["verification", "verify device"],
     },
-    // theme
+    // appearance
     {
-        tab: "theme",
+        tab: "appearance",
         label: "Right-align my messages",
         keywords: ["bubble", "layout", "alignment", "imessage"],
         anchor: "theme-rightalign",
     },
     {
-        tab: "theme",
+        tab: "appearance",
         label: "Text size",
         keywords: ["font size", "zoom", "bigger text", "message size"],
     },
-    { tab: "theme", label: "Font", keywords: ["typeface", "font family"] },
+    { tab: "appearance", label: "Font", keywords: ["typeface", "font family"] },
     {
-        tab: "theme",
+        tab: "appearance",
         label: "Theme presets",
         keywords: ["dark mode", "light mode", "amoled", "colors", "preset"],
     },
     {
-        tab: "theme",
+        tab: "appearance",
         label: "Import / export theme",
         keywords: ["theme code", "share theme", "copy theme", "paste"],
     },
-    // customization
+    // appearance (timestamps)
     {
-        tab: "customization",
+        tab: "appearance",
         label: "Time format",
         keywords: ["clock", "12 hour", "24 hour", "timestamp"],
         anchor: "cust-timestamps",
     },
     {
-        tab: "customization",
+        tab: "appearance",
         label: "Date format",
         keywords: ["date", "calendar"],
         anchor: "cust-timestamps",
     },
     {
-        tab: "customization",
+        tab: "appearance",
         label: "Always show absolute dates",
         keywords: ["relative", "today", "yesterday"],
         anchor: "cust-timestamps",
     },
+    // messages-media (messages)
     {
-        tab: "customization",
+        tab: "messages-media",
         label: "Show Matrix IDs",
         keywords: ["mxid", "username", "server name"],
         anchor: "cust-messages",
     },
     {
-        tab: "customization",
+        tab: "messages-media",
         label: "Read receipt avatars",
         keywords: ["seen by", "read receipts"],
         anchor: "cust-messages",
     },
     {
-        tab: "customization",
+        tab: "messages-media",
         label: "Link previews",
         keywords: ["preview", "embed", "unfurl", "url"],
         anchor: "cust-messages",
     },
     {
-        tab: "customization",
+        tab: "messages-media",
         label: "Pause videos off-screen",
         keywords: ["autoplay", "battery", "video"],
         anchor: "cust-messages",
     },
+    // messages-media (gifs)
     {
-        tab: "customization",
+        tab: "messages-media",
         label: "GIF default tab",
         keywords: ["gif", "picker", "tenor", "klipy"],
         anchor: "cust-gifs",
     },
+    // general (behavior)
     {
-        tab: "customization",
+        tab: "general",
         label: "Keep room list open",
         keywords: ["sidebar", "drawer"],
         anchor: "cust-behavior",
     },
     {
-        tab: "customization",
-        label: "Reduce motion",
-        keywords: ["animations", "accessibility", "battery"],
-        anchor: "cust-behavior",
-    },
-    {
-        tab: "customization",
+        tab: "general",
         label: "Hold to open message menu",
         keywords: ["touch", "long press", "tap"],
         anchor: "cust-behavior",
     },
     {
-        tab: "customization",
+        tab: "general",
         label: "Minimise to tray on close",
         keywords: ["system tray", "background", "desktop"],
         anchor: "cust-behavior",
+    },
+    // appearance (reduce motion)
+    {
+        tab: "appearance",
+        label: "Reduce motion",
+        keywords: ["animations", "accessibility", "battery"],
+        anchor: "appearance-reducemotion",
     },
     // emotes
     {
@@ -209,14 +213,15 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["active session", "grace", "suppress", "multi-device"],
         anchor: "notif-devices",
     },
+    // privacy (notification privacy)
     {
-        tab: "notifications",
+        tab: "privacy",
         label: "Private read receipts",
         keywords: ["hide read status", "privacy"],
         anchor: "notif-privacy",
     },
     {
-        tab: "notifications",
+        tab: "privacy",
         label: "Hide message text in notifications",
         keywords: ["notification content", "preview", "privacy"],
         anchor: "notif-privacy",
@@ -272,9 +277,9 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         label: "Ring for incoming DM calls",
         keywords: ["ringtone", "incoming call"],
     },
-    // blocked
+    // privacy (blocked users)
     {
-        tab: "blocked",
+        tab: "privacy",
         label: "Blocked users",
         keywords: ["ignore", "unblock", "block a user"],
     },
@@ -321,6 +326,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         tab: "debug",
         label: "Push diagnostics",
         keywords: ["push status", "fcm", "gateway", "troubleshoot"],
+        anchor: "debug-push",
     },
 ];
 
