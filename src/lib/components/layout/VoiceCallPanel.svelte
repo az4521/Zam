@@ -20,7 +20,7 @@
     import { connStateLabel } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { formatCallDuration } from "$lib/utils/callDuration";
-    import { showCallView } from "$lib/stores/interface.svelte";
+    import { showCallView, interfaceState } from "$lib/stores/interface.svelte";
     import {
         getRoom,
         getRoomDisplayName,
@@ -28,6 +28,7 @@
         resumeVoicePlayback,
     } from "$lib/matrix/client";
     import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
+    import ScreenShareQualityPopover from "./ScreenShareQualityPopover.svelte";
 
     // Fixed for the session, same as CallView — hides share where unsupported.
     const screenShareSupported = screenShareSupportedHere();
@@ -66,6 +67,16 @@
         if (!roomId) return;
         navigateToRoom(roomId);
         showCallView(roomId);
+    }
+
+    let sharePopover = $state<{ x: number; y: number } | null>(null);
+    function onShareClick(e: MouseEvent): void {
+        if (voiceCallState.screenSharing) {
+            void toggleScreenShare();
+            return;
+        }
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        sharePopover = { x: r.left, y: r.top };
     }
 </script>
 
@@ -150,7 +161,7 @@
             </button>
             {#if screenShareSupported}
                 <button
-                    onclick={() => void toggleScreenShare()}
+                    onclick={onShareClick}
                     class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
                         ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
@@ -174,4 +185,13 @@
             </button>
         </div>
     </div>
+    {#if sharePopover}
+        <ScreenShareQualityPopover
+            x={sharePopover.x}
+            y={sharePopover.y}
+            mode="pre-share"
+            touch={interfaceState.isTouchscreen}
+            onClose={() => (sharePopover = null)}
+        />
+    {/if}
 {/if}

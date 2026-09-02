@@ -27,3 +27,21 @@ export function screenShareEncodingFor(
         : 30;
     return { maxBitrate: row[frameRate], maxFramerate: frameRate };
 }
+
+/** Cap a running screen-share sender's encodings to the picked quality.
+ *  Mutates `params.encodings` in place (RTCRtpSender.setParameters requires
+ *  the object returned by getParameters, minimally mutated). Applies to EVERY
+ *  layer so a simulcast top layer can't exceed the pick. Returns whether any
+ *  encoding was touched — an empty/absent array means the track isn't
+ *  publishing yet, so the caller skips setParameters. */
+export function applyScreenShareEncoding(
+    params: RTCRtpSendParameters,
+    encoding: { maxBitrate: number; maxFramerate: number },
+): boolean {
+    if (!params.encodings || params.encodings.length === 0) return false;
+    for (const enc of params.encodings) {
+        enc.maxBitrate = encoding.maxBitrate;
+        enc.maxFramerate = encoding.maxFramerate;
+    }
+    return true;
+}

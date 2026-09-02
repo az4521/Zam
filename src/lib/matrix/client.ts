@@ -62,7 +62,10 @@ import {
     sfuJwtUrl,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
-import { screenShareEncodingFor } from "$lib/utils/screenShareEncoding";
+import {
+    screenShareEncodingFor,
+    applyScreenShareEncoding,
+} from "$lib/utils/screenShareEncoding";
 import {
     buildVideoTiles,
     type VideoPublicationInput,
@@ -8159,6 +8162,11 @@ let activeVoice: ActiveVoiceCall | null = null;
 // in-flight invocation bails out at its next staleness check instead of
 // reconnecting a room it no longer owns.
 let voiceJoinSeq = 0;
+// Serialize screen-share quality changes so concurrent setScreenShareQuality
+// calls don't interleave their getParameters/setParameters on the sender
+// (WebRTC requires each setParameters to be preceded by a fresh getParameters
+// with nothing else calling setParameters in between).
+let screenShareQualityChain: Promise<void> = Promise.resolve();
 let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
@@ -8922,6 +8930,47 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         notifyVoiceNotice("Could not start screen share");
         return false;
     }
+}
+
+/** Re-encode the currently published screen share to a new quality without
+ *  re-acquiring the capture (capture resolution can't change live; the publish
+ *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
+ *  is being shared. */
+async function applyScreenShareQualityNow(
+    resKey: string,
+    fps: number,
+): Promise<void> {
+    const call = activeVoice;
+    if (!call) return;
+    const track = call.lkRoom.localParticipant.getTrackPublication(
+        call.lk.Track.Source.ScreenShare,
+    )?.videoTrack;
+    const sender = track?.sender;
+    if (!track || !sender) return;
+    try {
+        const params = sender.getParameters();
+        if (
+            applyScreenShareEncoding(
+                params,
+                screenShareEncodingFor(resKey, fps),
+            )
+        ) {
+            params.degradationPreference = "maintain-framerate";
+            await sender.setParameters(params);
+        }
+    } catch (err) {
+        console.error("Screen share quality change failed:", err);
+    }
+}
+
+export function setScreenShareQuality(
+    resKey: string,
+    fps: number,
+): Promise<void> {
+    screenShareQualityChain = screenShareQualityChain.then(() =>
+        applyScreenShareQualityNow(resKey, fps),
+    );
+    return screenShareQualityChain;
 }
 
 /** Start/stop publishing the camera, using the configured input device. */

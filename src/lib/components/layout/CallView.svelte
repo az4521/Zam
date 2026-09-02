@@ -16,10 +16,12 @@
         MonitorUp,
         EllipsisVertical,
         Smartphone,
+        Settings,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
+    import ScreenShareQualityPopover from "$lib/components/layout/ScreenShareQualityPopover.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
@@ -240,6 +242,25 @@
     // slot strands and swallows the next Escape.
     $effect(() => () => clearModalIfOwner(participantMenuToken));
 
+    let sharePopover = $state<{
+        x: number;
+        y: number;
+        mode: "pre-share" | "live";
+    } | null>(null);
+    function onShareBtnClick(e: MouseEvent): void {
+        if (voiceCallState.screenSharing) {
+            void toggleScreenShare();
+            return;
+        }
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        sharePopover = { x: r.left, y: r.top, mode: "pre-share" };
+    }
+    function openLiveQuality(e: MouseEvent): void {
+        e.stopPropagation();
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        sharePopover = { x: r.left, y: r.top, mode: "live" };
+    }
+
     function openParticipantMenu(
         userId: string,
         x: number,
@@ -359,6 +380,17 @@
                             label={tileLabel(t.identity, t.source)}
                             compact
                         />
+                        {#if isLocalIdentity(t.identity)}
+                            <button
+                                type="button"
+                                class="{TILE_MENU_BTN} top-0.5 left-0.5 p-1"
+                                title="Screen share quality"
+                                aria-label="Screen share quality"
+                                onclick={openLiveQuality}
+                            >
+                                <Settings size={14} />
+                            </button>
+                        {/if}
                         <button
                             type="button"
                             class={TILE_OVERLAY_BTN}
@@ -473,6 +505,17 @@
                             tile={t}
                             label={tileLabel(t.identity, t.source)}
                         />
+                        {#if isLocalIdentity(t.identity)}
+                            <button
+                                type="button"
+                                class="{TILE_MENU_BTN} top-0.5 left-0.5 p-1"
+                                title="Screen share quality"
+                                aria-label="Screen share quality"
+                                onclick={openLiveQuality}
+                            >
+                                <Settings size={14} />
+                            </button>
+                        {/if}
                         <button
                             type="button"
                             class={TILE_OVERLAY_BTN}
@@ -706,7 +749,7 @@
                 </button>
                 {#if screenShareSupported}
                     <button
-                        onclick={() => void toggleScreenShare()}
+                        onclick={onShareBtnClick}
                         class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.screenSharing
                             ? 'text-discord-accent'
                             : 'text-discord-textPrimary'}"
@@ -754,6 +797,15 @@
             participantMenu = null;
             clearModalIfOwner(participantMenuToken);
         }}
+    />
+{/if}
+{#if sharePopover}
+    <ScreenShareQualityPopover
+        x={sharePopover.x}
+        y={sharePopover.y}
+        mode={sharePopover.mode}
+        touch={interfaceState.isTouchscreen}
+        onClose={() => (sharePopover = null)}
     />
 {/if}
 
