@@ -45,6 +45,7 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { mapWithConcurrency } from "$lib/utils/async";
+    import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
 
     function getSpaceNotifs(
@@ -509,19 +510,15 @@
         setting: RoomNotificationSetting,
     ) {
         closeModal();
-        // Apply to the space room itself and all its rooms recursively
-        const allRoomIds = new Set([spaceId]);
-        const collect = (id: string, visited = new Set<string>()) => {
-            if (visited.has(id)) return;
-            visited.add(id);
-            for (const r of getRoomsInSpace(id)) allRoomIds.add(r.roomId);
-            for (const childId of getSpaceChildIds(id)) {
-                const child = getRoom(childId);
-                if (child?.isSpaceRoom()) collect(childId, visited);
-            }
-        };
-        collect(spaceId);
-        await mapWithConcurrency([...allRoomIds], 4, (id) =>
+        // Apply to the space room itself and all its rooms recursively.
+        const allRoomIds = collectSpaceAndDescendantRoomIds(spaceId, {
+            roomsInSpace: (id) => getRoomsInSpace(id).map((r) => r.roomId),
+            childSpaceIds: (id) =>
+                getSpaceChildIds(id).filter(
+                    (cid) => getRoom(cid)?.isSpaceRoom() ?? false,
+                ),
+        });
+        await mapWithConcurrency(allRoomIds, 4, (id) =>
             setRoomNotificationSetting(id, setting),
         );
     }
