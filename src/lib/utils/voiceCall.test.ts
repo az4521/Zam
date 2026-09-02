@@ -12,6 +12,7 @@ import {
     usersFromIdentities,
     callBannerDecision,
     callControlMode,
+    isRecentlyLeftHere,
 } from "./voiceCall";
 
 describe("screenShareCaptureResolution", () => {
@@ -214,6 +215,7 @@ describe("callBannerDecision", () => {
                 inThisCall: true,
                 participantUserIds: [me, "@a:s"],
                 selfUserId: me,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: true, action: "leave" });
     });
@@ -224,6 +226,7 @@ describe("callBannerDecision", () => {
                 inThisCall: true,
                 participantUserIds: [me],
                 selfUserId: me,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: true, action: "leave" });
     });
@@ -234,6 +237,7 @@ describe("callBannerDecision", () => {
                 inThisCall: false,
                 participantUserIds: [me, "@a:s"],
                 selfUserId: me,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: true, action: "join" });
     });
@@ -244,6 +248,7 @@ describe("callBannerDecision", () => {
                 inThisCall: false,
                 participantUserIds: ["@a:s"],
                 selfUserId: me,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: true, action: "join" });
     });
@@ -254,6 +259,7 @@ describe("callBannerDecision", () => {
                 inThisCall: false,
                 participantUserIds: [],
                 selfUserId: me,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: false, action: null });
     });
@@ -267,6 +273,7 @@ describe("callBannerDecision", () => {
             inThisCall: false,
             participantUserIds: [me],
             selfUserId: me,
+            recentlyLeftHere: true,
         });
         expect(decision).toEqual({ visible: false, action: null });
         expect(decision.visible && decision.action === "join").toBe(false);
@@ -278,8 +285,30 @@ describe("callBannerDecision", () => {
                 inThisCall: false,
                 participantUserIds: ["@a:s"],
                 selfUserId: null,
+                recentlyLeftHere: false,
             }),
         ).toEqual({ visible: true, action: "join" });
+    });
+
+    it("shows Join for a self-only roster once the leave window has passed (multi-device / ghost)", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: [me],
+                selfUserId: me,
+                recentlyLeftHere: false,
+            }),
+        ).toEqual({ visible: true, action: "join" });
+    });
+    it("stays hidden for a self-only roster inside the leave window (flicker suppression)", () => {
+        expect(
+            callBannerDecision({
+                inThisCall: false,
+                participantUserIds: [me],
+                selfUserId: me,
+                recentlyLeftHere: true,
+            }),
+        ).toEqual({ visible: false, action: null });
     });
 });
 
@@ -291,6 +320,7 @@ describe("callControlMode", () => {
                 inThisCall: true,
                 participantUserIds: [self],
                 selfUserId: self,
+                recentlyLeftHere: false,
             }),
         ).toBe("controls");
         expect(
@@ -298,6 +328,7 @@ describe("callControlMode", () => {
                 inThisCall: true,
                 participantUserIds: [self, "@a:s"],
                 selfUserId: self,
+                recentlyLeftHere: false,
             }),
         ).toBe("controls");
     });
@@ -307,6 +338,7 @@ describe("callControlMode", () => {
                 inThisCall: false,
                 participantUserIds: ["@a:s"],
                 selfUserId: self,
+                recentlyLeftHere: false,
             }),
         ).toBe("join");
     });
@@ -316,6 +348,7 @@ describe("callControlMode", () => {
                 inThisCall: false,
                 participantUserIds: [],
                 selfUserId: self,
+                recentlyLeftHere: false,
             }),
         ).toBe("join");
     });
@@ -325,6 +358,7 @@ describe("callControlMode", () => {
                 inThisCall: false,
                 participantUserIds: [self],
                 selfUserId: self,
+                recentlyLeftHere: true,
             }),
         ).toBe("none");
     });
@@ -334,6 +368,7 @@ describe("callControlMode", () => {
                 inThisCall: false,
                 participantUserIds: [self, "@a:s"],
                 selfUserId: self,
+                recentlyLeftHere: false,
             }),
         ).toBe("join");
     });
@@ -343,7 +378,57 @@ describe("callControlMode", () => {
                 inThisCall: false,
                 participantUserIds: [self],
                 selfUserId: null,
+                recentlyLeftHere: false,
             }),
         ).toBe("join");
+    });
+    it("self-only roster, just left here → none (flicker still dead)", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [self],
+                selfUserId: self,
+                recentlyLeftHere: true,
+            }),
+        ).toBe("none");
+    });
+    it("self-only roster, NOT recently left here → join (multi-device restored)", () => {
+        expect(
+            callControlMode({
+                inThisCall: false,
+                participantUserIds: [self],
+                selfUserId: self,
+                recentlyLeftHere: false,
+            }),
+        ).toBe("join");
+    });
+});
+
+describe("isRecentlyLeftHere", () => {
+    it("is true within the window for the same room", () => {
+        expect(
+            isRecentlyLeftHere(
+                { roomId: "!a:s", ts: 1000 },
+                "!a:s",
+                1000 + 9_999,
+            ),
+        ).toBe(true);
+    });
+    it("is false once the window has elapsed", () => {
+        expect(
+            isRecentlyLeftHere(
+                { roomId: "!a:s", ts: 1000 },
+                "!a:s",
+                1000 + 10_000,
+            ),
+        ).toBe(false);
+    });
+    it("is false for a different room (per-room isolation)", () => {
+        expect(
+            isRecentlyLeftHere({ roomId: "!a:s", ts: 1000 }, "!b:s", 1000 + 1),
+        ).toBe(false);
+    });
+    it("is false when nothing was left", () => {
+        expect(isRecentlyLeftHere(null, "!a:s", 5000)).toBe(false);
     });
 });
