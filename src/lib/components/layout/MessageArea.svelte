@@ -126,7 +126,7 @@
     } from "$lib/utils/roomHeaderMenu";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
-    import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { dedupeParticipants, callControlMode } from "$lib/utils/voiceCall";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
         ANNOUNCE_DEBOUNCE_MS,
@@ -865,6 +865,16 @@
     const callCount = $derived(
         (void voiceCallState.voiceTick,
         dedupeParticipants(getRoomCallMemberships(room)).length),
+    );
+    const startCallMode = $derived(
+        (void voiceCallState.voiceTick,
+        callControlMode({
+            inThisCall: voiceCallState.roomId === room.roomId,
+            participantUserIds: dedupeParticipants(
+                getRoomCallMemberships(room),
+            ).map((p) => p.userId),
+            selfUserId: auth.userId,
+        })),
     );
     // Tick dependency: a Room mutates in place, so a plain $derived over it
     // would not re-run once the create event is seeded late.
@@ -1806,7 +1816,7 @@
             {/if}
             {#if !topic}<div class="flex-1"></div>{/if}
             <!-- Start voice call button -->
-            {#if voiceCallState.roomId !== room.roomId}
+            {#if startCallMode === "join"}
                 {@const joining =
                     voiceCallState.joinPendingRoomId === room.roomId}
                 <button

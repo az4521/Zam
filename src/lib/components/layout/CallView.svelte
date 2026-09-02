@@ -48,7 +48,7 @@
         clearFocus,
         participantAudioFor,
     } from "$lib/stores/voiceCall.svelte";
-    import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import { dedupeParticipants, callControlMode } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import {
         showChatView,
@@ -81,6 +81,13 @@
     const participants = $derived(dedupeParticipants(rawCallMemberships));
     const deviceCounts = $derived(deviceCountByUser(rawCallMemberships));
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
+    const controlMode = $derived(
+        callControlMode({
+            inThisCall,
+            participantUserIds: participants.map((p) => p.userId),
+            selfUserId: auth.userId,
+        }),
+    );
     const speaking = $derived(voiceCallState.speakingUserIds);
     // Contract: a user absent from this set is unmuted, never "unknown".
     const muted = $derived(voiceCallState.mutedUserIds);
@@ -703,7 +710,7 @@
                 Enable audio
             </button>
         {/if}
-        {#if inThisCall}
+        {#if controlMode === "controls"}
             <div
                 class="flex items-center gap-2 px-2 py-2 rounded-full bg-discord-backgroundSecondary"
             >
@@ -772,7 +779,7 @@
                     <PhoneOff size={20} />
                 </button>
             </div>
-        {:else}
+        {:else if controlMode === "join"}
             <button
                 onclick={() => joinCall(room.roomId)}
                 disabled={voiceCallState.joinPendingRoomId !== null}

@@ -62,6 +62,30 @@ export function callBannerDecision(input: CallBannerInput): CallBannerDecision {
     return { visible: true, action: input.inThisCall ? "leave" : "join" };
 }
 
+export type CallControlMode = "controls" | "join" | "none";
+
+/**
+ * The CallView footer control (and the header start-call button): show the
+ * in-call controls, offer "Join Call", or show nothing. A 3-way sibling of
+ * callBannerDecision — it delegates the leave/join split to that function so
+ * the two never drift, and adds only the "none" state.
+ *
+ * "none" is the solo-leave transient: teardown nulls our connection
+ * (inThisCall → false) a beat before the RTC leave prunes our membership, so
+ * the roster still lists our own stale self. callBannerDecision hides the
+ * banner in that window; here we render nothing rather than flash "Join Call"
+ * under our own still-visible tile. An EMPTY roster is NOT that transient —
+ * it is a fresh/empty call, so we still offer "join" to start one.
+ */
+export function callControlMode(input: CallBannerInput): CallControlMode {
+    const { action } = callBannerDecision(input);
+    if (action === "leave") return "controls";
+    if (action === "join") return "join";
+    // action === null (banner hidden): distinguish an empty call (offer join)
+    // from the stale-self transient (render nothing).
+    return input.participantUserIds.length > 0 ? "none" : "join";
+}
+
 export type VoiceConnState = "connecting" | "connected" | "reconnecting" | null;
 
 export function connStateLabel(state: VoiceConnState): string {
