@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { deviceCountByUser, callTileStatus } from "./callTileStatus";
+import {
+    deviceCountByUser,
+    callTileStatus,
+    rosterCallStatus,
+} from "./callTileStatus";
 
 describe("deviceCountByUser", () => {
     it("is empty for no memberships", () => {
@@ -112,5 +116,56 @@ describe("callTileStatus", () => {
         expect(callTileStatus({ ...base, deviceCount: 2 }).multiDevice).toBe(
             true,
         );
+    });
+});
+
+describe("rosterCallStatus", () => {
+    const base = {
+        isSelf: false,
+        muted: false,
+        speaking: false,
+        selfDeafened: false,
+    };
+
+    it("shows the deafen icon on the self row when deafened", () => {
+        expect(
+            rosterCallStatus({ ...base, isSelf: true, selfDeafened: true }),
+        ).toEqual({ micOff: false, deafened: true });
+    });
+
+    it("does not show deafen on the self row when not deafened", () => {
+        expect(
+            rosterCallStatus({ ...base, isSelf: true, selfDeafened: false }),
+        ).toEqual({ micOff: false, deafened: false });
+    });
+
+    it("never shows deafen on a remote row even if selfDeafened is set", () => {
+        // selfDeafened is a self-only concept; a remote row must ignore it.
+        expect(
+            rosterCallStatus({ ...base, isSelf: false, selfDeafened: true }),
+        ).toEqual({ micOff: false, deafened: false });
+    });
+
+    it("shows the mic-off icon for a muted, non-speaking remote participant", () => {
+        expect(
+            rosterCallStatus({ ...base, muted: true, speaking: false }),
+        ).toEqual({ micOff: true, deafened: false });
+    });
+
+    it("suppresses the mic-off icon while the participant is speaking", () => {
+        expect(
+            rosterCallStatus({ ...base, muted: true, speaking: true }),
+        ).toEqual({ micOff: false, deafened: false });
+    });
+
+    it("does not gate the self deafen icon on speaking or mute state", () => {
+        expect(
+            rosterCallStatus({
+                isSelf: true,
+                muted: false,
+                speaking: true,
+                selfDeafened: true,
+            }),
+        ).toEqual({ micOff: false, deafened: true });
     });
 });

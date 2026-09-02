@@ -60,3 +60,35 @@ export function callTileStatus(input: CallTileStatusInput): CallTileStatus {
         multiDevice: input.deviceCount > 1,
     };
 }
+
+export interface RosterCallStatusInput {
+    /** This roster row is the local user's own row. */
+    isSelf: boolean;
+    /** The participant's mic is muted (voiceCallState.mutedUserIds — REMOTE
+     *  identities only; the local user is never in that set). */
+    muted: boolean;
+    /** The participant is currently speaking (voiceCallState.speakingUserIds). */
+    speaking: boolean;
+    /** The local user is deafened (voiceCallState.deafened). Remote deafen is
+     *  not knowable over matrixRTC (see client.ts onParticipantMuteChanged), so
+     *  this only ever surfaces on the self row. */
+    selfDeafened: boolean;
+}
+
+export interface RosterCallStatus {
+    /** Render a muted-mic icon. */
+    micOff: boolean;
+    /** Render a deafened (headphones-off) icon. */
+    deafened: boolean;
+}
+
+/** Which status icons a single call-roster row should show. Mirrors
+ *  callTileStatus for the room-list roster, which only needs mic + deafen. */
+export function rosterCallStatus(
+    input: RosterCallStatusInput,
+): RosterCallStatus {
+    return {
+        micOff: input.muted && !input.speaking,
+        deafened: input.isSelf && input.selfDeafened,
+    };
+}
