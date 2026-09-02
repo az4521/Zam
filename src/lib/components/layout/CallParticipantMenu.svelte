@@ -133,9 +133,13 @@
         const key = e.key;
         if (key === "ArrowRight" || key === "ArrowDown") {
             e.preventDefault();
+            // Capture the row element BEFORE awaiting: e.currentTarget is null
+            // once dispatch finishes, so reading it after `tick()` would throw
+            // and the focus-into-submenu would silently never happen.
+            const rowEl = e.currentTarget as HTMLElement;
             openSection = section;
             await tick();
-            const root = getMenuRoot(e.currentTarget as HTMLElement);
+            const root = getMenuRoot(rowEl);
             if (root) {
                 const first = root.querySelector<HTMLElement>(
                     `[data-submenu-device="${section}"]`,
