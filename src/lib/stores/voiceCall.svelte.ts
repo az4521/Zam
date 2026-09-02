@@ -12,6 +12,7 @@ import {
     onParticipantMuteChanged,
     setParticipantVolume,
     setParticipantLocalMute,
+    setParticipantVideoHidden,
     primeParticipantAudio,
     getRoom,
     getRoomCallMemberships,
@@ -25,6 +26,7 @@ import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
     withLocalMute,
+    withVideoHidden,
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
 import {
@@ -295,6 +297,12 @@ export function setUserLocalMute(userId: string, muted: boolean): void {
     const next = withLocalMute(participantAudioFor(userId), muted);
     setParticipantAudioSetting(userId, next);
     setParticipantLocalMute(userId, next.muted);
+}
+
+export function setUserVideoHidden(userId: string, hidden: boolean): void {
+    const next = withVideoHidden(participantAudioFor(userId), hidden);
+    setParticipantAudioSetting(userId, next);
+    setParticipantVideoHidden(userId, next.videoHidden);
 }
 
 export async function toggleScreenShare(): Promise<void> {
