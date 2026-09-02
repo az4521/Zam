@@ -1,5 +1,7 @@
 <script lang="ts">
     import { tick } from "svelte";
+    import { flip } from "svelte/animate";
+    import { scale } from "svelte/transition";
     import type { Room } from "matrix-js-sdk";
     import {
         MessageSquare,
@@ -59,6 +61,28 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
+    import { motionOK } from "$lib/utils/motionPreference";
+
+    // Subtle join/leave motion for call tiles. Durations collapse to 0 when the
+    // user (or their OS) asks for reduced motion — same gate ErrorToasts uses.
+    // flip repositions the surviving tiles; scale gives the entering/leaving
+    // tile a soft grow/shrink + fade. Kept short and understated (Discord-like),
+    // never flashy. Read live at directive-eval time so a mid-session preference
+    // change is honoured for free.
+    const TILE_FLIP_MS = 200;
+    const TILE_IN_MS = 180;
+    const TILE_OUT_MS = 140;
+    const tileFlip = () => ({ duration: motionOK() ? TILE_FLIP_MS : 0 });
+    const tileIn = () => ({
+        duration: motionOK() ? TILE_IN_MS : 0,
+        start: 0.85,
+        opacity: 0,
+    });
+    const tileOut = () => ({
+        duration: motionOK() ? TILE_OUT_MS : 0,
+        start: 0.85,
+        opacity: 0,
+    });
 
     interface Props {
         room: Room;
@@ -375,6 +399,9 @@
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
                         class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-black cursor-pointer border-2 {t.key ===
                         voiceCallState.focusedTileKey
                             ? 'border-discord-accent'
@@ -424,6 +451,9 @@
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
                         class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center cursor-pointer border-2 {speaking.has(
                             p.userId,
                         ) ||
@@ -502,6 +532,9 @@
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
                         class="relative aspect-video rounded-lg overflow-hidden bg-black cursor-zoom-in border-2 {t.key ===
                         voiceCallState.focusedTileKey
                             ? 'border-discord-accent'
@@ -559,6 +592,9 @@
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
                         class="relative aspect-video rounded-lg overflow-hidden bg-discord-backgroundSecondary flex items-center justify-center border-2 {speaking.has(
                             p.userId,
                         ) ||
