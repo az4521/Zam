@@ -8,6 +8,7 @@ import {
     MSG_FONT_SIZE_DEFAULT,
     applyMessageFontSize,
     applyMessageFont,
+    CUSTOM_FONT_FAMILY,
 } from "./messageDisplay";
 
 describe("resolveMessageFontSize", () => {
@@ -107,5 +108,22 @@ describe("applyMessageFont (jsdom)", () => {
                 "--zam-font-family",
             ),
         ).toBe("");
+    });
+});
+
+describe("custom font key", () => {
+    it("resolveMessageFont accepts 'custom'", () => {
+        expect(resolveMessageFont("custom")).toBe("custom");
+    });
+    it("resolveMessageFont still rejects unknown keys to 'system'", () => {
+        expect(resolveMessageFont("bogus")).toBe("system");
+    });
+    it("messageFontFamily('custom') returns the custom stack with fallbacks", () => {
+        const stack = messageFontFamily("custom");
+        expect(stack).toContain(CUSTOM_FONT_FAMILY);
+        expect(stack).toContain("sans-serif");
+    });
+    it("messageFontFamily('system') is still null", () => {
+        expect(messageFontFamily("system")).toBeNull();
     });
 });

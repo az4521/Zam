@@ -11,6 +11,8 @@
         renameCustomPreset,
         setMessageFontSize,
         setMessageFont,
+        uploadCustomFont,
+        removeCustomFont,
     } from "$lib/stores/settings.svelte";
     import { applyThemeColors } from "$lib/utils/theme";
     import {
@@ -44,6 +46,28 @@
     let copied = $state(false);
     let renamingName = $state<string | null>(null);
     let renameValue = $state("");
+    let fontFileInput = $state<HTMLInputElement | null>(null);
+    let fontUploadError = $state<string | null>(null);
+    let fontUploadBusy = $state(false);
+
+    async function handleFontFile(e: Event) {
+        const input = e.currentTarget as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = ""; // allow re-selecting the same filename later
+        if (!file) return;
+        fontUploadError = null;
+        fontUploadBusy = true;
+        const res = await uploadCustomFont(file);
+        fontUploadBusy = false;
+        if (!res.ok) fontUploadError = res.reason;
+    }
+
+    async function handleRemoveFont() {
+        fontUploadBusy = true;
+        fontUploadError = null;
+        await removeCustomFont();
+        fontUploadBusy = false;
+    }
 
     const activePresetName = $derived(settingsState.activePreset);
     const activeIsBuiltin = $derived(isBuiltinPreset(activePresetName));
@@ -655,7 +679,47 @@
             {#each MESSAGE_FONTS as f (f.key)}
                 <option value={f.key}>{f.label}</option>
             {/each}
+            {#if settingsState.customFontName}
+                <option value="custom"
+                    >Custom - {settingsState.customFontName}</option
+                >
+            {/if}
         </select>
+        <input
+            bind:this={fontFileInput}
+            type="file"
+            accept=".woff2,.ttf,.otf"
+            class="hidden"
+            onchange={handleFontFile}
+        />
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50 transition-colors"
+                onclick={() => fontFileInput?.click()}
+                disabled={fontUploadBusy}
+            >
+                {settingsState.customFontName
+                    ? "Replace custom font…"
+                    : "Upload custom font…"}
+            </button>
+            {#if settingsState.customFontName}
+                <button
+                    type="button"
+                    class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white disabled:opacity-50 transition-colors"
+                    onclick={handleRemoveFont}
+                    disabled={fontUploadBusy}
+                >
+                    Remove
+                </button>
+            {/if}
+        </div>
+        {#if fontUploadError}
+            <p class="mt-1 text-xs text-discord-danger">{fontUploadError}</p>
+        {/if}
+        <p class="mt-1 text-xs text-discord-textMuted">
+            .woff2, .ttf, or .otf up to 10 MB. Stored on this device only.
+        </p>
 
         <p
             class="mt-3 text-discord-textPrimary"

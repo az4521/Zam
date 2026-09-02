@@ -6,7 +6,7 @@ export const MSG_FONT_SIZE_MIN = 12;
 export const MSG_FONT_SIZE_MAX = 24;
 export const MSG_FONT_SIZE_DEFAULT = 14;
 
-export type MessageFontKey = "system" | "inter" | "atkinson";
+export type MessageFontKey = "system" | "inter" | "atkinson" | "custom";
 
 export const MESSAGE_FONTS: readonly {
     key: MessageFontKey;
@@ -25,6 +25,14 @@ export const MESSAGE_FONTS: readonly {
         stack: '"Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif',
     },
 ];
+
+/** Family name the uploaded custom font is registered under (FontFace API). */
+export const CUSTOM_FONT_FAMILY = "ZamCustomFont";
+
+/** CSS stack when the custom font is selected: the registered family plus safe
+ *  sans-serif fallbacks so message text still renders if the FontFace is not
+ *  (yet) loaded — e.g. before boot registration finishes. */
+const CUSTOM_FONT_STACK = `"${CUSTOM_FONT_FAMILY}", "Helvetica Neue", Arial, sans-serif`;
 
 /**
  * Resolves and clamps message font size from stored value.
@@ -69,6 +77,7 @@ export function resolveMessageFont(
 ): MessageFontKey {
     if (raw == null) return "system";
     const key = raw as MessageFontKey;
+    if (key === "custom") return "custom";
     return MESSAGE_FONTS.some((f) => f.key === key) ? key : "system";
 }
 
@@ -76,6 +85,7 @@ export function resolveMessageFont(
  * Returns the font stack for a given key, or null for system (inherit).
  */
 export function messageFontFamily(key: MessageFontKey): string | null {
+    if (key === "custom") return CUSTOM_FONT_STACK;
     const entry = MESSAGE_FONTS.find((f) => f.key === key);
     return entry ? entry.stack : null;
 }
