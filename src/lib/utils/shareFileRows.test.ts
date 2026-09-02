@@ -28,8 +28,8 @@ describe("shareFileRows", () => {
 
     it("treats a missing or non-image type as not an image", () => {
         expect(shareFileRows([{ name: "a" }])[0].isImage).toBe(false);
-        expect(shareFileRows([{ name: "a", type: "video/mp4" }])[0].isImage).toBe(
-            false,
-        );
+        expect(
+            shareFileRows([{ name: "a", type: "video/mp4" }])[0].isImage,
+        ).toBe(false);
     });
 });
