@@ -44,7 +44,15 @@
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { MicOff, GripVertical, Video, Hash, Circle } from "lucide-svelte";
+    import { rosterCallStatus } from "$lib/utils/callTileStatus";
+    import {
+        MicOff,
+        HeadphoneOff,
+        GripVertical,
+        Video,
+        Hash,
+        Circle,
+    } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -844,6 +852,12 @@
                         {@const avatar =
                             (void roomsState.roomsTick,
                             getMemberAvatar(room, p.userId))}
+                        {@const status = rosterCallStatus({
+                            isSelf: p.userId === auth.userId,
+                            muted: muted.has(p.userId),
+                            speaking: speaking.has(p.userId),
+                            selfDeafened: voiceCallState.deafened,
+                        })}
                         <button
                             class="w-full flex items-center gap-2 pl-8 pr-2 py-0.5 text-left rounded hover:bg-discord-messageHover"
                             onclick={() => {
@@ -892,8 +906,14 @@
                             >
                                 {name}
                             </span>
-                            {#if muted.has(p.userId) && !speaking.has(p.userId)}
+                            {#if status.micOff}
                                 <MicOff
+                                    size={14}
+                                    class="flex-shrink-0 text-discord-danger"
+                                />
+                            {/if}
+                            {#if status.deafened}
+                                <HeadphoneOff
                                     size={14}
                                     class="flex-shrink-0 text-discord-danger"
                                 />
