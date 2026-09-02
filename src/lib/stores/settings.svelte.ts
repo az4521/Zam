@@ -390,7 +390,17 @@ applyMessageFont(settingsState.messageFont);
 // above; the browser swaps glyphs in when the FontFace resolves).
 export async function initCustomFont(): Promise<void> {
     if (typeof document === "undefined") return;
-    if (!settingsState.customFontName) return;
+    if (!settingsState.customFontName) {
+        // No custom slot: a stale "custom" selection (e.g. hand-edited or
+        // partially restored localStorage) must not stick with no matching
+        // picker option — deselect to the system default.
+        if (settingsState.messageFont === "custom") {
+            settingsState.messageFont = "system";
+            writeString("messageFont", "system");
+            applyMessageFont("system");
+        }
+        return;
+    }
     const rec = await getStoredFont();
     const registered = rec ? await registerCustomFontFace(rec.data) : false;
     if (registered) {
