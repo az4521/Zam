@@ -1841,8 +1841,8 @@
                                 </p>
                                 <p class="text-xs text-discord-textMuted mb-3">
                                     Choose how this {isSpace ? "space" : "room"} notifies
-                                    you.{#if isSpace}
-                                        Applies to the space and all its rooms.{/if}
+                                    you.{#if isSpace}{" "}Applies to the space
+                                        and all its rooms.{/if}
                                 </p>
                                 <div
                                     class="flex flex-col gap-1"
