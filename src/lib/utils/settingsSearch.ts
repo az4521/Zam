@@ -150,6 +150,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         anchor: "cust-messages",
     },
     {
+        tab: "privacy",
+        label: "Link preview media",
+        keywords: ["preview", "media", "ip", "tracking", "proxied", "embed"],
+        anchor: "notif-privacy",
+    },
+    {
         tab: "messages-media",
         label: "Pause videos off-screen",
         keywords: ["autoplay", "battery", "video"],
