@@ -8955,9 +8955,9 @@ async function applyScreenShareQualityNow(
                 screenShareEncodingFor(resKey, fps),
             )
         ) {
+            params.degradationPreference = "maintain-framerate";
             await sender.setParameters(params);
         }
-        await track.setDegradationPreference("maintain-framerate");
     } catch (err) {
         console.error("Screen share quality change failed:", err);
     }
