@@ -8,6 +8,12 @@ export const SWIPE_SHORT_PX = 64;
 export const SWIPE_FAR_PX = 128;
 export const SWIPE_MAX_PX = 152;
 
+// Lower than SWIPE_ENGAGE_PX on purpose: the ancestor members/pinned drawers
+// decide direction at their own 6px deadzone (MessageArea drag handlers), so
+// swipePan must claim a leftward gesture's propagation AT that 6px point — well
+// before its own 12px visual engage — or the members drawer wins the same move.
+export const SWIPE_CLAIM_PX = 6;
+
 export type SwipeStage = "none" | "short" | "far";
 export type SwipeAction = "none" | "reply" | "edit";
 
@@ -19,6 +25,18 @@ export function shouldEngageSwipe(
     engagePx: number = SWIPE_ENGAGE_PX,
 ): boolean {
     return dx < 0 && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) >= engagePx;
+}
+
+/** True when a move is a clear leftward, horizontal-dominant drag past the small
+ *  claim deadzone. Used to stop propagation so the leftward members/pinned drawer
+ *  handlers never engage, while rightward (channel drawer) and vertical (scroll)
+ *  moves pass through. Distinct from shouldEngageSwipe (visual reply engage). */
+export function shouldClaimLeftward(
+    dx: number,
+    dy: number,
+    claimPx: number = SWIPE_CLAIM_PX,
+): boolean {
+    return dx < 0 && Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) >= claimPx;
 }
 
 /** The threshold a leftward drag has crossed. Rightward/small → "none". */
