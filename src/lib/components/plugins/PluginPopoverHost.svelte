@@ -1,5 +1,7 @@
 <script lang="ts">
     import Portal from "$lib/components/ui/Portal.svelte";
+    import { scale } from "svelte/transition";
+    import { motionOK } from "$lib/utils/motionPreference";
     import { closeModal } from "$lib/stores/interface.svelte";
     import { pluginPopover } from "$lib/plugins/pluginPopover.svelte";
     import { pluginMount } from "$lib/plugins/pluginMount";
@@ -47,6 +49,11 @@
         <div class="fixed inset-0 z-40" onclick={closeModal}></div>
         <div
             use:positionCard={current.anchor}
+            in:scale={{
+                start: 0.92,
+                opacity: 0,
+                duration: motionOK() ? 120 : 0,
+            }}
             class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl overflow-hidden"
         >
             {#key current}

@@ -2,6 +2,8 @@
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import { scale } from "svelte/transition";
+    import { motionOK } from "$lib/utils/motionPreference";
 
     interface Reactor {
         userId: string;
@@ -120,6 +122,11 @@
         {/if}
         <div
             use:positionCard={{ x, y }}
+            in:scale={{
+                start: 0.92,
+                opacity: 0,
+                duration: motionOK() ? 120 : 0,
+            }}
             class="fixed z-50 pointer-events-none bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
         >
             {@render rows()}

@@ -1,6 +1,8 @@
 <script lang="ts">
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
+    import { scale } from "svelte/transition";
+    import { motionOK } from "$lib/utils/motionPreference";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import ScreenShareQualityChips from "./ScreenShareQualityChips.svelte";
@@ -92,6 +94,11 @@
             use:positionMenu={{ x, y }}
             use:focusTrap={{ onEscape: onClose }}
             use:dismissOnOutsidePointer={{ onDismiss: onClose }}
+            in:scale={{
+                start: 0.92,
+                opacity: 0,
+                duration: motionOK() ? 120 : 0,
+            }}
             class="fixed z-50 w-64 rounded-lg bg-discord-backgroundTertiary border border-discord-divider shadow-xl p-3 space-y-3 overflow-y-auto"
             role="dialog"
             aria-label="Screen share quality"
