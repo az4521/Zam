@@ -99,5 +99,6 @@ describe("shouldClaimLeftward", () => {
     });
     it("SWIPE_CLAIM_PX is 6 and below SWIPE_ENGAGE_PX", () => {
         expect(SWIPE_CLAIM_PX).toBe(6);
+        expect(SWIPE_CLAIM_PX).toBeLessThan(SWIPE_ENGAGE_PX);
     });
 });
