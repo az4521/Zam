@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { tick } from "svelte";
+    import { tick, untrack } from "svelte";
     import { flip } from "svelte/animate";
     import { scale } from "svelte/transition";
     import type { Room } from "matrix-js-sdk";
@@ -291,6 +291,19 @@
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
         sharePopover = { x: r.left, y: r.top, mode: "live" };
     }
+
+    // The browser's own "Stop sharing" control ends the share without touching
+    // our popover, so a live quality popover would strand open. Close it when
+    // the share goes away. Guard on "live": a pre-share popover is open while
+    // screenSharing is still false, so an unguarded check would close it
+    // instantly. untrack() keeps the effect's only dependency the screenSharing
+    // flag — writing sharePopover here never retriggers it.
+    $effect(() => {
+        if (voiceCallState.screenSharing) return;
+        untrack(() => {
+            if (sharePopover?.mode === "live") sharePopover = null;
+        });
+    });
 
     function openParticipantMenu(
         userId: string,
