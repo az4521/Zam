@@ -7,11 +7,7 @@ import {
     buildDeviceConstraint,
     isOverconstrainedError,
 } from "$lib/utils/audioDevices";
-import {
-    smoothMeterLevel,
-    ATTACK_MS,
-    RELEASE_MS,
-} from "./meterEnvelope";
+import { smoothMeterLevel, ATTACK_MS, RELEASE_MS } from "./meterEnvelope";
 
 export interface MicMeterOptions {
     deviceId: string | null;
