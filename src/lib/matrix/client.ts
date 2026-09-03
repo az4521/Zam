@@ -3138,8 +3138,12 @@ export function getRoomDisplayName(room: Room): string {
 }
 
 export function getMemberName(room: Room, userId: string): string {
+    const member = room.getMember(userId);
     return resolveDisplayName(
-        { userId, displayName: room.getMember(userId)?.name },
+        {
+            userId,
+            displayName: member?.rawDisplayName || member?.name,
+        },
         { preferId: settingsState.showMatrixIds },
     );
 }
@@ -3148,7 +3152,10 @@ export function getMemberName(room: Room, userId: string): string {
  *  profile card). Honors the Show Matrix IDs setting. */
 export function memberDisplayName(member: RoomMember): string {
     return resolveDisplayName(
-        { userId: member.userId, displayName: member.name },
+        {
+            userId: member.userId,
+            displayName: member.rawDisplayName || member.name,
+        },
         { preferId: settingsState.showMatrixIds },
     );
 }

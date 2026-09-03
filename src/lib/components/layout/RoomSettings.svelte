@@ -112,6 +112,7 @@
         clearSubPageIfOwner,
     } from "$lib/stores/interface.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         blockUser,
         unblockUser,
@@ -2146,11 +2147,13 @@
                                                                 member,
                                                             )}
                                                         </p>
-                                                        <p
-                                                            class="text-xs text-discord-textMuted truncate"
-                                                        >
-                                                            {member.userId}
-                                                        </p>
+                                                        {#if settingsState.showMatrixIds}
+                                                            <p
+                                                                class="text-xs text-discord-textMuted truncate"
+                                                            >
+                                                                {member.userId}
+                                                            </p>
+                                                        {/if}
                                                     </div>
                                                     <div
                                                         class="flex gap-2 flex-shrink-0"
@@ -2216,11 +2219,13 @@
                                                             member,
                                                         )}
                                                     </p>
-                                                    <p
-                                                        class="text-xs text-discord-textMuted truncate"
-                                                    >
-                                                        {member.userId}
-                                                    </p>
+                                                    {#if settingsState.showMatrixIds}
+                                                        <p
+                                                            class="text-xs text-discord-textMuted truncate"
+                                                        >
+                                                            {member.userId}
+                                                        </p>
+                                                    {/if}
                                                 </div>
                                                 {#if canBan}
                                                     <button
@@ -2286,11 +2291,13 @@
                                                                 ? " (you)"
                                                                 : ""}
                                                         </p>
-                                                        <p
-                                                            class="text-xs text-discord-textMuted truncate"
-                                                        >
-                                                            {member.userId}
-                                                        </p>
+                                                        {#if settingsState.showMatrixIds}
+                                                            <p
+                                                                class="text-xs text-discord-textMuted truncate"
+                                                            >
+                                                                {member.userId}
+                                                            </p>
+                                                        {/if}
                                                     </div>
                                                     <span
                                                         class="text-xs text-discord-textMuted flex-shrink-0"

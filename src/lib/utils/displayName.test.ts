@@ -45,10 +45,10 @@ describe("resolveDisplayName", () => {
         ).toBe("Alice");
     });
 
-    it("keeps a disambiguated SDK name verbatim in default mode", () => {
+    it("strips a trailing disambiguation suffix in default mode", () => {
         const name = "Alice (@alice2:example.org)";
         expect(resolveDisplayName({ userId: uid, displayName: name })).toBe(
-            name,
+            "Alice",
         );
     });
 
@@ -59,6 +59,36 @@ describe("resolveDisplayName", () => {
                 displayName: "Alice (Discord)",
             }),
         ).toBe("Alice (Discord)");
+    });
+
+    it("keeps real parentheticals that are not MXID suffixes", () => {
+        expect(
+            resolveDisplayName({ userId: uid, displayName: "Bob (dev)" }),
+        ).toBe("Bob (dev)");
+    });
+
+    it("strips suffix with a port", () => {
+        expect(
+            resolveDisplayName({
+                userId: uid,
+                displayName: "Carol (@carol:example.org:8448)",
+            }),
+        ).toBe("Carol");
+    });
+
+    it("does not strip under preferId mode", () => {
+        expect(
+            resolveDisplayName(
+                { userId: uid, displayName: "Alice (@alice2:example.org)" },
+                { preferId: true },
+            ),
+        ).toBe(uid);
+    });
+
+    it("falls back to userId when name is only the suffix", () => {
+        expect(resolveDisplayName({ userId: uid, displayName: "(@x:y)" })).toBe(
+            uid,
+        );
     });
 
     it("returns the full MXID under preferId even when no name is set", () => {
