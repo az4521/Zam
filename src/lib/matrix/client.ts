@@ -8952,14 +8952,19 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                     settingsState.screenShareResolution,
                     Number(settingsState.screenShareFps),
                 ),
-                contentHint: "motion",
+                // A screen share is mostly text/UI: bias the encoder toward
+                // keeping resolution sharp rather than dropping it to hold
+                // framerate under load (which blurs text while scrolling).
+                // The opposite of camera video — do NOT flip this back to
+                // "motion"/"maintain-framerate" for the screen-share path.
+                contentHint: "detail",
             },
             {
                 screenShareEncoding: screenShareEncodingFor(
                     settingsState.screenShareResolution,
                     Number(settingsState.screenShareFps),
                 ),
-                degradationPreference: "maintain-framerate",
+                degradationPreference: "maintain-resolution",
             },
         );
         return on;
@@ -8994,7 +8999,9 @@ async function applyScreenShareQualityNow(
                 screenShareEncodingFor(resKey, fps),
             )
         ) {
-            params.degradationPreference = "maintain-framerate";
+            // Match setScreenShareEnabled: screen content prefers a sharp
+            // resolution over a steady framerate under load.
+            params.degradationPreference = "maintain-resolution";
             await sender.setParameters(params);
         }
     } catch (err) {
