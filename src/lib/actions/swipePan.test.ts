@@ -98,30 +98,62 @@ describe("swipePan", () => {
         handle.destroy();
     });
 
-    it("stops touchstart reaching ancestor drawer handlers when enabled", () => {
+    it("lets touchstart reach ancestor drawer handlers when enabled (no touchstart claim)", () => {
         const parent = document.createElement("div");
         const node = document.createElement("div");
         parent.appendChild(node);
         document.body.appendChild(parent);
-        const ancestor = vi.fn();
-        parent.addEventListener("touchstart", ancestor);
+        const ancestorStart = vi.fn();
+        parent.addEventListener("touchstart", ancestorStart);
         const handle = swipePan(node, { enabled: true });
         node.dispatchEvent(touchEvent("touchstart", 200, 100));
-        expect(ancestor).not.toHaveBeenCalled();
+        expect(ancestorStart).toHaveBeenCalledTimes(1); // arms ancestor drawers
         handle.destroy();
         parent.remove();
     });
 
-    it("lets touchstart reach ancestor drawer handlers when disabled", () => {
+    it("stops a LEFTWARD move reaching ancestor move handlers (members drawer blocked)", () => {
         const parent = document.createElement("div");
         const node = document.createElement("div");
         parent.appendChild(node);
         document.body.appendChild(parent);
-        const ancestor = vi.fn();
-        parent.addEventListener("touchstart", ancestor);
+        const ancestorMove = vi.fn();
+        parent.addEventListener("touchmove", ancestorMove);
+        const handle = swipePan(node, { enabled: true });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 - 8, 101)); // leftward past 6px
+        expect(ancestorMove).not.toHaveBeenCalled();
+        handle.destroy();
+        parent.remove();
+    });
+
+    it("lets a RIGHTWARD move reach ancestor move handlers (channel drawer survives)", () => {
+        const parent = document.createElement("div");
+        const node = document.createElement("div");
+        parent.appendChild(node);
+        document.body.appendChild(parent);
+        const ancestorMove = vi.fn();
+        parent.addEventListener("touchmove", ancestorMove);
+        const handle = swipePan(node, { enabled: true });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 + 30, 101)); // rightward
+        expect(ancestorMove).toHaveBeenCalledTimes(1);
+        handle.destroy();
+        parent.remove();
+    });
+
+    it("claims nothing when disabled (both directions reach ancestor)", () => {
+        const parent = document.createElement("div");
+        const node = document.createElement("div");
+        parent.appendChild(node);
+        document.body.appendChild(parent);
+        const ancestorMove = vi.fn();
+        parent.addEventListener("touchmove", ancestorMove);
         const handle = swipePan(node, { enabled: false });
         node.dispatchEvent(touchEvent("touchstart", 200, 100));
-        expect(ancestor).toHaveBeenCalledTimes(1);
+        node.dispatchEvent(touchEvent("touchmove", 200 - 30, 101)); // leftward
+        node.dispatchEvent(touchEvent("touchmove", 200 + 30, 101)); // rightward
+        expect(ancestorMove).toHaveBeenCalledTimes(2);
         handle.destroy();
         parent.remove();
     });
