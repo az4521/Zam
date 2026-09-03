@@ -119,6 +119,7 @@
     } from "$lib/stores/ignoredUsers.svelte";
     import { mapWithConcurrency } from "$lib/utils/async";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
+    import { nextActiveIndex } from "$lib/utils/listboxNavigation";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     interface Props {
@@ -206,6 +207,39 @@
         } finally {
             notifSaving = false;
         }
+    }
+
+    // Arrow-key roving over the notification radiogroup (the ARIA radio pattern).
+    // Only the checked radio is a tab stop; arrows move FOCUS between radios,
+    // Space/Enter (native <button>) still commits the selection. Focus-only —
+    // NOT selection-follows-focus — so a keypress never fires the push-rule
+    // network write (APG allows this when selection has a surprising side
+    // effect). Left/Right mirror Up/Down; Home/End jump to the ends; wraps.
+    function onNotifKeydown(e: KeyboardEvent) {
+        const key =
+            e.key === "ArrowRight"
+                ? "ArrowDown"
+                : e.key === "ArrowLeft"
+                  ? "ArrowUp"
+                  : e.key;
+        if (
+            key !== "ArrowDown" &&
+            key !== "ArrowUp" &&
+            key !== "Home" &&
+            key !== "End"
+        )
+            return;
+        const radios = Array.from(
+            (
+                e.currentTarget as HTMLElement
+            ).querySelectorAll<HTMLButtonElement>('[role="radio"]'),
+        );
+        if (radios.length === 0) return;
+        const from = radios.findIndex((el) => el === document.activeElement);
+        const next = nextActiveIndex(from, radios.length, key);
+        if (next < 0) return;
+        e.preventDefault();
+        radios[next].focus();
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -1844,16 +1878,22 @@
                                     you.{#if isSpace}{" "}Applies to the space
                                         and all its rooms.{/if}
                                 </p>
+                                <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
                                 <div
                                     class="flex flex-col gap-1"
                                     role="radiogroup"
                                     aria-label="Notification level"
+                                    tabindex="-1"
+                                    onkeydown={onNotifKeydown}
                                 >
                                     {#each NOTIF_LEVELS as [val, label, desc] (val)}
                                         <button
                                             type="button"
                                             role="radio"
                                             aria-checked={notifSetting === val}
+                                            tabindex={notifSetting === val
+                                                ? 0
+                                                : -1}
                                             disabled={notifSaving}
                                             onclick={() =>
                                                 applyNotification(val)}
