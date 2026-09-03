@@ -15,6 +15,8 @@
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { fade } from "svelte/transition";
+    import { motionOK } from "$lib/utils/motionPreference";
     import { tick, untrack } from "svelte";
     import {
         interfaceState,
@@ -280,7 +282,14 @@
         {:else if view.mode === "detail"}
             <!-- Mobile sub-page: one category, full screen. -->
             <div class="flex-1 overflow-y-auto p-4 min-w-0">
-                {@render panel(view.tab)}
+                {#key view.tab}
+                    <div
+                        in:fade={{ duration: motionOK() ? 120 : 0 }}
+                        class="min-w-0"
+                    >
+                        {@render panel(view.tab)}
+                    </div>
+                {/key}
             </div>
         {:else}
             <!-- Desktop: category sidebar beside the active panel. -->
@@ -311,7 +320,14 @@
                 </nav>
 
                 <div class="flex-1 overflow-y-auto p-6 min-w-0">
-                    {@render panel(view.tab)}
+                    {#key view.tab}
+                        <div
+                            in:fade={{ duration: motionOK() ? 120 : 0 }}
+                            class="min-w-0"
+                        >
+                            {@render panel(view.tab)}
+                        </div>
+                    {/key}
                 </div>
             </div>
         {/if}
