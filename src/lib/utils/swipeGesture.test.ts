@@ -8,6 +8,8 @@ import {
     swipeStage,
     resolveSwipeAction,
     clampSwipeTranslate,
+    shouldClaimLeftward,
+    SWIPE_CLAIM_PX,
 } from "./swipeGesture";
 
 describe("shouldEngageSwipe", () => {
@@ -71,5 +73,32 @@ describe("clampSwipeTranslate", () => {
         expect(clampSwipeTranslate(-(SWIPE_FAR_PX + 20))).toBe(
             -(SWIPE_FAR_PX + 10),
         );
+    });
+});
+
+describe("shouldClaimLeftward", () => {
+    it("claims a clear leftward move past the 6px deadzone", () => {
+        expect(shouldClaimLeftward(-8, 1)).toBe(true);
+    });
+    it("claims exactly at the 6px boundary", () => {
+        expect(shouldClaimLeftward(-6, 0)).toBe(true);
+    });
+    it("does not claim just under the 6px deadzone", () => {
+        expect(shouldClaimLeftward(-5, 0)).toBe(false);
+    });
+    it("does not claim a rightward move (channel drawer must survive)", () => {
+        expect(shouldClaimLeftward(20, 1)).toBe(false);
+    });
+    it("does not claim a vertical-dominant move (scroll wins)", () => {
+        expect(shouldClaimLeftward(-8, 20)).toBe(false);
+    });
+    it("does not claim when leftward but dy ties dx (not horizontal-dominant is still allowed at equal — matches drawer's non-cancel)", () => {
+        // members cancels only when |dy| > |dx|; at |dx| === |dy| it proceeds,
+        // so swipePan must also claim to beat it. dx=-10, dy=10 → |dx|>=|dy| true.
+        expect(shouldClaimLeftward(-10, 10)).toBe(true);
+    });
+    it("SWIPE_CLAIM_PX is 6 and below SWIPE_ENGAGE_PX", () => {
+        expect(SWIPE_CLAIM_PX).toBe(6);
+        expect(SWIPE_CLAIM_PX).toBeLessThan(SWIPE_ENGAGE_PX);
     });
 });

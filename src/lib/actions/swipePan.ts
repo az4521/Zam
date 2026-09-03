@@ -8,6 +8,7 @@ import {
     shouldEngageSwipe,
     swipeStage,
     clampSwipeTranslate,
+    shouldClaimLeftward,
     type SwipeStage,
 } from "$lib/utils/swipeGesture";
 
@@ -39,15 +40,13 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
             reset();
             return;
         }
-        // Claim the touch from ancestor right-drawer swipe handlers. The member
-        // list + pinned panel (MessageArea's container `ontouchstart`) open on a
-        // LEFTWARD drag anywhere in the timeline — the SAME direction as the
-        // reply-swipe — so without this a row swipe also drags the members drawer
-        // open. stopPropagation keeps the touchstart from reaching that ancestor.
-        // Gated on `enabled`, so a swipe-off build keeps the timeline-swipe
-        // drawers. Not an edge gesture, so it never fights the Android system
-        // back-swipe. onTouchEnd stays non-passive to also suppress the tap.
-        e.stopPropagation();
+        // Arm the swipe detector but do NOT stop touchstart propagation — the
+        // channel (left) drawer opener lives on a wrapping ancestor and opens on
+        // a RIGHTWARD drag, so a rightward row-swipe must reach it. The LEFTWARD
+        // members/pinned drawers are claimed direction-aware in onTouchMove once
+        // the gesture direction is clear (see below). Not an edge gesture, so it
+        // never fights the Android system back-swipe. onTouchEnd stays non-passive
+        // to also suppress the tap.
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         armed = true;
@@ -63,6 +62,16 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         }
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
+        // Claim the touch from ancestor drawer handlers direction-aware. The
+        // members/pinned drawers (MessageArea) open on a LEFTWARD drag — the same
+        // direction as reply — and engage at their own 6px deadzone, so once this
+        // move is clearly leftward we stop it reaching their document-level move
+        // handlers. A RIGHTWARD drag must reach the channel (left) drawer opener,
+        // and a vertical drag must reach the scroller, so we do NOT stop those.
+        // Once engaged, own the whole gesture so nothing hijacks mid-reply.
+        if (engaged || shouldClaimLeftward(dx, dy)) {
+            e.stopPropagation();
+        }
         if (!engaged) {
             if (
                 Math.abs(dy) > Math.abs(dx) &&
