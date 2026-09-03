@@ -4,6 +4,7 @@
     import {
         setShowMatrixIds,
         setShowReadReceiptAvatars,
+        setHoldToOpenMessageMenu,
         setLinkPreviewsEnabled,
         setPauseVideoOnScrollOff,
         setGifDefaultTab,
@@ -58,6 +59,24 @@
                 checked={settingsState.showReadReceiptAvatars}
                 onChange={setShowReadReceiptAvatars}
                 label="Read receipt avatars"
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Hold to open message menu
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    On touch devices, open a message's actions by holding it
+                    instead of tapping. When off, a tap opens the menu.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.holdToOpenMessageMenu}
+                onChange={setHoldToOpenMessageMenu}
+                label="Hold to open message menu"
             />
         </div>
         <div
