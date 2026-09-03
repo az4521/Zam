@@ -333,7 +333,7 @@
                 title="Microphone level"
             >
                 <div
-                    class="h-full bg-discord-accent transition-[width] duration-75"
+                    class="h-full bg-discord-accent"
                     style="width: {Math.round(micLevel * 100)}%"
                 ></div>
             </div>

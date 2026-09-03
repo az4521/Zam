@@ -7,6 +7,7 @@ import {
     buildDeviceConstraint,
     isOverconstrainedError,
 } from "$lib/utils/audioDevices";
+import { smoothMeterLevel, ATTACK_MS, RELEASE_MS } from "./meterEnvelope";
 
 export interface MicMeterOptions {
     deviceId: string | null;
@@ -68,8 +69,8 @@ export async function startMicMeter(
         // waveform (getByteTimeDomainData), which smoothingTimeConstant does NOT
         // affect — it only smooths the frequency-domain reads — so this is a
         // no-op for the current meter, kept defensively for any future switch to
-        // getByteFrequencyData. The real responsiveness fix is the exact-device
-        // constraint above (the meter now watches the mic you actually chose).
+        // getByteFrequencyData. Smoothing lives in the fast-attack / slow-release
+        // envelope (see tick below), not in the analyser.
         analyser.smoothingTimeConstant = 0;
         source.connect(analyser);
     } catch (e) {
@@ -79,7 +80,9 @@ export async function startMicMeter(
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
     let stopped = false;
-    const tick = () => {
+    let displayed = 0;
+    let lastTs = 0;
+    const tick = (ts: number) => {
         if (stopped) return;
         analyser.getByteTimeDomainData(buf);
         let sum = 0;
@@ -88,7 +91,21 @@ export async function startMicMeter(
             sum += c * c;
         }
         // Speech RMS is small; ×4 puts normal speech mid-meter.
-        opts.onLevel(Math.min(1, Math.sqrt(sum / buf.length) * 4));
+        const target = Math.min(1, Math.sqrt(sum / buf.length) * 4);
+        // Instant attack (peaks show at once → no lag) + a short release so the
+        // bar falls smoothly instead of flickering. The old symmetric CSS
+        // transition on the bar was what made the meter trail the voice; the
+        // response now lives here and the bar follows without a transition.
+        const dt = lastTs ? ts - lastTs : 16;
+        lastTs = ts;
+        displayed = smoothMeterLevel(
+            displayed,
+            target,
+            dt,
+            ATTACK_MS,
+            RELEASE_MS,
+        );
+        opts.onLevel(displayed);
         raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
