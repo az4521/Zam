@@ -41,7 +41,11 @@ vi.mock("$lib/stores/composerFileQueue.svelte", () => ({
     addQueuedFile: (...a: unknown[]) => addQueuedFile(...a),
 }));
 
-const hostBridge = { insertText: null as null | ((c: unknown) => void) };
+const hostBridge = {
+    insertText: null as null | ((c: unknown) => void),
+    pendingSend: null as null | { roomId: string },
+    sendNow: null as null | ((ctx: { roomId: string }) => void),
+};
 vi.mock("$lib/plugins/hostBridge", () => ({
     get hostBridge() {
         return hostBridge;
@@ -60,6 +64,8 @@ describe("shareInbox", () => {
         vi.clearAllMocks();
         roomsState.activeRoomId = null;
         hostBridge.insertText = null;
+        hostBridge.pendingSend = null;
+        hostBridge.sendNow = null;
         shareInboxState.payload = null;
     });
 
@@ -133,5 +139,29 @@ describe("shareInbox", () => {
             "b.bin",
             null,
         );
+    });
+
+    it("overrides the payload text with an explicit caption", () => {
+        receiveShare({ source: "web", text: "original" });
+        deliverShareToRoom("!r:server", { caption: "edited caption" });
+        // setDraft mock records the delivered text (non-active room path)
+        expect(setDraft).toHaveBeenCalledWith(
+            "!r:server",
+            expect.stringContaining("edited caption"),
+            expect.anything(),
+        );
+    });
+
+    it("queues a one-step send for a non-active room before navigating", () => {
+        receiveShare({ source: "web", text: "hi" });
+        deliverShareToRoom("!r:server", { send: true });
+        expect(hostBridge.pendingSend).toEqual({ roomId: "!r:server" });
+        expect(navigateToRoom).toHaveBeenCalledWith("!r:server");
+    });
+
+    it("does not request a send when opts.send is falsy", () => {
+        receiveShare({ source: "web", text: "hi" });
+        deliverShareToRoom("!r:server");
+        expect(hostBridge.pendingSend).toBeNull();
     });
 });

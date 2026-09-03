@@ -263,6 +263,38 @@
         };
     });
 
+    // Share one-step send → fire THIS (main) composer's send() for a room. Same
+    // structure as insertMention: main composer only, roomId-guarded, and the
+    // mount-time drain is deferred one tick so it runs AFTER the per-room
+    // draft-restore effect's synchronous body (which sets `text = draft.text`),
+    // otherwise send() would read an empty caption. Re-checked + cleared at drain
+    // time so it stays idempotent; send() itself no-ops when already sending or
+    // when the composer is disabled (share then stays staged, never lost).
+    $effect(() => {
+        if (isThread) return;
+        const rid = roomId;
+        const handler = (ctx: { roomId: string }) => {
+            if (ctx.roomId !== rid) return;
+            void send();
+        };
+        hostBridge.sendNow = handler;
+        untrack(() => {
+            const q = hostBridge.pendingSend;
+            if (q && q.roomId === rid) {
+                void tick().then(() => {
+                    const q2 = hostBridge.pendingSend;
+                    if (q2 && q2.roomId === rid) {
+                        hostBridge.pendingSend = null;
+                        handler(q2);
+                    }
+                });
+            }
+        });
+        return () => {
+            if (hostBridge.sendNow === handler) hostBridge.sendNow = null;
+        };
+    });
+
     let fileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
