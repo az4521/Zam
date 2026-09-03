@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
+    import { motionOK } from "$lib/utils/motionPreference";
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
@@ -1893,6 +1894,27 @@
             ? getRoom(roomsState.activeRoomId)
             : null;
     });
+
+    // Subtle room-switch fade. A WAAPI opacity animation on the (stable) room-pane
+    // wrapper — NOT a {#key} remount, which would tear down and rebuild MessageArea
+    // on every switch (see the activeRoom-derived comment above). WAAPI is not
+    // suppressed by the app.css reduce-motion rule, so motionOK() is the real gate;
+    // it is read inside untrack() so toggling reduce-motion never fires a fade, and
+    // .animate() is a DOM call (not an SDK send) so it is safe inside the effect.
+    const ROOM_FADE_MS = 120;
+    let roomPaneEl = $state<HTMLDivElement>();
+    $effect(() => {
+        const rid = activeRoom?.roomId;
+        const el = roomPaneEl;
+        if (!rid || !el) return;
+        untrack(() => {
+            if (!motionOK()) return;
+            el.animate([{ opacity: 0 }, { opacity: 1 }], {
+                duration: ROOM_FADE_MS,
+                easing: "ease-out",
+            });
+        });
+    });
     const notificationCount = $derived.by(() => {
         return getNotificationCount();
     });
@@ -2009,19 +2031,24 @@
                     onMenuOpen={() => (interfaceState.leftOpen = true)}
                 />
             {:else if activeRoom}
-                {#if interfaceState.callViewRoomId === activeRoom.roomId}
-                    <CallView
-                        room={activeRoom}
-                        isMobile={interfaceState.isMobile}
-                        onMenuOpen={() => (interfaceState.leftOpen = true)}
-                    />
-                {:else}
-                    <MessageArea
-                        room={activeRoom}
-                        isMobile={interfaceState.isMobile}
-                        onMenuOpen={() => (interfaceState.leftOpen = true)}
-                    />
-                {/if}
+                <div
+                    bind:this={roomPaneEl}
+                    class="flex flex-1 min-w-0 overflow-hidden"
+                >
+                    {#if interfaceState.callViewRoomId === activeRoom.roomId}
+                        <CallView
+                            room={activeRoom}
+                            isMobile={interfaceState.isMobile}
+                            onMenuOpen={() => (interfaceState.leftOpen = true)}
+                        />
+                    {:else}
+                        <MessageArea
+                            room={activeRoom}
+                            isMobile={interfaceState.isMobile}
+                            onMenuOpen={() => (interfaceState.leftOpen = true)}
+                        />
+                    {/if}
+                </div>
             {:else if roomsState.activeSpaceId !== null}
                 <SpaceLandingPanel
                     isMobile={interfaceState.isMobile}
