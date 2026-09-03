@@ -18,6 +18,7 @@
     import {
         dedupeParticipants,
         callBannerDecision,
+        isRecentlyLeftHere,
     } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { auth } from "$lib/stores/auth.svelte";
@@ -68,6 +69,11 @@
             inThisCall,
             participantUserIds: participants.map((p) => p.userId),
             selfUserId: auth.userId,
+            recentlyLeftHere: isRecentlyLeftHere(
+                voiceCallState.lastLeftCall,
+                room.roomId,
+                Date.now(),
+            ),
         }),
     );
 </script>

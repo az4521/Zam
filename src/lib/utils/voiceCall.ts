@@ -25,6 +25,29 @@ export function dedupeParticipants(
 
 export type CallBannerAction = "leave" | "join";
 
+/** How long, after THIS device leaves a room's call, we keep suppressing the
+ *  solo-leave "Join" flicker. Outside this window a self-only roster (we are in
+ *  the call from another device, or a ghost membership lingers) shows Join. */
+export const RECENTLY_LEFT_WINDOW_MS = 10_000;
+
+export interface LastLeftCall {
+    roomId: string;
+    ts: number;
+}
+
+/** True while we are still inside the recently-left window for THIS room. */
+export function isRecentlyLeftHere(
+    last: LastLeftCall | null,
+    roomId: string,
+    now: number,
+): boolean {
+    return (
+        last !== null &&
+        last.roomId === roomId &&
+        now - last.ts < RECENTLY_LEFT_WINDOW_MS
+    );
+}
+
 export interface CallBannerInput {
     /** Whether we are connected to THIS room's call. */
     inThisCall: boolean;
@@ -32,6 +55,8 @@ export interface CallBannerInput {
     participantUserIds: string[];
     /** Our own user id, or null before it is known. */
     selfUserId: string | null;
+    /** True while THIS device is inside the recently-left window for this room. */
+    recentlyLeftHere: boolean;
 }
 
 export interface CallBannerDecision {
@@ -51,15 +76,25 @@ export interface CallBannerDecision {
  * member is us, which we are not in — until the roster empties. Requiring a
  * NON-self participant means that transient state never renders, while a call
  * someone else started (they are the sole member, we are not in it yet) still
- * shows a Join banner.
+ * shows a Join banner. The recently-left window extends the flicker suppression
+ * for ~10s after leaving, but lets Join reappear for a self-only roster once
+ * that window passes — restoring the escape hatch for multi-device / ghost states.
  */
 export function callBannerDecision(input: CallBannerInput): CallBannerDecision {
+    if (input.inThisCall) return { visible: true, action: "leave" };
     const hasOthers = input.participantUserIds.some(
         (id) => id !== input.selfUserId,
     );
-    const visible = input.inThisCall || hasOthers;
-    if (!visible) return { visible: false, action: null };
-    return { visible: true, action: input.inThisCall ? "leave" : "join" };
+    if (hasOthers) return { visible: true, action: "join" };
+    // Not in the call and no other user present. A self-only roster is either
+    // the solo-leave transient (our own stale membership, we just left here) —
+    // keep suppressing the flicker — or a call we're in from ANOTHER device / a
+    // ghost membership, where the Join escape hatch must come back once the
+    // leave window passes. An EMPTY roster is neither: no call to join here.
+    const selfOnly = input.participantUserIds.length > 0;
+    if (selfOnly && !input.recentlyLeftHere)
+        return { visible: true, action: "join" };
+    return { visible: false, action: null };
 }
 
 export type CallControlMode = "controls" | "join" | "none";
@@ -74,8 +109,10 @@ export type CallControlMode = "controls" | "join" | "none";
  * (inThisCall → false) a beat before the RTC leave prunes our membership, so
  * the roster still lists our own stale self. callBannerDecision hides the
  * banner in that window; here we render nothing rather than flash "Join Call"
- * under our own still-visible tile. An EMPTY roster is NOT that transient —
- * it is a fresh/empty call, so we still offer "join" to start one.
+ * under our own still-visible tile. The recently-left window extends this
+ * suppression for ~10s, then offers Join again (multi-device restore). An EMPTY
+ * roster is NOT that transient — it is a fresh/empty call, so we still offer
+ * "join" to start one.
  */
 export function callControlMode(input: CallBannerInput): CallControlMode {
     const { action } = callBannerDecision(input);

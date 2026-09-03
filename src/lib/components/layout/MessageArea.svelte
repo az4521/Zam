@@ -126,7 +126,11 @@
     } from "$lib/utils/roomHeaderMenu";
     import { isRoomEncrypted } from "$lib/matrix/crypto";
     import { voiceCallState, joinCall } from "$lib/stores/voiceCall.svelte";
-    import { dedupeParticipants, callControlMode } from "$lib/utils/voiceCall";
+    import {
+        dedupeParticipants,
+        callControlMode,
+        isRecentlyLeftHere,
+    } from "$lib/utils/voiceCall";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
         ANNOUNCE_DEBOUNCE_MS,
@@ -874,6 +878,11 @@
                 getRoomCallMemberships(room),
             ).map((p) => p.userId),
             selfUserId: auth.userId,
+            recentlyLeftHere: isRecentlyLeftHere(
+                voiceCallState.lastLeftCall,
+                room.roomId,
+                Date.now(),
+            ),
         })),
     );
     // Tick dependency: a Room mutates in place, so a plain $derived over it
