@@ -49,7 +49,7 @@
         <div class="fixed inset-0 z-40" onclick={closeModal}></div>
         <div
             use:positionCard={current.anchor}
-            in:scale={{
+            in:scale|global={{
                 start: 0.92,
                 opacity: 0,
                 duration: motionOK() ? 120 : 0,

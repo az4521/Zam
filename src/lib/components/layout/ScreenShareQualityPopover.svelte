@@ -94,7 +94,7 @@
             use:positionMenu={{ x, y }}
             use:focusTrap={{ onEscape: onClose }}
             use:dismissOnOutsidePointer={{ onDismiss: onClose }}
-            in:scale={{
+            in:scale|global={{
                 start: 0.92,
                 opacity: 0,
                 duration: motionOK() ? 120 : 0,
