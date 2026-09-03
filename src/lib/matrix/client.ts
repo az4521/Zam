@@ -8909,15 +8909,26 @@ export function setVoiceOutputVolume(volume: number): void {
     }
 }
 
-/** Switch the live call's microphone. Null (system default) takes effect on
- *  the next join — mid-call the current device is kept. */
+/** Switch the live call's microphone. A null deviceId selects the system
+ *  default device live (previously this was a no-op that only took effect on
+ *  the next join). */
 export async function setVoiceInputDevice(
     deviceId: string | null,
 ): Promise<void> {
-    if (!activeVoice || !deviceId) return;
-    await activeVoice.lkRoom
-        .switchActiveDevice("audioinput", deviceId)
-        .catch(() => {});
+    if (!activeVoice) return;
+    if (deviceId) {
+        // exact:true (switchActiveDevice's default) — unchanged real-device path.
+        await activeVoice.lkRoom
+            .switchActiveDevice("audioinput", deviceId)
+            .catch(() => {});
+    } else {
+        // System default: LiveKit resolves the "default" sentinel to the OS
+        // default input; exact:false so browsers without a literal "default"
+        // device id (Firefox) fall back to their default instead of throwing.
+        await activeVoice.lkRoom
+            .switchActiveDevice("audioinput", "default", false)
+            .catch(() => {});
+    }
 }
 
 /** getDisplayMedia rejects with NotAllowedError/AbortError when the user
