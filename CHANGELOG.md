@@ -4,6 +4,38 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.7.0
+
+✨ **Animations & UI**
+
+- Subtle fades when you switch rooms and settings tabs, and desktop popovers scale-fade in. Everything respects reduce motion.
+
+📞 **Calls & voice**
+
+- **Device submenus in the call menu:** expandable Input/Output rows let you switch mic and speaker without leaving the menu.
+- **Deafen shown on your own tile:** your roster row now carries the deafen icon.
+- **Snappier mic meter:** the input level bar uses a fast-attack/slow-release envelope (no more symmetric smear), so it tracks your voice honestly.
+- Picking "Default" mid-call now switches to the current system default mic.
+- Screen share biases the encoder toward detail and maintaining resolution.
+- Leaving a call briefly keeps a solo "Join" affordance (recently-left window) so you can hop back in.
+- The screen-share quality popover closes when you stop sharing from the OS.
+
+📲 **Share into Zam**
+
+- Reworked receive flow: a full-screen preview with per-file rows, a caption field, a recent-rooms list, and one-step send. Nothing sends automatically.
+
+⚙️ **Settings & appearance**
+
+- Your **custom font now applies app-wide**, not just to messages.
+- Settings tidy-up: link-preview media policy moved to Privacy & Safety, keep-sidebar and hold-to-open moved to Appearance/Messages, and search was reindexed for the new spots.
+
+✨ **Polish & fixes**
+
+- Reverted the in-app top-bar accent tint from 1.6.0.
+- Display names drop the disambiguation/Matrix-ID suffix in default mode; per-member ID lines follow the "show Matrix IDs" toggle.
+- Rightward row-swipe reliably opens the channel drawer instead of starting a reply.
+- Arrow-key roving focus in the room notification options.
+
 ## v1.6.0
 
 🖥️ **Screen sharing**
