@@ -55,3 +55,4 @@ Thumbs.db
 # AI
 .claude/
 .pi-subagents
+.omp/
