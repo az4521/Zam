@@ -63,7 +63,8 @@ function isSafeExternalUrl(rawUrl) {
         return false;
     }
 
-    const host = u.hostname.toLowerCase();
+    // A trailing dot is the fully qualified form of the same name.
+    const host = u.hostname.toLowerCase().replace(/\.$/, "");
 
     // Check for empty host
     if (!host) {
@@ -160,9 +161,14 @@ function isBlockedIPv6(ipv6) {
         return true;
     }
 
-    // IPv4-mapped IPv6: ::ffff:a.b.c.d or ::ffff:xxyy:zzww
-    if (lower.startsWith("::ffff:")) {
-        const mapped = lower.slice(7);
+    // IPv6 forms that embed an IPv4 address: mapped (::ffff:a.b.c.d),
+    // NAT64 (64:ff9b::a.b.c.d) and the deprecated compatible form (::a.b.c.d).
+    // The URL parser writes the embedded address as hex (::ffff:7f00:1).
+    const embeddedPrefix = ["::ffff:", "64:ff9b::", "::"].find((p) =>
+        lower.startsWith(p),
+    );
+    if (embeddedPrefix) {
+        const mapped = lower.slice(embeddedPrefix.length);
 
         // Check if it's in dotted-decimal form (::ffff:127.0.0.1)
         const ipv4Match = mapped.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);

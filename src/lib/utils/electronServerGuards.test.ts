@@ -115,6 +115,22 @@ describe("isSafeExternalUrl", () => {
         expect(isSafeExternalUrl("http://foo.localhost")).toBe(false);
     });
 
+    it("blocks a fully qualified localhost with a trailing dot", () => {
+        expect(isSafeExternalUrl("http://localhost./")).toBe(false);
+        expect(isSafeExternalUrl("http://foo.localhost./")).toBe(false);
+    });
+
+    it("blocks IPv4-compatible and NAT64 IPv6 forms of loopback", () => {
+        expect(isSafeExternalUrl("http://[::127.0.0.1]/")).toBe(false);
+        expect(isSafeExternalUrl("http://[::7f00:1]/")).toBe(false);
+        expect(isSafeExternalUrl("http://[64:ff9b::7f00:1]/")).toBe(false);
+        expect(isSafeExternalUrl("http://[64:ff9b::192.168.1.1]/")).toBe(false);
+    });
+
+    it("allows NAT64 forms of public addresses", () => {
+        expect(isSafeExternalUrl("http://[64:ff9b::808:808]/")).toBe(true);
+    });
+
     it("blocks empty host", () => {
         expect(isSafeExternalUrl("http://")).toBe(false);
     });
