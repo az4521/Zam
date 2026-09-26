@@ -6044,7 +6044,15 @@ export async function deleteMessage(
                 EventStatus.NOT_SENT,
             );
             if (echo) {
-                matrixClient.cancelPendingEvent(echo);
+                // Keep the redaction error as the one callers see.
+                try {
+                    matrixClient.cancelPendingEvent(echo);
+                } catch (cancelErr) {
+                    console.warn(
+                        "[deleteMessage] cancel of failed redaction echo failed",
+                        cancelErr,
+                    );
+                }
             }
         }
         throw err;
