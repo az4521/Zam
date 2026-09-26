@@ -14,6 +14,7 @@ export const hostBridge = {
         | ((opts: {
               anchor: HTMLElement;
               render(el: HTMLElement): void | (() => void);
+              label?: string;
           }) => Disposable),
     /** Set by the UI shell — routes to the existing notification/toast path. */
     notify: null as null | ((opts: { title?: string; body: string }) => void),

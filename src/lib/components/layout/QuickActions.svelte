@@ -274,6 +274,7 @@
     {#if !spaceId}
         <button
             onclick={() => open("create-space")}
+            role={compact ? "menuitem" : undefined}
             class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
             style="padding-left: 0.5rem;"
         >
@@ -290,6 +291,7 @@
         </button>
         <button
             onclick={() => open("join-room")}
+            role={compact ? "menuitem" : undefined}
             class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
             style="padding-left: 0.5rem;"
         >

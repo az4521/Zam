@@ -8,6 +8,8 @@ import {
     closeSidebar,
     clearSidebarIfOwner,
     openComposerPicker,
+    openComposerActions,
+    releaseComposerActions,
     openSubPage,
     closeSubPage,
     clearSubPageIfOwner,
@@ -240,6 +242,42 @@ describe("openComposerPicker", () => {
     });
 });
 
+describe("openComposerActions", () => {
+    it("opens the modal and sets the owner", () => {
+        openComposerActions("thread");
+        expect(interfaceState.modal).toBe("composer-actions");
+        expect(interfaceState.composerActionsOwner).toBe("thread");
+    });
+
+    it("toggles off when the same owner re-opens", () => {
+        openComposerActions("main");
+        openComposerActions("main");
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.composerActionsOwner).toBeNull();
+    });
+
+    it("switches owners when a different owner takes over", () => {
+        openComposerActions("main");
+        openComposerActions("thread");
+        expect(interfaceState.modal).toBe("composer-actions");
+        expect(interfaceState.composerActionsOwner).toBe("thread");
+    });
+
+    it("nulls the owner when the modal is closed", () => {
+        openComposerActions("main");
+        closeModal();
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.composerActionsOwner).toBeNull();
+    });
+
+    it("nulls the owner when another modal supersedes it", () => {
+        openComposerActions("main");
+        openModal("room-menu", () => {});
+        expect(interfaceState.modal).toBe("room-menu");
+        expect(interfaceState.composerActionsOwner).toBeNull();
+    });
+});
+
 describe("sub-page slot", () => {
     it("starts empty", () => {
         expect(interfaceState.subPageClose).toBe(null);
@@ -334,5 +372,29 @@ describe("sub-page slot", () => {
         openModal("composer-picker", () => {});
         expect(interfaceState.subPageClose).toBe(null);
         expect(sub).not.toHaveBeenCalled();
+    });
+});
+
+describe("releaseComposerActions", () => {
+    it("closes the menu when the given composer owns it", () => {
+        openComposerActions("thread");
+        releaseComposerActions("thread");
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.composerActionsOwner).toBeNull();
+    });
+
+    it("leaves another composer's menu open", () => {
+        openComposerActions("main");
+        releaseComposerActions("thread");
+        expect(interfaceState.modal).toBe("composer-actions");
+        expect(interfaceState.composerActionsOwner).toBe("main");
+    });
+
+    it("leaves a different modal open", () => {
+        const close = vi.fn();
+        openModal("room-menu", close);
+        releaseComposerActions("main");
+        expect(interfaceState.modal).toBe("room-menu");
+        expect(close).not.toHaveBeenCalled();
     });
 });

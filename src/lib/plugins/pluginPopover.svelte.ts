@@ -13,6 +13,7 @@ import type { Disposable } from "./types";
 export interface PluginPopoverState {
     anchor: HTMLElement;
     render(el: HTMLElement): void | (() => void);
+    label?: string;
 }
 
 /** Wrapped in an object so the field can be reassigned reactively; a $state
@@ -24,6 +25,7 @@ export const pluginPopover = $state<{ current: PluginPopoverState | null }>({
 export function openPluginPopover(opts: {
     anchor: HTMLElement;
     render(el: HTMLElement): void | (() => void);
+    label?: string;
 }): Disposable {
     // Claim FIRST (ordering contract): the outgoing owner's close runs here.
     const token = openModal("plugin-popover", () => {
@@ -31,7 +33,11 @@ export function openPluginPopover(opts: {
         // host unmounts and pluginMount runs the plugin's render cleanup.
         pluginPopover.current = null;
     });
-    pluginPopover.current = { anchor: opts.anchor, render: opts.render };
+    pluginPopover.current = {
+        anchor: opts.anchor,
+        render: opts.render,
+        label: opts.label,
+    };
 
     return {
         dispose() {

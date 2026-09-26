@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { scale } from "svelte/transition";
@@ -8,6 +9,7 @@
     import ScreenShareQualityChips from "./ScreenShareQualityChips.svelte";
     import { toggleScreenShare } from "$lib/stores/voiceCall.svelte";
     import { setScreenShareQuality } from "$lib/matrix/client";
+    import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
 
     interface Props {
         x: number;
@@ -17,6 +19,13 @@
         onClose: () => void;
     }
     let { x, y, mode, touch = false, onClose }: Props = $props();
+
+    onMount(() => {
+        const token = openModal("screen-share-quality", onClose);
+        return () => {
+            clearModalIfOwner(token);
+        };
+    });
 
     function goLive(): void {
         onClose();
