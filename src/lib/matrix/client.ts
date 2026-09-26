@@ -2755,13 +2755,10 @@ export async function initServiceWorker(): Promise<void> {
         type: "SET_NOTIF_PRIVACY",
         hideBody: settingsState.hideNotificationBody,
     };
-    const receiptMsg = uid
-        ? {
-              type: "SET_RECEIPT_PRIVACY",
-              userId: uid,
-              private: settingsState.privateReadReceipts,
-          }
-        : null;
+    // The per-account private-read-receipts mirror is NOT posted here: this
+    // runs before AppShell's reloadAccountSettings(), so the value would be the
+    // unscoped default and could land after AppShell's correct one (fail open).
+    // AppShell posts it (updateServiceWorkerReceiptPrivacy) once settings load.
     latestSwAuthMessage = authMsg;
     attachSwMediaListeners();
     try {
@@ -2777,14 +2774,12 @@ export async function initServiceWorker(): Promise<void> {
         const early = reg.installing || reg.waiting || reg.active;
         early?.postMessage(authMsg);
         early?.postMessage(notifMsg);
-        if (receiptMsg) early?.postMessage(receiptMsg);
         // Deliver again once fully active in case a later worker became the
         // controller, and — if it already controls us — flag media as ready even
         // if the broadcast was missed.
         const ready = await navigator.serviceWorker.ready;
         ready.active?.postMessage(authMsg);
         ready.active?.postMessage(notifMsg);
-        if (receiptMsg) ready.active?.postMessage(receiptMsg);
     } catch (e) {
         console.error("[SW] registration failed", e);
     }
