@@ -394,14 +394,15 @@ It is grouped into namespaces: `commands` (slash commands), `composer` (buttons,
 double-tap handlers, action-menu items, decorators, custom embeds), `room` (header buttons and
 panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`openPopover`,
 `registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
-boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendImage`, `sendSticker`,
-`react`, and plain room/member summaries, never live SDK objects), `storage` (per-plugin namespaced
-key/value), `settings` (schema-driven — see below), and `unsafe` (`getClient()` — the escape hatch).
-The curated `matrix` API is a stability/ergonomics layer and a seam for a future sandbox, not a
-security cage. **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for
-anything the curated API doesn't cover, with the plugin owning the stability and safety risk. Every
-`register` / `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's
-disposables so disabling it removes exactly its contributions.
+boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendMedia` (encrypts in encrypted
+rooms), `sendImage` (plaintext only), `sendSticker`, `react`, and plain room/member summaries, never
+live SDK objects), `storage` (per-plugin namespaced key/value), `settings` (schema-driven — see
+below), and `unsafe` (`getClient()` — the escape hatch). The curated `matrix` API is a
+stability/ergonomics layer and a seam for a future sandbox, not a security cage.
+**`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for anything the
+curated API doesn't cover, with the plugin owning the stability and safety risk. Every `register` /
+`add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's disposables so
+disabling it removes exactly its contributions.
 
 **The registry** (`registry.ts` plus `stores/plugins.svelte.ts`) is a reactive `$state` store keyed
 per plugin, with one array per extension point — commands, composer buttons and actions, message
