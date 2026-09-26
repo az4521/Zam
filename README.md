@@ -44,6 +44,7 @@ App
 - theming — light, dark, and true-black AMOLED, plus fully custom colours you save as your own presets and share by a copy-paste code; timestamp formats and double-tap actions too, all synced across devices via account data
 - auto-update on Electron and Android; the web build checks on request and offers a reload
 - installable PWA, Electron desktop build, Android APK
+- plugins, installed from GitHub plugin repos. a plugin runs with full access to the app and your account (there is no sandbox), so only install ones you trust. with auto-update off, an installed plugin stays frozen at the exact commit you installed or last updated it at
 
 things left to do:
 
@@ -77,7 +78,7 @@ npm i
 npm run dev
 ```
 
-useful scripts: `npm run check` (svelte-check), `npm run test` (vitest, run-once), `npm run build`, `npm run format` (prettier), `npm run electron:build`. `npm run lint` is currently broken — there's no root eslint config, so the `eslint .` half errors out; prettier is the formatting source of truth.
+useful scripts: `npm run check` (svelte-check), `npm run test` (vitest, run-once), `npm run build`, `npm run format` (prettier), `npm run electron:build`, `npm run lint` (`prettier --check .`). CI runs check, test and lint before any release build.
 
 ## serving it
 
