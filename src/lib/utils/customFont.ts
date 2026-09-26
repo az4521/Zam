@@ -97,7 +97,11 @@ export async function getStoredFont(): Promise<StoredCustomFont | null> {
     }
 }
 
-export async function putStoredFont(rec: StoredCustomFont): Promise<void> {
+/** Persist the font blob. Returns false when the write fails (quota exceeded,
+ *  private mode, no IndexedDB) so the caller can tell the user instead of
+ *  losing the font silently on the next boot. A quota failure surfaces only
+ *  as a transaction abort, so `onabort` counts as failure too. */
+export async function putStoredFont(rec: StoredCustomFont): Promise<boolean> {
     try {
         const db = await openDb();
         await new Promise<void>((resolve, reject) => {
@@ -105,9 +109,11 @@ export async function putStoredFont(rec: StoredCustomFont): Promise<void> {
             tx.objectStore(STORE).put(rec);
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
         });
+        return true;
     } catch {
-        /* best-effort */
+        return false;
     }
 }
 

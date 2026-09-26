@@ -726,13 +726,19 @@ export async function uploadCustomFont(
     const registered = await registerCustomFontFace(data);
     if (!registered)
         return { ok: false, reason: "That file isn't a valid font." };
-    await putStoredFont({
+    const saved = await putStoredFont({
         id: "custom",
         name: v.displayName,
         ext: v.ext,
         data,
         storedAt: Date.now(),
     });
+    if (!saved) {
+        // registerCustomFontFace replaced the previous face; put back whatever
+        // is still stored (or clear the slot) so the session matches the next boot.
+        await initCustomFont();
+        return { ok: false, reason: "Font couldn't be saved on this device." };
+    }
     settingsState.customFontName = v.displayName;
     writeString("customFontName", v.displayName);
     settingsState.messageFont = "custom";
