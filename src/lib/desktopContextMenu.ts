@@ -10,16 +10,6 @@ import { isSameOrigin } from "$lib/utils/mxcUri";
 import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
-const EXT_BY_MIME: Record<string, string> = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "image/avif": "avif",
-    "image/svg+xml": "svg",
-    "image/bmp": "bmp",
-};
-
 /** Timeline images may show a server-side thumbnail; save the original. */
 function fullSizeUrl(url: string): string {
     try {
@@ -35,8 +25,9 @@ function fullSizeUrl(url: string): string {
 }
 
 /** Best filename: the <img>'s alt (timeline media alts are the filename),
- *  else the URL's last path segment, with an extension from the MIME type. */
-function filenameFor(srcUrl: string, mime: string): string {
+ *  else the URL's last path segment. saveObjectUrl adds a missing
+ *  extension from the blob's MIME type. */
+function filenameFor(srcUrl: string): string {
     let name = "";
     for (const img of document.querySelectorAll("img")) {
         if (img.currentSrc === srcUrl || img.src === srcUrl) {
@@ -53,10 +44,7 @@ function filenameFor(srcUrl: string, mime: string): string {
             /* ignore */
         }
     }
-    name = name.replace(/[\\/\p{Cc}]/gu, "_") || "image";
-    const ext = EXT_BY_MIME[mime];
-    if (ext && !/\.[a-z0-9]{2,5}$/i.test(name)) name += `.${ext}`;
-    return name;
+    return name.replace(/[\\/\p{Cc}]/gu, "_") || "image";
 }
 
 async function saveImage(srcUrl: string): Promise<void> {
@@ -78,8 +66,7 @@ async function saveImage(srcUrl: string): Promise<void> {
         }
     }
     try {
-        const mime = (await (await fetch(objectUrl)).blob()).type;
-        await saveObjectUrl(objectUrl, filenameFor(srcUrl, mime));
+        await saveObjectUrl(objectUrl, filenameFor(srcUrl));
     } finally {
         if (owned) revokeLater(objectUrl);
     }

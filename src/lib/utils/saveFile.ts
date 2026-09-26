@@ -24,6 +24,30 @@ function isAndroid(): boolean {
     );
 }
 
+const EXT_BY_MIME: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif",
+    "image/svg+xml": "svg",
+    "image/bmp": "bmp",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+    "audio/mpeg": "mp3",
+    "audio/ogg": "ogg",
+    "application/pdf": "pdf",
+};
+
+/** Append an extension from the MIME type when `name` has none, so a file
+ *  saved as e.g. "image" still opens as an image. */
+export function withExtension(name: string, mime: string): string {
+    if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
+    const ext = EXT_BY_MIME[mime.split(";")[0].trim().toLowerCase()];
+    return ext ? `${name}.${ext}` : name;
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -46,8 +70,9 @@ export async function saveObjectUrl(
     objectUrl: string,
     name: string,
 ): Promise<void> {
+    const blob = await (await fetch(objectUrl)).blob();
+    name = withExtension(name, blob.type);
     if (isAndroid()) {
-        const blob = await (await fetch(objectUrl)).blob();
         await MediaSaver.save({
             data: await blobToBase64(blob),
             filename: name,

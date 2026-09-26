@@ -2176,6 +2176,7 @@
                         <Lightbox
                             src={full}
                             alt={mediaFilename}
+                            filename={mediaFilename || undefined}
                             favourite={isGif
                                 ? { url: full, previewUrl: thumb ?? full }
                                 : undefined}

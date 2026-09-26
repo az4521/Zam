@@ -73,6 +73,10 @@
 
     function filenameFromSrc(): string {
         if (filename) return filename;
+        // Gallery callers pass the filename as alt text; use it when it
+        // looks like one (has an extension).
+        const a = alt.trim();
+        if (/\.[a-z0-9]{2,5}$/i.test(a) && !/[\\/]/.test(a)) return a;
         try {
             const u = new URL(src, location.href);
             const last = u.pathname.split("/").filter(Boolean).pop();

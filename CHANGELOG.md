@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.7.3
+
+🐛 **Fixes**
+
+- Downloading from the image viewer keeps the original filename instead of saving as "image".
+- Downloads with no file extension get the right one added, so they open correctly.
+
 ## v1.7.2
 
 🐛 **Fixes**
