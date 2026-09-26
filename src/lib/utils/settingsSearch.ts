@@ -374,11 +374,13 @@ export type SettingsSearchKeyAction = "clear" | "open-first";
  * opens the top result. Keys pressed mid-IME-composition belong to the IME.
  */
 export function settingsSearchKeyAction(
-    e: { key: string; isComposing?: boolean },
+    e: { key: string; isComposing?: boolean; keyCode?: number },
     query: string,
     resultCount: number,
 ): SettingsSearchKeyAction | null {
-    if (e.isComposing) return null;
+    // Safari reports the composition-committing Enter with isComposing false
+    // but keyCode 229 (same guard as MessageInput).
+    if (e.isComposing || e.keyCode === 229) return null;
     const hasQuery = query.trim() !== "";
     if (e.key === "Escape" && hasQuery) return "clear";
     if (e.key === "Enter" && hasQuery && resultCount > 0) return "open-first";

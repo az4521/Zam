@@ -157,6 +157,16 @@ describe("settingsSearchKeyAction", () => {
         ).toBeNull();
     });
 
+    it("ignores Safari's composition-commit Enter (keyCode 229)", () => {
+        expect(
+            settingsSearchKeyAction(
+                { key: "Enter", isComposing: false, keyCode: 229 },
+                "font",
+                3,
+            ),
+        ).toBeNull();
+    });
+
     it("ignores other keys", () => {
         expect(settingsSearchKeyAction(key("a"), "font", 3)).toBeNull();
         expect(settingsSearchKeyAction(key("ArrowDown"), "font", 3)).toBeNull();
