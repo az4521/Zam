@@ -113,7 +113,7 @@ export async function deliverShareToRoom(
         ) {
             stageShare(roomId, captionSnapshot, filesSnapshot);
             showErrorToast(
-                "You're offline — the share was added to the composer",
+                "You're offline: the share was added to the composer",
             );
             return;
         }

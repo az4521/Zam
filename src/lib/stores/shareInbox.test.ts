@@ -50,7 +50,13 @@ vi.mock("$lib/plugins/hostBridge", () => ({
     },
 }));
 
-const sendShare = vi.fn(async () => {});
+const sendShare = vi.fn(
+    async (
+        _roomId: string,
+        _share: { caption: string; files: File[] },
+        _onStepSent?: (i: number) => void,
+    ) => {},
+);
 vi.mock("$lib/matrix/client", () => ({
     // @ts-ignore - vitest mock wrapper
     sendShare: (...a: unknown[]) => sendShare(...a),
@@ -220,7 +226,7 @@ describe("shareInbox", () => {
             expect.any(String),
         );
         expect(showErrorToast).toHaveBeenCalledWith(
-            "You're offline — the share was added to the composer",
+            "You're offline: the share was added to the composer",
         );
     });
 
@@ -234,10 +240,16 @@ describe("shareInbox", () => {
         receiveShare({ source: "web", text: "cap", files: [f1, f2] });
 
         // Mock sendShare to call onStepSent(0) then throw
-        sendShare.mockImplementationOnce(async (roomId, share, onStepSent) => {
-            onStepSent(0); // First file sent
-            throw new Error("Network error");
-        });
+        sendShare.mockImplementationOnce(
+            async (
+                roomId: string,
+                share: { caption: string; files: File[] },
+                onStepSent?: (i: number) => void,
+            ) => {
+                onStepSent?.(0); // First file sent
+                throw new Error("Network error");
+            },
+        );
 
         await deliverShareToRoom("!r:server", { send: true });
 
