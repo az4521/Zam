@@ -1,4 +1,3 @@
-import { tick } from "svelte";
 import {
     normalizeSharePayload,
     type ShareInput,
@@ -10,6 +9,12 @@ import { getDraft, setDraft } from "$lib/stores/composerDrafts.svelte";
 import { composerInsertText } from "$lib/utils/composerInsert";
 import { addQueuedFile } from "$lib/stores/composerFileQueue.svelte";
 import { hostBridge } from "$lib/plugins/hostBridge";
+import { sendShare } from "$lib/matrix/client";
+import { planShareSend, shareRemainder } from "$lib/utils/shareSend";
+import { auth } from "$lib/stores/auth.svelte";
+import { shouldQueueSend } from "$lib/utils/sendGating";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { matrixErrorMessage } from "$lib/utils/knock";
 
 /** The single pending share payload, or null. */
 export const shareInboxState = $state<{ payload: NormalizedShare | null }>({
@@ -28,10 +33,6 @@ export function receiveShare(input: ShareInput): boolean {
     const n = normalizeSharePayload(input);
     if (!n) return false;
 
-    // Drop any orphaned one-step-send request from a prior, abandoned share so it
-    // can't latently auto-fire when a later composer mounts.
-    hostBridge.pendingSend = null;
-
     // ORDERING CONTRACT: claim the slot FIRST, then assign the payload.
     // Opening supersedes any prior owner and runs its close synchronously —
     // reversing this order would let a superseded modal's close null the
@@ -44,17 +45,11 @@ export function receiveShare(input: ShareInput): boolean {
 }
 
 /**
- * Deliver the pending share into the given room's composer, navigate to that
- * room, and dismiss the picker. No-op if no share is pending.
+ * Stage text and files into the room's composer without sending. Merges text
+ * via hostBridge.insertText when the room is active and mounted, else into the
+ * draft store. Stages files into the composer queue with preview URLs for images.
  */
-export function deliverShareToRoom(
-    roomId: string,
-    opts?: { caption?: string; send?: boolean },
-): void {
-    const p = shareInboxState.payload;
-    if (!p) return;
-
-    const text = opts?.caption ?? p.text;
+function stageShare(roomId: string, text: string, files: File[]): void {
     const wasActive = roomsState.activeRoomId === roomId;
 
     // Deliver text: via hostBridge if the room is already mounted and active,
@@ -74,34 +69,82 @@ export function deliverShareToRoom(
 
     // Deliver files: stage each into the composer queue with a preview URL for
     // images. The queue owns object-URL revocation.
-    if (p.kind === "files") {
-        for (const f of p.files as File[]) {
-            addQueuedFile(
-                roomId,
-                f,
-                f.name || "file",
-                f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
-            );
-        }
+    for (const f of files) {
+        addQueuedFile(
+            roomId,
+            f,
+            f.name || "file",
+            f.type.startsWith("image/") ? URL.createObjectURL(f) : null,
+        );
     }
+}
 
-    // One-step send (explicit user Send tap only). Queue the send; the composer
-    // drains hostBridge.pendingSend one tick after its draft-restore effect sets
-    // `text` (mirrors pendingMention). An already-active room's composer won't
-    // re-run that effect, so fire the imperative send after a tick, once staging
-    // is in and the file-queue derived has updated.
+/**
+ * Deliver the pending share into the given room's composer, navigate to that
+ * room, and dismiss the picker. When opts.send is true, sends immediately via
+ * sendShare (bypassing the composer) if online; otherwise stages everything
+ * into the composer. No-op if no share is pending.
+ */
+export async function deliverShareToRoom(
+    roomId: string,
+    opts?: { caption?: string; send?: boolean },
+): Promise<void> {
+    const p = shareInboxState.payload;
+    if (!p) return;
+
+    const text = opts?.caption ?? p.text;
+    const files = p.kind === "files" ? (p.files as File[]) : [];
+
+    // Send path: snapshot the payload, navigate + clear immediately, then send
+    // directly without touching the composer state. On failure, stage what
+    // remains unsent.
     if (opts?.send) {
-        hostBridge.pendingSend = { roomId };
-        if (wasActive) {
-            void tick().then(() => {
-                if (hostBridge.pendingSend?.roomId === roomId) {
-                    hostBridge.pendingSend = null;
-                    hostBridge.sendNow?.({ roomId });
-                }
-            });
+        const captionSnapshot = text;
+        const filesSnapshot = [...files];
+        navigateToRoom(roomId);
+        clearShare();
+
+        // Offline: skip sending, stage everything, and toast
+        if (
+            shouldQueueSend({
+                syncState: auth.syncState,
+                online: navigator.onLine,
+            })
+        ) {
+            stageShare(roomId, captionSnapshot, filesSnapshot);
+            showErrorToast(
+                "You're offline — the share was added to the composer",
+            );
+            return;
         }
+
+        // Online: send via sendShare, track progress
+        const steps = planShareSend({
+            caption: captionSnapshot,
+            files: filesSnapshot,
+        });
+        let sentCount = 0;
+
+        try {
+            await sendShare(
+                roomId,
+                { caption: captionSnapshot, files: filesSnapshot },
+                (i) => {
+                    sentCount = i + 1;
+                },
+            );
+        } catch (err) {
+            // Partial or total failure: stage what remains unsent
+            const remainder = shareRemainder(steps, sentCount);
+            stageShare(roomId, remainder.text, remainder.files);
+            showErrorToast(matrixErrorMessage(err, "Couldn't send the share"));
+        }
+
+        return;
     }
 
+    // Non-send path: stage into the composer and navigate
+    stageShare(roomId, text, files);
     navigateToRoom(roomId);
     clearShare();
 }
