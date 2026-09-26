@@ -48,11 +48,14 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="fixed inset-0 z-40" onclick={closeModal}></div>
+        <!-- positionCard BEFORE focusTrap: both defer to rAF, and the card is
+             visibility:hidden until positionCard's frame runs. The other order
+             tries to focus a hidden element, which silently fails. -->
         <div
             role="dialog"
             aria-label={current.label ?? "Plugin"}
-            use:focusTrap={{ onEscape: closeModal }}
             use:positionCard={current.anchor}
+            use:focusTrap={{ onEscape: closeModal }}
             in:scale|global={{
                 start: 0.92,
                 opacity: 0,
