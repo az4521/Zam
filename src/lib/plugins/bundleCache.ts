@@ -33,6 +33,19 @@ export function isCachedBundleUsable(
     return true;
 }
 
+/** Pure: when a fetch at the pinned SHA fails (offline, 404), may this cache
+ *  row stand in? Only if it was cached at that SHA, or is a legacy row with no
+ *  SHA (installed before pinning). A row from another commit never runs in
+ *  place of the pin. Version is not checked: the fallback is best-effort. */
+export function isCacheFallbackAllowed(
+    cached: CachedBundle | null | undefined,
+    sha: string,
+): cached is CachedBundle {
+    if (!cached || typeof cached.code !== "string" || cached.code.length === 0)
+        return false;
+    return typeof cached.sha !== "string" || cached.sha === sha;
+}
+
 const DB_NAME = "zam-plugins";
 const STORE = "bundles";
 

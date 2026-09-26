@@ -182,9 +182,12 @@
 
     // Update a single repo plugin now
     let updateBusy = $state<Record<string, boolean>>({});
+    let updateError = $state<Record<string, string>>({});
     async function doUpdate(id: string) {
         updateBusy[id] = true;
-        await updateRepoPlugin(id);
+        delete updateError[id];
+        const res = await updateRepoPlugin(id);
+        if (!res.ok) updateError[id] = res.error ?? "Update failed.";
         refreshUpdates();
         updateBusy[id] = false;
     }
@@ -519,6 +522,14 @@
                                                 : "Update"}
                                         </button>
                                     </div>
+                                {/if}
+                                {#if updateError[p.id]}
+                                    <p
+                                        class="text-xs text-discord-danger mt-1"
+                                        role="alert"
+                                    >
+                                        {updateError[p.id]}
+                                    </p>
                                 {/if}
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">

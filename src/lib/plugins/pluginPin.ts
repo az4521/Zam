@@ -42,7 +42,10 @@ export function checkInstallId(params: CheckInstallIdParams): string | null {
             return `Cannot install plugin with id "${manifestId}": it is a built-in plugin`;
         }
         // Check if it's from a different repo
-        if (existing.repoRef && repoKey(existing.repoRef) !== repoKey(repoRef)) {
+        if (
+            existing.repoRef &&
+            repoKey(existing.repoRef) !== repoKey(repoRef)
+        ) {
             return `Plugin "${manifestId}" is already installed from a different repository`;
         }
         // Same repo re-install is OK
@@ -68,9 +71,7 @@ export type RepoLoadDecision =
  * needs-update. Returns the decision plus an optional SHA to record
  * (present when migrating an unpinned plugin).
  */
-export function decideRepoLoad(
-    params: DecideRepoLoadParams,
-): RepoLoadDecision {
+export function decideRepoLoad(params: DecideRepoLoadParams): RepoLoadDecision {
     const { pinnedSha, cacheUsable, hasAnyCache, resolvedSha } = params;
 
     if (pinnedSha) {
@@ -83,12 +84,10 @@ export function decideRepoLoad(
     } else {
         // Unpinned (migration path): try to resolve and record
         if (resolvedSha) {
-            // Resolved successfully: record the sha
-            if (cacheUsable) {
-                return { kind: "cache", record: resolvedSha };
-            } else {
-                return { kind: "fetch", sha: resolvedSha, record: resolvedSha };
-            }
+            // Resolved: record it and fetch AT it. A legacy cache came from an
+            // earlier branch head, so running it would pin a SHA that doesn't
+            // match the code (the fetch still falls back to it offline).
+            return { kind: "fetch", sha: resolvedSha, record: resolvedSha };
         } else {
             // Resolve failed: fall back to cache if we have any, else needs-update
             if (hasAnyCache) {

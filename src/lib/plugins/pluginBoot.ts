@@ -14,7 +14,7 @@ import {
     getCachedBundle,
     putCachedBundle,
     isCachedBundleUsable,
-    type CachedBundle,
+    isCacheFallbackAllowed,
 } from "./bundleCache";
 import {
     parsePersistedState,
@@ -287,13 +287,15 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
                 );
             } catch (e) {
                 // Network error: fall back to any cache
-                if (cached) return blobImport(cached.code);
+                if (isCacheFallbackAllowed(cached, sha))
+                    return blobImport(cached.code);
                 throw e;
             }
 
             if (!res.ok) {
                 // Offline / 404: fall back to any cache if we have one
-                if (cached) return blobImport(cached.code);
+                if (isCacheFallbackAllowed(cached, sha))
+                    return blobImport(cached.code);
                 throw new Error(`fetch bundle ${res.status}`);
             }
 
@@ -651,6 +653,7 @@ export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
     loadables.delete(pluginId);
     await deleteCachedBundle(pluginId);
     removeInstalledPlugin(pluginId);
+    setPluginNeedsUpdate(pluginId, false);
     const state = readState();
     delete state.plugins[pluginId];
     writeState(state);
@@ -776,7 +779,16 @@ export async function applyUpdateCheck(
         pluginPrefs.autoUpdate,
         pluginPrefs.perPlugin,
     );
-    for (const id of auto) await updateRepoPlugin(id);
+    for (const id of auto) {
+        const res = await updateRepoPlugin(id);
+        // Surface a failed auto-update on the plugin's row; it keeps running
+        // its pinned code.
+        if (!res.ok)
+            markPluginError(
+                id,
+                `Auto-update failed: ${res.error ?? "unknown"}`,
+            );
+    }
 }
 
 /** Pull the newest bundle for an installed repo plugin: resolve SHA, fetch index

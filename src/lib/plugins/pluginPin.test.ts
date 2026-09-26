@@ -113,7 +113,9 @@ describe("decideRepoLoad", () => {
         expect(result.record).toBeUndefined();
     });
 
-    it("records sha and uses cache when unpinned with resolved sha and cache usable", () => {
+    it("records sha and fetches AT it when unpinned with resolved sha, even with a usable cache", () => {
+        // The legacy cache came from some earlier branch head; running it while
+        // recording the new head would pin a SHA that doesn't match the code.
         const sha = "b".repeat(40);
         const result = decideRepoLoad({
             pinnedSha: null,
@@ -121,8 +123,7 @@ describe("decideRepoLoad", () => {
             hasAnyCache: true,
             resolvedSha: sha,
         });
-        expect(result.kind).toBe("cache");
-        expect(result.record).toBe(sha);
+        expect(result).toEqual({ kind: "fetch", sha, record: sha });
     });
 
     it("records sha and fetches when unpinned with resolved sha and cache not usable", () => {
