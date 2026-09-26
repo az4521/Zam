@@ -9219,10 +9219,12 @@ async function switchInputWithRecovery(
     };
     if (await trySwitch(deviceId, exact)) return;
     if (activeVoice !== call) return;
+    // exact: Chromium treats a bare (ideal) deviceId as a hint and hands back
+    // the default device, which LiveKit then reports as a failed switch.
     if (
         previousId &&
         previousId !== "default" &&
-        (await trySwitch(previousId, false))
+        (await trySwitch(previousId, true))
     ) {
         if (activeVoice === call)
             notifyVoiceNotice(
@@ -9410,16 +9412,26 @@ export async function setVoiceCaptureConstraints(c: {
     if (!track) return;
     // Pass the current device along so restartTrack doesn't switch to the
     // OS default. Prefer the live track's device id, else the saved selection.
+    // It must be `exact`: Chromium treats a bare (ideal) deviceId as a hint
+    // and re-acquired the default mic in live testing. If the exact device
+    // is gone, fall back to an ideal hint rather than leaving the mic dead
+    // (the restart has already stopped the old track by then).
     const deviceId =
         track.mediaStreamTrack.getSettings().deviceId ??
         settingsState.audioInputDeviceId ??
         undefined;
-    await track.restartTrack({ ...c, deviceId }).catch((err) => {
+    try {
+        await track.restartTrack({
+            ...c,
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+        });
+    } catch (err) {
         console.error("Voice capture constraints change failed:", err);
+        await track.restartTrack({ ...c, deviceId }).catch(() => {});
         if (activeVoice === call) {
             notifyVoiceNotice("Couldn't apply audio processing change");
         }
-    });
+    }
 }
 
 /** Live srcObject streams of the call's remote <audio> elements (feeds the
