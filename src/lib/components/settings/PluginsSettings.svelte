@@ -218,8 +218,24 @@
         }
     }
 
+    // Remove is irreversible, so the trash button only arms an inline
+    // Cancel/Remove step (audit UX-10); the second click uninstalls.
+    let removePending = $state<string | null>(null);
+    let removeError = $state<Record<string, string>>({});
     async function remove(id: string) {
-        await uninstallRepoPlugin(id);
+        removePending = null;
+        busy[id] = true;
+        delete removeError[id];
+        try {
+            await uninstallRepoPlugin(id);
+        } catch (err) {
+            removeError[id] =
+                err instanceof Error && err.message
+                    ? `Couldn't remove plugin: ${err.message}`
+                    : "Couldn't remove plugin.";
+        } finally {
+            busy[id] = false;
+        }
     }
 
     // Repos add
@@ -531,6 +547,14 @@
                                         {updateError[p.id]}
                                     </p>
                                 {/if}
+                                {#if removeError[p.id]}
+                                    <p
+                                        class="text-xs text-discord-danger mt-1"
+                                        role="alert"
+                                    >
+                                        {removeError[p.id]}
+                                    </p>
+                                {/if}
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
                                 {#if hasSettings}
@@ -569,14 +593,36 @@
                                         <option value="on">Auto: On</option>
                                         <option value="off">Auto: Off</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        onclick={() => remove(p.id)}
-                                        title="Remove plugin"
-                                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    {#if removePending === p.id}
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                (removePending = null)}
+                                            class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onclick={() => remove(p.id)}
+                                            aria-label="Confirm remove {p.name}"
+                                            class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                                        >
+                                            Remove
+                                        </button>
+                                    {:else}
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                (removePending = p.id)}
+                                            disabled={busy[p.id]}
+                                            title="Remove plugin"
+                                            aria-label="Remove {p.name}"
+                                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    {/if}
                                 {/if}
                             </div>
                         </div>

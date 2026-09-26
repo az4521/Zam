@@ -108,3 +108,32 @@ export function settingsNavView(args: {
     if (selectedTab === null) return { mode: "list" };
     return { mode: "detail", tab: selectedTab };
 }
+
+/** Platform facts that decide which tabs have any content. */
+export interface SettingsPlatform {
+    /** Packaged Electron with the tray bridge (`isDesktopTray()`). */
+    desktopTray: boolean;
+}
+
+/**
+ * Whether a tab has content on this platform. General only holds the
+ * desktop tray toggle, so web and Android hide it (and its search entries)
+ * instead of showing an empty panel.
+ */
+export function isSettingsTabAvailable(
+    tab: SettingsTab,
+    platform: SettingsPlatform,
+): boolean {
+    return tab !== "general" || platform.desktopTray;
+}
+
+/** SETTINGS_GROUPS minus tabs this platform can't show; empty groups dropped. */
+export function visibleSettingsGroups(
+    platform: SettingsPlatform,
+): typeof SETTINGS_GROUPS {
+    if (platform.desktopTray) return SETTINGS_GROUPS;
+    return SETTINGS_GROUPS.map((g) => ({
+        title: g.title,
+        tabs: g.tabs.filter((t) => isSettingsTabAvailable(t.id, platform)),
+    })).filter((g) => g.tabs.length > 0);
+}

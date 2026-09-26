@@ -5,6 +5,8 @@ import {
     DEFAULT_SETTINGS_TAB,
     settingsTabLabel,
     settingsNavView,
+    isSettingsTabAvailable,
+    visibleSettingsGroups,
     type SettingsTab,
 } from "./settingsNav";
 
@@ -108,5 +110,34 @@ describe("settingsNavView", () => {
         expect(
             settingsNavView({ isMobile: false, selectedTab: "privacy" }),
         ).toEqual({ mode: "desktop", tab: "privacy" });
+    });
+});
+
+describe("platform-gated tabs", () => {
+    it("hides General when there is no desktop tray", () => {
+        expect(isSettingsTabAvailable("general", { desktopTray: false })).toBe(
+            false,
+        );
+        const ids = visibleSettingsGroups({ desktopTray: false }).flatMap((g) =>
+            g.tabs.map((t) => t.id),
+        );
+        expect(ids).not.toContain("general");
+        expect(ids).toContain("plugins");
+    });
+    it("shows General in packaged desktop", () => {
+        expect(isSettingsTabAvailable("general", { desktopTray: true })).toBe(
+            true,
+        );
+        expect(visibleSettingsGroups({ desktopTray: true })).toEqual(
+            SETTINGS_GROUPS,
+        );
+    });
+    it("keeps every other tab regardless of platform", () => {
+        for (const t of SETTINGS_TABS) {
+            if (t.id === "general") continue;
+            expect(isSettingsTabAvailable(t.id, { desktopTray: false })).toBe(
+                true,
+            );
+        }
     });
 });

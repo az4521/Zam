@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
  * -------------------------------------------------------
  * `drawerInert.test.ts` proves the predicate. Nothing proves the three call
  * sites pass it the right arguments, and that gap is dangerous in a specific
- * way: the left drawer parks at a NEGATIVE offset (`-DRAWER_WIDTH`) while the
+ * way: the left drawer parks at a NEGATIVE offset (`-drawerWidth`) while the
  * two right-hand drawers park at POSITIVE ones (`+PINNED_WIDTH` /
  * `+MEMBER_WIDTH`). Flip one sign and the drawer becomes `inert` while it is
  * OPEN — a total keyboard lockout. That mutation type-checks, builds, and
@@ -79,7 +79,7 @@ const COMPONENTS = resolve(
  * This is NOT cosmetic. The components explain the polarity in prose, and those
  * comments quote the very expressions asserted below — e.g. AppShell says
  * "Same notion as the box-shadow gate below it (`drawerTranslate <=
- * -DRAWER_WIDTH`)". Without this strip, the box-shadow assertions matched the
+ * -drawerWidth`)". Without this strip, the box-shadow assertions matched the
  * COMMENT and stayed green while the real comparison was mutated from `<=` to
  * `<`. Caught by mutation-checking; a source-mirrors test that reads its own
  * documentation back to itself is pure theatre.
@@ -281,19 +281,19 @@ function expectBoundTo(tag: string, own: string) {
 }
 
 describe("drawer inert wiring — polarity", () => {
-    // The left drawer opens at 0 and closes at -DRAWER_WIDTH, so the closed
+    // The left drawer opens at 0 and closes at -drawerWidth, so the closed
     // offset it is compared against MUST carry the minus sign.
     it("pairs the left drawer with a NEGATIVE closed offset, and nothing else", () => {
         expect(closedCalls(appShell())).toEqual([
-            "drawerTranslate, -DRAWER_WIDTH",
+            "drawerTranslate, -drawerWidth",
         ]);
     });
 
-    it("never compares the left drawer against a positive DRAWER_WIDTH", () => {
-        // `-DRAWER_WIDTH` does not contain the substring ", DRAWER_WIDTH)", so
+    it("never compares the left drawer against a positive drawerWidth", () => {
+        // `-drawerWidth` does not contain the substring ", drawerWidth)", so
         // this fires only on a genuinely dropped sign.
         expect(normalize(appShell())).not.toContain(
-            "isOffCanvasClosed(drawerTranslate, DRAWER_WIDTH)",
+            "isOffCanvasClosed(drawerTranslate, drawerWidth)",
         );
     });
 
@@ -319,7 +319,7 @@ describe("drawer inert wiring — polarity", () => {
     // could keep the names and re-sign the call underneath them.
     it("declares each derived from its own correctly-signed call", () => {
         expect(normalize(appShell())).toContain(
-            "const leftDrawerClosed = $derived( isOffCanvasClosed(drawerTranslate, -DRAWER_WIDTH), );",
+            "const leftDrawerClosed = $derived( isOffCanvasClosed(drawerTranslate, -drawerWidth), );",
         );
         const area = normalize(messageArea());
         expect(area).toContain(
@@ -390,7 +390,7 @@ describe("drawer inert wiring — agreement with the box-shadow gates", () => {
     // stripComments() above for how that let a mutation slip through.
     it("keeps the left drawer's inline gate identical to the predicate's branch", () => {
         expect(normalize(appShell())).toContain(
-            "{drawerTranslate <= -DRAWER_WIDTH ? '' : 'box-shadow:",
+            "{drawerTranslate <= -drawerWidth ? '' : 'box-shadow:",
         );
     });
 
@@ -427,8 +427,11 @@ describe("drawer inert wiring — closed-offset constants", () => {
     // task report's open/closed table quotes them. Pin them so that table
     // cannot silently go stale, and so a width change is a deliberate act that
     // re-opens the polarity question rather than a drive-by edit.
-    it("still declares DRAWER_WIDTH as 312", () => {
-        expect(appShell()).toContain("const DRAWER_WIDTH = 312;");
+    it("still derives drawerWidth from the 19.5rem drawer", () => {
+        expect(appShell()).toContain(
+            "let drawerWidth = $state(initialDrawerWidth);",
+        );
+        expect(appShell()).toContain("19.5 *");
     });
 
     it("still declares PINNED_WIDTH and MEMBER_WIDTH as 280", () => {

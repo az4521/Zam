@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isOffCanvasClosed } from "./drawerInert";
 
-// Left drawer (AppShell): open at 0, closed at -DRAWER_WIDTH.
+// Left drawer (AppShell): open at 0, closed at -drawerWidth.
 const LEFT_CLOSED = -312;
 // Right drawers (MessageArea): open at 0, closed at +WIDTH.
 const RIGHT_CLOSED = 280;
