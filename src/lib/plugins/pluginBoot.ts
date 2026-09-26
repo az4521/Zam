@@ -68,9 +68,8 @@ import {
 } from "./updateCheck";
 // Sanctioned host consumer of the SDK boundary (like hostApi.ts) — sync writes
 // self-scoped account data; plugins never import client.ts.
+import { persistPluginSync, loadPluginSync } from "../matrix/pluginHost";
 import {
-    persistPluginSync,
-    loadPluginSync,
     onTimelineEvent,
     onReactionEvent,
     onRoomUpdate,

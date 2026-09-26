@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("$lib/matrix/client", () => ({
-    sendEventContent: vi.fn(),
     sendReaction: vi.fn(),
+}));
+vi.mock("$lib/matrix/pluginHost", () => ({
+    sendEventContent: vi.fn(),
     getPluginRoomSummary: vi.fn(),
     getPluginRoomMembers: vi.fn(),
 }));

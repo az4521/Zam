@@ -18,19 +18,17 @@ import {
 } from "./settingsSchema";
 import { settingsStorageKey } from "./pluginSettingsStore";
 import { hostBridge } from "./hostBridge";
+import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
-    sendReaction,
     getPluginRoomSummary,
     getPluginRoomMembers,
     sendPluginSticker,
-    getOwnUserId,
     getPluginRecentMessages,
     uploadPluginMedia,
     sendPluginMedia,
     redactOwnEvent,
-    getClient,
-} from "../matrix/client";
+} from "../matrix/pluginHost";
 
 export interface BuildHostApiOptions {
     pluginId: string;

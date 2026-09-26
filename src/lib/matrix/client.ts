@@ -38,15 +38,6 @@ import type {
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
-import type {
-    PluginRoomSummary,
-    PluginMemberSummary,
-    PluginTimelineMessage,
-} from "../plugins/types";
-import {
-    selectRecentMessages,
-    type PluginTimelineRecord,
-} from "../plugins/pluginTimeline";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
@@ -101,10 +92,23 @@ import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
     guardOwnership,
-    nextGeneration,
     ownsRuntime,
     type ClientOwnership,
 } from "$lib/utils/clientGeneration";
+import {
+    captureClient,
+    clientGeneration,
+    getClient,
+    installClient,
+    matrixClient,
+    matrixStore,
+    ownedClient,
+    ownedClientOrThrow,
+    readOwner,
+    releaseClient,
+    retireClientGeneration,
+    setMatrixStore,
+} from "./runtime";
 import {
     sanitizeCustomization,
     type ClientCustomization,
@@ -352,46 +356,7 @@ declare module "matrix-js-sdk" {
     }
 }
 
-let matrixClient: MatrixClient | null = null;
-let matrixStore: IndexedDBStore | null = null;
-// Monotonic id of the CURRENT occupant of the `matrixClient` slot, bumped on
-// every install and every release. An operation or listener that captured the
-// pair {client, generation} at entry can re-check it after an await and refuse
-// to act for an account that no longer owns the runtime.
-let clientGeneration = 0;
-
-export function getClient(): MatrixClient | null {
-    return matrixClient;
-}
-
-/** The live occupant of the slot — the read side of every ownership guard. */
-function readOwner(): { client: MatrixClient | null; generation: number } {
-    return { client: matrixClient, generation: clientGeneration };
-}
-
-/** Snapshot the owner for an operation that spans awaits. */
-function captureClient(): ClientOwnership<MatrixClient> {
-    if (!matrixClient) throw new Error("Not logged in");
-    return captureOwnership(matrixClient, clientGeneration);
-}
-
-/** The captured client, or null once a successor has taken the slot. */
-function ownedClient(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient | null {
-    return ownsRuntime(owner, matrixClient, clientGeneration)
-        ? owner.client
-        : null;
-}
-
-/** As `ownedClient`, for operations whose caller must learn they aborted. */
-function ownedClientOrThrow(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient {
-    const client = ownedClient(owner);
-    if (!client) throw new Error(OWNERSHIP_LOST_MESSAGE);
-    return client;
-}
+export { getClient };
 
 function getIndexedDBFactory(): IDBFactory | null {
     try {
@@ -425,14 +390,14 @@ async function createAuthenticatedClient(opts: {
     // NOW. Otherwise a 401 arriving from the account we just stopped still
     // passes its listeners' guard and runs root session-expiry teardown
     // against the account that is signing in.
-    clientGeneration = nextGeneration(clientGeneration);
+    retireClientGeneration();
     // Do NOT destroy the previous store here: with multiple signed-in
     // accounts the outgoing client usually belongs to an account that stays
     // signed in, and deleting its per-account sync cache (or racing that
     // async deletion against the add-account reload) corrupts or cold-boots
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
-    matrixStore = null;
+    setMatrixStore(null);
     // Same reasoning as the media limit below: the outgoing client's memoized
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
@@ -486,7 +451,7 @@ async function createAuthenticatedClient(opts: {
         resetSyncStoreFallback();
         try {
             await store.startup();
-            matrixStore = store;
+            setMatrixStore(store);
         } catch (err) {
             console.warn(
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
@@ -497,8 +462,7 @@ async function createAuthenticatedClient(opts: {
         }
     }
 
-    matrixClient = client;
-    clientGeneration = nextGeneration(clientGeneration);
+    installClient(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
@@ -806,7 +770,6 @@ export function deleteFailedMessage(event: MatrixEvent): void {
 // but never written again — see loadFavouriteGifs / persistFavouriteGifs.
 const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
 const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
-const PLUGIN_SYNC_KEY = "moe.crafty.matrix.plugins";
 
 export interface FavouriteGif {
     url: string;
@@ -886,23 +849,6 @@ export async function persistFavouriteGifs(
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
-}
-
-/** Push the manual plugin-sync payload to the user's account data. No-op when
- *  logged out. (Plugin boot glue is a sanctioned client.ts consumer, like hostApi.ts.) */
-export async function persistPluginSync(
-    content: PluginSyncAccountData,
-): Promise<void> {
-    if (!matrixClient) return;
-    await matrixClient.setAccountData(PLUGIN_SYNC_KEY, content);
-}
-
-/** Read the manual plugin-sync payload from account data, or null if absent. */
-export function loadPluginSync(): PluginSyncAccountData | null {
-    if (!matrixClient) return null;
-    const event = matrixClient.getAccountData(PLUGIN_SYNC_KEY);
-    if (!event) return null;
-    return event.getContent() as PluginSyncAccountData;
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
@@ -996,9 +942,7 @@ export async function logout(): Promise<void> {
     // stopped client (CRYPTO-04).
     const releaseSlot = () => {
         if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
-            matrixClient = null;
-            matrixStore = null;
-            clientGeneration = nextGeneration(clientGeneration);
+            releaseClient();
             // Memoized space-child ids belong to the account being released;
             // the next account must not read them back (R3 clears this on the
             // other two teardown paths for the same reason).
@@ -1085,12 +1029,12 @@ export async function logout(): Promise<void> {
 
 export function stopClient(): void {
     matrixClient?.stopClient();
-    matrixClient = null;
-    // Invalidate every outstanding ownership token: a stopped client's late
-    // callback must not run root teardown against its successor (LIFE-02).
-    clientGeneration = nextGeneration(clientGeneration);
-    matrixStore?.destroy().catch(() => {});
-    matrixStore = null;
+    // Releasing the slot invalidates every outstanding ownership token: a
+    // stopped client's late callback must not run root teardown against its
+    // successor (LIFE-02).
+    releaseClient()
+        ?.destroy()
+        .catch(() => {});
     // Room ids are globally unique so a surviving entry could not be *wrong*,
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();
@@ -1792,7 +1736,7 @@ export async function sendThreadReply(
  * sticker, emote) so it lands in the thread rooted at `rootEventId`. Mirrors
  * sendThreadReply's latest-event resolution (is_falling_back reply pointer).
  */
-function threadRelationParams(
+export function threadRelationParams(
     roomId: string,
     rootEventId: string,
 ): { rootEventId: string; latestEventId?: string } {
@@ -2033,7 +1977,7 @@ export interface MediaCaption {
 // request failed) — in which case we skip the precheck rather than block uploads.
 let mediaUploadSizePromise: Promise<number | null> | null = null;
 
-async function getMediaUploadSizeLimit(): Promise<number | null> {
+export async function getMediaUploadSizeLimit(): Promise<number | null> {
     if (!matrixClient) return null;
     if (!mediaUploadSizePromise) {
         const client = matrixClient;
@@ -2056,7 +2000,7 @@ async function getMediaUploadSizeLimit(): Promise<number | null> {
  * Returns either `{ url }` (plaintext) or `{ file }` (encrypted) — never both.
  * The caller builds the event content from this plus mimetype/size/etc.
  */
-async function uploadAttachment(
+export async function uploadAttachment(
     owner: ClientOwnership<MatrixClient>,
     roomId: string,
     blob: Blob,
@@ -3013,17 +2957,24 @@ export function getOwnAvatarMxc(): string | null {
     return matrixClient?.getUser(userId)?.avatarUrl ?? null;
 }
 
-/** Fetch the logged-in user's profile fresh from the server. */
+/**
+ * Fetch the logged-in user's profile fresh from the server. `userId` is the
+ * account that was asked, captured BEFORE the await: an account switch during
+ * the request must not let the caller file this profile under the successor
+ * (audit CORE-02).
+ */
 export async function fetchOwnProfile(): Promise<{
+    userId: string | null;
     displayName: string | null;
     avatarMxc: string | null;
 }> {
-    const userId = matrixClient?.getUserId();
+    const userId = matrixClient?.getUserId() ?? null;
     if (!matrixClient || !userId) {
-        return { displayName: null, avatarMxc: null };
+        return { userId: null, displayName: null, avatarMxc: null };
     }
     const profile = await matrixClient.getProfileInfo(userId);
     return {
+        userId,
         displayName: profile.displayname ?? null,
         avatarMxc: profile.avatar_url ?? null,
     };
@@ -5864,161 +5815,6 @@ export async function removeReaction(
     await matrixClient.redactEvent(roomId, reactionEventId);
 }
 
-// --- Plugin host bridge (the ONLY plugin-facing client.ts surface; hostApi.ts
-// wraps these). Returns plain summaries, never live SDK objects. ---
-
-/** Send a fully-built event content object. 2-arg sendMessage form ONLY (the
- *  threadId overload mangles $-prefixed text — CLAUDE.md landmine). */
-export async function sendEventContent(
-    roomId: string,
-    content: Record<string, unknown>,
-): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const res = await matrixClient.sendMessage(roomId, content as never);
-    return res.event_id;
-}
-
-/** Plain room summary for plugins — never returns a live Room. */
-export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
-    const room = getRoom(roomId);
-    if (!room) return null;
-    return {
-        roomId,
-        name: room.name ?? roomId,
-        topic: getRoomTopic(room),
-        memberCount: getRoomMembers(room).length,
-        avatarUrl: getRoomAvatar(room),
-        joinRule: getJoinRule(room),
-    };
-}
-
-/** Plain joined-member summaries for plugins — never returns live RoomMembers. */
-export function getPluginRoomMembers(roomId: string): PluginMemberSummary[] {
-    const room = getRoom(roomId);
-    if (!room) return [];
-    return getRoomMembers(room).map((m) => ({
-        userId: m.userId,
-        displayName: m.name ?? null,
-        avatarUrl: mxcToHttp(m.getMxcAvatarUrl() ?? null),
-        powerLevel: m.powerLevel ?? 0,
-    }));
-}
-
-/** Last `limit` renderable messages as plain summaries for plugins. */
-export function getPluginRecentMessages(
-    roomId: string,
-    limit?: number,
-): PluginTimelineMessage[] {
-    const room = getRoom(roomId);
-    if (!room) return [];
-    const ownUserId = matrixClient?.getUserId() ?? null;
-    const records: PluginTimelineRecord[] = getTimelineMessages(room).map(
-        (e) => {
-            const content = e.getContent() ?? {};
-            return {
-                eventId: e.getId() ?? "",
-                sender: e.getSender() ?? "",
-                msgtype:
-                    typeof content.msgtype === "string"
-                        ? content.msgtype
-                        : e.getType(),
-                body: typeof content.body === "string" ? content.body : "",
-                timestamp: e.getTs() ?? 0,
-                isRedacted: e.isRedacted(),
-            };
-        },
-    );
-    return selectRecentMessages(records, limit, ownUserId);
-}
-
-/** Upload a Blob/File; resolve to its mxc:// URL (plugin media pipeline). */
-export async function uploadPluginMedia(
-    file: Blob,
-    name: string,
-    type?: string,
-): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name,
-        type: type ?? (file as File).type ?? undefined,
-    });
-    return content_uri;
-}
-
-/**
- * Upload a blob (encrypting in encrypted rooms) and send it as a media message
- * (m.image/m.video/m.audio/m.file). This is the plugin API's encryption-aware
- * media send; prefer it over `uploadMedia` + `sendImage` in plugin code.
- */
-export async function sendPluginMedia(
-    roomId: string,
-    blob: Blob,
-    opts: { name?: string; type?: string; body?: string; msgtype?: string },
-): Promise<void> {
-    const owner = captureClient();
-    const maxUploadSize = await getMediaUploadSizeLimit();
-    ownedClientOrThrow(owner);
-    const fileName = opts.name ?? "upload";
-    if (exceedsUploadLimit(blob.size, maxUploadSize)) {
-        throw new FileTooLargeError(
-            fileName,
-            blob.size,
-            maxUploadSize as number,
-        );
-    }
-    const fileType = opts.type || blob.type || "application/octet-stream";
-    const isImage = fileType.startsWith("image/");
-    const isVideo = fileType.startsWith("video/");
-    const isAudio = fileType.startsWith("audio/");
-    if (
-        opts.msgtype &&
-        !["m.image", "m.video", "m.audio", "m.file"].includes(opts.msgtype)
-    ) {
-        throw new Error(`sendMedia: unsupported msgtype ${opts.msgtype}`);
-    }
-    const msgtype =
-        opts.msgtype ??
-        (isImage
-            ? "m.image"
-            : isVideo
-              ? "m.video"
-              : isAudio
-                ? "m.audio"
-                : "m.file");
-
-    const uploadResult = await uploadAttachment(owner, roomId, blob, {
-        name: fileName,
-        type: fileType,
-        msgtype,
-    });
-
-    await ownedClientOrThrow(owner).sendMessage(roomId, {
-        msgtype,
-        body: opts.body ?? fileName,
-        ...uploadResult, // { url } or { file } — never both
-        info: { mimetype: fileType, size: blob.size },
-        "m.mentions": {},
-    } as never);
-}
-
-/** Redact one of the user's OWN events. Throws if the event is not the
- *  caller's own (a plugin must not redact others' messages via this surface). */
-export async function redactOwnEvent(
-    roomId: string,
-    eventId: string,
-    reason?: string,
-): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const room = getRoom(roomId);
-    const ev = room?.findEventById(eventId);
-    const sender = ev?.getSender();
-    const me = matrixClient.getUserId();
-    if (!sender || sender !== me) {
-        throw new Error("redactOwn: event is not yours (or not found)");
-    }
-    await deleteMessage(roomId, eventId, reason);
-}
-
 export async function deleteMessage(
     roomId: string,
     eventId: string,
@@ -7643,35 +7439,6 @@ export async function sendSticker(
         info: sticker.info ?? {},
         // Always present (spec recommendation) so the receiver skips legacy
         // body-scan push rules; a sticker never carries intentional mentions.
-        "m.mentions": {},
-    };
-    const finalContent = thread
-        ? withThreadRelation(
-              content,
-              threadRelationParams(roomId, thread.rootEventId),
-          )
-        : content;
-    await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
-}
-
-/** Plugin-facing sticker send (host API `zam.matrix.sendSticker`). Same
- *  `m.sticker` content shape as `sendSticker`, but accepts the minimal plain
- *  payload a plugin passes (no `url` field required). */
-export async function sendPluginSticker(
-    roomId: string,
-    sticker: {
-        mxcUrl: string;
-        body?: string;
-        shortcode?: string;
-        info?: object;
-    },
-    thread?: { rootEventId: string },
-): Promise<void> {
-    if (!matrixClient) throw new Error("Not connected");
-    const content: Record<string, unknown> = {
-        body: sticker.body || sticker.shortcode || "sticker",
-        url: sticker.mxcUrl,
-        info: sticker.info ?? {},
         "m.mentions": {},
     };
     const finalContent = thread

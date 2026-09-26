@@ -28,10 +28,10 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
-        sendEventContent,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
+    import { sendEventContent } from "$lib/matrix/pluginHost";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
     import { buildReplyContent } from "$lib/utils/replyContent";

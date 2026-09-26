@@ -1,7 +1,7 @@
 /**
  * E2EE (rust-crypto) boundary. Kept out of the 3.6k-line `client.ts` because
  * crypto is a whole subsystem with several stacked layers; it shares the single
- * `matrixClient` via the `getClient()` accessor exported from `client.ts`.
+ * `matrixClient` via the `getClient()` accessor exported from `runtime.ts`.
  *
  * Layer 0: initialise crypto so incoming `m.room.encrypted` events decrypt and
  * outgoing messages auto-encrypt in already-encrypted rooms.
@@ -39,7 +39,8 @@ import type {
     CryptoCallbacks,
     ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
-import { getClient, createDirectMessage } from "$lib/matrix/client";
+import { createDirectMessage } from "$lib/matrix/client";
+import { getClient } from "$lib/matrix/runtime";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     shouldEncryptNewDm,
