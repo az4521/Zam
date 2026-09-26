@@ -543,7 +543,12 @@
 
     function resolveDelete(confirmed: boolean) {
         confirmingDelete = false;
-        if (confirmed) deleteMessage(room.roomId, eventId);
+        if (confirmed) {
+            deleteMessage(room.roomId, eventId).catch((err) => {
+                console.error("[MessageItem] delete failed", err);
+                showErrorToast("Couldn't delete the message");
+            });
+        }
         if (deleteRefocus) {
             deleteRefocus = false;
             onEditDone?.();
@@ -936,7 +941,10 @@
                 redactComp?.show();
                 break;
             case "delete":
-                deleteMessage(room.roomId, eventId);
+                deleteMessage(room.roomId, eventId).catch((err) => {
+                    console.error("[MessageItem] delete failed", err);
+                    showErrorToast("Couldn't delete the message");
+                });
                 break;
         }
     }

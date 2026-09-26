@@ -6023,12 +6023,33 @@ export async function deleteMessage(
     // 4-arg form: txnId undefined (SDK generates one), opts carries the
     // optional redaction reason. Omitting opts entirely when there is no
     // reason keeps the request byte-identical to the old 2-arg call.
-    await matrixClient.redactEvent(
-        roomId,
-        eventId,
-        undefined,
-        reason ? { reason } : undefined,
-    );
+    try {
+        await matrixClient.redactEvent(
+            roomId,
+            eventId,
+            undefined,
+            reason ? { reason } : undefined,
+        );
+    } catch (err) {
+        // audit UX-03: Failed delete must not look successful. On error, the
+        // SDK's local redaction echo stays in getPendingEvents() with status
+        // NOT_SENT (room.ts reverts only on CANCELLED), so the UI still hides
+        // the message. Cancel the echo so it reappears.
+        const room = matrixClient.getRoom(roomId);
+        if (room) {
+            const { findFailedRedactionEcho } =
+                await import("$lib/utils/redactionEcho");
+            const echo = findFailedRedactionEcho(
+                room.getPendingEvents(),
+                eventId,
+                EventStatus.NOT_SENT,
+            );
+            if (echo) {
+                matrixClient.cancelPendingEvent(echo);
+            }
+        }
+        throw err;
+    }
 }
 
 /**
