@@ -365,3 +365,22 @@ export function searchSettings(
     scored.sort((a, b) => a.score - b.score || a.i - b.i);
     return scored.slice(0, 20).map((s) => s.entry);
 }
+
+export type SettingsSearchKeyAction = "clear" | "open-first";
+
+/**
+ * What a keypress in the settings search box should do. Escape clears a
+ * non-empty query (a second Escape then closes the dialog as usual); Enter
+ * opens the top result. Keys pressed mid-IME-composition belong to the IME.
+ */
+export function settingsSearchKeyAction(
+    e: { key: string; isComposing?: boolean },
+    query: string,
+    resultCount: number,
+): SettingsSearchKeyAction | null {
+    if (e.isComposing) return null;
+    const hasQuery = query.trim() !== "";
+    if (e.key === "Escape" && hasQuery) return "clear";
+    if (e.key === "Enter" && hasQuery && resultCount > 0) return "open-first";
+    return null;
+}
