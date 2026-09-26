@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { exceededMove } from "./longPress";
+import { describe, it, expect, vi } from "vitest";
+import { exceededMove, longPress } from "./longPress";
 
 describe("exceededMove", () => {
     it("is false below tolerance", () => {
@@ -16,5 +16,18 @@ describe("exceededMove", () => {
 
     it("handles negative deltas", () => {
         expect(exceededMove(-9, -12, 10)).toBe(true); // distance 15
+    });
+});
+
+describe("longPress listeners", () => {
+    it("registers touchstart and touchmove as passive (never blocks scroll)", () => {
+        const node = document.createElement("div");
+        const spy = vi.spyOn(node, "addEventListener");
+        const handle = longPress(node, { onTrigger: () => {} });
+        const opts = (type: string) =>
+            spy.mock.calls.find(([t]) => t === type)?.[2];
+        expect(opts("touchstart")).toEqual({ passive: true });
+        expect(opts("touchmove")).toEqual({ passive: true });
+        handle.destroy();
     });
 });

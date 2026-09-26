@@ -84,8 +84,9 @@ export function longPress(node: HTMLElement, params: LongPressParams) {
         fired = false;
     }
 
-    node.addEventListener("touchstart", onTouchStart);
-    node.addEventListener("touchmove", onTouchMove);
+    // Passive: neither handler cancels, so scrolling never waits on them.
+    node.addEventListener("touchstart", onTouchStart, { passive: true });
+    node.addEventListener("touchmove", onTouchMove, { passive: true });
     node.addEventListener("touchend", onTouchEnd);
     node.addEventListener("touchcancel", onTouchCancel);
 
