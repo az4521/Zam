@@ -495,7 +495,13 @@
             src={view.src}
             alt={view.filename}
             kind={view.kind}
-            poster={view.poster}
+            poster={item.encrypted
+                ? // An encrypted video has no thumbnail_url, so mediaViewerItem
+                  // never asks for one: use the decrypted thumbnail_file tile.
+                  view.kind === "video"
+                    ? (decryptedThumbs[item.eventId] ?? null)
+                    : null
+                : view.poster}
             filename={view.filename}
             onClose={() => (viewerIndex = null)}
             onPrev={viewerIndex > 0 ? () => step(-1) : undefined}

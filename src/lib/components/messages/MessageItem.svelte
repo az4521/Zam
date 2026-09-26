@@ -87,8 +87,6 @@
     } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import {
-        videoPosterMxc,
-        videoSourceMxc,
         videoSource,
         videoPoster,
         formatMediaDuration,
@@ -1187,32 +1185,44 @@
         }
     }
 
-    // Decrypt video when play is requested
+    // Decrypt video when play is requested. Keyed on the ciphertext mxc, not
+    // the `videoSrc` object: `content` re-derives on every timeline tick, and
+    // a fresh object here would revoke the blob URL under a playing <video>.
+    const encryptedVideoKey = $derived(
+        videoSrc?.kind === "encrypted" ? videoSrc.file.url : null,
+    );
     $effect(() => {
-        if (!videoSrc || videoSrc.kind !== "encrypted" || !videoPlayRequested)
-            return;
+        if (encryptedVideoKey === null || !videoPlayRequested) return;
         // Depend on attempt counter for retry
         void videoDecryptAttempt;
+        const src = untrack(() => videoSrc);
+        if (src?.kind !== "encrypted") return;
 
         videoDecrypting = true;
         videoDecryptFailed = false;
         let capturedUrl: string | null = null;
+        // A decrypt that resolves after cleanup (unmount, retry, new source)
+        // must revoke its own URL instead of publishing it.
+        let cancelled = false;
 
-        fetchDecryptedAttachmentBlob(
-            videoSrc.file,
-            videoSrc.mimetype ?? undefined,
-        )
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
             .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
                 capturedUrl = url;
                 encryptedVideoUrl = url;
                 videoDecrypting = false;
             })
             .catch(() => {
+                if (cancelled) return;
                 videoDecrypting = false;
                 videoDecryptFailed = true;
             });
 
         return () => {
+            cancelled = true;
             if (capturedUrl) URL.revokeObjectURL(capturedUrl);
             encryptedVideoUrl = null;
         };
@@ -1237,26 +1247,36 @@
               : encryptedPosterUrl,
     );
 
-    // Decrypt encrypted poster on mount
+    // Decrypt the encrypted poster on mount (a small thumbnail). Keyed on the
+    // thumbnail's mxc for the same reason as the video decrypt above.
+    const encryptedPosterKey = $derived(
+        posterSrc?.kind === "encrypted" ? posterSrc.file.url : null,
+    );
     $effect(() => {
-        if (!posterSrc || posterSrc.kind !== "encrypted") return;
+        if (encryptedPosterKey === null) return;
+        const src = untrack(() => posterSrc);
+        if (src?.kind !== "encrypted") return;
 
         let capturedUrl: string | null = null;
+        let cancelled = false;
 
-        fetchDecryptedAttachmentBlob(
-            posterSrc.file,
-            posterSrc.mimetype ?? undefined,
-        )
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
             .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
                 capturedUrl = url;
                 encryptedPosterUrl = url;
             })
             .catch(() => {
-                // Poster failure is silent — videoThumbFailed will show placeholder
-                encryptedPosterUrl = null;
+                // No poster: the placeholder card below carries the play
+                // affordance instead.
+                if (!cancelled) encryptedPosterUrl = null;
             });
 
         return () => {
+            cancelled = true;
             if (capturedUrl) URL.revokeObjectURL(capturedUrl);
             encryptedPosterUrl = null;
         };

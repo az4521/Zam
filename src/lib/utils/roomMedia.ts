@@ -142,6 +142,15 @@ export function encryptedFileRef(value: unknown): EncryptedFileRef | null {
  * The source for a `<video>` element given `m.video` content: encrypted file,
  * plain mxc, or null. A present-but-invalid `file` with a valid `url` falls
  * back to the plain url; invalid file and no url → null.
+ *
+ * The caller MUST render a NON-interactive "unavailable" state for null
+ * instead of the play card: an affordance that can never resolve a source is
+ * indistinguishable from a dead click, which is precisely how a missing source
+ * gets reported as "videos cannot be played at all".
+ *
+ * Note what this deliberately does NOT require: a thumbnail, a duration, or any
+ * `info` at all. Bridged video (OOYE/Discord) arrives as `{w, h, mimetype,
+ * size}` and nothing else, and is perfectly playable.
  */
 export function videoSource(
     content: Record<string, unknown> | null | undefined,
@@ -173,8 +182,15 @@ export function videoSource(
 
 /**
  * The poster source for a video: encrypted thumbnail_file, plain thumbnail_url,
- * or null. NEVER the video's own url/file. An invalid thumbnail_file falls back
- * to thumbnail_url; both invalid/missing → null.
+ * or null. An invalid thumbnail_file falls back to thumbnail_url; both
+ * invalid/missing → null, and the caller renders a placeholder WITHOUT issuing
+ * any request at all.
+ *
+ * NEVER the video's own url/file. Asking the thumbnail endpoint for a video is
+ * not a harmless miss: continuwuity answers it with the original file (200
+ * video/mp4), so an <img> pointed there downloads the whole video before the
+ * decode fails. For an encrypted video it would mean downloading and decrypting
+ * the whole file just to draw a still.
  */
 export function videoPoster(
     content: Record<string, unknown> | null | undefined,
@@ -336,52 +352,6 @@ export function mediaTileSource(item: RoomMediaItem): MediaSource | null {
     }
 
     return null;
-}
-
-/**
- * LEGACY: Plain (unencrypted) poster mxc only. Use `videoPoster()` for encrypted support.
- *
- * The same rule as `mediaThumbnailMxc`'s video branch, expressed over the raw
- * `m.video` content the timeline has to hand rather than a gallery item: the
- * mxc to use as a poster, or null when there is nothing safe to request and the
- * caller must render a placeholder WITHOUT issuing any request at all.
- *
- * Only ever a sender-uploaded `info.thumbnail_url`, never `content.url`. Asking
- * the thumbnail endpoint for a video is not a harmless miss: continuwuity
- * answers it with the original file (200 video/mp4), so an <img> pointed there
- * downloads the whole video before the decode fails — `onerror` fires far too
- * late to save the bandwidth.
- */
-export function videoPosterMxc(
-    content: Record<string, unknown> | null | undefined,
-): string | null {
-    if (!content) return null;
-    const info =
-        typeof content.info === "object" && content.info !== null
-            ? (content.info as Record<string, unknown>)
-            : {};
-    return mxc(info.thumbnail_url);
-}
-
-/**
- * LEGACY: Plain (unencrypted) source mxc only. Use `videoSource()` for encrypted support.
- *
- * The mxc a `<video>` should be pointed at for this `m.video` content, or null
- * when the event carries nothing this client can play.
- *
- * Returns null for encrypted videos (`content.file`), which must be decrypted
- * before playback. The caller should use `videoSource()` to detect encrypted
- * sources and handle them appropriately.
- *
- * Note what this deliberately does NOT require: a thumbnail, a duration, or any
- * `info` at all. Bridged video (OOYE/Discord) arrives as `{w, h, mimetype,
- * size}` and nothing else, and is perfectly playable.
- */
-export function videoSourceMxc(
-    content: Record<string, unknown> | null | undefined,
-): string | null {
-    if (!content) return null;
-    return mxc(content.url);
 }
 
 /** What the lightbox should render this as, or null when it cannot show it. */
