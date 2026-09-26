@@ -145,6 +145,58 @@ function limitShareFiles(files) {
 }
 // #endregion mirrored:shareTarget
 
+// #region mirrored:notifActions
+// Hand-written mirror of src/lib/utils/notifActions.ts — this file is not
+// bundled and cannot import it. Change one, change both;
+// notifActions.mirrors.test.ts executes this region against that module's
+// own case table.
+
+function buildReadReceiptPath(roomId, eventId, receiptType) {
+	return `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/${receiptType}/${encodeURIComponent(eventId)}`;
+}
+
+function swReceiptTypeFor(privacyByUser, userId) {
+	if (!userId || !privacyByUser) return "m.read.private";
+	return privacyByUser[userId] === false ? "m.read" : "m.read.private";
+}
+
+function ringNotificationTag(roomId) {
+	return `call:${roomId}`;
+}
+
+function messageNotificationTag(roomId) {
+	return roomId;
+}
+
+function roomNotificationTags(roomId) {
+	return [roomId, `call:${roomId}`];
+}
+
+function isRingToDismiss(data, ringEventId) {
+	if (!data || typeof data !== "object") return false;
+	return data.isCall === true && data.eventId === ringEventId;
+}
+
+const QUICK_REPLY_STASH_PREFIX = "notif_reply:";
+
+function quickReplyStashKey(id) {
+	return `${QUICK_REPLY_STASH_PREFIX}${id}`;
+}
+
+function buildQuickReplyStash(params) {
+	const trimmed = params.text.trim();
+	if (!params.roomId || !trimmed || !params.userId) return null;
+	return {
+		id: params.id,
+		roomId: params.roomId,
+		eventId: params.eventId,
+		text: trimmed,
+		userId: params.userId,
+		ts: params.ts,
+	};
+}
+// #endregion mirrored:notifActions
+
 // Is there a Cache API at all? Firefox private browsing has historically
 // thrown SecurityError on the `caches` PROPERTY ACCESS (not just on open()),
 // and Chrome throws when the user blocks all site data — so even `typeof
