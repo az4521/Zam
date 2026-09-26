@@ -119,30 +119,38 @@ the derived is expensive.
 ## The SDK boundary
 
 **`src/lib/matrix/client.ts` is the SDK boundary.** Components and stores call its exported
-wrappers; they import matrix-js-sdk _types_ only. It holds the single module-level client
-instance, and it is also the **LiveKit** boundary.
+wrappers; they import matrix-js-sdk _types_ only. It is also the **LiveKit** boundary.
 
 Sanctioned exceptions, all deliberate:
 
+- **`src/lib/matrix/runtime.ts`** — the single client slot and generation counter. Exports,
+  among others, `matrixClient`, `getClient()`, `captureClient()`, `ownedClient()`,
+  `ownedClientOrThrow()`, and the install/release writers that only `client.ts` calls.
+  No Svelte or store imports. `client.ts` re-exports `getClient()` for callers.
 - **`src/lib/matrix/crypto.ts`** — the entire E2EE subsystem, sharing the client via `getClient()`.
   Crypto work goes here, not in `client.ts`.
+- **`src/lib/matrix/media.ts`** — media upload (including encrypt-on-upload), `sendFile` and
+  `sendVoiceMessage`, `mxcToHttp`, authenticated and decrypting media fetch, and room media gallery
+  paging. `client.ts` re-exports these names so most callers import from `client.ts` unchanged.
+- **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
+  (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
+  plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
+  and only `plugins/hostApi.ts` (per plugin) and `plugins/pluginBoot.ts` (host-level account-data
+  sync) translate it into `pluginHost.ts` and `client.ts` wrappers. `client.ts` imports nothing
+  from `plugins/`, so the dependency runs one way. See "Plugin system".
 - **`src/lib/matrix/pushRules.ts`** and **`notifications.ts`** — small push-adjacent modules that
   import a few SDK enums.
 - Two components pull exactly one runtime enum each (`DebugPanel.svelte` → `EventType`,
   `MessageItem.svelte` → `EventStatus`). Tolerated, not a pattern to copy.
-- **`src/lib/plugins/hostApi.ts`** and **`pluginBoot.ts`** — the plugin host's only two `client.ts`
-  consumers. Plugins never touch `client.ts` themselves; they call the `zam` host API, and only
-  these two modules translate it into `client.ts` wrappers (`hostApi` per plugin, `pluginBoot` for
-  host-level account-data sync). `client.ts` imports back exactly one type-only leaf
-  (`plugins/types` summaries), so the graph stays acyclic. See "Plugin system".
 
 Everything else in `src/` imports SDK types only. When adding an SDK capability, add a thin wrapper
 in `client.ts` first.
 
-`client.ts` is large and grouped by concern: lifecycle, rooms/spaces, creation/join, display
-helpers, messages, threads, reactions/receipts/typing, unread + loud, notifications, push rules,
-power levels/moderation, room admin, custom emoji/sticker packs, space layout, media, MatrixRTC
-calls, live location, and the `on*` subscription helpers (each returning an unsubscribe function).
+`client.ts` is large and grouped by concern: lifecycle (owns the slot install/uninstall loop),
+rooms/spaces, creation/join, display helpers, messages, threads, reactions/receipts/typing, unread
+and loud, notifications, push rules, power levels/moderation, room admin, custom emoji/sticker
+packs, space layout, MatrixRTC calls, live location, and the `on*` subscription helpers (each
+returning an unsubscribe function).
 
 **Async ownership.** Anything in `client.ts` that awaits more than once must re-check that it still
 owns the client it started with — a stopped client's late callback must not act on its successor's
