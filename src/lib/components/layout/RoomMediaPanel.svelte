@@ -461,9 +461,11 @@
 {#if viewerIndex !== null && gallery[viewerIndex]}
     {@const item = gallery[viewerIndex]}
     {@const view = mediaViewerItem(item, {
+        // An encrypted item resolves only once decrypted: its mxc holds
+        // ciphertext, which the viewer would download and fail to show.
         full: (mxc) =>
-            item.encrypted && decryptedFull[item.eventId]
-                ? decryptedFull[item.eventId]
+            item.encrypted
+                ? (decryptedFull[item.eventId] ?? null)
                 : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
         // own aspect ratio or the player letterboxes a distorted still.
