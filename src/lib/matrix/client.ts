@@ -2046,8 +2046,7 @@ async function getMediaUploadSizeLimit(): Promise<number | null> {
 }
 
 /**
- * Upload a blob to the media repo, encrypting it first if the room is encrypted
- * and the msgtype is not m.video (encrypted video playback is queued as item 2b).
+ * Upload a blob to the media repo, encrypting it first if the room is encrypted.
  * Returns either `{ url }` (plaintext) or `{ file }` (encrypted) — never both.
  * The caller builds the event content from this plus mimetype/size/etc.
  */
@@ -2057,10 +2056,7 @@ async function uploadAttachment(
     blob: Blob,
     opts: { name: string; type?: string; msgtype: string },
 ): Promise<UploadedAttachment> {
-    const encrypt = shouldEncryptUpload(
-        await isRoomEncryptedForSend(roomId),
-        opts.msgtype,
-    );
+    const encrypt = shouldEncryptUpload(await isRoomEncryptedForSend(roomId));
     ownedClientOrThrow(owner);
 
     if (encrypt) {

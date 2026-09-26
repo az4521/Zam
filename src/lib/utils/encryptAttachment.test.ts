@@ -152,20 +152,11 @@ describe("encryptAttachment", () => {
 
 describe("shouldEncryptUpload", () => {
     it("returns false when room is not encrypted", () => {
-        expect(shouldEncryptUpload(false, "m.image")).toBe(false);
-        expect(shouldEncryptUpload(false, "m.file")).toBe(false);
-        expect(shouldEncryptUpload(false, "m.video")).toBe(false);
-        expect(shouldEncryptUpload(false, "m.audio")).toBe(false);
+        expect(shouldEncryptUpload(false)).toBe(false);
     });
 
-    it("returns false for m.video even when room is encrypted", () => {
-        expect(shouldEncryptUpload(true, "m.video")).toBe(false);
-    });
-
-    it("returns true for non-video types when room is encrypted", () => {
-        expect(shouldEncryptUpload(true, "m.image")).toBe(true);
-        expect(shouldEncryptUpload(true, "m.file")).toBe(true);
-        expect(shouldEncryptUpload(true, "m.audio")).toBe(true);
+    it("returns true when room is encrypted", () => {
+        expect(shouldEncryptUpload(true)).toBe(true);
     });
 });
 
