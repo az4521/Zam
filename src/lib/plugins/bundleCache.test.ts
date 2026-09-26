@@ -27,4 +27,26 @@ describe("isCachedBundleUsable", () => {
             false,
         );
     });
+
+    it("returns true when sha is given and matches cached sha", () => {
+        const sha = "a".repeat(40);
+        const withSha = { ...base, sha };
+        expect(isCachedBundleUsable(withSha, "1.0.0", sha)).toBe(true);
+    });
+
+    it("returns false when sha is given and cached sha differs", () => {
+        const cached = { ...base, sha: "a".repeat(40) };
+        const wantedSha = "b".repeat(40);
+        expect(isCachedBundleUsable(cached, "1.0.0", wantedSha)).toBe(false);
+    });
+
+    it("returns true when sha is given but cache has no sha (legacy)", () => {
+        // Legacy cache entries with no sha stay usable
+        expect(isCachedBundleUsable(base, "1.0.0", "a".repeat(40))).toBe(true);
+    });
+
+    it("returns true when no sha given (backward compat)", () => {
+        const withSha = { ...base, sha: "a".repeat(40) };
+        expect(isCachedBundleUsable(withSha, "1.0.0")).toBe(true);
+    });
 });

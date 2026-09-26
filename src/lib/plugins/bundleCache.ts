@@ -11,21 +11,26 @@ export interface CachedBundle {
     version: string;
     code: string;
     cachedAt: number;
+    sha?: string;
 }
 
 /** Pure: a cached bundle is usable iff it exists, its version exactly matches
- *  the version the repo index advertises, and it carries non-empty code. A
- *  version mismatch means the repo published an update → refetch. */
+ *  the version the repo index advertises, it carries non-empty code, AND (when
+ *  a SHA is given) the cached SHA matches. A version or SHA mismatch means the
+ *  repo published an update → refetch. Legacy cache rows with no sha stay usable. */
 export function isCachedBundleUsable(
     cached: CachedBundle | null | undefined,
     wantedVersion: string,
+    sha?: string,
 ): boolean {
-    return (
-        !!cached &&
-        typeof cached.code === "string" &&
-        cached.code.length > 0 &&
-        cached.version === wantedVersion
-    );
+    if (!cached) return false;
+    if (typeof cached.code !== "string" || cached.code.length === 0)
+        return false;
+    if (cached.version !== wantedVersion) return false;
+    // When a SHA is given and the cache has a SHA, they must match
+    if (sha && typeof cached.sha === "string" && cached.sha !== sha)
+        return false;
+    return true;
 }
 
 const DB_NAME = "zam-plugins";
