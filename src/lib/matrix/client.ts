@@ -1703,6 +1703,11 @@ export async function sendThreadReply(
     text: string,
     mentions?: { user_ids?: string[]; room?: boolean },
     formattedText?: string, // NEW: complete formatted_body (md + mentions + emoji), pre-built by caller
+    // Plugin outgoing content transforms: run over the fully-built reply
+    // content (thread relation included), right before the send.
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
@@ -1721,8 +1726,11 @@ export async function sendThreadReply(
         formattedText: resolvedFormatted,
         mentions,
     });
+    const outgoing = transformContent
+        ? transformContent(content as unknown as Record<string, unknown>)
+        : content;
     // 2-arg form only (⚑2 — the threadId overload mangles $-prefixed strings).
-    await matrixClient.sendMessage(roomId, content as never);
+    await matrixClient.sendMessage(roomId, outgoing as never);
 }
 
 /**

@@ -150,6 +150,11 @@ export async function sendFile(
     file: File,
     caption?: MediaCaption,
     thread?: { rootEventId: string },
+    // Plugin outgoing content transforms: run over the fully-built event
+    // content (thread relation included), right before the send.
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
 ): Promise<void> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
@@ -244,7 +249,10 @@ export async function sendFile(
               threadRelationParams(roomId, thread.rootEventId),
           )
         : content;
-    await ownedClientOrThrow(owner).sendMessage(roomId, finalContent as never);
+    const outgoing = transformContent
+        ? transformContent(finalContent)
+        : finalContent;
+    await ownedClientOrThrow(owner).sendMessage(roomId, outgoing as never);
 }
 
 /**

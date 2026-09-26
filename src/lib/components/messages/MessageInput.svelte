@@ -1242,6 +1242,14 @@
         // or a draft write.
         const targetRoomId = roomId;
         const targetComposerKey = effComposerKey;
+        // Sender-side content transforms (plugins), run over each fully-built
+        // event this send produces: text, reply, thread reply, caption.
+        const transformOutgoingContent = (content: Record<string, unknown>) =>
+            applyContentTransforms(
+                content,
+                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+                { roomId: targetRoomId },
+            );
         // Snapshot the composer text too, before anything can mutate it: a
         // caption commit that lands after the user typed on must not wipe the
         // new sentence (nor yank the caret back to 0).
@@ -1311,11 +1319,7 @@
                 : html
                   ? buildFormattedContent(trimmed, html, mentions)
                   : buildTextContent(trimmed);
-            const content = applyContentTransforms(
-                baseContent,
-                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
-                { roomId: targetRoomId },
-            );
+            const content = transformOutgoingContent(baseContent);
             queueMessage(targetRoomId, content);
             if (replyToEvent) onCancelReply?.();
             createThreadArmed = false;
@@ -1341,12 +1345,14 @@
                         trimmed,
                         mentions,
                         html ?? undefined,
+                        transformOutgoingContent,
                     );
                 } else {
                     // Build the content in-component (byte-identical to the
                     // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
                     // utils/messageContent.ts), apply plugin content transforms,
-                    // then send. Thread replies + captions keep their own paths.
+                    // then send. Thread replies + captions keep their own send
+                    // paths, which apply the same transforms.
                     const baseContent: Record<string, unknown> = replyToEvent
                         ? (buildReplyContent({
                               replyEventId: replyToEvent.getId()!,
@@ -1357,13 +1363,7 @@
                         : html
                           ? buildFormattedContent(trimmed, html, mentions)
                           : buildTextContent(trimmed);
-                    const content = applyContentTransforms(
-                        baseContent,
-                        pluginRegistry.outgoingContentTransforms.map(
-                            (e) => e.value,
-                        ),
-                        { roomId: targetRoomId },
-                    );
+                    const content = transformOutgoingContent(baseContent);
                     sentEventId = await sendEventContent(targetRoomId, content);
                     if (replyToEvent) onCancelReply?.();
                     if (createThreadArmed) {
@@ -1393,6 +1393,7 @@
                             isThread
                                 ? { rootEventId: threadRootId! }
                                 : undefined,
+                            transformOutgoingContent,
                         );
                     }
                     return sendFile(
