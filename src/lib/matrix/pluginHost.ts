@@ -22,10 +22,10 @@ import {
     mxcUrlsInContent,
 } from "$lib/utils/mediaOwnership";
 import { captureClient, matrixClient, ownedClientOrThrow } from "./runtime";
+import { getMediaUploadSizeLimit, uploadAttachment } from "./media";
 import {
     deleteMessage,
     getJoinRule,
-    getMediaUploadSizeLimit,
     getRoom,
     getRoomAvatar,
     getRoomMembers,
@@ -33,7 +33,6 @@ import {
     getTimelineMessages,
     mxcToHttp,
     threadRelationParams,
-    uploadAttachment,
     type PluginSyncAccountData,
 } from "./client";
 
