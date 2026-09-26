@@ -373,6 +373,19 @@ describe("quick-reply stash", () => {
     });
 
     describe("buildQuickReplyStash", () => {
+        it("stores a missing (undefined) eventId as null so parse accepts it", () => {
+            const built = buildQuickReplyStash({
+                id: "1",
+                roomId: "!r:s",
+                eventId: undefined,
+                text: "hi",
+                userId: "@u:s",
+                ts: 1000,
+            });
+            expect(built?.eventId).toBeNull();
+            expect(parseQuickReplyStash(built, 2000)).toEqual(built);
+        });
+
         it("builds valid stash and trims text", () => {
             const result = buildQuickReplyStash({
                 id: "1",

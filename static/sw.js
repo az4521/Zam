@@ -189,7 +189,9 @@ function buildQuickReplyStash(params) {
 	return {
 		id: params.id,
 		roomId: params.roomId,
-		eventId: params.eventId,
+		// A notification without an event id carries `undefined`; store null
+		// so parseQuickReplyStash accepts the record on the page.
+		eventId: params.eventId || null,
 		text: trimmed,
 		userId: params.userId,
 		ts: params.ts,
@@ -704,7 +706,9 @@ const authReady = (async () => {
 	// still wins over this read: that handler awaits `authReady` first.
 	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
 	// Hydrate receipt privacy map. Junk → empty object (fail closed to private).
-	const storedPrivacy = await dbGet("receiptPrivacyByUser");
+	// A failed read must not reject authReady (the credential hydration
+	// below depends on it); the map just stays empty, which fails closed.
+	const storedPrivacy = await dbGet("receiptPrivacyByUser").catch(() => null);
 	receiptPrivacyByUser =
 		storedPrivacy && typeof storedPrivacy === "object" ? storedPrivacy : {};
 	// Installs that predate the record still have the four per-key values at

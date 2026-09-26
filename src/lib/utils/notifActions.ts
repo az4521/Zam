@@ -111,7 +111,7 @@ export interface QuickReplyStash {
 export function buildQuickReplyStash(params: {
     id: string;
     roomId: string;
-    eventId: string | null;
+    eventId: string | null | undefined;
     text: string;
     userId: string;
     ts: number;
@@ -121,7 +121,8 @@ export function buildQuickReplyStash(params: {
     return {
         id: params.id,
         roomId: params.roomId,
-        eventId: params.eventId,
+        // Normalise a missing event id to null so parseQuickReplyStash accepts it.
+        eventId: params.eventId || null,
         text: trimmed,
         userId: params.userId,
         ts: params.ts,

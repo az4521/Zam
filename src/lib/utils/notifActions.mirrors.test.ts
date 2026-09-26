@@ -69,7 +69,7 @@ const mirrored = new Function(
     buildQuickReplyStash: (params: {
         id: string;
         roomId: string;
-        eventId: string | null;
+        eventId: string | null | undefined;
         text: string;
         userId: string;
         ts: number;
@@ -162,6 +162,21 @@ describe("static/sw.js mirrors notifActions.ts", () => {
                 ts: 1000,
             };
             expect(mirrored.buildQuickReplyStash(params)).toBe(null);
+        });
+
+        it("stores an undefined eventId as null, like the TS version", () => {
+            const params = {
+                id: "1",
+                roomId: "!r:s",
+                eventId: undefined,
+                text: "hello",
+                userId: "@u:s",
+                ts: 1000,
+            };
+            expect(mirrored.buildQuickReplyStash(params)?.eventId).toBeNull();
+            expect(mirrored.buildQuickReplyStash(params)).toEqual(
+                buildQuickReplyStash(params),
+            );
         });
 
         it("accepts null eventId", () => {
