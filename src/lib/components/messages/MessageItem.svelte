@@ -2060,6 +2060,7 @@
                             height={stickerBox.height}
                             class="max-w-full h-auto object-contain mt-1"
                             loading="lazy"
+                            data-own-retry
                             onerror={mediaImgRetry.onError}
                         />
                     {:else}
@@ -2068,6 +2069,7 @@
                             alt={content?.body ?? "sticker"}
                             class="max-w-48 max-h-48 object-contain mt-1"
                             loading="lazy"
+                            data-own-retry
                             onerror={mediaImgRetry.onError}
                         />
                     {/if}
@@ -2120,18 +2122,22 @@
                                 <img
                                     src={mediaImgRetry.src}
                                     alt={mediaFilename}
+                                    title={mediaFilename || undefined}
                                     width={imageBox.width}
                                     height={imageBox.height}
                                     class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
                                     loading="lazy"
+                                    data-own-retry
                                     onerror={mediaImgRetry.onError}
                                 />
                             {:else}
                                 <img
                                     src={mediaImgRetry.src}
                                     alt={mediaFilename}
+                                    title={mediaFilename || undefined}
                                     class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
                                     loading="lazy"
+                                    data-own-retry
                                     onerror={mediaImgRetry.onError}
                                 />
                             {/if}

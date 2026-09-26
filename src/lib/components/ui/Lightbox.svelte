@@ -71,6 +71,13 @@
         }
     }
 
+    /** The filename to display, or null when only the generic fallback
+     *  ("image" / "video") is known. */
+    const shownName = $derived.by(() => {
+        const name = filenameFromSrc();
+        return name === mediaNoun ? null : name;
+    });
+
     function filenameFromSrc(): string {
         if (filename) return filename;
         // Gallery callers pass the filename as alt text; use it when it
@@ -438,6 +445,16 @@
         }}
         use:focusTrap={{ onEscape: onClose }}
     >
+        <!-- Top-left: the file's name, when known (selectable, full name on
+             hover). Width leaves room for the action buttons on the right. -->
+        {#if shownName}
+            <div
+                class="absolute top-3 left-3 z-10 max-w-[calc(100%-10rem)] px-3 py-1.5 rounded-full bg-black/50 text-white text-sm truncate select-text pointer-events-auto"
+                title={shownName}
+            >
+                {shownName}
+            </div>
+        {/if}
         <!-- Top-right action buttons -->
         <div
             class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto"

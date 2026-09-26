@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.7.4
+
+✨ **New**
+
+- The image viewer shows the file's name in the top-left corner, and hovering an image in chat shows it as a tooltip.
+
+🐛 **Fixes**
+
+- The settings sidebar (app and room settings) scrolls when its tabs don't fit.
+- Custom emoji reactions, picker grids, member lists and other homeserver images now load in browsers without service workers, such as Tor Browser.
+
 ## v1.7.3
 
 🐛 **Fixes**

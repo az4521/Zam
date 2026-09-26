@@ -58,6 +58,7 @@
             src={imgRetry.src}
             alt={name}
             class="w-full h-full object-cover {roundedClass()}"
+            data-own-retry
             onerror={imgRetry.onError}
         />
     {:else}
