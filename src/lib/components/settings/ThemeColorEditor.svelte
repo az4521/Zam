@@ -51,6 +51,7 @@
     let fontFileInput = $state<HTMLInputElement | null>(null);
     let fontUploadError = $state<string | null>(null);
     let fontUploadBusy = $state(false);
+    let deletePending = $state<string | null>(null);
 
     async function handleFontFile(e: Event) {
         const input = e.currentTarget as HTMLInputElement;
@@ -104,6 +105,7 @@
     }
 
     function handleDelete(name: string) {
+        deletePending = null;
         deleteCustomPreset(name);
     }
 
@@ -357,6 +359,31 @@
                                 class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
                                 >Default</span
                             >
+                        {:else if deletePending === name}
+                            <span class="text-xs text-discord-textMuted"
+                                >Delete?</span
+                            >
+                            <button
+                                type="button"
+                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    deletePending = null;
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                                aria-label={`Confirm delete ${name}`}
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(name);
+                                }}
+                            >
+                                Delete
+                            </button>
                         {:else}
                             <button
                                 type="button"
@@ -372,9 +399,10 @@
                             <button
                                 type="button"
                                 class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                                aria-label={`Delete ${name}`}
                                 onclick={(e) => {
                                     e.stopPropagation();
-                                    handleDelete(name);
+                                    deletePending = name;
                                 }}
                             >
                                 Delete
