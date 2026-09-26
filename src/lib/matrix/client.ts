@@ -9267,6 +9267,19 @@ async function applyScreenShareQualityNow(
     const sender = track?.sender;
     if (!track || !sender) return;
     try {
+        // Apply the new capture constraints first, so the underlying capture
+        // adjusts before we change the encoding bitrate/framerate caps. Use
+        // ideal so a smaller capture doesn't throw OverconstrainedError.
+        const { width, height, frameRate } = screenShareCaptureResolution(
+            resKey,
+            fps,
+        );
+        await track.mediaStreamTrack.applyConstraints({
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: frameRate },
+        });
+
         const params = sender.getParameters();
         if (
             applyScreenShareEncoding(
@@ -9281,6 +9294,9 @@ async function applyScreenShareQualityNow(
         }
     } catch (err) {
         console.error("Screen share quality change failed:", err);
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't change screen share quality");
+        }
     }
 }
 
