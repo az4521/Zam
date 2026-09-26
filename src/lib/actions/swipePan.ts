@@ -16,6 +16,13 @@ import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
 // Vertical scroll dominates over horizontal swipe beyond this threshold.
 const VERTICAL_LOCK_PX = 8;
 
+// While enabled, the browser pans vertically (and pinch-zooms) on its own and
+// never starts a horizontal pan from the row, so the move listener can stay
+// passive: it has nothing to preventDefault, and the row adds no
+// scroll-blocking listener. (On mobile the drawer handlers in AppShell and
+// MessageArea still add a non-passive document touchmove per gesture.)
+const SWIPE_TOUCH_ACTION = "pan-y pinch-zoom";
+
 export interface SwipePanParams {
     enabled: boolean;
     onEngage?: () => void;
@@ -31,6 +38,11 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
     let startTarget: Element | null = null;
     let armed = false;
     let engaged = false;
+
+    function applyTouchAction() {
+        node.style.touchAction = p.enabled ? SWIPE_TOUCH_ACTION : "";
+    }
+    if (p.enabled) applyTouchAction();
 
     function reset() {
         armed = false;
@@ -96,7 +108,8 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
             engaged = true;
             p.onEngage?.();
         }
-        e.preventDefault();
+        // No preventDefault: the listener is passive, and SWIPE_TOUCH_ACTION
+        // already keeps a horizontal drag from scrolling anything.
         p.onMove?.(clampSwipeTranslate(dx), swipeStage(dx));
     }
 
@@ -113,16 +126,18 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         reset();
     }
 
-    node.addEventListener("touchstart", onTouchStart, { passive: false });
-    node.addEventListener("touchmove", onTouchMove, { passive: false });
+    node.addEventListener("touchstart", onTouchStart, { passive: true });
+    node.addEventListener("touchmove", onTouchMove, { passive: true });
     node.addEventListener("touchend", onTouchEnd, { passive: false });
     node.addEventListener("touchcancel", onTouchCancel);
 
     return {
         update(next: SwipePanParams) {
             p = next;
+            applyTouchAction();
         },
         destroy() {
+            node.style.touchAction = "";
             node.removeEventListener("touchstart", onTouchStart);
             node.removeEventListener("touchmove", onTouchMove);
             node.removeEventListener("touchend", onTouchEnd);
