@@ -6,11 +6,13 @@
  * malformed index version must never break the badge or an auto-update pass.
  */
 import { compareVersions } from "./semver";
+import { repoKey, type RepoRef } from "./repo";
 
 export interface InstalledForUpdate {
     id: string;
     version: string;
     source: "builtin" | "repo";
+    repoRef?: RepoRef;
 }
 
 export interface UpdateInfo {
@@ -30,12 +32,16 @@ function safeNewer(latest: string, installed: string): boolean {
 
 export function computeUpdateStatus(
     installed: InstalledForUpdate[],
-    latestVersions: Record<string, string>,
+    latestByRepo: Record<string, Record<string, string>>,
 ): UpdateInfo[] {
     const out: UpdateInfo[] = [];
     for (const p of installed) {
         if (p.source !== "repo") continue;
-        const latest = latestVersions[p.id];
+        if (!p.repoRef) continue; // skip plugins with no repoRef
+        const key = repoKey(p.repoRef);
+        const repoLatest = latestByRepo[key];
+        if (!repoLatest) continue;
+        const latest = repoLatest[p.id];
         if (typeof latest !== "string") continue;
         out.push({
             id: p.id,

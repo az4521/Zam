@@ -1,4 +1,5 @@
 import type { Manifest } from "./manifest";
+import { isCommitSha, isSafeRelPath } from "./repo";
 
 export interface PersistedPluginEntry {
     enabled: boolean;
@@ -6,6 +7,8 @@ export interface PersistedPluginEntry {
     repoRef?: string;
     manifest?: Manifest;
     autoUpdate?: boolean;
+    sha?: string;
+    path?: string;
 }
 
 export interface PersistedPluginState {
@@ -50,6 +53,12 @@ export function parsePersistedState(raw: string | null): PersistedPluginState {
             entry.manifest = rawEntry.manifest as unknown as Manifest;
         if (typeof rawEntry.autoUpdate === "boolean")
             entry.autoUpdate = rawEntry.autoUpdate;
+        // Keep sha only if it's a valid commit sha
+        if (typeof rawEntry.sha === "string" && isCommitSha(rawEntry.sha))
+            entry.sha = rawEntry.sha;
+        // Keep path only if it's a safe relative path
+        if (typeof rawEntry.path === "string" && isSafeRelPath(rawEntry.path))
+            entry.path = rawEntry.path;
         out.plugins[id] = entry;
     }
     if (Array.isArray(data.repos)) {

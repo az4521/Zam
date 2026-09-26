@@ -6,6 +6,7 @@
  */
 
 import { isValidSemver } from "./semver";
+import { isSafeRelPath } from "./repo";
 import type { SettingsSchema } from "./settingsSchema";
 
 export const KNOWN_CAPABILITIES = [
@@ -79,6 +80,13 @@ export function parseManifest(input: unknown): Manifest {
     if (!isValidSemver(version)) {
         throw new Error(
             `Manifest field "version" must be a valid semver string (got: "${version}")`,
+        );
+    }
+
+    // Validate entry is a safe relative path
+    if (!isSafeRelPath(entry)) {
+        throw new Error(
+            `Manifest field "entry" must be a safe relative path (got: "${entry}")`,
         );
     }
 

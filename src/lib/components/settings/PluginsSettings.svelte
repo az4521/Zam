@@ -6,6 +6,7 @@
         pluginRepos,
         pluginPrefs,
         pluginUpdates,
+        pluginNeedsUpdate,
     } from "$lib/stores/plugins.svelte";
     import {
         enablePlugin,
@@ -33,6 +34,7 @@
         normalizeRepoRef,
         rawUrl,
         parseIndex,
+        repoKey,
         type PluginIndexEntry,
     } from "$lib/plugins/repo";
     import type {
@@ -69,6 +71,8 @@
                 source: r.source,
                 enabled: r.enabled,
                 error: r.error,
+                repoRef: r.repoRef,
+                sha: r.sha,
             })),
         )),
     );
@@ -178,9 +182,12 @@
 
     // Update a single repo plugin now
     let updateBusy = $state<Record<string, boolean>>({});
+    let updateError = $state<Record<string, string>>({});
     async function doUpdate(id: string) {
         updateBusy[id] = true;
-        await updateRepoPlugin(id);
+        delete updateError[id];
+        const res = await updateRepoPlugin(id);
+        if (!res.ok) updateError[id] = res.error ?? "Update failed.";
         refreshUpdates();
         updateBusy[id] = false;
     }
@@ -280,12 +287,26 @@
         })();
     });
 
-    function refreshUpdates() {
-        const latest: Record<string, string> = {};
-        for (const state of Object.values(browse)) {
-            for (const entry of state.entries) latest[entry.id] = entry.version;
+    /** `owner/repo` for the installed row; the raw ref if it doesn't parse. */
+    function repoLabel(ref: string): string {
+        try {
+            const r = normalizeRepoRef(ref);
+            return `${r.owner}/${r.repo}`;
+        } catch {
+            return ref;
         }
-        void applyUpdateCheck(latest);
+    }
+
+    function refreshUpdates() {
+        const latestByRepo: Record<string, Record<string, string>> = {};
+        for (const [ref, state] of Object.entries(browse)) {
+            const key = repoKey(ref);
+            if (!latestByRepo[key]) latestByRepo[key] = {};
+            for (const entry of state.entries) {
+                latestByRepo[key][entry.id] = entry.version;
+            }
+        }
+        void applyUpdateCheck(latestByRepo);
     }
 
     // Install a repo plugin
@@ -457,6 +478,11 @@
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
                                     v{p.version} · {p.author}
+                                    {#if p.source === "repo" && p.repoRef}
+                                        · {repoLabel(
+                                            p.repoRef,
+                                        )}{#if p.sha}@{p.sha.slice(0, 7)}{/if}
+                                    {/if}
                                 </p>
                                 {#if p.error}
                                     <div class="flex items-center gap-1.5 mt-1">
@@ -469,15 +495,22 @@
                                         </p>
                                     </div>
                                 {/if}
-                                {#if pluginUpdates.available[p.id]}
+                                {#if pluginUpdates.available[p.id] || pluginNeedsUpdate[p.id]}
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span
-                                            class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
-                                        >
-                                            Update to v{pluginUpdates.available[
-                                                p.id
-                                            ]}
-                                        </span>
+                                        {#if pluginNeedsUpdate[p.id]}
+                                            <span
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-danger/20 text-discord-danger"
+                                            >
+                                                Needs update
+                                            </span>
+                                        {:else if pluginUpdates.available[p.id]}
+                                            <span
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
+                                            >
+                                                Update to v{pluginUpdates
+                                                    .available[p.id]}
+                                            </span>
+                                        {/if}
                                         <button
                                             type="button"
                                             onclick={() => doUpdate(p.id)}
@@ -489,6 +522,14 @@
                                                 : "Update"}
                                         </button>
                                     </div>
+                                {/if}
+                                {#if updateError[p.id]}
+                                    <p
+                                        class="text-xs text-discord-danger mt-1"
+                                        role="alert"
+                                    >
+                                        {updateError[p.id]}
+                                    </p>
                                 {/if}
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">

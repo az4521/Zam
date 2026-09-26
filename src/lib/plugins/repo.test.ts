@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { normalizeRepoRef, rawUrl, parseIndex, type RepoRef } from "./repo";
+import {
+    normalizeRepoRef,
+    rawUrl,
+    parseIndex,
+    isSafeRelPath,
+    isCommitSha,
+    pinnedFileUrl,
+    commitShaApiUrl,
+    repoKey,
+    type RepoRef,
+} from "./repo";
 
 describe("normalizeRepoRef", () => {
     it("accepts owner/repo and defaults to main branch", () => {
@@ -429,5 +439,237 @@ describe("parseIndex", () => {
             ],
         });
         expect(out).toEqual([]);
+    });
+
+    it("parseIndex drops entries with unsafe paths", () => {
+        const out = parseIndex({
+            schema: 1,
+            plugins: [
+                {
+                    id: "ok",
+                    name: "OK",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                    path: "plugins/ok",
+                },
+                {
+                    id: "dotdot",
+                    name: "DotDot",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                    path: "../bad",
+                },
+                {
+                    id: "abs",
+                    name: "Absolute",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                    path: "/etc/passwd",
+                },
+                {
+                    id: "scheme",
+                    name: "Scheme",
+                    version: "1.0.0",
+                    description: "d",
+                    author: "a",
+                    path: "https://evil.com/x",
+                },
+            ],
+        });
+        expect(out.map((e) => e.id)).toEqual(["ok"]);
+    });
+});
+
+describe("isSafeRelPath", () => {
+    it("accepts a simple filename", () => {
+        expect(isSafeRelPath("file.txt")).toBe(true);
+    });
+
+    it("accepts a relative path with slashes", () => {
+        expect(isSafeRelPath("plugins/com.zam.dice")).toBe(true);
+    });
+
+    it("accepts alphanumeric, dots, dashes, underscores in segments", () => {
+        expect(isSafeRelPath("foo-bar_123/baz.qux")).toBe(true);
+    });
+
+    it("rejects empty string", () => {
+        expect(isSafeRelPath("")).toBe(false);
+    });
+
+    it("rejects path with .. segment", () => {
+        expect(isSafeRelPath("../etc/passwd")).toBe(false);
+        expect(isSafeRelPath("foo/../bar")).toBe(false);
+    });
+
+    it("rejects path with . segment", () => {
+        expect(isSafeRelPath("./foo")).toBe(false);
+        expect(isSafeRelPath("foo/./bar")).toBe(false);
+    });
+
+    it("rejects leading slash (absolute)", () => {
+        expect(isSafeRelPath("/etc/passwd")).toBe(false);
+    });
+
+    it("rejects trailing slash", () => {
+        expect(isSafeRelPath("foo/")).toBe(false);
+    });
+
+    it("rejects double slash", () => {
+        expect(isSafeRelPath("foo//bar")).toBe(false);
+    });
+
+    it("rejects backslash", () => {
+        expect(isSafeRelPath("foo\\bar")).toBe(false);
+    });
+
+    it("rejects colon (scheme)", () => {
+        expect(isSafeRelPath("https://evil.com")).toBe(false);
+        expect(isSafeRelPath("C:\\bad")).toBe(false);
+    });
+
+    it("rejects segments with spaces", () => {
+        expect(isSafeRelPath("foo bar/baz")).toBe(false);
+    });
+
+    it("rejects segments with special characters", () => {
+        expect(isSafeRelPath("foo@bar")).toBe(false);
+        expect(isSafeRelPath("foo#bar")).toBe(false);
+    });
+});
+
+describe("isCommitSha", () => {
+    it("accepts a 40-character hex string", () => {
+        expect(isCommitSha("a".repeat(40))).toBe(true);
+        expect(isCommitSha("0123456789abcdef0123456789abcdef01234567")).toBe(
+            true,
+        );
+    });
+
+    it("rejects shorter than 40 characters", () => {
+        expect(isCommitSha("a".repeat(39))).toBe(false);
+    });
+
+    it("rejects longer than 40 characters", () => {
+        expect(isCommitSha("a".repeat(41))).toBe(false);
+    });
+
+    it("rejects uppercase hex", () => {
+        expect(isCommitSha("A".repeat(40))).toBe(false);
+    });
+
+    it("rejects non-hex characters", () => {
+        expect(isCommitSha("g".repeat(40))).toBe(false);
+        expect(isCommitSha("0".repeat(39) + "x")).toBe(false);
+    });
+
+    it("rejects empty string", () => {
+        expect(isCommitSha("")).toBe(false);
+    });
+});
+
+describe("pinnedFileUrl", () => {
+    const ref: RepoRef = { owner: "owner", repo: "repo", branch: "main" };
+    const sha = "a".repeat(40);
+
+    it("builds a pinned URL with single file", () => {
+        const url = pinnedFileUrl(ref, sha, "index.json");
+        expect(url).toBe(
+            "https://raw.githubusercontent.com/owner/repo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/index.json",
+        );
+    });
+
+    it("builds a pinned URL with directory and file", () => {
+        const url = pinnedFileUrl(ref, sha, "plugins/com.zam.dice", "main.js");
+        expect(url).toBe(
+            "https://raw.githubusercontent.com/owner/repo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/plugins/com.zam.dice/main.js",
+        );
+    });
+
+    it("builds a pinned URL with multiple path parts", () => {
+        const url = pinnedFileUrl(
+            ref,
+            sha,
+            "plugins",
+            "com.zam.dice",
+            "manifest.json",
+        );
+        expect(url).toBe(
+            "https://raw.githubusercontent.com/owner/repo/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/plugins/com.zam.dice/manifest.json",
+        );
+    });
+
+    it("throws when sha is not a commit sha", () => {
+        expect(() => pinnedFileUrl(ref, "main", "file.js")).toThrow(/sha/i);
+        expect(() => pinnedFileUrl(ref, "short", "file.js")).toThrow(/sha/i);
+    });
+
+    it("throws when a part is unsafe", () => {
+        expect(() => pinnedFileUrl(ref, sha, "../etc/passwd")).toThrow(
+            /path|safe/i,
+        );
+        expect(() => pinnedFileUrl(ref, sha, "ok", "/abs")).toThrow(
+            /path|safe/i,
+        );
+        expect(() => pinnedFileUrl(ref, sha, "ok", "https://evil.com")).toThrow(
+            /path|safe/i,
+        );
+    });
+});
+
+describe("commitShaApiUrl", () => {
+    it("builds GitHub API URL for commit SHA", () => {
+        const ref: RepoRef = { owner: "owner", repo: "repo", branch: "main" };
+        const url = commitShaApiUrl(ref);
+        expect(url).toBe("https://api.github.com/repos/owner/repo/commits/main");
+    });
+
+    it("encodes branch names with special characters", () => {
+        const ref: RepoRef = {
+            owner: "owner",
+            repo: "repo",
+            branch: "feature/x",
+        };
+        const url = commitShaApiUrl(ref);
+        expect(url).toBe(
+            "https://api.github.com/repos/owner/repo/commits/feature%2Fx",
+        );
+    });
+});
+
+describe("repoKey", () => {
+    it("builds canonical key from RepoRef", () => {
+        const ref: RepoRef = { owner: "Owner", repo: "Repo", branch: "main" };
+        expect(repoKey(ref)).toBe("owner/repo@main");
+    });
+
+    it("lowercases owner and repo", () => {
+        const ref: RepoRef = {
+            owner: "AZ4521",
+            repo: "Zam-Plugins",
+            branch: "develop",
+        };
+        expect(repoKey(ref)).toBe("az4521/zam-plugins@develop");
+    });
+
+    it("preserves branch case", () => {
+        const ref: RepoRef = {
+            owner: "owner",
+            repo: "repo",
+            branch: "Feature-X",
+        };
+        expect(repoKey(ref)).toBe("owner/repo@Feature-X");
+    });
+
+    it("returns raw string if not a valid ref string", () => {
+        expect(repoKey("not-a-ref")).toBe("not-a-ref");
+    });
+
+    it("normalizes and builds key from a parseable ref string", () => {
+        expect(repoKey("Owner/Repo@branch")).toBe("owner/repo@branch");
+        expect(repoKey("https://github.com/Owner/Repo")).toBe("owner/repo@main");
     });
 });
