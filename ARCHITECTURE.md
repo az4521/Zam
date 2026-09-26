@@ -134,9 +134,10 @@ Sanctioned exceptions, all deliberate:
 - **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`,
   `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
   plugin sync persistence, and the upload-to-send owner guard. Also hosts the core composer's
-  `sendEventContent`. The only `client.ts` consumers are `hostApi.ts` (per-plugin wrappers) and
-  `pluginBoot.ts` (subscription helpers, account-data sync). `client.ts` imports back one type-only
-  import (`plugins/types`), so the graph stays acyclic. See "Plugin system".
+  `sendEventContent`. Plugins never touch these modules themselves; they call the `zam` host API,
+  and only `plugins/hostApi.ts` (per plugin) and `plugins/pluginBoot.ts` (host-level account-data
+  sync) translate it into `pluginHost.ts` and `client.ts` wrappers. `client.ts` imports nothing
+  from `plugins/`, so the dependency runs one way. See "Plugin system".
 - **`src/lib/matrix/pushRules.ts`** and **`notifications.ts`** — small push-adjacent modules that
   import a few SDK enums.
 - Two components pull exactly one runtime enum each (`DebugPanel.svelte` → `EventType`,
