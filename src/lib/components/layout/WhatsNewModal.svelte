@@ -7,6 +7,8 @@
     } from "$lib/update";
     import { GITHUB_OWNER, GITHUB_REPO } from "$lib/utils/androidUpdate";
     import ReleaseNotesBody from "$lib/components/settings/ReleaseNotesBody.svelte";
+    import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
+    import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
 
     let { onClose }: { onClose: () => void } = $props();
 
@@ -14,88 +16,77 @@
     let loading = $state(true);
     let failed = $state(false);
 
-    onMount(async () => {
-        try {
-            body = await fetchReleaseNotes(APP_VERSION);
-        } catch {
-            failed = true;
-        } finally {
-            loading = false;
-        }
-    });
+    onMount(() => {
+        const token = openModal("whats-new", onClose);
 
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === "Escape") onClose();
-    }
+        void (async () => {
+            try {
+                body = await fetchReleaseNotes(APP_VERSION);
+            } catch {
+                failed = true;
+            } finally {
+                loading = false;
+            }
+        })();
+
+        return () => {
+            clearModalIfOwner(token);
+        };
+    });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<!-- Backdrop: a click on the backdrop itself (target === currentTarget)
-     dismisses; a click inside the dialog bubbles up but is ignored. Escape is
-     wired on <svelte:window> above. The static-element a11y warnings are
-     silenced per the codebase convention (see CallView/AppShell/MessageArea). -->
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-<div
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-    onclick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-    }}
-    role="presentation"
+<ModalDialog
+    {onClose}
+    label="What's New"
+    layerClass="z-[60] flex items-center justify-center p-4"
+    backdropClass="bg-black/50"
+    panelClass="relative w-full max-w-md rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
 >
-    <div
-        class="w-full max-w-md rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="What's New"
-        tabindex="-1"
+    <header
+        class="flex items-center justify-between border-b border-discord-divider px-4 py-3 flex-shrink-0"
     >
-        <header
-            class="flex items-center justify-between border-b border-discord-divider px-4 py-3 flex-shrink-0"
+        <h2 class="text-base font-semibold text-discord-textPrimary">
+            What's New in v{APP_VERSION}
+        </h2>
+        <button
+            type="button"
+            onclick={onClose}
+            aria-label="Close"
+            class="text-discord-textMuted hover:text-discord-textPrimary text-lg leading-none px-1"
         >
-            <h2 class="text-base font-semibold text-discord-textPrimary">
-                What's New in v{APP_VERSION}
-            </h2>
-            <button
-                type="button"
-                onclick={onClose}
-                aria-label="Close"
-                class="text-discord-textMuted hover:text-discord-textPrimary text-lg leading-none px-1"
-            >
-                ✕
-            </button>
-        </header>
-        <div class="overflow-y-auto px-4 py-3 flex-1 min-h-0">
-            {#if loading}
-                <p class="text-sm text-discord-textMuted">Loading…</p>
-            {:else if failed}
-                <p class="text-sm text-discord-textMuted">
-                    Release notes unavailable.
-                    <button
-                        type="button"
-                        class="underline"
-                        onclick={() =>
-                            openReleasePage(
-                                `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
-                            )}
-                    >
-                        View on GitHub
-                    </button>
-                </p>
-            {:else}
-                <ReleaseNotesBody body={body ?? ""} />
-            {/if}
-        </div>
-        <footer
-            class="flex justify-end border-t border-discord-divider px-4 py-3 flex-shrink-0"
-        >
-            <button
-                type="button"
-                onclick={onClose}
-                class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-            >
-                Got it
-            </button>
-        </footer>
+            ✕
+        </button>
+    </header>
+    <div class="overflow-y-auto px-4 py-3 flex-1 min-h-0">
+        {#if loading}
+            <p class="text-sm text-discord-textMuted">Loading…</p>
+        {:else if failed}
+            <p class="text-sm text-discord-textMuted">
+                Release notes unavailable.
+                <button
+                    type="button"
+                    class="underline"
+                    onclick={() =>
+                        openReleasePage(
+                            `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
+                        )}
+                >
+                    View on GitHub
+                </button>
+            </p>
+        {:else}
+            <ReleaseNotesBody body={body ?? ""} />
+        {/if}
     </div>
-</div>
+    <footer
+        class="flex justify-end border-t border-discord-divider px-4 py-3 flex-shrink-0"
+    >
+        <button
+            type="button"
+            onclick={onClose}
+            class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+        >
+            Got it
+        </button>
+    </footer>
+</ModalDialog>

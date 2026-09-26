@@ -11,7 +11,6 @@
 </script>
 
 <script lang="ts">
-    import { EventStatus } from "matrix-js-sdk";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -62,6 +61,7 @@
         getRoomIdForAlias,
         getThreadSummary,
         getHomeserverBaseUrl,
+        EventStatus,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
@@ -87,8 +87,8 @@
     } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import {
-        videoPosterMxc,
-        videoSourceMxc,
+        videoSource,
+        videoPoster,
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
     import {
@@ -143,10 +143,7 @@
     } from "$lib/utils/timeFormat";
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
-    import {
-        highlightCodeBlocks,
-        mapOutsideCode,
-    } from "$lib/utils/codeHighlight";
+    import { highlightCodeBlocks } from "$lib/utils/codeHighlight";
     import { highlighterFor } from "$lib/utils/codeHighlighter.svelte";
     import {
         isFavouriteGif,
@@ -177,12 +174,17 @@
     } from "$lib/utils/messageGesture";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
+    import {
+        shouldMountActionBar,
+        focusLeavesRow,
+    } from "$lib/utils/actionBarMount";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { bodyImageGallery } from "$lib/actions/bodyImageGallery";
     import {
         galleryNav,
         type GalleryImage,
     } from "$lib/utils/messageBodyGallery";
+    import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { siblingUploadIndices } from "$lib/utils/uploadSiblings";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
@@ -424,6 +426,7 @@
                     roomId: room.roomId,
                     eventId,
                     isOwn: isOwnMessage,
+                    canEdit: canEditMessage,
                     threshold: stage, // "short" | "far" (never "none" here)
                 },
             );
@@ -546,7 +549,12 @@
 
     function resolveDelete(confirmed: boolean) {
         confirmingDelete = false;
-        if (confirmed) deleteMessage(room.roomId, eventId);
+        if (confirmed) {
+            deleteMessage(room.roomId, eventId).catch((err) => {
+                console.error("[MessageItem] delete failed", err);
+                showErrorToast("Couldn't delete the message");
+            });
+        }
         if (deleteRefocus) {
             deleteRefocus = false;
             onEditDone?.();
@@ -663,6 +671,27 @@
             interfaceState.selectedMessageId === eventId,
     );
 
+    // The action bar mounts on demand (see actionBarMount.ts). Hover is
+    // pointer-only: mobile browsers fire compat mouse events on tap, and a
+    // touch row only shows its bar while selected (`mobileSelected`).
+    let rowHovered = $state(false);
+    let rowFocused = $state(false);
+    // Open and visible no matter where the pointer or focus is.
+    const actionBarPinned = $derived(
+        showEmojiPicker ||
+            confirmingDelete ||
+            showReportDialog ||
+            showRedactDialog ||
+            mobileSelected,
+    );
+    const mountActionBar = $derived(
+        shouldMountActionBar({
+            hovered: rowHovered,
+            focused: rowFocused,
+            pinned: actionBarPinned,
+        }),
+    );
+
     const menuMode: MessageMenuMode = $derived(
         menuModeFromSetting(settingsState.holdToOpenMessageMenu),
     );
@@ -679,11 +708,6 @@
         reactionTick;
         return !!event.replacingEvent();
     });
-
-    // Swipe reveal icon: "none" | "reply" | "edit" (depends on isOwnMessage).
-    const swipeRevealIcon = $derived(
-        resolveSwipeAction(swipeStageNow, isOwnMessage),
-    );
 
     // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
     // further sends in this room until it's retried or removed.
@@ -744,6 +768,18 @@
     // $derived(event.getType()) would keep the UTD placeholder up forever.
     const eventType = $derived(
         (void messagesState.timelineTick, event.getType()),
+    );
+
+    const msgtype = $derived(content?.msgtype ?? "");
+
+    // Gate for Edit action: only your own m.text messages can be edited inline.
+    const canEditMessage = $derived(
+        isOwnMessage && eventType === "m.room.message" && msgtype === "m.text",
+    );
+
+    // Swipe reveal icon: "none" | "reply" | "edit" (depends on canEditMessage).
+    const swipeRevealIcon = $derived(
+        resolveSwipeAction(swipeStageNow, canEditMessage),
     );
 
     // UTD body copy, refined by the decryption-failure reason: a deliberate
@@ -843,8 +879,6 @@
         };
     });
 
-    const msgtype = $derived(content?.msgtype ?? "");
-
     // --- Mobile action overflow ("⋯ More") sheet ---
     // Extracted so the desktop pin button and the mobile sheet run the same
     // toggle rather than diverging copies.
@@ -876,10 +910,7 @@
     // inline.
     const overflowRows = $derived(
         messageActionsMenu({
-            canEdit:
-                isOwnMessage &&
-                eventType === "m.room.message" &&
-                msgtype === "m.text",
+            canEdit: canEditMessage,
             canPin,
             isPinned,
             hasLink: eventId.startsWith("$") && !isFailed,
@@ -939,7 +970,10 @@
                 redactComp?.show();
                 break;
             case "delete":
-                deleteMessage(room.roomId, eventId);
+                deleteMessage(room.roomId, eventId).catch((err) => {
+                    console.error("[MessageItem] delete failed", err);
+                    showErrorToast("Couldn't delete the message");
+                });
                 break;
         }
     }
@@ -1048,8 +1082,7 @@
         // getContent() drops the reply relation. Fall back to the original
         // event content so edited replies still render their quoted message.
         return original?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
-            | string
-            | undefined;
+            string | undefined;
     });
     // Finding the parent is a linear scan of the loaded timeline chunk, and this
     // derived re-runs on every timelineTick for every reply on screen. A resolved
@@ -1167,64 +1200,124 @@
     let videoAttempt = $state(0);
     let videoFailed = $state(false);
     let videoThumbFailed = $state(false);
-    // Encrypted video state
+    // Video source and state
+    const videoSrc = $derived(
+        msgtype === "m.video" ? videoSource(content) : null,
+    );
     let encryptedVideoUrl = $state<string | null>(null);
     let videoDecrypting = $state(false);
     let videoDecryptFailed = $state(false);
+    let videoDecryptAttempt = $state(0);
     let videoPlayRequested = $state(false);
-    // The URL to stream, or null when this event carries nothing playable.
-    // For encrypted video, use the decrypted blob URL; for unencrypted, use mxcToHttp.
-    const videoSrcUrl = $derived(() => {
-        if (msgtype !== "m.video") return null;
-        const file = content?.file as EncryptedFile | undefined;
-        if (file) {
-            return encryptedVideoUrl;
-        }
-        return mxcToHttp(videoSourceMxc(content));
-    });
+
     function playVideo() {
         videoFailed = false;
         videoAttempt += 1;
-        const file = content?.file as EncryptedFile | undefined;
-        if (file) {
+        if (videoSrc?.kind === "encrypted") {
             videoPlayRequested = true;
+            // Show the spinner from this frame on, not an empty <video> until
+            // the decrypt effect runs. Only when there is no blob yet: a retry
+            // after a playback error reuses the blob and the effect won't re-run.
+            if (!encryptedVideoUrl) videoDecrypting = true;
         }
     }
 
-    // Decrypt video when play is requested
+    // Decrypt video when play is requested. Keyed on the ciphertext mxc, not
+    // the `videoSrc` object: `content` re-derives on every timeline tick, and
+    // a fresh object here would revoke the blob URL under a playing <video>.
+    const encryptedVideoKey = $derived(
+        videoSrc?.kind === "encrypted" ? videoSrc.file.url : null,
+    );
     $effect(() => {
-        if (msgtype !== "m.video" || !videoPlayRequested) return;
-        const file = content?.file as EncryptedFile | undefined;
-        if (!file) return;
+        if (encryptedVideoKey === null || !videoPlayRequested) return;
+        // Depend on attempt counter for retry
+        void videoDecryptAttempt;
+        const src = untrack(() => videoSrc);
+        if (src?.kind !== "encrypted") return;
+
         videoDecrypting = true;
         videoDecryptFailed = false;
-        let objectUrl: string | null = null;
-        const mimetype = (content?.info as { mimetype?: string } | undefined)
-            ?.mimetype;
-        fetchDecryptedAttachmentBlob(file, mimetype)
+        let capturedUrl: string | null = null;
+        // A decrypt that resolves after cleanup (unmount, retry, new source)
+        // must revoke its own URL instead of publishing it.
+        let cancelled = false;
+
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
             .then((url) => {
-                objectUrl = url;
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                capturedUrl = url;
                 encryptedVideoUrl = url;
                 videoDecrypting = false;
             })
             .catch(() => {
+                if (cancelled) return;
                 videoDecrypting = false;
                 videoDecryptFailed = true;
             });
+
         return () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            cancelled = true;
+            if (capturedUrl) URL.revokeObjectURL(capturedUrl);
             encryptedVideoUrl = null;
         };
     });
-    // Poster for the unplayed video body. ONLY ever the sender's uploaded
-    // thumbnail — `videoPosterMxc` hands back null otherwise, and we then render
-    // the placeholder card below without requesting anything. Never point this
-    // at the video's own mxc: continuwuity answers /media/thumbnail for a video
-    // with the original file (200 video/mp4), so the <img> would download the
-    // whole video and `onerror` fires far too late to prevent it.
-    const videoThumbnailUrl = $derived(
-        msgtype === "m.video" ? mxcToHttp(videoPosterMxc(content)) : null,
+
+    function retryVideoDecrypt() {
+        videoDecryptAttempt += 1;
+    }
+
+    // Poster for the unplayed video body: decrypt encrypted thumbnail on mount,
+    // or use plain mxcToHttp for unencrypted. Never the video's own url — see
+    // comment in roomMedia.ts videoPoster.
+    const posterSrc = $derived(
+        msgtype === "m.video" ? videoPoster(content) : null,
     );
+    let encryptedPosterUrl = $state<string | null>(null);
+    const videoThumbnailUrl = $derived(
+        !posterSrc
+            ? null
+            : posterSrc.kind === "plain"
+              ? mxcToHttp(posterSrc.mxc)
+              : encryptedPosterUrl,
+    );
+
+    // Decrypt the encrypted poster on mount (a small thumbnail). Keyed on the
+    // thumbnail's mxc for the same reason as the video decrypt above.
+    const encryptedPosterKey = $derived(
+        posterSrc?.kind === "encrypted" ? posterSrc.file.url : null,
+    );
+    $effect(() => {
+        if (encryptedPosterKey === null) return;
+        const src = untrack(() => posterSrc);
+        if (src?.kind !== "encrypted") return;
+
+        let capturedUrl: string | null = null;
+        let cancelled = false;
+
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
+            .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                capturedUrl = url;
+                encryptedPosterUrl = url;
+            })
+            .catch(() => {
+                // No poster: the placeholder card below carries the play
+                // affordance instead.
+                if (!cancelled) encryptedPosterUrl = null;
+            });
+
+        return () => {
+            cancelled = true;
+            if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+            encryptedPosterUrl = null;
+        };
+    });
     const videoDuration = $derived(
         msgtype === "m.video"
             ? formatMediaDuration((content?.info as any)?.duration)
@@ -1507,9 +1600,7 @@
         // never reused AFTER it arrives, so code blocks still upgrade to coloured.
         const engine = highlighterFor(html);
         return twemojiCache.get(`${engine ? "1" : "0"}\u0000${html}`, () => {
-            const emojiRendered = mapOutsideCode(html, (fragment) =>
-                renderHtml(fragment, "twemoji"),
-            );
+            const emojiRendered = renderHtml(html, "twemoji");
             return highlightCodeBlocks(emojiRendered, engine);
         });
     }
@@ -1792,8 +1883,24 @@
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}
     tabindex="0"
+    onmouseenter={() => {
+        if (!interfaceState.isTouchscreen) rowHovered = true;
+    }}
     onmouseleave={() => {
-        if (!confirmingDelete) return;
+        rowHovered = false;
+    }}
+    onfocusin={() => {
+        rowFocused = true;
+    }}
+    onfocusout={() => {
+        // Judge where focus actually settled, not `relatedTarget`: Chrome
+        // names the intended target even when that focus then fails (a bar
+        // button hidden by the blur itself), which would leave the bar
+        // mounted with focus on <body>.
+        setTimeout(() => {
+            if (rootEl && focusLeavesRow(rootEl, document.activeElement))
+                rowFocused = false;
+        }, 0);
     }}
     onclick={() => handleRowGesture("tap")}
     ontouchend={onMessageTouchEnd}
@@ -2206,6 +2313,10 @@
                                               index: unext,
                                           })
                                     : undefined}
+                                position={galleryPositionLabel(
+                                    ug.images.length,
+                                    ug.index,
+                                )}
                             />
                         {/if}
                     {/if}
@@ -2240,11 +2351,19 @@
                                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                             />
                         </svg>
-                        <span class="text-xs text-discord-danger"
-                            >Couldn't decrypt video</span
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs text-discord-danger"
+                                >Couldn't decrypt video</span
+                            >
+                        </div>
+                        <button
+                            class="px-2 py-1 text-xs font-medium text-discord-textPrimary bg-discord-backgroundSecondary hover:bg-discord-messageHover rounded transition-colors"
+                            onclick={retryVideoDecrypt}
                         >
+                            Retry
+                        </button>
                     </div>
-                {:else if videoSrcUrl() === null}
+                {:else if videoSrc === null}
                     <!-- Nothing this client can play: a malformed url. Deliberately NOT
                      clickable — a play affordance that can never resolve a
                      source is a dead click, which is exactly how this gets
@@ -2286,7 +2405,9 @@
                          box vs the poster on play and (b) lets a wide clip's
                          min-content width push past the column and overflow. -->
                         <video
-                            src={videoSrcUrl()}
+                            src={videoSrc?.kind === "plain"
+                                ? mxcToHttp(videoSrc.mxc)
+                                : encryptedVideoUrl}
                             controls
                             autoplay
                             playsinline
@@ -2652,6 +2773,10 @@
                                       index: next,
                                   })
                             : undefined}
+                        position={galleryPositionLabel(
+                            g.images.length,
+                            g.index,
+                        )}
                     />
                 {/if}
             {/if}
@@ -2742,7 +2867,7 @@
                     onclick={openReaderList}
                     aria-label="Show who read this message"
                     title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
-                    class="absolute bottom-0.5 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+                    class="absolute bottom-0 flex items-center justify-center gap-0.5 max-w-[45%] min-h-6 min-w-6 rounded pointer-events-auto"
                     class:right-4={!bubble.alignOwn}
                     class:left-4={bubble.alignOwn}
                 >
@@ -2773,6 +2898,8 @@
                         x={readerX}
                         y={readerY}
                         onClose={closeReaderList}
+                        modalId="read-receipts"
+                        dialogLabel="Read by"
                     />
                 {/if}
             {/if}
@@ -2834,72 +2961,35 @@
         clicked — pinning this row's bar open while the pointer hovers another
         row's, two floating bars at once. Hover is left alone: it follows the
         pointer, so it cannot pin anything.
+
+        The bar is only MOUNTED while the row is hovered, focused or pinned
+        (`mountActionBar`, utils/actionBarMount.ts); the classes below still
+        decide whether a mounted bar shows. Focus mounts it on the row's
+        `focusin`, before the Tab that moves into it, and rovingToolbar re-syncs
+        tabindexes on that Tab.
     -->
-    <div
-        data-message-actions
-        role="toolbar"
-        aria-label="Message actions"
-        class="{showEmojiPicker ||
-        confirmingDelete ||
-        showReportDialog ||
-        showRedactDialog ||
-        mobileSelected
-            ? 'flex'
-            : `hidden ${
-                  interfaceState.isTouchscreen ? '' : 'group-hover:flex'
-              } ${
-                  isEditing
-                      ? ''
-                      : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-              }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
-    >
-        {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
-            <button
-                data-message-action
-                onclick={startEdit}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Edit message"
-                aria-label="Edit message"
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                    />
-                </svg>
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && isOwnMessage}
-            {#if confirmingDelete}
-                <span class="text-xs text-discord-textMuted px-1">Delete?</span>
-                <!--
-                    Deliberately NOT `data-message-action`: these two run their
-                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
-                    roving toolbar stops propagation on the keys it owns, which
-                    would kill it. Staying out of the roving set leaves them as
-                    ordinary tab stops for the life of the confirmation — which
-                    is what keeps them reachable if focus wanders off.
-                -->
-                <button
-                    bind:this={deleteYesEl}
-                    onclick={() => resolveDelete(true)}
-                    onkeydown={onDeleteKeydown}
-                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
-                    aria-label="Yes, delete message">Yes</button
-                >
-                <button
-                    bind:this={deleteNoEl}
-                    onclick={() => resolveDelete(false)}
-                    onkeydown={onDeleteKeydown}
-                    class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
-                    aria-label="No, keep message">No</button
-                >
-            {:else}
+    {#if mountActionBar}
+        <div
+            data-message-actions
+            role="toolbar"
+            aria-label="Message actions"
+            class="{actionBarPinned
+                ? 'flex'
+                : `hidden ${
+                      interfaceState.isTouchscreen ? '' : 'group-hover:flex'
+                  } ${
+                      isEditing
+                          ? ''
+                          : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
+                  }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+        >
+            {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
                 <button
                     data-message-action
-                    onclick={() => (confirmingDelete = true)}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                    title="Delete message"
-                    aria-label="Delete message"
+                    onclick={startEdit}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Edit message"
+                    aria-label="Edit message"
                 >
                     <svg
                         class="w-4 h-4"
@@ -2907,193 +2997,256 @@
                         viewBox="0 0 24 24"
                     >
                         <path
-                            d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
                         />
                     </svg>
                 </button>
             {/if}
-        {/if}
-        {#if !interfaceState.isTouchscreen && canPin}
-            <button
-                data-message-action
-                onclick={togglePin}
-                disabled={pinning}
-                class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
-                    ? 'text-discord-accent'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                title={isPinned ? "Unpin message" : "Pin message"}
-                aria-label={isPinned ? "Unpin message" : "Pin message"}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
-                    ><path
-                        d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
-                    /></svg
-                >
-            </button>
-        {/if}
-        <!-- Add reaction -->
-        <div class="relative">
-            <button
-                data-message-action
-                bind:this={reactionBtnEl}
-                onclick={() => {
-                    if (showEmojiPicker) {
-                        closeModal();
-                    } else {
-                        emojiPickerBelow =
-                            (reactionBtnEl?.getBoundingClientRect().top ??
-                                400) < 400;
-                        openReactionPicker();
-                    }
-                }}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Add reaction"
-                aria-label="Add reaction"
-                aria-expanded={showEmojiPicker}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        fill-rule="evenodd"
-                        d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
-                    />
-                </svg>
-            </button>
-            {#if showEmojiPicker && !interfaceState.isTouchscreen}
-                <div
-                    bind:this={emojiPickerEl}
-                    class={emojiPickerBelow
-                        ? "absolute top-full right-0 mt-1 z-50"
-                        : "absolute bottom-full right-0 mb-1 z-50"}
-                >
-                    <EmojiPicker
-                        {room}
-                        onSelect={async (emoji) => {
-                            await sendReaction(room.roomId, eventId, emoji);
-                            closeModal();
-                        }}
-                        onSelectCustom={async (emoji) => {
-                            await sendReaction(
-                                room.roomId,
-                                eventId,
-                                emoji.mxcUrl,
-                            );
-                            closeModal();
-                        }}
-                        onClose={closeModal}
-                    />
-                </div>
-            {/if}
-        </div>
-        <button
-            data-message-action
-            onclick={() => onReply(event)}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            title="Reply"
-            aria-label="Reply"
-        >
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path
-                    d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
-                />
-            </svg>
-        </button>
-        {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
-            <button
-                data-message-action
-                onclick={() => onOpenThread(threadRootId)}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title={isThreadReply ? "Open thread" : "Reply in thread"}
-                aria-label={isThreadReply ? "Open thread" : "Reply in thread"}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z"
-                    />
-                </svg>
-            </button>
-        {/if}
-        {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
-            <button
-                data-message-action
-                onclick={openForwardDialog}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Forward message"
-                aria-label="Forward message"
-            >
-                <Forward size={16} />
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen}
-            {#each pluginActionViews as view (view.entryId)}
-                <button
-                    data-message-action
-                    onclick={() => handlePluginAction(view.key)}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={view.label}
-                    aria-label={view.label}
-                >
-                    {#if view.icon}
+            {#if !interfaceState.isTouchscreen && isOwnMessage}
+                {#if confirmingDelete}
+                    <span class="text-xs text-discord-textMuted px-1"
+                        >Delete?</span
+                    >
+                    <!--
+                    Deliberately NOT `data-message-action`: these two run their
+                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
+                    roving toolbar stops propagation on the keys it owns, which
+                    would kill it. Staying out of the roving set leaves them as
+                    ordinary tab stops for the life of the confirmation — which
+                    is what keeps them reachable if focus wanders off.
+                -->
+                    <button
+                        bind:this={deleteYesEl}
+                        onclick={() => resolveDelete(true)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
+                        aria-label="Yes, delete message">Yes</button
+                    >
+                    <button
+                        bind:this={deleteNoEl}
+                        onclick={() => resolveDelete(false)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                        aria-label="No, keep message">No</button
+                    >
+                {:else}
+                    <button
+                        data-message-action
+                        onclick={() => (confirmingDelete = true)}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                        title="Delete message"
+                        aria-label="Delete message"
+                    >
                         <svg
                             class="w-4 h-4"
                             fill="currentColor"
-                            viewBox="0 0 24 24"><path d={view.icon} /></svg
+                            viewBox="0 0 24 24"
                         >
-                    {:else}
-                        <span class="text-xs font-semibold"
-                            >{view.label.slice(0, 1)}</span
-                        >
-                    {/if}
+                            <path
+                                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                            />
+                        </svg>
+                    </button>
+                {/if}
+            {/if}
+            {#if !interfaceState.isTouchscreen && canPin}
+                <button
+                    data-message-action
+                    onclick={togglePin}
+                    disabled={pinning}
+                    class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
+                        ? 'text-discord-accent'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    title={isPinned ? "Unpin message" : "Pin message"}
+                    aria-label={isPinned ? "Unpin message" : "Pin message"}
+                >
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
+                        /></svg
+                    >
                 </button>
-            {/each}
-        {/if}
-        {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
+            {/if}
+            <!-- Add reaction -->
+            <div class="relative">
+                <button
+                    data-message-action
+                    bind:this={reactionBtnEl}
+                    onclick={() => {
+                        if (showEmojiPicker) {
+                            closeModal();
+                        } else {
+                            emojiPickerBelow =
+                                (reactionBtnEl?.getBoundingClientRect().top ??
+                                    400) < 400;
+                            openReactionPicker();
+                        }
+                    }}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Add reaction"
+                    aria-label="Add reaction"
+                    aria-expanded={showEmojiPicker}
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            fill-rule="evenodd"
+                            d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
+                        />
+                    </svg>
+                </button>
+                {#if showEmojiPicker && !interfaceState.isTouchscreen}
+                    <div
+                        bind:this={emojiPickerEl}
+                        class={emojiPickerBelow
+                            ? "absolute top-full right-0 mt-1 z-50"
+                            : "absolute bottom-full right-0 mb-1 z-50"}
+                    >
+                        <EmojiPicker
+                            {room}
+                            onSelect={async (emoji) => {
+                                await sendReaction(room.roomId, eventId, emoji);
+                                closeModal();
+                            }}
+                            onSelectCustom={async (emoji) => {
+                                await sendReaction(
+                                    room.roomId,
+                                    eventId,
+                                    emoji.mxcUrl,
+                                );
+                                closeModal();
+                            }}
+                            onClose={closeModal}
+                        />
+                    </div>
+                {/if}
+            </div>
             <button
                 data-message-action
-                onclick={openActionsSheet}
+                onclick={() => onReply(event)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="More actions"
-                aria-label="More actions"
-                aria-haspopup="menu"
+                title="Reply"
+                aria-label="Reply"
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
-                        d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                        d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
                     />
                 </svg>
             </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && eventId.startsWith("$") && !isFailed}
-            <button
-                data-message-action
-                onclick={copyMessageLink}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title={linkCopied ? "Link copied!" : "Copy message link"}
-                aria-label={linkCopied ? "Link copied" : "Copy message link"}
-            >
-                {#if linkCopied}
-                    <Check size={16} />
-                {:else}
-                    <Link size={16} />
-                {/if}
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
-            <MessageReportAction
-                roomId={room.roomId}
-                {eventId}
-                {keyboardOffset}
-                bind:open={showReportDialog}
-            />
-        {/if}
-        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
-            <MessageRedactAction
-                roomId={room.roomId}
-                {eventId}
-                {keyboardOffset}
-                bind:open={showRedactDialog}
-            />
-        {/if}
-    </div>
+            {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
+                <button
+                    data-message-action
+                    onclick={() => onOpenThread(threadRootId)}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={isThreadReply ? "Open thread" : "Reply in thread"}
+                    aria-label={isThreadReply
+                        ? "Open thread"
+                        : "Reply in thread"}
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z"
+                        />
+                    </svg>
+                </button>
+            {/if}
+            {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
+                <button
+                    data-message-action
+                    onclick={openForwardDialog}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Forward message"
+                    aria-label="Forward message"
+                >
+                    <Forward size={16} />
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen}
+                {#each pluginActionViews as view (view.entryId)}
+                    <button
+                        data-message-action
+                        onclick={() => handlePluginAction(view.key)}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        title={view.label}
+                        aria-label={view.label}
+                    >
+                        {#if view.icon}
+                            <svg
+                                class="w-4 h-4"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={view.icon} /></svg
+                            >
+                        {:else}
+                            <span class="text-xs font-semibold"
+                                >{view.label.slice(0, 1)}</span
+                            >
+                        {/if}
+                    </button>
+                {/each}
+            {/if}
+            {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
+                <button
+                    data-message-action
+                    onclick={openActionsSheet}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="More actions"
+                    aria-label="More actions"
+                    aria-haspopup="menu"
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                        />
+                    </svg>
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen && eventId.startsWith("$") && !isFailed}
+                <button
+                    data-message-action
+                    onclick={copyMessageLink}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={linkCopied ? "Link copied!" : "Copy message link"}
+                    aria-label={linkCopied
+                        ? "Link copied"
+                        : "Copy message link"}
+                >
+                    {#if linkCopied}
+                        <Check size={16} />
+                    {:else}
+                        <Link size={16} />
+                    {/if}
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
+                <MessageReportAction
+                    roomId={room.roomId}
+                    {eventId}
+                    {keyboardOffset}
+                    bind:open={showReportDialog}
+                />
+            {/if}
+            {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
+                <MessageRedactAction
+                    roomId={room.roomId}
+                    {eventId}
+                    {keyboardOffset}
+                    bind:open={showRedactDialog}
+                />
+            {/if}
+        </div>
+    {/if}
 </div>
 
 <!--

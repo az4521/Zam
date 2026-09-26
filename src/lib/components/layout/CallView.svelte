@@ -664,19 +664,27 @@
                                         <MicOff
                                             size={14}
                                             class="text-discord-danger flex-shrink-0"
+                                            aria-hidden="true"
                                         />
+                                        <span class="sr-only">Muted</span>
                                     {/if}
                                     {#if status.deafened}
                                         <HeadphoneOff
                                             size={14}
                                             class="text-discord-danger flex-shrink-0"
+                                            aria-hidden="true"
                                         />
+                                        <span class="sr-only">Deafened</span>
                                     {/if}
                                     {#if status.locallyMuted}
                                         <VolumeX
                                             size={14}
                                             class="text-discord-textMuted flex-shrink-0"
+                                            aria-hidden="true"
                                         />
+                                        <span class="sr-only"
+                                            >Muted for you</span
+                                        >
                                     {/if}
                                     {#if status.multiDevice}
                                         <span
@@ -685,7 +693,15 @@
                                         >
                                             <Smartphone
                                                 size={12}
-                                            />{deviceCounts.get(p.userId) ?? 1}
+                                                aria-hidden="true"
+                                            /><span class="sr-only"
+                                                >{deviceCounts.get(p.userId) ??
+                                                    1}
+                                                devices</span
+                                            ><span aria-hidden="true"
+                                                >{deviceCounts.get(p.userId) ??
+                                                    1}</span
+                                            >
                                         </span>
                                     {/if}
                                 </div>
@@ -704,19 +720,25 @@
                                     <MicOff
                                         size={14}
                                         class="text-discord-danger flex-shrink-0"
+                                        aria-hidden="true"
                                     />
+                                    <span class="sr-only">Muted</span>
                                 {/if}
                                 {#if status.deafened}
                                     <HeadphoneOff
                                         size={14}
                                         class="text-discord-danger flex-shrink-0"
+                                        aria-hidden="true"
                                     />
+                                    <span class="sr-only">Deafened</span>
                                 {/if}
                                 {#if status.locallyMuted}
                                     <VolumeX
                                         size={14}
                                         class="text-discord-textMuted flex-shrink-0"
+                                        aria-hidden="true"
                                     />
+                                    <span class="sr-only">Muted for you</span>
                                 {/if}
                                 {#if status.multiDevice}
                                     <span
@@ -725,7 +747,14 @@
                                     >
                                         <Smartphone
                                             size={12}
-                                        />{deviceCounts.get(p.userId) ?? 1}
+                                            aria-hidden="true"
+                                        /><span class="sr-only"
+                                            >{deviceCounts.get(p.userId) ?? 1}
+                                            devices</span
+                                        ><span aria-hidden="true"
+                                            >{deviceCounts.get(p.userId) ??
+                                                1}</span
+                                        >
                                     </span>
                                 {/if}
                                 <span class="text-xs text-white truncate"

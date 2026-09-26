@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from "svelte";
     import { motionOK } from "$lib/utils/motionPreference";
+    import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
@@ -54,6 +55,17 @@
         consumeWebShareStash,
         base64ToFile,
     } from "$lib/utils/webShareStash";
+    import {
+        takeQuickReplyStashes,
+        deleteQuickReplyStash,
+    } from "$lib/utils/notifReplyStash";
+    import { composerInsertText } from "$lib/utils/composerInsert";
+    import {
+        getDraft,
+        setDraft,
+        deliverToLiveComposer,
+    } from "$lib/stores/composerDrafts.svelte";
+    import { composerThreadKey } from "$lib/utils/threadContent";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -104,12 +116,15 @@
         reloadNotificationsFromStorage,
         getNotificationCount,
     } from "$lib/stores/notifications.svelte";
-    import { updateAccountProfile } from "$lib/stores/accounts.svelte";
+    import {
+        accountsState,
+        updateAccountProfile,
+    } from "$lib/stores/accounts.svelte";
     import {
         sessionHealthState,
         resetSyncStoreFallback,
     } from "$lib/stores/sessionHealth.svelte";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
         getRoomsInSpace,
@@ -140,9 +155,11 @@
         publishActiveSession,
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
+        updateServiceWorkerReceiptPrivacy,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
-        sendTextMessage,
+        sendNotificationQuickReply,
+        resolveQuickReplyThreadRoot,
         markRoomAsRead,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
@@ -225,8 +242,15 @@
     }
 
     // Animated drawer drag (mobile)
-    const DRAWER_WIDTH = 312; // 72px SpaceSidebar + 240px RoomList
-    let drawerTranslate = $state(-DRAWER_WIDTH);
+    // The drawer is 19.5rem (4.5rem SpaceSidebar + 15rem RoomList), so its pixel
+    // width follows the app text scale (audit UX-05). Seed it from the root font
+    // size so the first closed park is already off screen; `bind:offsetWidth` on
+    // the drawer keeps it current when the text scale changes.
+    const initialDrawerWidth =
+        19.5 *
+        (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    let drawerWidth = $state(initialDrawerWidth);
+    let drawerTranslate = $state(-initialDrawerWidth);
     let isDragging = $state(false);
     let dragStartX = 0;
     let dragBaseTranslate = 0;
@@ -246,15 +270,15 @@
     $effect(() => {
         const open = interfaceState.leftOpen;
         if (!isDragging) {
-            drawerTranslate = open ? 0 : -DRAWER_WIDTH;
+            drawerTranslate = open ? 0 : -drawerWidth;
             if (keepSnapDuration) keepSnapDuration = false;
             else snapDurationMs = MAX_SNAP_MS;
         }
     });
 
     const backdropOpacity = $derived(
-        interfaceState.isMobile
-            ? ((drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH) * 0.5
+        interfaceState.isMobile && drawerWidth > 0
+            ? ((drawerTranslate + drawerWidth) / drawerWidth) * 0.5
             : 0,
     );
 
@@ -263,36 +287,14 @@
     // controls (audit A11Y-02). `inert` also removes the subtree from the
     // accessibility tree; `aria-hidden` is belt-and-braces for webviews that
     // predate `inert`. Same notion as the box-shadow gate below it
-    // (`drawerTranslate <= -DRAWER_WIDTH`), expressed once.
+    // (`drawerTranslate <= -drawerWidth`), expressed once.
     const leftDrawerClosed = $derived(
-        isOffCanvasClosed(drawerTranslate, -DRAWER_WIDTH),
+        isOffCanvasClosed(drawerTranslate, -drawerWidth),
     );
 
     let dragPending = false; // touch down, direction not yet determined
     let dragStartY = 0;
     let dragTarget: Element | null = null; // element the touch began on
-
-    // True when the touch started inside a horizontally-scrollable element (a
-    // wide code block, table, etc.) that can still scroll in the swipe's
-    // direction — in which case we let it scroll natively instead of hijacking
-    // the gesture to drag the drawer.
-    function targetCanScrollHoriz(el: Element | null, dx: number): boolean {
-        let node: Element | null = el;
-        while (node && node !== document.body) {
-            if (node.scrollWidth > node.clientWidth + 1) {
-                const overflowX = getComputedStyle(node).overflowX;
-                if (overflowX === "auto" || overflowX === "scroll") {
-                    const maxScroll = node.scrollWidth - node.clientWidth;
-                    // Swipe right (dx > 0) scrolls content toward the start;
-                    // swipe left (dx < 0) scrolls toward the end.
-                    if (dx > 0 && node.scrollLeft > 0) return true;
-                    if (dx < 0 && node.scrollLeft < maxScroll) return true;
-                }
-            }
-            node = node.parentElement;
-        }
-        return false;
-    }
 
     function drawerDragMove(e: TouchEvent) {
         if (!dragPending && !isDragging) return;
@@ -334,7 +336,7 @@
             e.preventDefault();
             drawerTranslate = Math.min(
                 0,
-                Math.max(-DRAWER_WIDTH, dragBaseTranslate + dx),
+                Math.max(-drawerWidth, dragBaseTranslate + dx),
             );
             // Sample release velocity from the latest move; a pause before
             // release drops it toward zero, which correctly cancels a flick.
@@ -354,13 +356,13 @@
         isDragging = false;
         const { open, durationMs } = decideDrawerSnap(
             drawerTranslate,
-            DRAWER_WIDTH,
+            drawerWidth,
             dragVelocity,
         );
         snapDurationMs = durationMs;
         keepSnapDuration = true; // survive the sync effect's re-run
         interfaceState.leftOpen = open;
-        drawerTranslate = open ? 0 : -DRAWER_WIDTH;
+        drawerTranslate = open ? 0 : -drawerWidth;
     }
 
     function cleanupDocListeners() {
@@ -382,7 +384,7 @@
         dragStartX = e.touches[0].clientX;
         dragStartY = e.touches[0].clientY;
         dragTarget = e.target instanceof Element ? e.target : null;
-        dragBaseTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
+        dragBaseTranslate = interfaceState.leftOpen ? 0 : -drawerWidth;
         dragPending = true;
         document.addEventListener("touchmove", drawerDragMove, {
             passive: false,
@@ -1321,6 +1323,12 @@
         updateServiceWorkerNotificationPrivacy(
             settingsState.hideNotificationBody,
         );
+        if (auth.userId) {
+            updateServiceWorkerReceiptPrivacy(
+                auth.userId,
+                settingsState.privateReadReceipts,
+            );
+        }
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
@@ -1353,21 +1361,77 @@
             }
         };
 
+        // Put a notification reply that could not be sent back where the user
+        // can see it. The composer open for that draft key (main or thread)
+        // takes it; otherwise it merges into the draft the composer restores
+        // on mount.
+        const restoreQuickReplyDraft = (
+            roomId: string,
+            threadRootId: string | null,
+            text: string,
+        ) => {
+            const key = threadRootId
+                ? composerThreadKey(roomId, threadRootId)
+                : roomId;
+            if (deliverToLiveComposer(key, text)) return;
+            const existing = getDraft(key);
+            setDraft(
+                key,
+                composerInsertText(existing?.text ?? "", text),
+                new Map(existing?.mentions ?? []),
+            );
+        };
+
         const quickReplyFromNotification = async (
             roomId: string,
             userId?: string | null,
             text?: string,
+            eventId?: string | null,
+            stashId?: string,
         ) => {
             if (!roomId || !text || !text.trim()) return;
             const decision = decideNotificationRoute(
                 { roomId, userId },
                 { userId: auth.userId },
             );
+            // Route refused (other account) → return WITHOUT deleting the stash
+            // so that account can consume it at boot.
             if (decision.action !== "navigate") return;
+
             try {
-                await sendTextMessage(decision.roomId, text.trim());
-            } catch {
-                /* swallow — a failed background reply must not crash the shell */
+                await sendNotificationQuickReply(
+                    decision.roomId,
+                    text.trim(),
+                    eventId,
+                );
+                // Success → delete the stash
+                if (stashId) await deleteQuickReplyStash(stashId);
+            } catch (err) {
+                console.error("Quick reply failed", err);
+                // Failure → restore the text as a draft so nothing is lost.
+                try {
+                    const threadRootId = eventId
+                        ? await resolveQuickReplyThreadRoot(
+                              decision.roomId,
+                              eventId,
+                          )
+                        : null;
+                    restoreQuickReplyDraft(
+                        decision.roomId,
+                        threadRootId,
+                        text.trim(),
+                    );
+                } catch (restoreErr) {
+                    console.error(
+                        "Quick reply draft restore failed",
+                        restoreErr,
+                    );
+                }
+                showErrorToast(
+                    "Couldn't send your reply. It's saved as a draft.",
+                );
+                // Always delete the stash on failure (already consumed)
+                if (stashId) await deleteQuickReplyStash(stashId);
             }
         };
 
@@ -1433,7 +1497,7 @@
             eventId?: string,
             text?: string,
             userId?: string,
-        ) => quickReplyFromNotification(roomId, userId, text);
+        ) => quickReplyFromNotification(roomId, userId, text, eventId);
 
         (window as any).__matrixMarkAsRead = (
             roomId: string,
@@ -1455,6 +1519,8 @@
                     e.data.roomId,
                     e.data.userId,
                     e.data.text,
+                    e.data.eventId,
+                    e.data.stashId,
                 );
             } else if (e.data?.type === "NOTIF_MARK_READ" && e.data.roomId) {
                 quickMarkReadFromNotification(e.data.roomId, e.data.userId);
@@ -1687,10 +1753,49 @@
                             text: stash.text,
                             url: stash.url,
                             files: stash.files ?? [],
+                            droppedFiles: stash.droppedFiles,
                         });
                     }
                 } catch {
                     /* no stash / IDB unavailable — ignore */
+                }
+            })();
+        }
+        // Quick-reply stashes (notification actions when the page was closed):
+        // consume all stashes for this account and restore them as drafts.
+        // Never auto-send. Fire-and-forget.
+        if (auth.userId) {
+            (async () => {
+                try {
+                    const stashes = await takeQuickReplyStashes(auth.userId!);
+                    if (stashes.length === 0) return;
+
+                    for (const stash of stashes) {
+                        let threadRootId: string | null = null;
+                        if (stash.eventId) {
+                            try {
+                                threadRootId =
+                                    await resolveQuickReplyThreadRoot(
+                                        stash.roomId,
+                                        stash.eventId,
+                                    );
+                            } catch {
+                                // Best effort — treat as main timeline
+                            }
+                        }
+
+                        restoreQuickReplyDraft(
+                            stash.roomId,
+                            threadRootId,
+                            stash.text,
+                        );
+                    }
+
+                    showToast("Your notification reply was saved as a draft", {
+                        tone: "accent",
+                    });
+                } catch (err) {
+                    console.error("Failed to restore quick-reply stashes", err);
                 }
             })();
         }
@@ -1700,10 +1805,21 @@
         (async () => {
             try {
                 const profile = await fetchOwnProfile();
-                if (!auth.userId) return;
-                updateAccountProfile(auth.userId, {
+                if (!profile.userId) return;
+                // File it under the account that was fetched, not whoever is
+                // active after the await (audit CORE-02). mxcToHttp resolves
+                // against the ACTIVE homeserver, so a superseded fetch keeps
+                // its cached avatar URL instead.
+                const stillActive = profile.userId === auth.userId;
+                const cachedAvatar =
+                    accountsState.registry.accounts.find(
+                        (a) => a.userId === profile.userId,
+                    )?.avatarUrl ?? null;
+                updateAccountProfile(profile.userId, {
                     displayName: profile.displayName,
-                    avatarUrl: mxcToHttp(profile.avatarMxc, 64, 64),
+                    avatarUrl: stillActive
+                        ? mxcToHttp(profile.avatarMxc, 64, 64)
+                        : cachedAvatar,
                 });
             } catch {
                 // offline boot — cached values stay
@@ -1962,7 +2078,7 @@
 
         {#if !interfaceState.isMobile}
             <!-- Desktop: permanent sidebars + full-width profile footer -->
-            <div class="flex flex-col w-[312px] flex-shrink-0 min-h-0">
+            <div class="flex flex-col w-[19.5rem] flex-shrink-0 min-h-0">
                 <div class="flex flex-1 min-h-0 overflow-hidden">
                     <SpaceSidebar
                         onHomeClick={() => setActiveSpace(null)}
@@ -1994,11 +2110,12 @@
                 }}
             ></div>
             <div
-                class="fixed inset-y-0 left-0 z-40 flex flex-col w-[312px]"
+                bind:offsetWidth={drawerWidth}
+                class="fixed inset-y-0 left-0 z-40 flex flex-col w-[19.5rem]"
                 style="transform: translateX({drawerTranslate}px); {isDragging
                     ? ''
                     : `transition: transform ${snapDurationMs}ms cubic-bezier(0.2, 0, 0, 1);`} {drawerTranslate <=
-                -DRAWER_WIDTH
+                -drawerWidth
                     ? ''
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
                 inert={leftDrawerClosed}

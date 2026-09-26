@@ -22,10 +22,7 @@ export const VerificationPhaseValue = {
 } as const;
 
 export type VerificationPhaseKind =
-    | "pending"
-    | "active"
-    | "success"
-    | "cancelled";
+    "pending" | "active" | "success" | "cancelled";
 
 /**
  * Coarse state for styling and control logic: whether we're still setting up

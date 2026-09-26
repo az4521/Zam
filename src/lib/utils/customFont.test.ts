@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { validateCustomFontFile, CUSTOM_FONT_MAX_BYTES } from "./customFont";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import {
+    validateCustomFontFile,
+    CUSTOM_FONT_MAX_BYTES,
+    putStoredFont,
+} from "./customFont";
 
 describe("validateCustomFontFile", () => {
     it("accepts .woff2 and derives a display name", () => {
@@ -60,5 +64,59 @@ describe("validateCustomFontFile", () => {
         const long = "x".repeat(200) + ".woff2";
         const r = validateCustomFontFile({ name: long, size: 10 });
         expect(r.ok && r.displayName.length).toBe(60);
+    });
+});
+
+describe("putStoredFont", () => {
+    const rec = {
+        id: "custom" as const,
+        name: "F",
+        ext: "woff2",
+        data: new ArrayBuffer(4),
+        storedAt: 1,
+    };
+
+    // Minimal IndexedDB double: open() succeeds, and the readwrite
+    // transaction settles with the given event after put().
+    function stubIdb(outcome: "complete" | "error" | "abort") {
+        const tx: Record<string, unknown> = {
+            error: new Error("quota"),
+            objectStore: () => ({
+                put: () => {
+                    queueMicrotask(() => {
+                        const handler = tx[`on${outcome}`] as
+                            (() => void) | undefined;
+                        handler?.();
+                    });
+                },
+            }),
+        };
+        const db = { transaction: () => tx };
+        vi.stubGlobal("indexedDB", {
+            open: () => {
+                const req: Record<string, unknown> = { result: db };
+                queueMicrotask(() => (req.onsuccess as () => void)());
+                return req;
+            },
+        });
+    }
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("returns true when the write commits", async () => {
+        stubIdb("complete");
+        expect(await putStoredFont(rec)).toBe(true);
+    });
+    it("returns false when the write errors", async () => {
+        stubIdb("error");
+        expect(await putStoredFont(rec)).toBe(false);
+    });
+    it("returns false when the transaction aborts (quota exceeded)", async () => {
+        stubIdb("abort");
+        expect(await putStoredFont(rec)).toBe(false);
+    });
+    it("returns false when IndexedDB is unavailable", async () => {
+        vi.stubGlobal("indexedDB", undefined);
+        expect(await putStoredFont(rec)).toBe(false);
     });
 });

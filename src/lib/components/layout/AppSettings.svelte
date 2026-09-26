@@ -25,15 +25,19 @@
     } from "$lib/stores/interface.svelte";
     import {
         SETTINGS_TABS,
-        SETTINGS_GROUPS,
         settingsTabLabel,
         settingsNavView,
+        isSettingsTabAvailable,
+        visibleSettingsGroups,
         type SettingsTab,
     } from "$lib/utils/settingsNav";
     import {
         searchSettings,
+        settingsSearchKeyAction,
+        SETTINGS_SEARCH_INDEX,
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
+    import { isDesktopTray } from "$lib/desktopTray";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
@@ -64,8 +68,17 @@
         pluginsNavTick++;
     }
 
+    // Tabs with no content on this platform (General off packaged desktop)
+    // are hidden from the nav and from search (audit UX-12). The tray bridge
+    // is fixed for the page's lifetime, so a plain const is enough.
+    const platform = { desktopTray: isDesktopTray() };
+    const settingsGroups = visibleSettingsGroups(platform);
+    const searchIndex = SETTINGS_SEARCH_INDEX.filter((e) =>
+        isSettingsTabAvailable(e.tab, platform),
+    );
+
     let searchQuery = $state("");
-    const searchResults = $derived(searchSettings(searchQuery));
+    const searchResults = $derived(searchSettings(searchQuery, searchIndex));
     const searchActive = $derived(searchQuery.trim().length > 0);
 
     // Stable identity: it is the ownership token for the sub-page slot, so it
@@ -98,6 +111,22 @@
         el.classList.remove("message-highlight");
         void el.offsetWidth;
         el.classList.add("message-highlight");
+    }
+
+    // Escape clears a typed query before it closes the dialog; Enter opens the
+    // top result. Stopping propagation keeps that Escape away from AppShell's
+    // window handler, which would otherwise close the whole dialog.
+    function onSearchKeydown(e: KeyboardEvent) {
+        const action = settingsSearchKeyAction(
+            e,
+            searchQuery,
+            searchResults.length,
+        );
+        if (!action) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (action === "clear") searchQuery = "";
+        else void selectResult(searchResults[0]);
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -216,6 +245,7 @@
                 <input
                     type="search"
                     bind:value={searchQuery}
+                    onkeydown={onSearchKeydown}
                     placeholder="Search settings…"
                     aria-label="Search settings"
                     class="w-full px-3 py-2 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
@@ -223,10 +253,19 @@
             </div>
         {/if}
 
+        <!-- Always mounted so screen readers announce count changes while typing. -->
+        <p class="sr-only" aria-live="polite">
+            {#if searchActive}
+                {searchResults.length === 0
+                    ? "No settings match"
+                    : `${searchResults.length} ${searchResults.length === 1 ? "result" : "results"}`}
+            {/if}
+        </p>
+
         {#if searchActive}
             <div
                 class="flex-1 overflow-y-auto py-2"
-                role="listbox"
+                role="group"
                 aria-label="Search results"
             >
                 {#if searchResults.length === 0}
@@ -257,7 +296,7 @@
         {:else if view.mode === "list"}
             <!-- Mobile root: drill-down category list. -->
             <nav class="flex-1 overflow-y-auto py-2">
-                {#each SETTINGS_GROUPS as group (group.title)}
+                {#each settingsGroups as group (group.title)}
                     <div
                         class="px-6 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                     >
@@ -297,7 +336,7 @@
                 <nav
                     class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
                 >
-                    {#each SETTINGS_GROUPS as group (group.title)}
+                    {#each settingsGroups as group (group.title)}
                         <div
                             class="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                         >

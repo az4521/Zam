@@ -14,7 +14,7 @@ import {
     getCachedBundle,
     putCachedBundle,
     isCachedBundleUsable,
-    type CachedBundle,
+    isCacheFallbackAllowed,
 } from "./bundleCache";
 import {
     parsePersistedState,
@@ -36,9 +36,17 @@ import {
     removeInstalledPlugin,
     enabledPluginIds,
 } from "$lib/stores/plugins.svelte";
-import { normalizeRepoRef, rawUrl } from "./repo";
+import {
+    normalizeRepoRef,
+    parseIndex,
+    pinnedFileUrl,
+    commitShaApiUrl,
+    repoKey,
+    isCommitSha,
+} from "./repo";
 import { parseManifest } from "./manifest";
 import { satisfiesMinAppVersion } from "./semver";
+import { checkInstallId, decideRepoLoad } from "./pluginPin";
 import { deleteCachedBundle } from "./bundleCache";
 import { APP_VERSION } from "$lib/update";
 import { hostBridge } from "./hostBridge";
@@ -60,9 +68,8 @@ import {
 } from "./updateCheck";
 // Sanctioned host consumer of the SDK boundary (like hostApi.ts) — sync writes
 // self-scoped account data; plugins never import client.ts.
+import { persistPluginSync, loadPluginSync } from "../matrix/pluginHost";
 import {
-    persistPluginSync,
-    loadPluginSync,
     onTimelineEvent,
     onReactionEvent,
     onRoomUpdate,
@@ -76,6 +83,8 @@ import {
     setGlobalAutoUpdateState,
     setPluginAutoUpdateState,
     setUpdateAvailable,
+    setPluginNeedsUpdate,
+    setInstalledPluginSha,
     pluginRegistry,
 } from "$lib/stores/plugins.svelte";
 
@@ -140,6 +149,33 @@ export function setPluginAutoUpdate(id: string, v: boolean | undefined): void {
     setPluginAutoUpdateState(id, v);
 }
 
+// --- SHA resolution ---
+
+/**
+ * Resolve a branch to a commit SHA via the GitHub API. Called ONLY at install,
+ * update, and the boot migration for unpinned plugins. Throws on failure.
+ */
+async function resolveCommitSha(
+    ref: ReturnType<typeof normalizeRepoRef>,
+): Promise<string> {
+    const url = commitShaApiUrl(ref);
+    const res = await fetch(url, {
+        headers: { Accept: "application/vnd.github.sha" },
+    });
+    if (!res.ok) {
+        throw new Error(
+            `Couldn't resolve ${ref.owner}/${ref.repo}@${ref.branch} to a commit (HTTP ${res.status})`,
+        );
+    }
+    const sha = await res.text();
+    if (!isCommitSha(sha.trim())) {
+        throw new Error(
+            `GitHub API returned invalid SHA for ${ref.owner}/${ref.repo}@${ref.branch}`,
+        );
+    }
+    return sha.trim();
+}
+
 // --- loader wired to the item-2 store ---
 const ops: LoaderHostOps = {
     createHost: (id, manifest) => createPluginHost(id, manifest),
@@ -175,39 +211,100 @@ function builtinLoadable(
     return { manifest, source: "builtin", load: () => Promise.resolve(module) };
 }
 
-function repoBundleUrl(repoRef: string, manifest: Manifest): string {
-    const ref = normalizeRepoRef(repoRef);
-    return rawUrl(ref, `plugins/${manifest.id}/${manifest.entry}`);
-}
-
 function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
     return {
         manifest,
         source: "repo",
         async load() {
-            const bundleUrl = repoBundleUrl(repoRef, manifest);
+            const ref = normalizeRepoRef(repoRef);
+            const state = readState();
+            const persisted = state.plugins[manifest.id];
+
+            // Get pinned SHA from persisted state (if present and valid)
+            const pinnedSha =
+                persisted?.sha && isCommitSha(persisted.sha)
+                    ? persisted.sha
+                    : null;
+
+            // Get path from persisted state, fall back to plugins/<id>
+            const pluginPath = persisted?.path || `plugins/${manifest.id}`;
+
+            // Check cache
             const cached = await getCachedBundle(manifest.id);
-            if (isCachedBundleUsable(cached, manifest.version)) {
-                return blobImport((cached as CachedBundle).code);
+            const cacheUsable = isCachedBundleUsable(
+                cached,
+                manifest.version,
+                pinnedSha || undefined,
+            );
+            const hasAnyCache = !!cached;
+
+            // Try to resolve SHA if unpinned (migration path)
+            let resolvedSha: string | null = null;
+            if (!pinnedSha) {
+                try {
+                    resolvedSha = await resolveCommitSha(ref);
+                } catch {
+                    // Resolve failed — will be handled by decideRepoLoad
+                }
             }
+
+            // Decide what to do
+            const decision = decideRepoLoad({
+                pinnedSha,
+                cacheUsable,
+                hasAnyCache,
+                resolvedSha,
+            });
+
+            // Record SHA if migration succeeded
+            if (decision.record && persisted) {
+                persisted.sha = decision.record;
+                persisted.path = pluginPath;
+                writeState(state);
+                setInstalledPluginSha(manifest.id, decision.record);
+            }
+
+            if (decision.kind === "needs-update") {
+                setPluginNeedsUpdate(manifest.id, true);
+                throw new Error(
+                    `Needs update: couldn't resolve ${ref.owner}/${ref.repo}@${ref.branch} and no cache available`,
+                );
+            }
+            setPluginNeedsUpdate(manifest.id, false);
+
+            if (decision.kind === "cache") {
+                if (!cached) throw new Error("cache decision but no cache"); // shouldn't happen
+                return blobImport(cached.code);
+            }
+
+            // decision.kind === "fetch"
+            const sha = decision.sha;
             let res: Response;
             try {
-                res = await fetch(bundleUrl);
+                res = await fetch(
+                    pinnedFileUrl(ref, sha, pluginPath, manifest.entry),
+                );
             } catch (e) {
-                if (cached) return blobImport(cached.code);
+                // Network error: fall back to any cache
+                if (isCacheFallbackAllowed(cached, sha))
+                    return blobImport(cached.code);
                 throw e;
             }
+
             if (!res.ok) {
-                // Offline / 404: fall back to a stale cache if we have one.
-                if (cached) return blobImport(cached.code);
+                // Offline / 404: fall back to any cache if we have one
+                if (isCacheFallbackAllowed(cached, sha))
+                    return blobImport(cached.code);
                 throw new Error(`fetch bundle ${res.status}`);
             }
+
             const code = await res.text();
             await putCachedBundle({
                 pluginId: manifest.id,
                 version: manifest.version,
                 code,
                 cachedAt: Date.now(),
+                sha,
             });
             return blobImport(code);
         },
@@ -345,15 +442,20 @@ export function initPlugins(): () => void {
     }
 
     // 2) Register persisted repo installs (item 4 populates these; forward-safe).
+    const builtinIds = BUILTIN_PLUGINS.map((p) => p.manifest.id);
     for (const [id, entry] of Object.entries(state.plugins)) {
         if (entry.source !== "repo" || !entry.manifest || !entry.repoRef)
             continue;
+        // Skip plugins whose id collides with a built-in id (shouldn't happen,
+        // but defense in depth against persisted corruption).
+        if (builtinIds.includes(id)) continue;
         setInstalledPlugin({
             manifest: entry.manifest,
             source: "repo",
             enabled: entry.enabled,
             error: null,
             repoRef: entry.repoRef,
+            sha: entry.sha,
         });
         const l = repoLoadable(entry.manifest, entry.repoRef);
         loadables.set(id, l);
@@ -407,9 +509,9 @@ export function removeRepo(normalizedRef: string): void {
     removePluginRepo(normalizedRef);
 }
 
-/** Install a repo plugin: fetch + validate the manifest, cache the bundle
- *  (NO code runs — enable is a separate explicit action), record it disabled,
- *  and make it enablable without a reboot. Returns {ok:false,error} on any
+/** Install a repo plugin: resolve SHA, fetch + validate manifest at that SHA,
+ *  cache the bundle (NO code runs — enable is a separate explicit action),
+ *  record it disabled with the pinned SHA. Returns {ok:false,error} on any
  *  failure — never throws to the caller. */
 export async function installRepoPlugin(
     repoRef: string,
@@ -417,10 +519,78 @@ export async function installRepoPlugin(
 ): Promise<{ ok: boolean; error?: string }> {
     try {
         const ref = normalizeRepoRef(repoRef);
-        const manRes = await fetch(rawUrl(ref, `${entry.path}/manifest.json`));
+
+        // Check install id before doing any fetches
+        const builtinIds = BUILTIN_PLUGINS.map((p) => p.manifest.id);
+        const installed: Record<
+            string,
+            { source: "builtin" | "repo"; repoRef?: typeof ref }
+        > = {};
+        for (const [id, record] of Object.entries(installedPlugins)) {
+            let recordRef: ReturnType<typeof normalizeRepoRef> | undefined;
+            try {
+                recordRef = record.repoRef
+                    ? normalizeRepoRef(record.repoRef)
+                    : undefined;
+            } catch {
+                recordRef = undefined;
+            }
+            installed[id] = { source: record.source, repoRef: recordRef };
+        }
+        const idError = checkInstallId({
+            entryId: entry.id,
+            manifestId: entry.id, // will be checked again after manifest fetch
+            repoRef: ref,
+            builtinIds,
+            installed,
+        });
+        if (idError) return { ok: false, error: idError };
+
+        // Try to get synced SHA from account data
+        let sha: string | null = null;
+        try {
+            const syncData = loadPluginSync();
+            const syncPayload = syncData ? parseSyncPayload(syncData) : null;
+            if (syncPayload) {
+                const syncEntry = syncPayload.plugins[entry.id];
+                if (
+                    syncEntry &&
+                    syncEntry.repoRef &&
+                    repoKey(normalizeRepoRef(syncEntry.repoRef)) ===
+                        repoKey(ref) &&
+                    syncEntry.sha &&
+                    isCommitSha(syncEntry.sha)
+                ) {
+                    sha = syncEntry.sha;
+                }
+            }
+        } catch {
+            // Ignore sync errors — fall back to resolving
+        }
+
+        // If no valid synced SHA, resolve the branch
+        if (!sha) {
+            sha = await resolveCommitSha(ref);
+        }
+
+        // Fetch manifest at the pinned SHA
+        const manRes = await fetch(
+            pinnedFileUrl(ref, sha, entry.path, "manifest.json"),
+        );
         if (!manRes.ok)
             return { ok: false, error: `manifest fetch ${manRes.status}` };
         const manifest = parseManifest(await manRes.json());
+
+        // Re-check id now that we have the actual manifest
+        const manifestIdError = checkInstallId({
+            entryId: entry.id,
+            manifestId: manifest.id,
+            repoRef: ref,
+            builtinIds,
+            installed,
+        });
+        if (manifestIdError) return { ok: false, error: manifestIdError };
+
         if (
             manifest.minAppVersion &&
             !satisfiesMinAppVersion(APP_VERSION, manifest.minAppVersion)
@@ -430,31 +600,42 @@ export async function installRepoPlugin(
                 error: `requires app ${manifest.minAppVersion}+`,
             };
         }
+
+        // Fetch bundle at the same SHA
         const bundleRes = await fetch(
-            rawUrl(ref, `${entry.path}/${manifest.entry}`),
+            pinnedFileUrl(ref, sha, entry.path, manifest.entry),
         );
         if (!bundleRes.ok)
             return { ok: false, error: `bundle fetch ${bundleRes.status}` };
         const code = await bundleRes.text();
+
+        // Cache with SHA
         await putCachedBundle({
             pluginId: manifest.id,
             version: manifest.version,
             code,
             cachedAt: Date.now(),
+            sha,
         });
+
         setInstalledPlugin({
             manifest,
             source: "repo",
             enabled: false,
             error: null,
             repoRef,
+            sha,
         });
+
+        // Persist with SHA and path
         const s = readState();
         s.plugins[manifest.id] = {
             enabled: false,
             source: "repo",
             repoRef,
             manifest,
+            sha,
+            path: entry.path,
         };
         writeState(s);
         loadables.set(manifest.id, repoLoadable(manifest, repoRef));
@@ -471,6 +652,7 @@ export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
     loadables.delete(pluginId);
     await deleteCachedBundle(pluginId);
     removeInstalledPlugin(pluginId);
+    setPluginNeedsUpdate(pluginId, false);
     const state = readState();
     delete state.plugins[pluginId];
     writeState(state);
@@ -500,6 +682,7 @@ function localSnapshot(): LocalSyncSnapshot {
             repoRef: record.repoRef,
             autoUpdate: persisted?.autoUpdate,
             settings,
+            sha: persisted?.sha,
         };
     }
     return { repos: state.repos, autoUpdate: state.autoUpdate, plugins };
@@ -572,19 +755,20 @@ export async function applyPull(payload: PluginSyncPayload): Promise<void> {
     }
 }
 
-/** Given the latest versions seen in Browse indexes, publish the update badges
- *  and auto-update any plugin whose effective policy allows it. */
+/** Given the latest versions seen in Browse indexes (keyed by repoKey), publish
+ *  the update badges and auto-update any plugin whose effective policy allows it. */
 export async function applyUpdateCheck(
-    latestVersions: Record<string, string>,
+    latestByRepo: Record<string, Record<string, string>>,
 ): Promise<void> {
     const installed: InstalledForUpdate[] = Object.values(installedPlugins).map(
         (r) => ({
             id: r.manifest.id,
             version: r.manifest.version,
             source: r.source,
+            repoRef: r.repoRef ? normalizeRepoRef(r.repoRef) : undefined,
         }),
     );
-    const status = computeUpdateStatus(installed, latestVersions);
+    const status = computeUpdateStatus(installed, latestByRepo);
     const available: Record<string, string> = {};
     for (const s of status) if (s.hasUpdate) available[s.id] = s.latestVersion;
     setUpdateAvailable(available);
@@ -594,12 +778,22 @@ export async function applyUpdateCheck(
         pluginPrefs.autoUpdate,
         pluginPrefs.perPlugin,
     );
-    for (const id of auto) await updateRepoPlugin(id);
+    for (const id of auto) {
+        const res = await updateRepoPlugin(id);
+        // Surface a failed auto-update on the plugin's row; it keeps running
+        // its pinned code.
+        if (!res.ok)
+            markPluginError(
+                id,
+                `Auto-update failed: ${res.error ?? "unknown"}`,
+            );
+    }
 }
 
-/** Pull the newest bundle for an installed repo plugin: re-fetch manifest +
- *  bundle, re-cache, update the installed record, and reload if enabled.
- *  Preserves the enabled state (unlike install, which records disabled). */
+/** Pull the newest bundle for an installed repo plugin: resolve SHA, fetch index
+ *  + manifest + bundle at that SHA, re-cache, update the installed record with
+ *  the new SHA, and reload if enabled. Preserves the enabled state (unlike
+ *  install, which records disabled). */
 export async function updateRepoPlugin(
     pluginId: string,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -609,12 +803,42 @@ export async function updateRepoPlugin(
         if (!persisted || persisted.source !== "repo" || !persisted.repoRef)
             return { ok: false, error: "not an installed repo plugin" };
         const ref = normalizeRepoRef(persisted.repoRef);
+
+        // Resolve SHA FIRST
+        const sha = await resolveCommitSha(ref);
+
+        // Fetch index.json at the resolved SHA to find the entry
+        const indexRes = await fetch(pinnedFileUrl(ref, sha, "index.json"));
+        if (!indexRes.ok)
+            return { ok: false, error: `index fetch ${indexRes.status}` };
+        // parseIndex drops entries with an unsafe path; the index at THIS
+        // commit decides where the plugin lives now.
+        const entry = parseIndex(await indexRes.json()).find(
+            (e) => e.id === pluginId,
+        );
+        if (!entry)
+            return {
+                ok: false,
+                error: `plugin ${pluginId} not found in repo index`,
+            };
+        const pluginPath = entry.path;
+
+        // Fetch manifest at the pinned SHA
         const manRes = await fetch(
-            rawUrl(ref, `plugins/${pluginId}/manifest.json`),
+            pinnedFileUrl(ref, sha, pluginPath, "manifest.json"),
         );
         if (!manRes.ok)
             return { ok: false, error: `manifest fetch ${manRes.status}` };
         const manifest = parseManifest(await manRes.json());
+
+        // Manifest id must match the plugin id
+        if (manifest.id !== pluginId) {
+            return {
+                ok: false,
+                error: `manifest id mismatch: expected ${pluginId}, got ${manifest.id}`,
+            };
+        }
+
         if (
             manifest.minAppVersion &&
             !satisfiesMinAppVersion(APP_VERSION, manifest.minAppVersion)
@@ -623,34 +847,50 @@ export async function updateRepoPlugin(
                 ok: false,
                 error: `requires app ${manifest.minAppVersion}+`,
             };
+
+        // Fetch bundle at the same SHA
         const bundleRes = await fetch(
-            rawUrl(ref, `plugins/${pluginId}/${manifest.entry}`),
+            pinnedFileUrl(ref, sha, pluginPath, manifest.entry),
         );
         if (!bundleRes.ok)
             return { ok: false, error: `bundle fetch ${bundleRes.status}` };
         const code = await bundleRes.text();
+
+        // Cache with SHA
         await putCachedBundle({
             pluginId: manifest.id,
             version: manifest.version,
             code,
             cachedAt: Date.now(),
+            sha,
         });
-        const wasEnabled = loader.isLoaded(pluginId);
-        // Update record + persist, preserving enabled state.
+
+        const wasLoaded = loader.isLoaded(pluginId);
+        // A plugin the user enabled but that could not load (e.g. "needs
+        // update") comes up once the update gives it a pinned bundle.
+        const wasEnabled = wasLoaded || persisted.enabled;
+
+        // Update record + persist with new SHA and path, preserving enabled state.
         setInstalledPlugin({
             manifest,
             source: "repo",
             enabled: wasEnabled,
             error: null,
             repoRef: persisted.repoRef,
+            sha,
         });
         persisted.manifest = manifest;
+        persisted.sha = sha;
+        persisted.path = pluginPath;
         writeState(state);
+
         loadables.set(manifest.id, repoLoadable(manifest, persisted.repoRef));
-        if (wasEnabled) {
-            await disablePlugin(pluginId);
-            await enablePlugin(pluginId);
-        }
+
+        // Clear needs-update on success
+        setPluginNeedsUpdate(pluginId, false);
+
+        if (wasLoaded) await disablePlugin(pluginId);
+        if (wasEnabled) await enablePlugin(pluginId);
         return { ok: true };
     } catch (e) {
         return { ok: false, error: (e as Error).message };

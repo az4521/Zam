@@ -28,10 +28,10 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
-        sendEventContent,
         type CustomEmoji,
         type CustomSticker,
     } from "$lib/matrix/client";
+    import { sendEventContent } from "$lib/matrix/pluginHost";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
     import { buildReplyContent } from "$lib/utils/replyContent";
@@ -56,9 +56,10 @@
     import { auth } from "$lib/stores/auth.svelte";
     import {
         interfaceState,
-        openModal,
         closeModal,
         openComposerPicker,
+        openComposerActions,
+        releaseComposerActions,
     } from "$lib/stores/interface.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
@@ -71,6 +72,7 @@
         getDraft,
         setDraft,
         clearDraft,
+        registerLiveComposer,
     } from "$lib/stores/composerDrafts.svelte";
     import {
         getFileQueue,
@@ -184,6 +186,17 @@
         }
     });
 
+    // Background text restores (a failed notification quick reply) reach the
+    // composer that is open for this draft key, main or thread. Same shape as
+    // the insertText hook below: `text` is read inside the callback, so the
+    // effect depends only on the key.
+    $effect(() => {
+        const key = effComposerKey;
+        return registerLiveComposer(key, (t) =>
+            setComposerText(composerInsertText(text, t)),
+        );
+    });
+
     // Plugin composer.insertText → append to THIS (main) composer's text.
     // Only the main composer claims the global slot (mirrors focusComposer).
     // roomId-guarded so a stale handler from a previous room drops silently.
@@ -194,9 +207,10 @@
         if (isThread) return;
         const rid = roomId;
         const handler = (ctx: { roomId: string; text: string }) => {
-            if (ctx.roomId !== rid) return;
+            if (ctx.roomId !== rid) return false;
             setComposerText(composerInsertText(text, ctx.text));
             textareaEl?.focus();
+            return true;
         };
         hostBridge.insertText = handler;
         return () => {
@@ -260,38 +274,6 @@
         return () => {
             if (hostBridge.insertMention === handler)
                 hostBridge.insertMention = null;
-        };
-    });
-
-    // Share one-step send → fire THIS (main) composer's send() for a room. Same
-    // structure as insertMention: main composer only, roomId-guarded, and the
-    // mount-time drain is deferred one tick so it runs AFTER the per-room
-    // draft-restore effect's synchronous body (which sets `text = draft.text`),
-    // otherwise send() would read an empty caption. Re-checked + cleared at drain
-    // time so it stays idempotent; send() itself no-ops when already sending or
-    // when the composer is disabled (share then stays staged, never lost).
-    $effect(() => {
-        if (isThread) return;
-        const rid = roomId;
-        const handler = (ctx: { roomId: string }) => {
-            if (ctx.roomId !== rid) return;
-            void send();
-        };
-        hostBridge.sendNow = handler;
-        untrack(() => {
-            const q = hostBridge.pendingSend;
-            if (q && q.roomId === rid) {
-                void tick().then(() => {
-                    const q2 = hostBridge.pendingSend;
-                    if (q2 && q2.roomId === rid) {
-                        hostBridge.pendingSend = null;
-                        handler(q2);
-                    }
-                });
-            }
-        });
-        return () => {
-            if (hostBridge.sendNow === handler) hostBridge.sendNow = null;
         };
     });
 
@@ -517,24 +499,20 @@
         const custom = getCustomEmojis(room, roomsState.activeSpaceId)
             .filter((e) => e.shortcode.toLowerCase().includes(q))
             .slice(0, 5)
-            .map(
-                (e): EmojiCandidate => ({
-                    kind: "custom",
-                    shortcode: e.shortcode,
-                    url: e.url,
-                }),
-            );
+            .map((e): EmojiCandidate => ({
+                kind: "custom",
+                shortcode: e.shortcode,
+                url: e.url,
+            }));
         const unicode = ALL_EMOJIS.filter((e) =>
             e.name.toLowerCase().includes(q),
         )
             .slice(0, 8 - custom.length)
-            .map(
-                (e): EmojiCandidate => ({
-                    kind: "unicode",
-                    emoji: e.emoji,
-                    name: e.name,
-                }),
-            );
+            .map((e): EmojiCandidate => ({
+                kind: "unicode",
+                emoji: e.emoji,
+                name: e.name,
+            }));
         return [...custom, ...unicode];
     });
 
@@ -694,8 +672,16 @@
         interfaceState.modal === "composer-picker",
     );
     const showActionsMenu = $derived(
-        interfaceState.modal === "composer-actions",
+        interfaceState.modal === "composer-actions" &&
+            interfaceState.composerActionsOwner === effComposerKey,
     );
+    // Release our "+" menu when this composer unmounts (thread panel closed)
+    // or its key changes (room switch). The teardown is untracked, so the
+    // effect depends only on effComposerKey.
+    $effect(() => {
+        const key = effComposerKey;
+        return () => untrack(() => releaseComposerActions(key));
+    });
     const showEmojiPicker = $derived(
         composerPickerOpen &&
             interfaceState.composerPicker === "emoji" &&
@@ -1256,6 +1242,14 @@
         // or a draft write.
         const targetRoomId = roomId;
         const targetComposerKey = effComposerKey;
+        // Sender-side content transforms (plugins), run over each fully-built
+        // event this send produces: text, reply, thread reply, caption.
+        const transformOutgoingContent = (content: Record<string, unknown>) =>
+            applyContentTransforms(
+                content,
+                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+                { roomId: targetRoomId },
+            );
         // Snapshot the composer text too, before anything can mutate it: a
         // caption commit that lands after the user typed on must not wipe the
         // new sentence (nor yank the caret back to 0).
@@ -1325,11 +1319,7 @@
                 : html
                   ? buildFormattedContent(trimmed, html, mentions)
                   : buildTextContent(trimmed);
-            const content = applyContentTransforms(
-                baseContent,
-                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
-                { roomId: targetRoomId },
-            );
+            const content = transformOutgoingContent(baseContent);
             queueMessage(targetRoomId, content);
             if (replyToEvent) onCancelReply?.();
             createThreadArmed = false;
@@ -1355,12 +1345,14 @@
                         trimmed,
                         mentions,
                         html ?? undefined,
+                        transformOutgoingContent,
                     );
                 } else {
                     // Build the content in-component (byte-identical to the
                     // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
                     // utils/messageContent.ts), apply plugin content transforms,
-                    // then send. Thread replies + captions keep their own paths.
+                    // then send. Thread replies + captions keep their own send
+                    // paths, which apply the same transforms.
                     const baseContent: Record<string, unknown> = replyToEvent
                         ? (buildReplyContent({
                               replyEventId: replyToEvent.getId()!,
@@ -1371,13 +1363,7 @@
                         : html
                           ? buildFormattedContent(trimmed, html, mentions)
                           : buildTextContent(trimmed);
-                    const content = applyContentTransforms(
-                        baseContent,
-                        pluginRegistry.outgoingContentTransforms.map(
-                            (e) => e.value,
-                        ),
-                        { roomId: targetRoomId },
-                    );
+                    const content = transformOutgoingContent(baseContent);
                     sentEventId = await sendEventContent(targetRoomId, content);
                     if (replyToEvent) onCancelReply?.();
                     if (createThreadArmed) {
@@ -1407,6 +1393,7 @@
                             isThread
                                 ? { rootEventId: threadRootId! }
                                 : undefined,
+                            transformOutgoingContent,
                         );
                     }
                     return sendFile(
@@ -2037,10 +2024,7 @@
             <!-- "+" actions menu -->
             <div class="flex-shrink-0 relative">
                 <button
-                    onclick={() =>
-                        showActionsMenu
-                            ? closeModal()
-                            : openModal("composer-actions", () => {})}
+                    onclick={() => openComposerActions(effComposerKey)}
                     {disabled}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Add"

@@ -51,7 +51,10 @@ const pem = privateKey.export({ type: "pkcs8", format: "pem" });
 writeFileSync("vapid_private_key.pem", pem);
 
 // Derive the public key (uncompressed point) for verification.
-const spki = createPublicKey(privateKey).export({ type: "spki", format: "der" });
+const spki = createPublicKey(privateKey).export({
+    type: "spki",
+    format: "der",
+});
 const point = spki.subarray(spki.length - 65); // 0x04 || X(32) || Y(32)
 
 console.log("Wrote vapid_private_key.pem");

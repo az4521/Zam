@@ -14,9 +14,11 @@
         formatMediaSize,
         formatMediaDuration,
         mediaThumbnailMxc,
+        mediaTileSource,
         mediaViewerItem,
         type RoomMediaItem,
     } from "$lib/utils/roomMedia";
+    import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -101,6 +103,7 @@
             // re-mount on whatever lands at that index next.
             viewerIndex = null;
             thumbFailed = {};
+            releaseDecryptedBlobs();
             loading = true;
         } else {
             loadingMore = true;
@@ -208,57 +211,90 @@
         }
     }
 
-    // Decrypt encrypted thumbnails into the decryptedThumbs map
+    // Decrypted blob URLs live until the panel switches room or unmounts, and
+    // are released together here. Bumping `blobGen` (a plain let, never
+    // reactive) orphans any decrypt still in flight: it revokes its own URL
+    // instead of writing into the new room's maps.
+    let blobGen = 0;
+    const thumbPending = new Set<string>();
+    function releaseDecryptedBlobs(): void {
+        blobGen++;
+        thumbPending.clear();
+        for (const url of Object.values(decryptedThumbs))
+            URL.revokeObjectURL(url);
+        for (const url of Object.values(decryptedFull))
+            URL.revokeObjectURL(url);
+        decryptedThumbs = {};
+        decryptedFull = {};
+        viewerDecrypting = false;
+    }
+    $effect(() => () => releaseDecryptedBlobs());
+
+    // Decrypt each encrypted tile once: an image's own file, a video's
+    // thumbnail_file (never the video itself; see mediaTileSource). Re-runs on
+    // every "Load more", so it skips anything already decrypted or in flight.
     $effect(() => {
-        const encrypted = split.visual.filter(
-            (m) => m.encrypted && m.encryptedFile,
-        );
-        const urls: Record<string, string> = {};
-        Promise.all(
-            encrypted.map(async (m) => {
-                if (!m.encryptedFile) return;
-                try {
-                    const url = await fetchDecryptedAttachmentBlob(
-                        m.encryptedFile,
-                        m.mimetype ?? undefined,
-                    );
-                    urls[m.eventId] = url;
-                    decryptedThumbs[m.eventId] = url;
-                } catch {
-                    // Decryption failed, leave it out
-                }
-            }),
-        );
-        return () => {
-            Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
-        };
+        const wanted = split.visual
+            .map((m) => ({ id: m.eventId, source: mediaTileSource(m) }))
+            .filter((x) => x.source?.kind === "encrypted");
+        untrack(() => {
+            const gen = blobGen;
+            for (const { id, source } of wanted) {
+                if (source?.kind !== "encrypted") continue;
+                if (decryptedThumbs[id] || thumbPending.has(id)) continue;
+                thumbPending.add(id);
+                fetchDecryptedAttachmentBlob(
+                    source.file,
+                    source.mimetype ?? undefined,
+                )
+                    .then((url) => {
+                        if (gen !== blobGen) {
+                            URL.revokeObjectURL(url);
+                            return;
+                        }
+                        decryptedThumbs[id] = url;
+                    })
+                    .catch(() => {
+                        if (gen === blobGen) thumbFailed[id] = true;
+                    })
+                    .finally(() => {
+                        if (gen === blobGen) thumbPending.delete(id);
+                    });
+            }
+        });
     });
 
-    // Decrypt full media when the viewer opens on an encrypted item
+    // Decrypt full media when the viewer opens on an encrypted item. The
+    // result is kept in decryptedFull (released with the panel) even if the
+    // user has stepped on, but only the current item's decrypt may clear the
+    // spinner.
     $effect(() => {
         if (viewerIndex === null) return;
         const item = gallery[viewerIndex];
         if (!item || !item.encrypted || !item.encryptedFile) return;
-        if (decryptedFull[item.eventId]) return; // Already decrypted
+        const id = item.eventId;
+        if (untrack(() => decryptedFull[id])) return; // Already decrypted
+        const gen = blobGen;
+        let cancelled = false;
         viewerDecrypting = true;
-        let url: string | null = null;
         fetchDecryptedAttachmentBlob(
             item.encryptedFile,
             item.mimetype ?? undefined,
         )
             .then((decrypted) => {
-                url = decrypted;
-                decryptedFull[item.eventId] = decrypted;
-                viewerDecrypting = false;
+                if (gen !== blobGen) {
+                    URL.revokeObjectURL(decrypted);
+                    return;
+                }
+                decryptedFull[id] = decrypted;
+                if (!cancelled) viewerDecrypting = false;
             })
             .catch(() => {
-                viewerDecrypting = false;
+                if (!cancelled) viewerDecrypting = false;
             });
         return () => {
-            if (url && !decryptedFull[item.eventId]) {
-                // Only revoke if we're not keeping it in the map
-                URL.revokeObjectURL(url);
-            }
+            cancelled = true;
+            viewerDecrypting = false;
         };
     });
 </script>
@@ -356,10 +392,10 @@
             <div class="grid grid-cols-3 gap-1 p-2">
                 {#each split.visual as media (media.eventId)}
                     {@const thumbMxc = mediaThumbnailMxc(media)}
-                    {@const thumb = media.encrypted
-                        ? (decryptedThumbs[media.eventId] ?? null)
-                        : thumbFailed[media.eventId]
-                          ? null
+                    {@const thumb = thumbFailed[media.eventId]
+                        ? null
+                        : media.encrypted
+                          ? (decryptedThumbs[media.eventId] ?? null)
                           : mxcToHttp(thumbMxc, 160, 160)}
                     {@const duration = formatMediaDuration(media.durationMs)}
                     <button
@@ -457,9 +493,11 @@
 {#if viewerIndex !== null && gallery[viewerIndex]}
     {@const item = gallery[viewerIndex]}
     {@const view = mediaViewerItem(item, {
+        // An encrypted item resolves only once decrypted: its mxc holds
+        // ciphertext, which the viewer would download and fail to show.
         full: (mxc) =>
-            item.encrypted && decryptedFull[item.eventId]
-                ? decryptedFull[item.eventId]
+            item.encrypted
+                ? (decryptedFull[item.eventId] ?? null)
                 : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
         // own aspect ratio or the player letterboxes a distorted still.
@@ -491,13 +529,24 @@
             src={view.src}
             alt={view.filename}
             kind={view.kind}
-            poster={view.poster}
+            poster={item.encrypted
+                ? // An encrypted video has no thumbnail_url, so mediaViewerItem
+                  // never asks for one: use the decrypted thumbnail_file tile.
+                  view.kind === "video"
+                    ? (decryptedThumbs[item.eventId] ?? null)
+                    : null
+                : view.poster}
             filename={view.filename}
             onClose={() => (viewerIndex = null)}
             onPrev={viewerIndex > 0 ? () => step(-1) : undefined}
             onNext={viewerIndex < gallery.length - 1
                 ? () => step(1)
                 : undefined}
+            position={galleryPositionLabel(
+                gallery.length,
+                viewerIndex,
+                hasMore,
+            )}
         />
     {:else}
         <!-- mediaViewerItem resolved to nothing (bad mxc / signed-out media

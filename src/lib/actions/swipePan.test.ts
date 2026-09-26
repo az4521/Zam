@@ -63,12 +63,44 @@ describe("swipePan", () => {
         expect(calls.engage).not.toHaveBeenCalled();
     });
 
-    it("preventDefaults an engaged move (blocks scroll hijack)", () => {
+    it("registers touchstart and touchmove as passive (never blocks scroll)", () => {
+        const node = document.createElement("div");
+        const spy = vi.spyOn(node, "addEventListener");
+        const handle = swipePan(node, { enabled: true });
+        const opts = (type: string) =>
+            spy.mock.calls.find(([t]) => t === type)?.[2];
+        expect(opts("touchstart")).toEqual({ passive: true });
+        expect(opts("touchmove")).toEqual({ passive: true });
+        // touchend stays cancelable: it swallows the post-swipe compat click.
+        expect(opts("touchend")).toEqual({ passive: false });
+        handle.destroy();
+    });
+
+    it("leaves vertical panning to the browser via touch-action while enabled", () => {
+        const { node, handle } = setup();
+        expect(node.style.touchAction).toBe("pan-y pinch-zoom");
+        handle.update({ enabled: false });
+        expect(node.style.touchAction).toBe("");
+        handle.update({ enabled: true });
+        expect(node.style.touchAction).toBe("pan-y pinch-zoom");
+        handle.destroy();
+        expect(node.style.touchAction).toBe("");
+    });
+
+    it("does not set touch-action when created disabled", () => {
+        const { node } = setup({ enabled: false });
+        expect(node.style.touchAction).toBe("");
+    });
+
+    it("preventDefaults the touchend of an engaged swipe (no tap after swipe)", () => {
         const { node } = setup();
         node.dispatchEvent(touchEvent("touchstart", 200, 100));
-        const mv = touchEvent("touchmove", 200 - (SWIPE_FAR_PX + 5), 101);
-        node.dispatchEvent(mv);
-        expect(mv.defaultPrevented).toBe(true);
+        node.dispatchEvent(
+            touchEvent("touchmove", 200 - (SWIPE_FAR_PX + 5), 101),
+        );
+        const end = touchEvent("touchend", 200 - (SWIPE_FAR_PX + 5), 101);
+        node.dispatchEvent(end);
+        expect(end.defaultPrevented).toBe(true);
     });
 
     it("reports far stage past the far threshold", () => {
@@ -156,5 +188,86 @@ describe("swipePan", () => {
         expect(ancestorMove).toHaveBeenCalledTimes(2);
         handle.destroy();
         parent.remove();
+    });
+
+    it("does not engage on leftward drag inside scrollable-to-the-right element (UX-04)", () => {
+        const parent = document.createElement("div");
+        const scrollable = document.createElement("div");
+        scrollable.style.overflowX = "auto";
+        Object.defineProperty(scrollable, "scrollWidth", {
+            value: 500,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "clientWidth", {
+            value: 200,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "scrollLeft", {
+            value: 100,
+            configurable: true,
+        });
+
+        const node = document.createElement("div");
+        scrollable.appendChild(node);
+        parent.appendChild(scrollable);
+        document.body.appendChild(parent);
+
+        const ancestorMove = vi.fn();
+        parent.addEventListener("touchmove", ancestorMove);
+        const calls = {
+            engage: vi.fn(),
+            move: vi.fn(),
+        };
+
+        const handle = swipePan(node, {
+            enabled: true,
+            onEngage: calls.engage,
+            onMove: calls.move,
+        });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 - 30, 101)); // leftward, can scroll right
+
+        expect(calls.engage).not.toHaveBeenCalled();
+        // Should not stop propagation since we're not claiming it
+        expect(ancestorMove).toHaveBeenCalled();
+
+        handle.destroy();
+        parent.remove();
+    });
+
+    it("still engages when scrollable element is already at max scroll", () => {
+        const scrollable = document.createElement("div");
+        scrollable.style.overflowX = "auto";
+        Object.defineProperty(scrollable, "scrollWidth", {
+            value: 500,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "clientWidth", {
+            value: 200,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "scrollLeft", {
+            value: 300,
+            configurable: true,
+        }); // at max
+
+        const node = document.createElement("div");
+        scrollable.appendChild(node);
+        document.body.appendChild(scrollable);
+
+        const calls = {
+            engage: vi.fn(),
+        };
+        const handle = swipePan(node, {
+            enabled: true,
+            onEngage: calls.engage,
+        });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 - 30, 101)); // leftward, can't scroll more
+
+        expect(calls.engage).toHaveBeenCalled();
+
+        handle.destroy();
+        scrollable.remove();
     });
 });

@@ -4,6 +4,56 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## Unreleased
+
+🔒 **Privacy & security**
+
+- **Attachments you send into an encrypted room are now encrypted:** images, files, videos and voice messages. Encrypted videos, yours and other people's, play in the timeline and the media browser.
+- **Plugins with auto-update off stay frozen:** an installed repo plugin is pinned to the exact commit you installed or updated it at, and a cleared cache refetches that same commit. A plugin can't install under the id of a built-in or another repo's plugin.
+- Hardened message rendering: an emoji inside a link address can no longer break out of the link.
+- Sharing into the web app accepts only same-origin share requests, and caps them at 20 files, 100 MB per file and 200 MB in total. The share sheet says when it dropped files.
+- Desktop: the built-in file server handles malformed addresses safely, and links to local or private network addresses no longer open in your browser.
+
+📲 **Sharing & notifications**
+
+- **Share-sheet Send sends only what the sheet shows.** Your unsent draft, staged files and armed reply in that room stay where they were. If the send fails, the share is staged in the composer instead of lost.
+- Notification Mark as read respects private read receipts, even with the app closed.
+- A quick reply from a notification goes into the thread when the message was in a thread. A reply that fails to send comes back as a draft with an error, and a reply typed with the app closed is kept as a draft for next launch.
+- A call ring notification no longer replaces or dismisses a message notification from the same room.
+
+💬 **Messages**
+
+- A failed delete shows an error and the message comes back, instead of vanishing until reload.
+- Swiping sideways inside a wide code block scrolls it instead of starting a reply.
+- Swiping your own image or file replies instead of trying to edit it.
+- Links in your own message bubbles are readable, and the read-receipt button is easier to hit.
+
+🪟 **Menus & dialogs**
+
+- Escape and the Android back button close only the top overlay: the read-receipt list, What's New, the screen-share quality menu, the who-reacted sheet, plugin popovers and the composer "+" menu now all behave the same way.
+
+📞 **Calls**
+
+- Leaving a call while it is still connecting no longer shows an error.
+- A call that fails to connect shows one error, not an extra "disconnected" message.
+- Changing noise suppression or other mic settings keeps your chosen microphone.
+- A failed mic or camera switch goes back to the previous device and tells you.
+- Screen-share quality changes apply to the running share, and the lower-quality stream gets its own bitrate. The system-audio toggle says it applies to the next share.
+- Kick and Ban from a call tile ask you to confirm first.
+- Screen readers announce the status badges on call tiles.
+
+⚙️ **Settings**
+
+- The sidebar and room list no longer clip at large text sizes.
+- Deleting a theme preset and removing a plugin ask you to confirm first.
+- If a custom font can't be saved on this device, the app tells you.
+- The tray settings no longer show on the web, and settings search announces how many results it found.
+
+🧰 **Maintenance**
+
+- Dependency updates within their current versions. Known security advisories went from 22 to 4 low-severity ones.
+- Release builds now run type checks, tests and a formatting check first.
+
 ## v1.7.0
 
 ✨ **Animations & UI**

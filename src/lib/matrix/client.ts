@@ -24,7 +24,6 @@ import {
     M_BEACON,
     M_BEACON_INFO,
     ContentHelpers,
-    Filter,
     TimelineWindow,
 } from "matrix-js-sdk";
 import type {
@@ -38,15 +37,6 @@ import type {
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
-import type {
-    PluginRoomSummary,
-    PluginMemberSummary,
-    PluginTimelineMessage,
-} from "../plugins/types";
-import {
-    selectRecentMessages,
-    type PluginTimelineRecord,
-} from "../plugins/pluginTimeline";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
@@ -91,30 +81,40 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
-import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    settingsState,
+    setAudioInputDeviceId,
+    setVideoInputDeviceId,
+} from "$lib/stores/settings.svelte";
 import { installMediaHealer } from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
     guardOwnership,
-    nextGeneration,
     ownsRuntime,
     type ClientOwnership,
 } from "$lib/utils/clientGeneration";
+import {
+    captureClient,
+    clientGeneration,
+    getClient,
+    installClient,
+    matrixClient,
+    matrixStore,
+    ownedClient,
+    readOwner,
+    releaseClient,
+    retireClientGeneration,
+    setMatrixStore,
+} from "./runtime";
 import {
     sanitizeCustomization,
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
-import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
-import {
-    decryptAttachment,
-    type EncryptedFileInfo,
-} from "$lib/utils/decryptAttachment";
-import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -124,7 +124,6 @@ import {
 } from "$lib/stores/sessionHealth.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
-import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -144,6 +143,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
     withThreadRelation,
+    threadRootForQuickReply,
 } from "$lib/utils/threadContent";
 import {
     belongsToMainTimeline,
@@ -223,11 +223,6 @@ import {
     buildPollEnd,
     affectsPollView,
 } from "$lib/utils/pollContent";
-import {
-    mediaItemFromEvent,
-    mediaFilterDefinition,
-    type RoomMediaItem,
-} from "$lib/utils/roomMedia";
 import { buildForwardContent } from "$lib/utils/forwardContent";
 import {
     buildCallNotifyContent,
@@ -260,8 +255,8 @@ import {
     initCrypto,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
-    isRoomEncrypted,
 } from "$lib/matrix/crypto";
+import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
 import { createInFlightByKey } from "$lib/utils/inFlightByKey";
@@ -288,6 +283,8 @@ import {
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
+import { planShareSend } from "$lib/utils/shareSend";
+import { findFailedRedactionEcho } from "$lib/utils/redactionEcho";
 import {
     createPendingFollowUps,
     isRoomGone,
@@ -338,46 +335,25 @@ declare module "matrix-js-sdk" {
     }
 }
 
-let matrixClient: MatrixClient | null = null;
-let matrixStore: IndexedDBStore | null = null;
-// Monotonic id of the CURRENT occupant of the `matrixClient` slot, bumped on
-// every install and every release. An operation or listener that captured the
-// pair {client, generation} at entry can re-check it after an await and refuse
-// to act for an account that no longer owns the runtime.
-let clientGeneration = 0;
+export { getClient };
 
-export function getClient(): MatrixClient | null {
-    return matrixClient;
-}
+// SDK enums components compare against, so they never import matrix-js-sdk values
+export { EventStatus, EventType };
 
-/** The live occupant of the slot — the read side of every ownership guard. */
-function readOwner(): { client: MatrixClient | null; generation: number } {
-    return { client: matrixClient, generation: clientGeneration };
-}
-
-/** Snapshot the owner for an operation that spans awaits. */
-function captureClient(): ClientOwnership<MatrixClient> {
-    if (!matrixClient) throw new Error("Not logged in");
-    return captureOwnership(matrixClient, clientGeneration);
-}
-
-/** The captured client, or null once a successor has taken the slot. */
-function ownedClient(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient | null {
-    return ownsRuntime(owner, matrixClient, clientGeneration)
-        ? owner.client
-        : null;
-}
-
-/** As `ownedClient`, for operations whose caller must learn they aborted. */
-function ownedClientOrThrow(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient {
-    const client = ownedClient(owner);
-    if (!client) throw new Error(OWNERSHIP_LOST_MESSAGE);
-    return client;
-}
+// Media upload, send, and fetch wrappers (re-exported from media.ts for callers)
+export {
+    getMediaUploadSizeLimit,
+    uploadAttachment,
+    sendFile,
+    sendVoiceMessage,
+    mxcToHttp,
+    fetchAttachmentBlob,
+    fetchDecryptedAttachmentBlob,
+    getContentType,
+    fetchRoomMediaPage,
+    uploadContent,
+} from "./media";
+export type { MediaCaption, RoomMediaPage } from "./media";
 
 function getIndexedDBFactory(): IDBFactory | null {
     try {
@@ -411,21 +387,21 @@ async function createAuthenticatedClient(opts: {
     // NOW. Otherwise a 401 arriving from the account we just stopped still
     // passes its listeners' guard and runs root session-expiry teardown
     // against the account that is signing in.
-    clientGeneration = nextGeneration(clientGeneration);
+    retireClientGeneration();
     // Do NOT destroy the previous store here: with multiple signed-in
     // accounts the outgoing client usually belongs to an account that stays
     // signed in, and deleting its per-account sync cache (or racing that
     // async deletion against the add-account reload) corrupts or cold-boots
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
-    matrixStore = null;
+    setMatrixStore(null);
     // Same reasoning as the media limit below: the outgoing client's memoized
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
     // Drop the previous server's cached media-config upload limit — this funnel
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
-    mediaUploadSizePromise = null;
+    resetMediaUploadSizeLimit();
     // NOT dead code. Room-creation follow-ups are remembered per session, and
     // one sign-out path does NOT reload the page: session expiry
     // (`handleSessionExpired` in routes/+page.svelte) swaps to the login view
@@ -472,7 +448,7 @@ async function createAuthenticatedClient(opts: {
         resetSyncStoreFallback();
         try {
             await store.startup();
-            matrixStore = store;
+            setMatrixStore(store);
         } catch (err) {
             console.warn(
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
@@ -483,8 +459,7 @@ async function createAuthenticatedClient(opts: {
         }
     }
 
-    matrixClient = client;
-    clientGeneration = nextGeneration(clientGeneration);
+    installClient(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
@@ -792,7 +767,6 @@ export function deleteFailedMessage(event: MatrixEvent): void {
 // but never written again — see loadFavouriteGifs / persistFavouriteGifs.
 const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
 const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
-const PLUGIN_SYNC_KEY = "moe.crafty.matrix.plugins";
 
 export interface FavouriteGif {
     url: string;
@@ -872,23 +846,6 @@ export async function persistFavouriteGifs(
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
-}
-
-/** Push the manual plugin-sync payload to the user's account data. No-op when
- *  logged out. (Plugin boot glue is a sanctioned client.ts consumer, like hostApi.ts.) */
-export async function persistPluginSync(
-    content: PluginSyncAccountData,
-): Promise<void> {
-    if (!matrixClient) return;
-    await matrixClient.setAccountData(PLUGIN_SYNC_KEY, content);
-}
-
-/** Read the manual plugin-sync payload from account data, or null if absent. */
-export function loadPluginSync(): PluginSyncAccountData | null {
-    if (!matrixClient) return null;
-    const event = matrixClient.getAccountData(PLUGIN_SYNC_KEY);
-    if (!event) return null;
-    return event.getContent() as PluginSyncAccountData;
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
@@ -982,9 +939,7 @@ export async function logout(): Promise<void> {
     // stopped client (CRYPTO-04).
     const releaseSlot = () => {
         if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
-            matrixClient = null;
-            matrixStore = null;
-            clientGeneration = nextGeneration(clientGeneration);
+            releaseClient();
             // Memoized space-child ids belong to the account being released;
             // the next account must not read them back (R3 clears this on the
             // other two teardown paths for the same reason).
@@ -1071,12 +1026,12 @@ export async function logout(): Promise<void> {
 
 export function stopClient(): void {
     matrixClient?.stopClient();
-    matrixClient = null;
-    // Invalidate every outstanding ownership token: a stopped client's late
-    // callback must not run root teardown against its successor (LIFE-02).
-    clientGeneration = nextGeneration(clientGeneration);
-    matrixStore?.destroy().catch(() => {});
-    matrixStore = null;
+    // Releasing the slot invalidates every outstanding ownership token: a
+    // stopped client's late callback must not run root teardown against its
+    // successor (LIFE-02).
+    releaseClient()
+        ?.destroy()
+        .catch(() => {});
     // Room ids are globally unique so a surviving entry could not be *wrong*,
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();
@@ -1751,6 +1706,11 @@ export async function sendThreadReply(
     text: string,
     mentions?: { user_ids?: string[]; room?: boolean },
     formattedText?: string, // NEW: complete formatted_body (md + mentions + emoji), pre-built by caller
+    // Plugin outgoing content transforms: run over the fully-built reply
+    // content (thread relation included), right before the send.
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const room = matrixClient.getRoom(roomId);
@@ -1769,8 +1729,11 @@ export async function sendThreadReply(
         formattedText: resolvedFormatted,
         mentions,
     });
+    const outgoing = transformContent
+        ? transformContent(content as unknown as Record<string, unknown>)
+        : content;
     // 2-arg form only (⚑2 — the threadId overload mangles $-prefixed strings).
-    await matrixClient.sendMessage(roomId, content as never);
+    await matrixClient.sendMessage(roomId, outgoing as never);
 }
 
 /**
@@ -1778,7 +1741,7 @@ export async function sendThreadReply(
  * sticker, emote) so it lands in the thread rooted at `rootEventId`. Mirrors
  * sendThreadReply's latest-event resolution (is_falling_back reply pointer).
  */
-function threadRelationParams(
+export function threadRelationParams(
     roomId: string,
     rootEventId: string,
 ): { rootEventId: string; latestEventId?: string } {
@@ -1958,215 +1921,6 @@ export async function markThreadRead(
     await matrixClient.sendReadReceipt(latest, receiptType);
 }
 
-async function captureVideoThumbnail(file: File): Promise<{
-    blob: Blob;
-    w: number;
-    h: number;
-    thumbW: number;
-    thumbH: number;
-} | null> {
-    return new Promise((resolve) => {
-        const objectUrl = URL.createObjectURL(file);
-        const video = document.createElement("video");
-        video.preload = "metadata";
-        video.muted = true;
-        video.playsInline = true;
-        const cleanup = () => URL.revokeObjectURL(objectUrl);
-        video.onerror = () => {
-            cleanup();
-            resolve(null);
-        };
-        video.onloadedmetadata = () => {
-            // Seek to 10% into the video (or 1s, whichever is smaller) to get past black frames
-            video.currentTime = Math.min(1, video.duration * 0.1);
-        };
-        video.onseeked = () => {
-            const w = video.videoWidth;
-            const h = video.videoHeight;
-            const MAX = 800;
-            const scale = Math.min(1, MAX / Math.max(w, h));
-            const thumbW = Math.round(w * scale);
-            const thumbH = Math.round(h * scale);
-            const canvas = document.createElement("canvas");
-            canvas.width = thumbW;
-            canvas.height = thumbH;
-            canvas.getContext("2d")!.drawImage(video, 0, 0, thumbW, thumbH);
-            canvas.toBlob(
-                (blob) => {
-                    cleanup();
-                    if (blob) resolve({ blob, w, h, thumbW, thumbH });
-                    else resolve(null);
-                },
-                "image/jpeg",
-                0.85,
-            );
-        };
-        video.src = objectUrl;
-    });
-}
-
-export interface MediaCaption {
-    /** Plain-text caption (becomes the event body, per MSC2530). */
-    body: string;
-    /** Optional HTML caption (org.matrix.custom.html formatted_body). */
-    formattedBody?: string;
-    mentions?: { user_ids?: string[]; room?: boolean };
-}
-
-// Cached `m.upload.size` from the server's media config, fetched once per
-// session. `undefined` = not yet fetched; a stored promise dedupes concurrent
-// callers; a null resolution means the server didn't advertise a limit (or the
-// request failed) — in which case we skip the precheck rather than block uploads.
-let mediaUploadSizePromise: Promise<number | null> | null = null;
-
-async function getMediaUploadSizeLimit(): Promise<number | null> {
-    if (!matrixClient) return null;
-    if (!mediaUploadSizePromise) {
-        const client = matrixClient;
-        mediaUploadSizePromise = (async () => {
-            try {
-                const config = await client.getMediaConfig(true);
-                const size = config["m.upload.size"];
-                return typeof size === "number" ? size : null;
-            } catch {
-                mediaUploadSizePromise = null; // allow a retry next upload
-                return null;
-            }
-        })();
-    }
-    return mediaUploadSizePromise;
-}
-
-export async function sendFile(
-    roomId: string,
-    file: File,
-    caption?: MediaCaption,
-    thread?: { rootEventId: string },
-): Promise<void> {
-    const owner = captureClient();
-    // Precheck the size against the server's advertised upload limit so an
-    // over-limit file fails fast instead of a 413 mid-upload. This REJECTS
-    // rather than resolving: resolving read to the composer as "sent" and made
-    // the queued file disappear unsent (audit MEDIA-02). The caller owns the
-    // toast — FileTooLargeError's message is already user-facing copy.
-    const maxUploadSize = await getMediaUploadSizeLimit();
-    // A successor account may own the slot now: its server's limit is not this
-    // file's limit, and the rejection below would surface in its UI.
-    ownedClientOrThrow(owner);
-    if (exceedsUploadLimit(file.size, maxUploadSize)) {
-        throw new FileTooLargeError(
-            file.name,
-            file.size,
-            maxUploadSize as number,
-        );
-    }
-    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
-        file,
-        { name: file.name },
-    );
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
-    const isAudio = file.type.startsWith("audio/");
-    const msgtype = isImage
-        ? "m.image"
-        : isVideo
-          ? "m.video"
-          : isAudio
-            ? "m.audio"
-            : "m.file";
-
-    const info: Record<string, unknown> = {
-        mimetype: file.type,
-        size: file.size,
-    };
-
-    if (isVideo) {
-        const thumb = await captureVideoThumbnail(file);
-        if (thumb) {
-            const thumbFile = new File([thumb.blob], "thumbnail.jpg", {
-                type: "image/jpeg",
-            });
-            const { content_uri: thumb_uri } = await ownedClientOrThrow(
-                owner,
-            ).uploadContent(thumbFile, { name: "thumbnail.jpg" });
-            info.w = thumb.w;
-            info.h = thumb.h;
-            info.thumbnail_url = thumb_uri;
-            info.thumbnail_info = {
-                mimetype: "image/jpeg",
-                w: thumb.thumbW,
-                h: thumb.thumbH,
-                size: thumb.blob.size,
-            };
-        }
-    }
-
-    // MSC2530 media captions: when a caption is supplied, `filename` carries the
-    // original file name and `body` (plus optional formatted_body) carries the
-    // caption text — rendered as a message alongside the media. Without a
-    // caption, `body` is just the file name and no `filename` is sent.
-    const content: Record<string, unknown> = {
-        msgtype,
-        body: caption ? caption.body : file.name,
-        url: content_uri,
-        info,
-        // Always present (spec recommendation): an m.mentions key — even empty —
-        // disables the legacy body-scan push rules on the receiving server.
-        "m.mentions": caption?.mentions ?? {},
-    };
-    if (caption) {
-        content.filename = file.name;
-        if (caption.formattedBody) {
-            content.format = "org.matrix.custom.html";
-            content.formatted_body = caption.formattedBody;
-        }
-    }
-
-    const finalContent = thread
-        ? withThreadRelation(
-              content,
-              threadRelationParams(roomId, thread.rootEventId),
-          )
-        : content;
-    await ownedClientOrThrow(owner).sendMessage(roomId, finalContent as never);
-}
-
-/**
- * Send a recorded voice message as `m.audio` with the MSC3245 voice marker and
- * MSC1767 audio (duration + waveform) so Element renders it as a voice note.
- * Mirrors sendFile's upload-then-send shape.
- */
-export async function sendVoiceMessage(
-    roomId: string,
-    blob: Blob,
-    durationMs: number,
-    waveform: number[],
-): Promise<void> {
-    const owner = captureClient();
-    const ext = blob.type.includes("ogg")
-        ? "ogg"
-        : blob.type.includes("mp4")
-          ? "mp4"
-          : "webm";
-    const file = new File([blob], `voice-message.${ext}`, {
-        type: blob.type || "audio/webm",
-    });
-    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
-        file,
-        { name: file.name },
-    );
-    const duration = Math.round(durationMs);
-    await ownedClientOrThrow(owner).sendMessage(roomId, {
-        msgtype: "m.audio",
-        body: "Voice message",
-        url: content_uri,
-        info: { mimetype: file.type, size: blob.size, duration },
-        "org.matrix.msc3245.voice": {},
-        "org.matrix.msc1767.audio": { duration, waveform },
-        "org.matrix.msc1767.text": "Voice message",
-    } as never);
-}
-
 /** Share a static location as an m.location event (MSC3488). */
 export async function sendLocation(
     roomId: string,
@@ -2337,6 +2091,101 @@ export async function sendTextMessage(
     return res.event_id;
 }
 
+/**
+ * Resolve the thread root event id for a quick-reply routing decision. Returns
+ * the root id if the event is in a thread, otherwise null. Best-effort: event
+ * lookup errors are swallowed and treated as no thread.
+ */
+export async function resolveQuickReplyThreadRoot(
+    roomId: string,
+    eventId: string,
+): Promise<string | null> {
+    try {
+        const room = matrixClient?.getRoom(roomId);
+        let ev = room ? findEventById(room, eventId) : null;
+        if (!ev) {
+            ev = await fetchSingleEvent(roomId, eventId);
+        }
+        if (!ev) return null;
+        const wireContent = ev.getWireContent();
+        const relatesTo =
+            wireContent?.["m.relates_to"] ?? ev.getContent()["m.relates_to"];
+        return threadRootForQuickReply(relatesTo);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Send a notification quick-reply (plain text only, from a background action).
+ * If eventId is provided, routes the reply to the correct thread (if the event
+ * is in one) or the main timeline. Event lookup errors are treated as main
+ * timeline. Returns the thread root id if a thread reply was sent.
+ */
+export async function sendNotificationQuickReply(
+    roomId: string,
+    text: string,
+    eventId?: string | null,
+): Promise<{ threadRootId: string | null }> {
+    let threadRootId: string | null = null;
+    if (eventId) {
+        threadRootId = await resolveQuickReplyThreadRoot(roomId, eventId);
+    }
+
+    // Same content the composer paths build, but sent through
+    // sendOutboxMessage: on failure it cancels the NOT_SENT local echo this
+    // send created. A leftover echo would show a phantom failed message next
+    // to the restored draft and block every later send in the room ("Event
+    // blocked by other events not yet sent").
+    let content: Record<string, unknown>;
+    if (threadRootId) {
+        const room = matrixClient?.getRoom(roomId);
+        const latestEventId =
+            (room && getThreadSummary(room, threadRootId).latestEventId) ||
+            threadRootId;
+        const { formattedBody, hasFormatting } = parseMarkdown(text);
+        content = buildThreadReplyContent({
+            rootEventId: threadRootId,
+            latestEventId,
+            text,
+            formattedText: hasFormatting ? formattedBody : undefined,
+        }) as unknown as Record<string, unknown>;
+    } else {
+        content = { msgtype: "m.text", body: text, "m.mentions": {} };
+    }
+    await sendOutboxMessage(roomId, content);
+
+    return { threadRootId };
+}
+
+/**
+ * Send a share (files + optional caption, or text-only) directly without
+ * touching the composer's draft/queue/reply state. Bypasses the composer to
+ * avoid leaking the user's unsent draft into a share send. Share captions are
+ * always plain text (no markdown/mentions) — a share never pings.
+ */
+export async function sendShare(
+    roomId: string,
+    share: { caption: string; files: File[] },
+    onStepSent?: (i: number) => void,
+): Promise<void> {
+    const steps = planShareSend(share);
+
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (step.kind === "file") {
+            await sendFile(
+                roomId,
+                step.file,
+                step.caption ? { body: step.caption } : undefined,
+            );
+        } else {
+            await sendTextMessage(roomId, step.text);
+        }
+        onStepSent?.(i);
+    }
+}
+
 export async function sendFormattedMessage(
     roomId: string,
     body: string,
@@ -2442,28 +2291,6 @@ export async function forwardMessage(
     );
 }
 
-export function mxcToHttp(
-    mxcUrl: string | null | undefined,
-    width = 0,
-    height: number | undefined = undefined,
-    method = "crop",
-): string | null {
-    if (!matrixClient) return null;
-    // Validate against the spec grammar, then URL-encode each segment so a
-    // crafted server/media id can't smuggle path traversal or a query/fragment
-    // into the media URL. parseMxc rejects non-mxc input (returns null).
-    const parsed = parseMxc(mxcUrl ?? "");
-    if (!parsed) return null;
-    const serverName = encodeURIComponent(parsed.serverName);
-    const mediaId = encodeURIComponent(parsed.mediaId);
-    const baseUrl = matrixClient.getHomeserverUrl();
-    if (width > 0) {
-        height = height ?? width;
-        return `${baseUrl}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}?width=${width}&height=${height}&method=${method}`;
-    }
-    return `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
-}
-
 /**
  * Base URL of the homeserver this session is on, or null when signed out.
  * Exposed so the UI can tell homeserver-proxied media (safe to load: the
@@ -2472,86 +2299,6 @@ export function mxcToHttp(
 export function getHomeserverBaseUrl(): string | null {
     return matrixClient?.getHomeserverUrl() ?? null;
 }
-
-/** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
-export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const baseUrl = matrixClient.getHomeserverUrl();
-    // The access token must NEVER leave the homeserver. Refuse to attach it (or
-    // even fetch) any URL that isn't on our homeserver — mirrors getContentType's
-    // guard. Compare parsed ORIGIN, not a string prefix: a prefix test would
-    // pass `https://host@evil.com/…` (userinfo) or `https://host.evil.com/…`
-    // (host-suffix) and leak the token to a foreign host. Callers that need
-    // foreign media must fetch it themselves, unauthed.
-    if (!isSameOrigin(httpUrl, baseUrl)) {
-        throw new Error("Refusing to fetch a non-homeserver URL with auth");
-    }
-    const token = matrixClient.getAccessToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const resp = await fetch(httpUrl, { headers });
-    if (!resp.ok) throw new Error(`Failed to fetch attachment: ${resp.status}`);
-    const blob = await resp.blob();
-    return URL.createObjectURL(blob);
-}
-
-/**
- * Fetch an ENCRYPTED attachment (`content.file`) from the homeserver with auth,
- * decrypt it (AES-CTR, integrity-checked in decryptAttachment) and return an
- * object URL. Mirrors fetchAttachmentBlob's same-origin token guard. The
- * plaintext mimetype comes from the event's `content.info.mimetype` — the
- * EncryptedFile itself carries none. The caller owns the object URL and must
- * revoke it. Throws (never returns a URL) if the integrity hash fails.
- */
-export async function fetchDecryptedAttachmentBlob(
-    file: EncryptedFileInfo & { url: string },
-    mimetype?: string,
-): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const httpUrl = mxcToHttp(file.url);
-    if (!httpUrl) throw new Error("Encrypted attachment has an invalid URL");
-    const baseUrl = matrixClient.getHomeserverUrl();
-    if (!isSameOrigin(httpUrl, baseUrl)) {
-        throw new Error("Refusing to fetch a non-homeserver URL with auth");
-    }
-    const token = matrixClient.getAccessToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const resp = await fetch(httpUrl, { headers });
-    if (!resp.ok) {
-        throw new Error(`Failed to fetch encrypted attachment: ${resp.status}`);
-    }
-    const ciphertext = await resp.arrayBuffer();
-    const plaintext = await decryptAttachment(ciphertext, file);
-    // The sender controls `mimetype`; pin it to an inert-media allowlist so a
-    // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
-    // text/html blob in our origin (audit SEC-L9).
-    const blob = new Blob([plaintext], {
-        type: safeAttachmentMimeType(mimetype),
-    });
-    return URL.createObjectURL(blob);
-}
-
-/** HEAD-request a URL (with auth for homeserver URLs) and return its Content-Type. */
-export async function getContentType(url: string): Promise<string | null> {
-    if (!matrixClient) return null;
-    const accessToken = matrixClient.getAccessToken();
-    const baseUrl = matrixClient.getHomeserverUrl();
-    const headers: Record<string, string> = {};
-    // Attach auth only for same-ORIGIN homeserver URLs. A string prefix check
-    // is bypassable (userinfo / host-suffix) and would leak the token; see
-    // isSameOrigin. Foreign URLs are HEAD-requested without credentials.
-    if (accessToken && isSameOrigin(url, baseUrl)) {
-        headers.Authorization = `Bearer ${accessToken}`;
-    }
-    try {
-        const res = await fetch(url, { method: "HEAD", headers });
-        return res.ok ? res.headers.get("content-type") : null;
-    } catch {
-        return null;
-    }
-}
-
 /** Register the service worker and send it the current auth credentials. */
 // The most recent SET_AUTH payload, so the one-time `controllerchange` listener
 // re-hands the CURRENT account's token to a newly-activated worker (first
@@ -2601,6 +2348,10 @@ export async function initServiceWorker(): Promise<void> {
         type: "SET_NOTIF_PRIVACY",
         hideBody: settingsState.hideNotificationBody,
     };
+    // The per-account private-read-receipts mirror is NOT posted here: this
+    // runs before AppShell's reloadAccountSettings(), so the value would be the
+    // unscoped default and could land after AppShell's correct one (fail open).
+    // AppShell posts it (updateServiceWorkerReceiptPrivacy) once settings load.
     latestSwAuthMessage = authMsg;
     attachSwMediaListeners();
     try {
@@ -2684,6 +2435,28 @@ export function updateServiceWorkerNotificationPrivacy(hide: boolean): void {
             reg.active?.postMessage({
                 type: "SET_NOTIF_PRIVACY",
                 hideBody: hide,
+            }),
+        )
+        .catch(() => {});
+}
+
+/**
+ * Mirror the per-user "private read receipts" setting into the service worker.
+ * The SW has no localStorage, so it keeps its own copy in IndexedDB; a quick
+ * mark-read action from a notification reads that copy to decide which receipt
+ * type to send.
+ */
+export function updateServiceWorkerReceiptPrivacy(
+    userId: string,
+    isPrivate: boolean,
+): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) =>
+            reg.active?.postMessage({
+                type: "SET_RECEIPT_PRIVACY",
+                userId,
+                private: isPrivate,
             }),
         )
         .catch(() => {});
@@ -2828,17 +2601,24 @@ export function getOwnAvatarMxc(): string | null {
     return matrixClient?.getUser(userId)?.avatarUrl ?? null;
 }
 
-/** Fetch the logged-in user's profile fresh from the server. */
+/**
+ * Fetch the logged-in user's profile fresh from the server. `userId` is the
+ * account that was asked, captured BEFORE the await: an account switch during
+ * the request must not let the caller file this profile under the successor
+ * (audit CORE-02).
+ */
 export async function fetchOwnProfile(): Promise<{
+    userId: string | null;
     displayName: string | null;
     avatarMxc: string | null;
 }> {
-    const userId = matrixClient?.getUserId();
+    const userId = matrixClient?.getUserId() ?? null;
     if (!matrixClient || !userId) {
-        return { displayName: null, avatarMxc: null };
+        return { userId: null, displayName: null, avatarMxc: null };
     }
     const profile = await matrixClient.getProfileInfo(userId);
     return {
+        userId,
         displayName: profile.displayname ?? null,
         avatarMxc: profile.avatar_url ?? null,
     };
@@ -2912,8 +2692,7 @@ export async function getRoomVersionCapability(): Promise<{
 }> {
     const caps = await getServerCapabilities();
     const cap = caps["m.room_versions"] as
-        | { default?: string; available?: Record<string, unknown> }
-        | undefined;
+        { default?: string; available?: Record<string, unknown> } | undefined;
     return {
         default: typeof cap?.default === "string" ? cap.default : "",
         available: cap?.available ? Object.keys(cap.available) : [],
@@ -3535,8 +3314,7 @@ const pushRuleWriteQueue = createSerialQueue({
 
 function getGlobalPushRules(): Record<string, any[]> | undefined {
     return (matrixClient as any)?.pushRules?.global as
-        | Record<string, any[]>
-        | undefined;
+        Record<string, any[]> | undefined;
 }
 
 function findRule(ruleId: string): any | undefined {
@@ -4419,78 +4197,6 @@ export async function searchRoomMessagesMore(
     return matrixClient.backPaginateRoomEventsSearch(results);
 }
 
-/** One page of a room's media, newest first. `nextToken` is null at the end. */
-export interface RoomMediaPage {
-    items: RoomMediaItem[];
-    nextToken: string | null;
-    /** Whether the source room is encrypted. Surfaced so the UI can say why a
-     *  visibly media-full room lists nothing (E2EE attachments are
-     *  `content.file`, which the mapper cannot turn into a listable item) and
-     *  can stop paging instead of decrypting hundreds of events for nothing. */
-    encrypted: boolean;
-}
-
-/**
- * Fetch one backwards page of a room's image/video/file/audio attachments.
- *
- * Paginated on purpose — a room's whole history is never loaded. In an
- * encrypted room the page arrives as m.room.encrypted and has to be decrypted
- * here before the pure mapper can see a msgtype, which is also why the server
- * filter differs (see mediaFilterDefinition).
- */
-export async function fetchRoomMediaPage(
-    roomId: string,
-    fromToken: string | null,
-    limit = 40,
-): Promise<RoomMediaPage> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
-
-    const filter = new Filter(matrixClient.getUserId());
-    filter.setDefinition(mediaFilterDefinition(encrypted, limit));
-
-    const res = await matrixClient.createMessagesRequest(
-        roomId,
-        fromToken,
-        limit,
-        Direction.Backward,
-        filter,
-    );
-
-    const events = (res.chunk ?? []).map((raw) => new MatrixEvent(raw));
-
-    // Decrypt the whole page at once rather than 40 serial awaits. A missing
-    // key does NOT reject: the SDK's decryption loop swallows the error and
-    // marks the event as a decryption failure, so it resolves and the event
-    // surfaces as m.bad.encrypted, which the mapper rejects anyway. The catch
-    // is belt-and-braces for an unexpected throw.
-    await Promise.all(
-        events
-            .filter((e) => e.getType() === "m.room.encrypted")
-            .map((e) => matrixClient!.decryptEventIfNeeded(e).catch(() => {})),
-    );
-
-    const items: RoomMediaItem[] = [];
-    for (const event of events) {
-        const item = mediaItemFromEvent({
-            eventId: event.getId(),
-            sender: event.getSender(),
-            ts: event.getTs(),
-            type: event.getType(),
-            content: event.getContent() as Record<string, unknown>,
-        });
-        if (item) items.push(item);
-    }
-
-    // End of history is the token, not the chunk: conduit-derived servers
-    // (continuwuity/tuwunel) filter a fixed PDU window after the fact, so an
-    // empty chunk mid-history is normal. A token that does not advance means
-    // the server has nothing further to give.
-    const end = res.end ?? null;
-    const nextToken = end !== null && end !== fromToken ? end : null;
-    return { items, nextToken, encrypted };
-}
-
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
     const roomId = event.getRoomId();
@@ -5136,8 +4842,7 @@ const pendingFollowUps = createPendingFollowUps();
 async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+        Record<string, string[]> | undefined;
     await matrixClient.setAccountData(
         EventType.Direct,
         addToMDirect(cur, userId, roomId),
@@ -5546,8 +5251,7 @@ export async function acceptInvite(roomId: string): Promise<void> {
     if (isDirect && inviter) {
         const cur =
             (matrixClient.getAccountData(EventType.Direct)?.getContent() as
-                | Record<string, string[]>
-                | undefined) ?? {};
+                Record<string, string[]> | undefined) ?? {};
         await matrixClient
             .setAccountData(
                 EventType.Direct,
@@ -5679,105 +5383,6 @@ export async function removeReaction(
     await matrixClient.redactEvent(roomId, reactionEventId);
 }
 
-// --- Plugin host bridge (the ONLY plugin-facing client.ts surface; hostApi.ts
-// wraps these). Returns plain summaries, never live SDK objects. ---
-
-/** Send a fully-built event content object. 2-arg sendMessage form ONLY (the
- *  threadId overload mangles $-prefixed text — CLAUDE.md landmine). */
-export async function sendEventContent(
-    roomId: string,
-    content: Record<string, unknown>,
-): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const res = await matrixClient.sendMessage(roomId, content as never);
-    return res.event_id;
-}
-
-/** Plain room summary for plugins — never returns a live Room. */
-export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
-    const room = getRoom(roomId);
-    if (!room) return null;
-    return {
-        roomId,
-        name: room.name ?? roomId,
-        topic: getRoomTopic(room),
-        memberCount: getRoomMembers(room).length,
-        avatarUrl: getRoomAvatar(room),
-        joinRule: getJoinRule(room),
-    };
-}
-
-/** Plain joined-member summaries for plugins — never returns live RoomMembers. */
-export function getPluginRoomMembers(roomId: string): PluginMemberSummary[] {
-    const room = getRoom(roomId);
-    if (!room) return [];
-    return getRoomMembers(room).map((m) => ({
-        userId: m.userId,
-        displayName: m.name ?? null,
-        avatarUrl: mxcToHttp(m.getMxcAvatarUrl() ?? null),
-        powerLevel: m.powerLevel ?? 0,
-    }));
-}
-
-/** Last `limit` renderable messages as plain summaries for plugins. */
-export function getPluginRecentMessages(
-    roomId: string,
-    limit?: number,
-): PluginTimelineMessage[] {
-    const room = getRoom(roomId);
-    if (!room) return [];
-    const ownUserId = matrixClient?.getUserId() ?? null;
-    const records: PluginTimelineRecord[] = getTimelineMessages(room).map(
-        (e) => {
-            const content = e.getContent() ?? {};
-            return {
-                eventId: e.getId() ?? "",
-                sender: e.getSender() ?? "",
-                msgtype:
-                    typeof content.msgtype === "string"
-                        ? content.msgtype
-                        : e.getType(),
-                body: typeof content.body === "string" ? content.body : "",
-                timestamp: e.getTs() ?? 0,
-                isRedacted: e.isRedacted(),
-            };
-        },
-    );
-    return selectRecentMessages(records, limit, ownUserId);
-}
-
-/** Upload a Blob/File; resolve to its mxc:// URL (plugin media pipeline). */
-export async function uploadPluginMedia(
-    file: Blob,
-    name: string,
-    type?: string,
-): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name,
-        type: type ?? (file as File).type ?? undefined,
-    });
-    return content_uri;
-}
-
-/** Redact one of the user's OWN events. Throws if the event is not the
- *  caller's own (a plugin must not redact others' messages via this surface). */
-export async function redactOwnEvent(
-    roomId: string,
-    eventId: string,
-    reason?: string,
-): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const room = getRoom(roomId);
-    const ev = room?.findEventById(eventId);
-    const sender = ev?.getSender();
-    const me = matrixClient.getUserId();
-    if (!sender || sender !== me) {
-        throw new Error("redactOwn: event is not yours (or not found)");
-    }
-    await deleteMessage(roomId, eventId, reason);
-}
-
 export async function deleteMessage(
     roomId: string,
     eventId: string,
@@ -5787,12 +5392,39 @@ export async function deleteMessage(
     // 4-arg form: txnId undefined (SDK generates one), opts carries the
     // optional redaction reason. Omitting opts entirely when there is no
     // reason keeps the request byte-identical to the old 2-arg call.
-    await matrixClient.redactEvent(
-        roomId,
-        eventId,
-        undefined,
-        reason ? { reason } : undefined,
-    );
+    try {
+        await matrixClient.redactEvent(
+            roomId,
+            eventId,
+            undefined,
+            reason ? { reason } : undefined,
+        );
+    } catch (err) {
+        // audit UX-03: Failed delete must not look successful. On error, the
+        // SDK's local redaction echo stays in getPendingEvents() with status
+        // NOT_SENT (room.ts reverts only on CANCELLED), so the UI still hides
+        // the message. Cancel the echo so it reappears.
+        const room = matrixClient.getRoom(roomId);
+        if (room) {
+            const echo = findFailedRedactionEcho(
+                room.getPendingEvents(),
+                eventId,
+                EventStatus.NOT_SENT,
+            );
+            if (echo) {
+                // Keep the redaction error as the one callers see.
+                try {
+                    matrixClient.cancelPendingEvent(echo);
+                } catch (cancelErr) {
+                    console.warn(
+                        "[deleteMessage] cancel of failed redaction echo failed",
+                        cancelErr,
+                    );
+                }
+            }
+        }
+        throw err;
+    }
 }
 
 /**
@@ -6459,8 +6091,7 @@ function getUserEmoteContent(): RoomEmoteContent {
     if (!matrixClient) return {};
     return (
         (matrixClient.getAccountData("im.ponies.user_emotes")?.getContent() as
-            | RoomEmoteContent
-            | undefined) ?? {}
+            RoomEmoteContent | undefined) ?? {}
     );
 }
 
@@ -7003,14 +6634,6 @@ export async function setRoomTopic(
     await matrixClient.setRoomTopic(roomId, topic);
 }
 
-export async function uploadContent(file: File): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name: file.name,
-    });
-    return content_uri;
-}
-
 export async function setRoomAvatar(
     roomId: string,
     mxcUrl: string,
@@ -7375,35 +6998,6 @@ export async function sendSticker(
         info: sticker.info ?? {},
         // Always present (spec recommendation) so the receiver skips legacy
         // body-scan push rules; a sticker never carries intentional mentions.
-        "m.mentions": {},
-    };
-    const finalContent = thread
-        ? withThreadRelation(
-              content,
-              threadRelationParams(roomId, thread.rootEventId),
-          )
-        : content;
-    await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
-}
-
-/** Plugin-facing sticker send (host API `zam.matrix.sendSticker`). Same
- *  `m.sticker` content shape as `sendSticker`, but accepts the minimal plain
- *  payload a plugin passes (no `url` field required). */
-export async function sendPluginSticker(
-    roomId: string,
-    sticker: {
-        mxcUrl: string;
-        body?: string;
-        shortcode?: string;
-        info?: object;
-    },
-    thread?: { rootEventId: string },
-): Promise<void> {
-    if (!matrixClient) throw new Error("Not connected");
-    const content: Record<string, unknown> = {
-        body: sticker.body || sticker.shortcode || "sticker",
-        url: sticker.mxcUrl,
-        info: sticker.info ?? {},
         "m.mentions": {},
     };
     const finalContent = thread
@@ -8269,7 +7863,9 @@ function applyVoiceSink(el: HTMLAudioElement): void {
 // camera either lands on some other camera or fails and mutes. Hence the mic
 // notice can promise a fallback and the camera notice cannot.
 // One notice per kind per call.
-let voiceDeviceWatchStop: (() => void) | null = null;
+// The devicechange listener is installed once and lives for the page: it bails
+// when no call is active, so there is nothing to tear down.
+let voiceDeviceWatchStarted = false;
 let audioInputGoneNotified: ActiveVoiceCall | null = null;
 let videoInputGoneNotified: ActiveVoiceCall | null = null;
 
@@ -8299,7 +7895,7 @@ function activeCameraDeviceId(call: ActiveVoiceCall): string | null {
 }
 
 function ensureVoiceDeviceWatch(): void {
-    if (voiceDeviceWatchStop || !navigator.mediaDevices?.addEventListener)
+    if (voiceDeviceWatchStarted || !navigator.mediaDevices?.addEventListener)
         return;
     const onChange = async () => {
         const call = activeVoice;
@@ -8328,8 +7924,7 @@ function ensureVoiceDeviceWatch(): void {
         }
     };
     navigator.mediaDevices.addEventListener("devicechange", onChange);
-    voiceDeviceWatchStop = () =>
-        navigator.mediaDevices.removeEventListener("devicechange", onChange);
+    voiceDeviceWatchStarted = true;
 }
 
 type VoiceConnStateCb = (
@@ -8484,8 +8079,7 @@ export function getActiveVoiceRoomId(): string | null {
 async function configuredRtcFoci(): Promise<unknown[]> {
     if (!matrixClient) return [];
     let wk = matrixClient.getClientWellKnown() as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
     if (!wk) {
         // startClient() doesn't pass clientWellKnownPollPeriod, so the SDK
         // never fetches .well-known on its own and getClientWellKnown()
@@ -8497,8 +8091,7 @@ async function configuredRtcFoci(): Promise<unknown[]> {
             }
         ).fetchClientWellKnown();
         wk = matrixClient.getClientWellKnown() as
-            | Record<string, unknown>
-            | undefined;
+            Record<string, unknown> | undefined;
     }
     const foci = wk?.["org.matrix.msc4143.rtc_foci"];
     return Array.isArray(foci) ? foci : [];
@@ -8615,6 +8208,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
 
+    let connected = false;
     try {
         session.joinRTCSession(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
@@ -8767,7 +8361,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // SFU kicked us or the connection died for good — tear down
             // fully and tell the user. User-initiated leaves null
             // activeVoice first, so this only fires on genuine drops.
-            if (activeVoice?.lkRoom === lkRoom) {
+            // LiveKit emits Disconnected while still Connecting when the
+            // connect fails; the join's own catch reports that failure
+            // exactly once, so only act here when we were connected.
+            if (connected && activeVoice?.lkRoom === lkRoom) {
                 for (const cb of voiceErrorSubscribers)
                     cb("Voice call disconnected");
                 void leaveVoiceCall();
@@ -8798,6 +8395,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
 
         await lkRoom.connect(url, jwt);
+        connected = true;
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -8812,15 +8410,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     } catch (err) {
         if (activeVoice === call) {
             await leaveVoiceCall();
+            throw err;
         } else {
             // Superseded mid-join: tear down our own resources only. The
             // superseder's leave already left the RTC session; don't touch
-            // the per-room session object a rejoin may be re-joining.
+            // the per-room session object a rejoin may be re-joining. Return
+            // without throwing — the superseder owns the outcome, and the
+            // function's doc contract says it resolves without joining when
+            // superseded.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
             await call.lkRoom.disconnect().catch(() => {});
+            return;
         }
-        throw err;
     }
 }
 
@@ -8863,12 +8465,14 @@ async function leaveVoiceCallInternal(): Promise<void> {
         );
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
-        try {
-            await call.lkRoom.disconnect();
-        } catch {
-            // already disconnected
-        }
-        await call.session.leaveRoomSession(10_000).catch(() => {});
+        // In parallel, not SFU-first: the membership leave is what other
+        // users' rosters see, and it must fit the account-switch and logout
+        // windows even when the LiveKit teardown is slow (audit IMP-1).
+        // Both settle quietly: a rejected disconnect means already gone.
+        await Promise.allSettled([
+            call.lkRoom.disconnect(),
+            call.session.leaveRoomSession(10_000),
+        ]);
     })();
     voiceLeaveInFlight = run;
     try {
@@ -8916,26 +8520,83 @@ export function setVoiceOutputVolume(volume: number): void {
     }
 }
 
+/** Switch a live call input device. LiveKit's restart stops the current
+ *  track BEFORE acquiring the new device, so a failed switch (device held by
+ *  another app, vanished id) leaves the published track ended and silent.
+ *  On failure, restore the previous device (else the system default), point
+ *  the saved selection back at the device actually in use (callers persist
+ *  the pick before switching), and tell the user. Resolves either way; never
+ *  throws. A muted mic is not covered: LiveKit defers its restart to unmute. */
+async function switchInputWithRecovery(
+    call: ActiveVoiceCall,
+    kind: "audioinput" | "videoinput",
+    deviceId: string,
+    exact: boolean,
+    what: string,
+): Promise<void> {
+    const source =
+        kind === "audioinput"
+            ? call.lk.Track.Source.Microphone
+            : call.lk.Track.Source.Camera;
+    const track =
+        call.lkRoom.localParticipant.getTrackPublication(source)?.track;
+    const previousId = track?.mediaStreamTrack.getSettings().deviceId;
+    const persist =
+        kind === "audioinput" ? setAudioInputDeviceId : setVideoInputDeviceId;
+    const trySwitch = async (id: string, ex: boolean): Promise<boolean> => {
+        try {
+            return (
+                (await call.lkRoom.switchActiveDevice(kind, id, ex)) !== false
+            );
+        } catch {
+            return false;
+        }
+    };
+    if (await trySwitch(deviceId, exact)) return;
+    if (activeVoice !== call) return;
+    // exact: Chromium treats a bare (ideal) deviceId as a hint and hands back
+    // the default device, which LiveKit then reports as a failed switch.
+    if (
+        previousId &&
+        previousId !== "default" &&
+        (await trySwitch(previousId, true))
+    ) {
+        persist(previousId);
+        if (activeVoice === call)
+            notifyVoiceNotice(
+                `Couldn't switch to that ${what} - kept your previous one`,
+            );
+        return;
+    }
+    const onDefault = await trySwitch("default", false);
+    if (onDefault) persist(null);
+    if (activeVoice !== call) return;
+    notifyVoiceNotice(
+        onDefault
+            ? `Couldn't switch to that ${what} - using the default device`
+            : `Couldn't switch to that ${what} - pick another device`,
+    );
+}
+
 /** Switch the live call's microphone. A null deviceId selects the system
  *  default device live (previously this was a no-op that only took effect on
  *  the next join). */
 export async function setVoiceInputDevice(
     deviceId: string | null,
 ): Promise<void> {
-    if (!activeVoice) return;
-    if (deviceId) {
-        // exact:true (switchActiveDevice's default) — unchanged real-device path.
-        await activeVoice.lkRoom
-            .switchActiveDevice("audioinput", deviceId)
-            .catch(() => {});
-    } else {
-        // System default: LiveKit resolves the "default" sentinel to the OS
-        // default input; exact:false so browsers without a literal "default"
-        // device id (Firefox) fall back to their default instead of throwing.
-        await activeVoice.lkRoom
-            .switchActiveDevice("audioinput", "default", false)
-            .catch(() => {});
-    }
+    const call = activeVoice;
+    if (!call) return;
+    // A real device uses exact:true (switchActiveDevice's default). System
+    // default: LiveKit resolves the "default" sentinel to the OS default
+    // input; exact:false so browsers without a literal "default" device id
+    // (Firefox) fall back to their default instead of throwing.
+    await switchInputWithRecovery(
+        call,
+        "audioinput",
+        deviceId ?? "default",
+        !!deviceId,
+        "microphone",
+    );
 }
 
 /** getDisplayMedia rejects with NotAllowedError/AbortError when the user
@@ -8982,15 +8643,18 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     } catch (err) {
         if (isUserCancel(err)) return false;
         console.error("Screen share failed:", err);
+        // Left the call while the picker was open: LiveKit already dropped
+        // the late track, and a failure toast for an ended call is noise.
+        if (activeVoice !== call) return false;
         notifyVoiceNotice("Could not start screen share");
         return false;
     }
 }
 
-/** Re-encode the currently published screen share to a new quality without
- *  re-acquiring the capture (capture resolution can't change live; the publish
- *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
- *  is being shared. */
+/** Re-target the currently published screen share to a new quality without
+ *  re-acquiring the capture: applyConstraints moves the running capture's
+ *  resolution/fps, then the publish encoding (bitrate/framerate cap) follows.
+ *  No-op when nothing is being shared. */
 async function applyScreenShareQualityNow(
     resKey: string,
     fps: number,
@@ -9003,6 +8667,19 @@ async function applyScreenShareQualityNow(
     const sender = track?.sender;
     if (!track || !sender) return;
     try {
+        // Apply the new capture constraints first, so the underlying capture
+        // adjusts before we change the encoding bitrate/framerate caps. Use
+        // ideal so a smaller capture doesn't throw OverconstrainedError.
+        const { width, height, frameRate } = screenShareCaptureResolution(
+            resKey,
+            fps,
+        );
+        await track.mediaStreamTrack.applyConstraints({
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: frameRate },
+        });
+
         const params = sender.getParameters();
         if (
             applyScreenShareEncoding(
@@ -9017,6 +8694,9 @@ async function applyScreenShareQualityNow(
         }
     } catch (err) {
         console.error("Screen share quality change failed:", err);
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't change screen share quality");
+        }
     }
 }
 
@@ -9042,6 +8722,8 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         return on;
     } catch (err) {
         console.error("Camera enable failed:", err);
+        // Same as screen share: no toast once the call has ended.
+        if (activeVoice !== call) return false;
         notifyVoiceNotice("Could not start the camera - check permissions");
         return false;
     }
@@ -9052,10 +8734,9 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
 export async function setVideoInputDevice(
     deviceId: string | null,
 ): Promise<void> {
-    if (!activeVoice || !deviceId) return;
-    await activeVoice.lkRoom
-        .switchActiveDevice("videoinput", deviceId)
-        .catch(() => {});
+    const call = activeVoice;
+    if (!call || !deviceId) return;
+    await switchInputWithRecovery(call, "videoinput", deviceId, true, "camera");
 }
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a
@@ -9071,7 +8752,28 @@ export async function setVoiceCaptureConstraints(c: {
         call.lk.Track.Source.Microphone,
     )?.audioTrack;
     if (!track) return;
-    await track.restartTrack({ ...c }).catch(() => {});
+    // Pass the current device along so restartTrack doesn't switch to the
+    // OS default. Prefer the live track's device id, else the saved selection.
+    // It must be `exact`: Chromium treats a bare (ideal) deviceId as a hint
+    // and re-acquired the default mic in live testing. If the exact device
+    // is gone, fall back to an ideal hint rather than leaving the mic dead
+    // (the restart has already stopped the old track by then).
+    const deviceId =
+        track.mediaStreamTrack.getSettings().deviceId ??
+        settingsState.audioInputDeviceId ??
+        undefined;
+    try {
+        await track.restartTrack({
+            ...c,
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+        });
+    } catch (err) {
+        console.error("Voice capture constraints change failed:", err);
+        await track.restartTrack({ ...c, deviceId }).catch(() => {});
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't apply audio processing change");
+        }
+    }
 }
 
 /** Live srcObject streams of the call's remote <audio> elements (feeds the

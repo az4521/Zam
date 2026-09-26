@@ -18,18 +18,17 @@ import {
 } from "./settingsSchema";
 import { settingsStorageKey } from "./pluginSettingsStore";
 import { hostBridge } from "./hostBridge";
+import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
-    sendReaction,
     getPluginRoomSummary,
     getPluginRoomMembers,
     sendPluginSticker,
-    getOwnUserId,
     getPluginRecentMessages,
     uploadPluginMedia,
+    sendPluginMedia,
     redactOwnEvent,
-    getClient,
-} from "../matrix/client";
+} from "../matrix/pluginHost";
 
 export interface BuildHostApiOptions {
     pluginId: string;
@@ -250,7 +249,12 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         ui: {
             openPopover: (o) =>
                 hostBridge.openPopover
-                    ? track(hostBridge.openPopover(o))
+                    ? track(
+                          hostBridge.openPopover({
+                              ...o,
+                              label: o.label ?? manifest.name,
+                          }),
+                      )
                     : warnNoopDisposable("ui.openPopover"),
             registerPanel: (p) =>
                 track(addEntry(registry, "panels", pluginId, p)),
@@ -290,6 +294,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 }).then(() => {}),
             sendSticker: (roomId, sticker, thread) =>
                 sendPluginSticker(roomId, sticker, thread),
+            sendMedia: (roomId, blob, opts) =>
+                sendPluginMedia(roomId, blob, opts ?? {}),
             getRoomSummary: (roomId) => getPluginRoomSummary(roomId),
             getMembers: (roomId) => getPluginRoomMembers(roomId),
             react: (roomId, eventId, key) => sendReaction(roomId, eventId, key),

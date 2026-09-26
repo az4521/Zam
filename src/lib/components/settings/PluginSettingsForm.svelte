@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import {
         installedPlugins,
         getPluginHost,
@@ -42,9 +43,13 @@
     const pluginName = $derived(record?.manifest.name ?? pluginId);
 
     // Initialize once from storage. The user is editing from here on, so this
-    // must NOT re-read reactively.
+    // must NOT re-read reactively (the parent keys this form on pluginId, so a
+    // different plugin remounts it). untrack() states that snapshot intent and
+    // silences svelte-check's state_referenced_locally warning.
     let values = $state<Record<string, unknown>>(
-        readPluginSettings(pluginId, record?.manifest.settings ?? []),
+        untrack(() =>
+            readPluginSettings(pluginId, record?.manifest.settings ?? []),
+        ),
     );
 
     /** Single write path: update local state, then persist + broadcast via the

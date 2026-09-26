@@ -46,3 +46,29 @@ export function setDraft(
 export function clearDraft(roomId: string): void {
     delete draftsState.drafts[roomId];
 }
+
+// Open composers by draft key. A mounted composer reads its draft only when
+// its key becomes active and writes it back when it leaves, so text put into
+// the draft store underneath an open composer would never show and would be
+// overwritten. Code that restores text in the background (a failed
+// notification quick reply) hands it to the open composer instead.
+const liveComposers = new Map<string, (text: string) => void>();
+
+/** Register the composer that is open for `key`. Returns the unregister fn. */
+export function registerLiveComposer(
+    key: string,
+    insert: (text: string) => void,
+): () => void {
+    liveComposers.set(key, insert);
+    return () => {
+        if (liveComposers.get(key) === insert) liveComposers.delete(key);
+    };
+}
+
+/** Append text to the open composer for `key`. False when none is open. */
+export function deliverToLiveComposer(key: string, text: string): boolean {
+    const insert = liveComposers.get(key);
+    if (!insert) return false;
+    insert(text);
+    return true;
+}

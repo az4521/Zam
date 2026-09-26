@@ -110,11 +110,12 @@ export const plugin: PluginModule = {
             roomId: string;
             eventId: string;
             isOwn: boolean;
+            canEdit?: boolean;
             threshold: "short" | "far";
         }) => {
             const action = resolveSwipe(
                 ctx.threshold,
-                ctx.isOwn,
+                ctx.canEdit ?? ctx.isOwn,
                 zam.settings.get<boolean>("swipeEnabled", true),
             );
             if (action === "reply") {

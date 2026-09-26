@@ -142,6 +142,7 @@ export type SwipeHandler = (ctx: {
     roomId: string;
     eventId: string;
     isOwn: boolean;
+    canEdit: boolean;
     threshold: SwipeThreshold;
 }) => void;
 
@@ -227,8 +228,8 @@ export interface ZamPluginApi {
         transformOutgoingContent(fn: OutgoingContentTransform): Disposable;
         onDoubleTap(handler: DoubleTapHandler): Disposable;
         /** Fired when a message row is swiped left past a threshold (item 6).
-         *  short = reply intent, far = edit intent (edit gated on isOwn by the
-         *  consumer). Detection stays core; the action is the plugin's. */
+         *  short = reply intent, far = edit intent (gated on canEdit: your own
+         *  editable text message). Detection stays core; the action is the plugin's. */
         onSwipe(handler: SwipeHandler): Disposable;
         addAction(action: MessageActionItem): Disposable;
         decorate(fn: MessageDecorator): Disposable;
@@ -243,6 +244,8 @@ export interface ZamPluginApi {
         openPopover(opts: {
             anchor: HTMLElement;
             render(el: HTMLElement): void | (() => void);
+            /** Accessible name of the popover dialog; defaults to the plugin's name. */
+            label?: string;
         }): Disposable;
         registerPanel(panel: PanelRegistration): Disposable;
         notify(opts: { title?: string; body: string }): void;
@@ -257,6 +260,12 @@ export interface ZamPluginApi {
 
     matrix: {
         sendMessage(roomId: string, content: object): Promise<void>;
+        /**
+         * Send an image message (m.image) with the given url and info.
+         * **IMPORTANT:** This sends PLAINTEXT (unencrypted) even in encrypted
+         * rooms. Prefer `sendMedia` for new code, which encrypts attachments in
+         * encrypted rooms.
+         */
         sendImage(
             roomId: string,
             file: { url: string; info?: object; body?: string },
@@ -267,6 +276,21 @@ export interface ZamPluginApi {
             roomId: string,
             sticker: PluginSticker,
             thread?: { rootEventId: string },
+        ): Promise<void>;
+        /**
+         * Upload a Blob and send it as a media message (m.image/m.video/m.audio/m.file).
+         * **Encrypts attachments in encrypted rooms** (except m.video, which is queued).
+         * Prefer this over `uploadMedia` + `sendImage` for new plugin code.
+         */
+        sendMedia(
+            roomId: string,
+            blob: Blob,
+            opts?: {
+                name?: string;
+                type?: string;
+                body?: string;
+                msgtype?: string;
+            },
         ): Promise<void>;
         getRoomSummary(roomId: string): PluginRoomSummary | null;
         getMembers(roomId: string): PluginMemberSummary[];
@@ -280,8 +304,12 @@ export interface ZamPluginApi {
             roomId: string,
             limit?: number,
         ): PluginTimelineMessage[];
-        /** Upload a Blob/File and resolve to its `mxc://` URL, e.g. to then
-         *  `sendImage`. Rejects if not logged in / upload fails. */
+        /**
+         * Upload a Blob/File and resolve to its `mxc://` URL, e.g. to then
+         * `sendImage`. **Uploads PLAINTEXT (unencrypted)** even in encrypted rooms.
+         * Prefer `sendMedia` for new code, which encrypts in encrypted rooms.
+         * Rejects if not logged in / upload fails.
+         */
         uploadMedia(
             file: Blob,
             opts?: { name?: string; type?: string },

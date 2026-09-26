@@ -11,12 +11,7 @@
  * and cancel is refused there: leaving quietly would strand the account.
  */
 export type ResetPhase =
-    | "idle"
-    | "confirm"
-    | "password"
-    | "destroying"
-    | "repair"
-    | "repairing";
+    "idle" | "confirm" | "password" | "destroying" | "repair" | "repairing";
 
 /** Every phase, for exhaustive tests. */
 export const RESET_PHASES: ResetPhase[] = [

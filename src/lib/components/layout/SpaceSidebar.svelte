@@ -42,7 +42,7 @@
     } from "$lib/stores/notifications.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
-    import { focusTrap } from "$lib/actions/focusTrap";
+    import { focusTrap, activeFocusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { mapWithConcurrency } from "$lib/utils/async";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
@@ -896,7 +896,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav
-    class="w-[72px] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
+    class="w-[4.5rem] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
     ondragover={(e) => e.preventDefault()}
     ondrop={onDrop}
 >
@@ -1218,6 +1218,8 @@
         class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0"
         title="Add a space"
         aria-label="Add a space"
+        aria-haspopup="menu"
+        aria-expanded={addMenuOpen}
     >
         <svg
             class="w-6 h-6 text-discord-textPositive group-hover:text-white transition-colors"
@@ -1296,6 +1298,9 @@
         ></button>
     {/if}
     <div
+        role="menu"
+        aria-label="Add a space"
+        use:activeFocusTrap={{ active: addMenuOpen, onEscape: closeModal }}
         class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-52 {addMenuOpen
             ? ''
             : 'hidden'}"
@@ -1308,7 +1313,7 @@
          the sidebar lives inside AppShell's drawer, whose inline
          `transform: translateX(…)` (present even at 0px) makes it the
          containing block for `position: fixed`. Inside it, ModalDialog's
-         `fixed inset-0` layer covers the 312px drawer instead of the viewport,
+         `fixed inset-0` layer covers the 19.5rem drawer instead of the viewport,
          so a tap beside the dialog dismissed the DRAWER while the dialog kept
          claiming aria-modal over the whole app. -->
     <!-- Color picker dialog -->

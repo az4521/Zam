@@ -7,8 +7,17 @@
  */
 
 import { formatCallDuration } from "./callDuration";
+import type { EncryptedFileInfo } from "./decryptAttachment";
 
 export type MediaKind = "image" | "video" | "file" | "audio";
+
+/** A validated encrypted file reference. */
+export type EncryptedFileRef = EncryptedFileInfo & { url: string };
+
+/** Source for a media item: either a plain mxc URI or an encrypted file. */
+export type MediaSource =
+    | { kind: "plain"; mxc: string }
+    | { kind: "encrypted"; file: EncryptedFileRef; mimetype: string | null };
 
 /** The kinds the lightbox can actually display. */
 export type MediaViewerKind = "image" | "video";
@@ -47,6 +56,10 @@ export interface RoomMediaItem {
         hashes: { sha256: string };
         v?: string;
     };
+    /** Encrypted thumbnail file for videos/images. */
+    encryptedThumbnailFile?: EncryptedFileRef;
+    /** Mimetype of the thumbnail. */
+    thumbnailMimetype?: string | null;
 }
 
 /** The minimum an event has to expose to be considered. Deliberately loose so
@@ -83,6 +96,137 @@ function mxc(value: unknown): string | null {
 }
 
 /**
+ * Validate an untrusted `file` object as a Matrix EncryptedFile. Returns a
+ * typed ref when all required fields are present and valid, or null when any
+ * field is missing, malformed, or the url is not an mxc URI.
+ */
+export function encryptedFileRef(value: unknown): EncryptedFileRef | null {
+    if (typeof value !== "object" || value === null) return null;
+    const file = value as Record<string, unknown>;
+
+    const url = mxc(file.url);
+    if (url === null) return null;
+
+    const key =
+        typeof file.key === "object" && file.key !== null
+            ? (file.key as Record<string, unknown>)
+            : null;
+    if (!key || typeof key.k !== "string" || key.k === "") return null;
+
+    const iv = str(file.iv);
+    if (iv === null) return null;
+
+    const hashes =
+        typeof file.hashes === "object" && file.hashes !== null
+            ? (file.hashes as Record<string, unknown>)
+            : null;
+    if (!hashes || typeof hashes.sha256 !== "string" || hashes.sha256 === "")
+        return null;
+
+    return {
+        url,
+        key: {
+            k: key.k,
+            alg: typeof key.alg === "string" ? key.alg : undefined,
+            kty: typeof key.kty === "string" ? key.kty : undefined,
+            ext: typeof key.ext === "boolean" ? key.ext : undefined,
+            key_ops: Array.isArray(key.key_ops) ? key.key_ops : undefined,
+        },
+        iv,
+        hashes: { sha256: hashes.sha256 },
+        v: str(file.v) ?? undefined,
+    };
+}
+
+/**
+ * The source for a `<video>` element given `m.video` content: encrypted file,
+ * plain mxc, or null. A present-but-invalid `file` with a valid `url` falls
+ * back to the plain url; invalid file and no url → null.
+ *
+ * The caller MUST render a NON-interactive "unavailable" state for null
+ * instead of the play card: an affordance that can never resolve a source is
+ * indistinguishable from a dead click, which is precisely how a missing source
+ * gets reported as "videos cannot be played at all".
+ *
+ * Note what this deliberately does NOT require: a thumbnail, a duration, or any
+ * `info` at all. Bridged video (OOYE/Discord) arrives as `{w, h, mimetype,
+ * size}` and nothing else, and is perfectly playable.
+ */
+export function videoSource(
+    content: Record<string, unknown> | null | undefined,
+): MediaSource | null {
+    if (!content) return null;
+
+    const file =
+        typeof content.file === "object" && content.file !== null
+            ? content.file
+            : null;
+    const encFile = file ? encryptedFileRef(file) : null;
+
+    if (encFile !== null) {
+        const info =
+            typeof content.info === "object" && content.info !== null
+                ? (content.info as Record<string, unknown>)
+                : {};
+        const mimetype = str(info.mimetype);
+        return { kind: "encrypted", file: encFile, mimetype };
+    }
+
+    const plainMxc = mxc(content.url);
+    if (plainMxc !== null) {
+        return { kind: "plain", mxc: plainMxc };
+    }
+
+    return null;
+}
+
+/**
+ * The poster source for a video: encrypted thumbnail_file, plain thumbnail_url,
+ * or null. An invalid thumbnail_file falls back to thumbnail_url; both
+ * invalid/missing → null, and the caller renders a placeholder WITHOUT issuing
+ * any request at all.
+ *
+ * NEVER the video's own url/file. Asking the thumbnail endpoint for a video is
+ * not a harmless miss: continuwuity answers it with the original file (200
+ * video/mp4), so an <img> pointed there downloads the whole video before the
+ * decode fails. For an encrypted video it would mean downloading and decrypting
+ * the whole file just to draw a still.
+ */
+export function videoPoster(
+    content: Record<string, unknown> | null | undefined,
+): MediaSource | null {
+    if (!content) return null;
+
+    const info =
+        typeof content.info === "object" && content.info !== null
+            ? (content.info as Record<string, unknown>)
+            : {};
+
+    const thumbFile =
+        typeof info.thumbnail_file === "object" && info.thumbnail_file !== null
+            ? info.thumbnail_file
+            : null;
+    const encThumb = thumbFile ? encryptedFileRef(thumbFile) : null;
+
+    if (encThumb !== null) {
+        const thumbInfo =
+            typeof info.thumbnail_info === "object" &&
+            info.thumbnail_info !== null
+                ? (info.thumbnail_info as Record<string, unknown>)
+                : {};
+        const mimetype = str(thumbInfo.mimetype);
+        return { kind: "encrypted", file: encThumb, mimetype };
+    }
+
+    const plainMxc = mxc(info.thumbnail_url);
+    if (plainMxc !== null) {
+        return { kind: "plain", mxc: plainMxc };
+    }
+
+    return null;
+}
+
+/**
  * Map one timeline event to a media item, or null when it is not renderable
  * media. Encrypted attachments (`content.file`) are now enumerated and the
  * caller is expected to decrypt them.
@@ -110,12 +254,14 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         : undefined;
     if (!kind) return null;
 
-    // Check for encrypted file first (content.file), then unencrypted (content.url)
+    // Check for encrypted file first (content.file), then unencrypted (content.url).
+    // Invalid file → fallback to url; invalid file and no url → reject item.
     const file =
         typeof content.file === "object" && content.file !== null
-            ? (content.file as Record<string, unknown>)
+            ? content.file
             : null;
-    const url = file ? mxc(file.url) : mxc(content.url);
+    const encFile = file ? encryptedFileRef(file) : null;
+    const url = encFile ? encFile.url : mxc(content.url);
     if (url === null) return null;
 
     const info: Record<string, unknown> =
@@ -123,6 +269,18 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
             ? (content.info as Record<string, unknown>)
             : {};
     const size = typeof info.size === "number" ? info.size : null;
+
+    // Extract encrypted thumbnail file if present
+    const thumbFile =
+        typeof info.thumbnail_file === "object" && info.thumbnail_file !== null
+            ? info.thumbnail_file
+            : null;
+    const encThumbFile = thumbFile ? encryptedFileRef(thumbFile) : null;
+
+    const thumbInfo =
+        typeof info.thumbnail_info === "object" && info.thumbnail_info !== null
+            ? (info.thumbnail_info as Record<string, unknown>)
+            : {};
 
     return {
         eventId,
@@ -135,16 +293,10 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         mimetype: str(info.mimetype),
         size,
         durationMs: typeof info.duration === "number" ? info.duration : null,
-        encrypted: file !== null,
-        encryptedFile: file
-            ? ({
-                  url: url,
-                  key: file.key as any,
-                  iv: str(file.iv) ?? "",
-                  hashes: (file.hashes as any) ?? { sha256: "" },
-                  v: str(file.v),
-              } as any)
-            : undefined,
+        encrypted: encFile !== null,
+        encryptedFile: encFile ?? undefined,
+        encryptedThumbnailFile: encThumbFile ?? undefined,
+        thumbnailMimetype: encThumbFile ? str(thumbInfo.mimetype) : undefined,
     };
 }
 
@@ -167,48 +319,39 @@ export function mediaThumbnailMxc(item: RoomMediaItem): string | null {
 }
 
 /**
- * The same rule as `mediaThumbnailMxc`'s video branch, expressed over the raw
- * `m.video` content the timeline has to hand rather than a gallery item: the
- * mxc to use as a poster, or null when there is nothing safe to request and the
- * caller must render a placeholder WITHOUT issuing any request at all.
- *
- * Only ever a sender-uploaded `info.thumbnail_url`, never `content.url`. Asking
- * the thumbnail endpoint for a video is not a harmless miss: continuwuity
- * answers it with the original file (200 video/mp4), so an <img> pointed there
- * downloads the whole video before the decode fails — `onerror` fires far too
- * late to save the bandwidth.
+ * The media source for a media panel tile: image → its own url/file, video →
+ * thumbnail_file or thumbnailUrl (NEVER the video itself), other kinds → null.
+ * Encrypted items use their encrypted file/thumbnail; plain items use plain mxc.
  */
-export function videoPosterMxc(
-    content: Record<string, unknown> | null | undefined,
-): string | null {
-    if (!content) return null;
-    const info =
-        typeof content.info === "object" && content.info !== null
-            ? (content.info as Record<string, unknown>)
-            : {};
-    return mxc(info.thumbnail_url);
-}
+export function mediaTileSource(item: RoomMediaItem): MediaSource | null {
+    if (item.kind === "image") {
+        if (item.encrypted && item.encryptedFile) {
+            return {
+                kind: "encrypted",
+                file: item.encryptedFile,
+                mimetype: item.mimetype,
+            };
+        }
+        return { kind: "plain", mxc: item.url };
+    }
 
-/**
- * The mxc a `<video>` should be pointed at for this `m.video` content, or null
- * when the event carries nothing this client can play.
- *
- * Null covers the encrypted case (`content.file`, no `content.url`) — there is
- * no attachment-decryption path here — and any malformed url. The caller MUST
- * render a NON-interactive "unavailable" state for null instead of the play
- * card: an affordance that can never resolve a source is indistinguishable from
- * a dead click, which is precisely how a missing source gets reported as
- * "videos cannot be played at all".
- *
- * Note what this deliberately does NOT require: a thumbnail, a duration, or any
- * `info` at all. Bridged video (OOYE/Discord) arrives as `{w, h, mimetype,
- * size}` and nothing else, and is perfectly playable.
- */
-export function videoSourceMxc(
-    content: Record<string, unknown> | null | undefined,
-): string | null {
-    if (!content) return null;
-    return mxc(content.url);
+    if (item.kind === "video") {
+        // For encrypted videos, use encrypted thumbnail if present
+        if (item.encryptedThumbnailFile) {
+            return {
+                kind: "encrypted",
+                file: item.encryptedThumbnailFile,
+                mimetype: item.thumbnailMimetype ?? null,
+            };
+        }
+        // For plain videos, use thumbnailUrl
+        if (item.thumbnailUrl) {
+            return { kind: "plain", mxc: item.thumbnailUrl };
+        }
+        return null;
+    }
+
+    return null;
 }
 
 /** What the lightbox should render this as, or null when it cannot show it. */

@@ -1,7 +1,7 @@
 /**
  * E2EE (rust-crypto) boundary. Kept out of the 3.6k-line `client.ts` because
  * crypto is a whole subsystem with several stacked layers; it shares the single
- * `matrixClient` via the `getClient()` accessor exported from `client.ts`.
+ * `matrixClient` via the `getClient()` accessor exported from `runtime.ts`.
  *
  * Layer 0: initialise crypto so incoming `m.room.encrypted` events decrypt and
  * outgoing messages auto-encrypt in already-encrypted rooms.
@@ -39,7 +39,8 @@ import type {
     CryptoCallbacks,
     ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
-import { getClient, createDirectMessage } from "$lib/matrix/client";
+import { createDirectMessage } from "$lib/matrix/client";
+import { getClient } from "$lib/matrix/runtime";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     shouldEncryptNewDm,
@@ -303,8 +304,7 @@ interface CryptoSyncHooks {
 export async function ensureRoomCryptoConfigured(room: Room): Promise<void> {
     if (!cryptoAvailable) return;
     const crypto = getClient()?.getCrypto() as
-        | (CryptoSyncHooks | undefined)
-        | undefined;
+        (CryptoSyncHooks | undefined) | undefined;
     if (!crypto?.onCryptoEvent) return;
     if (crypto.roomEncryptors?.[room.roomId]) return;
     const event = room
@@ -331,6 +331,26 @@ export function isRoomEncrypted(room: Room | null | undefined): boolean {
     if (!room) return false;
     try {
         return room.hasEncryptionStateEvent();
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Whether a send into this room must encrypt its attachments. Mirrors the
+ * SDK's own send-time decision: the room state event OR the crypto store's
+ * persisted algorithm. The state event alone fails open for a federated room
+ * whose state the server omitted from sync, where the SDK still Megolm-encrypts
+ * the event and a plaintext `url` inside it would leak the file (PRIV-E1).
+ */
+export async function isRoomEncryptedForSend(roomId: string): Promise<boolean> {
+    const client = getClient();
+    if (isRoomEncrypted(client?.getRoom(roomId))) return true;
+    try {
+        return (
+            (await client?.getCrypto()?.isEncryptionEnabledInRoom(roomId)) ===
+            true
+        );
     } catch {
         return false;
     }

@@ -134,6 +134,79 @@ export function rawUrl(ref: RepoRef, path: string): string {
 }
 
 /**
+ * Check whether a relative path is safe (no .., /, \, :, and each segment
+ * matches [A-Za-z0-9._-]+). Used to validate plugin paths, manifest entry, and
+ * index paths before building URLs.
+ */
+export function isSafeRelPath(p: string): boolean {
+    if (typeof p !== "string" || p === "") return false;
+    if (p.includes("\\") || p.includes(":")) return false;
+    const segments = p.split("/");
+    if (segments.length === 0) return false;
+    // No empty segments (leading/trailing/double slash), no . or ..
+    for (const seg of segments) {
+        if (seg === "" || seg === "." || seg === "..") return false;
+        if (!/^[A-Za-z0-9._-]+$/.test(seg)) return false;
+    }
+    return true;
+}
+
+/**
+ * Check whether a string is a valid Git commit SHA (40 lowercase hex characters).
+ */
+export function isCommitSha(s: string): boolean {
+    return typeof s === "string" && /^[0-9a-f]{40}$/.test(s);
+}
+
+/**
+ * Build a pinned raw.githubusercontent.com URL using a commit SHA. The ONLY
+ * URL builder for plugin files (manifest, bundle). Throws unless the SHA is
+ * a valid commit SHA and all path parts are safe relative paths.
+ */
+export function pinnedFileUrl(
+    ref: RepoRef,
+    sha: string,
+    ...parts: string[]
+): string {
+    if (!isCommitSha(sha)) {
+        throw new Error(`Invalid commit SHA: ${sha}`);
+    }
+    for (const part of parts) {
+        if (!isSafeRelPath(part)) {
+            throw new Error(`Unsafe path component: ${part}`);
+        }
+    }
+    const path = parts.join("/");
+    return `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${sha}/${path}`;
+}
+
+/**
+ * Build the GitHub API URL for resolving a branch to a commit SHA.
+ */
+export function commitShaApiUrl(ref: RepoRef): string {
+    return `https://api.github.com/repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(ref.branch)}`;
+}
+
+/**
+ * Build a canonical repo key (owner/repo@branch, with owner and repo lowercased).
+ * If the input is a RepoRef, use it directly; if it's a string, try to parse it
+ * first, falling back to the raw string if parsing fails.
+ */
+export function repoKey(refOrString: RepoRef | string): string {
+    let ref: RepoRef;
+    if (typeof refOrString === "string") {
+        try {
+            ref = normalizeRepoRef(refOrString);
+        } catch {
+            return refOrString;
+        }
+    } else {
+        ref = refOrString;
+    }
+    return `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}@${ref.branch}`;
+}
+
+/**
  * Parse a plugin index.json (schema 1) into an array of PluginIndexEntry.
  * Throws on bad top-level structure (not object, missing/wrong schema, plugins not array).
  * Drops individual invalid entries (missing fields, invalid semver) rather than throwing.
@@ -205,6 +278,11 @@ export function parseIndex(input: unknown): PluginIndexEntry[] {
         // Version must be valid semver
         if (!isValidSemver(version)) {
             continue; // drop entries with invalid version
+        }
+
+        // Path must be safe
+        if (!isSafeRelPath(path)) {
+            continue; // drop entries with unsafe path
         }
 
         // Entry is valid

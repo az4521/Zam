@@ -107,7 +107,8 @@ describe("static/sw.js notification contract", () => {
             const replyBody = replyHandler.slice(0, replyEnd);
             expect(replyBody).toMatch(/type:\s*"NOTIF_REPLY"/);
             expect(replyBody).toMatch(/text:\s*text/);
-            expect(replyBody).toMatch(/userId:\s*userId/);
+            // After NOTIF-02 fix, the parameter is named postedBy.
+            expect(replyBody).toMatch(/userId:\s*postedBy/);
         });
 
         it("posts NOTIF_MARK_READ with userId when handling mark-read action", () => {
@@ -122,7 +123,8 @@ describe("static/sw.js notification contract", () => {
             expect(markReadEnd).toBeGreaterThan(0);
             const markReadBody = markReadHandler.slice(0, markReadEnd);
             expect(markReadBody).toMatch(/type:\s*"NOTIF_MARK_READ"/);
-            expect(markReadBody).toMatch(/userId:\s*userId/);
+            // After NOTIF-02 fix, the parameter is named postedBy.
+            expect(markReadBody).toMatch(/userId:\s*postedBy/);
         });
 
         it("never sends cleartext messages from SW (E2EE invariant)", () => {
@@ -134,8 +136,78 @@ describe("static/sw.js notification contract", () => {
         it("uses mxPost only for read receipts", () => {
             expect(SW).toMatch(/function\s+mxPost\s*\(/);
             // The read-receipt endpoint IS allowed (plaintext receipt when no
-            // page is open).
-            expect(SW).toMatch(/\/receipt\/m\.read\//);
+            // page is open). After NOTIF-02 fix, this goes through
+            // buildReadReceiptPath with a privacy-aware type.
+            expect(SW).toMatch(/buildReadReceiptPath/);
         });
+
+        it("mark-read uses privacy-aware receipt type (NOTIF-02)", () => {
+            const markReadHandler = SW.slice(
+                SW.indexOf("function handleQuickMarkRead("),
+            );
+            const markReadEnd = markReadHandler.indexOf(
+                "\nself.addEventListener(",
+                1,
+            );
+            expect(markReadEnd).toBeGreaterThan(0);
+            const markReadBody = markReadHandler.slice(0, markReadEnd);
+            // Uses swReceiptTypeFor instead of hardcoding m.read.
+            expect(markReadBody).toMatch(/swReceiptTypeFor/);
+            // No longer contains the literal /receipt/m.read/ path.
+            expect(markReadBody).not.toMatch(/\/receipt\/m\.read\//);
+        });
+
+        it("quick-reply stashes text before posting (NOTIF-03)", () => {
+            const replyHandler = SW.slice(
+                SW.indexOf("function handleQuickReply("),
+            );
+            const replyEnd = replyHandler.indexOf(
+                "async function handleQuickMarkRead(",
+            );
+            expect(replyEnd).toBeGreaterThan(0);
+            const replyBody = replyHandler.slice(0, replyEnd);
+            // Writes to quickReplyStashKey before posting.
+            expect(replyBody).toMatch(/quickReplyStashKey/);
+            expect(replyBody).toMatch(/buildQuickReplyStash/);
+            // The stash write appears before the postMessage.
+            const stashPos = replyBody.indexOf("quickReplyStashKey");
+            const postPos = replyBody.indexOf("postMessage");
+            expect(stashPos).toBeGreaterThan(0);
+            expect(postPos).toBeGreaterThan(stashPos);
+        });
+    });
+
+    it("push handler tags notifications by type (NOTIF-04)", () => {
+        const showNotif = SW.slice(
+            SW.indexOf("self.registration.showNotification("),
+        );
+        const showEnd = showNotif.indexOf("});", 500);
+        expect(showEnd).toBeGreaterThan(0);
+        const showBody = showNotif.slice(0, showEnd);
+        // Ring notifications use ringNotificationTag.
+        expect(showBody).toMatch(/ringNotificationTag/);
+        // Message notifications use messageNotificationTag.
+        expect(showBody).toMatch(/messageNotificationTag/);
+    });
+
+    it("clear-push closes both message and call tags (NOTIF-04)", () => {
+        const clearPush = SW.slice(SW.indexOf("data.counts.unread === 0"));
+        const clearEnd = clearPush.indexOf("return;", 1);
+        expect(clearEnd).toBeGreaterThan(0);
+        const clearBody = clearPush.slice(0, clearEnd);
+        // Uses roomNotificationTags to close both tags.
+        expect(clearBody).toMatch(/roomNotificationTags/);
+    });
+
+    it("SET_RECEIPT_PRIVACY persists the privacy map (NOTIF-02)", () => {
+        const receiptPrivacy = SW.slice(
+            SW.indexOf('=== "SET_RECEIPT_PRIVACY"'),
+        );
+        // Find the closing brace of this handler (end of the else-if block).
+        const closeBrace = receiptPrivacy.indexOf("\n\t\t\t}");
+        expect(closeBrace).toBeGreaterThan(0);
+        const body = receiptPrivacy.slice(0, closeBrace);
+        expect(body).toMatch(/receiptPrivacyByUser/);
+        expect(body).toMatch(/dbSet\(\s*"receiptPrivacyByUser"/);
     });
 });

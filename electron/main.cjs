@@ -23,6 +23,7 @@ const { autoUpdater } = require("electron-updater");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 const ICON_PATH = path.join(BUILD_DIR, "favicon.png");
@@ -67,11 +68,11 @@ const MIME = {
 function startServer() {
     return new Promise((resolve, reject) => {
         const server = http.createServer((req, res) => {
-            const urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
-            let filePath = path.normalize(path.join(BUILD_DIR, urlPath));
-            // Guard against path traversal outside BUILD_DIR.
-            if (!filePath.startsWith(BUILD_DIR)) {
-                res.writeHead(403);
+            // Safely resolve and validate the requested path.
+            let filePath = resolveStaticPath(BUILD_DIR, req.url || "/");
+            if (!filePath) {
+                // Malformed URL or path traversal attempt.
+                res.writeHead(400);
                 res.end();
                 return;
             }
@@ -469,31 +470,10 @@ ipcMain.on("screenshare:respond", (_e, payload) => {
 // other scheme stops a hostile message link from launching an arbitrary OS
 // handler via ftp:/magnet:/mailto:/… — the renderer's sanitizer already strips
 // file:/smb:/javascript: from message hrefs, so this is defense-in-depth behind
-// it. Also block loopback/localhost so a link can't reach a service bound to
-// the user's own machine (localhost SSRF). Anything that fails to parse, or is
-// not a safe web URL, is dropped (never opened).
-function isSafeExternalUrl(rawUrl) {
-    let u;
-    try {
-        u = new URL(rawUrl);
-    } catch {
-        return false;
-    }
-    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
-    const host = u.hostname.toLowerCase();
-    if (
-        host === "localhost" ||
-        host.endsWith(".localhost") ||
-        host === "127.0.0.1" ||
-        host === "0.0.0.0" ||
-        host === "[::1]" ||
-        host === "::1"
-    ) {
-        return false;
-    }
-    return true;
-}
-
+// it. Also block loopback/localhost/private networks so a link can't reach a
+// service bound to the user's own machine or LAN (localhost/LAN SSRF). Anything
+// that fails to parse, or is not a safe web URL, is dropped (never opened).
+// Implementation in ./serverGuards.cjs.
 function openExternalSafely(rawUrl) {
     if (isSafeExternalUrl(rawUrl)) shell.openExternal(rawUrl);
 }

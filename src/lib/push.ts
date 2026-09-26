@@ -16,6 +16,7 @@ import {
     type PusherGatewayStatus,
 } from "$lib/utils/pusherVerification";
 import { WEBPUSH_APP_ID } from "$lib/webPush";
+import { navigateToRoom } from "$lib/stores/rooms.svelte";
 
 // URL of your Sygnal push gateway's notify endpoint, e.g.
 //   https://sygnal.example.com/_matrix/push/v1/notify
@@ -138,13 +139,8 @@ export async function initPush(
                 // jumps to the exact message, not just the room.
                 const eventId = action.notification.data?.event_id;
                 if (roomId) {
-                    // Navigate to the room (switching space if needed) — import
-                    // lazily to avoid circular deps.
-                    import("$lib/stores/rooms.svelte").then(
-                        ({ navigateToRoom }) => {
-                            navigateToRoom(roomId, eventId);
-                        },
-                    );
+                    // Navigate to the room (switching space if needed).
+                    navigateToRoom(roomId, eventId);
                 }
             },
         );

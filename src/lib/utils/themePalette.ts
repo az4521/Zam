@@ -373,6 +373,12 @@ export function paletteContrastWarnings(
             fg: "#ffffff",
             bg: resolved.danger,
         },
+        {
+            token: "ownBubbleBackground",
+            label: "White text on own bubble",
+            fg: "#ffffff",
+            bg: resolved.ownBubbleBackground,
+        },
     ];
 
     for (const check of checks) {

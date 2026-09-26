@@ -1,10 +1,7 @@
 import type { IPushRule, PushRuleAction } from "matrix-js-sdk";
 
 export type KeywordBehavior =
-    | "highlight_sound"
-    | "highlight"
-    | "notify"
-    | "mute";
+    "highlight_sound" | "highlight" | "notify" | "mute";
 
 export interface KeywordRuleView {
     ruleId: string; // == pattern (Element/spec convention)

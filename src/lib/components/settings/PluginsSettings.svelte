@@ -6,6 +6,7 @@
         pluginRepos,
         pluginPrefs,
         pluginUpdates,
+        pluginNeedsUpdate,
     } from "$lib/stores/plugins.svelte";
     import {
         enablePlugin,
@@ -33,6 +34,7 @@
         normalizeRepoRef,
         rawUrl,
         parseIndex,
+        repoKey,
         type PluginIndexEntry,
     } from "$lib/plugins/repo";
     import type {
@@ -69,6 +71,8 @@
                 source: r.source,
                 enabled: r.enabled,
                 error: r.error,
+                repoRef: r.repoRef,
+                sha: r.sha,
             })),
         )),
     );
@@ -178,9 +182,12 @@
 
     // Update a single repo plugin now
     let updateBusy = $state<Record<string, boolean>>({});
+    let updateError = $state<Record<string, string>>({});
     async function doUpdate(id: string) {
         updateBusy[id] = true;
-        await updateRepoPlugin(id);
+        delete updateError[id];
+        const res = await updateRepoPlugin(id);
+        if (!res.ok) updateError[id] = res.error ?? "Update failed.";
         refreshUpdates();
         updateBusy[id] = false;
     }
@@ -211,8 +218,24 @@
         }
     }
 
+    // Remove is irreversible, so the trash button only arms an inline
+    // Cancel/Remove step (audit UX-10); the second click uninstalls.
+    let removePending = $state<string | null>(null);
+    let removeError = $state<Record<string, string>>({});
     async function remove(id: string) {
-        await uninstallRepoPlugin(id);
+        removePending = null;
+        busy[id] = true;
+        delete removeError[id];
+        try {
+            await uninstallRepoPlugin(id);
+        } catch (err) {
+            removeError[id] =
+                err instanceof Error && err.message
+                    ? `Couldn't remove plugin: ${err.message}`
+                    : "Couldn't remove plugin.";
+        } finally {
+            busy[id] = false;
+        }
     }
 
     // Repos add
@@ -280,12 +303,26 @@
         })();
     });
 
-    function refreshUpdates() {
-        const latest: Record<string, string> = {};
-        for (const state of Object.values(browse)) {
-            for (const entry of state.entries) latest[entry.id] = entry.version;
+    /** `owner/repo` for the installed row; the raw ref if it doesn't parse. */
+    function repoLabel(ref: string): string {
+        try {
+            const r = normalizeRepoRef(ref);
+            return `${r.owner}/${r.repo}`;
+        } catch {
+            return ref;
         }
-        void applyUpdateCheck(latest);
+    }
+
+    function refreshUpdates() {
+        const latestByRepo: Record<string, Record<string, string>> = {};
+        for (const [ref, state] of Object.entries(browse)) {
+            const key = repoKey(ref);
+            if (!latestByRepo[key]) latestByRepo[key] = {};
+            for (const entry of state.entries) {
+                latestByRepo[key][entry.id] = entry.version;
+            }
+        }
+        void applyUpdateCheck(latestByRepo);
     }
 
     // Install a repo plugin
@@ -457,6 +494,11 @@
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
                                     v{p.version} · {p.author}
+                                    {#if p.source === "repo" && p.repoRef}
+                                        · {repoLabel(
+                                            p.repoRef,
+                                        )}{#if p.sha}@{p.sha.slice(0, 7)}{/if}
+                                    {/if}
                                 </p>
                                 {#if p.error}
                                     <div class="flex items-center gap-1.5 mt-1">
@@ -469,15 +511,22 @@
                                         </p>
                                     </div>
                                 {/if}
-                                {#if pluginUpdates.available[p.id]}
+                                {#if pluginUpdates.available[p.id] || pluginNeedsUpdate[p.id]}
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span
-                                            class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
-                                        >
-                                            Update to v{pluginUpdates.available[
-                                                p.id
-                                            ]}
-                                        </span>
+                                        {#if pluginNeedsUpdate[p.id]}
+                                            <span
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-danger/20 text-discord-danger"
+                                            >
+                                                Needs update
+                                            </span>
+                                        {:else if pluginUpdates.available[p.id]}
+                                            <span
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
+                                            >
+                                                Update to v{pluginUpdates
+                                                    .available[p.id]}
+                                            </span>
+                                        {/if}
                                         <button
                                             type="button"
                                             onclick={() => doUpdate(p.id)}
@@ -489,6 +538,22 @@
                                                 : "Update"}
                                         </button>
                                     </div>
+                                {/if}
+                                {#if updateError[p.id]}
+                                    <p
+                                        class="text-xs text-discord-danger mt-1"
+                                        role="alert"
+                                    >
+                                        {updateError[p.id]}
+                                    </p>
+                                {/if}
+                                {#if removeError[p.id]}
+                                    <p
+                                        class="text-xs text-discord-danger mt-1"
+                                        role="alert"
+                                    >
+                                        {removeError[p.id]}
+                                    </p>
                                 {/if}
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
@@ -528,14 +593,36 @@
                                         <option value="on">Auto: On</option>
                                         <option value="off">Auto: Off</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        onclick={() => remove(p.id)}
-                                        title="Remove plugin"
-                                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    {#if removePending === p.id}
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                (removePending = null)}
+                                            class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onclick={() => remove(p.id)}
+                                            aria-label="Confirm remove {p.name}"
+                                            class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                                        >
+                                            Remove
+                                        </button>
+                                    {:else}
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                (removePending = p.id)}
+                                            disabled={busy[p.id]}
+                                            title="Remove plugin"
+                                            aria-label="Remove {p.name}"
+                                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    {/if}
                                 {/if}
                             </div>
                         </div>

@@ -64,6 +64,7 @@ describe("dispatchSwipe", () => {
             roomId: "!r",
             eventId: "$e",
             isOwn: true,
+            canEdit: true,
             threshold: "far",
         });
         expect(seen).toHaveLength(2);
@@ -71,6 +72,7 @@ describe("dispatchSwipe", () => {
             roomId: "!r",
             eventId: "$e",
             isOwn: true,
+            canEdit: true,
             threshold: "far",
         });
     });
@@ -83,7 +85,13 @@ describe("dispatchSwipe", () => {
                 },
                 () => seen.push("ran"),
             ],
-            { roomId: "!r", eventId: "$e", isOwn: false, threshold: "short" },
+            {
+                roomId: "!r",
+                eventId: "$e",
+                isOwn: false,
+                canEdit: false,
+                threshold: "short",
+            },
         );
         expect(seen).toEqual(["ran"]);
     });

@@ -18,6 +18,19 @@ export function isThreadReplyContent(params: {
     return rel?.rel_type === "m.thread" && rel?.event_id === params.rootEventId;
 }
 
+/**
+ * Extract the thread root event id from an m.relates_to object for quick-reply
+ * routing. Returns the event_id if rel_type is "m.thread" and event_id is a
+ * string; otherwise null (m.replace, reply-only, missing, or junk).
+ */
+export function threadRootForQuickReply(relatesTo: unknown): string | null {
+    if (!relatesTo || typeof relatesTo !== "object") return null;
+    const rel = relatesTo as Record<string, unknown>;
+    if (rel.rel_type !== "m.thread") return null;
+    if (typeof rel.event_id !== "string") return null;
+    return rel.event_id;
+}
+
 export interface ThreadReplyParams {
     /** Event id of the thread root. */
     rootEventId: string;

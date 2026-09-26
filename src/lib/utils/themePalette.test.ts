@@ -99,6 +99,11 @@ describe("paletteContrastWarnings", () => {
     it("returns no warnings for the default light palette", () => {
         expect(paletteContrastWarnings(DEFAULT_THEME_COLORS.light)).toEqual([]);
     });
+    it("returns no warnings for the default amoled palette", () => {
+        expect(paletteContrastWarnings(DEFAULT_THEME_COLORS.amoled)).toEqual(
+            [],
+        );
+    });
     it("warns when primary text has poor contrast on background", () => {
         const bad = { ...DEFAULT_THEME_COLORS.dark, textPrimary: "#3a3d42" };
         const w = paletteContrastWarnings(bad);
@@ -109,6 +114,14 @@ describe("paletteContrastWarnings", () => {
         expect(
             paletteContrastWarnings(bad).some((x) => x.token === "accent"),
         ).toBe(true);
+    });
+    it("warns when white-on-ownBubbleBackground is illegible", () => {
+        const bad = {
+            ...DEFAULT_THEME_COLORS.dark,
+            ownBubbleBackground: "#a0a8f0",
+        };
+        const w = paletteContrastWarnings(bad);
+        expect(w.some((x) => x.token === "ownBubbleBackground")).toBe(true);
     });
 });
 

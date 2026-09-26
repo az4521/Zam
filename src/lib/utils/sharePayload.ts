@@ -7,6 +7,7 @@ export type AndroidShareInput = {
     text?: string | null;
     subject?: string | null;
     files?: unknown[] | null;
+    droppedFiles?: number;
 };
 export type WebShareInput = {
     source: "web";
@@ -14,12 +15,13 @@ export type WebShareInput = {
     text?: string | null;
     url?: string | null;
     files?: unknown[] | null;
+    droppedFiles?: number;
 };
 export type ShareInput = AndroidShareInput | WebShareInput;
 
 export type NormalizedShare =
-    | { kind: "text"; text: string }
-    | { kind: "files"; text: string; files: unknown[] };
+    | { kind: "text"; text: string; droppedFiles?: number }
+    | { kind: "files"; text: string; files: unknown[]; droppedFiles?: number };
 
 function cleanFiles(files: unknown[] | null | undefined): unknown[] {
     if (!Array.isArray(files)) return [];
@@ -45,7 +47,23 @@ export function normalizeSharePayload(
     }
     const text = pieces.join("\n");
     const files = cleanFiles(input.files);
-    if (files.length > 0) return { kind: "files", text, files };
-    if (text) return { kind: "text", text };
+    const droppedFiles = input.droppedFiles;
+    if (files.length > 0)
+        return {
+            kind: "files",
+            text,
+            files,
+            ...(droppedFiles && droppedFiles > 0 ? { droppedFiles } : {}),
+        };
+    if (text)
+        return {
+            kind: "text",
+            text,
+            ...(droppedFiles && droppedFiles > 0 ? { droppedFiles } : {}),
+        };
+    // When all files were dropped but there's no text, still return a payload
+    // so the sheet opens and shows the droppedFiles notice.
+    if (droppedFiles && droppedFiles > 0)
+        return { kind: "text", text: "", droppedFiles };
     return null;
 }

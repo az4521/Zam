@@ -35,7 +35,7 @@ Calls
 Encryption
 
 - E2EE via rust-crypto: encrypted rooms and DMs, SAS (emoji) and QR device verification, cross-signing, secret storage (4S), key backup and recovery
-- encrypted attachments from other clients now decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; your own outgoing attachments aren't encrypted yet, so files, images and voice messages you send into an encrypted room still upload unencrypted
+- encrypted attachments decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; files, images, videos and voice messages you send into an encrypted room are encrypted, and encrypted videos play in-timeline
 
 App
 
@@ -44,6 +44,7 @@ App
 - theming — light, dark, and true-black AMOLED, plus fully custom colours you save as your own presets and share by a copy-paste code; timestamp formats and double-tap actions too, all synced across devices via account data
 - auto-update on Electron and Android; the web build checks on request and offers a reload
 - installable PWA, Electron desktop build, Android APK
+- plugins, installed from GitHub plugin repos. a plugin runs with full access to the app and your account (there is no sandbox), so only install ones you trust. with auto-update off, an installed plugin stays frozen at the exact commit you installed or last updated it at
 
 things left to do:
 
@@ -77,7 +78,7 @@ npm i
 npm run dev
 ```
 
-useful scripts: `npm run check` (svelte-check), `npm run test` (vitest, run-once), `npm run build`, `npm run format` (prettier), `npm run electron:build`. `npm run lint` is currently broken — there's no root eslint config, so the `eslint .` half errors out; prettier is the formatting source of truth.
+useful scripts: `npm run check` (svelte-check), `npm run test` (vitest, run-once), `npm run build`, `npm run format` (prettier), `npm run electron:build`, `npm run lint` (`prettier --check .`). CI runs check, test and lint before any release build.
 
 ## serving it
 

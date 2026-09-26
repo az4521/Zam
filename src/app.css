@@ -458,6 +458,11 @@ body {
 .own-bubble .message-body {
     color: #fff;
 }
+/* Links in own bubbles: white + underline (computed link colour is ~1.8:1 on the bubble). */
+.own-bubble .message-body a {
+    color: #fff;
+    text-decoration: underline;
+}
 /* Keep code/pre readable inside a coloured bubble (they carry their own bg). */
 .own-bubble :where(code, pre) {
     color: var(--discord-text-primary);

@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Room, MatrixEvent } from "matrix-js-sdk";
-    import { EventType } from "matrix-js-sdk";
     import {
+        EventType,
         getClient,
         getRawUrlPreview,
         getRoomUnreadInfo,

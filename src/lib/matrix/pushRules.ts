@@ -75,8 +75,7 @@ export function isHighlightAction(
 
 function globalRules(client: MatrixClient): Record<string, any[]> | undefined {
     return (client as any).pushRules?.global as
-        | Record<string, any[]>
-        | undefined;
+        Record<string, any[]> | undefined;
 }
 
 function isMissingRule(error: unknown): boolean {

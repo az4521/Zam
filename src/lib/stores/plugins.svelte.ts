@@ -31,6 +31,8 @@ export interface InstalledPluginRecord {
     error: string | null;
     /** Repo slug (`owner/repo[@branch]`) for repo plugins; absent for builtins. */
     repoRef?: string;
+    /** Commit SHA a repo plugin's code is pinned to (absent until pinned). */
+    sha?: string;
 }
 
 /** The shared reactive registry all extension points read from. Never
@@ -93,6 +95,11 @@ export function setInstalledPlugin(record: InstalledPluginRecord): void {
     installedPlugins[record.manifest.id] = record;
 }
 
+export function setInstalledPluginSha(pluginId: string, sha: string): void {
+    const r = installedPlugins[pluginId];
+    if (r) r.sha = sha;
+}
+
 export function markPluginEnabled(pluginId: string, enabled: boolean): void {
     const r = installedPlugins[pluginId];
     if (r) r.enabled = enabled;
@@ -138,6 +145,10 @@ export const pluginUpdates = $state<{ available: Record<string, string> }>({
     available: {},
 });
 
+/** Plugins that need an update (unpinned SHA resolution failed and no cache).
+ *  Shows "Needs update" badge even when versions are equal. */
+export const pluginNeedsUpdate = $state<Record<string, boolean>>({});
+
 export function setGlobalAutoUpdateState(v: boolean): void {
     pluginPrefs.autoUpdate = v;
 }
@@ -150,4 +161,8 @@ export function setPluginAutoUpdateState(
 }
 export function setUpdateAvailable(map: Record<string, string>): void {
     pluginUpdates.available = { ...map };
+}
+export function setPluginNeedsUpdate(id: string, needs: boolean): void {
+    if (needs) pluginNeedsUpdate[id] = true;
+    else delete pluginNeedsUpdate[id];
 }

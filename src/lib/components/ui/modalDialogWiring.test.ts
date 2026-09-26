@@ -380,7 +380,7 @@ describe("ModalDialog adoption — the dialogs stay dismissable", () => {
  * WHY: on mobile the sidebar lives in AppShell's drawer, which always carries
  * an inline `transform: translateX(…)` — even at 0px. A transform makes that
  * element the containing block for `position: fixed` descendants, so
- * ModalDialog's `fixed inset-0` layer and backdrop cover the 312px drawer
+ * ModalDialog's `fixed inset-0` layer and backdrop cover the 19.5rem drawer
  * instead of the viewport: a tap to the right of the drawer hits the DRAWER's
  * backdrop and dismisses the drawer, while the dialog goes on claiming
  * `aria-modal="true"` over a screen it does not actually cover.
@@ -419,7 +419,7 @@ describe("SpaceSidebar dialogs are portaled out of the drawer", () => {
     function portalRegions(src: string): string[] {
         const text = normalize(src);
         const regions: string[] = [];
-        for (let open = text.indexOf(OPEN); open !== -1; ) {
+        for (let open = text.indexOf(OPEN); open !== -1;) {
             const close = text.indexOf(CLOSE, open);
             expect(close, "unclosed <Portal> in SpaceSidebar").toBeGreaterThan(
                 open,

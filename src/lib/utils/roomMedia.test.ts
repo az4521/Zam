@@ -7,10 +7,12 @@ import {
     formatMediaSize,
     formatMediaDuration,
     mediaThumbnailMxc,
-    videoPosterMxc,
-    videoSourceMxc,
     mediaViewerKind,
     mediaViewerItem,
+    encryptedFileRef,
+    videoSource,
+    videoPoster,
+    mediaTileSource,
     type MediaSourceEvent,
     type RoomMediaItem,
 } from "./roomMedia";
@@ -430,114 +432,6 @@ describe("mediaThumbnailMxc", () => {
     });
 });
 
-describe("videoPosterMxc", () => {
-    it("uses the sender-uploaded thumbnail when there is one", () => {
-        expect(
-            videoPosterMxc({
-                msgtype: "m.video",
-                url: "mxc://example.org/vid",
-                info: { thumbnail_url: "mxc://example.org/thumb" },
-            }),
-        ).toBe("mxc://example.org/thumb");
-    });
-
-    // The whole point: continuwuity answers /media/thumbnail for a video with
-    // the ORIGINAL file (200 video/mp4), so an <img> pointed at content.url
-    // downloads the entire video and `onerror` never gets a chance to fire.
-    it("never falls back to the video's own url", () => {
-        expect(
-            videoPosterMxc({
-                msgtype: "m.video",
-                url: "mxc://example.org/vid",
-                info: { mimetype: "video/mp4" },
-            }),
-        ).toBeNull();
-    });
-
-    it("has no poster when info is missing entirely", () => {
-        expect(videoPosterMxc({ url: "mxc://example.org/vid" })).toBeNull();
-    });
-
-    it("ignores a thumbnail_url that is not an mxc uri", () => {
-        expect(
-            videoPosterMxc({
-                url: "mxc://example.org/vid",
-                info: { thumbnail_url: "https://evil.example/track.gif" },
-            }),
-        ).toBeNull();
-        expect(
-            videoPosterMxc({
-                url: "mxc://example.org/vid",
-                info: { thumbnail_url: 42 },
-            }),
-        ).toBeNull();
-    });
-
-    it("has no poster for absent content", () => {
-        expect(videoPosterMxc(null)).toBeNull();
-        expect(videoPosterMxc(undefined)).toBeNull();
-    });
-});
-
-describe("videoSourceMxc", () => {
-    it("streams the video's own url", () => {
-        expect(
-            videoSourceMxc({
-                msgtype: "m.video",
-                url: "mxc://example.org/vid",
-                info: { mimetype: "video/mp4" },
-            }),
-        ).toBe("mxc://example.org/vid");
-    });
-
-    // The bridged shape this actually has to cope with (OOYE/Discord): no
-    // thumbnail_url, no duration, just w/h/mimetype/size. Still playable.
-    it("plays a bridged video that carries no thumbnail or duration", () => {
-        expect(
-            videoSourceMxc({
-                msgtype: "m.video",
-                body: "clip.mp4",
-                filename: "clip.mp4",
-                external_url: "https://bridge.example/clip.mp4",
-                url: "mxc://remote.example/xyz",
-                info: {
-                    w: 1920,
-                    h: 1080,
-                    mimetype: "video/mp4",
-                    size: 3265953,
-                },
-            }),
-        ).toBe("mxc://remote.example/xyz");
-    });
-
-    // No attachment-decryption path in this client, so an encrypted video has
-    // no source at all. The caller MUST NOT offer a play affordance for it: a
-    // card that looks clickable but can never resolve a source is exactly the
-    // "clicking does nothing" bug.
-    it("has no source for an encrypted attachment", () => {
-        expect(
-            videoSourceMxc({
-                msgtype: "m.video",
-                file: { url: "mxc://example.org/enc", key: {} },
-                info: { mimetype: "video/mp4" },
-            }),
-        ).toBeNull();
-    });
-
-    it("rejects a url that is not an mxc uri", () => {
-        expect(
-            videoSourceMxc({ url: "https://evil.example/drive-by.mp4" }),
-        ).toBeNull();
-        expect(videoSourceMxc({ url: 42 })).toBeNull();
-        expect(videoSourceMxc({ url: "" })).toBeNull();
-    });
-
-    it("has no source for absent content", () => {
-        expect(videoSourceMxc(null)).toBeNull();
-        expect(videoSourceMxc(undefined)).toBeNull();
-    });
-});
-
 describe("mediaViewerKind", () => {
     it("views images and videos", () => {
         expect(mediaViewerKind(item({ eventId: "$1", kind: "image" }))).toBe(
@@ -641,5 +535,457 @@ describe("mediaViewerItem", () => {
         expect(
             mediaViewerItem(item({ eventId: "$1", kind: "file" }), resolve),
         ).toBeNull();
+    });
+});
+
+describe("encryptedFileRef", () => {
+    it("accepts a valid encrypted file object", () => {
+        const file = {
+            url: "mxc://example.org/enc",
+            key: { k: "test-key-material" },
+            iv: "test-iv-16-bytes",
+            hashes: { sha256: "test-hash" },
+            v: "v2",
+        };
+        expect(encryptedFileRef(file)).toEqual({
+            url: "mxc://example.org/enc",
+            key: { k: "test-key-material" },
+            iv: "test-iv-16-bytes",
+            hashes: { sha256: "test-hash" },
+            v: "v2",
+        });
+    });
+
+    it("accepts a minimal valid file (no v field)", () => {
+        const file = {
+            url: "mxc://example.org/enc",
+            key: { k: "k" },
+            iv: "iv",
+            hashes: { sha256: "hash" },
+        };
+        expect(encryptedFileRef(file)).toEqual(file);
+    });
+
+    it("rejects a non-mxc url", () => {
+        expect(
+            encryptedFileRef({
+                url: "https://evil.example/file",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            }),
+        ).toBeNull();
+    });
+
+    it("rejects missing key.k", () => {
+        expect(
+            encryptedFileRef({
+                url: "mxc://example.org/enc",
+                key: {},
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            }),
+        ).toBeNull();
+    });
+
+    it("rejects missing iv", () => {
+        expect(
+            encryptedFileRef({
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                hashes: { sha256: "hash" },
+            }),
+        ).toBeNull();
+    });
+
+    it("rejects missing hashes.sha256", () => {
+        expect(
+            encryptedFileRef({
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: {},
+            }),
+        ).toBeNull();
+    });
+
+    it("rejects null", () => {
+        expect(encryptedFileRef(null)).toBeNull();
+    });
+
+    it("rejects undefined", () => {
+        expect(encryptedFileRef(undefined)).toBeNull();
+    });
+
+    it("rejects a non-object", () => {
+        expect(encryptedFileRef("not an object")).toBeNull();
+        expect(encryptedFileRef(42)).toBeNull();
+    });
+});
+
+describe("videoSource", () => {
+    it("returns encrypted source for content.file", () => {
+        const source = videoSource({
+            msgtype: "m.video",
+            file: {
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            info: { mimetype: "video/mp4" },
+        });
+        expect(source).toEqual({
+            kind: "encrypted",
+            file: {
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            mimetype: "video/mp4",
+        });
+    });
+
+    it("returns plain source for content.url", () => {
+        const source = videoSource({
+            msgtype: "m.video",
+            url: "mxc://example.org/vid",
+        });
+        expect(source).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/vid",
+        });
+    });
+
+    it("falls back to plain url when file is invalid", () => {
+        const source = videoSource({
+            msgtype: "m.video",
+            file: { url: "https://evil.example/x" },
+            url: "mxc://example.org/vid",
+        });
+        expect(source).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/vid",
+        });
+    });
+
+    it("returns null when both file and url are invalid", () => {
+        expect(
+            videoSource({
+                msgtype: "m.video",
+                file: { url: "https://evil.example/x" },
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for absent content", () => {
+        expect(videoSource(null)).toBeNull();
+        expect(videoSource(undefined)).toBeNull();
+    });
+
+    it("carries mimetype from info", () => {
+        const source = videoSource({
+            file: {
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            info: { mimetype: "video/webm" },
+        });
+        expect(source?.kind).toBe("encrypted");
+        if (source?.kind === "encrypted") {
+            expect(source.mimetype).toBe("video/webm");
+        }
+    });
+
+    it("sets mimetype to null when info is missing", () => {
+        const source = videoSource({
+            file: {
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+        });
+        expect(source?.kind).toBe("encrypted");
+        if (source?.kind === "encrypted") {
+            expect(source.mimetype).toBeNull();
+        }
+    });
+});
+
+describe("videoPoster", () => {
+    it("returns encrypted source for info.thumbnail_file", () => {
+        const poster = videoPoster({
+            msgtype: "m.video",
+            url: "mxc://example.org/vid",
+            info: {
+                thumbnail_file: {
+                    url: "mxc://example.org/thumb-enc",
+                    key: { k: "k" },
+                    iv: "iv",
+                    hashes: { sha256: "hash" },
+                },
+                thumbnail_info: { mimetype: "image/jpeg" },
+            },
+        });
+        expect(poster).toEqual({
+            kind: "encrypted",
+            file: {
+                url: "mxc://example.org/thumb-enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            mimetype: "image/jpeg",
+        });
+    });
+
+    it("returns plain source for info.thumbnail_url", () => {
+        const poster = videoPoster({
+            msgtype: "m.video",
+            url: "mxc://example.org/vid",
+            info: { thumbnail_url: "mxc://example.org/thumb" },
+        });
+        expect(poster).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/thumb",
+        });
+    });
+
+    it("falls back to thumbnail_url when thumbnail_file is invalid", () => {
+        const poster = videoPoster({
+            msgtype: "m.video",
+            url: "mxc://example.org/vid",
+            info: {
+                thumbnail_file: { url: "https://evil.example/x" },
+                thumbnail_url: "mxc://example.org/thumb",
+            },
+        });
+        expect(poster).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/thumb",
+        });
+    });
+
+    it("never falls back to the video url", () => {
+        expect(
+            videoPoster({
+                msgtype: "m.video",
+                url: "mxc://example.org/vid",
+                info: {},
+            }),
+        ).toBeNull();
+    });
+
+    it("returns null for absent content", () => {
+        expect(videoPoster(null)).toBeNull();
+        expect(videoPoster(undefined)).toBeNull();
+    });
+});
+
+describe("mediaTileSource", () => {
+    it("returns encrypted source for an encrypted image", () => {
+        const source = mediaTileSource(
+            item({
+                eventId: "$1",
+                kind: "image",
+                url: "mxc://example.org/enc",
+                mimetype: "image/png",
+                encrypted: true,
+                encryptedFile: {
+                    url: "mxc://example.org/enc",
+                    key: { k: "k" },
+                    iv: "iv",
+                    hashes: { sha256: "hash" },
+                },
+            }),
+        );
+        expect(source).toEqual({
+            kind: "encrypted",
+            file: {
+                url: "mxc://example.org/enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            mimetype: "image/png",
+        });
+    });
+
+    it("returns plain source for a plain image", () => {
+        const source = mediaTileSource(
+            item({
+                eventId: "$1",
+                kind: "image",
+                url: "mxc://example.org/img",
+            }),
+        );
+        expect(source).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/img",
+        });
+    });
+
+    it("returns encrypted thumbnail source for an encrypted video with thumbnail_file", () => {
+        const source = mediaTileSource(
+            item({
+                eventId: "$1",
+                kind: "video",
+                url: "mxc://example.org/vid-enc",
+                encrypted: true,
+                encryptedThumbnailFile: {
+                    url: "mxc://example.org/thumb-enc",
+                    key: { k: "k" },
+                    iv: "iv",
+                    hashes: { sha256: "hash" },
+                },
+                thumbnailMimetype: "image/jpeg",
+            }),
+        );
+        expect(source).toEqual({
+            kind: "encrypted",
+            file: {
+                url: "mxc://example.org/thumb-enc",
+                key: { k: "k" },
+                iv: "iv",
+                hashes: { sha256: "hash" },
+            },
+            mimetype: "image/jpeg",
+        });
+    });
+
+    it("returns plain thumbnail source for a plain video", () => {
+        const source = mediaTileSource(
+            item({
+                eventId: "$1",
+                kind: "video",
+                thumbnailUrl: "mxc://example.org/thumb",
+            }),
+        );
+        expect(source).toEqual({
+            kind: "plain",
+            mxc: "mxc://example.org/thumb",
+        });
+    });
+
+    it("returns null for an encrypted video without thumbnail_file", () => {
+        expect(
+            mediaTileSource(
+                item({
+                    eventId: "$1",
+                    kind: "video",
+                    url: "mxc://example.org/vid-enc",
+                    encrypted: true,
+                    thumbnailUrl: null,
+                }),
+            ),
+        ).toBeNull();
+    });
+
+    it("returns null for a plain video without thumbnailUrl", () => {
+        expect(
+            mediaTileSource(
+                item({
+                    eventId: "$1",
+                    kind: "video",
+                    thumbnailUrl: null,
+                }),
+            ),
+        ).toBeNull();
+    });
+
+    it("returns null for file kind", () => {
+        expect(
+            mediaTileSource(
+                item({
+                    eventId: "$1",
+                    kind: "file",
+                }),
+            ),
+        ).toBeNull();
+    });
+
+    it("returns null for audio kind", () => {
+        expect(
+            mediaTileSource(
+                item({
+                    eventId: "$1",
+                    kind: "audio",
+                }),
+            ),
+        ).toBeNull();
+    });
+});
+
+describe("mediaItemFromEvent with encrypted thumbnail", () => {
+    it("carries encrypted thumbnail_file through", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.video",
+                    body: "clip.mp4",
+                    file: {
+                        url: "mxc://example.org/vid-enc",
+                        key: { k: "vid-k" },
+                        iv: "vid-iv",
+                        hashes: { sha256: "vid-hash" },
+                    },
+                    info: {
+                        mimetype: "video/mp4",
+                        thumbnail_file: {
+                            url: "mxc://example.org/thumb-enc",
+                            key: { k: "thumb-k" },
+                            iv: "thumb-iv",
+                            hashes: { sha256: "thumb-hash" },
+                        },
+                        thumbnail_info: { mimetype: "image/jpeg" },
+                    },
+                },
+            }),
+        );
+        expect(result?.encryptedThumbnailFile).toEqual({
+            url: "mxc://example.org/thumb-enc",
+            key: { k: "thumb-k" },
+            iv: "thumb-iv",
+            hashes: { sha256: "thumb-hash" },
+        });
+        expect(result?.thumbnailMimetype).toBe("image/jpeg");
+    });
+
+    it("rejects item when file is invalid and no url fallback", () => {
+        expect(
+            mediaItemFromEvent(
+                ev({
+                    content: {
+                        msgtype: "m.video",
+                        body: "broken.mp4",
+                        file: {
+                            url: "https://evil.example/vid",
+                            key: { k: "k" },
+                        },
+                    },
+                }),
+            ),
+        ).toBeNull();
+    });
+
+    it("falls back to url when file is invalid", () => {
+        const result = mediaItemFromEvent(
+            ev({
+                content: {
+                    msgtype: "m.video",
+                    body: "fallback.mp4",
+                    file: {
+                        url: "https://evil.example/vid",
+                    },
+                    url: "mxc://example.org/vid",
+                },
+            }),
+        );
+        expect(result?.encrypted).toBe(false);
+        expect(result?.url).toBe("mxc://example.org/vid");
     });
 });

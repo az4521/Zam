@@ -7,7 +7,7 @@ import {
     beforeAll,
     afterAll,
 } from "vitest";
-import { focusWrapTarget, focusTrap } from "./focusTrap";
+import { focusWrapTarget, focusTrap, activeFocusTrap } from "./focusTrap";
 
 describe("focusWrapTarget", () => {
     it("returns null when there is nothing to trap", () => {
@@ -199,5 +199,127 @@ describe("focusTrap initial focus", () => {
         );
         await nextFrame();
         expect(document.activeElement?.id).toBe("close");
+    });
+});
+
+describe("activeFocusTrap", () => {
+    let teardown: (() => void) | null = null;
+
+    // Use the same offsetParent stub as the initial-focus tests.
+    const realOffsetParent = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "offsetParent",
+    );
+
+    beforeAll(() => {
+        Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+            configurable: true,
+            get(this: HTMLElement) {
+                return this.parentElement;
+            },
+        });
+    });
+
+    afterAll(() => {
+        if (realOffsetParent) {
+            Object.defineProperty(
+                HTMLElement.prototype,
+                "offsetParent",
+                realOffsetParent,
+            );
+        }
+    });
+
+    afterEach(() => {
+        teardown?.();
+        teardown = null;
+    });
+
+    function mount(active: boolean, onEscape?: () => void) {
+        const node = document.createElement("div");
+        node.innerHTML = `<button id="btn">test</button>`;
+        document.body.appendChild(node);
+        const handle = activeFocusTrap(node, { active, onEscape });
+        teardown = () => {
+            handle.destroy();
+            node.remove();
+        };
+        return { node, handle };
+    }
+
+    function nextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    function pressEscape(node: HTMLElement) {
+        node.dispatchEvent(
+            new KeyboardEvent("keydown", {
+                key: "Escape",
+                bubbles: true,
+                cancelable: true,
+            }),
+        );
+    }
+
+    it("does not move focus when active is false", async () => {
+        const original = document.activeElement;
+        mount(false);
+        await nextFrame();
+        expect(document.activeElement).toBe(original);
+    });
+
+    it("does not call onEscape when active is false", () => {
+        const onEscape = vi.fn();
+        const { node } = mount(false, onEscape);
+        pressEscape(node);
+        expect(onEscape).not.toHaveBeenCalled();
+    });
+
+    it("activates the trap when active is true", async () => {
+        const { node } = mount(true);
+        await nextFrame();
+        const btn = node.querySelector("#btn");
+        expect(document.activeElement).toBe(btn);
+    });
+
+    it("calls onEscape when active is true", () => {
+        const onEscape = vi.fn();
+        const { node } = mount(true, onEscape);
+        pressEscape(node);
+        expect(onEscape).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops calling onEscape after active flips to false", async () => {
+        const onEscape = vi.fn();
+        const { node, handle } = mount(true, onEscape);
+        await nextFrame();
+
+        handle.update?.({ active: false, onEscape });
+        pressEscape(node);
+
+        expect(onEscape).not.toHaveBeenCalled();
+    });
+
+    it("starts calling onEscape again after flipping back to true", async () => {
+        const onEscape = vi.fn();
+        const { node, handle } = mount(false, onEscape);
+        await nextFrame();
+
+        handle.update?.({ active: true, onEscape });
+        await nextFrame();
+        pressEscape(node);
+
+        expect(onEscape).toHaveBeenCalledTimes(1);
+    });
+
+    it("cleans up when destroyed while active", async () => {
+        const onEscape = vi.fn();
+        const { node, handle } = mount(true, onEscape);
+        await nextFrame();
+
+        handle.destroy();
+        pressEscape(node);
+
+        expect(onEscape).not.toHaveBeenCalled();
     });
 });

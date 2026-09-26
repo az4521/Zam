@@ -56,6 +56,7 @@ import {
 import { auth } from "$lib/stores/auth.svelte";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
+import { micErrorMessage } from "$lib/utils/micErrorMessage";
 import { isChunkLoadError } from "$lib/utils/chunkLoadError";
 
 /** LiveKit now arrives in its own chunk, so joining can fail on the chunk
@@ -260,7 +261,8 @@ export async function joinCall(roomId: string): Promise<void> {
         showErrorToast(
             isChunkLoadError(err)
                 ? CHUNK_LOAD_MESSAGE
-                : matrixErrorMessage(err, "Could not join the voice call"),
+                : (micErrorMessage(err) ??
+                      matrixErrorMessage(err, "Could not join the voice call")),
         );
     } finally {
         voiceCallState.joinPendingRoomId = null;

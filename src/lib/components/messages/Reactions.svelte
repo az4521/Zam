@@ -187,15 +187,18 @@
             </button>
         {/each}
         {#if active}
-            <ReactorPopover
-                reactors={active.reactors}
-                overflow={active.overflow}
-                label={active.key}
-                touch={openTouch}
-                x={anchorX}
-                y={anchorY}
-                onClose={closePopover}
-            />
+            {#key openTouch}
+                <ReactorPopover
+                    reactors={active.reactors}
+                    overflow={active.overflow}
+                    label={active.key}
+                    touch={openTouch}
+                    x={anchorX}
+                    y={anchorY}
+                    onClose={closePopover}
+                    modalId={openTouch ? "reactors" : undefined}
+                />
+            {/key}
         {/if}
     </div>
 {/if}

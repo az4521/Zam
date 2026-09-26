@@ -47,4 +47,13 @@ describe("openPluginPopover", () => {
         d1.dispose(); // stale token → no-op
         expect(interfaceState.modal).toBe("create-poll");
     });
+
+    it("stores the optional label in current", () => {
+        openPluginPopover({
+            anchor: anchor(),
+            render: vi.fn(),
+            label: "Test Label",
+        });
+        expect(pluginPopover.current?.label).toBe("Test Label");
+    });
 });

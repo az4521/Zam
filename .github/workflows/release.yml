@@ -1,198 +1,215 @@
 name: Build & Release
 
 on:
-  push:
-  workflow_dispatch:
+    push:
+        branches: [master]
+        tags: ["v*"]
+    workflow_dispatch:
 
 permissions:
-  contents: write
+    contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
 
 jobs:
-  # Only proceed to a release when package.json "version" increased vs the
-  # previous commit. The build jobs below run on every commit regardless.
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      release: ${{ steps.v.outputs.release }}
-      version: ${{ steps.v.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - id: v
-        shell: bash
-        run: |
-          CURR=$(jq -r .version package.json)
-          echo "version=$CURR" >> "$GITHUB_OUTPUT"
-          PREV=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
-          if [ -z "$PREV" ] || { [ "$CURR" != "$PREV" ] && [ "$(printf '%s\n%s\n' "$PREV" "$CURR" | sort -V | tail -n1)" = "$CURR" ]; }; then
-            echo "release=true" >> "$GITHUB_OUTPUT"
-            echo "Version increased: '$PREV' -> '$CURR' — will release."
-          else
-            echo "release=false" >> "$GITHUB_OUTPUT"
-            echo "No version increase ('$PREV' -> '$CURR') — skipping release."
-          fi
+    # Only proceed to a release when package.json "version" increased vs the
+    # previous commit. The build jobs below run on every master push regardless.
+    check:
+        runs-on: ubuntu-latest
+        outputs:
+            release: ${{ steps.v.outputs.release }}
+            version: ${{ steps.v.outputs.version }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 2
+            - id: v
+              shell: bash
+              run: |
+                  CURR=$(jq -r .version package.json)
+                  echo "version=$CURR" >> "$GITHUB_OUTPUT"
+                  PREV=$(git show HEAD~1:package.json 2>/dev/null | jq -r .version 2>/dev/null || echo "")
+                  if [ -z "$PREV" ] || { [ "$CURR" != "$PREV" ] && [ "$(printf '%s\n%s\n' "$PREV" "$CURR" | sort -V | tail -n1)" = "$CURR" ]; }; then
+                    echo "release=true" >> "$GITHUB_OUTPUT"
+                    echo "Version increased: '$PREV' -> '$CURR' — will release."
+                  else
+                    echo "release=false" >> "$GITHUB_OUTPUT"
+                    echo "No version increase ('$PREV' -> '$CURR') — skipping release."
+                  fi
 
-  # Dev builds — run on every commit. Attached to a release only when the
-  # version increased (gated `release` job below).
-  android:
-    needs: check
-    runs-on: ubuntu-latest
-    # Signing key + passwords. Add these as repository secrets:
-    #   ANDROID_KEYSTORE_BASE64  = base64 of your .jks/.keystore file
-    #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
-    # When ANDROID_KEYSTORE_BASE64 is unset the APK is built unsigned.
-    env:
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-        env:
-          VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
-          VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - uses: android-actions/setup-android@v3
-      - name: Add google-services.json
-        if: env.GOOGLE_SERVICES_JSON_BASE64 != ''
-        env:
-          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
-        run: |
-          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
-      - run: npx cap sync android
-      - name: Decode signing keystore
-        if: env.ANDROID_KEYSTORE_BASE64 != ''
-        run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
-          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-      - name: Build release APK
-        working-directory: android
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
-      - name: Verify APK signature
-        run: |
-          set -euo pipefail
-          # Both lookups are written so the friendly "not found" branches below
-          # stay REACHABLE under `set -euo pipefail`:
-          #   * the directory guards keep a missing directory from making find
-          #     exit non-zero, which would kill the step before the branch runs;
-          #   * `-print -quit` lets find itself stop at the first APK, so there
-          #     is no `| head` to close the pipe early and abort with SIGPIPE
-          #     (141) on a build that ever produces more than one APK.
-          # `tail -n1` reads its whole input, so that pipeline has no early-exit
-          # stage and is safe to keep as-is.
-          APK_DIR=android/app/build/outputs/apk/release
-          APK=""
-          if [ -d "$APK_DIR" ]; then
-            APK=$(find "$APK_DIR" -name '*.apk' -print -quit)
-          fi
-          if [ -z "$APK" ]; then
-            echo "::error::No release APK was produced."
-            exit 1
-          fi
-          BUILD_TOOLS="${ANDROID_SDK_ROOT:-}/build-tools"
-          APKSIGNER=""
-          if [ -d "$BUILD_TOOLS" ]; then
-            APKSIGNER=$(find "$BUILD_TOOLS" -name apksigner | sort | tail -n1)
-          fi
-          if [ -z "$APKSIGNER" ]; then
-            echo "::error::apksigner not found in $BUILD_TOOLS."
-            exit 1
-          fi
-          # Hard failure by design: in-app updates pin the signer certificate,
-          # so an unsigned or unverifiable APK must never reach a release.
-          # Set the ANDROID_KEYSTORE_* repository secrets to sign the build.
-          "$APKSIGNER" verify --print-certs "$APK"
-      - name: Stage APK with version
-        run: |
-          mkdir -p release-files
-          APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
-          cp "$APK" "release-files/zam-${{ needs.check.outputs.version }}.apk"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android
-          path: release-files/*.apk
-          if-no-files-found: error
+    # Code gate: types, tests and formatting. The build jobs wait on it, so a
+    # red gate never produces installers or a release.
+    verify:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run check
+            - run: npm run test
+            - run: npm run lint
 
-  desktop:
-    needs: check
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+    # Dev builds — run on every master push. Attached to a release only when
+    # the version increased (gated `release` job below).
+    android:
+        needs: [check, verify]
+        runs-on: ubuntu-latest
+        # Signing key + passwords. Add these as repository secrets:
+        #   ANDROID_KEYSTORE_BASE64  = base64 of your .jks/.keystore file
+        #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        # When ANDROID_KEYSTORE_BASE64 is unset the APK is built unsigned.
         env:
-          VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
-          VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
-      - name: Build desktop app
-        run: npx electron-builder --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Upload installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.os }}
-          if-no-files-found: ignore
-          path: |
-            dist-electron/*.exe
-            dist-electron/*.dmg
-            dist-electron/*.zip
-            dist-electron/*.AppImage
-            dist-electron/*.deb
-            dist-electron/latest*.yml
-            dist-electron/*.blockmap
+            ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+            ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+            ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+            ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+              env:
+                  VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+                  VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            - uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+            - uses: android-actions/setup-android@v3
+            - name: Add google-services.json
+              if: env.GOOGLE_SERVICES_JSON_BASE64 != ''
+              env:
+                  GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+              run: |
+                  echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+            - run: npx cap sync android
+            - name: Decode signing keystore
+              if: env.ANDROID_KEYSTORE_BASE64 != ''
+              run: |
+                  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+                  echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            - name: Build release APK
+              working-directory: android
+              run: |
+                  chmod +x ./gradlew
+                  ./gradlew assembleRelease --no-daemon --stacktrace
+            - name: Verify APK signature
+              run: |
+                  set -euo pipefail
+                  # Both lookups are written so the friendly "not found" branches below
+                  # stay REACHABLE under `set -euo pipefail`:
+                  #   * the directory guards keep a missing directory from making find
+                  #     exit non-zero, which would kill the step before the branch runs;
+                  #   * `-print -quit` lets find itself stop at the first APK, so there
+                  #     is no `| head` to close the pipe early and abort with SIGPIPE
+                  #     (141) on a build that ever produces more than one APK.
+                  # `tail -n1` reads its whole input, so that pipeline has no early-exit
+                  # stage and is safe to keep as-is.
+                  APK_DIR=android/app/build/outputs/apk/release
+                  APK=""
+                  if [ -d "$APK_DIR" ]; then
+                    APK=$(find "$APK_DIR" -name '*.apk' -print -quit)
+                  fi
+                  if [ -z "$APK" ]; then
+                    echo "::error::No release APK was produced."
+                    exit 1
+                  fi
+                  BUILD_TOOLS="${ANDROID_SDK_ROOT:-}/build-tools"
+                  APKSIGNER=""
+                  if [ -d "$BUILD_TOOLS" ]; then
+                    APKSIGNER=$(find "$BUILD_TOOLS" -name apksigner | sort | tail -n1)
+                  fi
+                  if [ -z "$APKSIGNER" ]; then
+                    echo "::error::apksigner not found in $BUILD_TOOLS."
+                    exit 1
+                  fi
+                  # Hard failure by design: in-app updates pin the signer certificate,
+                  # so an unsigned or unverifiable APK must never reach a release.
+                  # Set the ANDROID_KEYSTORE_* repository secrets to sign the build.
+                  "$APKSIGNER" verify --print-certs "$APK"
+            - name: Stage APK with version
+              run: |
+                  mkdir -p release-files
+                  APK=$(find android/app/build/outputs/apk/release -name '*.apk' | head -n1)
+                  cp "$APK" "release-files/zam-${{ needs.check.outputs.version }}.apk"
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: android
+                  path: release-files/*.apk
+                  if-no-files-found: error
 
-  release:
-    needs: [check, android, desktop]
-    if: needs.check.outputs.release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Extract the changelog section for this version
-        shell: bash
-        run: |
-          VER="${{ needs.check.outputs.version }}"
-          # Pull the "## v<version>" section out of CHANGELOG.md into the release
-          # body (stops at the next "## " heading). Empty if there is no matching
-          # entry — the auto-generated commit notes below still fill the release.
-          awk -v h="## v$VER" \
-            'index($0,h)==1 && substr($0,length(h)+1,1) !~ /[0-9]/ {f=1;next} /^## /{f=0} f{print}' \
-            CHANGELOG.md > "$RUNNER_TEMP/release-body.md" || true
-          echo "----- release body for v$VER -----"
-          cat "$RUNNER_TEMP/release-body.md"
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.check.outputs.version }}
-          name: v${{ needs.check.outputs.version }}
-          body_path: ${{ runner.temp }}/release-body.md
-          generate_release_notes: true
-          fail_on_unmatched_files: false
-          files: artifacts/**/*
+    desktop:
+        needs: [check, verify]
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+              env:
+                  VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+                  VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            - name: Build desktop app
+              run: npx electron-builder --publish never
+              env:
+                  CSC_IDENTITY_AUTO_DISCOVERY: false
+            - name: Upload installers
+              uses: actions/upload-artifact@v4
+              with:
+                  name: desktop-${{ matrix.os }}
+                  if-no-files-found: ignore
+                  path: |
+                      dist-electron/*.exe
+                      dist-electron/*.dmg
+                      dist-electron/*.zip
+                      dist-electron/*.AppImage
+                      dist-electron/*.deb
+                      dist-electron/latest*.yml
+                      dist-electron/*.blockmap
+
+    release:
+        needs: [check, android, desktop]
+        if: needs.check.outputs.release == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: Extract the changelog section for this version
+              shell: bash
+              run: |
+                  VER="${{ needs.check.outputs.version }}"
+                  # Pull the "## v<version>" section out of CHANGELOG.md into the release
+                  # body (stops at the next "## " heading). Empty if there is no matching
+                  # entry — the auto-generated commit notes below still fill the release.
+                  awk -v h="## v$VER" \
+                    'index($0,h)==1 && substr($0,length(h)+1,1) !~ /[0-9]/ {f=1;next} /^## /{f=0} f{print}' \
+                    CHANGELOG.md > "$RUNNER_TEMP/release-body.md" || true
+                  echo "----- release body for v$VER -----"
+                  cat "$RUNNER_TEMP/release-body.md"
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+            - name: Create GitHub release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ needs.check.outputs.version }}
+                  name: v${{ needs.check.outputs.version }}
+                  body_path: ${{ runner.temp }}/release-body.md
+                  generate_release_notes: true
+                  fail_on_unmatched_files: false
+                  files: artifacts/**/*

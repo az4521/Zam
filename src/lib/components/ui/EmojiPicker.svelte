@@ -170,20 +170,16 @@
     const flatItems = $derived.by((): FlatItem[] => {
         if (search) {
             return [
-                ...searchCustom.map(
-                    (e): FlatItem => ({
-                        kind: "custom",
-                        sectionId: "search-custom",
-                        data: e,
-                    }),
-                ),
-                ...searchStandard.map(
-                    (e): FlatItem => ({
-                        kind: "standard",
-                        sectionId: "search-standard",
-                        data: e,
-                    }),
-                ),
+                ...searchCustom.map((e): FlatItem => ({
+                    kind: "custom",
+                    sectionId: "search-custom",
+                    data: e,
+                })),
+                ...searchStandard.map((e): FlatItem => ({
+                    kind: "standard",
+                    sectionId: "search-standard",
+                    data: e,
+                })),
             ];
         }
         const items: FlatItem[] = [];

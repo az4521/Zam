@@ -3,8 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the SDK boundary so buildHostApi's client imports resolve without
 // matrix-js-sdk. Each fn is a spy we assert against.
 vi.mock("../matrix/client", () => ({
-    sendEventContent: vi.fn().mockResolvedValue("$evt"),
     sendReaction: vi.fn().mockResolvedValue(undefined),
+    getClient: vi.fn().mockReturnValue({ __sentinel: "client" }),
+}));
+vi.mock("../matrix/pluginHost", () => ({
+    sendEventContent: vi.fn().mockResolvedValue("$evt"),
+    sendPluginMedia: vi.fn().mockResolvedValue(undefined),
     getPluginRoomSummary: vi.fn().mockReturnValue({
         roomId: "!r",
         name: "Room",
@@ -12,10 +16,10 @@ vi.mock("../matrix/client", () => ({
         memberCount: 2,
     }),
     getPluginRoomMembers: vi.fn().mockReturnValue([]),
-    getClient: vi.fn().mockReturnValue({ __sentinel: "client" }),
 }));
 
 import * as client from "../matrix/client";
+import * as pluginHost from "../matrix/pluginHost";
 import { buildHostApi } from "./hostApi";
 import { createRegistryData, countEntries } from "./registry";
 import type { Manifest } from "./manifest";
@@ -134,12 +138,46 @@ describe("buildHostApi — registration + cleanup", () => {
             appVersion: "1",
         });
         await host.zam.matrix.sendImage("!r", { url: "mxc://x", body: "cat" });
-        expect(client.sendEventContent).toHaveBeenCalledWith("!r", {
+        expect(pluginHost.sendEventContent).toHaveBeenCalledWith("!r", {
             msgtype: "m.image",
             body: "cat",
             url: "mxc://x",
             info: {},
         });
+    });
+
+    it("matrix.sendMedia routes to sendPluginMedia with opts", async () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "a",
+            manifest: manifest("a"),
+            registry,
+            appVersion: "1",
+        });
+        const blob = new Blob(["test"], { type: "image/png" });
+        await host.zam.matrix.sendMedia("!r", blob, {
+            name: "test.png",
+            type: "image/png",
+            body: "A test image",
+        });
+        expect(pluginHost.sendPluginMedia).toHaveBeenCalledWith("!r", blob, {
+            name: "test.png",
+            type: "image/png",
+            body: "A test image",
+        });
+    });
+
+    it("matrix.sendMedia defaults to empty opts when none provided", async () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "a",
+            manifest: manifest("a"),
+            registry,
+            appVersion: "1",
+        });
+        const blob = new Blob(["test"]);
+        await host.zam.matrix.sendMedia("!r", blob);
+        expect(pluginHost.sendPluginMedia).toHaveBeenCalledWith("!r", blob, {});
     });
 });
 

@@ -4,6 +4,8 @@
  * feeds it a plain snapshot and hands the parsed result to the manager UI.
  */
 
+import { isCommitSha } from "./repo";
+
 export interface PluginSyncEntry {
     enabled: boolean;
     source: "builtin" | "repo";
@@ -11,6 +13,7 @@ export interface PluginSyncEntry {
     repoRef?: string;
     autoUpdate?: boolean;
     settings?: Record<string, unknown>;
+    sha?: string;
 }
 
 export interface PluginSyncPayload {
@@ -37,6 +40,7 @@ function cleanEntry(e: PluginSyncEntry): PluginSyncEntry {
     if (typeof e.repoRef === "string") out.repoRef = e.repoRef;
     if (typeof e.autoUpdate === "boolean") out.autoUpdate = e.autoUpdate;
     if (isPlainObject(e.settings)) out.settings = { ...e.settings };
+    if (typeof e.sha === "string" && isCommitSha(e.sha)) out.sha = e.sha;
     return out;
 }
 
@@ -83,6 +87,9 @@ export function parseSyncPayload(raw: unknown): PluginSyncPayload | null {
                 entry.autoUpdate = rawEntry.autoUpdate;
             if (isPlainObject(rawEntry.settings))
                 entry.settings = { ...rawEntry.settings };
+            // Keep sha only if it's a valid 40-hex commit sha
+            if (typeof rawEntry.sha === "string" && isCommitSha(rawEntry.sha))
+                entry.sha = rawEntry.sha;
             out.plugins[id] = entry;
         }
     }
