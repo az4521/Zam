@@ -2437,11 +2437,28 @@ export async function sendNotificationQuickReply(
         threadRootId = await resolveQuickReplyThreadRoot(roomId, eventId);
     }
 
+    // Same content the composer paths build, but sent through
+    // sendOutboxMessage: on failure it cancels the NOT_SENT local echo this
+    // send created. A leftover echo would show a phantom failed message next
+    // to the restored draft and block every later send in the room ("Event
+    // blocked by other events not yet sent").
+    let content: Record<string, unknown>;
     if (threadRootId) {
-        await sendThreadReply(roomId, threadRootId, text);
+        const room = matrixClient?.getRoom(roomId);
+        const latestEventId =
+            (room && getThreadSummary(room, threadRootId).latestEventId) ||
+            threadRootId;
+        const { formattedBody, hasFormatting } = parseMarkdown(text);
+        content = buildThreadReplyContent({
+            rootEventId: threadRootId,
+            latestEventId,
+            text,
+            formattedText: hasFormatting ? formattedBody : undefined,
+        }) as unknown as Record<string, unknown>;
     } else {
-        await sendTextMessage(roomId, text);
+        content = { msgtype: "m.text", body: text, "m.mentions": {} };
     }
+    await sendOutboxMessage(roomId, content);
 
     return { threadRootId };
 }
