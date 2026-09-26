@@ -2681,8 +2681,7 @@ export async function getRoomVersionCapability(): Promise<{
 }> {
     const caps = await getServerCapabilities();
     const cap = caps["m.room_versions"] as
-        | { default?: string; available?: Record<string, unknown> }
-        | undefined;
+        { default?: string; available?: Record<string, unknown> } | undefined;
     return {
         default: typeof cap?.default === "string" ? cap.default : "",
         available: cap?.available ? Object.keys(cap.available) : [],
@@ -3304,8 +3303,7 @@ const pushRuleWriteQueue = createSerialQueue({
 
 function getGlobalPushRules(): Record<string, any[]> | undefined {
     return (matrixClient as any)?.pushRules?.global as
-        | Record<string, any[]>
-        | undefined;
+        Record<string, any[]> | undefined;
 }
 
 function findRule(ruleId: string): any | undefined {
@@ -4833,8 +4831,7 @@ const pendingFollowUps = createPendingFollowUps();
 async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
-        | Record<string, string[]>
-        | undefined;
+        Record<string, string[]> | undefined;
     await matrixClient.setAccountData(
         EventType.Direct,
         addToMDirect(cur, userId, roomId),
@@ -5243,8 +5240,7 @@ export async function acceptInvite(roomId: string): Promise<void> {
     if (isDirect && inviter) {
         const cur =
             (matrixClient.getAccountData(EventType.Direct)?.getContent() as
-                | Record<string, string[]>
-                | undefined) ?? {};
+                Record<string, string[]> | undefined) ?? {};
         await matrixClient
             .setAccountData(
                 EventType.Direct,
@@ -6084,8 +6080,7 @@ function getUserEmoteContent(): RoomEmoteContent {
     if (!matrixClient) return {};
     return (
         (matrixClient.getAccountData("im.ponies.user_emotes")?.getContent() as
-            | RoomEmoteContent
-            | undefined) ?? {}
+            RoomEmoteContent | undefined) ?? {}
     );
 }
 
@@ -8072,8 +8067,7 @@ export function getActiveVoiceRoomId(): string | null {
 async function configuredRtcFoci(): Promise<unknown[]> {
     if (!matrixClient) return [];
     let wk = matrixClient.getClientWellKnown() as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
     if (!wk) {
         // startClient() doesn't pass clientWellKnownPollPeriod, so the SDK
         // never fetches .well-known on its own and getClientWellKnown()
@@ -8085,8 +8079,7 @@ async function configuredRtcFoci(): Promise<unknown[]> {
             }
         ).fetchClientWellKnown();
         wk = matrixClient.getClientWellKnown() as
-            | Record<string, unknown>
-            | undefined;
+            Record<string, unknown> | undefined;
     }
     const foci = wk?.["org.matrix.msc4143.rtc_foci"];
     return Array.isArray(foci) ? foci : [];

@@ -11,12 +11,7 @@
 
 /** The actions that move off the inline bar and into the overflow sheet. */
 export type MessageActionKey =
-    | "edit"
-    | "pin"
-    | "copy-link"
-    | "report"
-    | "redact"
-    | "delete";
+    "edit" | "pin" | "copy-link" | "report" | "redact" | "delete";
 
 export interface MessageActionContext {
     /** Own text message that can be edited in place. */

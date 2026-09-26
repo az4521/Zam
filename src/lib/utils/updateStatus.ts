@@ -23,12 +23,7 @@ export interface UpdateStatusInput {
 export interface UpdateStatusView {
     label: string;
     action:
-        | "none"
-        | "check"
-        | "download"
-        | "restart"
-        | "install"
-        | "open-release";
+        "none" | "check" | "download" | "restart" | "install" | "open-release";
     actionLabel: string;
     busy: boolean;
     percent: number | null;

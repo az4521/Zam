@@ -17,9 +17,7 @@ import type { PushRuleLevel } from "$lib/matrix/pushRules";
  *   server state may be assumed from it.
  */
 export type PushRuleWriteFailure =
-    | "rule-missing"
-    | "rule-rejected"
-    | "transport";
+    "rule-missing" | "rule-rejected" | "transport";
 
 const REJECTED_ERRCODES = new Set([
     "M_BAD_JSON",

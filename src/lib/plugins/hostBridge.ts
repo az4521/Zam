@@ -20,25 +20,21 @@ export const hostBridge = {
     notify: null as null | ((opts: { title?: string; body: string }) => void),
     /** Set by item 9 (startReply) — sets the composer's reply target. */
     startReply: null as
-        | null
-        | ((ctx: { roomId: string; eventId: string }) => void),
+        null | ((ctx: { roomId: string; eventId: string }) => void),
     /** Set by the double-tap-reply migration (item 16) — start inline edit of
      *  your own text message. Guards own+m.text host-side. */
     startEdit: null as
-        | null
-        | ((ctx: { roomId: string; eventId: string }) => void),
+        null | ((ctx: { roomId: string; eventId: string }) => void),
     /** Set by the GIF-picker migration (item 14) — appends text to the active
      *  main composer for a room (URL-as-text rail). Returns true only when the
      *  mounted composer belongs to ctx.roomId and took the text; callers that
      *  must not lose it (share staging) fall back to the draft otherwise. */
     insertText: null as
-        | null
-        | ((ctx: { roomId: string; text: string }) => boolean | void),
+        null | ((ctx: { roomId: string; text: string }) => boolean | void),
     /** Set by item 7 (call-menu "Mention") — insert an @mention for a user into
      *  the active room's main composer. */
     insertMention: null as
-        | null
-        | ((ctx: { roomId: string; userId: string }) => void),
+        null | ((ctx: { roomId: string; userId: string }) => void),
     /** Queue slot: a mention requested before the composer has claimed the hook
      *  (the composer mounts asynchronously after the call→chat view flip).
      *  Drained + cleared by the composer's claim effect. */

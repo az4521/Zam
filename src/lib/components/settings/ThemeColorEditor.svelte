@@ -443,7 +443,7 @@
                 Backgrounds
             </p>
             <div class="flex flex-col gap-2">
-                {#each THEME_TOKENS.filter( (t) => ["background", "backgroundSecondary", "backgroundTertiary"].includes(t.key), ) as token}
+                {#each THEME_TOKENS.filter( (t) => ["background", "backgroundSecondary", "backgroundTertiary"].includes(t.key) ) as token}
                     <div
                         class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
@@ -486,7 +486,7 @@
                 Text
             </p>
             <div class="flex flex-col gap-2">
-                {#each THEME_TOKENS.filter( (t) => ["textPrimary", "textSecondary", "textMuted"].includes(t.key), ) as token}
+                {#each THEME_TOKENS.filter( (t) => ["textPrimary", "textSecondary", "textMuted"].includes(t.key) ) as token}
                     <div
                         class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
@@ -529,7 +529,7 @@
                 Accents & semantics
             </p>
             <div class="flex flex-col gap-2">
-                {#each THEME_TOKENS.filter( (t) => ["accent", "link", "danger", "positive", "warning"].includes(t.key), ) as token}
+                {#each THEME_TOKENS.filter( (t) => ["accent", "link", "danger", "positive", "warning"].includes(t.key) ) as token}
                     <div
                         class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
@@ -572,7 +572,7 @@
                 Presence
             </p>
             <div class="flex flex-col gap-2">
-                {#each THEME_TOKENS.filter( (t) => ["online", "idle", "dnd", "offline"].includes(t.key), ) as token}
+                {#each THEME_TOKENS.filter( (t) => ["online", "idle", "dnd", "offline"].includes(t.key) ) as token}
                     <div
                         class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >
@@ -615,7 +615,7 @@
                 Details
             </p>
             <div class="flex flex-col gap-2">
-                {#each THEME_TOKENS.filter( (t) => ["divider", "mention", "spoilerBackground", "ownBubbleBackground"].includes(t.key), ) as token}
+                {#each THEME_TOKENS.filter( (t) => ["divider", "mention", "spoilerBackground", "ownBubbleBackground"].includes(t.key) ) as token}
                     <div
                         class="flex items-center gap-2 py-2 border-b border-discord-divider"
                     >

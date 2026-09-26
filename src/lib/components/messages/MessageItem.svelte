@@ -1056,8 +1056,7 @@
         // getContent() drops the reply relation. Fall back to the original
         // event content so edited replies still render their quoted message.
         return original?.["m.relates_to"]?.["m.in_reply_to"]?.event_id as
-            | string
-            | undefined;
+            string | undefined;
     });
     // Finding the parent is a linear scan of the loaded timeline chunk, and this
     // derived re-runs on every timelineTick for every reply on screen. A resolved

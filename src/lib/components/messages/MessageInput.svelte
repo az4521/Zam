@@ -499,24 +499,20 @@
         const custom = getCustomEmojis(room, roomsState.activeSpaceId)
             .filter((e) => e.shortcode.toLowerCase().includes(q))
             .slice(0, 5)
-            .map(
-                (e): EmojiCandidate => ({
-                    kind: "custom",
-                    shortcode: e.shortcode,
-                    url: e.url,
-                }),
-            );
+            .map((e): EmojiCandidate => ({
+                kind: "custom",
+                shortcode: e.shortcode,
+                url: e.url,
+            }));
         const unicode = ALL_EMOJIS.filter((e) =>
             e.name.toLowerCase().includes(q),
         )
             .slice(0, 8 - custom.length)
-            .map(
-                (e): EmojiCandidate => ({
-                    kind: "unicode",
-                    emoji: e.emoji,
-                    name: e.name,
-                }),
-            );
+            .map((e): EmojiCandidate => ({
+                kind: "unicode",
+                emoji: e.emoji,
+                name: e.name,
+            }));
         return [...custom, ...unicode];
     });
 

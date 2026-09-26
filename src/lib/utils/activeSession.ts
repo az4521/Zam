@@ -77,8 +77,7 @@ export const MIN_CUSTOM_GRACE_MS = 60_000;
 export const MAX_CUSTOM_GRACE_MINUTES = MAX_GRACE_MS / 60_000;
 
 export type CustomGraceParse =
-    | { ok: true; ms: number }
-    | { ok: false; error: string };
+    { ok: true; ms: number } | { ok: false; error: string };
 
 /**
  * Validate a typed custom duration (in MINUTES) from the Settings picker.

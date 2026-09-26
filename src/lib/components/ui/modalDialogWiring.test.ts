@@ -419,7 +419,7 @@ describe("SpaceSidebar dialogs are portaled out of the drawer", () => {
     function portalRegions(src: string): string[] {
         const text = normalize(src);
         const regions: string[] = [];
-        for (let open = text.indexOf(OPEN); open !== -1; ) {
+        for (let open = text.indexOf(OPEN); open !== -1;) {
             const close = text.indexOf(CLOSE, open);
             expect(close, "unclosed <Portal> in SpaceSidebar").toBeGreaterThan(
                 open,

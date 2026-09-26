@@ -8,9 +8,7 @@
  * Channels list, or an empty state).
  */
 export type LandingTarget =
-    | { kind: "keep" }
-    | { kind: "room"; roomId: string }
-    | { kind: "none" };
+    { kind: "keep" } | { kind: "room"; roomId: string } | { kind: "none" };
 
 export interface LandingInput {
     /**

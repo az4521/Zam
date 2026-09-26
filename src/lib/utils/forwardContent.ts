@@ -18,8 +18,7 @@ export function buildForwardContent(
     const clone = structuredClone(content);
 
     const relatesTo = clone["m.relates_to"] as
-        | { "m.in_reply_to"?: unknown }
-        | undefined;
+        { "m.in_reply_to"?: unknown } | undefined;
     const wasReply = !!relatesTo?.["m.in_reply_to"];
 
     for (const key of RELATION_KEYS) delete clone[key];
