@@ -54,3 +54,18 @@ describe("galleryPositionLabel", () => {
         expect(galleryPositionLabel(3, -1)).toBeNull();
     });
 });
+
+describe("galleryPositionLabel with more to load", () => {
+    it("marks the total as open-ended", () => {
+        expect(galleryPositionLabel(20, 2, true)).toBe("3 of 20+");
+    });
+
+    it("has no label for a lone loaded item, which has nothing to step to", () => {
+        expect(galleryPositionLabel(1, 0, true)).toBeNull();
+    });
+
+    it("has no label for an empty or out-of-range list", () => {
+        expect(galleryPositionLabel(0, 0, true)).toBeNull();
+        expect(galleryPositionLabel(3, 3, true)).toBeNull();
+    });
+});

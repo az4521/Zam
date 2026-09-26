@@ -542,7 +542,11 @@
             onNext={viewerIndex < gallery.length - 1
                 ? () => step(1)
                 : undefined}
-            position={galleryPositionLabel(gallery.length, viewerIndex)}
+            position={galleryPositionLabel(
+                gallery.length,
+                viewerIndex,
+                hasMore,
+            )}
         />
     {:else}
         <!-- mediaViewerItem resolved to nothing (bad mxc / signed-out media
