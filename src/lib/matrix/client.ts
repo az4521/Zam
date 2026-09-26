@@ -91,7 +91,11 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
-import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    settingsState,
+    setAudioInputDeviceId,
+    setVideoInputDeviceId,
+} from "$lib/stores/settings.svelte";
 import { installMediaHealer } from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
@@ -9192,8 +9196,10 @@ export function setVoiceOutputVolume(volume: number): void {
 /** Switch a live call input device. LiveKit's restart stops the current
  *  track BEFORE acquiring the new device, so a failed switch (device held by
  *  another app, vanished id) leaves the published track ended and silent.
- *  On failure, restore the previous device (else the system default) and tell
- *  the user. Resolves either way; never throws. */
+ *  On failure, restore the previous device (else the system default), point
+ *  the saved selection back at the device actually in use (callers persist
+ *  the pick before switching), and tell the user. Resolves either way; never
+ *  throws. A muted mic is not covered: LiveKit defers its restart to unmute. */
 async function switchInputWithRecovery(
     call: ActiveVoiceCall,
     kind: "audioinput" | "videoinput",
@@ -9208,6 +9214,8 @@ async function switchInputWithRecovery(
     const track =
         call.lkRoom.localParticipant.getTrackPublication(source)?.track;
     const previousId = track?.mediaStreamTrack.getSettings().deviceId;
+    const persist =
+        kind === "audioinput" ? setAudioInputDeviceId : setVideoInputDeviceId;
     const trySwitch = async (id: string, ex: boolean): Promise<boolean> => {
         try {
             return (
@@ -9226,6 +9234,7 @@ async function switchInputWithRecovery(
         previousId !== "default" &&
         (await trySwitch(previousId, true))
     ) {
+        persist(previousId);
         if (activeVoice === call)
             notifyVoiceNotice(
                 `Couldn't switch to that ${what} - kept your previous one`,
@@ -9233,6 +9242,7 @@ async function switchInputWithRecovery(
         return;
     }
     const onDefault = await trySwitch("default", false);
+    if (onDefault) persist(null);
     if (activeVoice !== call) return;
     notifyVoiceNotice(
         onDefault
@@ -9311,10 +9321,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     }
 }
 
-/** Re-encode the currently published screen share to a new quality without
- *  re-acquiring the capture (capture resolution can't change live; the publish
- *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
- *  is being shared. */
+/** Re-target the currently published screen share to a new quality without
+ *  re-acquiring the capture: applyConstraints moves the running capture's
+ *  resolution/fps, then the publish encoding (bitrate/framerate cap) follows.
+ *  No-op when nothing is being shared. */
 async function applyScreenShareQualityNow(
     resKey: string,
     fps: number,

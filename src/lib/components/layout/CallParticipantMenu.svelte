@@ -238,9 +238,9 @@
     // UserProfileCard's `confirming` flow (UX-07).
     let confirming = $state<"kick" | "ban" | null>(null);
 
-    // Reset confirming state when the menu is reused for a different participant.
-    // The menu component stays mounted (Portal), so state leaks across targets
-    // without this guard.
+    // Reset confirming state when the open menu is retargeted to a different
+    // participant (the host can swap userId without remounting), so an armed
+    // Kick/Ban never carries over to someone else.
     $effect(() => {
         void userId;
         confirming = null;
