@@ -91,7 +91,11 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
-import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    settingsState,
+    setAudioInputDeviceId,
+    setVideoInputDeviceId,
+} from "$lib/stores/settings.svelte";
 import { installMediaHealer } from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
@@ -8879,6 +8883,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
 
+    let connected = false;
     try {
         session.joinRTCSession(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
@@ -9031,7 +9036,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // SFU kicked us or the connection died for good — tear down
             // fully and tell the user. User-initiated leaves null
             // activeVoice first, so this only fires on genuine drops.
-            if (activeVoice?.lkRoom === lkRoom) {
+            // LiveKit emits Disconnected while still Connecting when the
+            // connect fails; the join's own catch reports that failure
+            // exactly once, so only act here when we were connected.
+            if (connected && activeVoice?.lkRoom === lkRoom) {
                 for (const cb of voiceErrorSubscribers)
                     cb("Voice call disconnected");
                 void leaveVoiceCall();
@@ -9062,6 +9070,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
 
         await lkRoom.connect(url, jwt);
+        connected = true;
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -9076,15 +9085,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     } catch (err) {
         if (activeVoice === call) {
             await leaveVoiceCall();
+            throw err;
         } else {
             // Superseded mid-join: tear down our own resources only. The
             // superseder's leave already left the RTC session; don't touch
-            // the per-room session object a rejoin may be re-joining.
+            // the per-room session object a rejoin may be re-joining. Return
+            // without throwing — the superseder owns the outcome, and the
+            // function's doc contract says it resolves without joining when
+            // superseded.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
             await call.lkRoom.disconnect().catch(() => {});
+            return;
         }
-        throw err;
     }
 }
 
@@ -9180,26 +9193,83 @@ export function setVoiceOutputVolume(volume: number): void {
     }
 }
 
+/** Switch a live call input device. LiveKit's restart stops the current
+ *  track BEFORE acquiring the new device, so a failed switch (device held by
+ *  another app, vanished id) leaves the published track ended and silent.
+ *  On failure, restore the previous device (else the system default), point
+ *  the saved selection back at the device actually in use (callers persist
+ *  the pick before switching), and tell the user. Resolves either way; never
+ *  throws. A muted mic is not covered: LiveKit defers its restart to unmute. */
+async function switchInputWithRecovery(
+    call: ActiveVoiceCall,
+    kind: "audioinput" | "videoinput",
+    deviceId: string,
+    exact: boolean,
+    what: string,
+): Promise<void> {
+    const source =
+        kind === "audioinput"
+            ? call.lk.Track.Source.Microphone
+            : call.lk.Track.Source.Camera;
+    const track =
+        call.lkRoom.localParticipant.getTrackPublication(source)?.track;
+    const previousId = track?.mediaStreamTrack.getSettings().deviceId;
+    const persist =
+        kind === "audioinput" ? setAudioInputDeviceId : setVideoInputDeviceId;
+    const trySwitch = async (id: string, ex: boolean): Promise<boolean> => {
+        try {
+            return (
+                (await call.lkRoom.switchActiveDevice(kind, id, ex)) !== false
+            );
+        } catch {
+            return false;
+        }
+    };
+    if (await trySwitch(deviceId, exact)) return;
+    if (activeVoice !== call) return;
+    // exact: Chromium treats a bare (ideal) deviceId as a hint and hands back
+    // the default device, which LiveKit then reports as a failed switch.
+    if (
+        previousId &&
+        previousId !== "default" &&
+        (await trySwitch(previousId, true))
+    ) {
+        persist(previousId);
+        if (activeVoice === call)
+            notifyVoiceNotice(
+                `Couldn't switch to that ${what} - kept your previous one`,
+            );
+        return;
+    }
+    const onDefault = await trySwitch("default", false);
+    if (onDefault) persist(null);
+    if (activeVoice !== call) return;
+    notifyVoiceNotice(
+        onDefault
+            ? `Couldn't switch to that ${what} - using the default device`
+            : `Couldn't switch to that ${what} - pick another device`,
+    );
+}
+
 /** Switch the live call's microphone. A null deviceId selects the system
  *  default device live (previously this was a no-op that only took effect on
  *  the next join). */
 export async function setVoiceInputDevice(
     deviceId: string | null,
 ): Promise<void> {
-    if (!activeVoice) return;
-    if (deviceId) {
-        // exact:true (switchActiveDevice's default) — unchanged real-device path.
-        await activeVoice.lkRoom
-            .switchActiveDevice("audioinput", deviceId)
-            .catch(() => {});
-    } else {
-        // System default: LiveKit resolves the "default" sentinel to the OS
-        // default input; exact:false so browsers without a literal "default"
-        // device id (Firefox) fall back to their default instead of throwing.
-        await activeVoice.lkRoom
-            .switchActiveDevice("audioinput", "default", false)
-            .catch(() => {});
-    }
+    const call = activeVoice;
+    if (!call) return;
+    // A real device uses exact:true (switchActiveDevice's default). System
+    // default: LiveKit resolves the "default" sentinel to the OS default
+    // input; exact:false so browsers without a literal "default" device id
+    // (Firefox) fall back to their default instead of throwing.
+    await switchInputWithRecovery(
+        call,
+        "audioinput",
+        deviceId ?? "default",
+        !!deviceId,
+        "microphone",
+    );
 }
 
 /** getDisplayMedia rejects with NotAllowedError/AbortError when the user
@@ -9251,10 +9321,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     }
 }
 
-/** Re-encode the currently published screen share to a new quality without
- *  re-acquiring the capture (capture resolution can't change live; the publish
- *  encoding — bitrate/framerate cap — is what this moves). No-op when nothing
- *  is being shared. */
+/** Re-target the currently published screen share to a new quality without
+ *  re-acquiring the capture: applyConstraints moves the running capture's
+ *  resolution/fps, then the publish encoding (bitrate/framerate cap) follows.
+ *  No-op when nothing is being shared. */
 async function applyScreenShareQualityNow(
     resKey: string,
     fps: number,
@@ -9267,6 +9337,19 @@ async function applyScreenShareQualityNow(
     const sender = track?.sender;
     if (!track || !sender) return;
     try {
+        // Apply the new capture constraints first, so the underlying capture
+        // adjusts before we change the encoding bitrate/framerate caps. Use
+        // ideal so a smaller capture doesn't throw OverconstrainedError.
+        const { width, height, frameRate } = screenShareCaptureResolution(
+            resKey,
+            fps,
+        );
+        await track.mediaStreamTrack.applyConstraints({
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: frameRate },
+        });
+
         const params = sender.getParameters();
         if (
             applyScreenShareEncoding(
@@ -9281,6 +9364,9 @@ async function applyScreenShareQualityNow(
         }
     } catch (err) {
         console.error("Screen share quality change failed:", err);
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't change screen share quality");
+        }
     }
 }
 
@@ -9316,10 +9402,9 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
 export async function setVideoInputDevice(
     deviceId: string | null,
 ): Promise<void> {
-    if (!activeVoice || !deviceId) return;
-    await activeVoice.lkRoom
-        .switchActiveDevice("videoinput", deviceId)
-        .catch(() => {});
+    const call = activeVoice;
+    if (!call || !deviceId) return;
+    await switchInputWithRecovery(call, "videoinput", deviceId, true, "camera");
 }
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a
@@ -9335,7 +9420,28 @@ export async function setVoiceCaptureConstraints(c: {
         call.lk.Track.Source.Microphone,
     )?.audioTrack;
     if (!track) return;
-    await track.restartTrack({ ...c }).catch(() => {});
+    // Pass the current device along so restartTrack doesn't switch to the
+    // OS default. Prefer the live track's device id, else the saved selection.
+    // It must be `exact`: Chromium treats a bare (ideal) deviceId as a hint
+    // and re-acquired the default mic in live testing. If the exact device
+    // is gone, fall back to an ideal hint rather than leaving the mic dead
+    // (the restart has already stopped the old track by then).
+    const deviceId =
+        track.mediaStreamTrack.getSettings().deviceId ??
+        settingsState.audioInputDeviceId ??
+        undefined;
+    try {
+        await track.restartTrack({
+            ...c,
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+        });
+    } catch (err) {
+        console.error("Voice capture constraints change failed:", err);
+        await track.restartTrack({ ...c, deviceId }).catch(() => {});
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't apply audio processing change");
+        }
+    }
 }
 
 /** Live srcObject streams of the call's remote <audio> elements (feeds the
