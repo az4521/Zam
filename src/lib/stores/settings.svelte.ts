@@ -736,6 +736,8 @@ export async function uploadCustomFont(
     if (!saved) {
         // registerCustomFontFace replaced the previous face; put back whatever
         // is still stored (or clear the slot) so the session matches the next boot.
+        // initCustomFont returns early with no stored name, so drop the new face first.
+        unregisterCustomFontFace();
         await initCustomFont();
         return { ok: false, reason: "Font couldn't be saved on this device." };
     }
