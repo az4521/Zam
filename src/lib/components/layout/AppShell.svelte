@@ -1446,7 +1446,7 @@
                     );
                 }
                 showErrorToast(
-                    "Couldn't send your reply — saved it as a draft",
+                    "Couldn't send your reply. It's saved as a draft.",
                 );
                 // Always delete the stash on failure (already consumed)
                 if (stashId) await deleteQuickReplyStash(stashId);
