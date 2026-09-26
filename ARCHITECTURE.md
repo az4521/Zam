@@ -88,7 +88,7 @@ all the `init*()` wiring.
 ## Data flow
 
 ```
-matrix-js-sdk client (single module-level instance in client.ts)
+matrix-js-sdk client (single module-level slot in runtime.ts, re-exported by client.ts)
         |  emits sync / timeline / account-data / receipt / typing / crypto events
         v
 client.ts subscriber helpers (onTimelineEvent, onAccountData, onRoomUpdate, onAnyReceiptEvent, ...)
@@ -159,8 +159,9 @@ returning an unsubscribe function).
 owns the client it started with — a stopped client's late callback must not act on its successor's
 state. The guard lives in `runtime.ts`: take `const owner = captureClient()` on entry (client plus
 generation), then after each await use `ownedClient(owner)` (null once a successor holds the slot) or
-`ownedClientOrThrow(owner)`. Older code compares the captured client by identity
-(`if (matrixClient === client)`). Many multi-await functions still do neither.
+`ownedClientOrThrow(owner)`. Lifecycle code in `client.ts` uses the lower-level form of the same
+check: `captureOwnership(client, clientGeneration)` then `ownsRuntime(owner, matrixClient,
+clientGeneration)` (see `logout`). Many multi-await functions still do neither.
 
 ## Stores
 
@@ -266,9 +267,13 @@ encrypt for. `ensureRoomCryptoConfigured(room)` replays the event through the sa
 after any out-of-band state injection, and gate on the encryptor map rather than
 `isEncryptionEnabledInRoom()` (the algorithm is persisted, so that call lies).
 
-**Attachments are not encrypted.** The upload path always emits a plaintext `mxc://` url, and
-incoming encrypted attachments cannot be rendered. This is a known gap, not an oversight to
-"fix" incidentally.
+**Attachments are encrypted in encrypted rooms.** `media.ts` `uploadAttachment` and `sendFile`
+encrypt the file on upload (`utils/encryptAttachment.ts`, AES-CTR `v2`, WebCrypto only), upload the
+ciphertext without a filename, and send `file` instead of `url`; thumbnails go out as
+`info.thumbnail_file`. The room counts as encrypted when its state event or the crypto store says
+so (`isRoomEncryptedForSend`, `crypto.ts`), so an attachment is encrypted exactly when its event is.
+Incoming and own encrypted media decrypt through `fetchDecryptedAttachmentBlob` (`media.ts`), which
+checks the ciphertext hash before anything is shown; encrypted videos play from an object URL.
 
 ### Voice/video calls (MatrixRTC + LiveKit)
 
@@ -431,13 +436,16 @@ plugin entry.
 `blob:` is already in `script-src`.
 
 **Repo plugins are pinned to a commit.** Install and update resolve the repo branch to a commit SHA
-through the unauthenticated GitHub commits API (`repo.ts` `commitShaApiUrl`), then fetch the index,
-manifest and bundle at that SHA. If the SHA can't be resolved, the install or update fails with a
+through the unauthenticated GitHub commits API (`repo.ts` `commitShaApiUrl`). Install then fetches
+the manifest and bundle at that SHA; update also fetches the index at it. (Install still reads the
+entry path from the Browse index at the branch head, so a moved path fails closed with a 404.) If the SHA can't be resolved, the install or update fails with a
 visible error; it never falls back to the branch head. The SHA is stored with the installed record
 and synced with it (`pluginSync.ts`), so another device installs the same commit. `pinnedFileUrl` is
 the only URL builder for plugin files and rejects unsafe paths (`..`, absolute, scheme). Fetched
 bundles are cached in IndexedDB (`bundleCache.ts`, one row per plugin id); a row is reused only when
-its version and SHA match the pinned ones, and offline only when it was cached at that SHA (or is a legacy row with no SHA). A cache miss refetches the same SHA, so with auto-update off the code is frozen. Only an
+its version matches and it was cached at the pinned SHA (or is a legacy row with no SHA). When a fetch at the pin fails
+(offline, 404), only a row cached at that SHA, or a legacy row, may stand in (`isCacheFallbackAllowed`;
+version not checked). A cache miss refetches the same SHA, so with auto-update off the code is frozen. Only an
 update moves the SHA. A record installed before pinning resolves the branch once on the next boot and
 is frozen from then on (`pluginPin.ts` `decideRepoLoad`); if that resolve fails it keeps using its
 cached bundle, and with no cache it loads nothing and shows "needs update". A repo plugin whose
