@@ -95,7 +95,9 @@
         <ToggleSwitch
             checked={settingsState.shareSystemAudio}
             onChange={(v) => setShareSystemAudio(v)}
-            label="Share system audio"
+            label={isLive
+                ? "Share system audio (applies to next share)"
+                : "Share system audio"}
         />
     </div>
 </div>

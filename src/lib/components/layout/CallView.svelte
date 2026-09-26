@@ -698,7 +698,10 @@
                                                 >{deviceCounts.get(p.userId) ??
                                                     1}
                                                 devices</span
-                                            >{deviceCounts.get(p.userId) ?? 1}
+                                            ><span aria-hidden="true"
+                                                >{deviceCounts.get(p.userId) ??
+                                                    1}</span
+                                            >
                                         </span>
                                     {/if}
                                 </div>
@@ -748,7 +751,10 @@
                                         /><span class="sr-only"
                                             >{deviceCounts.get(p.userId) ?? 1}
                                             devices</span
-                                        >{deviceCounts.get(p.userId) ?? 1}
+                                        ><span aria-hidden="true"
+                                            >{deviceCounts.get(p.userId) ??
+                                                1}</span
+                                        >
                                     </span>
                                 {/if}
                                 <span class="text-xs text-white truncate"
