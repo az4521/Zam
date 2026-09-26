@@ -29,6 +29,12 @@ describe("resolveStaticPath", () => {
         expect(resolveStaticPath(buildDir, "/..%2f..%2fetc")).toBeNull();
     });
 
+    it("allows a file whose name merely starts with two dots", () => {
+        expect(resolveStaticPath(buildDir, "/..hidden.js")).toBe(
+            join(buildDir, "..hidden.js"),
+        );
+    });
+
     it("returns buildDir for root path", () => {
         expect(resolveStaticPath(buildDir, "/")).toBe(buildDir);
     });

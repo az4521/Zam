@@ -32,7 +32,11 @@ function resolveStaticPath(buildDir, rawUrl) {
     const rel = path.relative(buildDir, filePath);
 
     // Reject if relative path starts with .. (outside buildDir) or is absolute
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    if (
+        rel === ".." ||
+        rel.startsWith(".." + path.sep) ||
+        path.isAbsolute(rel)
+    ) {
         return null;
     }
 
