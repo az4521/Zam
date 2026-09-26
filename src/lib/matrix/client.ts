@@ -9076,15 +9076,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     } catch (err) {
         if (activeVoice === call) {
             await leaveVoiceCall();
+            throw err;
         } else {
             // Superseded mid-join: tear down our own resources only. The
             // superseder's leave already left the RTC session; don't touch
-            // the per-room session object a rejoin may be re-joining.
+            // the per-room session object a rejoin may be re-joining. Return
+            // without throwing — the superseder owns the outcome, and the
+            // function's doc contract says it resolves without joining when
+            // superseded.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
             await call.lkRoom.disconnect().catch(() => {});
+            return;
         }
-        throw err;
     }
 }
 
