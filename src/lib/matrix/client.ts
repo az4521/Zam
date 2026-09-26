@@ -7863,7 +7863,9 @@ function applyVoiceSink(el: HTMLAudioElement): void {
 // camera either lands on some other camera or fails and mutes. Hence the mic
 // notice can promise a fallback and the camera notice cannot.
 // One notice per kind per call.
-let voiceDeviceWatchStop: (() => void) | null = null;
+// The devicechange listener is installed once and lives for the page: it bails
+// when no call is active, so there is nothing to tear down.
+let voiceDeviceWatchStarted = false;
 let audioInputGoneNotified: ActiveVoiceCall | null = null;
 let videoInputGoneNotified: ActiveVoiceCall | null = null;
 
@@ -7893,7 +7895,7 @@ function activeCameraDeviceId(call: ActiveVoiceCall): string | null {
 }
 
 function ensureVoiceDeviceWatch(): void {
-    if (voiceDeviceWatchStop || !navigator.mediaDevices?.addEventListener)
+    if (voiceDeviceWatchStarted || !navigator.mediaDevices?.addEventListener)
         return;
     const onChange = async () => {
         const call = activeVoice;
@@ -7922,8 +7924,7 @@ function ensureVoiceDeviceWatch(): void {
         }
     };
     navigator.mediaDevices.addEventListener("devicechange", onChange);
-    voiceDeviceWatchStop = () =>
-        navigator.mediaDevices.removeEventListener("devicechange", onChange);
+    voiceDeviceWatchStarted = true;
 }
 
 type VoiceConnStateCb = (
@@ -8464,12 +8465,14 @@ async function leaveVoiceCallInternal(): Promise<void> {
         );
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
-        try {
-            await call.lkRoom.disconnect();
-        } catch {
-            // already disconnected
-        }
-        await call.session.leaveRoomSession(10_000).catch(() => {});
+        // In parallel, not SFU-first: the membership leave is what other
+        // users' rosters see, and it must fit the account-switch and logout
+        // windows even when the LiveKit teardown is slow (audit IMP-1).
+        // Both settle quietly: a rejected disconnect means already gone.
+        await Promise.allSettled([
+            call.lkRoom.disconnect(),
+            call.session.leaveRoomSession(10_000),
+        ]);
     })();
     voiceLeaveInFlight = run;
     try {
@@ -8640,6 +8643,9 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     } catch (err) {
         if (isUserCancel(err)) return false;
         console.error("Screen share failed:", err);
+        // Left the call while the picker was open: LiveKit already dropped
+        // the late track, and a failure toast for an ended call is noise.
+        if (activeVoice !== call) return false;
         notifyVoiceNotice("Could not start screen share");
         return false;
     }
@@ -8716,6 +8722,8 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         return on;
     } catch (err) {
         console.error("Camera enable failed:", err);
+        // Same as screen share: no toast once the call has ended.
+        if (activeVoice !== call) return false;
         notifyVoiceNotice("Could not start the camera - check permissions");
         return false;
     }
