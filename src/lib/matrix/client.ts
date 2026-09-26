@@ -297,6 +297,7 @@ import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import { planShareSend } from "$lib/utils/shareSend";
+import { findFailedRedactionEcho } from "$lib/utils/redactionEcho";
 import {
     createPendingFollowUps,
     isRoomGone,
@@ -6037,8 +6038,6 @@ export async function deleteMessage(
         // the message. Cancel the echo so it reappears.
         const room = matrixClient.getRoom(roomId);
         if (room) {
-            const { findFailedRedactionEcho } =
-                await import("$lib/utils/redactionEcho");
             const echo = findFailedRedactionEcho(
                 room.getPendingEvents(),
                 eventId,
