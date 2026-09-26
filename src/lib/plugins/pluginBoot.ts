@@ -38,7 +38,7 @@ import {
 } from "$lib/stores/plugins.svelte";
 import {
     normalizeRepoRef,
-    rawUrl,
+    parseIndex,
     pinnedFileUrl,
     commitShaApiUrl,
     repoKey,
@@ -85,6 +85,7 @@ import {
     setPluginAutoUpdateState,
     setUpdateAvailable,
     setPluginNeedsUpdate,
+    setInstalledPluginSha,
     pluginRegistry,
 } from "$lib/stores/plugins.svelte";
 
@@ -261,6 +262,7 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
                 persisted.sha = decision.record;
                 persisted.path = pluginPath;
                 writeState(state);
+                setInstalledPluginSha(manifest.id, decision.record);
             }
 
             if (decision.kind === "needs-update") {
@@ -269,6 +271,7 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
                     `Needs update: couldn't resolve ${ref.owner}/${ref.repo}@${ref.branch} and no cache available`,
                 );
             }
+            setPluginNeedsUpdate(manifest.id, false);
 
             if (decision.kind === "cache") {
                 if (!cached) throw new Error("cache decision but no cache"); // shouldn't happen
@@ -451,6 +454,7 @@ export function initPlugins(): () => void {
             enabled: entry.enabled,
             error: null,
             repoRef: entry.repoRef,
+            sha: entry.sha,
         });
         const l = repoLoadable(entry.manifest, entry.repoRef);
         loadables.set(id, l);
@@ -484,18 +488,6 @@ export async function disablePlugin(pluginId: string): Promise<void> {
 
 export function getUserRepos(): string[] {
     return readState().repos;
-}
-
-export function getPluginSha(pluginId: string): string | null {
-    const state = readState();
-    const entry = state.plugins[pluginId];
-    return entry?.sha || null;
-}
-
-export function getPluginPath(pluginId: string): string | null {
-    const state = readState();
-    const entry = state.plugins[pluginId];
-    return entry?.path || null;
 }
 
 /** Persist + reactively add a user repo (already normalized by canAddRepo). */
@@ -534,12 +526,15 @@ export async function installRepoPlugin(
             { source: "builtin" | "repo"; repoRef?: typeof ref }
         > = {};
         for (const [id, record] of Object.entries(installedPlugins)) {
-            installed[id] = {
-                source: record.source,
-                repoRef: record.repoRef
+            let recordRef: ReturnType<typeof normalizeRepoRef> | undefined;
+            try {
+                recordRef = record.repoRef
                     ? normalizeRepoRef(record.repoRef)
-                    : undefined,
-            };
+                    : undefined;
+            } catch {
+                recordRef = undefined;
+            }
+            installed[id] = { source: record.source, repoRef: recordRef };
         }
         const idError = checkInstallId({
             entryId: entry.id,
@@ -628,6 +623,7 @@ export async function installRepoPlugin(
             enabled: false,
             error: null,
             repoRef,
+            sha,
         });
 
         // Persist with SHA and path
@@ -804,21 +800,17 @@ export async function updateRepoPlugin(
         const indexRes = await fetch(pinnedFileUrl(ref, sha, "index.json"));
         if (!indexRes.ok)
             return { ok: false, error: `index fetch ${indexRes.status}` };
-        const index = await indexRes.json();
-        const entries = index.plugins;
-        if (!Array.isArray(entries))
-            return { ok: false, error: "index has no plugins array" };
-
-        // Use the persisted path if we have it, else fall back to plugins/<id>
-        const pluginPath = persisted.path || `plugins/${pluginId}`;
-        const entry = entries.find(
-            (e: any) => e.id === pluginId && e.path === pluginPath,
+        // parseIndex drops entries with an unsafe path; the index at THIS
+        // commit decides where the plugin lives now.
+        const entry = parseIndex(await indexRes.json()).find(
+            (e) => e.id === pluginId,
         );
         if (!entry)
             return {
                 ok: false,
                 error: `plugin ${pluginId} not found in repo index`,
             };
+        const pluginPath = entry.path;
 
         // Fetch manifest at the pinned SHA
         const manRes = await fetch(
@@ -871,6 +863,7 @@ export async function updateRepoPlugin(
             enabled: wasEnabled,
             error: null,
             repoRef: persisted.repoRef,
+            sha,
         });
         persisted.manifest = manifest;
         persisted.sha = sha;

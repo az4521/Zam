@@ -23,7 +23,6 @@
         updateRepoPlugin,
         setGlobalAutoUpdate,
         setPluginAutoUpdate,
-        getPluginSha,
     } from "$lib/plugins/pluginBoot";
     import {
         OFFICIAL_REPO,
@@ -73,6 +72,7 @@
                 enabled: r.enabled,
                 error: r.error,
                 repoRef: r.repoRef,
+                sha: r.sha,
             })),
         )),
     );
@@ -284,6 +284,16 @@
         })();
     });
 
+    /** `owner/repo` for the installed row; the raw ref if it doesn't parse. */
+    function repoLabel(ref: string): string {
+        try {
+            const r = normalizeRepoRef(ref);
+            return `${r.owner}/${r.repo}`;
+        } catch {
+            return ref;
+        }
+    }
+
     function refreshUpdates() {
         const latestByRepo: Record<string, Record<string, string>> = {};
         for (const [ref, state] of Object.entries(browse)) {
@@ -466,14 +476,9 @@
                                 <p class="text-xs text-discord-textMuted">
                                     v{p.version} · {p.author}
                                     {#if p.source === "repo" && p.repoRef}
-                                        {@const ref = normalizeRepoRef(
+                                        · {repoLabel(
                                             p.repoRef,
-                                        )}
-                                        {@const sha = getPluginSha(p.id)}
-                                        · {ref.owner}/{ref.repo}{#if sha}@{sha.slice(
-                                                0,
-                                                7,
-                                            )}{/if}
+                                        )}{#if p.sha}@{p.sha.slice(0, 7)}{/if}
                                     {/if}
                                 </p>
                                 {#if p.error}

@@ -31,6 +31,8 @@ export interface InstalledPluginRecord {
     error: string | null;
     /** Repo slug (`owner/repo[@branch]`) for repo plugins; absent for builtins. */
     repoRef?: string;
+    /** Commit SHA a repo plugin's code is pinned to (absent until pinned). */
+    sha?: string;
 }
 
 /** The shared reactive registry all extension points read from. Never
@@ -91,6 +93,11 @@ export function enabledPluginIds(): string[] {
 
 export function setInstalledPlugin(record: InstalledPluginRecord): void {
     installedPlugins[record.manifest.id] = record;
+}
+
+export function setInstalledPluginSha(pluginId: string, sha: string): void {
+    const r = installedPlugins[pluginId];
+    if (r) r.sha = sha;
 }
 
 export function markPluginEnabled(pluginId: string, enabled: boolean): void {
