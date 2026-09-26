@@ -624,7 +624,9 @@ describe("commitShaApiUrl", () => {
     it("builds GitHub API URL for commit SHA", () => {
         const ref: RepoRef = { owner: "owner", repo: "repo", branch: "main" };
         const url = commitShaApiUrl(ref);
-        expect(url).toBe("https://api.github.com/repos/owner/repo/commits/main");
+        expect(url).toBe(
+            "https://api.github.com/repos/owner/repo/commits/main",
+        );
     });
 
     it("encodes branch names with special characters", () => {
@@ -670,6 +672,8 @@ describe("repoKey", () => {
 
     it("normalizes and builds key from a parseable ref string", () => {
         expect(repoKey("Owner/Repo@branch")).toBe("owner/repo@branch");
-        expect(repoKey("https://github.com/Owner/Repo")).toBe("owner/repo@main");
+        expect(repoKey("https://github.com/Owner/Repo")).toBe(
+            "owner/repo@main",
+        );
     });
 });
