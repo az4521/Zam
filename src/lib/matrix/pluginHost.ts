@@ -238,13 +238,13 @@ export async function sendPluginSticker(
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not connected");
     const owner = captureClient();
-    assertMediaOwned([sticker.mxcUrl], owner.generation);
     const content: Record<string, unknown> = {
         body: sticker.body || sticker.shortcode || "sticker",
         url: sticker.mxcUrl,
         info: sticker.info ?? {},
         "m.mentions": {},
     };
+    assertMediaOwned(mxcUrlsInContent(content), owner.generation);
     const finalContent = thread
         ? withThreadRelation(
               content,

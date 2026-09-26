@@ -99,6 +99,21 @@ describe("plugin upload→send owner guard", () => {
         expect(b.sendEvent).not.toHaveBeenCalled();
     });
 
+    it("refuses a sticker whose thumbnail is A's upload", async () => {
+        const a = makeClient("mxc://a/5");
+        const b = makeClient("mxc://b/5");
+        switchAccount(a);
+        const thumb = await uploadPluginMedia(new Blob(["x"]), "t.png");
+        switchAccount(b);
+        await expect(
+            sendPluginSticker("!r", {
+                mxcUrl: "mxc://pack/sticker",
+                info: { thumbnail_url: thumb },
+            }),
+        ).rejects.toThrow(/different account/);
+        expect(b.sendEvent).not.toHaveBeenCalled();
+    });
+
     it("still sends media the host never uploaded", async () => {
         const b = makeClient("mxc://b/4");
         switchAccount(b);
