@@ -421,6 +421,7 @@
                     roomId: room.roomId,
                     eventId,
                     isOwn: isOwnMessage,
+                    canEdit: canEditMessage,
                     threshold: stage, // "short" | "far" (never "none" here)
                 },
             );
@@ -682,9 +683,9 @@
         return !!event.replacingEvent();
     });
 
-    // Swipe reveal icon: "none" | "reply" | "edit" (depends on isOwnMessage).
+    // Swipe reveal icon: "none" | "reply" | "edit" (depends on canEditMessage).
     const swipeRevealIcon = $derived(
-        resolveSwipeAction(swipeStageNow, isOwnMessage),
+        resolveSwipeAction(swipeStageNow, canEditMessage),
     );
 
     // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
@@ -847,6 +848,13 @@
 
     const msgtype = $derived(content?.msgtype ?? "");
 
+    // Gate for Edit action: only your own m.text messages can be edited inline.
+    const canEditMessage = $derived(
+        isOwnMessage &&
+            eventType === "m.room.message" &&
+            msgtype === "m.text",
+    );
+
     // --- Mobile action overflow ("⋯ More") sheet ---
     // Extracted so the desktop pin button and the mobile sheet run the same
     // toggle rather than diverging copies.
@@ -878,10 +886,7 @@
     // inline.
     const overflowRows = $derived(
         messageActionsMenu({
-            canEdit:
-                isOwnMessage &&
-                eventType === "m.room.message" &&
-                msgtype === "m.text",
+            canEdit: canEditMessage,
             canPin,
             isPinned,
             hasLink: eventId.startsWith("$") && !isFailed,

@@ -32,6 +32,7 @@ export function dispatchSwipe(
         roomId: string;
         eventId: string;
         isOwn: boolean;
+        canEdit: boolean;
         threshold: SwipeThreshold;
     },
 ): void {
