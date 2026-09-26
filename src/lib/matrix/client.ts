@@ -2046,8 +2046,7 @@ async function getMediaUploadSizeLimit(): Promise<number | null> {
 }
 
 /**
- * Upload a blob to the media repo, encrypting it first if the room is encrypted
- * and the msgtype is not m.video (encrypted video playback is queued as item 2b).
+ * Upload a blob to the media repo, encrypting it first if the room is encrypted.
  * Returns either `{ url }` (plaintext) or `{ file }` (encrypted) — never both.
  * The caller builds the event content from this plus mimetype/size/etc.
  */
@@ -2057,10 +2056,7 @@ async function uploadAttachment(
     blob: Blob,
     opts: { name: string; type?: string; msgtype: string },
 ): Promise<UploadedAttachment> {
-    const encrypt = shouldEncryptUpload(
-        await isRoomEncryptedForSend(roomId),
-        opts.msgtype,
-    );
+    const encrypt = shouldEncryptUpload(await isRoomEncryptedForSend(roomId));
     ownedClientOrThrow(owner);
 
     if (encrypt) {
@@ -2125,8 +2121,7 @@ export async function sendFile(
             ? "m.audio"
             : "m.file";
 
-    // Upload the main file, encrypting if the room is encrypted and the
-    // msgtype is not m.video (encrypted video playback is queued as item 2b).
+    // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, file, {
         name: file.name,
         msgtype,
@@ -2144,8 +2139,8 @@ export async function sendFile(
             const thumbFile = new File([thumb.blob], "thumbnail.jpg", {
                 type: "image/jpeg",
             });
-            // The thumbnail follows the video's encryption decision (same
-            // msgtype), so it goes as `thumbnail_file` once video encrypts.
+            // The thumbnail follows the video's encryption decision, so in an
+            // encrypted room it goes as `thumbnail_file`.
             const thumbUpload = await uploadAttachment(
                 owner,
                 roomId,

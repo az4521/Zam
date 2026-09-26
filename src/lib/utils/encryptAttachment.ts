@@ -87,16 +87,10 @@ export async function encryptAttachment(
 }
 
 /**
- * Decide whether to encrypt an attachment upload for the given room and msgtype.
- * Returns false for m.video (encrypted video playback is queued as item 2b),
- * otherwise returns whether the room is encrypted.
+ * Decide whether to encrypt an attachment upload for the given room.
+ * Returns whether the room is encrypted (all attachment types now encrypt).
  */
-export function shouldEncryptUpload(
-    roomEncrypted: boolean,
-    msgtype: string,
-): boolean {
-    // Skip m.video until encrypted video playback lands (queue item 2b).
-    if (msgtype === "m.video") return false;
+export function shouldEncryptUpload(roomEncrypted: boolean): boolean {
     return roomEncrypted;
 }
 

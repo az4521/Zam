@@ -148,6 +148,19 @@
     $effect(() => {
         const target = kind === "video" ? src : null;
         if (!target) return;
+        // A `blob:` src is already local bytes (a decrypted E2EE attachment).
+        // The caller owns it, so play it as is and never revoke it here;
+        // fetchAttachmentBlob would refuse it as a non-homeserver URL anyway.
+        if (target.startsWith("blob:")) {
+            untrack(() => {
+                videoBlobUrl = target;
+                videoFailed = false;
+            });
+            return () => {
+                if (videoEl) videoEl.pause();
+                videoBlobUrl = null;
+            };
+        }
         let objectUrl: string | null = null;
         let cancelled = false;
         untrack(() => {
