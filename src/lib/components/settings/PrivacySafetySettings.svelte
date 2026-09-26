@@ -9,8 +9,12 @@
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
-    import { updateServiceWorkerNotificationPrivacy } from "$lib/matrix/client";
+    import {
+        updateServiceWorkerNotificationPrivacy,
+        updateServiceWorkerReceiptPrivacy,
+    } from "$lib/matrix/client";
     import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
+    import { auth } from "$lib/stores/auth.svelte";
 
     const linkPreviewOptions: Array<{
         value: LinkPreviewMedia;
@@ -41,6 +45,14 @@
         updateServiceWorkerNotificationPrivacy(value);
         syncNativeNotificationPrivacy(value).catch(() => {});
     }
+
+    function onTogglePrivateReadReceipts(value: boolean) {
+        setPrivateReadReceipts(value);
+        // The service worker keeps its own copy for quick mark-read actions.
+        if (auth.userId) {
+            updateServiceWorkerReceiptPrivacy(auth.userId, value);
+        }
+    }
 </script>
 
 <div class="space-y-6">
@@ -64,7 +76,7 @@
             </div>
             <ToggleSwitch
                 checked={settingsState.privateReadReceipts}
-                onChange={setPrivateReadReceipts}
+                onChange={onTogglePrivateReadReceipts}
                 label="Private read receipts"
             />
         </div>
