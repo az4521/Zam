@@ -24,10 +24,11 @@
     } from "$lib/stores/shareInbox.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
-    // Flip to false if one-step auto-send proves racy in live-verify: the Send
-    // button then only stages into the composer + opens the room (the redesigned
-    // surface is unchanged). See plan Task 4.
+    // Send button calls deliverShareToRoom with send:true, which sends via
+    // sendShare (bypassing the composer) when online, or stages into the
+    // composer with a toast when offline. Never leaks the user's draft/files.
     const ONE_STEP_SEND = true;
 
     const payload = $derived(shareInboxState.payload);
@@ -226,6 +227,7 @@
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="share-target-title"
+                use:focusTrap={{ onEscape: clearShare }}
             >
                 <div
                     class="flex items-center gap-2 border-b border-discord-divider px-2 py-3"
