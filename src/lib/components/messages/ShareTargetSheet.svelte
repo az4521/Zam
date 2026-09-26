@@ -91,12 +91,16 @@
         );
     });
 
+    // Nothing to send: a text share whose caption was cleared. Send would
+    // close the sheet with no message, so it stays disabled instead.
+    const empty = $derived(!caption.trim() && previews.length === 0);
+
     function submit() {
-        if (!selectedRoomId) return;
-        deliverShareToRoom(selectedRoomId, {
+        if (!selectedRoomId || empty) return;
+        void deliverShareToRoom(selectedRoomId, {
             caption: caption.trim() ? caption : "",
             send: ONE_STEP_SEND,
-        });
+        }).catch((err) => console.error("Share delivery failed:", err));
     }
 </script>
 
@@ -212,7 +216,7 @@
         <button
             type="button"
             onclick={submit}
-            disabled={!selectedRoomId}
+            disabled={!selectedRoomId || empty}
             class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
             >Send</button
         >

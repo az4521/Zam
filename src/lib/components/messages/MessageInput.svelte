@@ -194,9 +194,10 @@
         if (isThread) return;
         const rid = roomId;
         const handler = (ctx: { roomId: string; text: string }) => {
-            if (ctx.roomId !== rid) return;
+            if (ctx.roomId !== rid) return false;
             setComposerText(composerInsertText(text, ctx.text));
             textareaEl?.focus();
+            return true;
         };
         hostBridge.insertText = handler;
         return () => {

@@ -27,10 +27,12 @@ export const hostBridge = {
         | null
         | ((ctx: { roomId: string; eventId: string }) => void),
     /** Set by the GIF-picker migration (item 14) — appends text to the active
-     *  main composer for a room (URL-as-text rail). */
+     *  main composer for a room (URL-as-text rail). Returns true only when the
+     *  mounted composer belongs to ctx.roomId and took the text; callers that
+     *  must not lose it (share staging) fall back to the draft otherwise. */
     insertText: null as
         | null
-        | ((ctx: { roomId: string; text: string }) => void),
+        | ((ctx: { roomId: string; text: string }) => boolean | void),
     /** Set by item 7 (call-menu "Mention") — insert an @mention for a user into
      *  the active room's main composer. */
     insertMention: null as

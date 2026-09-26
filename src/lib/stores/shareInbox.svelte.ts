@@ -4,7 +4,7 @@ import {
     type NormalizedShare,
 } from "$lib/utils/sharePayload";
 import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
-import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
+import { navigateToRoom } from "$lib/stores/rooms.svelte";
 import { getDraft, setDraft } from "$lib/stores/composerDrafts.svelte";
 import { composerInsertText } from "$lib/utils/composerInsert";
 import { addQueuedFile } from "$lib/stores/composerFileQueue.svelte";
@@ -46,18 +46,17 @@ export function receiveShare(input: ShareInput): boolean {
 
 /**
  * Stage text and files into the room's composer without sending. Merges text
- * via hostBridge.insertText when the room is active and mounted, else into the
+ * via hostBridge.insertText when that room's composer is mounted, else into the
  * draft store. Stages files into the composer queue with preview URLs for images.
  */
 function stageShare(roomId: string, text: string, files: File[]): void {
-    const wasActive = roomsState.activeRoomId === roomId;
-
-    // Deliver text: via hostBridge if the room is already mounted and active,
-    // otherwise merge into the draft.
+    // Deliver text: ask the mounted composer first. "Room is active" is not
+    // enough: right after navigateToRoom the mounted composer can still be the
+    // previous room's, whose room-guarded handler declines, so only a true
+    // return counts as delivered. Otherwise merge into the draft, which the
+    // room's composer restores when it mounts.
     if (text) {
-        if (wasActive && hostBridge.insertText) {
-            hostBridge.insertText({ roomId, text });
-        } else {
+        if (hostBridge.insertText?.({ roomId, text }) !== true) {
             const d = getDraft(roomId);
             setDraft(
                 roomId,

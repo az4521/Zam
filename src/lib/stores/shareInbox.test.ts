@@ -42,7 +42,7 @@ vi.mock("$lib/stores/composerFileQueue.svelte", () => ({
 }));
 
 const hostBridge = {
-    insertText: null as null | ((c: unknown) => void),
+    insertText: null as null | ((c: unknown) => boolean | void),
 };
 vi.mock("$lib/plugins/hostBridge", () => ({
     get hostBridge() {
@@ -147,7 +147,7 @@ describe("shareInbox", () => {
     });
 
     it("delivers text to the ACTIVE room via hostBridge.insertText", () => {
-        const insert = vi.fn();
+        const insert = vi.fn(() => true);
         hostBridge.insertText = insert;
         roomsState.activeRoomId = "!r:x";
         receiveShare({ source: "android", text: "yo" });
@@ -227,6 +227,31 @@ describe("shareInbox", () => {
         );
         expect(showErrorToast).toHaveBeenCalledWith(
             "You're offline: the share was added to the composer",
+        );
+    });
+
+    it("offline send into a room whose composer isn't mounted keeps the caption", async () => {
+        Object.defineProperty(navigator, "onLine", {
+            writable: true,
+            value: false,
+        });
+        // navigateToRoom flips activeRoomId synchronously, but the composer
+        // still mounted belongs to the previous room: its insertText handler
+        // is room-guarded and declines the text.
+        navigateToRoom.mockImplementationOnce((id: unknown) => {
+            roomsState.activeRoomId = id as string;
+        });
+        roomsState.activeRoomId = "!other:server";
+        hostBridge.insertText = vi.fn(
+            (c: unknown) =>
+                (c as { roomId: string }).roomId === "!other:server",
+        );
+        receiveShare({ source: "web", text: "keep me" });
+        await deliverShareToRoom("!r:server", { send: true });
+        expect(setDraft).toHaveBeenCalledWith(
+            "!r:server",
+            "keep me",
+            expect.any(Map),
         );
     });
 
