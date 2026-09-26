@@ -28,7 +28,7 @@
 </script>
 
 {#if visible}
-    <!-- Stacked layout: the sidebar column is narrow (~312px), so the label
+    <!-- Stacked layout: the sidebar column is narrow (~19.5rem), so the label
          gets its own row (wraps, never truncates to "Update a…") and the action
          + dismiss sit on a row below. -->
     <div

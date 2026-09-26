@@ -896,7 +896,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav
-    class="w-[72px] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
+    class="w-[4.5rem] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
     ondragover={(e) => e.preventDefault()}
     ondrop={onDrop}
 >
@@ -1313,7 +1313,7 @@
          the sidebar lives inside AppShell's drawer, whose inline
          `transform: translateX(…)` (present even at 0px) makes it the
          containing block for `position: fixed`. Inside it, ModalDialog's
-         `fixed inset-0` layer covers the 312px drawer instead of the viewport,
+         `fixed inset-0` layer covers the 19.5rem drawer instead of the viewport,
          so a tap beside the dialog dismissed the DRAWER while the dialog kept
          claiming aria-modal over the whole app. -->
     <!-- Color picker dialog -->

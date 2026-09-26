@@ -239,8 +239,15 @@
     }
 
     // Animated drawer drag (mobile)
-    const DRAWER_WIDTH = 312; // 72px SpaceSidebar + 240px RoomList
-    let drawerTranslate = $state(-DRAWER_WIDTH);
+    // The drawer is 19.5rem (4.5rem SpaceSidebar + 15rem RoomList), so its pixel
+    // width follows the app text scale (audit UX-05). Seed it from the root font
+    // size so the first closed park is already off screen; `bind:offsetWidth` on
+    // the drawer keeps it current when the text scale changes.
+    const initialDrawerWidth =
+        19.5 *
+        (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+    let drawerWidth = $state(initialDrawerWidth);
+    let drawerTranslate = $state(-initialDrawerWidth);
     let isDragging = $state(false);
     let dragStartX = 0;
     let dragBaseTranslate = 0;
@@ -260,15 +267,15 @@
     $effect(() => {
         const open = interfaceState.leftOpen;
         if (!isDragging) {
-            drawerTranslate = open ? 0 : -DRAWER_WIDTH;
+            drawerTranslate = open ? 0 : -drawerWidth;
             if (keepSnapDuration) keepSnapDuration = false;
             else snapDurationMs = MAX_SNAP_MS;
         }
     });
 
     const backdropOpacity = $derived(
-        interfaceState.isMobile
-            ? ((drawerTranslate + DRAWER_WIDTH) / DRAWER_WIDTH) * 0.5
+        interfaceState.isMobile && drawerWidth > 0
+            ? ((drawerTranslate + drawerWidth) / drawerWidth) * 0.5
             : 0,
     );
 
@@ -277,9 +284,9 @@
     // controls (audit A11Y-02). `inert` also removes the subtree from the
     // accessibility tree; `aria-hidden` is belt-and-braces for webviews that
     // predate `inert`. Same notion as the box-shadow gate below it
-    // (`drawerTranslate <= -DRAWER_WIDTH`), expressed once.
+    // (`drawerTranslate <= -drawerWidth`), expressed once.
     const leftDrawerClosed = $derived(
-        isOffCanvasClosed(drawerTranslate, -DRAWER_WIDTH),
+        isOffCanvasClosed(drawerTranslate, -drawerWidth),
     );
 
     let dragPending = false; // touch down, direction not yet determined
@@ -326,7 +333,7 @@
             e.preventDefault();
             drawerTranslate = Math.min(
                 0,
-                Math.max(-DRAWER_WIDTH, dragBaseTranslate + dx),
+                Math.max(-drawerWidth, dragBaseTranslate + dx),
             );
             // Sample release velocity from the latest move; a pause before
             // release drops it toward zero, which correctly cancels a flick.
@@ -346,13 +353,13 @@
         isDragging = false;
         const { open, durationMs } = decideDrawerSnap(
             drawerTranslate,
-            DRAWER_WIDTH,
+            drawerWidth,
             dragVelocity,
         );
         snapDurationMs = durationMs;
         keepSnapDuration = true; // survive the sync effect's re-run
         interfaceState.leftOpen = open;
-        drawerTranslate = open ? 0 : -DRAWER_WIDTH;
+        drawerTranslate = open ? 0 : -drawerWidth;
     }
 
     function cleanupDocListeners() {
@@ -374,7 +381,7 @@
         dragStartX = e.touches[0].clientX;
         dragStartY = e.touches[0].clientY;
         dragTarget = e.target instanceof Element ? e.target : null;
-        dragBaseTranslate = interfaceState.leftOpen ? 0 : -DRAWER_WIDTH;
+        dragBaseTranslate = interfaceState.leftOpen ? 0 : -drawerWidth;
         dragPending = true;
         document.addEventListener("touchmove", drawerDragMove, {
             passive: false,
@@ -2057,7 +2064,7 @@
 
         {#if !interfaceState.isMobile}
             <!-- Desktop: permanent sidebars + full-width profile footer -->
-            <div class="flex flex-col w-[312px] flex-shrink-0 min-h-0">
+            <div class="flex flex-col w-[19.5rem] flex-shrink-0 min-h-0">
                 <div class="flex flex-1 min-h-0 overflow-hidden">
                     <SpaceSidebar
                         onHomeClick={() => setActiveSpace(null)}
@@ -2089,11 +2096,12 @@
                 }}
             ></div>
             <div
-                class="fixed inset-y-0 left-0 z-40 flex flex-col w-[312px]"
+                bind:offsetWidth={drawerWidth}
+                class="fixed inset-y-0 left-0 z-40 flex flex-col w-[19.5rem]"
                 style="transform: translateX({drawerTranslate}px); {isDragging
                     ? ''
                     : `transition: transform ${snapDurationMs}ms cubic-bezier(0.2, 0, 0, 1);`} {drawerTranslate <=
-                -DRAWER_WIDTH
+                -drawerWidth
                     ? ''
                     : 'box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);'}"
                 inert={leftDrawerClosed}
