@@ -19,6 +19,13 @@ function resolveStaticPath(buildDir, rawUrl) {
         return null;
     }
 
+    // Build output never contains backslashes or drive-letter segments. Reject
+    // them on every platform, so a Windows-style escape ("..\", "/C:/") gets the
+    // same answer whichever OS the packaged app runs on.
+    if (decoded.includes("\\") || /(^|\/)[A-Za-z]:/.test(decoded)) {
+        return null;
+    }
+
     // Normalize and join with buildDir
     let filePath = path.normalize(path.join(buildDir, decoded));
 
