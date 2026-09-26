@@ -174,6 +174,10 @@
     } from "$lib/utils/messageGesture";
     import { spoilers } from "$lib/actions/spoilers";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
+    import {
+        shouldMountActionBar,
+        focusLeavesRow,
+    } from "$lib/utils/actionBarMount";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { bodyImageGallery } from "$lib/actions/bodyImageGallery";
     import {
@@ -664,6 +668,27 @@
     const mobileSelected = $derived(
         interfaceState.isTouchscreen &&
             interfaceState.selectedMessageId === eventId,
+    );
+
+    // The action bar mounts on demand (see actionBarMount.ts). Hover is
+    // pointer-only: mobile browsers fire compat mouse events on tap, and a
+    // touch row only shows its bar while selected (`mobileSelected`).
+    let rowHovered = $state(false);
+    let rowFocused = $state(false);
+    // Open and visible no matter where the pointer or focus is.
+    const actionBarPinned = $derived(
+        showEmojiPicker ||
+            confirmingDelete ||
+            showReportDialog ||
+            showRedactDialog ||
+            mobileSelected,
+    );
+    const mountActionBar = $derived(
+        shouldMountActionBar({
+            hovered: rowHovered,
+            focused: rowFocused,
+            pinned: actionBarPinned,
+        }),
     );
 
     const menuMode: MessageMenuMode = $derived(
@@ -1857,8 +1882,24 @@
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}
     tabindex="0"
+    onmouseenter={() => {
+        if (!interfaceState.isTouchscreen) rowHovered = true;
+    }}
     onmouseleave={() => {
-        if (!confirmingDelete) return;
+        rowHovered = false;
+    }}
+    onfocusin={() => {
+        rowFocused = true;
+    }}
+    onfocusout={() => {
+        // Judge where focus actually settled, not `relatedTarget`: Chrome
+        // names the intended target even when that focus then fails (a bar
+        // button hidden by the blur itself), which would leave the bar
+        // mounted with focus on <body>.
+        setTimeout(() => {
+            if (rootEl && focusLeavesRow(rootEl, document.activeElement))
+                rowFocused = false;
+        }, 0);
     }}
     onclick={() => handleRowGesture("tap")}
     ontouchend={onMessageTouchEnd}
@@ -2911,72 +2952,35 @@
         clicked — pinning this row's bar open while the pointer hovers another
         row's, two floating bars at once. Hover is left alone: it follows the
         pointer, so it cannot pin anything.
+
+        The bar is only MOUNTED while the row is hovered, focused or pinned
+        (`mountActionBar`, utils/actionBarMount.ts); the classes below still
+        decide whether a mounted bar shows. Focus mounts it on the row's
+        `focusin`, before the Tab that moves into it, and rovingToolbar re-syncs
+        tabindexes on that Tab.
     -->
-    <div
-        data-message-actions
-        role="toolbar"
-        aria-label="Message actions"
-        class="{showEmojiPicker ||
-        confirmingDelete ||
-        showReportDialog ||
-        showRedactDialog ||
-        mobileSelected
-            ? 'flex'
-            : `hidden ${
-                  interfaceState.isTouchscreen ? '' : 'group-hover:flex'
-              } ${
-                  isEditing
-                      ? ''
-                      : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-              }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
-    >
-        {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
-            <button
-                data-message-action
-                onclick={startEdit}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Edit message"
-                aria-label="Edit message"
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                    />
-                </svg>
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && isOwnMessage}
-            {#if confirmingDelete}
-                <span class="text-xs text-discord-textMuted px-1">Delete?</span>
-                <!--
-                    Deliberately NOT `data-message-action`: these two run their
-                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
-                    roving toolbar stops propagation on the keys it owns, which
-                    would kill it. Staying out of the roving set leaves them as
-                    ordinary tab stops for the life of the confirmation — which
-                    is what keeps them reachable if focus wanders off.
-                -->
-                <button
-                    bind:this={deleteYesEl}
-                    onclick={() => resolveDelete(true)}
-                    onkeydown={onDeleteKeydown}
-                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
-                    aria-label="Yes, delete message">Yes</button
-                >
-                <button
-                    bind:this={deleteNoEl}
-                    onclick={() => resolveDelete(false)}
-                    onkeydown={onDeleteKeydown}
-                    class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
-                    aria-label="No, keep message">No</button
-                >
-            {:else}
+    {#if mountActionBar}
+        <div
+            data-message-actions
+            role="toolbar"
+            aria-label="Message actions"
+            class="{actionBarPinned
+                ? 'flex'
+                : `hidden ${
+                      interfaceState.isTouchscreen ? '' : 'group-hover:flex'
+                  } ${
+                      isEditing
+                          ? ''
+                          : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
+                  }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+        >
+            {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
                 <button
                     data-message-action
-                    onclick={() => (confirmingDelete = true)}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                    title="Delete message"
-                    aria-label="Delete message"
+                    onclick={startEdit}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Edit message"
+                    aria-label="Edit message"
                 >
                     <svg
                         class="w-4 h-4"
@@ -2984,193 +2988,256 @@
                         viewBox="0 0 24 24"
                     >
                         <path
-                            d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
                         />
                     </svg>
                 </button>
             {/if}
-        {/if}
-        {#if !interfaceState.isTouchscreen && canPin}
-            <button
-                data-message-action
-                onclick={togglePin}
-                disabled={pinning}
-                class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
-                    ? 'text-discord-accent'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                title={isPinned ? "Unpin message" : "Pin message"}
-                aria-label={isPinned ? "Unpin message" : "Pin message"}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
-                    ><path
-                        d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
-                    /></svg
-                >
-            </button>
-        {/if}
-        <!-- Add reaction -->
-        <div class="relative">
-            <button
-                data-message-action
-                bind:this={reactionBtnEl}
-                onclick={() => {
-                    if (showEmojiPicker) {
-                        closeModal();
-                    } else {
-                        emojiPickerBelow =
-                            (reactionBtnEl?.getBoundingClientRect().top ??
-                                400) < 400;
-                        openReactionPicker();
-                    }
-                }}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Add reaction"
-                aria-label="Add reaction"
-                aria-expanded={showEmojiPicker}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        fill-rule="evenodd"
-                        d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
-                    />
-                </svg>
-            </button>
-            {#if showEmojiPicker && !interfaceState.isTouchscreen}
-                <div
-                    bind:this={emojiPickerEl}
-                    class={emojiPickerBelow
-                        ? "absolute top-full right-0 mt-1 z-50"
-                        : "absolute bottom-full right-0 mb-1 z-50"}
-                >
-                    <EmojiPicker
-                        {room}
-                        onSelect={async (emoji) => {
-                            await sendReaction(room.roomId, eventId, emoji);
-                            closeModal();
-                        }}
-                        onSelectCustom={async (emoji) => {
-                            await sendReaction(
-                                room.roomId,
-                                eventId,
-                                emoji.mxcUrl,
-                            );
-                            closeModal();
-                        }}
-                        onClose={closeModal}
-                    />
-                </div>
-            {/if}
-        </div>
-        <button
-            data-message-action
-            onclick={() => onReply(event)}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            title="Reply"
-            aria-label="Reply"
-        >
-            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path
-                    d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
-                />
-            </svg>
-        </button>
-        {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
-            <button
-                data-message-action
-                onclick={() => onOpenThread(threadRootId)}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title={isThreadReply ? "Open thread" : "Reply in thread"}
-                aria-label={isThreadReply ? "Open thread" : "Reply in thread"}
-            >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z"
-                    />
-                </svg>
-            </button>
-        {/if}
-        {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
-            <button
-                data-message-action
-                onclick={openForwardDialog}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Forward message"
-                aria-label="Forward message"
-            >
-                <Forward size={16} />
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen}
-            {#each pluginActionViews as view (view.entryId)}
-                <button
-                    data-message-action
-                    onclick={() => handlePluginAction(view.key)}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={view.label}
-                    aria-label={view.label}
-                >
-                    {#if view.icon}
+            {#if !interfaceState.isTouchscreen && isOwnMessage}
+                {#if confirmingDelete}
+                    <span class="text-xs text-discord-textMuted px-1"
+                        >Delete?</span
+                    >
+                    <!--
+                    Deliberately NOT `data-message-action`: these two run their
+                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
+                    roving toolbar stops propagation on the keys it owns, which
+                    would kill it. Staying out of the roving set leaves them as
+                    ordinary tab stops for the life of the confirmation — which
+                    is what keeps them reachable if focus wanders off.
+                -->
+                    <button
+                        bind:this={deleteYesEl}
+                        onclick={() => resolveDelete(true)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
+                        aria-label="Yes, delete message">Yes</button
+                    >
+                    <button
+                        bind:this={deleteNoEl}
+                        onclick={() => resolveDelete(false)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                        aria-label="No, keep message">No</button
+                    >
+                {:else}
+                    <button
+                        data-message-action
+                        onclick={() => (confirmingDelete = true)}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                        title="Delete message"
+                        aria-label="Delete message"
+                    >
                         <svg
                             class="w-4 h-4"
                             fill="currentColor"
-                            viewBox="0 0 24 24"><path d={view.icon} /></svg
+                            viewBox="0 0 24 24"
                         >
-                    {:else}
-                        <span class="text-xs font-semibold"
-                            >{view.label.slice(0, 1)}</span
-                        >
-                    {/if}
+                            <path
+                                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                            />
+                        </svg>
+                    </button>
+                {/if}
+            {/if}
+            {#if !interfaceState.isTouchscreen && canPin}
+                <button
+                    data-message-action
+                    onclick={togglePin}
+                    disabled={pinning}
+                    class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
+                        ? 'text-discord-accent'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    title={isPinned ? "Unpin message" : "Pin message"}
+                    aria-label={isPinned ? "Unpin message" : "Pin message"}
+                >
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
+                        /></svg
+                    >
                 </button>
-            {/each}
-        {/if}
-        {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
+            {/if}
+            <!-- Add reaction -->
+            <div class="relative">
+                <button
+                    data-message-action
+                    bind:this={reactionBtnEl}
+                    onclick={() => {
+                        if (showEmojiPicker) {
+                            closeModal();
+                        } else {
+                            emojiPickerBelow =
+                                (reactionBtnEl?.getBoundingClientRect().top ??
+                                    400) < 400;
+                            openReactionPicker();
+                        }
+                    }}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Add reaction"
+                    aria-label="Add reaction"
+                    aria-expanded={showEmojiPicker}
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            fill-rule="evenodd"
+                            d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
+                        />
+                    </svg>
+                </button>
+                {#if showEmojiPicker && !interfaceState.isTouchscreen}
+                    <div
+                        bind:this={emojiPickerEl}
+                        class={emojiPickerBelow
+                            ? "absolute top-full right-0 mt-1 z-50"
+                            : "absolute bottom-full right-0 mb-1 z-50"}
+                    >
+                        <EmojiPicker
+                            {room}
+                            onSelect={async (emoji) => {
+                                await sendReaction(room.roomId, eventId, emoji);
+                                closeModal();
+                            }}
+                            onSelectCustom={async (emoji) => {
+                                await sendReaction(
+                                    room.roomId,
+                                    eventId,
+                                    emoji.mxcUrl,
+                                );
+                                closeModal();
+                            }}
+                            onClose={closeModal}
+                        />
+                    </div>
+                {/if}
+            </div>
             <button
                 data-message-action
-                onclick={openActionsSheet}
+                onclick={() => onReply(event)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="More actions"
-                aria-label="More actions"
-                aria-haspopup="menu"
+                title="Reply"
+                aria-label="Reply"
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
-                        d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                        d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
                     />
                 </svg>
             </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && eventId.startsWith("$") && !isFailed}
-            <button
-                data-message-action
-                onclick={copyMessageLink}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title={linkCopied ? "Link copied!" : "Copy message link"}
-                aria-label={linkCopied ? "Link copied" : "Copy message link"}
-            >
-                {#if linkCopied}
-                    <Check size={16} />
-                {:else}
-                    <Link size={16} />
-                {/if}
-            </button>
-        {/if}
-        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
-            <MessageReportAction
-                roomId={room.roomId}
-                {eventId}
-                {keyboardOffset}
-                bind:open={showReportDialog}
-            />
-        {/if}
-        {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
-            <MessageRedactAction
-                roomId={room.roomId}
-                {eventId}
-                {keyboardOffset}
-                bind:open={showRedactDialog}
-            />
-        {/if}
-    </div>
+            {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
+                <button
+                    data-message-action
+                    onclick={() => onOpenThread(threadRootId)}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={isThreadReply ? "Open thread" : "Reply in thread"}
+                    aria-label={isThreadReply
+                        ? "Open thread"
+                        : "Reply in thread"}
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z"
+                        />
+                    </svg>
+                </button>
+            {/if}
+            {#if (eventType === "m.room.message" || eventType === "m.sticker") && !isFailed}
+                <button
+                    data-message-action
+                    onclick={openForwardDialog}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="Forward message"
+                    aria-label="Forward message"
+                >
+                    <Forward size={16} />
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen}
+                {#each pluginActionViews as view (view.entryId)}
+                    <button
+                        data-message-action
+                        onclick={() => handlePluginAction(view.key)}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        title={view.label}
+                        aria-label={view.label}
+                    >
+                        {#if view.icon}
+                            <svg
+                                class="w-4 h-4"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"><path d={view.icon} /></svg
+                            >
+                        {:else}
+                            <span class="text-xs font-semibold"
+                                >{view.label.slice(0, 1)}</span
+                            >
+                        {/if}
+                    </button>
+                {/each}
+            {/if}
+            {#if interfaceState.isTouchscreen && (overflowRows.length > 0 || pluginActionViews.length > 0)}
+                <button
+                    data-message-action
+                    onclick={openActionsSheet}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title="More actions"
+                    aria-label="More actions"
+                    aria-haspopup="menu"
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                        />
+                    </svg>
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen && eventId.startsWith("$") && !isFailed}
+                <button
+                    data-message-action
+                    onclick={copyMessageLink}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={linkCopied ? "Link copied!" : "Copy message link"}
+                    aria-label={linkCopied
+                        ? "Link copied"
+                        : "Copy message link"}
+                >
+                    {#if linkCopied}
+                        <Check size={16} />
+                    {:else}
+                        <Link size={16} />
+                    {/if}
+                </button>
+            {/if}
+            {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
+                <MessageReportAction
+                    roomId={room.roomId}
+                    {eventId}
+                    {keyboardOffset}
+                    bind:open={showReportDialog}
+                />
+            {/if}
+            {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
+                <MessageRedactAction
+                    roomId={room.roomId}
+                    {eventId}
+                    {keyboardOffset}
+                    bind:open={showRedactDialog}
+                />
+            {/if}
+        </div>
+    {/if}
 </div>
 
 <!--
