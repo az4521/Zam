@@ -157,4 +157,85 @@ describe("swipePan", () => {
         handle.destroy();
         parent.remove();
     });
+
+    it("does not engage on leftward drag inside scrollable-to-the-right element (UX-04)", () => {
+        const parent = document.createElement("div");
+        const scrollable = document.createElement("div");
+        scrollable.style.overflowX = "auto";
+        Object.defineProperty(scrollable, "scrollWidth", {
+            value: 500,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "clientWidth", {
+            value: 200,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "scrollLeft", {
+            value: 100,
+            configurable: true,
+        });
+
+        const node = document.createElement("div");
+        scrollable.appendChild(node);
+        parent.appendChild(scrollable);
+        document.body.appendChild(parent);
+
+        const ancestorMove = vi.fn();
+        parent.addEventListener("touchmove", ancestorMove);
+        const calls = {
+            engage: vi.fn(),
+            move: vi.fn(),
+        };
+
+        const handle = swipePan(node, {
+            enabled: true,
+            onEngage: calls.engage,
+            onMove: calls.move,
+        });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 - 30, 101)); // leftward, can scroll right
+
+        expect(calls.engage).not.toHaveBeenCalled();
+        // Should not stop propagation since we're not claiming it
+        expect(ancestorMove).toHaveBeenCalled();
+
+        handle.destroy();
+        parent.remove();
+    });
+
+    it("still engages when scrollable element is already at max scroll", () => {
+        const scrollable = document.createElement("div");
+        scrollable.style.overflowX = "auto";
+        Object.defineProperty(scrollable, "scrollWidth", {
+            value: 500,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "clientWidth", {
+            value: 200,
+            configurable: true,
+        });
+        Object.defineProperty(scrollable, "scrollLeft", {
+            value: 300,
+            configurable: true,
+        }); // at max
+
+        const node = document.createElement("div");
+        scrollable.appendChild(node);
+        document.body.appendChild(scrollable);
+
+        const calls = {
+            engage: vi.fn(),
+        };
+        const handle = swipePan(node, {
+            enabled: true,
+            onEngage: calls.engage,
+        });
+        node.dispatchEvent(touchEvent("touchstart", 200, 100));
+        node.dispatchEvent(touchEvent("touchmove", 200 - 30, 101)); // leftward, can't scroll more
+
+        expect(calls.engage).toHaveBeenCalled();
+
+        handle.destroy();
+        scrollable.remove();
+    });
 });
