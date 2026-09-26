@@ -8879,6 +8879,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
 
+    let connected = false;
     try {
         session.joinRTCSession(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
@@ -9031,7 +9032,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // SFU kicked us or the connection died for good — tear down
             // fully and tell the user. User-initiated leaves null
             // activeVoice first, so this only fires on genuine drops.
-            if (activeVoice?.lkRoom === lkRoom) {
+            // LiveKit emits Disconnected while still Connecting when the
+            // connect fails; the join's own catch reports that failure
+            // exactly once, so only act here when we were connected.
+            if (connected && activeVoice?.lkRoom === lkRoom) {
                 for (const cb of voiceErrorSubscribers)
                     cb("Voice call disconnected");
                 void leaveVoiceCall();
@@ -9062,6 +9066,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
 
         await lkRoom.connect(url, jwt);
+        connected = true;
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
