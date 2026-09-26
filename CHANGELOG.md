@@ -4,7 +4,7 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
-## Unreleased
+## v1.8.0
 
 🔒 **Privacy & security**
 
@@ -27,10 +27,14 @@ commit list is appended below it.
 - Swiping sideways inside a wide code block scrolls it instead of starting a reply.
 - Swiping your own image or file replies instead of trying to edit it.
 - Links in your own message bubbles are readable, and the read-receipt button is easier to hit.
+- Switching rooms is faster: a message builds its action bar only when you hover, focus or select it.
+- Touch scrolling through messages is smoother, because message rows no longer hold up the scroll to check for a swipe.
+- Plugins that rewrite your outgoing messages now also apply to thread replies and file captions.
 
 🪟 **Menus & dialogs**
 
 - Escape and the Android back button close only the top overlay: the read-receipt list, What's New, the screen-share quality menu, the who-reacted sheet, plugin popovers and the composer "+" menu now all behave the same way.
+- The image and video viewer shows your place in a gallery, such as "2 of 5", and screen readers announce it as you step through.
 
 📞 **Calls**
 
@@ -41,6 +45,9 @@ commit list is appended below it.
 - Screen-share quality changes apply to the running share, and the lower-quality stream gets its own bitrate. The system-audio toggle says it applies to the next share.
 - Kick and Ban from a call tile ask you to confirm first.
 - Screen readers announce the status badges on call tiles.
+- Joining a call without a usable microphone tells you why: access is blocked, no microphone is connected, or another app is using it.
+- Leaving a call is faster, and a camera or screen-share failure that lands after you leave no longer shows an error.
+- Voice & Video settings no longer create a new audio context on every call update while you are in a call.
 
 ⚙️ **Settings**
 
@@ -48,6 +55,7 @@ commit list is appended below it.
 - Deleting a theme preset and removing a plugin ask you to confirm first.
 - If a custom font can't be saved on this device, the app tells you.
 - The tray settings no longer show on the web, and settings search announces how many results it found.
+- In settings search, Escape clears what you typed before it closes settings, and Enter opens the first result.
 
 🧰 **Maintenance**
 
