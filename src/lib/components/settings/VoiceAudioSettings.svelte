@@ -32,7 +32,7 @@
         promptSelectAudioOutput,
     } from "$lib/audio/devices";
     import { startMicMeter, type MicMeterHandle } from "$lib/audio/micMeter";
-    import { startOutputMeter } from "$lib/audio/outputMeter";
+    import { startOutputMeter, streamSetKey } from "$lib/audio/outputMeter";
     import { playSpeakerTestTone } from "$lib/audio/speakerTest";
     import {
         playCallSound,
@@ -275,13 +275,21 @@
     });
 
     // Incoming-audio meter while in a call; re-taps as tracks come and go.
+    // Keyed on the set of remote streams, not on voiceTick itself: the tick
+    // bumps on every remote mute and membership change, and re-tapping on each
+    // one built and closed a fresh AudioContext every time (audit IMP-2).
+    const remoteStreamsKey = $derived(
+        (void voiceCallState.voiceTick,
+        voiceCallState.connState === "connected"
+            ? streamSetKey(getRemoteAudioStreams())
+            : null),
+    );
     $effect(() => {
-        void voiceCallState.voiceTick;
-        const inCall = voiceCallState.connState === "connected";
+        const key = remoteStreamsKey;
         stopOutputMeter?.();
         stopOutputMeter = null;
         outLevel = 0;
-        if (inCall)
+        if (key !== null)
             stopOutputMeter = startOutputMeter(
                 getRemoteAudioStreams(),
                 (v) => (outLevel = v),

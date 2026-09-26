@@ -3,6 +3,16 @@
  * createMediaStreamSource — analysing never affects element playback.
  */
 
+/**
+ * Identity of a set of remote streams, order-independent. The meter keys on
+ * this instead of the voice tick, which bumps on every mute and membership
+ * change and would rebuild the AudioContext each time (audit IMP-2).
+ */
+export function streamSetKey(streams: readonly { id: string }[]): string {
+    if (streams.length === 0) return "";
+    return JSON.stringify(streams.map((s) => s.id).sort());
+}
+
 export function startOutputMeter(
     streams: MediaStream[],
     onLevel: (rms: number) => void,
