@@ -257,6 +257,17 @@ export const LIMIT_FILES_CASES = [
         expectedDropped: 1,
     },
     {
+        name: "a small file after one that overflows the total still fits",
+        files: [
+            { size: 90 * 1024 * 1024 },
+            { size: 90 * 1024 * 1024 },
+            { size: 90 * 1024 * 1024 },
+            { size: 1000 },
+        ],
+        expectedKept: 3,
+        expectedDropped: 1,
+    },
+    {
         name: "exactly max per-file size kept",
         files: [{ size: SHARE_MAX_FILE_BYTES }],
         expected: { kept: [{ size: SHARE_MAX_FILE_BYTES }], dropped: 0 },
@@ -267,3 +278,24 @@ export const LIMIT_FILES_CASES = [
         expected: { kept: [], dropped: 0 },
     },
 ];
+
+// The mirror test runs these tables against static/sw.js; run them against
+// the module too, so both copies answer the same cases.
+describe("shareTargetGuard case tables", () => {
+    for (const c of SHARE_TARGET_POST_CASES) {
+        it(`isShareTargetPost: ${c.name}`, () => {
+            expect(isShareTargetPost(c.req, c.origin)).toBe(c.expected);
+        });
+    }
+    for (const c of LIMIT_FILES_CASES) {
+        it(`limitShareFiles: ${c.name}`, () => {
+            const result = limitShareFiles(c.files);
+            if ("expected" in c) {
+                expect(result).toEqual(c.expected);
+            } else {
+                expect(result.kept).toHaveLength(c.expectedKept!);
+                expect(result.dropped).toBe(c.expectedDropped!);
+            }
+        });
+    }
+});

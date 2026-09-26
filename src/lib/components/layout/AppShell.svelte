@@ -1687,6 +1687,7 @@
                             text: stash.text,
                             url: stash.url,
                             files: stash.files ?? [],
+                            droppedFiles: stash.droppedFiles,
                         });
                     }
                 } catch {

@@ -43,7 +43,7 @@ export function limitShareFiles<T extends { size: number }>(
     for (const file of files) {
         if (kept.length >= SHARE_MAX_FILES) break;
         if (file.size > SHARE_MAX_FILE_BYTES) continue;
-        if (totalSize + file.size > SHARE_MAX_TOTAL_BYTES) break;
+        if (totalSize + file.size > SHARE_MAX_TOTAL_BYTES) continue;
         kept.push(file);
         totalSize += file.size;
     }
