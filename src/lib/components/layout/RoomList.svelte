@@ -1547,7 +1547,7 @@
                     {label}
                 </button>
             {/each}
-            {#if getSpaces().filter( (s) => canAddRoomToSpace(s.roomId), ).length > 0}
+            {#if getSpaces().filter( (s) => canAddRoomToSpace(s.roomId) ).length > 0}
                 {@const eligibleSpaces = getSpaces().filter((s) =>
                     canAddRoomToSpace(s.roomId),
                 )}

@@ -42,8 +42,7 @@ export function isValidTagOrder(v: number): boolean {
  * surface that so the adjustment isn't silent.
  */
 export type TagOrderInput =
-    | { kind: "clear" }
-    | { kind: "set"; value: number; clamped: boolean };
+    { kind: "clear" } | { kind: "set"; value: number; clamped: boolean };
 
 /**
  * Resolve a raw, user-supplied `m.tag` order string into a write action:

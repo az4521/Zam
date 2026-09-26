@@ -13,10 +13,7 @@ export type Capabilities = Record<
 
 /** Features the /capabilities endpoint lets us gate reliably. */
 export type GatedFeature =
-    | "changePassword"
-    | "setDisplayName"
-    | "setAvatarUrl"
-    | "change3pid";
+    "changePassword" | "setDisplayName" | "setAvatarUrl" | "change3pid";
 
 const GATED_CAPABILITY: Record<GatedFeature, string> = {
     changePassword: "m.change_password",

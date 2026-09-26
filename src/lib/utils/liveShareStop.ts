@@ -66,8 +66,7 @@ export const STOP_FAILED_MESSAGE =
 export const STOP_WATCHDOG_MS = 30000;
 
 export type StopOutcome =
-    | { action: "drop" }
-    | { action: "retain"; error: string };
+    { action: "drop" } | { action: "retain"; error: string };
 
 /**
  * What to do after a stop write rejects.

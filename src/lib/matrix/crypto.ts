@@ -304,8 +304,7 @@ interface CryptoSyncHooks {
 export async function ensureRoomCryptoConfigured(room: Room): Promise<void> {
     if (!cryptoAvailable) return;
     const crypto = getClient()?.getCrypto() as
-        | (CryptoSyncHooks | undefined)
-        | undefined;
+        (CryptoSyncHooks | undefined) | undefined;
     if (!crypto?.onCryptoEvent) return;
     if (crypto.roomEncryptors?.[room.roomId]) return;
     const event = room

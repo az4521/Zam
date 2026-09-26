@@ -51,19 +51,17 @@ function shapePreview(raw: string): string {
  */
 export function buildThreadListItems(threads: ThreadInfo[]): ThreadListItem[] {
     return threads
-        .map(
-            (t): ThreadListItem => ({
-                rootId: t.rootId,
-                rootSenderId: t.rootSenderId,
-                rootPreview: shapePreview(t.rootPreview),
-                replyCount: t.replyCount,
-                latestTs: t.latestTs,
-                latestPreview: shapePreview(t.latestPreview),
-                participated: t.participated,
-                unreadTotal: t.unreadTotal,
-                unreadHighlight: t.unreadHighlight,
-            }),
-        )
+        .map((t): ThreadListItem => ({
+            rootId: t.rootId,
+            rootSenderId: t.rootSenderId,
+            rootPreview: shapePreview(t.rootPreview),
+            replyCount: t.replyCount,
+            latestTs: t.latestTs,
+            latestPreview: shapePreview(t.latestPreview),
+            participated: t.participated,
+            unreadTotal: t.unreadTotal,
+            unreadHighlight: t.unreadHighlight,
+        }))
         .sort((a, b) => {
             if (b.latestTs !== a.latestTs) return b.latestTs - a.latestTs;
             return a.rootId < b.rootId ? -1 : a.rootId > b.rootId ? 1 : 0;
