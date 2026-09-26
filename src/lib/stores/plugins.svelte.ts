@@ -138,6 +138,10 @@ export const pluginUpdates = $state<{ available: Record<string, string> }>({
     available: {},
 });
 
+/** Plugins that need an update (unpinned SHA resolution failed and no cache).
+ *  Shows "Needs update" badge even when versions are equal. */
+export const pluginNeedsUpdate = $state<Record<string, boolean>>({});
+
 export function setGlobalAutoUpdateState(v: boolean): void {
     pluginPrefs.autoUpdate = v;
 }
@@ -150,4 +154,8 @@ export function setPluginAutoUpdateState(
 }
 export function setUpdateAvailable(map: Record<string, string>): void {
     pluginUpdates.available = { ...map };
+}
+export function setPluginNeedsUpdate(id: string, needs: boolean): void {
+    if (needs) pluginNeedsUpdate[id] = true;
+    else delete pluginNeedsUpdate[id];
 }
