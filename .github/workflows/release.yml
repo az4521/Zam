@@ -2,6 +2,8 @@ name: Build & Release
 
 on:
     push:
+        branches: [master]
+        tags: ["v*"]
     workflow_dispatch:
 
 permissions:
@@ -13,7 +15,7 @@ concurrency:
 
 jobs:
     # Only proceed to a release when package.json "version" increased vs the
-    # previous commit. The build jobs below run on every commit regardless.
+    # previous commit. The build jobs below run on every master push regardless.
     check:
         runs-on: ubuntu-latest
         outputs:
@@ -37,10 +39,25 @@ jobs:
                     echo "No version increase ('$PREV' -> '$CURR') — skipping release."
                   fi
 
-    # Dev builds — run on every commit. Attached to a release only when the
-    # version increased (gated `release` job below).
+    # Code gate: types, tests and formatting. The build jobs wait on it, so a
+    # red gate never produces installers or a release.
+    verify:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run check
+            - run: npm run test
+            - run: npm run lint
+
+    # Dev builds — run on every master push. Attached to a release only when
+    # the version increased (gated `release` job below).
     android:
-        needs: check
+        needs: [check, verify]
         runs-on: ubuntu-latest
         # Signing key + passwords. Add these as repository secrets:
         #   ANDROID_KEYSTORE_BASE64  = base64 of your .jks/.keystore file
@@ -130,7 +147,7 @@ jobs:
                   if-no-files-found: error
 
     desktop:
-        needs: check
+        needs: [check, verify]
         strategy:
             fail-fast: false
             matrix:
