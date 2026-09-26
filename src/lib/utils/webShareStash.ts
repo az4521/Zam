@@ -12,6 +12,7 @@ export type WebShareStash = {
     text?: string;
     url?: string;
     files?: File[];
+    droppedFiles?: number;
 };
 
 function openDb(): Promise<IDBDatabase> {

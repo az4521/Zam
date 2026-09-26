@@ -143,6 +143,15 @@
             {/each}
         </div>
     {/if}
+    {#if payload?.droppedFiles && payload.droppedFiles > 0}
+        <div
+            role="status"
+            class="border-b border-discord-divider px-4 py-3 text-sm text-discord-textMuted"
+        >
+            {payload.droppedFiles} file(s) weren't added. Shares are limited to 20
+            files, 100 MB each and 200 MB in total.
+        </div>
+    {/if}
 {/snippet}
 
 {#snippet captionField()}
