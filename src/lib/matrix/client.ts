@@ -117,8 +117,8 @@ import {
 import {
     encryptAttachment,
     shouldEncryptUpload,
-    buildFileContent,
-    buildThumbnailContent,
+    thumbnailFields,
+    type UploadedAttachment,
 } from "$lib/utils/encryptAttachment";
 import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
@@ -2054,8 +2054,8 @@ async function uploadAttachment(
     owner: ClientOwnership<MatrixClient>,
     roomId: string,
     blob: Blob,
-    opts: { name: string; type: string; msgtype: string },
-): Promise<{ url: string } | { file: EncryptedFileInfo & { url: string } }> {
+    opts: { name: string; type?: string; msgtype: string },
+): Promise<UploadedAttachment> {
     const room = getRoom(roomId);
     const encrypt = shouldEncryptUpload(
         room ? isRoomEncrypted(room) : false,
@@ -2078,10 +2078,13 @@ async function uploadAttachment(
         return { file: { ...info, url: content_uri } };
     } else {
         // Plaintext path: upload as-is with the original name, byte-identical
-        // to the pre-encryption code path for unencrypted rooms.
+        // to the pre-encryption code path for unencrypted rooms. `type` only
+        // matters for a plugin Blob that carries none of its own.
         const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
             blob,
-            { name: opts.name },
+            opts.type
+                ? { name: opts.name, type: opts.type }
+                : { name: opts.name },
         );
         return { url: content_uri };
     }
@@ -2125,7 +2128,6 @@ export async function sendFile(
     // msgtype is not m.video (encrypted video playback is queued as item 2b).
     const uploadResult = await uploadAttachment(owner, roomId, file, {
         name: file.name,
-        type: file.type,
         msgtype,
     });
 
@@ -2141,51 +2143,17 @@ export async function sendFile(
             const thumbFile = new File([thumb.blob], "thumbnail.jpg", {
                 type: "image/jpeg",
             });
-            // Thumbnail encryption follows the video's msgtype: since m.video is
-            // not encrypted yet (shouldEncryptUpload returns false), the thumbnail
-            // stays plaintext too. When encrypted video lands, this will produce
-            // thumbnail_file instead.
-            const thumbUploadResult = await uploadAttachment(
+            // The thumbnail follows the video's encryption decision (same
+            // msgtype), so it goes as `thumbnail_file` once video encrypts.
+            const thumbUpload = await uploadAttachment(
                 owner,
                 roomId,
                 thumbFile,
-                {
-                    name: "thumbnail.jpg",
-                    type: "image/jpeg",
-                    msgtype, // m.video — same encryption decision as the main file
-                },
+                { name: "thumbnail.jpg", msgtype },
             );
             info.w = thumb.w;
             info.h = thumb.h;
-            // buildThumbnailContent returns thumbnail_url (plaintext) or
-            // thumbnail_file (encrypted), but since m.video is not encrypted
-            // yet, this always produces thumbnail_url for now.
-            const room = getRoom(roomId);
-            const encryptThumbnail = shouldEncryptUpload(
-                room ? isRoomEncrypted(room) : false,
-                msgtype,
-            );
-            const thumbFileContent =
-                "file" in thumbUploadResult
-                    ? thumbUploadResult.file
-                    : undefined;
-            Object.assign(
-                info,
-                buildThumbnailContent(
-                    encryptThumbnail,
-                    "url" in thumbUploadResult
-                        ? thumbUploadResult.url
-                        : thumbUploadResult.file.url,
-                    thumbFileContent
-                        ? {
-                              v: thumbFileContent.v,
-                              key: thumbFileContent.key,
-                              iv: thumbFileContent.iv,
-                              hashes: thumbFileContent.hashes,
-                          }
-                        : undefined,
-                ),
-            );
+            Object.assign(info, thumbnailFields(thumbUpload));
             info.thumbnail_info = {
                 mimetype: "image/jpeg",
                 w: thumb.thumbW,
@@ -2247,7 +2215,6 @@ export async function sendVoiceMessage(
     const file = new File([blob], fileName, { type: fileType });
     const uploadResult = await uploadAttachment(owner, roomId, file, {
         name: fileName,
-        type: fileType,
         msgtype: "m.audio",
     });
     const duration = Math.round(durationMs);
@@ -5895,8 +5862,7 @@ export async function sendPluginMedia(
 ): Promise<void> {
     const owner = captureClient();
     const fileName = opts.name ?? "upload";
-    const fileType =
-        opts.type ?? (blob as File).type ?? "application/octet-stream";
+    const fileType = opts.type || blob.type || "application/octet-stream";
     const isImage = fileType.startsWith("image/");
     const isVideo = fileType.startsWith("video/");
     const isAudio = fileType.startsWith("audio/");

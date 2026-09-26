@@ -100,37 +100,21 @@ export function shouldEncryptUpload(
     return roomEncrypted;
 }
 
-/**
- * Build the encrypted file content field for a Matrix message. Returns either
- * `{ url }` (plaintext) or `{ file }` (encrypted) — never both. Used to wire
- * encryption into sendFile/sendVoiceMessage/sendPluginMedia.
- */
-export function buildFileContent(
-    encrypted: boolean,
-    plainUrl: string,
-    encryptedInfo?: EncryptedFileInfo,
-): { url: string } | { file: EncryptedFileInfo & { url: string } } {
-    if (encrypted && encryptedInfo) {
-        return { file: { ...encryptedInfo, url: plainUrl } };
-    }
-    return { url: plainUrl };
-}
+/** Where an attachment upload landed: a plaintext `url` or an EncryptedFile. */
+export type UploadedAttachment =
+    | { url: string }
+    | { file: EncryptedFileInfo & { url: string } };
 
 /**
- * Build the thumbnail field for an encrypted or plaintext video. Returns either
- * `{ thumbnail_url }` (plaintext) or `{ thumbnail_file }` (encrypted).
+ * Map an uploaded thumbnail to its `info` fields: `thumbnail_url` for a
+ * plaintext upload, `thumbnail_file` for an encrypted one. Never both.
  */
-export function buildThumbnailContent(
-    encrypted: boolean,
-    thumbnailUrl: string,
-    thumbnailEncryptedInfo?: EncryptedFileInfo,
+export function thumbnailFields(
+    upload: UploadedAttachment,
 ):
     | { thumbnail_url: string }
     | { thumbnail_file: EncryptedFileInfo & { url: string } } {
-    if (encrypted && thumbnailEncryptedInfo) {
-        return {
-            thumbnail_file: { ...thumbnailEncryptedInfo, url: thumbnailUrl },
-        };
-    }
-    return { thumbnail_url: thumbnailUrl };
+    return "file" in upload
+        ? { thumbnail_file: upload.file }
+        : { thumbnail_url: upload.url };
 }

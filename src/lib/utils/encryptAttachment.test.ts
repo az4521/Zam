@@ -3,8 +3,7 @@ import { webcrypto } from "node:crypto";
 import {
     encryptAttachment,
     shouldEncryptUpload,
-    buildFileContent,
-    buildThumbnailContent,
+    thumbnailFields,
 } from "./encryptAttachment";
 import { decryptAttachment, base64ToBytes } from "./decryptAttachment";
 
@@ -170,83 +169,23 @@ describe("shouldEncryptUpload", () => {
     });
 });
 
-describe("buildFileContent", () => {
-    it("returns url when not encrypted", () => {
-        const result = buildFileContent(false, "mxc://server/media");
-        expect(result).toEqual({ url: "mxc://server/media" });
-        expect("file" in result).toBe(false);
+describe("thumbnailFields", () => {
+    it("maps a plaintext upload to thumbnail_url only", () => {
+        expect(thumbnailFields({ url: "mxc://s/thumb" })).toEqual({
+            thumbnail_url: "mxc://s/thumb",
+        });
     });
 
-    it("returns file when encrypted", () => {
-        const encryptedInfo = {
+    it("maps an encrypted upload to thumbnail_file only", () => {
+        const file = {
             v: "v2",
-            key: {
-                kty: "oct",
-                alg: "A256CTR",
-                k: "test",
-                ext: true,
-                key_ops: [],
-            },
-            iv: "ivdata",
-            hashes: { sha256: "hash" },
+            key: { kty: "oct", alg: "A256CTR", k: "abc", ext: true },
+            iv: "iv",
+            hashes: { sha256: "h" },
+            url: "mxc://s/thumb",
         };
-        const result = buildFileContent(
-            true,
-            "mxc://server/media",
-            encryptedInfo,
-        );
-        expect("file" in result && result.file).toBeDefined();
-        if ("file" in result) {
-            expect(result.file.url).toBe("mxc://server/media");
-            expect(result.file.v).toBe("v2");
-            expect(result.file.key).toBe(encryptedInfo.key);
-        }
-        expect("url" in result).toBe(false);
-    });
-
-    it("returns url when encrypted is true but no info provided", () => {
-        const result = buildFileContent(true, "mxc://server/media");
-        expect(result).toEqual({ url: "mxc://server/media" });
-    });
-});
-
-describe("buildThumbnailContent", () => {
-    it("returns thumbnail_url when not encrypted", () => {
-        const result = buildThumbnailContent(false, "mxc://server/thumb");
-        expect(result).toEqual({ thumbnail_url: "mxc://server/thumb" });
-        expect("thumbnail_file" in result).toBe(false);
-    });
-
-    it("returns thumbnail_file when encrypted", () => {
-        const encryptedInfo = {
-            v: "v2",
-            key: {
-                kty: "oct",
-                alg: "A256CTR",
-                k: "test",
-                ext: true,
-                key_ops: [],
-            },
-            iv: "ivdata",
-            hashes: { sha256: "hash" },
-        };
-        const result = buildThumbnailContent(
-            true,
-            "mxc://server/thumb",
-            encryptedInfo,
-        );
-        expect(
-            "thumbnail_file" in result && result.thumbnail_file,
-        ).toBeDefined();
-        if ("thumbnail_file" in result) {
-            expect(result.thumbnail_file.url).toBe("mxc://server/thumb");
-            expect(result.thumbnail_file.v).toBe("v2");
-        }
-        expect("thumbnail_url" in result).toBe(false);
-    });
-
-    it("returns thumbnail_url when encrypted is true but no info provided", () => {
-        const result = buildThumbnailContent(true, "mxc://server/thumb");
-        expect(result).toEqual({ thumbnail_url: "mxc://server/thumb" });
+        const out = thumbnailFields({ file });
+        expect(out).toEqual({ thumbnail_file: file });
+        expect(out).not.toHaveProperty("thumbnail_url");
     });
 });
