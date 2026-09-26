@@ -108,6 +108,43 @@ function swIsStaleShellCache(name, currentName) {
 }
 // #endregion mirrored:swCacheRouting
 
+// #region mirrored:shareTarget
+// Hand-written mirror of src/lib/utils/shareTargetGuard.ts — this file is not
+// bundled and cannot import it. Change one, change both;
+// shareTargetGuard.mirrors.test.ts executes this region against that module's
+// own case table.
+const SHARE_MAX_FILES = 20;
+const SHARE_MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+const SHARE_MAX_TOTAL_BYTES = 200 * 1024 * 1024; // 200 MB
+
+function isShareTargetPost(req, origin) {
+	if (req.method !== "POST") return false;
+	if (req.mode !== "navigate") return false;
+	let parsed;
+	try {
+		parsed = new URL(req.url);
+	} catch {
+		return false;
+	}
+	if (parsed.origin !== origin) return false;
+	if (parsed.pathname !== "/share-target") return false;
+	return true;
+}
+
+function limitShareFiles(files) {
+	const kept = [];
+	let totalSize = 0;
+	for (const file of files) {
+		if (kept.length >= SHARE_MAX_FILES) break;
+		if (file.size > SHARE_MAX_FILE_BYTES) continue;
+		if (totalSize + file.size > SHARE_MAX_TOTAL_BYTES) break;
+		kept.push(file);
+		totalSize += file.size;
+	}
+	return { kept, dropped: files.length - kept.length };
+}
+// #endregion mirrored:shareTarget
+
 // Is there a Cache API at all? Firefox private browsing has historically
 // thrown SecurityError on the `caches` PROPERTY ACCESS (not just on open()),
 // and Chrome throws when the user blocks all site data — so even `typeof
@@ -851,46 +888,35 @@ self.addEventListener("fetch", (event) => {
 	// Web Share Target (manifest share_target.action). The browser POSTs the
 	// shared payload here; stash it in IndexedDB and redirect to a normal GET
 	// the app boot consumes (/?share_target=1). UNTRUSTED input — we only
-	// STASH, never act on it.
-	{
-		let shareUrl;
-		try {
-			shareUrl = new URL(event.request.url);
-		} catch {
-			shareUrl = null;
-		}
-		if (
-			event.request.method === "POST" &&
-			shareUrl &&
-			shareUrl.pathname === "/share-target"
-		) {
-			event.respondWith(
-				(async () => {
-					try {
-						const form = await event.request.formData();
-						const files = form
-							.getAll("files")
-							.filter(
-								(f) =>
-									f &&
-									typeof f === "object" &&
-									"size" in f,
-							);
-						await dbSet("share_target_payload", {
-							title: form.get("title") || "",
-							text: form.get("text") || "",
-							url: form.get("url") || "",
-							files,
-							ts: Date.now(),
-						});
-					} catch (e) {
-						/* malformed multipart — still redirect to a clean page */
-					}
-					return Response.redirect("/?share_target=1", 303);
-				})(),
-			);
-			return;
-		}
+	// STASH, never act on it. Guard: only intercept when method === POST,
+	// origin matches, pathname is /share-target, and mode === navigate.
+	// Anything else falls through (not swallowed, not respondWith'd).
+	if (isShareTargetPost(event.request, APP_ORIGIN)) {
+		event.respondWith(
+			(async () => {
+				try {
+					const form = await event.request.formData();
+					const allFiles = form
+						.getAll("files")
+						.filter(
+							(f) => f && typeof f === "object" && "size" in f,
+						);
+					const { kept, dropped } = limitShareFiles(allFiles);
+					await dbSet("share_target_payload", {
+						title: form.get("title") || "",
+						text: form.get("text") || "",
+						url: form.get("url") || "",
+						files: kept,
+						droppedFiles: dropped > 0 ? dropped : undefined,
+						ts: Date.now(),
+					});
+				} catch (e) {
+					/* malformed multipart — still redirect to a clean page */
+				}
+				return Response.redirect("/?share_target=1", 303);
+			})(),
+		);
+		return;
 	}
 
 	// Offline app shell first (audit PWA-01). Returns null for everything it
