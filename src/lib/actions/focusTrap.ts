@@ -4,6 +4,12 @@ export interface FocusTrapParams {
     onEscape?: () => void;
 }
 
+/** Parameters for the {@link activeFocusTrap} action. */
+export interface ActiveFocusTrapParams extends FocusTrapParams {
+    /** Whether the trap is active. */
+    active: boolean;
+}
+
 /**
  * Pure focus-cycle logic for a focus trap. Given the number of focusable
  * elements, the index of the currently-focused one (`-1` when focus is
@@ -115,6 +121,52 @@ export function focusTrap(node: HTMLElement, params: FocusTrapParams = {}) {
             if (previouslyFocused && previouslyFocused.isConnected) {
                 previouslyFocused.focus();
             }
+        },
+    };
+}
+
+/**
+ * Svelte action: conditionally activate a focus trap. While `active` is true,
+ * runs `focusTrap` with the given `onEscape`. Destroys the trap when `active`
+ * flips false or the node unmounts, and re-creates it when `active` flips true
+ * again. Useful for modals that mount once and toggle visibility.
+ */
+export function activeFocusTrap(
+    node: HTMLElement,
+    params: ActiveFocusTrapParams,
+) {
+    let p = params;
+    let handle: ReturnType<typeof focusTrap> | null = null;
+
+    function activate() {
+        if (handle) return;
+        handle = focusTrap(node, { onEscape: p.onEscape });
+    }
+
+    function deactivate() {
+        if (!handle) return;
+        handle.destroy();
+        handle = null;
+    }
+
+    if (p.active) {
+        activate();
+    }
+
+    return {
+        update(next: ActiveFocusTrapParams) {
+            const wasActive = p.active;
+            p = next;
+            if (p.active && !wasActive) {
+                activate();
+            } else if (!p.active && wasActive) {
+                deactivate();
+            } else if (p.active && handle?.update) {
+                handle.update({ onEscape: p.onEscape });
+            }
+        },
+        destroy() {
+            deactivate();
         },
     };
 }

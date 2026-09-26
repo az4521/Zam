@@ -63,7 +63,15 @@ export type ModalId =
     // Shared by two call sites (RoomList roster rows, CallView tiles). Both
     // hold a claim token and release with clearModalIfOwner, so a second claim
     // supersedes the first cleanly instead of stranding it.
-    | "call-participant-menu";
+    | "call-participant-menu"
+    // MessageItem read-receipt list popup.
+    | "read-receipts"
+    // Reaction list popup (Reactions.svelte).
+    | "reactors"
+    // What's New modal.
+    | "whats-new"
+    // CallView screen-share quality popover.
+    | "screen-share-quality";
 
 export type SidebarId =
     | "members"
@@ -94,6 +102,10 @@ export const interfaceState = $state({
      *  a thread composer and the main composer coexist without both rendering
      *  the single global picker slot. Defaults to "main" for the sole composer. */
     composerPickerOwner: null as string | null,
+    /** Which composer instance owns the open "+" actions menu. Same ownership
+     *  semantics as composerPickerOwner: prevents both main and thread menus
+     *  from rendering when only one composer's slot is claimed. */
+    composerActionsOwner: null as string | null,
     /** Focuses the message composer, if one is mounted (set by MessageInput). */
     focusComposer: null as null | (() => void),
 
@@ -154,6 +166,24 @@ export function openComposerPicker(
     });
     interfaceState.composerPicker = kind;
     interfaceState.composerPickerOwner = owner;
+}
+
+/** Open (or toggle off) a composer "+" actions menu. `owner` is the claiming
+ *  composer's key (defaults to "main"): a re-click by the SAME owner toggles
+ *  it off, but a different owner claiming the menu switches ownership. */
+export function openComposerActions(owner: string = "main"): void {
+    if (
+        interfaceState.modal === "composer-actions" &&
+        interfaceState.composerActionsOwner === owner
+    ) {
+        closeModal();
+        return;
+    }
+    // Claim first: the outgoing owner's close nulls the owner.
+    openModal("composer-actions", () => {
+        interfaceState.composerActionsOwner = null;
+    });
+    interfaceState.composerActionsOwner = owner;
 }
 
 /**
