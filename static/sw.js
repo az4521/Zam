@@ -145,6 +145,60 @@ function limitShareFiles(files) {
 }
 // #endregion mirrored:shareTarget
 
+// #region mirrored:notifActions
+// Hand-written mirror of src/lib/utils/notifActions.ts — this file is not
+// bundled and cannot import it. Change one, change both;
+// notifActions.mirrors.test.ts executes this region against that module's
+// own case table.
+
+function buildReadReceiptPath(roomId, eventId, receiptType) {
+	return `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/${receiptType}/${encodeURIComponent(eventId)}`;
+}
+
+function swReceiptTypeFor(privacyByUser, userId) {
+	if (!userId || !privacyByUser) return "m.read.private";
+	return privacyByUser[userId] === false ? "m.read" : "m.read.private";
+}
+
+function ringNotificationTag(roomId) {
+	return `call:${roomId}`;
+}
+
+function messageNotificationTag(roomId) {
+	return roomId;
+}
+
+function roomNotificationTags(roomId) {
+	return [roomId, `call:${roomId}`];
+}
+
+function isRingToDismiss(data, ringEventId) {
+	if (!data || typeof data !== "object") return false;
+	return data.isCall === true && data.eventId === ringEventId;
+}
+
+const QUICK_REPLY_STASH_PREFIX = "notif_reply:";
+
+function quickReplyStashKey(id) {
+	return `${QUICK_REPLY_STASH_PREFIX}${id}`;
+}
+
+function buildQuickReplyStash(params) {
+	const trimmed = params.text.trim();
+	if (!params.roomId || !trimmed || !params.userId) return null;
+	return {
+		id: params.id,
+		roomId: params.roomId,
+		// A notification without an event id carries `undefined`; store null
+		// so parseQuickReplyStash accepts the record on the page.
+		eventId: params.eventId || null,
+		text: trimmed,
+		userId: params.userId,
+		ts: params.ts,
+	};
+}
+// #endregion mirrored:notifActions
+
 // Is there a Cache API at all? Firefox private browsing has historically
 // thrown SecurityError on the `caches` PROPERTY ACCESS (not just on open()),
 // and Chrome throws when the user blocks all site data — so even `typeof
@@ -636,6 +690,9 @@ let authFromMessage = false;
 // from the page (SET_NOTIF_PRIVACY). Mirrors src/lib/utils/notificationPrivacy.ts
 // by hand — this file is not bundled and cannot import it. Change one, change both.
 let hideNotificationBody = false;
+// Per-user read receipt privacy: { userId: boolean } where true = private receipts.
+// Hydrated from IDB and kept in sync via SET_RECEIPT_PRIVACY.
+let receiptPrivacyByUser = {};
 
 const authReady = (async () => {
 	// ONE read for the whole credential tuple. It used to be four, which was
@@ -648,6 +705,12 @@ const authReady = (async () => {
 	// bodies visible when a SET_AUTH won the startup race. SET_NOTIF_PRIVACY
 	// still wins over this read: that handler awaits `authReady` first.
 	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
+	// Hydrate receipt privacy map. Junk → empty object (fail closed to private).
+	// A failed read must not reject authReady (the credential hydration
+	// below depends on it); the map just stays empty, which fails closed.
+	const storedPrivacy = await dbGet("receiptPrivacyByUser").catch(() => null);
+	receiptPrivacyByUser =
+		storedPrivacy && typeof storedPrivacy === "object" ? storedPrivacy : {};
 	// Installs that predate the record still have the four per-key values at
 	// rest. They are NEVER read back — reading them is the bug — but they are
 	// swept so a stale token does not sit there forever. Slot 0 is the access
@@ -879,6 +942,19 @@ self.addEventListener("message", (event) => {
 				hideNotificationBody = event.data.hideBody === true;
 				const hide = hideNotificationBody;
 				await queueWrite(() => dbSet("hideNotificationBody", hide));
+			} else if (event.data?.type === "SET_RECEIPT_PRIVACY") {
+				// Per-user receipt privacy setting. Validate: userId must be a
+				// non-empty string, private must be boolean; ignore junk.
+				const userId = event.data.userId;
+				const priv = event.data.private;
+				if (typeof userId === "string" && userId && typeof priv === "boolean") {
+					await authReady.catch(() => {});
+					receiptPrivacyByUser[userId] = priv;
+					// Persist the whole map (shallow copy to avoid a race with the
+					// next handler that might mutate the live object).
+					const copy = { ...receiptPrivacyByUser };
+					await queueWrite(() => dbSet("receiptPrivacyByUser", copy));
+				}
 			}
 		})().catch(() => {}),
 	);
@@ -1229,18 +1305,19 @@ const RING_AUTO_DISMISS_MS = 45000;
 // alive (via the push handler's waitUntil) for the wait; if the SW is killed
 // first the notification just lingers as it did before — no regression. Never
 // throws: a failed auto-dismiss must degrade to "lingers as today".
-function scheduleRingAutoDismiss(roomId) {
+function scheduleRingAutoDismiss(roomId, eventId) {
 	if (!roomId) return Promise.resolve();
 	return new Promise((resolve) => {
 		setTimeout(() => {
 			Promise.resolve()
-				.then(() => self.registration.getNotifications({ tag: roomId }))
+				.then(() =>
+					self.registration.getNotifications({ tag: ringNotificationTag(roomId) }),
+				)
 				.then((list) => {
 					for (const notification of list) {
-						// Only take down the ring itself — a same-room MESSAGE
-						// notification can share this tag (both use tag=roomId) and
-						// must not be closed by the ring timer.
-						if (notification.data && notification.data.isCall) {
+						// Only take down THIS ring (matching eventId) — a newer ring
+						// or a same-room message notification must not be closed.
+						if (isRingToDismiss(notification.data, eventId)) {
 							notification.close();
 						}
 					}
@@ -1298,12 +1375,16 @@ self.addEventListener("push", (event) => {
 			// past the return and abort the whole push event.
 			try {
 				event.waitUntil(
-					self.registration
-						.getNotifications({ tag: clearedRoomId })
-						.then((list) => {
-							for (const n of list) n.close();
-						})
-						.catch(() => {}),
+					Promise.all(
+						roomNotificationTags(clearedRoomId).map((tag) =>
+							self.registration
+								.getNotifications({ tag })
+								.then((list) => {
+									for (const n of list) n.close();
+								})
+								.catch(() => {}),
+						),
+					),
 				);
 			} catch {
 				// Nothing we can close; fall through to the return.
@@ -1332,7 +1413,9 @@ self.addEventListener("push", (event) => {
 				body: n.body,
 				icon: n.icon,
 				badge: "/favicon_foreground.png",
-				tag: n.roomId || undefined,
+				tag: n.isCall
+					? (n.roomId ? ringNotificationTag(n.roomId) : undefined)
+					: (n.roomId ? messageNotificationTag(n.roomId) : undefined),
 				renotify: true,
 				data: notificationData(n.roomId, n.isCall, n.eventId),
 				// A call persists until answered/dismissed and offers
@@ -1364,7 +1447,7 @@ self.addEventListener("push", (event) => {
 			// push carries no "call ended" signal); a message notification is
 			// transient already, so only a call gets the auto-dismiss timer.
 			if (n.isCall) {
-				await scheduleRingAutoDismiss(n.roomId);
+				await scheduleRingAutoDismiss(n.roomId, n.eventId);
 			}
 			return;
 		})(),
@@ -1375,7 +1458,7 @@ self.addEventListener("push", (event) => {
 // Hand-mirrors the messageNotificationActions() contract from
 // src/lib/utils/notifActions.ts — the SW cannot import TypeScript.
 // Produces postMessage shapes consumed by Task 3 (page-side handlers).
-async function handleQuickReply(roomId, replyText, eventId, userId) {
+async function handleQuickReply(roomId, replyText, eventId, postedBy) {
 	try {
 		const clients = await self.clients.matchAll({
 			type: "window",
@@ -1383,40 +1466,73 @@ async function handleQuickReply(roomId, replyText, eventId, userId) {
 		});
 		const open = clients.find((c) => "focus" in c);
 		const text = (replyText || "").trim();
-		// If we have inline text AND an open page, post the reply for the page
-		// to send through the crypto-correct path (never send cleartext from SW).
-		if (text && open) {
-			open.focus();
-			open.postMessage({
-				type: "NOTIF_REPLY",
+		// If we have inline text, ALWAYS stash it first (so a crash or close never
+		// loses the typed text), then route to the page or open a new one.
+		if (text) {
+			// Stash: id = timestamp + random, record via buildQuickReplyStash.
+			const stashId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+			const record = buildQuickReplyStash({
+				id: stashId,
 				roomId: roomId,
-				text: text,
 				eventId: eventId,
-				userId: userId,
+				text: text,
+				userId: postedBy,
+				ts: Date.now(),
 			});
+			// Write the stash. A failure here must not block the post/openWindow —
+			// wrap in its own try/catch and pass null stashId on error.
+			let savedStashId = null;
+			if (record) {
+				try {
+					await queueWrite(() => dbSet(quickReplyStashKey(stashId), record));
+					savedStashId = stashId;
+				} catch {
+					// Stash write failed; the post/openWindow still proceeds.
+				}
+			}
+			// Open page: focus + post NOTIF_REPLY with stashId.
+			if (open) {
+				open.focus();
+				open.postMessage({
+					type: "NOTIF_REPLY",
+					roomId: roomId,
+					text: text,
+					eventId: eventId,
+					userId: postedBy,
+					stashId: savedStashId,
+				});
+				return;
+			}
+			// No open page: openWindow to the room (with event when present).
+			let url = roomId ? `/#room=${encodeURIComponent(roomId)}` : "/";
+			if (eventId) {
+				url += `&event=${encodeURIComponent(eventId)}`;
+			}
+			self.clients.openWindow(url);
 			return;
 		}
-		// No inline text OR no open page → open the room to compose. Never a
-		// direct cleartext send.
+		// No inline text (blank or whitespace): open the room to compose.
 		if (open) {
 			open.focus();
 			open.postMessage({
 				type: "OPEN_ROOM",
 				roomId: roomId,
-				userId: userId,
+				userId: postedBy,
 				eventId: eventId,
 			});
 		} else {
-			self.clients.openWindow(
-				roomId ? `/#room=${encodeURIComponent(roomId)}` : "/",
-			);
+			let url = roomId ? `/#room=${encodeURIComponent(roomId)}` : "/";
+			if (eventId) {
+				url += `&event=${encodeURIComponent(eventId)}`;
+			}
+			self.clients.openWindow(url);
 		}
 	} catch {
 		// Swallow — waitUntil must never reject.
 	}
 }
 
-async function handleQuickMarkRead(roomId, eventId, userId) {
+async function handleQuickMarkRead(roomId, eventId, postedBy) {
 	try {
 		const clients = await self.clients.matchAll({
 			type: "window",
@@ -1430,17 +1546,19 @@ async function handleQuickMarkRead(roomId, eventId, userId) {
 				type: "NOTIF_MARK_READ",
 				roomId: roomId,
 				eventId: eventId,
-				userId: userId,
+				userId: postedBy,
 			});
 			return;
 		}
-		// No open page → send a plaintext read receipt directly (hand-mirrors
-		// buildReadReceiptPath from src/lib/utils/notifActions.ts).
+		// No open page → send a privacy-aware read receipt directly. Await authReady
+		// (bounded like shouldStayQuiet) to ensure receiptPrivacyByUser is hydrated.
 		if (roomId && eventId) {
-			await mxPost(
-				`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
-				{},
-			);
+			await Promise.race([
+				authReady,
+				new Promise((resolve) => setTimeout(resolve, 3000)),
+			]).catch(() => {});
+			const receiptType = swReceiptTypeFor(receiptPrivacyByUser, userId);
+			await mxPost(buildReadReceiptPath(roomId, eventId, receiptType), {});
 		}
 	} catch {
 		// Swallow — waitUntil must never reject.

@@ -71,6 +71,7 @@
         getDraft,
         setDraft,
         clearDraft,
+        registerLiveComposer,
     } from "$lib/stores/composerDrafts.svelte";
     import {
         getFileQueue,
@@ -182,6 +183,17 @@
                     interfaceState.focusComposer = null;
             };
         }
+    });
+
+    // Background text restores (a failed notification quick reply) reach the
+    // composer that is open for this draft key, main or thread. Same shape as
+    // the insertText hook below: `text` is read inside the callback, so the
+    // effect depends only on the key.
+    $effect(() => {
+        const key = effComposerKey;
+        return registerLiveComposer(key, (t) =>
+            setComposerText(composerInsertText(text, t)),
+        );
     });
 
     // Plugin composer.insertText → append to THIS (main) composer's text.

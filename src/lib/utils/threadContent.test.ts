@@ -4,6 +4,7 @@ import {
     isThreadReplyContent,
     withThreadRelation,
     composerThreadKey,
+    threadRootForQuickReply,
 } from "./threadContent";
 
 describe("isThreadReplyContent — thread-membership predicate", () => {
@@ -153,5 +154,57 @@ describe("composerThreadKey — instance key for thread draft/queue scoping", ()
     });
     it("differs from the bare roomId (the main composer key)", () => {
         expect(composerThreadKey("!r:s", "$root")).not.toBe("!r:s");
+    });
+});
+
+describe("threadRootForQuickReply — extract thread root for reply routing", () => {
+    it("returns event_id for m.thread relation", () => {
+        expect(
+            threadRootForQuickReply({
+                rel_type: "m.thread",
+                event_id: "$root123",
+            }),
+        ).toBe("$root123");
+    });
+
+    it("returns null for m.replace", () => {
+        expect(
+            threadRootForQuickReply({
+                rel_type: "m.replace",
+                event_id: "$edit",
+            }),
+        ).toBe(null);
+    });
+
+    it("returns null for reply-only (no rel_type)", () => {
+        expect(
+            threadRootForQuickReply({
+                "m.in_reply_to": { event_id: "$reply" },
+            }),
+        ).toBe(null);
+    });
+
+    it("returns null when event_id is not a string", () => {
+        expect(
+            threadRootForQuickReply({
+                rel_type: "m.thread",
+                event_id: 123,
+            }),
+        ).toBe(null);
+    });
+
+    it("returns null when event_id is missing", () => {
+        expect(
+            threadRootForQuickReply({
+                rel_type: "m.thread",
+            }),
+        ).toBe(null);
+    });
+
+    it("returns null for null/undefined/non-object input", () => {
+        expect(threadRootForQuickReply(null)).toBe(null);
+        expect(threadRootForQuickReply(undefined)).toBe(null);
+        expect(threadRootForQuickReply("string")).toBe(null);
+        expect(threadRootForQuickReply(123)).toBe(null);
     });
 });

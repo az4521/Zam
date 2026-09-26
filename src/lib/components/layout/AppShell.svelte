@@ -54,6 +54,17 @@
         consumeWebShareStash,
         base64ToFile,
     } from "$lib/utils/webShareStash";
+    import {
+        takeQuickReplyStashes,
+        deleteQuickReplyStash,
+    } from "$lib/utils/notifReplyStash";
+    import { composerInsertText } from "$lib/utils/composerInsert";
+    import {
+        getDraft,
+        setDraft,
+        deliverToLiveComposer,
+    } from "$lib/stores/composerDrafts.svelte";
+    import { composerThreadKey } from "$lib/utils/threadContent";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -109,7 +120,7 @@
         sessionHealthState,
         resetSyncStoreFallback,
     } from "$lib/stores/sessionHealth.svelte";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
         getRoomsInSpace,
@@ -140,9 +151,11 @@
         publishActiveSession,
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
+        updateServiceWorkerReceiptPrivacy,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
-        sendTextMessage,
+        sendNotificationQuickReply,
+        resolveQuickReplyThreadRoot,
         markRoomAsRead,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
@@ -1321,6 +1334,12 @@
         updateServiceWorkerNotificationPrivacy(
             settingsState.hideNotificationBody,
         );
+        if (auth.userId) {
+            updateServiceWorkerReceiptPrivacy(
+                auth.userId,
+                settingsState.privateReadReceipts,
+            );
+        }
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
@@ -1353,21 +1372,77 @@
             }
         };
 
+        // Put a notification reply that could not be sent back where the user
+        // can see it. The composer open for that draft key (main or thread)
+        // takes it; otherwise it merges into the draft the composer restores
+        // on mount.
+        const restoreQuickReplyDraft = (
+            roomId: string,
+            threadRootId: string | null,
+            text: string,
+        ) => {
+            const key = threadRootId
+                ? composerThreadKey(roomId, threadRootId)
+                : roomId;
+            if (deliverToLiveComposer(key, text)) return;
+            const existing = getDraft(key);
+            setDraft(
+                key,
+                composerInsertText(existing?.text ?? "", text),
+                new Map(existing?.mentions ?? []),
+            );
+        };
+
         const quickReplyFromNotification = async (
             roomId: string,
             userId?: string | null,
             text?: string,
+            eventId?: string | null,
+            stashId?: string,
         ) => {
             if (!roomId || !text || !text.trim()) return;
             const decision = decideNotificationRoute(
                 { roomId, userId },
                 { userId: auth.userId },
             );
+            // Route refused (other account) → return WITHOUT deleting the stash
+            // so that account can consume it at boot.
             if (decision.action !== "navigate") return;
+
             try {
-                await sendTextMessage(decision.roomId, text.trim());
-            } catch {
-                /* swallow — a failed background reply must not crash the shell */
+                await sendNotificationQuickReply(
+                    decision.roomId,
+                    text.trim(),
+                    eventId,
+                );
+                // Success → delete the stash
+                if (stashId) await deleteQuickReplyStash(stashId);
+            } catch (err) {
+                console.error("Quick reply failed", err);
+                // Failure → restore the text as a draft so nothing is lost.
+                try {
+                    const threadRootId = eventId
+                        ? await resolveQuickReplyThreadRoot(
+                              decision.roomId,
+                              eventId,
+                          )
+                        : null;
+                    restoreQuickReplyDraft(
+                        decision.roomId,
+                        threadRootId,
+                        text.trim(),
+                    );
+                } catch (restoreErr) {
+                    console.error(
+                        "Quick reply draft restore failed",
+                        restoreErr,
+                    );
+                }
+                showErrorToast(
+                    "Couldn't send your reply. It's saved as a draft.",
+                );
+                // Always delete the stash on failure (already consumed)
+                if (stashId) await deleteQuickReplyStash(stashId);
             }
         };
 
@@ -1433,7 +1508,7 @@
             eventId?: string,
             text?: string,
             userId?: string,
-        ) => quickReplyFromNotification(roomId, userId, text);
+        ) => quickReplyFromNotification(roomId, userId, text, eventId);
 
         (window as any).__matrixMarkAsRead = (
             roomId: string,
@@ -1455,6 +1530,8 @@
                     e.data.roomId,
                     e.data.userId,
                     e.data.text,
+                    e.data.eventId,
+                    e.data.stashId,
                 );
             } else if (e.data?.type === "NOTIF_MARK_READ" && e.data.roomId) {
                 quickMarkReadFromNotification(e.data.roomId, e.data.userId);
@@ -1692,6 +1769,44 @@
                     }
                 } catch {
                     /* no stash / IDB unavailable — ignore */
+                }
+            })();
+        }
+        // Quick-reply stashes (notification actions when the page was closed):
+        // consume all stashes for this account and restore them as drafts.
+        // Never auto-send. Fire-and-forget.
+        if (auth.userId) {
+            (async () => {
+                try {
+                    const stashes = await takeQuickReplyStashes(auth.userId!);
+                    if (stashes.length === 0) return;
+
+                    for (const stash of stashes) {
+                        let threadRootId: string | null = null;
+                        if (stash.eventId) {
+                            try {
+                                threadRootId =
+                                    await resolveQuickReplyThreadRoot(
+                                        stash.roomId,
+                                        stash.eventId,
+                                    );
+                            } catch {
+                                // Best effort — treat as main timeline
+                            }
+                        }
+
+                        restoreQuickReplyDraft(
+                            stash.roomId,
+                            threadRootId,
+                            stash.text,
+                        );
+                    }
+
+                    showToast("Your notification reply was saved as a draft", {
+                        tone: "accent",
+                    });
+                } catch (err) {
+                    console.error("Failed to restore quick-reply stashes", err);
                 }
             })();
         }
