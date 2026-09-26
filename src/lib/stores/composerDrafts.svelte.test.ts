@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getDraft, setDraft, clearDraft } from "./composerDrafts.svelte";
+import {
+    getDraft,
+    setDraft,
+    clearDraft,
+    registerLiveComposer,
+    deliverToLiveComposer,
+} from "./composerDrafts.svelte";
 
 const A = "!a:server";
 const B = "!b:server";
@@ -70,5 +76,33 @@ describe("composerDrafts", () => {
         setDraft(A, "gone soon", new Map());
         clearDraft(A);
         expect(getDraft(A)).toBeNull();
+    });
+});
+
+describe("live composer delivery", () => {
+    it("returns false when no composer is open for the key", () => {
+        expect(deliverToLiveComposer(A, "hi")).toBe(false);
+    });
+
+    it("hands text to the open composer for that key only", () => {
+        const got: string[] = [];
+        const off = registerLiveComposer(A, (t) => got.push(t));
+        expect(deliverToLiveComposer(B, "not mine")).toBe(false);
+        expect(deliverToLiveComposer(A, "mine")).toBe(true);
+        expect(got).toEqual(["mine"]);
+        off();
+        expect(deliverToLiveComposer(A, "after close")).toBe(false);
+    });
+
+    it("a stale unregister does not remove a newer composer", () => {
+        const first: string[] = [];
+        const second: string[] = [];
+        const offFirst = registerLiveComposer(A, (t) => first.push(t));
+        const offSecond = registerLiveComposer(A, (t) => second.push(t));
+        offFirst();
+        expect(deliverToLiveComposer(A, "x")).toBe(true);
+        expect(second).toEqual(["x"]);
+        expect(first).toEqual([]);
+        offSecond();
     });
 });

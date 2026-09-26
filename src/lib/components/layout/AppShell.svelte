@@ -62,10 +62,9 @@
     import {
         getDraft,
         setDraft,
-        type ComposerDraft,
+        deliverToLiveComposer,
     } from "$lib/stores/composerDrafts.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
-    import { hostBridge } from "$lib/plugins/hostBridge";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -155,7 +154,6 @@
         updateServiceWorkerReceiptPrivacy,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
-        sendTextMessage,
         sendNotificationQuickReply,
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
@@ -1375,23 +1373,18 @@
         };
 
         // Put a notification reply that could not be sent back where the user
-        // can see it. Same rule as the share stager (shareInbox stageShare): the
-        // mounted main composer takes it only when its room-guarded handler
-        // accepts; otherwise it merges into the draft the composer restores on
-        // mount. A thread reply always goes to the thread composer's draft.
+        // can see it. The composer open for that draft key (main or thread)
+        // takes it; otherwise it merges into the draft the composer restores
+        // on mount.
         const restoreQuickReplyDraft = (
             roomId: string,
             threadRootId: string | null,
             text: string,
         ) => {
-            if (
-                !threadRootId &&
-                hostBridge.insertText?.({ roomId, text }) === true
-            )
-                return;
             const key = threadRootId
                 ? composerThreadKey(roomId, threadRootId)
                 : roomId;
+            if (deliverToLiveComposer(key, text)) return;
             const existing = getDraft(key);
             setDraft(
                 key,
