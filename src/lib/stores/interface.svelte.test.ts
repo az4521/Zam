@@ -9,6 +9,7 @@ import {
     clearSidebarIfOwner,
     openComposerPicker,
     openComposerActions,
+    releaseComposerActions,
     openSubPage,
     closeSubPage,
     clearSubPageIfOwner,
@@ -371,5 +372,29 @@ describe("sub-page slot", () => {
         openModal("composer-picker", () => {});
         expect(interfaceState.subPageClose).toBe(null);
         expect(sub).not.toHaveBeenCalled();
+    });
+});
+
+describe("releaseComposerActions", () => {
+    it("closes the menu when the given composer owns it", () => {
+        openComposerActions("thread");
+        releaseComposerActions("thread");
+        expect(interfaceState.modal).toBeNull();
+        expect(interfaceState.composerActionsOwner).toBeNull();
+    });
+
+    it("leaves another composer's menu open", () => {
+        openComposerActions("main");
+        releaseComposerActions("thread");
+        expect(interfaceState.modal).toBe("composer-actions");
+        expect(interfaceState.composerActionsOwner).toBe("main");
+    });
+
+    it("leaves a different modal open", () => {
+        const close = vi.fn();
+        openModal("room-menu", close);
+        releaseComposerActions("main");
+        expect(interfaceState.modal).toBe("room-menu");
+        expect(close).not.toHaveBeenCalled();
     });
 });

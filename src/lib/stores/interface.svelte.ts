@@ -188,6 +188,18 @@ export function openComposerActions(owner: string = "main"): void {
     interfaceState.composerActionsOwner = owner;
 }
 
+/** Close the "+" actions menu only if `owner` holds it. A composer calls this
+ *  when it unmounts or changes key, so a menu nothing renders any more can't
+ *  keep the slot and swallow the next Escape / back press. */
+export function releaseComposerActions(owner: string): void {
+    if (
+        interfaceState.modal === "composer-actions" &&
+        interfaceState.composerActionsOwner === owner
+    ) {
+        closeModal();
+    }
+}
+
 /**
  * Claim the modal/popup slot, returning the token that identifies THIS
  * occupancy. Whatever held the slot is closed first — including another

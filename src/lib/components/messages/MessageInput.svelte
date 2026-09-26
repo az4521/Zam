@@ -59,6 +59,7 @@
         closeModal,
         openComposerPicker,
         openComposerActions,
+        releaseComposerActions,
     } from "$lib/stores/interface.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
@@ -678,6 +679,13 @@
         interfaceState.modal === "composer-actions" &&
             interfaceState.composerActionsOwner === effComposerKey,
     );
+    // Release our "+" menu when this composer unmounts (thread panel closed)
+    // or its key changes (room switch). The teardown is untracked, so the
+    // effect depends only on effComposerKey.
+    $effect(() => {
+        const key = effComposerKey;
+        return () => untrack(() => releaseComposerActions(key));
+    });
     const showEmojiPicker = $derived(
         composerPickerOpen &&
             interfaceState.composerPicker === "emoji" &&
