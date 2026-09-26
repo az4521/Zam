@@ -234,6 +234,17 @@
     // existing-DM check and leave the user with two DM rooms for one contact.
     type MenuAction = "message" | "block" | "kick" | "ban";
     let pending = $state<MenuAction | null>(null);
+    // Which moderation action is armed for confirmation — mirrors
+    // UserProfileCard's `confirming` flow (UX-07).
+    let confirming = $state<"kick" | "ban" | null>(null);
+
+    // Reset confirming state when the menu is reused for a different participant.
+    // The menu component stays mounted (Portal), so state leaks across targets
+    // without this guard.
+    $effect(() => {
+        void userId;
+        confirming = null;
+    });
 
     // `fallback` may be a thunk so it can read live derived state (e.g. `name`)
     // at failure time rather than capturing it when the handler is built.
@@ -319,16 +330,30 @@
         async () => (blocked ? unblockUser(userId) : blockUser(userId)),
         "Could not update the block list",
     );
-    const onKick = act(
-        "kick",
-        () => kickUser(room.roomId, userId),
-        () => `Could not kick ${name}`,
-    );
-    const onBan = act(
-        "ban",
-        () => banUser(room.roomId, userId),
-        () => `Could not ban ${name}`,
-    );
+    // Kick and ban use two-step confirmation: first click arms `confirming`,
+    // second click runs the action. Arming one clears the other.
+    async function onKick() {
+        if (confirming !== "kick") {
+            confirming = "kick";
+            return;
+        }
+        await act(
+            "kick",
+            () => kickUser(room.roomId, userId),
+            () => `Could not kick ${name}`,
+        )();
+    }
+    async function onBan() {
+        if (confirming !== "ban") {
+            confirming = "ban";
+            return;
+        }
+        await act(
+            "ban",
+            () => banUser(room.roomId, userId),
+            () => `Could not ban ${name}`,
+        )();
+    }
     const onMention = () => {
         const ctx = { roomId: room.roomId, userId };
         hostBridge.pendingMention = ctx;
@@ -553,7 +578,9 @@
                 class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
                 >{pending === "kick"
                     ? "Kicking…"
-                    : `Kick ${name} from room`}</button
+                    : confirming === "kick"
+                      ? `Confirm kick ${name}?`
+                      : `Kick ${name} from room`}</button
             >
         {/if}
         {#if gates.canBan}
@@ -561,7 +588,11 @@
                 onclick={onBan}
                 disabled={pending !== null}
                 class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
-                >{pending === "ban" ? "Banning…" : `Ban ${name}`}</button
+                >{pending === "ban"
+                    ? "Banning…"
+                    : confirming === "ban"
+                      ? `Confirm ban ${name}?`
+                      : `Ban ${name}`}</button
             >
         {/if}
     {/if}
