@@ -116,7 +116,10 @@
         reloadNotificationsFromStorage,
         getNotificationCount,
     } from "$lib/stores/notifications.svelte";
-    import { updateAccountProfile } from "$lib/stores/accounts.svelte";
+    import {
+        accountsState,
+        updateAccountProfile,
+    } from "$lib/stores/accounts.svelte";
     import {
         sessionHealthState,
         resetSyncStoreFallback,
@@ -1802,10 +1805,21 @@
         (async () => {
             try {
                 const profile = await fetchOwnProfile();
-                if (!auth.userId) return;
-                updateAccountProfile(auth.userId, {
+                if (!profile.userId) return;
+                // File it under the account that was fetched, not whoever is
+                // active after the await (audit CORE-02). mxcToHttp resolves
+                // against the ACTIVE homeserver, so a superseded fetch keeps
+                // its cached avatar URL instead.
+                const stillActive = profile.userId === auth.userId;
+                const cachedAvatar =
+                    accountsState.registry.accounts.find(
+                        (a) => a.userId === profile.userId,
+                    )?.avatarUrl ?? null;
+                updateAccountProfile(profile.userId, {
                     displayName: profile.displayName,
-                    avatarUrl: mxcToHttp(profile.avatarMxc, 64, 64),
+                    avatarUrl: stillActive
+                        ? mxcToHttp(profile.avatarMxc, 64, 64)
+                        : cachedAvatar,
                 });
             } catch {
                 // offline boot — cached values stay

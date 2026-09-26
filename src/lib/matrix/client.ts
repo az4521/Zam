@@ -2957,17 +2957,24 @@ export function getOwnAvatarMxc(): string | null {
     return matrixClient?.getUser(userId)?.avatarUrl ?? null;
 }
 
-/** Fetch the logged-in user's profile fresh from the server. */
+/**
+ * Fetch the logged-in user's profile fresh from the server. `userId` is the
+ * account that was asked, captured BEFORE the await: an account switch during
+ * the request must not let the caller file this profile under the successor
+ * (audit CORE-02).
+ */
 export async function fetchOwnProfile(): Promise<{
+    userId: string | null;
     displayName: string | null;
     avatarMxc: string | null;
 }> {
-    const userId = matrixClient?.getUserId();
+    const userId = matrixClient?.getUserId() ?? null;
     if (!matrixClient || !userId) {
-        return { displayName: null, avatarMxc: null };
+        return { userId: null, displayName: null, avatarMxc: null };
     }
     const profile = await matrixClient.getProfileInfo(userId);
     return {
+        userId,
         displayName: profile.displayname ?? null,
         avatarMxc: profile.avatar_url ?? null,
     };
