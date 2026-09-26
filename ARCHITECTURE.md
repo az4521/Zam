@@ -123,18 +123,18 @@ wrappers; they import matrix-js-sdk _types_ only. It is also the **LiveKit** bou
 
 Sanctioned exceptions, all deliberate:
 
-- **`src/lib/matrix/runtime.ts`** — the single client slot and generation counter. Exports
-  `matrixClient`, `getClient()`, `captureClient()`, `ownedClient()`, and `ownedClientOrThrow()`.
+- **`src/lib/matrix/runtime.ts`** — the single client slot and generation counter. Exports,
+  among others, `matrixClient`, `getClient()`, `captureClient()`, `ownedClient()`,
+  `ownedClientOrThrow()`, and the install/release writers that only `client.ts` calls.
   No Svelte or store imports. `client.ts` re-exports `getClient()` for callers.
 - **`src/lib/matrix/crypto.ts`** — the entire E2EE subsystem, sharing the client via `getClient()`.
   Crypto work goes here, not in `client.ts`.
 - **`src/lib/matrix/media.ts`** — media upload (including encrypt-on-upload), `sendFile` and
   `sendVoiceMessage`, `mxcToHttp`, authenticated and decrypting media fetch, and room media gallery
   paging. `client.ts` re-exports these names so most callers import from `client.ts` unchanged.
-- **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`,
-  `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
-  plugin sync persistence, and the upload-to-send owner guard. Also hosts the core composer's
-  `sendEventContent`. Plugins never touch these modules themselves; they call the `zam` host API,
+- **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
+  (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
+  plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
   and only `plugins/hostApi.ts` (per plugin) and `plugins/pluginBoot.ts` (host-level account-data
   sync) translate it into `pluginHost.ts` and `client.ts` wrappers. `client.ts` imports nothing
   from `plugins/`, so the dependency runs one way. See "Plugin system".

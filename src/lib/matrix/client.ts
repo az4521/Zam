@@ -102,7 +102,6 @@ import {
     matrixClient,
     matrixStore,
     ownedClient,
-    ownedClientOrThrow,
     readOwner,
     releaseClient,
     retireClientGeneration,
@@ -256,22 +255,7 @@ import {
     initCrypto,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
-    isRoomEncrypted,
 } from "$lib/matrix/crypto";
-// Media upload, send, and fetch wrappers (re-exported from media.ts for callers)
-export {
-    getMediaUploadSizeLimit,
-    uploadAttachment,
-    sendFile,
-    sendVoiceMessage,
-    mxcToHttp,
-    fetchAttachmentBlob,
-    fetchDecryptedAttachmentBlob,
-    getContentType,
-    fetchRoomMediaPage,
-    uploadContent,
-} from "./media";
-export type { MediaCaption, RoomMediaPage } from "./media";
 import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
@@ -352,6 +336,21 @@ declare module "matrix-js-sdk" {
 }
 
 export { getClient };
+
+// Media upload, send, and fetch wrappers (re-exported from media.ts for callers)
+export {
+    getMediaUploadSizeLimit,
+    uploadAttachment,
+    sendFile,
+    sendVoiceMessage,
+    mxcToHttp,
+    fetchAttachmentBlob,
+    fetchDecryptedAttachmentBlob,
+    getContentType,
+    fetchRoomMediaPage,
+    uploadContent,
+} from "./media";
+export type { MediaCaption, RoomMediaPage } from "./media";
 
 function getIndexedDBFactory(): IDBFactory | null {
     try {
@@ -4189,7 +4188,6 @@ export async function searchRoomMessagesMore(
     return matrixClient.backPaginateRoomEventsSearch(results);
 }
 
-/** One page of a room's media, newest first. `nextToken` is null at the end. */
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
     const roomId = event.getRoomId();

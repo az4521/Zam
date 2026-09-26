@@ -3,8 +3,8 @@
  * the ownership generation that guards both across account switches.
  *
  * Split out of `client.ts` (audit ARCH-01) so the slot has a single writer
- * API and no Svelte/store/toast dependencies. `client.ts`, `crypto.ts` and
- * `pluginHost.ts` read the slot through the live bindings / accessors below;
+ * API and no Svelte/store/toast dependencies. `client.ts`, `crypto.ts`,
+ * `pluginHost.ts` and `media.ts` read the slot through the live bindings / accessors below;
  * only the install/release helpers write it.
  */
 import type { IndexedDBStore, MatrixClient } from "matrix-js-sdk";
