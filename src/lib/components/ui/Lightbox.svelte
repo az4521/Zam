@@ -36,6 +36,7 @@
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { fetchAttachmentBlob } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
@@ -76,8 +77,19 @@
         }
     }
 
+    /** The filename to display, or null when only the generic fallback
+     *  ("image" / "video") is known. */
+    const shownName = $derived.by(() => {
+        const name = filenameFromSrc();
+        return name === mediaNoun ? null : name;
+    });
+
     function filenameFromSrc(): string {
         if (filename) return filename;
+        // Gallery callers pass the filename as alt text; use it when it
+        // looks like one (has an extension).
+        const a = alt.trim();
+        if (/\.[a-z0-9]{2,5}$/i.test(a) && !/[\\/]/.test(a)) return a;
         try {
             const u = new URL(src, location.href);
             const last = u.pathname.split("/").filter(Boolean).pop();
@@ -88,45 +100,39 @@
         return mediaNoun;
     }
 
-    function saveBlobAs(objectUrl: string, name: string) {
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = name;
-        // In the document, not detached: Firefox has historically ignored
-        // `download` on an anchor that was never in the DOM.
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-
     async function download(e: MouseEvent) {
         e.stopPropagation();
         const name = filenameFromSrc();
-        // A playing video has already been pulled down in full — save that copy
-        // instead of fetching the whole file a second time. Ownership stays
-        // with the effect below, so this path must NOT revoke it.
-        if (videoBlobUrl) {
-            saveBlobAs(videoBlobUrl, name);
-            return;
-        }
-        let objectUrl: string | null = null;
         try {
-            // Homeserver media uses authenticated media endpoints — the token
-            // must be attached, and fetchAttachmentBlob refuses to send it
-            // anywhere but the homeserver (throws on foreign URLs).
-            objectUrl = await fetchAttachmentBlob(src);
-            saveBlobAs(objectUrl, name);
-        } catch {
-            // Non-homeserver media (e.g. an embedded tweet photo) or a transient
-            // failure — open it directly, with no auth attached.
-            const a = document.createElement("a");
-            a.href = src;
-            a.download = name;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.click();
-        } finally {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // A playing video has already been pulled down in full — save that
+            // copy instead of fetching the whole file a second time. Ownership
+            // stays with the effect below, so this path must NOT revoke it.
+            if (videoBlobUrl) {
+                await saveObjectUrl(videoBlobUrl, name);
+                return;
+            }
+            let objectUrl: string;
+            try {
+                // Homeserver media uses authenticated media endpoints — the
+                // token must be attached, and fetchAttachmentBlob refuses to
+                // send it anywhere but the homeserver (throws on foreign URLs).
+                objectUrl = await fetchAttachmentBlob(src);
+            } catch {
+                // Non-homeserver media (e.g. an embedded tweet photo): fetch it
+                // directly, with no auth attached.
+                objectUrl = URL.createObjectURL(
+                    await (await fetch(src)).blob(),
+                );
+            }
+            try {
+                await saveObjectUrl(objectUrl, name);
+            } finally {
+                revokeLater(objectUrl);
+            }
+        } catch (err) {
+            console.error("Failed to download media", err);
+            // Last resort (e.g. a CORS-blocked foreign image): open it.
+            window.open(src, "_blank", "noopener,noreferrer");
         }
     }
 
@@ -458,14 +464,33 @@
         }}
         use:focusTrap={{ onEscape: onClose }}
     >
-        {#if position}
-            <!-- aria-hidden: the live region below carries the same text for
-                 screen readers. -->
+        <!-- Top-left: the gallery position chip, then the file's name. The row
+             leaves room for the action buttons on the right; the chip keeps
+             its size and the name truncates. -->
+        {#if position || shownName}
             <div
-                class="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-full bg-black/50 text-white text-sm tabular-nums select-none"
-                aria-hidden="true"
+                class="absolute top-3 left-3 z-10 flex items-center gap-2 max-w-[calc(100%-10rem)]"
             >
-                {position}
+                {#if position}
+                    <!-- aria-hidden: the live region below carries the same
+                         text for screen readers. -->
+                    <div
+                        class="shrink-0 px-3 py-1.5 rounded-full bg-black/50 text-white text-sm tabular-nums select-none"
+                        aria-hidden="true"
+                    >
+                        {position}
+                    </div>
+                {/if}
+                <!-- The file's name, when known (selectable, full name on
+                     hover). -->
+                {#if shownName}
+                    <div
+                        class="min-w-0 px-3 py-1.5 rounded-full bg-black/50 text-white text-sm truncate select-text pointer-events-auto"
+                        title={shownName}
+                    >
+                        {shownName}
+                    </div>
+                {/if}
             </div>
         {/if}
         <!-- Mounted for the viewer's whole lifetime, so each step's new text
@@ -473,7 +498,6 @@
         <p class="sr-only" aria-live="polite" aria-atomic="true">
             {position ? `${MediaNoun} ${position}` : ""}
         </p>
-
         <!-- Top-right action buttons -->
         <div
             class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto"

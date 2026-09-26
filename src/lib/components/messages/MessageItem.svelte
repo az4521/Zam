@@ -63,6 +63,7 @@
         getHomeserverBaseUrl,
         EventStatus,
     } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { parseMarkdown } from "$lib/utils/markdown";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
@@ -2166,6 +2167,7 @@
                             height={stickerBox.height}
                             class="max-w-full h-auto object-contain mt-1"
                             loading="lazy"
+                            data-own-retry
                             onerror={mediaImgRetry.onError}
                         />
                     {:else}
@@ -2174,6 +2176,7 @@
                             alt={content?.body ?? "sticker"}
                             class="max-w-48 max-h-48 object-contain mt-1"
                             loading="lazy"
+                            data-own-retry
                             onerror={mediaImgRetry.onError}
                         />
                     {/if}
@@ -2226,18 +2229,22 @@
                                 <img
                                     src={mediaImgRetry.src}
                                     alt={mediaFilename}
+                                    title={mediaFilename || undefined}
                                     width={imageBox.width}
                                     height={imageBox.height}
                                     class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
                                     loading="lazy"
+                                    data-own-retry
                                     onerror={mediaImgRetry.onError}
                                 />
                             {:else}
                                 <img
                                     src={mediaImgRetry.src}
                                     alt={mediaFilename}
+                                    title={mediaFilename || undefined}
                                     class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
                                     loading="lazy"
+                                    data-own-retry
                                     onerror={mediaImgRetry.onError}
                                 />
                             {/if}
@@ -2282,6 +2289,7 @@
                         <Lightbox
                             src={full}
                             alt={mediaFilename}
+                            filename={mediaFilename || undefined}
                             favourite={isGif
                                 ? { url: full, previewUrl: thumb ?? full }
                                 : undefined}
@@ -2644,14 +2652,11 @@
                                               (content?.info as any)?.mimetype,
                                           )
                                         : await fetchAttachmentBlob(fileUrl!);
-                                    const a = document.createElement("a");
-                                    a.href = blobUrl;
-                                    a.download = fileName;
-                                    a.click();
-                                    setTimeout(
-                                        () => URL.revokeObjectURL(blobUrl),
-                                        10000,
-                                    );
+                                    try {
+                                        await saveObjectUrl(blobUrl, fileName);
+                                    } finally {
+                                        revokeLater(blobUrl);
+                                    }
                                 } catch (e) {
                                     console.error(
                                         "Failed to download attachment",

@@ -903,13 +903,14 @@
     <!-- Home button -->
     <button
         onclick={onHomeClick}
-        class="group relative w-12 h-12 flex items-center justify-center transition-all duration-200 flex-shrink-0"
+        class="group relative w-12 h-12 flex items-center justify-center transition-all duration-200 flex-shrink-0 {roomsState.activeSpaceId ===
+        null
+            ? 'bg-[rgb(var(--discord-accent-rgb))]'
+            : 'hover:bg-[rgb(var(--discord-accent-rgb))]'}"
         class:rounded-2xl={roomsState.activeSpaceId !== null}
         class:rounded-xl={roomsState.activeSpaceId === null}
-        class:bg-discord-accent={roomsState.activeSpaceId === null}
         class:bg-discord-backgroundSecondary={roomsState.activeSpaceId !== null}
         class:hover:rounded-xl={roomsState.activeSpaceId !== null}
-        class:hover:bg-discord-accent={roomsState.activeSpaceId !== null}
         title="Home"
     >
         <svg

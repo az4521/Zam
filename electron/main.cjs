@@ -18,6 +18,7 @@ const {
     ipcMain,
     session,
     desktopCapturer,
+    clipboard,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -532,6 +533,87 @@ async function createWindow() {
             e.preventDefault();
             openExternalSafely(navUrl);
         }
+    });
+
+    // Electron shows no context menu by default; build a Chromium-like one
+    // (links, images, text editing, spellcheck) so right-click works.
+    mainWindow.webContents.on("context-menu", (_e, params) => {
+        const wc = mainWindow.webContents;
+        const items = [];
+        const section = (group) => {
+            if (!group.length) return;
+            if (items.length) items.push({ type: "separator" });
+            items.push(...group);
+        };
+        const { editFlags } = params;
+
+        if (params.misspelledWord) {
+            section([
+                ...params.dictionarySuggestions.slice(0, 5).map((word) => ({
+                    label: word,
+                    click: () => wc.replaceMisspelling(word),
+                })),
+                {
+                    label: "Add to dictionary",
+                    click: () =>
+                        wc.session.addWordToSpellCheckerDictionary(
+                            params.misspelledWord,
+                        ),
+                },
+            ]);
+        }
+        if (params.linkURL) {
+            section([
+                ...(isSafeExternalUrl(params.linkURL)
+                    ? [
+                          {
+                              label: "Open link",
+                              click: () => openExternalSafely(params.linkURL),
+                          },
+                      ]
+                    : []),
+                {
+                    label: "Copy link",
+                    click: () => clipboard.writeText(params.linkURL),
+                },
+            ]);
+        }
+        if (params.mediaType === "image" && params.srcURL) {
+            section([
+                {
+                    label: "Copy image",
+                    click: () => wc.copyImageAt(params.x, params.y),
+                },
+                {
+                    label: "Save image as…",
+                    // Not wc.downloadURL: homeserver media needs the access
+                    // token (added by the renderer's service worker, which a
+                    // main-process download bypasses), so the server would
+                    // hand back a JSON error. The renderer fetches it with
+                    // auth and saves it instead.
+                    click: () =>
+                        wc.send("context-menu:save-image", params.srcURL),
+                },
+            ]);
+        }
+        if (params.isEditable) {
+            section([
+                // Always enabled: the composer keeps its own undo history
+                // (Chromium's stack is empty there) and handles the
+                // historyUndo/historyRedo input these roles dispatch.
+                { role: "undo" },
+                { role: "redo" },
+                { type: "separator" },
+                { role: "cut", enabled: editFlags.canCut },
+                { role: "copy", enabled: editFlags.canCopy },
+                { role: "paste", enabled: editFlags.canPaste },
+                { role: "selectAll", enabled: editFlags.canSelectAll },
+            ]);
+        } else if (params.selectionText.trim()) {
+            section([{ role: "copy" }]);
+        }
+        if (items.length)
+            Menu.buildFromTemplate(items).popup({ window: mainWindow });
     });
 
     // Close button (X): hide to the system tray, or quit, per the device-local

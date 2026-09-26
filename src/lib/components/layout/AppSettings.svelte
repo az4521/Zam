@@ -334,7 +334,7 @@
             <!-- Desktop: category sidebar beside the active panel. -->
             <div class="flex flex-row flex-1 min-h-0">
                 <nav
-                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
+                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
                 >
                     {#each settingsGroups as group (group.title)}
                         <div

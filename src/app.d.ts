@@ -45,6 +45,9 @@ declare global {
             tray?: {
                 setMinimizeToClose: (enabled: boolean) => void;
             };
+            contextMenu?: {
+                onSaveImage: (cb: (url: string) => void) => () => void;
+            };
         };
     }
 }

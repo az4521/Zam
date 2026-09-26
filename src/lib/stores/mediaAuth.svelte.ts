@@ -131,11 +131,39 @@ export function createMediaRetry(
     };
 }
 
-// `{@html}`-injected media (custom emotes, mx-reply images) can't use the
-// composable — they aren't Svelte-rendered elements. A single capture-phase
-// error listener heals them in place (the `error` event doesn't bubble, hence
-// capture). Scoped to `.message-body` so component `<img>`s keep their own
-// state, and idempotent so it can be called from every app mount.
+// Every other authed `<img>` (reaction emotes, picker/pack grids, member
+// lists, `{@html}`-injected custom emotes and mx-reply images...) is healed by
+// one capture-phase error listener instead (the `error` event doesn't bubble,
+// hence capture). That also covers browsers with NO service worker at all:
+// Tor Browser disables them, so there every homeserver image lands here.
+// `<img>`s driven by createMediaRetry carry `data-own-retry` and are skipped so
+// the two don't race. Idempotent so it can be called from every app mount.
+//
+// Healed blobs are shared per URL (the same emote across many reactions is one
+// fetch) in a small LRU. Evicted URLs aren't revoked: an element may still
+// show them, and a leaked image blob is cheaper than a broken one.
+const HEAL_CACHE_MAX = 500;
+const healCache = new Map<string, Promise<string | null>>();
+
+function healedBlobUrl(src: string): Promise<string | null> {
+    const hit = healCache.get(src);
+    if (hit) {
+        healCache.delete(src); // refresh LRU position
+        healCache.set(src, hit);
+        return hit;
+    }
+    const p = authedMediaBlobUrl(src).then((url) => {
+        if (!url) healCache.delete(src); // allow a later retry
+        return url;
+    });
+    healCache.set(src, p);
+    if (healCache.size > HEAL_CACHE_MAX) {
+        const oldest = healCache.keys().next().value;
+        if (oldest !== undefined) healCache.delete(oldest);
+    }
+    return p;
+}
+
 let healerInstalled = false;
 export function installMediaHealer(): void {
     if (healerInstalled || typeof document === "undefined") return;
@@ -144,14 +172,18 @@ export function installMediaHealer(): void {
         "error",
         (e) => {
             const img = e.target;
-            if (!(img instanceof HTMLImageElement) || img.dataset.mediaHealed)
-                return;
-            if (!img.closest(".message-body")) return;
+            if (!(img instanceof HTMLImageElement)) return;
+            if (img.hasAttribute("data-own-retry")) return;
             const src = img.currentSrc || img.src;
+            // Keyed on the src we healed, not a one-shot flag: a reused
+            // element given a NEW authed src must be healable again.
+            if (img.dataset.mediaHealed === src) return;
             if (!isAuthedMediaUrl(src)) return; // not our authed media / no token
-            img.dataset.mediaHealed = "1";
-            authedMediaBlobUrl(src).then((url) => {
-                if (url) img.src = url;
+            img.dataset.mediaHealed = src;
+            const failedSrc = img.src;
+            healedBlobUrl(src).then((url) => {
+                // Skip if the element moved on to another src meanwhile.
+                if (url && img.src === failedSrc) img.src = url;
             });
         },
         true,

@@ -66,6 +66,32 @@ export function removeQueuedFile(roomId: string, id: string): void {
     queueState.queues = queues;
 }
 
+/** Rename a queued file. The upload reads `file.name`, so the File itself is
+ *  rebuilt under the new name (same bytes, type and timestamp). */
+export function renameQueuedFile(
+    roomId: string,
+    id: string,
+    name: string,
+): void {
+    const queue = queueState.queues[roomId];
+    if (!queue) return;
+    queueState.queues = {
+        ...queueState.queues,
+        [roomId]: queue.map((q) =>
+            q.id === id
+                ? {
+                      ...q,
+                      name,
+                      file: new File([q.file], name, {
+                          type: q.file.type,
+                          lastModified: q.file.lastModified,
+                      }),
+                  }
+                : q,
+        ),
+    };
+}
+
 export function clearFileQueue(roomId: string): void {
     const queue = queueState.queues[roomId];
     if (!queue) return;

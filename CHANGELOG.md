@@ -54,6 +54,44 @@ commit list is appended below it.
 - Dependency updates within their current versions. Known security advisories went from 22 to 4 low-severity ones.
 - Release builds now run type checks, tests and a formatting check first.
 
+## v1.7.4
+
+✨ **New**
+
+- The image viewer shows the file's name in the top-left corner, and hovering an image in chat shows it as a tooltip.
+
+🐛 **Fixes**
+
+- The settings sidebar (app and room settings) scrolls when its tabs don't fit.
+- Custom emoji reactions, picker grids, member lists and other homeserver images now load in browsers without service workers, such as Tor Browser.
+
+## v1.7.3
+
+🐛 **Fixes**
+
+- Downloading from the image viewer keeps the original filename instead of saving as "image".
+- Downloads with no file extension get the right one added, so they open correctly.
+
+## v1.7.2
+
+🐛 **Fixes**
+
+- Desktop: right-click "Save image as…" now saves the actual image (full size, with its filename) instead of a JSON error file.
+
+## v1.7.1
+
+✨ **New**
+
+- **Rename attachments before sending:** tap a queued file in the composer to edit its filename, like Discord.
+- **Right-click menu on desktop:** open or copy links, copy or save images, cut/copy/paste in the composer, and spelling suggestions.
+
+🐛 **Fixes**
+
+- Downloading images and files now works on Android; they save straight to your Downloads folder.
+- Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo and redo in the message box.
+- Ctrl+E (emoji), Ctrl+G (GIFs) and Ctrl+S (stickers) open their pickers again, including from a thread's composer.
+- The Home button is back to classic blurple.
+
 ## v1.7.0
 
 ✨ **Animations & UI**

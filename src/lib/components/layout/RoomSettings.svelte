@@ -1216,7 +1216,7 @@
                 {#if view.mode === "desktop"}
                     <!-- Desktop: category sidebar beside the active panel. -->
                     <nav
-                        class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3"
+                        class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
                     >
                         {#each tabs as tab (tab.id)}
                             <button
