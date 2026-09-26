@@ -67,6 +67,11 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          # The action's default also installs the legacy "tools" package,
+          # which current cmdline-tools no longer ship (sdkmanager exits 1).
+          # Gradle fetches the platform / build-tools it needs on its own.
+          packages: platform-tools
       - name: Add google-services.json
         if: env.GOOGLE_SERVICES_JSON_BASE64 != ''
         env:

@@ -457,14 +457,25 @@
             interfaceState.debugOpen = !interfaceState.debugOpen;
             return;
         }
-        // Ctrl+E / Ctrl+S → open a composer picker (only when a room
-        // with a composer is visible).
+        // Ctrl+E / Ctrl+G / Ctrl+S → open a composer picker (only when a room
+        // with a composer is visible). A focused composer handles these itself
+        // (so a thread composer opens its own picker) and preventDefaults.
         if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+            if (e.defaultPrevented) return;
             const k = e.key.toLowerCase();
-            const kind = k === "e" ? "emoji" : k === "s" ? "sticker" : null;
+            const kind =
+                k === "e"
+                    ? "emoji"
+                    : k === "g"
+                      ? "gif"
+                      : k === "s"
+                        ? "sticker"
+                        : null;
             if (kind && activeRoom && !roomsState.showInbox) {
                 e.preventDefault();
-                openComposerPicker(kind);
+                // The main composer's key is its roomId (MessageInput's
+                // effComposerKey), so the picker must be claimed under it.
+                openComposerPicker(kind, activeRoom.roomId);
             }
             return;
         }

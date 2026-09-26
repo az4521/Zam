@@ -8,6 +8,7 @@
         mxcToHttp,
         type RoomMediaPage,
     } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import {
         mergeMediaPages,
         splitMediaItems,
@@ -192,16 +193,11 @@
                           item.mimetype ?? undefined,
                       )
                     : await fetchAttachmentBlob(mxcToHttp(item.url)!);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = item.name;
-            // In the document, not detached: Firefox has historically ignored
-            // `download` on an anchor that was never in the DOM. Same dance as
-            // Lightbox's download button.
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            try {
+                await saveObjectUrl(blobUrl, item.name);
+            } finally {
+                revokeLater(blobUrl);
+            }
         } catch (e) {
             console.error("Failed to download attachment", e);
             showErrorToast("Failed to download attachment");

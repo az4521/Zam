@@ -32,6 +32,7 @@
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { fetchAttachmentBlob } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
@@ -82,45 +83,39 @@
         return mediaNoun;
     }
 
-    function saveBlobAs(objectUrl: string, name: string) {
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = name;
-        // In the document, not detached: Firefox has historically ignored
-        // `download` on an anchor that was never in the DOM.
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    }
-
     async function download(e: MouseEvent) {
         e.stopPropagation();
         const name = filenameFromSrc();
-        // A playing video has already been pulled down in full — save that copy
-        // instead of fetching the whole file a second time. Ownership stays
-        // with the effect below, so this path must NOT revoke it.
-        if (videoBlobUrl) {
-            saveBlobAs(videoBlobUrl, name);
-            return;
-        }
-        let objectUrl: string | null = null;
         try {
-            // Homeserver media uses authenticated media endpoints — the token
-            // must be attached, and fetchAttachmentBlob refuses to send it
-            // anywhere but the homeserver (throws on foreign URLs).
-            objectUrl = await fetchAttachmentBlob(src);
-            saveBlobAs(objectUrl, name);
-        } catch {
-            // Non-homeserver media (e.g. an embedded tweet photo) or a transient
-            // failure — open it directly, with no auth attached.
-            const a = document.createElement("a");
-            a.href = src;
-            a.download = name;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.click();
-        } finally {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            // A playing video has already been pulled down in full — save that
+            // copy instead of fetching the whole file a second time. Ownership
+            // stays with the effect below, so this path must NOT revoke it.
+            if (videoBlobUrl) {
+                await saveObjectUrl(videoBlobUrl, name);
+                return;
+            }
+            let objectUrl: string;
+            try {
+                // Homeserver media uses authenticated media endpoints — the
+                // token must be attached, and fetchAttachmentBlob refuses to
+                // send it anywhere but the homeserver (throws on foreign URLs).
+                objectUrl = await fetchAttachmentBlob(src);
+            } catch {
+                // Non-homeserver media (e.g. an embedded tweet photo): fetch it
+                // directly, with no auth attached.
+                objectUrl = URL.createObjectURL(
+                    await (await fetch(src)).blob(),
+                );
+            }
+            try {
+                await saveObjectUrl(objectUrl, name);
+            } finally {
+                revokeLater(objectUrl);
+            }
+        } catch (err) {
+            console.error("Failed to download media", err);
+            // Last resort (e.g. a CORS-blocked foreign image): open it.
+            window.open(src, "_blank", "noopener,noreferrer");
         }
     }
 

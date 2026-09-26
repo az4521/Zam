@@ -63,6 +63,7 @@
         getThreadSummary,
         getHomeserverBaseUrl,
     } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { parseMarkdown } from "$lib/utils/markdown";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
@@ -2523,14 +2524,11 @@
                                               (content?.info as any)?.mimetype,
                                           )
                                         : await fetchAttachmentBlob(fileUrl!);
-                                    const a = document.createElement("a");
-                                    a.href = blobUrl;
-                                    a.download = fileName;
-                                    a.click();
-                                    setTimeout(
-                                        () => URL.revokeObjectURL(blobUrl),
-                                        10000,
-                                    );
+                                    try {
+                                        await saveObjectUrl(blobUrl, fileName);
+                                    } finally {
+                                        revokeLater(blobUrl);
+                                    }
                                 } catch (e) {
                                     console.error(
                                         "Failed to download attachment",

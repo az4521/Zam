@@ -62,6 +62,7 @@
     } from "$lib/stores/interface.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
+    import RenameAttachmentDialog from "$lib/components/messages/RenameAttachmentDialog.svelte";
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
     import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
     import { pickAudioMimeType } from "$lib/utils/voiceMessage";
@@ -76,7 +77,9 @@
         getFileQueue,
         addQueuedFile,
         removeQueuedFile,
+        renameQueuedFile,
         clearFileQueue,
+        type QueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
     import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
     import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
@@ -895,6 +898,89 @@
         tick().then(() => renderComposer(caretOffset));
     }
 
+    // Undo/redo history. renderComposer rewrites innerHTML on every change,
+    // which wipes the browser's native undo stack, so Ctrl+Z is driven from
+    // the model instead. The stack holds successive `text` values; a watcher
+    // records every change however it happened (typing, paste, picker
+    // inserts, mention commits). Consecutive typing/deleting within a short
+    // window coalesces into one step, like a native text field.
+    const UNDO_LIMIT = 200;
+    const UNDO_COALESCE_MS = 1000;
+    let undoHistory: string[] = [""];
+    let undoIndex = 0;
+    let undoLastKind: string | null = null;
+    let undoLastAt = 0;
+    // inputType of the in-flight native edit (set in onBeforeInput, consumed
+    // by the watcher). null → a programmatic change.
+    let pendingInputKind: string | null = null;
+
+    function resetUndoHistory(current: string): void {
+        undoHistory = [current];
+        undoIndex = 0;
+        undoLastKind = null;
+    }
+
+    function recordUndo(next: string): void {
+        if (next === undoHistory[undoIndex]) return;
+        const kind = pendingInputKind;
+        pendingInputKind = null;
+        // A programmatic clear is a send / command completing: start fresh so
+        // Ctrl+Z doesn't resurrect an already-sent message.
+        if (next === "" && kind === null) {
+            resetUndoHistory("");
+            return;
+        }
+        const now = Date.now();
+        const coalesce =
+            kind !== null &&
+            kind === undoLastKind &&
+            now - undoLastAt < UNDO_COALESCE_MS &&
+            undoIndex > 0;
+        undoLastKind = kind;
+        undoLastAt = now;
+        undoHistory.length = undoIndex + 1; // drop the redo branch
+        if (coalesce) {
+            undoHistory[undoIndex] = next;
+            return;
+        }
+        undoHistory.push(next);
+        if (undoHistory.length > UNDO_LIMIT) undoHistory.shift();
+        undoIndex = undoHistory.length - 1;
+    }
+
+    $effect(() => {
+        const t = text;
+        untrack(() => recordUndo(t));
+    });
+
+    /** Caret for `to` after a jump from `from`: the end of the changed span. */
+    function diffCaret(from: string, to: string): number {
+        const max = Math.min(from.length, to.length);
+        let prefix = 0;
+        while (prefix < max && from[prefix] === to[prefix]) prefix++;
+        let suffix = 0;
+        while (
+            suffix < max - prefix &&
+            from[from.length - 1 - suffix] === to[to.length - 1 - suffix]
+        )
+            suffix++;
+        return to.length - suffix;
+    }
+
+    function stepUndo(delta: -1 | 1): void {
+        const target = undoIndex + delta;
+        if (target < 0 || target >= undoHistory.length) return;
+        const from = text;
+        const to = undoHistory[target];
+        undoIndex = target;
+        undoLastKind = null;
+        text = to;
+        renderComposer(diffCaret(from, to));
+        detectMentionQuery();
+        detectEmojiQuery();
+        detectSlashQuery();
+    }
+
     // Per-room draft. Keyed on effComposerKey so it re-runs both when the room switches
     // (this component stays mounted) and when it unmounts/remounts (flipping to
     // the call view unmounts MessageArea), AND when switching between main/thread.
@@ -918,6 +1004,7 @@
         untrack(() => {
             const draft = getDraft(key);
             text = draft?.text ?? "";
+            resetUndoHistory(text);
             pendingMentions = new Map(draft?.mentions ?? []);
             tick().then(() => renderComposer(text.length));
         });
@@ -1459,6 +1546,33 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
+        // Ctrl/Cmd chords: undo/redo through the model history, and the
+        // picker shortcuts. Handled here (not only in AppShell) so they open
+        // THIS composer's picker, e.g. the thread composer's when focused;
+        // AppShell skips events already defaultPrevented.
+        if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+            const k = e.key.toLowerCase();
+            if (k === "z" || (k === "y" && !e.shiftKey)) {
+                e.preventDefault();
+                stepUndo(k === "z" && !e.shiftKey ? -1 : 1);
+                return;
+            }
+            const picker = e.shiftKey
+                ? null
+                : k === "e"
+                  ? "emoji"
+                  : k === "g"
+                    ? "gif"
+                    : k === "s"
+                      ? "sticker"
+                      : null;
+            if (picker) {
+                e.preventDefault();
+                openPicker(picker);
+                return;
+            }
+        }
+
         if ((e.key === "PageUp" || e.key === "PageDown") && scrollEl) {
             e.preventDefault();
             scrollEl.scrollBy({
@@ -1640,6 +1754,13 @@
         removeQueuedFile(effComposerKey, id);
     }
 
+    // Tap a queued attachment to rename it before sending.
+    let renamingItem = $state<QueuedFile | null>(null);
+    function openRename(item: QueuedFile) {
+        openModal("rename-attachment", () => (renamingItem = null));
+        renamingItem = item;
+    }
+
     /** Model length of the current selection ("" when collapsed). */
     function getSelectedLength(): number {
         const selection = window.getSelection();
@@ -1660,11 +1781,25 @@
     // Soft keyboards and IMEs insert newlines via input events, not an Enter
     // keydown — route those through the model too.
     function onBeforeInput(e: InputEvent) {
+        // Undo/Redo from the native context menu (the keyboard path is
+        // handled in onKeydown).
+        if (e.inputType === "historyUndo" || e.inputType === "historyRedo") {
+            e.preventDefault();
+            stepUndo(e.inputType === "historyUndo" ? -1 : 1);
+            return;
+        }
+        // Group consecutive typing / deleting into single undo steps.
+        pendingInputKind = e.inputType.startsWith("insertText")
+            ? "insert"
+            : e.inputType.startsWith("delete")
+              ? "delete"
+              : e.inputType;
         if (
             e.inputType === "insertLineBreak" ||
             e.inputType === "insertParagraph"
         ) {
             e.preventDefault();
+            pendingInputKind = null;
             insertLineBreakAtCaret();
         }
     }
@@ -1835,9 +1970,13 @@
                 <div
                     class="relative flex-shrink-0 flex flex-col items-center gap-1 w-20 p-2"
                 >
-                    <!-- Thumbnail or file icon -->
-                    <div
-                        class="w-20 h-20 rounded-lg bg-discord-backgroundTertiary flex items-center justify-center overflow-hidden border border-discord-divider"
+                    <!-- Thumbnail or file icon (tap to rename) -->
+                    <button
+                        type="button"
+                        onclick={() => openRename(item)}
+                        title="Edit attachment"
+                        aria-label="Edit attachment {item.name}"
+                        class="w-20 h-20 rounded-lg bg-discord-backgroundTertiary flex items-center justify-center overflow-hidden border border-discord-divider hover:border-discord-accent transition-colors"
                     >
                         {#if item.previewUrl}
                             <img
@@ -1856,11 +1995,13 @@
                                 />
                             </svg>
                         {/if}
-                    </div>
+                    </button>
                     <!-- Filename -->
-                    <span
-                        class="text-[10px] text-discord-textMuted text-center leading-tight w-full truncate px-0.5"
-                        title={item.name}>{item.name}</span
+                    <button
+                        type="button"
+                        onclick={() => openRename(item)}
+                        class="text-[10px] text-discord-textMuted hover:text-discord-textPrimary text-center leading-tight w-full truncate px-0.5"
+                        title={item.name}>{item.name}</button
                     >
                     <!-- Remove button -->
                     <button
@@ -1881,6 +2022,15 @@
                 </div>
             {/each}
         </div>
+    {/if}
+    {#if renamingItem && interfaceState.modal === "rename-attachment"}
+        {@const target = renamingItem}
+        <RenameAttachmentDialog
+            name={target.name}
+            previewUrl={target.previewUrl}
+            onSave={(name) => renameQueuedFile(effComposerKey, target.id, name)}
+            onClose={closeModal}
+        />
     {/if}
     <!-- Emoji autocomplete picker -->
     {#if emojiQuery !== null && emojiCandidates.length > 0}

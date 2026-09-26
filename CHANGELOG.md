@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.7.1
+
+✨ **New**
+
+- **Rename attachments before sending:** tap a queued file in the composer to edit its filename, like Discord.
+- **Right-click menu on desktop:** open or copy links, copy or save images, cut/copy/paste in the composer, and spelling suggestions.
+
+🐛 **Fixes**
+
+- Downloading images and files now works on Android; they save straight to your Downloads folder.
+- Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo and redo in the message box.
+- Ctrl+E (emoji), Ctrl+G (GIFs) and Ctrl+S (stickers) open their pickers again, including from a thread's composer.
+- The Home button is back to classic blurple.
+
 ## v1.7.0
 
 ✨ **Animations & UI**
