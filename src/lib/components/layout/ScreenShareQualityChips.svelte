@@ -16,6 +16,10 @@
     }
     let { onQualityChange }: Props = $props();
 
+    // Live mode = a share is currently running and onQualityChange adjusts it.
+    // Setup mode = pre-share settings, onQualityChange is undefined.
+    const isLive = $derived(onQualityChange !== undefined);
+
     function pickRes(key: string): void {
         setScreenShareResolution(key);
         onQualityChange?.(key, Number(settingsState.screenShareFps));
@@ -78,7 +82,16 @@
         </div>
     </div>
     <div class="flex items-center justify-between gap-3">
-        <div class="text-sm text-discord-textPrimary">Share system audio</div>
+        <div>
+            <div class="text-sm text-discord-textPrimary">
+                Share system audio
+            </div>
+            {#if isLive}
+                <div class="text-xs text-discord-textMuted mt-0.5">
+                    Applies to next share
+                </div>
+            {/if}
+        </div>
         <ToggleSwitch
             checked={settingsState.shareSystemAudio}
             onChange={(v) => setShareSystemAudio(v)}
