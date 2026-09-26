@@ -19,6 +19,10 @@
          *  key step to the neighbouring item; omit at the ends of the list. */
         onPrev?: () => void;
         onNext?: () => void;
+        /** Gallery position text ("2 of 5") from galleryPositionLabel. Shown
+         *  as a chip and announced politely on every step; omit it (or pass
+         *  null) for a single item. */
+        position?: string | null;
     }
 
     import {
@@ -47,10 +51,12 @@
         favourite,
         onPrev,
         onNext,
+        position = null,
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
     const mediaNoun = $derived(isVideo ? "video" : "image");
+    const MediaNoun = $derived(isVideo ? "Video" : "Image");
 
     // Reactively tracks favourite state (reads favouritesState.gifs $state).
     const favourited = $derived(
@@ -444,7 +450,7 @@
         class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
         role="dialog"
         aria-modal="true"
-        aria-label="{isVideo ? 'Video' : 'Image'} viewer"
+        aria-label="{MediaNoun} viewer{position ? `, ${position}` : ''}"
         in:scaleTransition={{
             start: 0.97,
             opacity: 0,
@@ -452,6 +458,22 @@
         }}
         use:focusTrap={{ onEscape: onClose }}
     >
+        {#if position}
+            <!-- aria-hidden: the live region below carries the same text for
+                 screen readers. -->
+            <div
+                class="absolute top-3 left-3 z-10 px-3 py-1.5 rounded-full bg-black/50 text-white text-sm tabular-nums select-none"
+                aria-hidden="true"
+            >
+                {position}
+            </div>
+        {/if}
+        <!-- Mounted for the viewer's whole lifetime, so each step's new text
+             is announced. -->
+        <p class="sr-only" aria-live="polite" aria-atomic="true">
+            {position ? `${MediaNoun} ${position}` : ""}
+        </p>
+
         <!-- Top-right action buttons -->
         <div
             class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto"

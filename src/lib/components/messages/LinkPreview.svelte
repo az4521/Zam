@@ -18,7 +18,7 @@
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
-    import { galleryNav } from "$lib/utils/mediaGallery";
+    import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
@@ -406,6 +406,10 @@
                     onNext={next !== null
                         ? () => (lightboxTweetIndex = next)
                         : undefined}
+                    position={galleryPositionLabel(
+                        tweetEmbed.photos.length,
+                        lightboxTweetIndex,
+                    )}
                 />
             {/if}
         {/if}

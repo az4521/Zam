@@ -184,6 +184,7 @@
         galleryNav,
         type GalleryImage,
     } from "$lib/utils/messageBodyGallery";
+    import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { siblingUploadIndices } from "$lib/utils/uploadSiblings";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
@@ -2312,6 +2313,10 @@
                                               index: unext,
                                           })
                                     : undefined}
+                                position={galleryPositionLabel(
+                                    ug.images.length,
+                                    ug.index,
+                                )}
                             />
                         {/if}
                     {/if}
@@ -2768,6 +2773,10 @@
                                       index: next,
                                   })
                             : undefined}
+                        position={galleryPositionLabel(
+                            g.images.length,
+                            g.index,
+                        )}
                     />
                 {/if}
             {/if}
