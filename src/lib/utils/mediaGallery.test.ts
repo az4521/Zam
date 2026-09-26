@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { galleryNav } from "./mediaGallery";
+import { galleryNav, galleryPositionLabel } from "./mediaGallery";
 
 describe("galleryNav", () => {
     it("has both neighbours in the middle of a list", () => {
@@ -34,5 +34,23 @@ describe("galleryNav", () => {
     it("handles a two-item list at each end", () => {
         expect(galleryNav(2, 0)).toEqual({ prevIndex: null, nextIndex: 1 });
         expect(galleryNav(2, 1)).toEqual({ prevIndex: 0, nextIndex: null });
+    });
+});
+
+describe("galleryPositionLabel", () => {
+    it("labels the current item one-based", () => {
+        expect(galleryPositionLabel(5, 0)).toBe("1 of 5");
+        expect(galleryPositionLabel(5, 2)).toBe("3 of 5");
+        expect(galleryPositionLabel(5, 4)).toBe("5 of 5");
+    });
+
+    it("has no label for a single-item or empty list", () => {
+        expect(galleryPositionLabel(1, 0)).toBeNull();
+        expect(galleryPositionLabel(0, 0)).toBeNull();
+    });
+
+    it("has no label for an out-of-range current index", () => {
+        expect(galleryPositionLabel(3, 3)).toBeNull();
+        expect(galleryPositionLabel(3, -1)).toBeNull();
     });
 });

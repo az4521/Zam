@@ -24,3 +24,17 @@ export function galleryNav(length: number, current: number): GalleryNav {
         nextIndex: current < length - 1 ? current + 1 : null,
     };
 }
+
+/**
+ * The lightbox's "n of m" position text for `current` in a list of `length`.
+ *
+ * `null` when there is nothing to page through (fewer than two items) or the
+ * index is out of range, so the caller shows no indicator at all.
+ */
+export function galleryPositionLabel(
+    length: number,
+    current: number,
+): string | null {
+    if (length < 2 || current < 0 || current >= length) return null;
+    return `${current + 1} of ${length}`;
+}
