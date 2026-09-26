@@ -251,7 +251,12 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         ui: {
             openPopover: (o) =>
                 hostBridge.openPopover
-                    ? track(hostBridge.openPopover(o))
+                    ? track(
+                          hostBridge.openPopover({
+                              ...o,
+                              label: o.label ?? manifest.name,
+                          }),
+                      )
                     : warnNoopDisposable("ui.openPopover"),
             registerPanel: (p) =>
                 track(addEntry(registry, "panels", pluginId, p)),

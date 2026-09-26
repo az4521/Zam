@@ -5,6 +5,7 @@
     import { closeModal } from "$lib/stores/interface.svelte";
     import { pluginPopover } from "$lib/plugins/pluginPopover.svelte";
     import { pluginMount } from "$lib/plugins/pluginMount";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
     // Position the card near its anchor: prefer directly above the anchor;
     // fall back below when there is no room. Clamp inside the viewport. Mirrors
@@ -48,6 +49,9 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="fixed inset-0 z-40" onclick={closeModal}></div>
         <div
+            role="dialog"
+            aria-label={current.label ?? "Plugin"}
+            use:focusTrap={{ onEscape: closeModal }}
             use:positionCard={current.anchor}
             in:scale|global={{
                 start: 0.92,

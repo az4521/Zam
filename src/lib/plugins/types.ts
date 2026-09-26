@@ -244,6 +244,8 @@ export interface ZamPluginApi {
         openPopover(opts: {
             anchor: HTMLElement;
             render(el: HTMLElement): void | (() => void);
+            /** Accessible name of the popover dialog; defaults to the plugin's name. */
+            label?: string;
         }): Disposable;
         registerPanel(panel: PanelRegistration): Disposable;
         notify(opts: { title?: string; body: string }): void;
