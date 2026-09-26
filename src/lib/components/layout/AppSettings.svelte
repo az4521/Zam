@@ -33,6 +33,7 @@
     } from "$lib/utils/settingsNav";
     import {
         searchSettings,
+        settingsSearchKeyAction,
         SETTINGS_SEARCH_INDEX,
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
@@ -110,6 +111,22 @@
         el.classList.remove("message-highlight");
         void el.offsetWidth;
         el.classList.add("message-highlight");
+    }
+
+    // Escape clears a typed query before it closes the dialog; Enter opens the
+    // top result. Stopping propagation keeps that Escape away from AppShell's
+    // window handler, which would otherwise close the whole dialog.
+    function onSearchKeydown(e: KeyboardEvent) {
+        const action = settingsSearchKeyAction(
+            e,
+            searchQuery,
+            searchResults.length,
+        );
+        if (!action) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (action === "clear") searchQuery = "";
+        else void selectResult(searchResults[0]);
     }
 
     // Register the mobile sub-page with the central dismiss stack so Escape and
@@ -228,6 +245,7 @@
                 <input
                     type="search"
                     bind:value={searchQuery}
+                    onkeydown={onSearchKeydown}
                     placeholder="Search settings…"
                     aria-label="Search settings"
                     class="w-full px-3 py-2 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"

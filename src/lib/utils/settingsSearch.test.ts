@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     searchSettings,
+    settingsSearchKeyAction,
     SETTINGS_SEARCH_INDEX,
     type SettingsSearchEntry,
 } from "./settingsSearch";
@@ -117,5 +118,57 @@ describe("searchSettings", () => {
         );
         expect(entry?.tab).toBe("general");
         expect(entry?.anchor).toBe("cust-behavior");
+    });
+});
+
+describe("settingsSearchKeyAction", () => {
+    const key = (k: string, isComposing = false) => ({ key: k, isComposing });
+
+    it("Escape with a query clears it instead of closing", () => {
+        expect(settingsSearchKeyAction(key("Escape"), "font", 1)).toBe("clear");
+    });
+
+    it("Escape with an empty or blank query is left to close the dialog", () => {
+        expect(settingsSearchKeyAction(key("Escape"), "", 0)).toBeNull();
+        expect(settingsSearchKeyAction(key("Escape"), "   ", 0)).toBeNull();
+    });
+
+    it("Escape clears even when nothing matches", () => {
+        expect(settingsSearchKeyAction(key("Escape"), "zzz", 0)).toBe("clear");
+    });
+
+    it("Enter opens the first result when there is one", () => {
+        expect(settingsSearchKeyAction(key("Enter"), "font", 3)).toBe(
+            "open-first",
+        );
+    });
+
+    it("Enter does nothing with no results or no query", () => {
+        expect(settingsSearchKeyAction(key("Enter"), "zzz", 0)).toBeNull();
+        expect(settingsSearchKeyAction(key("Enter"), "", 0)).toBeNull();
+    });
+
+    it("ignores keys pressed while an IME composition is active", () => {
+        expect(
+            settingsSearchKeyAction(key("Enter", true), "font", 3),
+        ).toBeNull();
+        expect(
+            settingsSearchKeyAction(key("Escape", true), "font", 3),
+        ).toBeNull();
+    });
+
+    it("ignores Safari's composition-commit Enter (keyCode 229)", () => {
+        expect(
+            settingsSearchKeyAction(
+                { key: "Enter", isComposing: false, keyCode: 229 },
+                "font",
+                3,
+            ),
+        ).toBeNull();
+    });
+
+    it("ignores other keys", () => {
+        expect(settingsSearchKeyAction(key("a"), "font", 3)).toBeNull();
+        expect(settingsSearchKeyAction(key("ArrowDown"), "font", 3)).toBeNull();
     });
 });
