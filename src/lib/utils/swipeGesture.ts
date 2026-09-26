@@ -51,14 +51,14 @@ export function swipeStage(
     return "none";
 }
 
-/** What a release at this stage does. Edit is offered only on your own
- *  messages; every other reachable stage is reply. */
+/** What a release at this stage does. Edit is offered only when the message
+ *  is editable (your own text message); every other reachable stage is reply. */
 export function resolveSwipeAction(
     stage: SwipeStage,
-    isOwn: boolean,
+    canEdit: boolean,
 ): SwipeAction {
     if (stage === "none") return "none";
-    if (stage === "far" && isOwn) return "edit";
+    if (stage === "far" && canEdit) return "edit";
     return "reply";
 }
 

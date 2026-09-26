@@ -297,6 +297,7 @@ import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import { planShareSend } from "$lib/utils/shareSend";
+import { findFailedRedactionEcho } from "$lib/utils/redactionEcho";
 import {
     createPendingFollowUps,
     isRoomGone,
@@ -6023,12 +6024,39 @@ export async function deleteMessage(
     // 4-arg form: txnId undefined (SDK generates one), opts carries the
     // optional redaction reason. Omitting opts entirely when there is no
     // reason keeps the request byte-identical to the old 2-arg call.
-    await matrixClient.redactEvent(
-        roomId,
-        eventId,
-        undefined,
-        reason ? { reason } : undefined,
-    );
+    try {
+        await matrixClient.redactEvent(
+            roomId,
+            eventId,
+            undefined,
+            reason ? { reason } : undefined,
+        );
+    } catch (err) {
+        // audit UX-03: Failed delete must not look successful. On error, the
+        // SDK's local redaction echo stays in getPendingEvents() with status
+        // NOT_SENT (room.ts reverts only on CANCELLED), so the UI still hides
+        // the message. Cancel the echo so it reappears.
+        const room = matrixClient.getRoom(roomId);
+        if (room) {
+            const echo = findFailedRedactionEcho(
+                room.getPendingEvents(),
+                eventId,
+                EventStatus.NOT_SENT,
+            );
+            if (echo) {
+                // Keep the redaction error as the one callers see.
+                try {
+                    matrixClient.cancelPendingEvent(echo);
+                } catch (cancelErr) {
+                    console.warn(
+                        "[deleteMessage] cancel of failed redaction echo failed",
+                        cancelErr,
+                    );
+                }
+            }
+        }
+        throw err;
+    }
 }
 
 /**

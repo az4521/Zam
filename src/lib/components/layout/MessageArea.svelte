@@ -91,6 +91,7 @@
         isNearBottom,
     } from "$lib/utils/timelineDisplay";
     import { shouldDismissSelectionOnScroll } from "$lib/utils/scrollDismiss";
+    import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
     import { daySeparator } from "$lib/utils/timeFormat";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
@@ -635,24 +636,6 @@
     // Element the touch began on — used to detect swipes that should scroll a
     // wide code block / table natively rather than dragging a drawer open.
     let dragTarget: Element | null = null;
-
-    function targetCanScrollHoriz(el: Element | null, dx: number): boolean {
-        let node: Element | null = el;
-        while (node && node !== document.body) {
-            if (node.scrollWidth > node.clientWidth + 1) {
-                const overflowX = getComputedStyle(node).overflowX;
-                if (overflowX === "auto" || overflowX === "scroll") {
-                    const maxScroll = node.scrollWidth - node.clientWidth;
-                    // Swipe right (dx > 0) scrolls content toward the start;
-                    // swipe left (dx < 0) scrolls toward the end.
-                    if (dx > 0 && node.scrollLeft > 0) return true;
-                    if (dx < 0 && node.scrollLeft < maxScroll) return true;
-                }
-            }
-            node = node.parentElement;
-        }
-        return false;
-    }
 
     $effect(() => {
         if (!isMemberDragging) {

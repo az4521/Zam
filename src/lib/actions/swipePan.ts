@@ -11,6 +11,7 @@ import {
     shouldClaimLeftward,
     type SwipeStage,
 } from "$lib/utils/swipeGesture";
+import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
 
 // Vertical scroll dominates over horizontal swipe beyond this threshold.
 const VERTICAL_LOCK_PX = 8;
@@ -27,6 +28,7 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
     let p = params;
     let startX = 0;
     let startY = 0;
+    let startTarget: Element | null = null;
     let armed = false;
     let engaged = false;
 
@@ -49,6 +51,7 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         // to also suppress the tap.
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
+        startTarget = e.target as Element | null;
         armed = true;
         engaged = false;
     }
@@ -62,6 +65,14 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         }
         const dx = e.touches[0].clientX - startX;
         const dy = e.touches[0].clientY - startY;
+        // audit UX-04: Don't hijack horizontal scroll of wide code blocks/tables.
+        // If the touch started inside a horizontally scrollable element that can
+        // still scroll in the swipe direction, let it scroll natively instead of
+        // engaging the swipe-to-reply gesture.
+        if (!engaged && targetCanScrollHoriz(startTarget, dx)) {
+            reset();
+            return;
+        }
         // Claim the touch from ancestor drawer handlers direction-aware. The
         // members/pinned drawers (MessageArea) open on a LEFTWARD drag — the same
         // direction as reply — and engage at their own 6px deadzone, so once this

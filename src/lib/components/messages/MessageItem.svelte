@@ -421,6 +421,7 @@
                     roomId: room.roomId,
                     eventId,
                     isOwn: isOwnMessage,
+                    canEdit: canEditMessage,
                     threshold: stage, // "short" | "far" (never "none" here)
                 },
             );
@@ -543,7 +544,12 @@
 
     function resolveDelete(confirmed: boolean) {
         confirmingDelete = false;
-        if (confirmed) deleteMessage(room.roomId, eventId);
+        if (confirmed) {
+            deleteMessage(room.roomId, eventId).catch((err) => {
+                console.error("[MessageItem] delete failed", err);
+                showErrorToast("Couldn't delete the message");
+            });
+        }
         if (deleteRefocus) {
             deleteRefocus = false;
             onEditDone?.();
@@ -677,11 +683,6 @@
         return !!event.replacingEvent();
     });
 
-    // Swipe reveal icon: "none" | "reply" | "edit" (depends on isOwnMessage).
-    const swipeRevealIcon = $derived(
-        resolveSwipeAction(swipeStageNow, isOwnMessage),
-    );
-
     // A failed (NOT_SENT) local echo: the send errored and the SDK is blocking
     // further sends in this room until it's retried or removed.
     const isFailed = $derived.by(() => {
@@ -741,6 +742,18 @@
     // $derived(event.getType()) would keep the UTD placeholder up forever.
     const eventType = $derived(
         (void messagesState.timelineTick, event.getType()),
+    );
+
+    const msgtype = $derived(content?.msgtype ?? "");
+
+    // Gate for Edit action: only your own m.text messages can be edited inline.
+    const canEditMessage = $derived(
+        isOwnMessage && eventType === "m.room.message" && msgtype === "m.text",
+    );
+
+    // Swipe reveal icon: "none" | "reply" | "edit" (depends on canEditMessage).
+    const swipeRevealIcon = $derived(
+        resolveSwipeAction(swipeStageNow, canEditMessage),
     );
 
     // UTD body copy, refined by the decryption-failure reason: a deliberate
@@ -840,8 +853,6 @@
         };
     });
 
-    const msgtype = $derived(content?.msgtype ?? "");
-
     // --- Mobile action overflow ("⋯ More") sheet ---
     // Extracted so the desktop pin button and the mobile sheet run the same
     // toggle rather than diverging copies.
@@ -873,10 +884,7 @@
     // inline.
     const overflowRows = $derived(
         messageActionsMenu({
-            canEdit:
-                isOwnMessage &&
-                eventType === "m.room.message" &&
-                msgtype === "m.text",
+            canEdit: canEditMessage,
             canPin,
             isPinned,
             hasLink: eventId.startsWith("$") && !isFailed,
@@ -936,7 +944,10 @@
                 redactComp?.show();
                 break;
             case "delete":
-                deleteMessage(room.roomId, eventId);
+                deleteMessage(room.roomId, eventId).catch((err) => {
+                    console.error("[MessageItem] delete failed", err);
+                    showErrorToast("Couldn't delete the message");
+                });
                 break;
         }
     }
@@ -2807,7 +2818,7 @@
                     onclick={openReaderList}
                     aria-label="Show who read this message"
                     title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
-                    class="absolute bottom-0.5 flex items-center gap-0.5 max-w-[45%] rounded pointer-events-auto"
+                    class="absolute bottom-0 flex items-center justify-center gap-0.5 max-w-[45%] min-h-6 min-w-6 rounded pointer-events-auto"
                     class:right-4={!bubble.alignOwn}
                     class:left-4={bubble.alignOwn}
                 >

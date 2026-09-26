@@ -10,10 +10,10 @@ describe("resolveSwipeAction (plugin)", () => {
         expect(resolveSwipeAction("short", true, true)).toBe("reply");
         expect(resolveSwipeAction("short", false, true)).toBe("reply");
     });
-    it("far + own → edit", () => {
+    it("far + editable → edit", () => {
         expect(resolveSwipeAction("far", true, true)).toBe("edit");
     });
-    it("far + not own → reply (no edit on others' messages)", () => {
+    it("far + not editable → reply", () => {
         expect(resolveSwipeAction("far", false, true)).toBe("reply");
     });
 });

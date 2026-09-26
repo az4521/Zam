@@ -48,11 +48,11 @@ describe("resolveSwipeAction", () => {
         expect(resolveSwipeAction("none", true)).toBe("none");
         expect(resolveSwipeAction("none", false)).toBe("none");
     });
-    it("short stage → reply regardless of ownership", () => {
+    it("short stage → reply regardless of canEdit", () => {
         expect(resolveSwipeAction("short", true)).toBe("reply");
         expect(resolveSwipeAction("short", false)).toBe("reply");
     });
-    it("far stage → edit only when own", () => {
+    it("far stage → edit only when editable", () => {
         expect(resolveSwipeAction("far", true)).toBe("edit");
         expect(resolveSwipeAction("far", false)).toBe("reply");
     });
