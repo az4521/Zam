@@ -64,13 +64,15 @@ export type ModalId =
     // hold a claim token and release with clearModalIfOwner, so a second claim
     // supersedes the first cleanly instead of stranding it.
     | "call-participant-menu"
-    // MessageItem read-receipt list popup.
+    // MessageItem read-receipt list popup (ReactorPopover click-opened variant).
     | "read-receipts"
-    // Reaction list popup (Reactions.svelte).
+    // Reactions touch who-reacted sheet only (ReactorPopover); the desktop
+    // hover card never claims the slot.
     | "reactors"
-    // What's New modal.
+    // What's New modal (WhatsNewModal).
     | "whats-new"
-    // CallView screen-share quality popover.
+    // Screen-share quality popover (ScreenShareQualityPopover), used by both
+    // CallView and VoiceCallPanel.
     | "screen-share-quality";
 
 export type SidebarId =

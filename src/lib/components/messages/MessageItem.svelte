@@ -2849,6 +2849,8 @@
                         x={readerX}
                         y={readerY}
                         onClose={closeReaderList}
+                        modalId="read-receipts"
+                        dialogLabel="Read by"
                     />
                 {/if}
             {/if}
