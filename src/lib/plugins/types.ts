@@ -257,6 +257,12 @@ export interface ZamPluginApi {
 
     matrix: {
         sendMessage(roomId: string, content: object): Promise<void>;
+        /**
+         * Send an image message (m.image) with the given url and info.
+         * **IMPORTANT:** This sends PLAINTEXT (unencrypted) even in encrypted
+         * rooms. Prefer `sendMedia` for new code, which encrypts attachments in
+         * encrypted rooms.
+         */
         sendImage(
             roomId: string,
             file: { url: string; info?: object; body?: string },
@@ -267,6 +273,21 @@ export interface ZamPluginApi {
             roomId: string,
             sticker: PluginSticker,
             thread?: { rootEventId: string },
+        ): Promise<void>;
+        /**
+         * Upload a Blob and send it as a media message (m.image/m.video/m.audio/m.file).
+         * **Encrypts attachments in encrypted rooms** (except m.video, which is queued).
+         * Prefer this over `uploadMedia` + `sendImage` for new plugin code.
+         */
+        sendMedia(
+            roomId: string,
+            blob: Blob,
+            opts?: {
+                name?: string;
+                type?: string;
+                body?: string;
+                msgtype?: string;
+            },
         ): Promise<void>;
         getRoomSummary(roomId: string): PluginRoomSummary | null;
         getMembers(roomId: string): PluginMemberSummary[];
@@ -280,8 +301,12 @@ export interface ZamPluginApi {
             roomId: string,
             limit?: number,
         ): PluginTimelineMessage[];
-        /** Upload a Blob/File and resolve to its `mxc://` URL, e.g. to then
-         *  `sendImage`. Rejects if not logged in / upload fails. */
+        /**
+         * Upload a Blob/File and resolve to its `mxc://` URL, e.g. to then
+         * `sendImage`. **Uploads PLAINTEXT (unencrypted)** even in encrypted rooms.
+         * Prefer `sendMedia` for new code, which encrypts in encrypted rooms.
+         * Rejects if not logged in / upload fails.
+         */
         uploadMedia(
             file: Blob,
             opts?: { name?: string; type?: string },
