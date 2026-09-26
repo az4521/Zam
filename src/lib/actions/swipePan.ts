@@ -18,8 +18,9 @@ const VERTICAL_LOCK_PX = 8;
 
 // While enabled, the browser pans vertically (and pinch-zooms) on its own and
 // never starts a horizontal pan from the row, so the move listener can stay
-// passive: nothing to preventDefault, and the compositor never waits on JS
-// before scrolling the timeline.
+// passive: it has nothing to preventDefault, and the row adds no
+// scroll-blocking listener. (On mobile the drawer handlers in AppShell and
+// MessageArea still add a non-passive document touchmove per gesture.)
 const SWIPE_TOUCH_ACTION = "pan-y pinch-zoom";
 
 export interface SwipePanParams {
