@@ -3,6 +3,7 @@
 
 import {
     QUICK_REPLY_STASH_PREFIX,
+    quickReplyStashKey,
     partitionQuickReplyStashes,
     type QuickReplyStash,
 } from "./notifActions";
@@ -48,7 +49,7 @@ export async function takeQuickReplyStashes(
             const store = tx.objectStore(DB_STORE);
             const range = IDBKeyRange.bound(
                 QUICK_REPLY_STASH_PREFIX,
-                QUICK_REPLY_STASH_PREFIX + "￿",
+                QUICK_REPLY_STASH_PREFIX + "\uffff",
             );
 
             const entries: { key: string; value: unknown }[] = [];
@@ -98,7 +99,7 @@ export async function deleteQuickReplyStash(id: string): Promise<void> {
         try {
             const tx = db.transaction(DB_STORE, "readwrite");
             const store = tx.objectStore(DB_STORE);
-            const key = QUICK_REPLY_STASH_PREFIX + id;
+            const key = quickReplyStashKey(id);
             const delReq = store.delete(key);
             delReq.onsuccess = () => resolve();
             delReq.onerror = () => resolve();

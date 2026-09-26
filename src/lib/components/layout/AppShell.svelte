@@ -1374,6 +1374,32 @@
             }
         };
 
+        // Put a notification reply that could not be sent back where the user
+        // can see it. Same rule as the share stager (shareInbox stageShare): the
+        // mounted main composer takes it only when its room-guarded handler
+        // accepts; otherwise it merges into the draft the composer restores on
+        // mount. A thread reply always goes to the thread composer's draft.
+        const restoreQuickReplyDraft = (
+            roomId: string,
+            threadRootId: string | null,
+            text: string,
+        ) => {
+            if (
+                !threadRootId &&
+                hostBridge.insertText?.({ roomId, text }) === true
+            )
+                return;
+            const key = threadRootId
+                ? composerThreadKey(roomId, threadRootId)
+                : roomId;
+            const existing = getDraft(key);
+            setDraft(
+                key,
+                composerInsertText(existing?.text ?? "", text),
+                new Map(existing?.mentions ?? []),
+            );
+        };
+
         const quickReplyFromNotification = async (
             roomId: string,
             userId?: string | null,
@@ -1391,7 +1417,7 @@
             if (decision.action !== "navigate") return;
 
             try {
-                const result = await sendNotificationQuickReply(
+                await sendNotificationQuickReply(
                     decision.roomId,
                     text.trim(),
                     eventId,
@@ -1400,48 +1426,28 @@
                 if (stashId) await deleteQuickReplyStash(stashId);
             } catch (err) {
                 console.error("Quick reply failed", err);
-                // Failure → restore text as a draft
+                // Failure → restore the text as a draft so nothing is lost.
                 try {
-                    let threadRootId: string | null = null;
-                    if (eventId) {
-                        threadRootId = await resolveQuickReplyThreadRoot(
-                            decision.roomId,
-                            eventId,
-                        );
-                    }
-                    const draftKey = threadRootId
-                        ? composerThreadKey(decision.roomId, threadRootId)
-                        : decision.roomId;
-
-                    const existing = getDraft(draftKey);
-                    const newText = composerInsertText(
-                        existing?.text ?? "",
+                    const threadRootId = eventId
+                        ? await resolveQuickReplyThreadRoot(
+                              decision.roomId,
+                              eventId,
+                          )
+                        : null;
+                    restoreQuickReplyDraft(
+                        decision.roomId,
+                        threadRootId,
                         text.trim(),
                     );
-                    setDraft(
-                        draftKey,
-                        newText,
-                        new Map(existing?.mentions ?? []),
+                } catch (restoreErr) {
+                    console.error(
+                        "Quick reply draft restore failed",
+                        restoreErr,
                     );
-
-                    // Push to live composer if it's active and not threaded
-                    // (threaded composer doesn't share the same hostBridge hook)
-                    if (
-                        !threadRootId &&
-                        roomsState.activeRoomId === decision.roomId
-                    ) {
-                        hostBridge.insertText?.({
-                            roomId: decision.roomId,
-                            text: text.trim(),
-                        });
-                    }
-
-                    showErrorToast(
-                        "Couldn't send your reply — saved it as a draft",
-                    );
-                } catch {
-                    // Draft restoration failed too — at least delete the stash
                 }
+                showErrorToast(
+                    "Couldn't send your reply — saved it as a draft",
+                );
                 // Always delete the stash on failure (already consumed)
                 if (stashId) await deleteQuickReplyStash(stashId);
             }
@@ -1796,31 +1802,11 @@
                             }
                         }
 
-                        const draftKey = threadRootId
-                            ? composerThreadKey(stash.roomId, threadRootId)
-                            : stash.roomId;
-
-                        const existing = getDraft(draftKey);
-                        const newText = composerInsertText(
-                            existing?.text ?? "",
+                        restoreQuickReplyDraft(
+                            stash.roomId,
+                            threadRootId,
                             stash.text,
                         );
-                        setDraft(
-                            draftKey,
-                            newText,
-                            new Map(existing?.mentions ?? []),
-                        );
-
-                        // Push to live composer if it's active and not threaded
-                        if (
-                            !threadRootId &&
-                            roomsState.activeRoomId === stash.roomId
-                        ) {
-                            hostBridge.insertText?.({
-                                roomId: stash.roomId,
-                                text: stash.text,
-                            });
-                        }
                     }
 
                     showToast("Your notification reply was saved as a draft", {
