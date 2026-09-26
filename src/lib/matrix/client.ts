@@ -267,6 +267,7 @@ import {
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     isRoomEncrypted,
+    isRoomEncryptedForSend,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
@@ -2056,11 +2057,11 @@ async function uploadAttachment(
     blob: Blob,
     opts: { name: string; type?: string; msgtype: string },
 ): Promise<UploadedAttachment> {
-    const room = getRoom(roomId);
     const encrypt = shouldEncryptUpload(
-        room ? isRoomEncrypted(room) : false,
+        await isRoomEncryptedForSend(roomId),
         opts.msgtype,
     );
+    ownedClientOrThrow(owner);
 
     if (encrypt) {
         // Encrypted path: encrypt the blob, upload as application/octet-stream
@@ -5861,11 +5862,26 @@ export async function sendPluginMedia(
     opts: { name?: string; type?: string; body?: string; msgtype?: string },
 ): Promise<void> {
     const owner = captureClient();
+    const maxUploadSize = await getMediaUploadSizeLimit();
+    ownedClientOrThrow(owner);
     const fileName = opts.name ?? "upload";
+    if (exceedsUploadLimit(blob.size, maxUploadSize)) {
+        throw new FileTooLargeError(
+            fileName,
+            blob.size,
+            maxUploadSize as number,
+        );
+    }
     const fileType = opts.type || blob.type || "application/octet-stream";
     const isImage = fileType.startsWith("image/");
     const isVideo = fileType.startsWith("video/");
     const isAudio = fileType.startsWith("audio/");
+    if (
+        opts.msgtype &&
+        !["m.image", "m.video", "m.audio", "m.file"].includes(opts.msgtype)
+    ) {
+        throw new Error(`sendMedia: unsupported msgtype ${opts.msgtype}`);
+    }
     const msgtype =
         opts.msgtype ??
         (isImage

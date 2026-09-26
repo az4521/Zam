@@ -53,7 +53,7 @@ export async function encryptAttachment(
         "raw",
         keyBytes,
         { name: "AES-CTR" },
-        true,
+        false,
         ["encrypt"],
     );
 
