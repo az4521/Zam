@@ -27,6 +27,7 @@ import {
     getOwnUserId,
     getPluginRecentMessages,
     uploadPluginMedia,
+    sendPluginMedia,
     redactOwnEvent,
     getClient,
 } from "../matrix/client";
@@ -290,6 +291,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 }).then(() => {}),
             sendSticker: (roomId, sticker, thread) =>
                 sendPluginSticker(roomId, sticker, thread),
+            sendMedia: (roomId, blob, opts) =>
+                sendPluginMedia(roomId, blob, opts ?? {}),
             getRoomSummary: (roomId) => getPluginRoomSummary(roomId),
             getMembers: (roomId) => getPluginRoomMembers(roomId),
             react: (roomId, eventId, key) => sendReaction(roomId, eventId, key),

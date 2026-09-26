@@ -35,7 +35,7 @@ Calls
 Encryption
 
 - E2EE via rust-crypto: encrypted rooms and DMs, SAS (emoji) and QR device verification, cross-signing, secret storage (4S), key backup and recovery
-- encrypted attachments from other clients now decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; your own outgoing attachments aren't encrypted yet, so files, images and voice messages you send into an encrypted room still upload unencrypted
+- encrypted attachments from other clients decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; files, images and voice messages you send into an encrypted room are now encrypted too; videos still upload unencrypted until encrypted video playback lands
 
 App
 

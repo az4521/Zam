@@ -336,6 +336,26 @@ export function isRoomEncrypted(room: Room | null | undefined): boolean {
     }
 }
 
+/**
+ * Whether a send into this room must encrypt its attachments. Mirrors the
+ * SDK's own send-time decision: the room state event OR the crypto store's
+ * persisted algorithm. The state event alone fails open for a federated room
+ * whose state the server omitted from sync, where the SDK still Megolm-encrypts
+ * the event and a plaintext `url` inside it would leak the file (PRIV-E1).
+ */
+export async function isRoomEncryptedForSend(roomId: string): Promise<boolean> {
+    const client = getClient();
+    if (isRoomEncrypted(client?.getRoom(roomId))) return true;
+    try {
+        return (
+            (await client?.getCrypto()?.isEncryptionEnabledInRoom(roomId)) ===
+            true
+        );
+    } catch {
+        return false;
+    }
+}
+
 /** How long a single deleteDatabase gets before we call it blocked. Boot
  *  never waits on the sweep, but an unbounded wait would keep the request
  *  and its closure alive for the life of the page. */

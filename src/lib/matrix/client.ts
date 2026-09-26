@@ -114,6 +114,12 @@ import {
     decryptAttachment,
     type EncryptedFileInfo,
 } from "$lib/utils/decryptAttachment";
+import {
+    encryptAttachment,
+    shouldEncryptUpload,
+    thumbnailFields,
+    type UploadedAttachment,
+} from "$lib/utils/encryptAttachment";
 import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { resolveDisplayName } from "$lib/utils/displayName";
@@ -261,6 +267,7 @@ import {
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     isRoomEncrypted,
+    isRoomEncryptedForSend,
 } from "$lib/matrix/crypto";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";
@@ -2038,6 +2045,52 @@ async function getMediaUploadSizeLimit(): Promise<number | null> {
     return mediaUploadSizePromise;
 }
 
+/**
+ * Upload a blob to the media repo, encrypting it first if the room is encrypted
+ * and the msgtype is not m.video (encrypted video playback is queued as item 2b).
+ * Returns either `{ url }` (plaintext) or `{ file }` (encrypted) — never both.
+ * The caller builds the event content from this plus mimetype/size/etc.
+ */
+async function uploadAttachment(
+    owner: ClientOwnership<MatrixClient>,
+    roomId: string,
+    blob: Blob,
+    opts: { name: string; type?: string; msgtype: string },
+): Promise<UploadedAttachment> {
+    const encrypt = shouldEncryptUpload(
+        await isRoomEncryptedForSend(roomId),
+        opts.msgtype,
+    );
+    ownedClientOrThrow(owner);
+
+    if (encrypt) {
+        // Encrypted path: encrypt the blob, upload as application/octet-stream
+        // with no filename (filename must NOT leak to the media repo).
+        const plainBytes = await blob.arrayBuffer();
+        const { data, info } = await encryptAttachment(plainBytes);
+        ownedClientOrThrow(owner);
+        const encryptedBlob = new Blob([data], {
+            type: "application/octet-stream",
+        });
+        const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+            encryptedBlob,
+            { type: "application/octet-stream", includeFilename: false },
+        );
+        return { file: { ...info, url: content_uri } };
+    } else {
+        // Plaintext path: upload as-is with the original name, byte-identical
+        // to the pre-encryption code path for unencrypted rooms. `type` only
+        // matters for a plugin Blob that carries none of its own.
+        const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+            blob,
+            opts.type
+                ? { name: opts.name, type: opts.type }
+                : { name: opts.name },
+        );
+        return { url: content_uri };
+    }
+}
+
 export async function sendFile(
     roomId: string,
     file: File,
@@ -2061,10 +2114,6 @@ export async function sendFile(
             maxUploadSize as number,
         );
     }
-    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
-        file,
-        { name: file.name },
-    );
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
     const isAudio = file.type.startsWith("audio/");
@@ -2076,6 +2125,13 @@ export async function sendFile(
             ? "m.audio"
             : "m.file";
 
+    // Upload the main file, encrypting if the room is encrypted and the
+    // msgtype is not m.video (encrypted video playback is queued as item 2b).
+    const uploadResult = await uploadAttachment(owner, roomId, file, {
+        name: file.name,
+        msgtype,
+    });
+
     const info: Record<string, unknown> = {
         mimetype: file.type,
         size: file.size,
@@ -2084,15 +2140,21 @@ export async function sendFile(
     if (isVideo) {
         const thumb = await captureVideoThumbnail(file);
         if (thumb) {
+            ownedClientOrThrow(owner);
             const thumbFile = new File([thumb.blob], "thumbnail.jpg", {
                 type: "image/jpeg",
             });
-            const { content_uri: thumb_uri } = await ownedClientOrThrow(
+            // The thumbnail follows the video's encryption decision (same
+            // msgtype), so it goes as `thumbnail_file` once video encrypts.
+            const thumbUpload = await uploadAttachment(
                 owner,
-            ).uploadContent(thumbFile, { name: "thumbnail.jpg" });
+                roomId,
+                thumbFile,
+                { name: "thumbnail.jpg", msgtype },
+            );
             info.w = thumb.w;
             info.h = thumb.h;
-            info.thumbnail_url = thumb_uri;
+            Object.assign(info, thumbnailFields(thumbUpload));
             info.thumbnail_info = {
                 mimetype: "image/jpeg",
                 w: thumb.thumbW,
@@ -2109,7 +2171,7 @@ export async function sendFile(
     const content: Record<string, unknown> = {
         msgtype,
         body: caption ? caption.body : file.name,
-        url: content_uri,
+        ...uploadResult, // { url } or { file } — never both
         info,
         // Always present (spec recommendation): an m.mentions key — even empty —
         // disables the legacy body-scan push rules on the receiving server.
@@ -2135,7 +2197,7 @@ export async function sendFile(
 /**
  * Send a recorded voice message as `m.audio` with the MSC3245 voice marker and
  * MSC1767 audio (duration + waveform) so Element renders it as a voice note.
- * Mirrors sendFile's upload-then-send shape.
+ * Mirrors sendFile's upload-then-send shape, encrypting in encrypted rooms.
  */
 export async function sendVoiceMessage(
     roomId: string,
@@ -2149,19 +2211,19 @@ export async function sendVoiceMessage(
         : blob.type.includes("mp4")
           ? "mp4"
           : "webm";
-    const file = new File([blob], `voice-message.${ext}`, {
-        type: blob.type || "audio/webm",
+    const fileName = `voice-message.${ext}`;
+    const fileType = blob.type || "audio/webm";
+    const file = new File([blob], fileName, { type: fileType });
+    const uploadResult = await uploadAttachment(owner, roomId, file, {
+        name: fileName,
+        msgtype: "m.audio",
     });
-    const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
-        file,
-        { name: file.name },
-    );
     const duration = Math.round(durationMs);
     await ownedClientOrThrow(owner).sendMessage(roomId, {
         msgtype: "m.audio",
         body: "Voice message",
-        url: content_uri,
-        info: { mimetype: file.type, size: blob.size, duration },
+        ...uploadResult, // { url } or { file } — never both
+        info: { mimetype: fileType, size: blob.size, duration },
         "org.matrix.msc3245.voice": {},
         "org.matrix.msc1767.audio": { duration, waveform },
         "org.matrix.msc1767.text": "Voice message",
@@ -5787,6 +5849,62 @@ export async function uploadPluginMedia(
         type: type ?? (file as File).type ?? undefined,
     });
     return content_uri;
+}
+
+/**
+ * Upload a blob (encrypting in encrypted rooms) and send it as a media message
+ * (m.image/m.video/m.audio/m.file). This is the plugin API's encryption-aware
+ * media send; prefer it over `uploadMedia` + `sendImage` in plugin code.
+ */
+export async function sendPluginMedia(
+    roomId: string,
+    blob: Blob,
+    opts: { name?: string; type?: string; body?: string; msgtype?: string },
+): Promise<void> {
+    const owner = captureClient();
+    const maxUploadSize = await getMediaUploadSizeLimit();
+    ownedClientOrThrow(owner);
+    const fileName = opts.name ?? "upload";
+    if (exceedsUploadLimit(blob.size, maxUploadSize)) {
+        throw new FileTooLargeError(
+            fileName,
+            blob.size,
+            maxUploadSize as number,
+        );
+    }
+    const fileType = opts.type || blob.type || "application/octet-stream";
+    const isImage = fileType.startsWith("image/");
+    const isVideo = fileType.startsWith("video/");
+    const isAudio = fileType.startsWith("audio/");
+    if (
+        opts.msgtype &&
+        !["m.image", "m.video", "m.audio", "m.file"].includes(opts.msgtype)
+    ) {
+        throw new Error(`sendMedia: unsupported msgtype ${opts.msgtype}`);
+    }
+    const msgtype =
+        opts.msgtype ??
+        (isImage
+            ? "m.image"
+            : isVideo
+              ? "m.video"
+              : isAudio
+                ? "m.audio"
+                : "m.file");
+
+    const uploadResult = await uploadAttachment(owner, roomId, blob, {
+        name: fileName,
+        type: fileType,
+        msgtype,
+    });
+
+    await ownedClientOrThrow(owner).sendMessage(roomId, {
+        msgtype,
+        body: opts.body ?? fileName,
+        ...uploadResult, // { url } or { file } — never both
+        info: { mimetype: fileType, size: blob.size },
+        "m.mentions": {},
+    } as never);
 }
 
 /** Redact one of the user's OWN events. Throws if the event is not the
