@@ -1,2 +1,12 @@
 build/
 static/
+.superpowers/
+docs/
+overnight/
+handoffs/
+.playwright-mcp/
+android/app/src/main/assets/
+.omp/
+memory/
+CLAUDE.md
+todo.md

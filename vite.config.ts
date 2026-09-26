@@ -1,6 +1,6 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
-import legacy from '@vitejs/plugin-legacy'
+import legacy from "@vitejs/plugin-legacy";
 import { defineConfig } from "vite";
 import { readFileSync } from "node:fs";
 
@@ -19,17 +19,13 @@ export default defineConfig(({ mode }) => ({
         sveltekit(),
         {
             ...legacy({
-                targets: [
-                    'ios >= 15.8',
-                    '> 0.5%',
-                    'not dead'
-                ],
-                renderLegacyChunks: true
+                targets: ["ios >= 15.8", "> 0.5%", "not dead"],
+                renderLegacyChunks: true,
             }),
             apply(config, { isSsrBuild }) {
-            return !isSsrBuild;
-            }
-        }
+                return !isSsrBuild;
+            },
+        },
     ],
     define: {
         // App version (from package.json) exposed to the client bundle.

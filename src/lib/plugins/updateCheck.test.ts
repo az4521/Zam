@@ -15,7 +15,12 @@ const installed: InstalledForUpdate[] = [
     { id: "repoOlderLatest", version: "3.0.0", source: "repo", repoRef: repoA },
     { id: "builtinIgnored", version: "1.0.0", source: "builtin" },
     { id: "repoNoLatest", version: "1.0.0", source: "repo", repoRef: repoA },
-    { id: "repoBadSemver", version: "not-semver", source: "repo", repoRef: repoA },
+    {
+        id: "repoBadSemver",
+        version: "not-semver",
+        source: "repo",
+        repoRef: repoA,
+    },
     { id: "repoB", version: "1.0.0", source: "repo", repoRef: repoB },
 ];
 const latestByRepo = {
@@ -72,7 +77,9 @@ describe("computeUpdateStatus", () => {
         ).toBeUndefined();
     });
     it("treats an invalid semver as no update (never throws)", () => {
-        expect(() => computeUpdateStatus(installed, latestByRepo)).not.toThrow();
+        expect(() =>
+            computeUpdateStatus(installed, latestByRepo),
+        ).not.toThrow();
         expect(
             computeUpdateStatus(installed, latestByRepo).find(
                 (u) => u.id === "repoBadSemver",
