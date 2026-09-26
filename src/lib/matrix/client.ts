@@ -9360,7 +9360,18 @@ export async function setVoiceCaptureConstraints(c: {
         call.lk.Track.Source.Microphone,
     )?.audioTrack;
     if (!track) return;
-    await track.restartTrack({ ...c }).catch(() => {});
+    // Pass the current device along so restartTrack doesn't switch to the
+    // OS default. Prefer the live track's device id, else the saved selection.
+    const deviceId =
+        track.mediaStreamTrack.getSettings().deviceId ??
+        settingsState.audioInputDeviceId ??
+        undefined;
+    await track.restartTrack({ ...c, deviceId }).catch((err) => {
+        console.error("Voice capture constraints change failed:", err);
+        if (activeVoice === call) {
+            notifyVoiceNotice("Couldn't apply audio processing change");
+        }
+    });
 }
 
 /** Live srcObject streams of the call's remote <audio> elements (feeds the
