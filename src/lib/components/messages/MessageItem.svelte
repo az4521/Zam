@@ -143,10 +143,7 @@
     } from "$lib/utils/timeFormat";
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
-    import {
-        highlightCodeBlocks,
-        mapOutsideCode,
-    } from "$lib/utils/codeHighlight";
+    import { highlightCodeBlocks } from "$lib/utils/codeHighlight";
     import { highlighterFor } from "$lib/utils/codeHighlighter.svelte";
     import {
         isFavouriteGif,
@@ -1567,9 +1564,7 @@
         // never reused AFTER it arrives, so code blocks still upgrade to coloured.
         const engine = highlighterFor(html);
         return twemojiCache.get(`${engine ? "1" : "0"}\u0000${html}`, () => {
-            const emojiRendered = mapOutsideCode(html, (fragment) =>
-                renderHtml(fragment, "twemoji"),
-            );
+            const emojiRendered = renderHtml(html, "twemoji");
             return highlightCodeBlocks(emojiRendered, engine);
         });
     }

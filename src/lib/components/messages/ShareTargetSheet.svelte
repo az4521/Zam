@@ -18,6 +18,11 @@
     import { sortRoomsByTag } from "$lib/utils/roomOrdering";
     import { shareFileRows } from "$lib/utils/shareFileRows";
     import {
+        SHARE_MAX_FILES,
+        SHARE_MAX_FILE_BYTES,
+        SHARE_MAX_TOTAL_BYTES,
+    } from "$lib/utils/shareTargetGuard";
+    import {
         shareInboxState,
         deliverShareToRoom,
         clearShare,
@@ -141,6 +146,17 @@
                     </div>
                 </div>
             {/each}
+        </div>
+    {/if}
+    {#if payload?.droppedFiles && payload.droppedFiles > 0}
+        <div
+            role="status"
+            class="border-b border-discord-divider px-4 py-3 text-sm text-discord-textMuted"
+        >
+            {payload.droppedFiles} file(s) weren't added. Shares are limited to {SHARE_MAX_FILES}
+            files, {SHARE_MAX_FILE_BYTES / 1024 / 1024} MB each and {SHARE_MAX_TOTAL_BYTES /
+                1024 /
+                1024} MB in total.
         </div>
     {/if}
 {/snippet}

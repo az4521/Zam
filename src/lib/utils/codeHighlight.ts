@@ -47,23 +47,3 @@ export function highlightCodeBlocks(
     }
     return template.innerHTML;
 }
-
-/** Render emoji outside code while leaving source code byte-for-byte intact. */
-export function mapOutsideCode(
-    html: string,
-    transform: (fragment: string) => string,
-): string {
-    const protectedBlocks: string[] = [];
-    const tokenized = html.replace(
-        /<pre\b[\s\S]*?<\/pre>|<code\b[\s\S]*?<\/code>/gi,
-        (block) => {
-            const token = `\u0001CODE${protectedBlocks.length}\u0002`;
-            protectedBlocks.push(block);
-            return token;
-        },
-    );
-    return transform(tokenized).replace(
-        /\u0001CODE(\d+)\u0002/g,
-        (_match, index) => protectedBlocks[Number(index)] ?? "",
-    );
-}

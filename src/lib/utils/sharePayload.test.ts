@@ -78,4 +78,52 @@ describe("normalizeSharePayload", () => {
             }),
         ).toEqual({ kind: "text", text: "hi" });
     });
+
+    it("carries droppedFiles through when files kept", () => {
+        const f = { name: "a.png" };
+        expect(
+            normalizeSharePayload({
+                source: "web",
+                text: "caption",
+                files: [f],
+                droppedFiles: 5,
+            }),
+        ).toEqual({
+            kind: "files",
+            text: "caption",
+            files: [f],
+            droppedFiles: 5,
+        });
+    });
+
+    it("carries droppedFiles through when only text", () => {
+        expect(
+            normalizeSharePayload({
+                source: "web",
+                text: "just text",
+                droppedFiles: 3,
+            }),
+        ).toEqual({ kind: "text", text: "just text", droppedFiles: 3 });
+    });
+
+    it("returns empty text with droppedFiles when all files dropped and no text", () => {
+        expect(
+            normalizeSharePayload({
+                source: "web",
+                text: "",
+                files: [],
+                droppedFiles: 10,
+            }),
+        ).toEqual({ kind: "text", text: "", droppedFiles: 10 });
+    });
+
+    it("omits droppedFiles when 0", () => {
+        expect(
+            normalizeSharePayload({
+                source: "web",
+                text: "hi",
+                droppedFiles: 0,
+            }),
+        ).toEqual({ kind: "text", text: "hi" });
+    });
 });
