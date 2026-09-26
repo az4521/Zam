@@ -14,6 +14,7 @@
         formatMediaSize,
         formatMediaDuration,
         mediaThumbnailMxc,
+        mediaTileSource,
         mediaViewerItem,
         type RoomMediaItem,
     } from "$lib/utils/roomMedia";
@@ -210,20 +211,23 @@
 
     // Decrypt encrypted thumbnails into the decryptedThumbs map
     $effect(() => {
-        const encrypted = split.visual.filter(
-            (m) => m.encrypted && m.encryptedFile,
-        );
+        // Only decrypt encrypted sources: image→its file, video→thumbnail_file.
+        // A video without thumbnail_file shows flat tile (no decrypt).
+        const toDecrypt = split.visual
+            .map((m) => ({ item: m, source: mediaTileSource(m) }))
+            .filter((x) => x.source?.kind === "encrypted");
+
         const urls: Record<string, string> = {};
         Promise.all(
-            encrypted.map(async (m) => {
-                if (!m.encryptedFile) return;
+            toDecrypt.map(async ({ item, source }) => {
+                if (!source || source.kind !== "encrypted") return;
                 try {
                     const url = await fetchDecryptedAttachmentBlob(
-                        m.encryptedFile,
-                        m.mimetype ?? undefined,
+                        source.file,
+                        source.mimetype ?? undefined,
                     );
-                    urls[m.eventId] = url;
-                    decryptedThumbs[m.eventId] = url;
+                    urls[item.eventId] = url;
+                    decryptedThumbs[item.eventId] = url;
                 } catch {
                     // Decryption failed, leave it out
                 }
