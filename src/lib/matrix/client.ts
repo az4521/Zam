@@ -337,6 +337,9 @@ declare module "matrix-js-sdk" {
 
 export { getClient };
 
+// SDK enums components compare against, so they never import matrix-js-sdk values
+export { EventStatus, EventType };
+
 // Media upload, send, and fetch wrappers (re-exported from media.ts for callers)
 export {
     getMediaUploadSizeLimit,
