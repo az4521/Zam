@@ -101,10 +101,23 @@ import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
     guardOwnership,
-    nextGeneration,
     ownsRuntime,
     type ClientOwnership,
 } from "$lib/utils/clientGeneration";
+import {
+    captureClient,
+    clientGeneration,
+    getClient,
+    installClient,
+    matrixClient,
+    matrixStore,
+    ownedClient,
+    ownedClientOrThrow,
+    readOwner,
+    releaseClient,
+    retireClientGeneration,
+    setMatrixStore,
+} from "./runtime";
 import {
     sanitizeCustomization,
     type ClientCustomization,
@@ -352,46 +365,7 @@ declare module "matrix-js-sdk" {
     }
 }
 
-let matrixClient: MatrixClient | null = null;
-let matrixStore: IndexedDBStore | null = null;
-// Monotonic id of the CURRENT occupant of the `matrixClient` slot, bumped on
-// every install and every release. An operation or listener that captured the
-// pair {client, generation} at entry can re-check it after an await and refuse
-// to act for an account that no longer owns the runtime.
-let clientGeneration = 0;
-
-export function getClient(): MatrixClient | null {
-    return matrixClient;
-}
-
-/** The live occupant of the slot — the read side of every ownership guard. */
-function readOwner(): { client: MatrixClient | null; generation: number } {
-    return { client: matrixClient, generation: clientGeneration };
-}
-
-/** Snapshot the owner for an operation that spans awaits. */
-function captureClient(): ClientOwnership<MatrixClient> {
-    if (!matrixClient) throw new Error("Not logged in");
-    return captureOwnership(matrixClient, clientGeneration);
-}
-
-/** The captured client, or null once a successor has taken the slot. */
-function ownedClient(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient | null {
-    return ownsRuntime(owner, matrixClient, clientGeneration)
-        ? owner.client
-        : null;
-}
-
-/** As `ownedClient`, for operations whose caller must learn they aborted. */
-function ownedClientOrThrow(
-    owner: ClientOwnership<MatrixClient>,
-): MatrixClient {
-    const client = ownedClient(owner);
-    if (!client) throw new Error(OWNERSHIP_LOST_MESSAGE);
-    return client;
-}
+export { getClient };
 
 function getIndexedDBFactory(): IDBFactory | null {
     try {
@@ -425,14 +399,14 @@ async function createAuthenticatedClient(opts: {
     // NOW. Otherwise a 401 arriving from the account we just stopped still
     // passes its listeners' guard and runs root session-expiry teardown
     // against the account that is signing in.
-    clientGeneration = nextGeneration(clientGeneration);
+    retireClientGeneration();
     // Do NOT destroy the previous store here: with multiple signed-in
     // accounts the outgoing client usually belongs to an account that stays
     // signed in, and deleting its per-account sync cache (or racing that
     // async deletion against the add-account reload) corrupts or cold-boots
     // its next session. The deliberate privacy wipe on sign-out lives in
     // logout() via clearStores().
-    matrixStore = null;
+    setMatrixStore(null);
     // Same reasoning as the media limit below: the outgoing client's memoized
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
@@ -486,7 +460,7 @@ async function createAuthenticatedClient(opts: {
         resetSyncStoreFallback();
         try {
             await store.startup();
-            matrixStore = store;
+            setMatrixStore(store);
         } catch (err) {
             console.warn(
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
@@ -497,8 +471,7 @@ async function createAuthenticatedClient(opts: {
         }
     }
 
-    matrixClient = client;
-    clientGeneration = nextGeneration(clientGeneration);
+    installClient(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
@@ -996,9 +969,7 @@ export async function logout(): Promise<void> {
     // stopped client (CRYPTO-04).
     const releaseSlot = () => {
         if (owner && ownsRuntime(owner, matrixClient, clientGeneration)) {
-            matrixClient = null;
-            matrixStore = null;
-            clientGeneration = nextGeneration(clientGeneration);
+            releaseClient();
             // Memoized space-child ids belong to the account being released;
             // the next account must not read them back (R3 clears this on the
             // other two teardown paths for the same reason).
@@ -1085,12 +1056,12 @@ export async function logout(): Promise<void> {
 
 export function stopClient(): void {
     matrixClient?.stopClient();
-    matrixClient = null;
-    // Invalidate every outstanding ownership token: a stopped client's late
-    // callback must not run root teardown against its successor (LIFE-02).
-    clientGeneration = nextGeneration(clientGeneration);
-    matrixStore?.destroy().catch(() => {});
-    matrixStore = null;
+    // Releasing the slot invalidates every outstanding ownership token: a
+    // stopped client's late callback must not run root teardown against its
+    // successor (LIFE-02).
+    releaseClient()
+        ?.destroy()
+        .catch(() => {});
     // Room ids are globally unique so a surviving entry could not be *wrong*,
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();

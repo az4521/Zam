@@ -45,8 +45,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("$lib/matrix/client", () => ({
-    getClient: h.getClient,
     createDirectMessage: h.createDirectMessage,
+}));
+vi.mock("$lib/matrix/runtime", () => ({
+    getClient: h.getClient,
 }));
 vi.mock("$lib/stores/settings.svelte", () => ({
     settingsState: {
