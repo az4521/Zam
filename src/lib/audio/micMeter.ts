@@ -133,12 +133,15 @@ export async function startMicMeter(
                 loopEl = new Audio();
                 loopEl.srcObject = stream;
             }
+            // Hold the element locally: stop() or setLoopback(false) can run
+            // while setSinkId is pending and null out loopEl (audit IMP-6).
             const el = loopEl as HTMLAudioElement & {
                 setSinkId?: (id: string) => Promise<void>;
             };
             if (sinkId && el.setSinkId)
                 await el.setSinkId(sinkId).catch(() => {});
-            await loopEl.play().catch(() => {});
+            if (loopEl !== el) return;
+            await el.play().catch(() => {});
         },
     };
 }

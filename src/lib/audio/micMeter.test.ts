@@ -177,3 +177,41 @@ describe("startMicMeter", () => {
         expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("startMicMeter loopback", () => {
+    it("does not throw when loopback is turned off while setSinkId is pending", async () => {
+        const stream = fakeStream();
+        stubDevices(stream);
+        stubAudioContext();
+        vi.stubGlobal(
+            "requestAnimationFrame",
+            vi.fn(() => 1),
+        );
+        vi.stubGlobal("cancelAnimationFrame", vi.fn());
+        let releaseSink!: () => void;
+        const play = vi.fn(async () => {});
+        vi.stubGlobal(
+            "Audio",
+            class {
+                srcObject: unknown = null;
+                pause = vi.fn();
+                play = play;
+                setSinkId = () =>
+                    new Promise<void>((r) => {
+                        releaseSink = r;
+                    });
+            },
+        );
+
+        const handle = await startMicMeter(OPTS);
+        const on = handle.setLoopback(true, "speaker-2");
+        // The user unticks loopback (or the settings page closes) while the
+        // output switch is still in flight.
+        await handle.setLoopback(false, null);
+        releaseSink();
+
+        await expect(on).resolves.toBeUndefined();
+        // The torn-down element must not start playing again.
+        expect(play).not.toHaveBeenCalled();
+    });
+});
