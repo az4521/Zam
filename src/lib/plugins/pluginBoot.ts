@@ -854,7 +854,10 @@ export async function updateRepoPlugin(
             sha,
         });
 
-        const wasEnabled = loader.isLoaded(pluginId);
+        const wasLoaded = loader.isLoaded(pluginId);
+        // A plugin the user enabled but that could not load (e.g. "needs
+        // update") comes up once the update gives it a pinned bundle.
+        const wasEnabled = wasLoaded || persisted.enabled;
 
         // Update record + persist with new SHA and path, preserving enabled state.
         setInstalledPlugin({
@@ -875,10 +878,8 @@ export async function updateRepoPlugin(
         // Clear needs-update on success
         setPluginNeedsUpdate(pluginId, false);
 
-        if (wasEnabled) {
-            await disablePlugin(pluginId);
-            await enablePlugin(pluginId);
-        }
+        if (wasLoaded) await disablePlugin(pluginId);
+        if (wasEnabled) await enablePlugin(pluginId);
         return { ok: true };
     } catch (e) {
         return { ok: false, error: (e as Error).message };
