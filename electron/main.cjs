@@ -606,7 +606,13 @@ async function createWindow() {
                 },
                 {
                     label: "Save image as…",
-                    click: () => wc.downloadURL(params.srcURL),
+                    // Not wc.downloadURL: homeserver media needs the access
+                    // token (added by the renderer's service worker, which a
+                    // main-process download bypasses), so the server would
+                    // hand back a JSON error. The renderer fetches it with
+                    // auth and saves it instead.
+                    click: () =>
+                        wc.send("context-menu:save-image", params.srcURL),
                 },
             ]);
         }

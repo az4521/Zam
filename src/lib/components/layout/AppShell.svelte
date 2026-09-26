@@ -94,6 +94,7 @@
     } from "$lib/desktopUpdater";
     import { APP_VERSION } from "$lib/update";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
+    import { installDesktopSaveImage } from "$lib/desktopContextMenu";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
@@ -1210,6 +1211,9 @@
         resolveLandingSurface();
         roomsState.roomsTick++;
     }
+
+    // Electron right-click "Save image as" (fetches with auth; see module).
+    onMount(installDesktopSaveImage);
 
     onMount(() => {
         reloadAccountSettings();

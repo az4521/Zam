@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.7.2
+
+🐛 **Fixes**
+
+- Desktop: right-click "Save image as…" now saves the actual image (full size, with its filename) instead of a JSON error file.
+
 ## v1.7.1
 
 ✨ **New**

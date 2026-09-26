@@ -44,4 +44,14 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    contextMenu: {
+        // Right-click "Save image as": main hands over the image's src URL;
+        // the renderer fetches it with auth and saves it.
+        onSaveImage: (cb) => {
+            const h = (_e, url) => cb(url);
+            ipcRenderer.on("context-menu:save-image", h);
+            return () =>
+                ipcRenderer.removeListener("context-menu:save-image", h);
+        },
+    },
 });
