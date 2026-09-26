@@ -11,7 +11,6 @@
 </script>
 
 <script lang="ts">
-    import { EventStatus } from "matrix-js-sdk";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -62,6 +61,7 @@
         getRoomIdForAlias,
         getThreadSummary,
         getHomeserverBaseUrl,
+        EventStatus,
     } from "$lib/matrix/client";
     import { parseMarkdown } from "$lib/utils/markdown";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
