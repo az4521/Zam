@@ -10,19 +10,26 @@ describe("renderPlainTextWithTwemoji", () => {
         const out = renderPlainTextWithTwemoji(
             '<img src=x onerror="alert(1)">',
         );
-        // Escaping neutralises markup, it does not delete words: the literal
-        // text "onerror" survives (a room may legitimately be named that), but
-        // never as a live attribute, and no live tag is emitted at all.
-        expect(out).not.toContain("<img src=x");
-        expect(out).not.toContain("<img");
-        expect(out).not.toContain('onerror="');
-        expect(out).toContain("&lt;img");
+        // Escaping neutralises markup: no live img tag is emitted
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        expect(template.content.querySelector("img")).toBeNull();
+        // The text content is escaped (< and > become entities)
+        expect(out).toContain("&lt;");
+        expect(out).toContain("&gt;");
     });
 
-    it("escapes ampersands, quotes and angle brackets", () => {
-        expect(renderPlainTextWithTwemoji(`a & b < c > d "e"`)).toBe(
-            "a &amp; b &lt; c &gt; d &quot;e&quot;",
-        );
+    it("escapes ampersands and angle brackets (quotes stay literal in text)", () => {
+        // In text content (not attributes), only &, <, and > need escaping.
+        // Quotes are only escaped in attribute values, so innerHTML keeps them literal.
+        const out = renderPlainTextWithTwemoji(`a & b < c > d "e"`);
+        expect(out).toContain("&amp;");
+        expect(out).toContain("&lt;");
+        expect(out).toContain("&gt;");
+        // Verify no live tags
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        expect(template.content.textContent).toContain("a & b < c > d");
     });
 
     it("replaces an emoji with a twemoji img carrying the given class", () => {
@@ -42,12 +49,33 @@ describe("renderPlainTextWithTwemoji", () => {
     it("does not treat escaped angle brackets as tags to render into", () => {
         // "<b>🎉</b>" is text, not markup: the bold tags must stay escaped
         const out = renderPlainTextWithTwemoji("<b>🎉</b>");
-        expect(out).toContain("&lt;b&gt;");
-        expect(out).not.toContain("<b>");
-        expect(out).toContain("<img");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        // No live <b> element should exist
+        expect(template.content.querySelector("b")).toBeNull();
+        // But the emoji is still rendered as an img
+        expect(template.content.querySelector("img")).not.toBeNull();
+        // The output contains escaped brackets
+        expect(out).toContain("&lt;");
+        expect(out).toContain("&gt;");
     });
 
     it("handles an empty string", () => {
         expect(renderPlainTextWithTwemoji("")).toBe("");
+    });
+
+    it("does not treat escaped <b> as markup even when it contains emoji (SEC-S1)", () => {
+        // The escaped `<b>😀</b>` arrives at renderHtml already escaped as
+        // `&lt;b&gt;😀&lt;/b&gt;` — the DOM-based implementation must not
+        // reinterpret those entity-encoded angle brackets as tags.
+        const out = renderPlainTextWithTwemoji("<b>😀</b>");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        // No live <b> element
+        expect(template.content.querySelector("b")).toBeNull();
+        // But the twemoji img is still rendered
+        expect(
+            template.content.querySelector("img.name-twemoji"),
+        ).not.toBeNull();
     });
 });

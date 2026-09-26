@@ -93,3 +93,65 @@ describe("renderEmoji — memoized so reopening the picker doesn't re-parse", ()
         spy.mockRestore();
     });
 });
+
+describe("renderHtml — SEC-S1: only touches text nodes, never attributes", () => {
+    it("rejects the href attribute-breakout exploit", () => {
+        // An emoji inside an attribute should stay in the attribute (as text or
+        // a failed-to-render glyph) and never become live markup. The literal
+        // `<` inside the quoted attribute is what older HTML parsers keep.
+        const input =
+            '<a href="https://a.b/😀<img src=x onerror=alert(1)>">x</a>';
+        const out = renderHtml(input, "twemoji");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        // No breakout img
+        expect(template.content.querySelector('img[src="x"]')).toBeNull();
+        // No onerror anywhere
+        expect(template.content.querySelector("[onerror]")).toBeNull();
+        // The link's href is still the original (emoji preserved or as text)
+        const link = template.content.querySelector("a");
+        expect(link?.getAttribute("href")).toMatch(/^https:\/\/a\.b\//);
+    });
+
+    it("never emits twemoji img inside code or pre elements", () => {
+        const out = renderHtml("<code>hi 😀</code>", "twemoji");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        expect(template.content.querySelector("code img")).toBeNull();
+
+        const out2 = renderHtml("<pre><code>😀 test</code></pre>", "twemoji");
+        const template2 = document.createElement("template");
+        template2.innerHTML = out2;
+        expect(template2.content.querySelector("pre img")).toBeNull();
+        expect(template2.content.querySelector("code img")).toBeNull();
+    });
+
+    it("renders emoji as img.twemoji in regular text", () => {
+        const out = renderHtml("<p>hi 😀</p>", "twemoji");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        const img = template.content.querySelector("p img.twemoji");
+        expect(img).not.toBeNull();
+        expect(img?.getAttribute("src")).toContain("/twemoji/svg/");
+    });
+
+    it("renders emoji in link text (not the href attribute)", () => {
+        const out = renderHtml('<a href="https://x">😀</a>', "twemoji");
+        const template = document.createElement("template");
+        template.innerHTML = out;
+        const img = template.content.querySelector("a img.twemoji");
+        expect(img).not.toBeNull();
+        // href stayed as-is
+        const link = template.content.querySelector("a");
+        expect(link?.getAttribute("href")).toBe("https://x");
+    });
+
+    it("still catches newer emoji via the fallback path", () => {
+        // A newer emoji that twemoji's package doesn't natively handle should
+        // still get the fallback img. Use an emoji that the fallback regex
+        // catches (Extended_Pictographic).
+        const out = renderHtml("<p>🫠</p>", "twemoji");
+        expect(out).toContain('class="twemoji"');
+        expect(out).toContain("/twemoji/svg/");
+    });
+});

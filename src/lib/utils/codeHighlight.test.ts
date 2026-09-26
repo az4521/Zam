@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from "vitest";
 import {
     highlightCodeBlocks,
     containsCodeBlock,
-    mapOutsideCode,
     type HighlightEngine,
 } from "./codeHighlight";
 
@@ -136,16 +135,6 @@ describe("containsCodeBlock", () => {
     it("does not match a tag that merely starts with the same letters", () => {
         expect(containsCodeBlock("<preface><codex>x</codex></preface>")).toBe(
             false,
-        );
-    });
-});
-
-describe("mapOutsideCode", () => {
-    it("does not transform fenced or inline code", () => {
-        const html =
-            "hello :) <code>code :)</code><pre><code>block :)</code></pre>";
-        expect(mapOutsideCode(html, (part) => part.replaceAll(":)", "X"))).toBe(
-            "hello X <code>code :)</code><pre><code>block :)</code></pre>",
         );
     });
 });
