@@ -133,4 +133,62 @@ describe("applyScreenShareEncoding", () => {
             }),
         ).toBe(false);
     });
+
+    it("scales maxBitrate per layer by 1/scaleResolutionDownBy^2 with 150k floor", () => {
+        const params = {
+            encodings: [
+                { rid: "q", scaleResolutionDownBy: 2 },
+                { rid: "h", scaleResolutionDownBy: 1 },
+            ],
+        } as RTCRtpSendParameters;
+        const applied = applyScreenShareEncoding(params, {
+            maxBitrate: 4_000_000,
+            maxFramerate: 30,
+        });
+        expect(applied).toBe(true);
+        // Half-res layer: 4M / 2^2 = 1M
+        expect(params.encodings![0].maxBitrate).toBe(1_000_000);
+        expect(params.encodings![0].maxFramerate).toBe(30);
+        // Full-res layer: 4M / 1^2 = 4M
+        expect(params.encodings![1].maxBitrate).toBe(4_000_000);
+        expect(params.encodings![1].maxFramerate).toBe(30);
+    });
+
+    it("scales maxBitrate for undefined scaleResolutionDownBy as 1", () => {
+        const params = {
+            encodings: [
+                { rid: "q", scaleResolutionDownBy: 2 },
+                { rid: "h" }, // scaleResolutionDownBy undefined = 1
+            ],
+        } as RTCRtpSendParameters;
+        applyScreenShareEncoding(params, {
+            maxBitrate: 8_000_000,
+            maxFramerate: 60,
+        });
+        // Half-res: 8M / 2^2 = 2M
+        expect(params.encodings![0].maxBitrate).toBe(2_000_000);
+        expect(params.encodings![0].maxFramerate).toBe(60);
+        // Top layer (scaleResolutionDownBy undefined = 1): 8M / 1^2 = 8M
+        expect(params.encodings![1].maxBitrate).toBe(8_000_000);
+        expect(params.encodings![1].maxFramerate).toBe(60);
+    });
+
+    it("enforces the 150k floor on low-bitrate scaled layers", () => {
+        const params = {
+            encodings: [
+                { rid: "q", scaleResolutionDownBy: 4 },
+                { rid: "h" },
+            ],
+        } as RTCRtpSendParameters;
+        applyScreenShareEncoding(params, {
+            maxBitrate: 1_000_000,
+            maxFramerate: 15,
+        });
+        // 1M / 4^2 = 62.5k, floored to 150k
+        expect(params.encodings![0].maxBitrate).toBe(150_000);
+        expect(params.encodings![0].maxFramerate).toBe(15);
+        // Top layer unchanged
+        expect(params.encodings![1].maxBitrate).toBe(1_000_000);
+        expect(params.encodings![1].maxFramerate).toBe(15);
+    });
 });

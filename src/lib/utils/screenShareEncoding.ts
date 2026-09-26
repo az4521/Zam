@@ -30,9 +30,11 @@ export function screenShareEncodingFor(
 
 /** Cap a running screen-share sender's encodings to the picked quality.
  *  Mutates `params.encodings` in place (RTCRtpSender.setParameters requires
- *  the object returned by getParameters, minimally mutated). Applies to EVERY
- *  layer so a simulcast top layer can't exceed the pick. Returns whether any
- *  encoding was touched — an empty/absent array means the track isn't
+ *  the object returned by getParameters, minimally mutated). Scales maxBitrate
+ *  per layer by 1/scaleResolutionDownBy^2 (matching LiveKit's design), with a
+ *  150k floor, so a simulcast top layer can't exceed the pick and lower layers
+ *  stay proportional. maxFramerate is applied to all layers. Returns whether
+ *  any encoding was touched — an empty/absent array means the track isn't
  *  publishing yet, so the caller skips setParameters. */
 export function applyScreenShareEncoding(
     params: RTCRtpSendParameters,
@@ -40,7 +42,11 @@ export function applyScreenShareEncoding(
 ): boolean {
     if (!params.encodings || params.encodings.length === 0) return false;
     for (const enc of params.encodings) {
-        enc.maxBitrate = encoding.maxBitrate;
+        const scale = enc.scaleResolutionDownBy ?? 1;
+        enc.maxBitrate = Math.max(
+            150_000,
+            Math.floor(encoding.maxBitrate / (scale ** 2)),
+        );
         enc.maxFramerate = encoding.maxFramerate;
     }
     return true;
