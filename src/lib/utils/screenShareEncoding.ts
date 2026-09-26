@@ -45,7 +45,7 @@ export function applyScreenShareEncoding(
         const scale = enc.scaleResolutionDownBy ?? 1;
         enc.maxBitrate = Math.max(
             150_000,
-            Math.floor(encoding.maxBitrate / (scale ** 2)),
+            Math.floor(encoding.maxBitrate / scale ** 2),
         );
         enc.maxFramerate = encoding.maxFramerate;
     }

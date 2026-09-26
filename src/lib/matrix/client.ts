@@ -9189,6 +9189,56 @@ export function setVoiceOutputVolume(volume: number): void {
     }
 }
 
+/** Switch a live call input device. LiveKit's restart stops the current
+ *  track BEFORE acquiring the new device, so a failed switch (device held by
+ *  another app, vanished id) leaves the published track ended and silent.
+ *  On failure, restore the previous device (else the system default) and tell
+ *  the user. Resolves either way; never throws. */
+async function switchInputWithRecovery(
+    call: ActiveVoiceCall,
+    kind: "audioinput" | "videoinput",
+    deviceId: string,
+    exact: boolean,
+    what: string,
+): Promise<void> {
+    const source =
+        kind === "audioinput"
+            ? call.lk.Track.Source.Microphone
+            : call.lk.Track.Source.Camera;
+    const track =
+        call.lkRoom.localParticipant.getTrackPublication(source)?.track;
+    const previousId = track?.mediaStreamTrack.getSettings().deviceId;
+    const trySwitch = async (id: string, ex: boolean): Promise<boolean> => {
+        try {
+            return (
+                (await call.lkRoom.switchActiveDevice(kind, id, ex)) !== false
+            );
+        } catch {
+            return false;
+        }
+    };
+    if (await trySwitch(deviceId, exact)) return;
+    if (activeVoice !== call) return;
+    if (
+        previousId &&
+        previousId !== "default" &&
+        (await trySwitch(previousId, false))
+    ) {
+        if (activeVoice === call)
+            notifyVoiceNotice(
+                `Couldn't switch to that ${what} - kept your previous one`,
+            );
+        return;
+    }
+    const onDefault = await trySwitch("default", false);
+    if (activeVoice !== call) return;
+    notifyVoiceNotice(
+        onDefault
+            ? `Couldn't switch to that ${what} - using the default device`
+            : `Couldn't switch to that ${what} - pick another device`,
+    );
+}
+
 /** Switch the live call's microphone. A null deviceId selects the system
  *  default device live (previously this was a no-op that only took effect on
  *  the next join). */
@@ -9197,51 +9247,17 @@ export async function setVoiceInputDevice(
 ): Promise<void> {
     const call = activeVoice;
     if (!call) return;
-    // Capture the previous device id so we can restore it on failure.
-    const track = call.lkRoom.localParticipant.getTrackPublication(
-        call.lk.Track.Source.Microphone,
-    )?.audioTrack;
-    const previousId = track?.mediaStreamTrack.getSettings().deviceId ?? "default";
-
-    let success = false;
-    try {
-        if (deviceId) {
-            // exact:true (switchActiveDevice's default) — unchanged real-device path.
-            const result = await call.lkRoom.switchActiveDevice("audioinput", deviceId);
-            success = result !== false;
-        } else {
-            // System default: LiveKit resolves the "default" sentinel to the OS
-            // default input; exact:false so browsers without a literal "default"
-            // device id (Firefox) fall back to their default instead of throwing.
-            const result = await call.lkRoom.switchActiveDevice("audioinput", "default", false);
-            success = result !== false;
-        }
-    } catch {
-        success = false;
-    }
-
-    // On failure, try to restore the previous device. If that fails too,
-    // fall back to the default device. Only report when still in this call.
-    if (!success && activeVoice === call) {
-        let restored = false;
-        try {
-            const result = await call.lkRoom.switchActiveDevice("audioinput", previousId, false);
-            restored = result !== false;
-        } catch {
-            // Restoration failed, try the default sentinel as a last resort.
-            if (previousId !== "default") {
-                try {
-                    await call.lkRoom.switchActiveDevice("audioinput", "default", false);
-                } catch {
-                    // All recovery attempts failed.
-                }
-            }
-        }
-        const msg = restored
-            ? "Couldn't switch to that microphone - kept your previous one"
-            : "Couldn't switch to that microphone - using the default device";
-        notifyVoiceNotice(msg);
-    }
+    // A real device uses exact:true (switchActiveDevice's default). System
+    // default: LiveKit resolves the "default" sentinel to the OS default
+    // input; exact:false so browsers without a literal "default" device id
+    // (Firefox) fall back to their default instead of throwing.
+    await switchInputWithRecovery(
+        call,
+        "audioinput",
+        deviceId ?? "default",
+        !!deviceId,
+        "microphone",
+    );
 }
 
 /** getDisplayMedia rejects with NotAllowedError/AbortError when the user
@@ -9376,42 +9392,7 @@ export async function setVideoInputDevice(
 ): Promise<void> {
     const call = activeVoice;
     if (!call || !deviceId) return;
-    // Capture the previous device id so we can restore it on failure.
-    const track = call.lkRoom.localParticipant.getTrackPublication(
-        call.lk.Track.Source.Camera,
-    )?.videoTrack;
-    const previousId = track?.mediaStreamTrack.getSettings().deviceId ?? "default";
-
-    let success = false;
-    try {
-        const result = await call.lkRoom.switchActiveDevice("videoinput", deviceId);
-        success = result !== false;
-    } catch {
-        success = false;
-    }
-
-    // On failure, try to restore the previous device. If that fails too,
-    // fall back to the default device. Only report when still in this call.
-    if (!success && activeVoice === call) {
-        let restored = false;
-        try {
-            const result = await call.lkRoom.switchActiveDevice("videoinput", previousId, false);
-            restored = result !== false;
-        } catch {
-            // Restoration failed, try the default sentinel as a last resort.
-            if (previousId !== "default") {
-                try {
-                    await call.lkRoom.switchActiveDevice("videoinput", "default", false);
-                } catch {
-                    // All recovery attempts failed.
-                }
-            }
-        }
-        const msg = restored
-            ? "Couldn't switch to that camera - kept your previous one"
-            : "Couldn't switch to that camera - using the default device";
-        notifyVoiceNotice(msg);
-    }
+    await switchInputWithRecovery(call, "videoinput", deviceId, true, "camera");
 }
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a

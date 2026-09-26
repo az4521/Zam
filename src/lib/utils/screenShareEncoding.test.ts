@@ -175,10 +175,7 @@ describe("applyScreenShareEncoding", () => {
 
     it("enforces the 150k floor on low-bitrate scaled layers", () => {
         const params = {
-            encodings: [
-                { rid: "q", scaleResolutionDownBy: 4 },
-                { rid: "h" },
-            ],
+            encodings: [{ rid: "q", scaleResolutionDownBy: 4 }, { rid: "h" }],
         } as RTCRtpSendParameters;
         applyScreenShareEncoding(params, {
             maxBitrate: 1_000_000,
