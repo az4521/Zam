@@ -40,12 +40,4 @@ export const hostBridge = {
      *  (the composer mounts asynchronously after the call→chat view flip).
      *  Drained + cleared by the composer's claim effect. */
     pendingMention: null as null | { roomId: string; userId: string },
-    /** Set by MessageInput (main composer) — imperatively fire the composer's
-     *  send() for a room. Used by the share flow's one-step send when the
-     *  target room is already active (its draft-restore effect won't re-run). */
-    sendNow: null as null | ((ctx: { roomId: string }) => void),
-    /** Queue slot: a one-step send requested before the composer claimed the
-     *  hook (share sheet → navigate flip). Drained + cleared by the composer's
-     *  claim effect one tick after draft restore, so the caption is present. */
-    pendingSend: null as null | { roomId: string },
 };
