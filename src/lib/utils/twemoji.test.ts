@@ -154,4 +154,24 @@ describe("renderHtml — SEC-S1: only touches text nodes, never attributes", () 
         expect(out).toContain('class="twemoji"');
         expect(out).toContain("/twemoji/svg/");
     });
+
+    it("runs the fallback on text before and after other emoji, not only between tags", () => {
+        // Simulate emoji the package does not know: twemoji.parse returns its
+        // input unchanged, so only the hand-rolled fallback can render them.
+        const spy = vi
+            .spyOn(twemoji, "parse")
+            .mockImplementation((s: unknown) => s as string);
+        try {
+            const out = renderHtml("<p>hi 😀 there 🎉</p>", "fb-cls");
+            const template = document.createElement("template");
+            template.innerHTML = out;
+            expect(
+                template.content.querySelectorAll("img.fb-cls"),
+            ).toHaveLength(2);
+            expect(template.content.textContent).toContain("hi ");
+            expect(template.content.textContent).toContain(" there ");
+        } finally {
+            spy.mockRestore();
+        }
+    });
 });
