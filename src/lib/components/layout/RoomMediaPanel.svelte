@@ -18,6 +18,7 @@
         mediaViewerItem,
         type RoomMediaItem,
     } from "$lib/utils/roomMedia";
+    import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -541,6 +542,11 @@
             onNext={viewerIndex < gallery.length - 1
                 ? () => step(1)
                 : undefined}
+            position={galleryPositionLabel(
+                gallery.length,
+                viewerIndex,
+                hasMore,
+            )}
         />
     {:else}
         <!-- mediaViewerItem resolved to nothing (bad mxc / signed-out media
