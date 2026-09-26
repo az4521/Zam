@@ -1182,6 +1182,10 @@
         videoAttempt += 1;
         if (videoSrc?.kind === "encrypted") {
             videoPlayRequested = true;
+            // Show the spinner from this frame on, not an empty <video> until
+            // the decrypt effect runs. Only when there is no blob yet: a retry
+            // after a playback error reuses the blob and the effect won't re-run.
+            if (!encryptedVideoUrl) videoDecrypting = true;
         }
     }
 
