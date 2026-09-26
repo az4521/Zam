@@ -17,6 +17,10 @@ import {
 } from "../plugins/pluginTimeline";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { withThreadRelation } from "$lib/utils/threadContent";
+import {
+    createMediaOwnership,
+    mxcUrlsInContent,
+} from "$lib/utils/mediaOwnership";
 import { captureClient, matrixClient, ownedClientOrThrow } from "./runtime";
 import {
     deleteMessage,
@@ -34,6 +38,17 @@ import {
 } from "./client";
 
 const PLUGIN_SYNC_KEY = "moe.crafty.matrix.plugins";
+
+// mxc → client generation for every `uploadPluginMedia` result, so a plugin
+// cannot upload as one account and send the mxc as the next one.
+const pluginMediaOwners = createMediaOwnership();
+
+/** Throw when any of `urls` was uploaded under an earlier client generation. */
+function assertMediaOwned(urls: string[], generation: number): void {
+    if (urls.some((url) => pluginMediaOwners.isForeign(url, generation))) {
+        throw new Error("Media was uploaded by a different account");
+    }
+}
 
 /** Push the manual plugin-sync payload to the user's account data. No-op when
  *  logged out. */
@@ -58,8 +73,9 @@ export async function sendEventContent(
     roomId: string,
     content: Record<string, unknown>,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const res = await matrixClient.sendMessage(roomId, content as never);
+    const owner = captureClient();
+    assertMediaOwned(mxcUrlsInContent(content), owner.generation);
+    const res = await owner.client.sendMessage(roomId, content as never);
     return res.event_id;
 }
 
@@ -122,11 +138,14 @@ export async function uploadPluginMedia(
     name: string,
     type?: string,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    const { content_uri } = await matrixClient.uploadContent(file, {
+    const owner = captureClient();
+    const { content_uri } = await owner.client.uploadContent(file, {
         name,
         type: type ?? (file as File).type ?? undefined,
     });
+    // Recorded under the generation that STARTED the upload: if the account
+    // switched mid-upload, a later send of this mxc is refused.
+    pluginMediaOwners.record(content_uri, owner.generation);
     return content_uri;
 }
 
@@ -218,6 +237,8 @@ export async function sendPluginSticker(
     thread?: { rootEventId: string },
 ): Promise<void> {
     if (!matrixClient) throw new Error("Not connected");
+    const owner = captureClient();
+    assertMediaOwned([sticker.mxcUrl], owner.generation);
     const content: Record<string, unknown> = {
         body: sticker.body || sticker.shortcode || "sticker",
         url: sticker.mxcUrl,
