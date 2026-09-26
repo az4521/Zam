@@ -86,7 +86,11 @@ describe("static/sw.js mirrors notifActions.ts", () => {
     for (const c of RECEIPT_TYPE_CASES) {
         it(`buildReadReceiptPath: ${c.name}`, () => {
             expect(
-                mirrored.buildReadReceiptPath(c.roomId, c.eventId, c.receiptType),
+                mirrored.buildReadReceiptPath(
+                    c.roomId,
+                    c.eventId,
+                    c.receiptType,
+                ),
             ).toBe(c.expected);
         });
     }

@@ -90,48 +90,53 @@ export const RECEIPT_TYPE_CASES = [
     },
 ];
 
-export const SW_RECEIPT_TYPE_CASES = [
+export const SW_RECEIPT_TYPE_CASES: Array<{
+    name: string;
+    privacyByUser: Record<string, boolean> | null | undefined;
+    userId: string | null | undefined;
+    expected: "m.read" | "m.read.private";
+}> = [
     {
         name: "public when explicitly false",
         privacyByUser: { "@alice:hs": false },
         userId: "@alice:hs",
-        expected: "m.read" as const,
+        expected: "m.read",
     },
     {
         name: "private when true",
         privacyByUser: { "@alice:hs": true },
         userId: "@alice:hs",
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
     {
         name: "private when unknown user",
         privacyByUser: { "@bob:hs": false },
         userId: "@alice:hs",
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
     {
         name: "private when null map",
         privacyByUser: null,
         userId: "@alice:hs",
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
     {
         name: "private when undefined map",
         privacyByUser: undefined,
         userId: "@alice:hs",
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
     {
         name: "private when null userId",
         privacyByUser: { "@alice:hs": false },
         userId: null,
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
     {
         name: "private when junk value",
         privacyByUser: { "@alice:hs": "yes" as unknown as boolean },
         userId: "@alice:hs",
-        expected: "m.read.private" as const,
+        expected: "m.read.private",
     },
 ];
 
@@ -549,7 +554,11 @@ describe("quick-reply stash", () => {
                     },
                 },
             ];
-            const result = partitionQuickReplyStashes(entries, "@alice:s", 3000);
+            const result = partitionQuickReplyStashes(
+                entries,
+                "@alice:s",
+                3000,
+            );
             expect(result.take).toHaveLength(1);
             expect(result.take[0].userId).toBe("@alice:s");
             expect(result.deleteKeys).toEqual(["notif_reply:alice"]);

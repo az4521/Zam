@@ -81,10 +81,7 @@ export function roomNotificationTags(roomId: string): string[] {
 /**
  * Whether a notification's data matches a specific ring event (for auto-dismiss).
  */
-export function isRingToDismiss(
-    data: unknown,
-    ringEventId: string,
-): boolean {
+export function isRingToDismiss(data: unknown, ringEventId: string): boolean {
     if (!data || typeof data !== "object") return false;
     const d = data as Record<string, unknown>;
     return d.isCall === true && d.eventId === ringEventId;
