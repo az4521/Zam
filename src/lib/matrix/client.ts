@@ -288,6 +288,7 @@ import {
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
+import { planShareSend } from "$lib/utils/shareSend";
 import {
     createPendingFollowUps,
     isRoomGone,
@@ -2348,7 +2349,6 @@ export async function sendShare(
     share: { caption: string; files: File[] },
     onStepSent?: (i: number) => void,
 ): Promise<void> {
-    const { planShareSend } = await import("$lib/utils/shareSend");
     const steps = planShareSend(share);
 
     for (let i = 0; i < steps.length; i++) {
