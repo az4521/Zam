@@ -99,3 +99,38 @@ export function shouldEncryptUpload(
     if (msgtype === "m.video") return false;
     return roomEncrypted;
 }
+
+/**
+ * Build the encrypted file content field for a Matrix message. Returns either
+ * `{ url }` (plaintext) or `{ file }` (encrypted) — never both. Used to wire
+ * encryption into sendFile/sendVoiceMessage/sendPluginMedia.
+ */
+export function buildFileContent(
+    encrypted: boolean,
+    plainUrl: string,
+    encryptedInfo?: EncryptedFileInfo,
+): { url: string } | { file: EncryptedFileInfo & { url: string } } {
+    if (encrypted && encryptedInfo) {
+        return { file: { ...encryptedInfo, url: plainUrl } };
+    }
+    return { url: plainUrl };
+}
+
+/**
+ * Build the thumbnail field for an encrypted or plaintext video. Returns either
+ * `{ thumbnail_url }` (plaintext) or `{ thumbnail_file }` (encrypted).
+ */
+export function buildThumbnailContent(
+    encrypted: boolean,
+    thumbnailUrl: string,
+    thumbnailEncryptedInfo?: EncryptedFileInfo,
+):
+    | { thumbnail_url: string }
+    | { thumbnail_file: EncryptedFileInfo & { url: string } } {
+    if (encrypted && thumbnailEncryptedInfo) {
+        return {
+            thumbnail_file: { ...thumbnailEncryptedInfo, url: thumbnailUrl },
+        };
+    }
+    return { thumbnail_url: thumbnailUrl };
+}
