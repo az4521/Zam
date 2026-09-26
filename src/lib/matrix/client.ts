@@ -150,6 +150,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
     withThreadRelation,
+    threadRootForQuickReply,
 } from "$lib/utils/threadContent";
 import {
     belongsToMainTimeline,
@@ -2396,6 +2397,56 @@ export async function sendTextMessage(
 }
 
 /**
+ * Resolve the thread root event id for a quick-reply routing decision. Returns
+ * the root id if the event is in a thread, otherwise null. Best-effort: event
+ * lookup errors are swallowed and treated as no thread.
+ */
+export async function resolveQuickReplyThreadRoot(
+    roomId: string,
+    eventId: string,
+): Promise<string | null> {
+    try {
+        const room = matrixClient?.getRoom(roomId);
+        let ev = room ? findEventById(room, eventId) : null;
+        if (!ev) {
+            ev = await fetchSingleEvent(roomId, eventId);
+        }
+        if (!ev) return null;
+        const wireContent = ev.getWireContent();
+        const relatesTo =
+            wireContent?.["m.relates_to"] ?? ev.getContent()["m.relates_to"];
+        return threadRootForQuickReply(relatesTo);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Send a notification quick-reply (plain text only, from a background action).
+ * If eventId is provided, routes the reply to the correct thread (if the event
+ * is in one) or the main timeline. Event lookup errors are treated as main
+ * timeline. Returns the thread root id if a thread reply was sent.
+ */
+export async function sendNotificationQuickReply(
+    roomId: string,
+    text: string,
+    eventId?: string | null,
+): Promise<{ threadRootId: string | null }> {
+    let threadRootId: string | null = null;
+    if (eventId) {
+        threadRootId = await resolveQuickReplyThreadRoot(roomId, eventId);
+    }
+
+    if (threadRootId) {
+        await sendThreadReply(roomId, threadRootId, text);
+    } else {
+        await sendTextMessage(roomId, text);
+    }
+
+    return { threadRootId };
+}
+
+/**
  * Send a share (files + optional caption, or text-only) directly without
  * touching the composer's draft/queue/reply state. Bypasses the composer to
  * avoid leaking the user's unsent draft into a share send. Share captions are
@@ -2687,6 +2738,13 @@ export async function initServiceWorker(): Promise<void> {
         type: "SET_NOTIF_PRIVACY",
         hideBody: settingsState.hideNotificationBody,
     };
+    const receiptMsg = uid
+        ? {
+              type: "SET_RECEIPT_PRIVACY",
+              userId: uid,
+              private: settingsState.privateReadReceipts,
+          }
+        : null;
     latestSwAuthMessage = authMsg;
     attachSwMediaListeners();
     try {
@@ -2702,12 +2760,14 @@ export async function initServiceWorker(): Promise<void> {
         const early = reg.installing || reg.waiting || reg.active;
         early?.postMessage(authMsg);
         early?.postMessage(notifMsg);
+        if (receiptMsg) early?.postMessage(receiptMsg);
         // Deliver again once fully active in case a later worker became the
         // controller, and — if it already controls us — flag media as ready even
         // if the broadcast was missed.
         const ready = await navigator.serviceWorker.ready;
         ready.active?.postMessage(authMsg);
         ready.active?.postMessage(notifMsg);
+        if (receiptMsg) ready.active?.postMessage(receiptMsg);
     } catch (e) {
         console.error("[SW] registration failed", e);
     }
@@ -2770,6 +2830,28 @@ export function updateServiceWorkerNotificationPrivacy(hide: boolean): void {
             reg.active?.postMessage({
                 type: "SET_NOTIF_PRIVACY",
                 hideBody: hide,
+            }),
+        )
+        .catch(() => {});
+}
+
+/**
+ * Mirror the per-user "private read receipts" setting into the service worker.
+ * The SW has no localStorage, so it keeps its own copy in IndexedDB; a quick
+ * mark-read action from a notification reads that copy to decide which receipt
+ * type to send.
+ */
+export function updateServiceWorkerReceiptPrivacy(
+    userId: string,
+    isPrivate: boolean,
+): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) =>
+            reg.active?.postMessage({
+                type: "SET_RECEIPT_PRIVACY",
+                userId,
+                private: isPrivate,
             }),
         )
         .catch(() => {});
