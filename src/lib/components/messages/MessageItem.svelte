@@ -89,6 +89,8 @@
     import {
         videoPosterMxc,
         videoSourceMxc,
+        videoSource,
+        videoPoster,
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
     import {
@@ -1167,43 +1169,41 @@
     let videoAttempt = $state(0);
     let videoFailed = $state(false);
     let videoThumbFailed = $state(false);
-    // Encrypted video state
+    // Video source and state
+    const videoSrc = $derived(
+        msgtype === "m.video" ? videoSource(content) : null,
+    );
     let encryptedVideoUrl = $state<string | null>(null);
     let videoDecrypting = $state(false);
     let videoDecryptFailed = $state(false);
+    let videoDecryptAttempt = $state(0);
     let videoPlayRequested = $state(false);
-    // The URL to stream, or null when this event carries nothing playable.
-    // For encrypted video, use the decrypted blob URL; for unencrypted, use mxcToHttp.
-    const videoSrcUrl = $derived(() => {
-        if (msgtype !== "m.video") return null;
-        const file = content?.file as EncryptedFile | undefined;
-        if (file) {
-            return encryptedVideoUrl;
-        }
-        return mxcToHttp(videoSourceMxc(content));
-    });
+
     function playVideo() {
         videoFailed = false;
         videoAttempt += 1;
-        const file = content?.file as EncryptedFile | undefined;
-        if (file) {
+        if (videoSrc?.kind === "encrypted") {
             videoPlayRequested = true;
         }
     }
 
     // Decrypt video when play is requested
     $effect(() => {
-        if (msgtype !== "m.video" || !videoPlayRequested) return;
-        const file = content?.file as EncryptedFile | undefined;
-        if (!file) return;
+        if (!videoSrc || videoSrc.kind !== "encrypted" || !videoPlayRequested)
+            return;
+        // Depend on attempt counter for retry
+        void videoDecryptAttempt;
+
         videoDecrypting = true;
         videoDecryptFailed = false;
-        let objectUrl: string | null = null;
-        const mimetype = (content?.info as { mimetype?: string } | undefined)
-            ?.mimetype;
-        fetchDecryptedAttachmentBlob(file, mimetype)
+        let capturedUrl: string | null = null;
+
+        fetchDecryptedAttachmentBlob(
+            videoSrc.file,
+            videoSrc.mimetype ?? undefined,
+        )
             .then((url) => {
-                objectUrl = url;
+                capturedUrl = url;
                 encryptedVideoUrl = url;
                 videoDecrypting = false;
             })
@@ -1211,20 +1211,56 @@
                 videoDecrypting = false;
                 videoDecryptFailed = true;
             });
+
         return () => {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            if (capturedUrl) URL.revokeObjectURL(capturedUrl);
             encryptedVideoUrl = null;
         };
     });
-    // Poster for the unplayed video body. ONLY ever the sender's uploaded
-    // thumbnail — `videoPosterMxc` hands back null otherwise, and we then render
-    // the placeholder card below without requesting anything. Never point this
-    // at the video's own mxc: continuwuity answers /media/thumbnail for a video
-    // with the original file (200 video/mp4), so the <img> would download the
-    // whole video and `onerror` fires far too late to prevent it.
-    const videoThumbnailUrl = $derived(
-        msgtype === "m.video" ? mxcToHttp(videoPosterMxc(content)) : null,
+
+    function retryVideoDecrypt() {
+        videoDecryptAttempt += 1;
+    }
+
+    // Poster for the unplayed video body: decrypt encrypted thumbnail on mount,
+    // or use plain mxcToHttp for unencrypted. Never the video's own url — see
+    // comment in roomMedia.ts videoPoster.
+    const posterSrc = $derived(
+        msgtype === "m.video" ? videoPoster(content) : null,
     );
+    let encryptedPosterUrl = $state<string | null>(null);
+    const videoThumbnailUrl = $derived(
+        !posterSrc
+            ? null
+            : posterSrc.kind === "plain"
+              ? mxcToHttp(posterSrc.mxc)
+              : encryptedPosterUrl,
+    );
+
+    // Decrypt encrypted poster on mount
+    $effect(() => {
+        if (!posterSrc || posterSrc.kind !== "encrypted") return;
+
+        let capturedUrl: string | null = null;
+
+        fetchDecryptedAttachmentBlob(
+            posterSrc.file,
+            posterSrc.mimetype ?? undefined,
+        )
+            .then((url) => {
+                capturedUrl = url;
+                encryptedPosterUrl = url;
+            })
+            .catch(() => {
+                // Poster failure is silent — videoThumbFailed will show placeholder
+                encryptedPosterUrl = null;
+            });
+
+        return () => {
+            if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+            encryptedPosterUrl = null;
+        };
+    });
     const videoDuration = $derived(
         msgtype === "m.video"
             ? formatMediaDuration((content?.info as any)?.duration)
@@ -2240,11 +2276,19 @@
                                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                             />
                         </svg>
-                        <span class="text-xs text-discord-danger"
-                            >Couldn't decrypt video</span
+                        <div class="flex-1 min-w-0">
+                            <span class="text-xs text-discord-danger"
+                                >Couldn't decrypt video</span
+                            >
+                        </div>
+                        <button
+                            class="px-2 py-1 text-xs font-medium text-discord-textPrimary bg-discord-backgroundSecondary hover:bg-discord-messageHover rounded transition-colors"
+                            onclick={retryVideoDecrypt}
                         >
+                            Retry
+                        </button>
                     </div>
-                {:else if videoSrcUrl() === null}
+                {:else if videoSrc === null}
                     <!-- Nothing this client can play: a malformed url. Deliberately NOT
                      clickable — a play affordance that can never resolve a
                      source is a dead click, which is exactly how this gets
@@ -2286,7 +2330,9 @@
                          box vs the poster on play and (b) lets a wide clip's
                          min-content width push past the column and overflow. -->
                         <video
-                            src={videoSrcUrl()}
+                            src={videoSrc?.kind === "plain"
+                                ? mxcToHttp(videoSrc.mxc)
+                                : encryptedVideoUrl}
                             controls
                             autoplay
                             playsinline
