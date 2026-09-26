@@ -42,8 +42,11 @@ src/
     update.ts, desktopUpdater.ts, androidUpdater.ts   -- the three update runtimes
     desktopScreenShare.ts            -- Electron desktopCapturer bridge
     matrix/
-      client.ts                      -- THE SDK boundary
-      crypto.ts                      -- the E2EE subsystem (deliberate exception)
+      client.ts                      -- THE SDK boundary (~8.8k lines)
+      runtime.ts                     -- the client slot + generation counter (~90 lines)
+      media.ts                       -- upload/send/fetch/decrypt media (~470 lines)
+      pluginHost.ts                  -- the plugin host bridge + core composer send (~250 lines)
+      crypto.ts                      -- the E2EE subsystem (deliberate exception, ~1.8k lines)
       pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
     stores/                          -- the rune stores (see "Stores")
     components/
@@ -154,9 +157,10 @@ returning an unsubscribe function).
 
 **Async ownership.** Anything in `client.ts` that awaits more than once must re-check that it still
 owns the client it started with — a stopped client's late callback must not act on its successor's
-state. The idiom is the client reference captured on entry and compared by identity afterwards
-(`const client = matrixClient;` … `if (matrixClient === client)`). Most multi-await functions do
-**not** do this yet; the reconnect teardown is the precedent to copy.
+state. The guard lives in `runtime.ts`: take `const owner = captureClient()` on entry (client plus
+generation), then after each await use `ownedClient(owner)` (null once a successor holds the slot) or
+`ownedClientOrThrow(owner)`. Older code compares the captured client by identity
+(`if (matrixClient === client)`). Many multi-await functions still do neither.
 
 ## Stores
 
@@ -400,8 +404,8 @@ available for third-party plugins to use; the app's own pickers just don't route
 It is grouped into namespaces: `commands` (slash commands), `composer` (buttons, "+" actions,
 `startReply` / `startEdit` / `insertText`), `messages` (outgoing text and content transforms,
 double-tap handlers, action-menu items, decorators, custom embeds), `room` (header buttons and
-panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`openPopover`,
-`registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
+panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`openPopover` with an
+optional accessible `label`, `registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
 boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendMedia` (encrypts in encrypted
 rooms), `sendImage` (plaintext only), `sendSticker`, `react`, and plain room/member summaries, never
 live SDK objects), `storage` (per-plugin namespaced key/value), `settings` (schema-driven — see
@@ -424,8 +428,21 @@ plugin entry.
 `src/lib/plugins/builtins/` and register directly — the loader just calls the in-app module's
 `onload`. Repo plugins are fetched from GitHub (`fetch` the bundle text from `raw.githubusercontent
 .com` → wrap it in a `Blob` → `import(blobUrl)` → `onload`), which needs **no CSP change** because
-`blob:` is already in `script-src`. Fetched bundles are cached in IndexedDB (`bundleCache.ts`, keyed
-by plugin id and exact version) and reused when offline. Every load, `onload` and `onunload` is
+`blob:` is already in `script-src`.
+
+**Repo plugins are pinned to a commit.** Install and update resolve the repo branch to a commit SHA
+through the unauthenticated GitHub commits API (`repo.ts` `commitShaApiUrl`), then fetch the index,
+manifest and bundle at that SHA. If the SHA can't be resolved, the install or update fails with a
+visible error; it never falls back to the branch head. The SHA is stored with the installed record
+and synced with it (`pluginSync.ts`), so another device installs the same commit. `pinnedFileUrl` is
+the only URL builder for plugin files and rejects unsafe paths (`..`, absolute, scheme). Fetched
+bundles are cached in IndexedDB (`bundleCache.ts`, one row per plugin id); a row is reused only when
+its version and SHA match the pinned ones, and offline only when it was cached at that SHA (or is a legacy row with no SHA). A cache miss refetches the same SHA, so with auto-update off the code is frozen. Only an
+update moves the SHA. A record installed before pinning resolves the branch once on the next boot and
+is frozen from then on (`pluginPin.ts` `decideRepoLoad`); if that resolve fails it keeps using its
+cached bundle, and with no cache it loads nothing and shows "needs update". A repo plugin whose
+`manifest.id` doesn't match its index entry, or collides with a built-in or another repo's plugin, is
+refused (`checkInstallId`). Every load, `onload` and `onunload` is
 wrapped in try/catch: a throwing plugin is auto-disabled and flagged, never fatal to boot. Boot runs
 after login/sync (`initPlugins`), built-ins first, loading only the enabled set.
 
@@ -490,8 +507,10 @@ file can leave every test green.
 - `npm run build` — static output in `build/`. Deploy anywhere; SPA fallback is **`index.html`**
   (e.g. nginx `try_files $uri $uri/ /index.html;`). This is also the only place the CSP is applied.
 - `npm run check` — svelte-check. `npm run test` — Vitest, run-once. `npm run format` — Prettier.
-- **`npm run lint` is broken** — there is no root ESLint flat config, so the `eslint .` half
-  errors. Prettier is the formatting source of truth. Don't try to "fix" lint.
+- `npm run lint` — `prettier --check .` (no ESLint). It must pass. `.prettierignore` excludes the
+  local, untracked dirs.
+- CI (`.github/workflows/release.yml`): a `verify` job runs `check`, `test` and `lint`; the Android
+  and desktop build jobs need it to pass.
 - Android: `npx cap sync android`, then build in Android Studio (`webDir` → `build/`).
 - Desktop: `npm run electron:build` (electron-builder).
 
