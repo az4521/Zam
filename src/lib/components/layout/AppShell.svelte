@@ -54,6 +54,18 @@
         consumeWebShareStash,
         base64ToFile,
     } from "$lib/utils/webShareStash";
+    import {
+        takeQuickReplyStashes,
+        deleteQuickReplyStash,
+    } from "$lib/utils/notifReplyStash";
+    import { composerInsertText } from "$lib/utils/composerInsert";
+    import {
+        getDraft,
+        setDraft,
+        type ComposerDraft,
+    } from "$lib/stores/composerDrafts.svelte";
+    import { composerThreadKey } from "$lib/utils/threadContent";
+    import { hostBridge } from "$lib/plugins/hostBridge";
     import { initFavourites } from "$lib/stores/favourites.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -109,7 +121,7 @@
         sessionHealthState,
         resetSyncStoreFallback,
     } from "$lib/stores/sessionHealth.svelte";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
     import {
         getRoomClassification,
         getRoomsInSpace,
@@ -140,9 +152,12 @@
         publishActiveSession,
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
+        updateServiceWorkerReceiptPrivacy,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
         sendTextMessage,
+        sendNotificationQuickReply,
+        resolveQuickReplyThreadRoot,
         markRoomAsRead,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
@@ -1321,6 +1336,12 @@
         updateServiceWorkerNotificationPrivacy(
             settingsState.hideNotificationBody,
         );
+        if (auth.userId) {
+            updateServiceWorkerReceiptPrivacy(
+                auth.userId,
+                settingsState.privateReadReceipts,
+            );
+        }
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
@@ -1357,17 +1378,72 @@
             roomId: string,
             userId?: string | null,
             text?: string,
+            eventId?: string | null,
+            stashId?: string,
         ) => {
             if (!roomId || !text || !text.trim()) return;
             const decision = decideNotificationRoute(
                 { roomId, userId },
                 { userId: auth.userId },
             );
+            // Route refused (other account) → return WITHOUT deleting the stash
+            // so that account can consume it at boot.
             if (decision.action !== "navigate") return;
+
             try {
-                await sendTextMessage(decision.roomId, text.trim());
-            } catch {
-                /* swallow — a failed background reply must not crash the shell */
+                const result = await sendNotificationQuickReply(
+                    decision.roomId,
+                    text.trim(),
+                    eventId,
+                );
+                // Success → delete the stash
+                if (stashId) await deleteQuickReplyStash(stashId);
+            } catch (err) {
+                console.error("Quick reply failed", err);
+                // Failure → restore text as a draft
+                try {
+                    let threadRootId: string | null = null;
+                    if (eventId) {
+                        threadRootId = await resolveQuickReplyThreadRoot(
+                            decision.roomId,
+                            eventId,
+                        );
+                    }
+                    const draftKey = threadRootId
+                        ? composerThreadKey(decision.roomId, threadRootId)
+                        : decision.roomId;
+
+                    const existing = getDraft(draftKey);
+                    const newText = composerInsertText(
+                        existing?.text ?? "",
+                        text.trim(),
+                    );
+                    setDraft(
+                        draftKey,
+                        newText,
+                        new Map(existing?.mentions ?? []),
+                    );
+
+                    // Push to live composer if it's active and not threaded
+                    // (threaded composer doesn't share the same hostBridge hook)
+                    if (
+                        !threadRootId &&
+                        roomsState.activeRoomId === decision.roomId
+                    ) {
+                        hostBridge.insertText?.({
+                            roomId: decision.roomId,
+                            text: text.trim(),
+                        });
+                    }
+
+                    showErrorToast(
+                        "Couldn't send your reply — saved it as a draft",
+                    );
+                } catch {
+                    // Draft restoration failed too — at least delete the stash
+                }
+                // Always delete the stash on failure (already consumed)
+                if (stashId) await deleteQuickReplyStash(stashId);
             }
         };
 
@@ -1433,7 +1509,7 @@
             eventId?: string,
             text?: string,
             userId?: string,
-        ) => quickReplyFromNotification(roomId, userId, text);
+        ) => quickReplyFromNotification(roomId, userId, text, eventId);
 
         (window as any).__matrixMarkAsRead = (
             roomId: string,
@@ -1455,6 +1531,8 @@
                     e.data.roomId,
                     e.data.userId,
                     e.data.text,
+                    e.data.eventId,
+                    e.data.stashId,
                 );
             } else if (e.data?.type === "NOTIF_MARK_READ" && e.data.roomId) {
                 quickMarkReadFromNotification(e.data.roomId, e.data.userId);
@@ -1692,6 +1770,64 @@
                     }
                 } catch {
                     /* no stash / IDB unavailable — ignore */
+                }
+            })();
+        }
+        // Quick-reply stashes (notification actions when the page was closed):
+        // consume all stashes for this account and restore them as drafts.
+        // Never auto-send. Fire-and-forget.
+        if (auth.userId) {
+            (async () => {
+                try {
+                    const stashes = await takeQuickReplyStashes(auth.userId!);
+                    if (stashes.length === 0) return;
+
+                    for (const stash of stashes) {
+                        let threadRootId: string | null = null;
+                        if (stash.eventId) {
+                            try {
+                                threadRootId =
+                                    await resolveQuickReplyThreadRoot(
+                                        stash.roomId,
+                                        stash.eventId,
+                                    );
+                            } catch {
+                                // Best effort — treat as main timeline
+                            }
+                        }
+
+                        const draftKey = threadRootId
+                            ? composerThreadKey(stash.roomId, threadRootId)
+                            : stash.roomId;
+
+                        const existing = getDraft(draftKey);
+                        const newText = composerInsertText(
+                            existing?.text ?? "",
+                            stash.text,
+                        );
+                        setDraft(
+                            draftKey,
+                            newText,
+                            new Map(existing?.mentions ?? []),
+                        );
+
+                        // Push to live composer if it's active and not threaded
+                        if (
+                            !threadRootId &&
+                            roomsState.activeRoomId === stash.roomId
+                        ) {
+                            hostBridge.insertText?.({
+                                roomId: stash.roomId,
+                                text: stash.text,
+                            });
+                        }
+                    }
+
+                    showToast("Your notification reply was saved as a draft", {
+                        tone: "accent",
+                    });
+                } catch (err) {
+                    console.error("Failed to restore quick-reply stashes", err);
                 }
             })();
         }
