@@ -24,10 +24,11 @@
     } from "$lib/stores/shareInbox.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { focusTrap } from "$lib/actions/focusTrap";
 
-    // Flip to false if one-step auto-send proves racy in live-verify: the Send
-    // button then only stages into the composer + opens the room (the redesigned
-    // surface is unchanged). See plan Task 4.
+    // Send button calls deliverShareToRoom with send:true, which sends via
+    // sendShare (bypassing the composer) when online, or stages into the
+    // composer with a toast when offline. Never leaks the user's draft/files.
     const ONE_STEP_SEND = true;
 
     const payload = $derived(shareInboxState.payload);
@@ -90,12 +91,16 @@
         );
     });
 
+    // Nothing to send: a text share whose caption was cleared. Send would
+    // close the sheet with no message, so it stays disabled instead.
+    const empty = $derived(!caption.trim() && previews.length === 0);
+
     function submit() {
-        if (!selectedRoomId) return;
-        deliverShareToRoom(selectedRoomId, {
+        if (!selectedRoomId || empty) return;
+        void deliverShareToRoom(selectedRoomId, {
             caption: caption.trim() ? caption : "",
             send: ONE_STEP_SEND,
-        });
+        }).catch((err) => console.error("Share delivery failed:", err));
     }
 </script>
 
@@ -211,7 +216,7 @@
         <button
             type="button"
             onclick={submit}
-            disabled={!selectedRoomId}
+            disabled={!selectedRoomId || empty}
             class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
             >Send</button
         >
@@ -226,6 +231,7 @@
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="share-target-title"
+                use:focusTrap={{ onEscape: clearShare }}
             >
                 <div
                     class="flex items-center gap-2 border-b border-discord-divider px-2 py-3"

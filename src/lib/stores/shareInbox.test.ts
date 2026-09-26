@@ -42,14 +42,52 @@ vi.mock("$lib/stores/composerFileQueue.svelte", () => ({
 }));
 
 const hostBridge = {
-    insertText: null as null | ((c: unknown) => void),
-    pendingSend: null as null | { roomId: string },
-    sendNow: null as null | ((ctx: { roomId: string }) => void),
+    insertText: null as null | ((c: unknown) => boolean | void),
 };
 vi.mock("$lib/plugins/hostBridge", () => ({
     get hostBridge() {
         return hostBridge;
     },
+}));
+
+const sendShare = vi.fn(
+    async (
+        _roomId: string,
+        _share: { caption: string; files: File[] },
+        _onStepSent?: (i: number) => void,
+    ) => {},
+);
+vi.mock("$lib/matrix/client", () => ({
+    // @ts-ignore - vitest mock wrapper
+    sendShare: (...a: unknown[]) => sendShare(...a),
+}));
+
+vi.mock("$lib/utils/shareSend", async (importOriginal) => {
+    const orig = (await importOriginal()) as any;
+    return orig;
+});
+
+const auth = { syncState: "SYNCING" as string | null };
+vi.mock("$lib/stores/auth.svelte", () => ({
+    get auth() {
+        return auth;
+    },
+}));
+
+vi.mock("$lib/utils/sendGating", async (importOriginal) => {
+    const orig = (await importOriginal()) as any;
+    return orig;
+});
+
+const showErrorToast = vi.fn();
+vi.mock("$lib/stores/toasts.svelte", () => ({
+    // @ts-ignore - vitest mock wrapper
+    showErrorToast: (...a: unknown[]) => showErrorToast(...a),
+}));
+
+vi.mock("$lib/utils/knock", () => ({
+    matrixErrorMessage: (err: unknown, fallback: string) =>
+        err instanceof Error ? err.message : fallback,
 }));
 
 import {
@@ -64,9 +102,12 @@ describe("shareInbox", () => {
         vi.clearAllMocks();
         roomsState.activeRoomId = null;
         hostBridge.insertText = null;
-        hostBridge.pendingSend = null;
-        hostBridge.sendNow = null;
         shareInboxState.payload = null;
+        auth.syncState = "SYNCING";
+        Object.defineProperty(navigator, "onLine", {
+            writable: true,
+            value: true,
+        });
     });
 
     it("rejects an empty share (no modal)", () => {
@@ -106,7 +147,7 @@ describe("shareInbox", () => {
     });
 
     it("delivers text to the ACTIVE room via hostBridge.insertText", () => {
-        const insert = vi.fn();
+        const insert = vi.fn(() => true);
         hostBridge.insertText = insert;
         roomsState.activeRoomId = "!r:x";
         receiveShare({ source: "android", text: "yo" });
@@ -152,16 +193,116 @@ describe("shareInbox", () => {
         );
     });
 
-    it("queues a one-step send for a non-active room before navigating", () => {
-        receiveShare({ source: "web", text: "hi" });
-        deliverShareToRoom("!r:server", { send: true });
-        expect(hostBridge.pendingSend).toEqual({ roomId: "!r:server" });
+    it("send path calls sendShare with exact caption and files, not setDraft/addQueuedFile", async () => {
+        const f = new File([new Uint8Array([1])], "test.png");
+        receiveShare({ source: "web", text: "caption", files: [f] });
+        await deliverShareToRoom("!r:server", { send: true });
+        expect(sendShare).toHaveBeenCalledWith(
+            "!r:server",
+            { caption: "caption", files: [f] },
+            expect.any(Function),
+        );
+        expect(setDraft).not.toHaveBeenCalled();
+        expect(addQueuedFile).not.toHaveBeenCalled();
         expect(navigateToRoom).toHaveBeenCalledWith("!r:server");
     });
 
-    it("does not request a send when opts.send is falsy", () => {
-        receiveShare({ source: "web", text: "hi" });
+    it("offline send path stages everything without calling sendShare", async () => {
+        Object.defineProperty(navigator, "onLine", {
+            writable: true,
+            value: false,
+        });
+        const f = new File([new Uint8Array([1])], "a.png", {
+            type: "image/png",
+        });
+        receiveShare({ source: "web", text: "hi", files: [f] });
+        await deliverShareToRoom("!r:server", { send: true });
+        expect(sendShare).not.toHaveBeenCalled();
+        expect(setDraft).toHaveBeenCalled();
+        expect(addQueuedFile).toHaveBeenCalledWith(
+            "!r:server",
+            f,
+            "a.png",
+            expect.any(String),
+        );
+        expect(showErrorToast).toHaveBeenCalledWith(
+            "You're offline: the share was added to the composer",
+        );
+    });
+
+    it("offline send into a room whose composer isn't mounted keeps the caption", async () => {
+        Object.defineProperty(navigator, "onLine", {
+            writable: true,
+            value: false,
+        });
+        // navigateToRoom flips activeRoomId synchronously, but the composer
+        // still mounted belongs to the previous room: its insertText handler
+        // is room-guarded and declines the text.
+        navigateToRoom.mockImplementationOnce((id: unknown) => {
+            roomsState.activeRoomId = id as string;
+        });
+        roomsState.activeRoomId = "!other:server";
+        hostBridge.insertText = vi.fn(
+            (c: unknown) =>
+                (c as { roomId: string }).roomId === "!other:server",
+        );
+        receiveShare({ source: "web", text: "keep me" });
+        await deliverShareToRoom("!r:server", { send: true });
+        expect(setDraft).toHaveBeenCalledWith(
+            "!r:server",
+            "keep me",
+            expect.any(Map),
+        );
+    });
+
+    it("partial failure (1 of 2 files sent) stages only second file and no caption", async () => {
+        const f1 = new File([new Uint8Array([1])], "a.png", {
+            type: "image/png",
+        });
+        const f2 = new File([new Uint8Array([2])], "b.png", {
+            type: "image/png",
+        });
+        receiveShare({ source: "web", text: "cap", files: [f1, f2] });
+
+        // Mock sendShare to call onStepSent(0) then throw
+        sendShare.mockImplementationOnce(
+            async (
+                roomId: string,
+                share: { caption: string; files: File[] },
+                onStepSent?: (i: number) => void,
+            ) => {
+                onStepSent?.(0); // First file sent
+                throw new Error("Network error");
+            },
+        );
+
+        await deliverShareToRoom("!r:server", { send: true });
+
+        // Should stage only f2 (not f1) and no caption
+        expect(addQueuedFile).toHaveBeenCalledTimes(1);
+        expect(addQueuedFile).toHaveBeenCalledWith(
+            "!r:server",
+            f2,
+            "b.png",
+            expect.any(String),
+        );
+        expect(setDraft).not.toHaveBeenCalled(); // no text remainder
+        expect(showErrorToast).toHaveBeenCalledWith("Network error");
+    });
+
+    it("non-send path still merges text and stages files", () => {
+        const f = new File([new Uint8Array([1])], "test.png", {
+            type: "image/png",
+        });
+        receiveShare({ source: "web", text: "text", files: [f] });
         deliverShareToRoom("!r:server");
-        expect(hostBridge.pendingSend).toBeNull();
+        expect(setDraft).toHaveBeenCalled();
+        expect(addQueuedFile).toHaveBeenCalledWith(
+            "!r:server",
+            f,
+            "test.png",
+            expect.any(String),
+        );
+        expect(sendShare).not.toHaveBeenCalled();
     });
 });

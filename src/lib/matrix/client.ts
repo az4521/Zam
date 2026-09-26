@@ -288,6 +288,7 @@ import {
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
+import { planShareSend } from "$lib/utils/shareSend";
 import {
     createPendingFollowUps,
     isRoomGone,
@@ -2335,6 +2336,34 @@ export async function sendTextMessage(
         "m.mentions": {},
     } as never);
     return res.event_id;
+}
+
+/**
+ * Send a share (files + optional caption, or text-only) directly without
+ * touching the composer's draft/queue/reply state. Bypasses the composer to
+ * avoid leaking the user's unsent draft into a share send. Share captions are
+ * always plain text (no markdown/mentions) — a share never pings.
+ */
+export async function sendShare(
+    roomId: string,
+    share: { caption: string; files: File[] },
+    onStepSent?: (i: number) => void,
+): Promise<void> {
+    const steps = planShareSend(share);
+
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (step.kind === "file") {
+            await sendFile(
+                roomId,
+                step.file,
+                step.caption ? { body: step.caption } : undefined,
+            );
+        } else {
+            await sendTextMessage(roomId, step.text);
+        }
+        onStepSent?.(i);
+    }
 }
 
 export async function sendFormattedMessage(
