@@ -1,12 +1,20 @@
 import {
+    fetchOwnExtendedProfile,
     getUserPresence,
     onPresenceEvent,
     setOwnPresence,
 } from "$lib/matrix/client";
+import {
+    PROFILE_FIELDS,
+    formatStatusMessage,
+    parseStatus,
+    readField,
+} from "$lib/utils/extendedProfile";
 import { normalizePresence, type PresenceState } from "$lib/utils/presence";
 import {
     settingsState,
     setOwnPresenceSetting,
+    setOwnStatusMessageSetting,
 } from "$lib/stores/settings.svelte";
 
 export interface UserPresenceView {
@@ -41,7 +49,30 @@ export function presenceFor(userId: string): UserPresenceView | null {
  *  the homeserver. Rethrows so settings UI can surface the server error. */
 export async function changeOwnPresence(value: PresenceState): Promise<void> {
     setOwnPresenceSetting(value);
-    await setOwnPresence(value);
+    await setOwnPresence(value, settingsState.ownStatusMessage || undefined);
+}
+
+/** Mirror our profile status into the presence status_msg ("" clears it). */
+export async function changeOwnStatusMessage(message: string): Promise<void> {
+    setOwnStatusMessageSetting(message);
+    await setOwnPresence(settingsState.ownPresence, message);
+}
+
+/**
+ * A status cleared from another device leaves this device's presence message
+ * behind, and a server that keeps one message per device (Tuwunel) then shows
+ * whichever is newest. So when this device remembers a message, bring it in
+ * line with the profile status, which is the source of truth.
+ */
+async function reconcileStatusMessage(): Promise<void> {
+    const local = settingsState.ownStatusMessage;
+    if (!local) return;
+    const profile = await fetchOwnExtendedProfile();
+    if (!profile) return;
+    const desired = formatStatusMessage(
+        parseStatus(readField(profile, PROFILE_FIELDS.status)),
+    );
+    if (desired !== local) await changeOwnStatusMessage(desired);
 }
 
 /** Call once on app mount (after login). Returns a cleanup function. */
@@ -49,10 +80,17 @@ export function initPresence(): () => void {
     // Re-apply the persisted choice — the sync loop advertises "online" by
     // default, so away/invisible must be pushed again each session.
     if (settingsState.ownPresence !== "online") {
-        setOwnPresence(settingsState.ownPresence).catch((err) => {
+        setOwnPresence(
+            settingsState.ownPresence,
+            settingsState.ownStatusMessage || undefined,
+        ).catch((err) => {
             console.warn("[presence] could not apply own presence", err);
         });
     }
+
+    reconcileStatusMessage().catch((err) => {
+        console.warn("[presence] could not reconcile status message", err);
+    });
 
     return onPresenceEvent(() => {
         presenceState.presenceTick++;

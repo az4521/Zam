@@ -96,6 +96,17 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         anchor: "theme-rightalign",
     },
     {
+        tab: "account",
+        label: "Show when I am in a call",
+        keywords: ["call status", "in a call", "presence", "profile"],
+    },
+    {
+        tab: "appearance",
+        label: "Show name colours",
+        keywords: ["username colour", "name color", "profile colour"],
+        anchor: "appearance-namecolours",
+    },
+    {
         tab: "appearance",
         label: "Text size",
         keywords: ["font size", "zoom", "bigger text", "message size"],

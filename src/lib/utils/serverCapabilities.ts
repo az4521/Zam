@@ -35,6 +35,25 @@ export function serverSupports(
     return cap?.enabled !== false;
 }
 
+/**
+ * Whether the server lets this user set the extended profile field `key`
+ * (MSC4133 `m.profile_fields`). An absent capability means unrestricted; a
+ * present `allowed` list is exclusive, and `disallowed` always wins.
+ */
+export function profileFieldAllowed(
+    key: string,
+    capabilities: Capabilities | null | undefined,
+): boolean {
+    const cap = capabilities?.["m.profile_fields"];
+    if (!cap) return true;
+    if (cap.enabled === false) return false;
+    if (Array.isArray(cap.disallowed) && cap.disallowed.includes(key)) {
+        return false;
+    }
+    if (Array.isArray(cap.allowed)) return cap.allowed.includes(key);
+    return true;
+}
+
 /** Parse a "v1.11" spec version into [major, minor]. */
 function parseVersion(v: string): [number, number] {
     const m = /^v?(\d+)\.(\d+)/.exec(v);

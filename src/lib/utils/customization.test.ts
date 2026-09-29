@@ -161,6 +161,24 @@ describe("sanitizeCustomization showMatrixIds", () => {
     });
 });
 
+describe("sanitizeCustomization shareCallStatus", () => {
+    it("keeps a boolean and drops anything else", () => {
+        expect(sanitizeCustomization({ shareCallStatus: false })).toEqual({
+            shareCallStatus: false,
+        });
+        expect(sanitizeCustomization({ shareCallStatus: 1 })).toEqual({});
+    });
+});
+
+describe("sanitizeCustomization showNameColours", () => {
+    it("keeps a boolean and drops anything else", () => {
+        expect(sanitizeCustomization({ showNameColours: false })).toEqual({
+            showNameColours: false,
+        });
+        expect(sanitizeCustomization({ showNameColours: "no" })).toEqual({});
+    });
+});
+
 describe("sanitizeCustomization rightAlignOwnBubbles", () => {
     it("keeps a boolean rightAlignOwnBubbles", () => {
         expect(sanitizeCustomization({ rightAlignOwnBubbles: true })).toEqual({

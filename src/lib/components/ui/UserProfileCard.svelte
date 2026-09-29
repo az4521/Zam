@@ -26,7 +26,27 @@
         banUser,
         getRoom,
         memberDisplayName,
+        mxcToHttp,
     } from "$lib/matrix/client";
+    import {
+        getCachedProfile,
+        nameColourFor,
+        requestProfile,
+    } from "$lib/stores/profileFields.svelte";
+    import {
+        PROFILE_FIELDS,
+        describeCall,
+        formatLocalTime,
+        parseBanner,
+        parseBiography,
+        parseCallJoinedTs,
+        parseConnections,
+        parsePronouns,
+        parseStatus,
+        parseTimezone,
+        pronounsToText,
+        readFieldWithLegacy,
+    } from "$lib/utils/extendedProfile";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import {
@@ -86,6 +106,33 @@
         (void presenceState.presenceTick, userId ? presenceFor(userId) : null),
     );
     const dotState = $derived(presence?.state ?? "offline");
+
+    // Extended profile (MSC4133 and friends). Hidden for banned users, as
+    // MSC4440 recommends, so a ban also silences their self-description.
+    $effect(() => {
+        if (userId) requestProfile(userId);
+    });
+    const extended = $derived(
+        member?.membership === "ban" ? undefined : getCachedProfile(userId),
+    );
+    const field = (key: keyof typeof PROFILE_FIELDS) =>
+        readFieldWithLegacy(extended, PROFILE_FIELDS[key]);
+    const bannerSrc = $derived(
+        mxcToHttp(parseBanner(field("banner")), 288, 96, "crop"),
+    );
+    const pronouns = $derived(pronounsToText(parsePronouns(field("pronouns"))));
+    const status = $derived(parseStatus(field("status")));
+    const callText = $derived.by(() => {
+        const joined = parseCallJoinedTs(field("call"));
+        return joined === null ? null : describeCall(joined, Date.now());
+    });
+    const bio = $derived(parseBiography(field("biography")).trim());
+    const timezone = $derived(parseTimezone(field("timezone")));
+    const localTime = $derived(
+        timezone ? formatLocalTime(timezone, new Date()) : null,
+    );
+    const connections = $derived(parseConnections(field("connections")));
+    const nameColour = $derived(nameColourFor(userId));
 
     const mutual = $derived.by(() => {
         void roomsState.roomsTick;
@@ -362,7 +409,15 @@
             : `left: ${position.left}px; top: ${position.top}px;`}
     >
         <!-- Banner -->
-        <div class="h-16 bg-discord-accent"></div>
+        {#if bannerSrc}
+            <img
+                src={bannerSrc}
+                alt=""
+                class="h-16 w-full object-cover bg-discord-accent"
+            />
+        {:else}
+            <div class="h-16 bg-discord-accent"></div>
+        {/if}
 
         <div class="px-4 pb-4">
             <!-- Avatar overlapping the banner -->
@@ -386,7 +441,10 @@
             </div>
 
             <div class="flex items-center gap-1.5 min-w-0">
-                <p class="font-bold text-discord-textPrimary truncate">
+                <p
+                    class="font-bold text-discord-textPrimary truncate"
+                    style:color={nameColour}
+                >
                     {displayName}
                 </p>
                 {#if trustBadge}
@@ -422,10 +480,54 @@
                     {/if}
                 </button>
             </div>
+            {#if pronouns}
+                <p class="text-xs text-discord-textSecondary truncate">
+                    {pronouns}
+                </p>
+            {/if}
+            {#if status}
+                <p class="mt-1 text-xs text-discord-textSecondary truncate">
+                    {#if status.emoji}<span class="mr-1">{status.emoji}</span
+                        >{/if}{status.text}
+                </p>
+            {/if}
+            {#if !status && callText}
+                <p class="mt-1 text-xs text-discord-textSecondary truncate">
+                    {callText}
+                </p>
+            {/if}
             {#if presence?.statusMsg}
                 <p class="mt-1 text-xs text-discord-textSecondary truncate">
                     {presence.statusMsg}
                 </p>
+            {/if}
+            {#if bio}
+                <p
+                    class="mt-2 text-xs text-discord-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
+                >
+                    {bio}
+                </p>
+            {/if}
+            {#if localTime}
+                <p class="mt-2 text-xs text-discord-textMuted">
+                    {localTime} local time ({timezone})
+                </p>
+            {/if}
+            {#if connections.length > 0}
+                <ul class="mt-2 space-y-0.5">
+                    {#each connections as link (link.uri)}
+                        <li class="text-xs truncate">
+                            <a
+                                href={link.uri}
+                                target="_blank"
+                                rel="noopener noreferrer nofollow"
+                                style="color: var(--discord-link, var(--discord-accent-text))"
+                                class="hover:underline"
+                                >{link.description || link.uri}</a
+                            >
+                        </li>
+                    {/each}
+                </ul>
             {/if}
             {#if !member && !isSelf}
                 <p class="mt-1 text-xs text-discord-textMuted">

@@ -21,7 +21,17 @@ import {
     setCameraEnabled,
     setVideoInputDevice,
     onVideoTracksChanged,
+    fetchOwnExtendedProfile,
+    selfHasActiveCall,
+    setOwnProfileField,
 } from "$lib/matrix/client";
+import {
+    PROFILE_FIELDS,
+    buildCall,
+    planFieldWrite,
+    type ExtendedProfile,
+} from "$lib/utils/extendedProfile";
+import { setCachedProfile } from "$lib/stores/profileFields.svelte";
 import { nextFocus, type VideoTileDescriptor } from "$lib/utils/videoTiles";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
@@ -111,6 +121,69 @@ class VoiceCallState {
 
 export const voiceCallState = new VoiceCallState();
 
+// ── Call presence on the profile (MSC4426 m.call) ──────────────────────────
+// Best effort throughout: a server without extended profiles, or one that
+// disallows the field, must never get in the way of a call.
+
+/** Profile keys we wrote for the current call, so leaving deletes only those. */
+let publishedCallKeys: string[] = [];
+
+async function publishCallStatus(joinedAtMs: number): Promise<void> {
+    if (!settingsState.shareCallStatus) return;
+    try {
+        const profile = await fetchOwnExtendedProfile();
+        if (!profile) return;
+        const ops = planFieldWrite(
+            profile,
+            PROFILE_FIELDS.call,
+            buildCall(joinedAtMs),
+        );
+        for (const op of ops) await setOwnProfileField(op.key, op.value);
+        publishedCallKeys = ops.map((op) => op.key);
+        refreshOwnProfileCache();
+    } catch {
+        // Not supported, not allowed, or offline: the call carries on.
+    }
+}
+
+async function clearCallStatus(): Promise<void> {
+    const keys = publishedCallKeys;
+    publishedCallKeys = [];
+    if (keys.length === 0) return;
+    await Promise.allSettled(keys.map((key) => setOwnProfileField(key, null)));
+    refreshOwnProfileCache();
+}
+
+function refreshOwnProfileCache(): void {
+    fetchOwnExtendedProfile()
+        .then((profile: ExtendedProfile | null) => {
+            if (auth.userId) setCachedProfile(auth.userId, profile);
+        })
+        .catch(() => {});
+}
+
+/**
+ * A crashed or closed app never got to clear its call field. Once synced, drop
+ * one that no device of ours is actually in a call for.
+ */
+async function clearStaleCallStatus(): Promise<void> {
+    try {
+        if (voiceCallState.roomId || selfHasActiveCall()) return;
+        const profile = await fetchOwnExtendedProfile();
+        if (!profile) return;
+        const keys = [
+            PROFILE_FIELDS.call.stable,
+            PROFILE_FIELDS.call.unstable,
+        ].filter((key) => profile[key] !== undefined);
+        await Promise.allSettled(
+            keys.map((key) => setOwnProfileField(key, null)),
+        );
+        if (keys.length > 0) refreshOwnProfileCache();
+    } catch {
+        // Best effort.
+    }
+}
+
 /** Subscribe the store to client voice events. Call once from the app shell. */
 export function initVoiceCall(): () => void {
     // The sound engine mirrors persisted settings once per boot (account
@@ -167,8 +240,10 @@ export function initVoiceCall(): () => void {
             peerIds = rosterIds(roomId);
             // Only the FIRST connect anchors the clock: a reconnect arrives
             // here as reconnecting → connected without passing through null.
-            if (voiceCallState.connectedAt === null)
+            if (voiceCallState.connectedAt === null) {
                 voiceCallState.connectedAt = Date.now();
+                void publishCallStatus(voiceCallState.connectedAt);
+            }
             voiceCallState.lastLeftCall = null;
             clearRecentlyLeftTimer();
         }
@@ -187,6 +262,7 @@ export function initVoiceCall(): () => void {
             voiceCallState.screenSharing = false;
             voiceCallState.cameraOn = false;
             voiceCallState.focusedTileKey = null;
+            void clearCallStatus();
             if (prevRoomId) {
                 clearRecentlyLeftTimer();
                 voiceCallState.lastLeftCall = {
@@ -238,7 +314,19 @@ export function initVoiceCall(): () => void {
         prevVideoKeys = tiles.map((t) => t.key);
         voiceCallState.voiceTick++;
     });
+    // Once the first sync lands, sweep a call field left behind by a crash.
+    let swept = false;
+    const stopSweep = $effect.root(() => {
+        $effect(() => {
+            const synced =
+                auth.syncState === "SYNCING" || auth.syncState === "PREPARED";
+            if (!synced || swept) return;
+            swept = true;
+            untrack(() => void clearStaleCallStatus());
+        });
+    });
     return () => {
+        stopSweep();
         clearRecentlyLeftTimer();
         unsubSessions();
         unsubConn();

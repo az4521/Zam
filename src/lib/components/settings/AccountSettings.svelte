@@ -1,5 +1,6 @@
 <script lang="ts">
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
+    import ProfileFieldsEditor from "$lib/components/settings/ProfileFieldsEditor.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         changeAccountPassword,
@@ -292,6 +293,8 @@
                 Saved
             </p>{/if}
     </section>
+
+    <ProfileFieldsEditor {capabilities} {displayName} />
 
     <section class="space-y-2 text-sm">
         <p

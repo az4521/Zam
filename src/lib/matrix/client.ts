@@ -2635,6 +2635,37 @@ export async function setOwnAvatarMxc(mxc: string): Promise<void> {
     await matrixClient.setAvatarUrl(mxc);
 }
 
+/**
+ * The logged-in user's extended (MSC4133) profile, or null when the server
+ * does not support extended profiles.
+ */
+export async function fetchOwnExtendedProfile(): Promise<Record<
+    string,
+    unknown
+> | null> {
+    const userId = matrixClient?.getUserId();
+    return userId ? fetchExtendedProfile(userId) : null;
+}
+
+/** Any user's extended profile, or null when the server has no support. */
+export async function fetchExtendedProfile(
+    userId: string,
+): Promise<Record<string, unknown> | null> {
+    if (!matrixClient) return null;
+    if (!(await matrixClient.doesServerSupportExtendedProfiles())) return null;
+    return matrixClient.getExtendedProfile(userId);
+}
+
+/** Set (value) or delete (null) one extended profile field. */
+export async function setOwnProfileField(
+    key: string,
+    value: unknown | null,
+): Promise<void> {
+    if (!matrixClient) throw new Error("Not logged in");
+    if (value === null) await matrixClient.deleteExtendedProfileProperty(key);
+    else await matrixClient.setExtendedProfileProperty(key, value);
+}
+
 // ── Server capabilities ────────────────────────────────────────────────────
 
 export async function getServerVersions(): Promise<{
@@ -7475,7 +7506,10 @@ export function getUserPresence(userId: string): PresenceInfo | null {
         presence: user.presence,
         currentlyActive: user.currentlyActive,
         lastActiveAgo: user.lastActiveAgo,
-        statusMsg: user.presenceStatusMsg,
+        // Read from the latest presence event, not user.presenceStatusMsg:
+        // the SDK only overwrites that field with a non-empty message, so a
+        // cleared status would otherwise stick until the app reloads.
+        statusMsg: user.events.presence.getContent().status_msg || undefined,
     };
 }
 
@@ -7509,10 +7543,18 @@ const SYNC_PRESENCE: Record<PresenceState, SetPresence> = {
  * and the set_presence param of subsequent /sync long-polls — without the
  * latter the very next sync would flip us straight back to online.
  */
-export async function setOwnPresence(presence: PresenceState): Promise<void> {
+export async function setOwnPresence(
+    presence: PresenceState,
+    statusMsg?: string,
+): Promise<void> {
     if (!matrixClient) throw new Error("Not logged in");
     await matrixClient.setSyncPresence(SYNC_PRESENCE[presence]);
-    await matrixClient.setPresence({ presence });
+    // `undefined` omits status_msg; "" sends it explicitly, which is how a
+    // cleared message is told apart from one we have no opinion about.
+    await matrixClient.setPresence({
+        presence,
+        ...(statusMsg !== undefined ? { status_msg: statusMsg } : {}),
+    });
 }
 
 /** Subscribe to presence changes of any known user. Returns unsubscribe. */
@@ -7524,9 +7566,13 @@ export function onPresenceEvent(
         callback(user.userId);
     matrixClient.on(UserEvent.Presence, handler);
     matrixClient.on(UserEvent.CurrentlyActive, handler);
+    // Fires on every presence event, so a status message that changes on its
+    // own (no state or activity change alongside it) still re-renders.
+    matrixClient.on(UserEvent.LastPresenceTs, handler);
     return () => {
         matrixClient?.off(UserEvent.Presence, handler);
         matrixClient?.off(UserEvent.CurrentlyActive, handler);
+        matrixClient?.off(UserEvent.LastPresenceTs, handler);
     };
 }
 
@@ -7588,6 +7634,17 @@ export interface VoiceMembership {
 }
 
 /** Non-expired MatrixRTC memberships for a room (empty when no call). */
+/** Whether any device of ours is in a call in any room (per synced state). */
+export function selfHasActiveCall(): boolean {
+    const me = matrixClient?.getUserId();
+    if (!matrixClient || !me) return false;
+    return matrixClient
+        .getRooms()
+        .some((room) =>
+            getRoomCallMemberships(room).some((m) => m.userId === me),
+        );
+}
+
 export function getRoomCallMemberships(room: Room): VoiceMembership[] {
     if (!matrixClient) return [];
     const session = matrixClient.matrixRTC.getRoomSession(room);

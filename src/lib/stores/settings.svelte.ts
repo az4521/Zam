@@ -209,6 +209,12 @@ export const settingsState = $state({
      *  iMessage convention). Default OFF (Discord uniform-left). Rides
      *  customization sync so it follows the account across devices. */
     rightAlignOwnBubbles: readBool("rightAlignOwnBubbles", false),
+    /** Draw senders' names in the colour they chose in their profile
+     *  (MSC4522). Default ON. Rides customization sync. */
+    showNameColours: readBool("showNameColours", true),
+    /** Publish "in a call" (MSC4426 m.call) on the profile while connected to
+     *  a voice call. Default ON. Rides customization sync. */
+    shareCallStatus: readBool("shareCallStatus", true),
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
@@ -317,6 +323,10 @@ export const settingsState = $state({
     sendToVerifiedOnly: readAccountBool("sendToVerifiedOnly", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
+    /** The presence status_msg we last mirrored our profile status into. A
+     *  presence update without a status_msg clears it on some servers, so it
+     *  is re-sent with every presence change. */
+    ownStatusMessage: readAccountString("ownStatusMessage") ?? "",
     /** Voice: preferred devices (null = system default). Preferences, not
      *  bindings — resolved against the live device list at each use. */
     audioInputDeviceId: readAccountDeviceId("audioInputDeviceId"),
@@ -464,6 +474,8 @@ export function customizationSnapshot(): ClientCustomization {
         keepSidebarOpen: settingsState.keepSidebarOpen,
         showMatrixIds: settingsState.showMatrixIds,
         rightAlignOwnBubbles: settingsState.rightAlignOwnBubbles,
+        showNameColours: settingsState.showNameColours,
+        shareCallStatus: settingsState.shareCallStatus,
         themePresets: Object.fromEntries(
             Object.entries(settingsState.themePresets).map(([k, v]) => [
                 k,
@@ -526,6 +538,14 @@ export function applyCustomization(c: ClientCustomization): void {
         settingsState.showMatrixIds = c.showMatrixIds;
         writeBool("showMatrixIds", c.showMatrixIds);
     }
+    if (c.shareCallStatus !== undefined) {
+        settingsState.shareCallStatus = c.shareCallStatus;
+        writeBool("shareCallStatus", c.shareCallStatus);
+    }
+    if (c.showNameColours !== undefined) {
+        settingsState.showNameColours = c.showNameColours;
+        writeBool("showNameColours", c.showNameColours);
+    }
     if (c.rightAlignOwnBubbles !== undefined) {
         settingsState.rightAlignOwnBubbles = c.rightAlignOwnBubbles;
         writeBool("rightAlignOwnBubbles", c.rightAlignOwnBubbles);
@@ -584,6 +604,8 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
+    settingsState.ownStatusMessage =
+        readAccountString("ownStatusMessage") ?? "";
     settingsState.audioInputDeviceId =
         readAccountDeviceId("audioInputDeviceId");
     settingsState.audioOutputDeviceId = readAccountDeviceId(
@@ -652,6 +674,18 @@ export function setAlwaysAbsolute(value: boolean): void {
 export function setShowMatrixIds(value: boolean): void {
     settingsState.showMatrixIds = value;
     writeBool("showMatrixIds", value);
+    customizationChanged();
+}
+
+export function setShareCallStatus(value: boolean): void {
+    settingsState.shareCallStatus = value;
+    writeBool("shareCallStatus", value);
+    customizationChanged();
+}
+
+export function setShowNameColours(value: boolean): void {
+    settingsState.showNameColours = value;
+    writeBool("showNameColours", value);
     customizationChanged();
 }
 
@@ -832,6 +866,11 @@ export function setActiveSessionGraceMs(value: number): void {
 export function setSendToVerifiedOnly(value: boolean): void {
     settingsState.sendToVerifiedOnly = value;
     writeAccountBool("sendToVerifiedOnly", value);
+}
+
+export function setOwnStatusMessageSetting(value: string): void {
+    settingsState.ownStatusMessage = value;
+    writeAccountString("ownStatusMessage", value);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {

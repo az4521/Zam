@@ -159,6 +159,7 @@
         clearModalIfOwner,
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
+    import { nameColourFor } from "$lib/stores/profileFields.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
@@ -755,6 +756,7 @@
     const avatarSrc = $derived(
         (void roomsState.roomsTick, getMemberAvatar(room, senderId)),
     );
+    const nameColour = $derived(nameColourFor(senderId));
     const timestamp = $derived(event.getTs());
     const content = $derived.by(() => {
         reactionTick;
@@ -1975,6 +1977,7 @@
                             openProfileCard(senderId, e.currentTarget);
                         }}
                         title={displayName}
+                        style:color={nameColour}
                         class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
                     >
                         {displayName}

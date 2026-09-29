@@ -1,4 +1,5 @@
 <script lang="ts">
+    import ExtendedProfileDebug from "$lib/components/settings/ExtendedProfileDebug.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { getClient, getPushRuleSummary } from "$lib/matrix/client";
     import {
@@ -140,6 +141,8 @@
             />
         </div>
     </section>
+
+    <ExtendedProfileDebug />
 
     <section>
         <p

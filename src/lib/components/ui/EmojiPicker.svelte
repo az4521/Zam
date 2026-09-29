@@ -25,6 +25,8 @@
         onClose: () => void;
         onSwitchToSticker?: () => void;
         onSwitchToGif?: () => void;
+        /** Hide custom emoji packs, for fields that can only hold unicode. */
+        unicodeOnly?: boolean;
     }
 
     let {
@@ -34,6 +36,7 @@
         onClose,
         onSwitchToSticker,
         onSwitchToGif,
+        unicodeOnly = false,
     }: Props = $props();
 
     let search = $state("");
@@ -101,6 +104,7 @@
     // when the space set has not actually changed).
     const customPacks = $derived.by(() => {
         void roomsState.roomsTick;
+        if (unicodeOnly) return [];
         return getCustomEmojiPacks(
             roomsState.activeSpaceId,
             roomsState.spaces,

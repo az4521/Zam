@@ -4,6 +4,7 @@
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import {
         setRightAlignOwnBubbles,
+        setShowNameColours,
         setTimeClock,
         setDateStyle,
         setCustomDatePattern,
@@ -60,6 +61,23 @@
             checked={settingsState.rightAlignOwnBubbles}
             onChange={setRightAlignOwnBubbles}
             label="Right-align my messages (bubble layout)"
+        />
+    </div>
+    <div
+        data-setting-anchor="appearance-namecolours"
+        class="flex items-center gap-3 py-2 border-b border-discord-divider"
+    >
+        <div class="flex-1 min-w-0">
+            <p class="text-sm text-discord-textPrimary">Show name colours</p>
+            <p class="text-xs text-discord-textMuted">
+                Draw people's names in the colour they picked in their profile.
+                Turn off to use the normal text colour for everyone.
+            </p>
+        </div>
+        <ToggleSwitch
+            checked={settingsState.showNameColours}
+            onChange={setShowNameColours}
+            label="Show name colours"
         />
     </div>
     <div
