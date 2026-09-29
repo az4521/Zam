@@ -175,3 +175,23 @@ describe("renderHtml — SEC-S1: only touches text nodes, never attributes", () 
         }
     });
 });
+
+describe("text-style symbols stay as text", () => {
+    it.each(["©", "®", "™", "©️", "®️", "™️"])(
+        "renderHtml leaves %j unreplaced",
+        (sym) => {
+            const out = renderHtml(`Foo${sym} bar`, "emoji");
+            expect(out).not.toContain("<img");
+        },
+    );
+
+    it("renderEmoji returns plain text, not an img", () => {
+        expect(renderEmoji("™", "emoji")).not.toContain("<img");
+    });
+
+    it("still replaces real emoji next to them", () => {
+        const out = renderHtml("™ \u{1F600}", "emoji");
+        expect(out).toContain("1f600.svg");
+        expect(out).not.toContain("2122");
+    });
+});
