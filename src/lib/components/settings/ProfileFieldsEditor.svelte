@@ -28,6 +28,8 @@
         buildConnections,
         buildStatus,
         connectionsProblem,
+        groupTimezones,
+        joinTimezone,
         knownTimezones,
         parseBanner,
         parseBiography,
@@ -36,6 +38,8 @@
         parsePronouns,
         parseStatus,
         parseTimezone,
+        splitTimezone,
+        timezoneCityLabel,
         planFieldWrite,
         formatStatusMessage,
         planLegacyStatusMirror,
@@ -67,6 +71,9 @@
     let statusEmoji = $state("");
     let bioText = $state("");
     let timezoneText = $state("");
+    // The region half of the two-step timezone picker. Kept apart from
+    // timezoneText because a region can be chosen before its city.
+    let tzRegion = $state("");
     let bannerMxc = $state<string | null>(null);
     let colourDark = $state<string | null>(null);
     let colourLight = $state<string | null>(null);
@@ -80,6 +87,15 @@
     let saved = $state(false);
 
     const timezones = knownTimezones();
+    const tzGroups = $derived(
+        groupTimezones(timezones, [
+            parseTimezone(timezoneText),
+            parseTimezone(readField(extProfile, PROFILE_FIELDS.timezone)),
+        ]),
+    );
+    const tzCity = $derived(
+        timezoneText ? splitTimezone(timezoneText).city : "",
+    );
 
     const savedPronouns = $derived(
         parsePronouns(readField(extProfile, PROFILE_FIELDS.pronouns)),
@@ -131,7 +147,9 @@
     const timezoneIssue = $derived(
         timezoneText.trim() && !parseTimezone(timezoneText)
             ? "Use a timezone name like Europe/London."
-            : null,
+            : tzRegion && !timezoneText.trim()
+              ? "Choose a city."
+              : null,
     );
     const connectionsIssue = $derived(connectionsProblem(connectionRows));
     const problem = $derived(statusIssue ?? timezoneIssue ?? connectionsIssue);
@@ -153,15 +171,32 @@
         statusText = savedStatus?.text ?? "";
         statusEmoji = savedStatus?.emoji ?? "";
         bioText = savedBio;
-        timezoneText = savedTimezone;
+        setTimezone(savedTimezone);
         bannerMxc = savedBanner;
         colourDark = savedColour?.on_dark ?? null;
         colourLight = savedColour?.on_light ?? null;
         connectionRows = savedConnections.map((c) => ({ ...c }));
     }
 
+    function setTimezone(zone: string) {
+        timezoneText = zone;
+        tzRegion = zone ? splitTimezone(zone).region : "";
+    }
+
     function useBrowserTimezone() {
-        timezoneText = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    }
+
+    function chooseTzRegion(region: string) {
+        tzRegion = region;
+        // A new region has no city yet; the old zone no longer applies.
+        if (!timezoneText || splitTimezone(timezoneText).region !== region) {
+            timezoneText = "";
+        }
+    }
+
+    function chooseTzCity(city: string) {
+        timezoneText = city ? joinTimezone(tzRegion, city) : "";
     }
 
     function chooseColour() {
@@ -424,13 +459,43 @@
             <div>
                 <span class="text-sm text-discord-textPrimary">Timezone</span>
                 <div class="mt-1 flex gap-2">
-                    <input
-                        bind:value={timezoneText}
-                        list="profile-timezones"
-                        placeholder="Europe/London"
-                        aria-label="Timezone"
-                        class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
-                    />
+                    {#if timezones.length > 0}
+                        <select
+                            value={tzRegion}
+                            onchange={(e) =>
+                                chooseTzRegion(e.currentTarget.value)}
+                            aria-label="Timezone region"
+                            class="w-2/5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-2 outline-none"
+                        >
+                            <option value="">Not set</option>
+                            {#each tzGroups.regions as region (region)}
+                                <option value={region}>{region}</option>
+                            {/each}
+                        </select>
+                        <select
+                            value={tzCity}
+                            onchange={(e) =>
+                                chooseTzCity(e.currentTarget.value)}
+                            disabled={!tzRegion}
+                            aria-label="Timezone city"
+                            class="flex-1 min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-2 outline-none disabled:opacity-50"
+                        >
+                            <option value="">Choose a city</option>
+                            {#each tzGroups.cities[tzRegion] ?? [] as city (city)}
+                                <option value={city}
+                                    >{timezoneCityLabel(city)}</option
+                                >
+                            {/each}
+                        </select>
+                    {:else}
+                        <!-- Old engines cannot list zones: type the name. -->
+                        <input
+                            bind:value={timezoneText}
+                            placeholder="Europe/London"
+                            aria-label="Timezone"
+                            class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
+                        />
+                    {/if}
                     <button
                         type="button"
                         onclick={useBrowserTimezone}
@@ -438,10 +503,6 @@
                         >Use mine</button
                     >
                 </div>
-                <datalist id="profile-timezones">
-                    {#each timezones as zone (zone)}<option value={zone}
-                        ></option>{/each}
-                </datalist>
                 {#if timezoneIssue}<p class="mt-1 text-xs text-discord-danger">
                         {timezoneIssue}
                     </p>{/if}

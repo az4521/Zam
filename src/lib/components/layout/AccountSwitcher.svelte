@@ -335,7 +335,7 @@
             : 'bottom-16 left-2 w-80 rounded-lg pb-2'}"
         closeLabel="Close account menu"
     >
-        {#if isTouch && (view === "presence" || view === "accounts")}
+        {#if isTouch && (view === "presence" || view === "accounts" || view === "status")}
             <div class="p-2">
                 <button
                     type="button"
@@ -344,7 +344,11 @@
                 >
                     <ChevronLeft size={16} /> Back
                 </button>
-                {#if view === "presence"}{@render presenceMenu()}{:else}{@render accountsMenu()}{/if}
+                {#if view === "presence"}{@render presenceMenu()}{:else if view === "accounts"}{@render accountsMenu()}{:else}<div
+                        class="px-2 pt-1"
+                    >
+                        <OwnStatusEditor onDone={() => open("main")} />
+                    </div>{/if}
             </div>
         {:else}
             <!-- Profile card header -->
@@ -408,6 +412,13 @@
 
             {#if view === "status"}
                 <div class="mx-4 mt-3">
+                    <button
+                        type="button"
+                        onclick={() => open("main")}
+                        class="-ml-1 mb-2 flex items-center gap-1 px-1 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                    >
+                        <ChevronLeft size={16} /> Back
+                    </button>
                     <OwnStatusEditor onDone={() => open("main")} />
                 </div>
             {:else}

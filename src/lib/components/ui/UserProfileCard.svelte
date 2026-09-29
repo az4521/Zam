@@ -37,6 +37,7 @@
         PROFILE_FIELDS,
         describeCall,
         formatLocalTime,
+        isSameStatus,
         parseBanner,
         parseBiography,
         parseCallJoinedTs,
@@ -496,7 +497,7 @@
                     {callText}
                 </p>
             {/if}
-            {#if presence?.statusMsg}
+            {#if presence?.statusMsg && !isSameStatus(presence.statusMsg, status)}
                 <p class="mt-1 text-xs text-discord-textSecondary truncate">
                     {presence.statusMsg}
                 </p>

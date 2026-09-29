@@ -9,6 +9,11 @@ import {
     connectionsProblem,
     describeCall,
     formatLocalTime,
+    isSameStatus,
+    groupTimezones,
+    joinTimezone,
+    splitTimezone,
+    timezoneCityLabel,
     formatStatusMessage,
     normalizeColour,
     parseBanner,
@@ -275,5 +280,58 @@ describe("formatStatusMessage", () => {
             "🏃 brb",
         );
         expect(formatStatusMessage(null)).toBe("");
+    });
+});
+
+describe("timezone picker helpers", () => {
+    it("splits and joins zones, including ones with no region", () => {
+        expect(splitTimezone("Europe/London")).toEqual({
+            region: "Europe",
+            city: "London",
+        });
+        expect(splitTimezone("America/Argentina/Buenos_Aires")).toEqual({
+            region: "America",
+            city: "Argentina/Buenos_Aires",
+        });
+        expect(splitTimezone("UTC")).toEqual({ region: "Other", city: "UTC" });
+        for (const zone of ["Europe/London", "UTC", "America/Indiana/Knox"]) {
+            const { region, city } = splitTimezone(zone);
+            expect(joinTimezone(region, city)).toBe(zone);
+        }
+        expect(timezoneCityLabel("New_York")).toBe("New York");
+    });
+
+    it("groups and sorts regions and cities, with Other last", () => {
+        const groups = groupTimezones([
+            "UTC",
+            "Europe/Paris",
+            "Asia/Tokyo",
+            "Europe/London",
+        ]);
+        expect(groups.regions).toEqual(["Asia", "Europe", "Other"]);
+        expect(groups.cities.Europe).toEqual(["London", "Paris"]);
+        expect(groups.cities.Other).toEqual(["UTC"]);
+    });
+
+    it("keeps an extra saved zone the runtime list lacks", () => {
+        const groups = groupTimezones(["Asia/Tokyo"], ["Asia/Calcutta", null]);
+        expect(groups.cities.Asia).toEqual(["Calcutta", "Tokyo"]);
+    });
+});
+
+describe("isSameStatus", () => {
+    const status = { text: "brb", emoji: "🏃" };
+
+    it("matches the mirrored presence message", () => {
+        expect(isSameStatus("🏃 brb", status)).toBe(true);
+        expect(isSameStatus("  🏃 brb ", status)).toBe(true);
+        expect(isSameStatus("brb", status)).toBe(true);
+    });
+
+    it("keeps a different, missing or empty message", () => {
+        expect(isSameStatus("in a meeting", status)).toBe(false);
+        expect(isSameStatus("🏃 brb", null)).toBe(false);
+        expect(isSameStatus("", status)).toBe(false);
+        expect(isSameStatus(undefined, status)).toBe(false);
     });
 });

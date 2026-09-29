@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.9.1
+
+✨ **New**
+
+- Profile: the timezone picker is now two steps. Choose a region (Europe), then a city (London).
+
+🐛 **Fixes**
+
+- Account menu: setting a status now has a Back button, like the presence and account lists.
+- Profile card: a status that this app also writes to your presence message no longer shows twice.
+
 ## v1.9.0
 
 ✨ **New**

@@ -217,6 +217,24 @@ export function formatStatusMessage(status: UserStatus | null): string {
 }
 
 /**
+ * Whether a presence message just repeats the profile status. Our own client
+ * mirrors the status into the presence message ("🌴 On holiday"), so showing
+ * both would print it twice. Whitespace is ignored, and a message equal to
+ * just the status text counts too.
+ */
+export function isSameStatus(
+    presenceMessage: string | null | undefined,
+    status: UserStatus | null,
+): boolean {
+    const message = presenceMessage?.trim();
+    if (!message || !status) return false;
+    return (
+        message === formatStatusMessage(status) ||
+        message === status.text.trim()
+    );
+}
+
+/**
  * Sable and Commet only show a status stored under Commet's own key, as one
  * plain string, so mirror the status there ("🌴 On holiday"). Clearing deletes
  * it, but only if it exists.
@@ -341,6 +359,62 @@ export function knownTimezones(): string[] {
     } catch {
         return [];
     }
+}
+
+/** Region for zones with no "/" in their name, such as "UTC". */
+export const OTHER_REGION = "Other";
+
+/** "Europe/London" to { region: "Europe", city: "London" }. */
+export function splitTimezone(zone: string): { region: string; city: string } {
+    const slash = zone.indexOf("/");
+    return slash === -1
+        ? { region: OTHER_REGION, city: zone }
+        : { region: zone.slice(0, slash), city: zone.slice(slash + 1) };
+}
+
+/** Inverse of {@link splitTimezone}. */
+export function joinTimezone(region: string, city: string): string {
+    return region === OTHER_REGION ? city : `${region}/${city}`;
+}
+
+/** "Buenos_Aires" to "Buenos Aires". */
+export function timezoneCityLabel(city: string): string {
+    return city.replaceAll("_", " ");
+}
+
+export interface TimezoneGroups {
+    /** Region names, sorted, with "Other" last. */
+    regions: string[];
+    /** Sorted city names per region. */
+    cities: Record<string, string[]>;
+}
+
+/**
+ * Zones grouped into regions for a two-step picker. `extra` zones (such as one
+ * already saved on the profile) are included even if the runtime's list omits
+ * them, so a stored alias like Asia/Calcutta never vanishes from the picker.
+ */
+export function groupTimezones(
+    zones: readonly string[],
+    extra: ReadonlyArray<string | null | undefined> = [],
+): TimezoneGroups {
+    const sets = new Map<string, Set<string>>();
+    for (const zone of [...zones, ...extra]) {
+        if (!zone) continue;
+        const { region, city } = splitTimezone(zone);
+        if (!sets.has(region)) sets.set(region, new Set());
+        sets.get(region)!.add(city);
+    }
+    const regions = [...sets.keys()].sort((a, b) =>
+        a === OTHER_REGION ? 1 : b === OTHER_REGION ? -1 : a.localeCompare(b),
+    );
+    const cities: Record<string, string[]> = {};
+    for (const region of regions) {
+        cities[region] = [...sets.get(region)!].sort((a, b) =>
+            a.localeCompare(b),
+        );
+    }
+    return { regions, cities };
 }
 
 // ── Banner (MSC4427) ───────────────────────────────────────────────────────
