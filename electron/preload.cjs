@@ -42,8 +42,16 @@ contextBridge.exposeInMainWorld("desktop", {
     },
     notify: {
         flash: () => ipcRenderer.send("notify:flash"),
+        show: (payload) => ipcRenderer.send("notify:show", payload),
+        close: (id) => ipcRenderer.send("notify:close", id),
+        onEvent: (cb) => {
+            const h = (_e, ev) => cb(ev);
+            ipcRenderer.on("notify:event", h);
+            return () => ipcRenderer.removeListener("notify:event", h);
+        },
     },
     tray: {
+        setUnread: (unread) => ipcRenderer.send("tray:set-unread", !!unread),
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },

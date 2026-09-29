@@ -5,6 +5,7 @@
 Outputs (all committed, so builds never need Python/PIL):
   electron/icons/icon.ico, icon.png       app / taskbar / window icon
   electron/icons/tray-<n>.png             white silhouette + black outline
+  electron/icons/tray-unread-<n>.png      same, with the red unread dot
   electron/icons/trayTemplate(@2x).png    macOS template (black silhouette)
 
 Why hand-built sizes: downscaling the 1024px tile straight to 16-32px leaves a
@@ -62,6 +63,23 @@ def silhouette(n: int, outline_px: float, colour, outline_colour) -> Image.Image
     return out.resize((n, n), RS)
 
 
+def with_unread_dot(im: Image.Image) -> Image.Image:
+    """Red dot (same red as the favicon badge) in the top-right corner."""
+    n = im.width
+    k = 16
+    r = max(3.0, n * 0.24)  # dot radius in px
+    layer = Image.new("RGBA", (n * k, n * k), (0, 0, 0, 0))
+    cx, cy = n - r, r
+    d = ImageDraw.Draw(layer)
+    ring = max(1.0, n / 16)
+    d.ellipse([(cx - r) * k, (cy - r) * k, (cx + r) * k, (cy + r) * k], fill=(255, 255, 255, 255))
+    ri = r - ring
+    d.ellipse([(cx - ri) * k, (cy - ri) * k, (cx + ri) * k, (cy + ri) * k], fill=(237, 66, 69, 255))
+    out = im.copy()
+    out.alpha_composite(layer.resize((n, n), RS))
+    return out
+
+
 def write_ico(path: Path, frames) -> None:
     """Pillow's ICO writer re-derives every size from the biggest frame, which
     throws away the hand-tuned small ones, so write the container ourselves:
@@ -100,7 +118,9 @@ def main():
     write_ico(icons / "icon.ico", frames)
     app_icon(512).save(icons / "icon.png")
     for n in (16, 24, 32, 48, 64):
-        silhouette(n, max(1, n / 16), (255, 255, 255, 255), (0, 0, 0, 255)).save(icons / f"tray-{n}.png")
+        tray = silhouette(n, max(1, n / 16), (255, 255, 255, 255), (0, 0, 0, 255))
+        tray.save(icons / f"tray-{n}.png")
+        with_unread_dot(tray).save(icons / f"tray-unread-{n}.png")
     silhouette(16, 0, (0, 0, 0, 255), None).save(icons / "trayTemplate.png")
     silhouette(32, 0, (0, 0, 0, 255), None).save(icons / "trayTemplate@2x.png")
 

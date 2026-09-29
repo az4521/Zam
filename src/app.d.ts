@@ -44,8 +44,20 @@ declare global {
             };
             notify?: {
                 flash: () => void;
+                show: (payload: {
+                    id: number;
+                    title: string;
+                    body: string;
+                    tag?: string;
+                    silent?: boolean;
+                }) => void;
+                close: (id: number) => void;
+                onEvent: (
+                    cb: (ev: { id: number; type: "click" | "close" }) => void,
+                ) => () => void;
             };
             tray?: {
+                setUnread: (unread: boolean) => void;
                 setMinimizeToClose: (enabled: boolean) => void;
             };
             contextMenu?: {

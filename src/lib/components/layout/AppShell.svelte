@@ -192,7 +192,13 @@
     import { previewForEvent } from "$lib/utils/encryptionState";
     import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
-    import { flashTaskbar, shouldAlertDesktop } from "$lib/utils/desktopAlert";
+    import {
+        type NativeNotificationHandle,
+        flashTaskbar,
+        setTrayUnread,
+        shouldAlertDesktop,
+        showNativeNotification,
+    } from "$lib/utils/desktopAlert";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { decideDrawerSnap, MAX_SNAP_MS } from "$lib/utils/drawerSnap";
@@ -614,7 +620,7 @@
     // would turn a close() into a dependency of the effect that triggers it.
     const postedRoomNotifications = new Map<
         string,
-        { notification: Notification; eventIds: string[] }
+        { notification: { close: () => void }; eventIds: string[] }
     >();
 
     // Latched by closeAllPostedNotifications(): once this session's popups have
@@ -704,40 +710,55 @@
             return;
         // Taskbar flash / dock bounce needs no notification permission.
         flashTaskbar();
-        if (
-            typeof Notification === "undefined" ||
-            Notification.permission !== "granted"
-        )
-            return;
         const sender = getMemberName(room, event.getSender() ?? "");
         const eventId = event.getId();
         // The account this popup belongs to, captured at POST time: the click
         // can land in a completely different session.
         const postedBy = auth.userId;
+        const title = getRoomDisplayName(room);
+        const text = notificationBody({
+            sender,
+            body,
+            hideBody: settingsState.hideNotificationBody,
+        });
         try {
-            const n = new Notification(getRoomDisplayName(room), {
-                body: notificationBody({
-                    sender,
-                    body,
-                    hideBody: settingsState.hideNotificationBody,
-                }),
-                icon: "/favicon.png",
-                badge: "/favicon_foreground.png",
-                // Per ROOM, not per event: a room shows one collapsing
-                // notification instead of a growing stack, and "close what
-                // they've now read" becomes one lookup. `renotify` keeps the
-                // OS alerting on each replacement, which is what a per-event
-                // tag used to give for free. It is a persistent-notification
-                // option, so TypeScript's NotificationOptions omits it —
-                // browsers that don't honour it simply replace silently. The
-                // cast spells out the one extra key instead of asserting to
-                // the bare type, so what we are adding stays visible here
-                // rather than looking like an unexplained cast.
+            // The desktop shell posts through the main process (no web
+            // permission involved); the browser uses the Web Notification API.
+            const native = showNativeNotification({
+                title,
+                body: text,
                 tag: `room:${room.roomId}`,
-                renotify: true,
-                // Silent-tier notifications must not make the OS chime.
                 silent: !loud,
-            } as NotificationOptions & { renotify?: boolean });
+            });
+            if (
+                !native &&
+                (typeof Notification === "undefined" ||
+                    Notification.permission !== "granted")
+            )
+                return;
+            const n: NativeNotificationHandle =
+                native ??
+                (new Notification(title, {
+                    body: text,
+                    icon: "/favicon.png",
+                    badge: "/favicon_foreground.png",
+                    // Per ROOM, not per event: a room shows one collapsing
+                    // notification instead of a growing stack, and "close what
+                    // they've now read" becomes one lookup. `renotify` keeps the
+                    // OS alerting on each replacement, which is what a per-event
+                    // tag used to give for free. It is a persistent-notification
+                    // option, so TypeScript's NotificationOptions omits it —
+                    // browsers that don't honour it simply replace silently. The
+                    // cast spells out the one extra key instead of asserting to
+                    // the bare type, so what we are adding stays visible here
+                    // rather than looking like an unexplained cast.
+                    tag: `room:${room.roomId}`,
+                    renotify: true,
+                    // Silent-tier notifications must not make the OS chime.
+                    silent: !loud,
+                } as NotificationOptions & {
+                    renotify?: boolean;
+                }) as unknown as NativeNotificationHandle);
             n.onclick = () => {
                 routeNotificationTap(room.roomId, postedBy, eventId);
             };
@@ -900,7 +921,7 @@
     // roomId → its live OS notification (null when we chose not to post one,
     // e.g. the window was focused), so we can close a stale notification when
     // the call stops ringing.
-    const notifiedCalls = new Map<string, Notification | null>();
+    const notifiedCalls = new Map<string, { close: () => void } | null>();
 
     /**
      * Close every notification this page posted. The way out of a session —
@@ -941,23 +962,36 @@
         }
     }
 
-    function notifyIncomingCall(roomId: string): Notification | undefined {
+    function notifyIncomingCall(
+        roomId: string,
+    ): { close: () => void } | undefined {
         // Same latch as showDesktopNotification: after a clear, this page is on
         // its way out of the session and must post nothing further.
         if (notificationsShutDown) return;
         if (document.hasFocus()) return;
         flashTaskbar();
-        if (
-            typeof Notification === "undefined" ||
-            Notification.permission !== "granted"
-        )
-            return;
         const room = getRoom(roomId);
         if (!room) return;
         const partnerId = getDMPartnerId(room);
         const name = partnerId ? getMemberName(room, partnerId) : "Someone";
         const postedBy = auth.userId;
         try {
+            const native = showNativeNotification({
+                title: `${name} is calling`,
+                body: "Incoming call",
+                tag: `call:${roomId}`,
+            });
+            if (native) {
+                native.onclick = () => {
+                    routeNotificationTap(roomId, postedBy);
+                };
+                return native;
+            }
+            if (
+                typeof Notification === "undefined" ||
+                Notification.permission !== "granted"
+            )
+                return;
             const n = new Notification(`${name} is calling`, {
                 body: "Incoming call",
                 icon: "/favicon.png",
@@ -2063,6 +2097,12 @@
         return () => {
             updateFaviconBadge(0).catch(() => {});
         };
+    });
+
+    // Desktop tray icon: red dot while there are unread pings.
+    $effect(() => {
+        setTrayUnread(notificationCount > 0);
+        return () => setTrayUnread(false);
     });
 </script>
 

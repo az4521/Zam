@@ -19,6 +19,7 @@ const {
     session,
     desktopCapturer,
     clipboard,
+    Notification,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -30,7 +31,11 @@ const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
 // size so Windows never has to scale a 1024px PNG down for the taskbar/title
 // bar, and the tray glyphs are white-with-black-outline silhouettes.
-const ICONS_DIR = path.join(__dirname, "icons");
+// nativeImage reads through Chromium, not Node's fs, so it cannot see inside
+// app.asar: packaged builds load the icons from the asarUnpack'd copy.
+const ICONS_DIR = path
+    .join(__dirname, "icons")
+    .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
 const ICON_PATH = path.join(
     ICONS_DIR,
     process.platform === "win32" ? "icon.ico" : "icon.png",
@@ -303,6 +308,84 @@ ipcMain.on("notify:flash", () => {
         return;
     if (process.platform === "darwin") app.dock?.bounce("informational");
     else mainWindow.flashFrame(true);
+});
+
+// Unread pings: swap in the tray glyph with the red dot (macOS template images
+// cannot be coloured, so there it is a bullet next to the icon instead).
+ipcMain.on("tray:set-unread", (_e, unread) => {
+    if (!tray) return;
+    tray.setImage(trayImage(!!unread));
+    if (process.platform === "darwin") tray.setTitle(unread ? "\u2022" : "");
+});
+
+// --- OS notifications ------------------------------------------------------
+//
+// Posted from here rather than the renderer's Web Notification API, which
+// depends on a permission state that is not reliably "granted" in the desktop
+// shell (so pings flashed the taskbar but showed no pop-up). Clicks and closes
+// are reported back by id so the renderer keeps its own bookkeeping.
+const liveNotifications = new Map(); // id -> Notification
+const notificationIdByTag = new Map(); // tag -> id
+
+function forgetNotification(id) {
+    liveNotifications.delete(id);
+    for (const [tag, tagId] of notificationIdByTag)
+        if (tagId === id) notificationIdByTag.delete(tag);
+}
+
+function clampText(v, max) {
+    return typeof v === "string" ? v.slice(0, max) : "";
+}
+
+ipcMain.on("notify:show", (_e, payload) => {
+    if (!Notification.isSupported()) return;
+    const { id, title, body, tag, silent } = payload || {};
+    if (!Number.isFinite(id)) return;
+    // Same tag = the previous popup is replaced, like Web Notification's tag.
+    const tagStr = clampText(tag, 200);
+    const previous = tagStr ? notificationIdByTag.get(tagStr) : undefined;
+    if (previous !== undefined) {
+        const old = liveNotifications.get(previous);
+        forgetNotification(previous);
+        try {
+            old?.close();
+        } catch {
+            /* already gone */
+        }
+    }
+    const icon = nativeImage.createFromPath(path.join(ICONS_DIR, "icon.png"));
+    const n = new Notification({
+        title: clampText(title, 256),
+        body: clampText(body, 1024),
+        silent: !!silent,
+        ...(icon.isEmpty() ? {} : { icon }),
+    });
+    liveNotifications.set(id, n);
+    if (tagStr) notificationIdByTag.set(tagStr, id);
+    const report = (type) => {
+        if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send("notify:event", { id, type });
+    };
+    n.on("click", () => {
+        showWindow();
+        report("click");
+    });
+    n.on("close", () => {
+        forgetNotification(id);
+        report("close");
+    });
+    n.show();
+});
+
+ipcMain.on("notify:close", (_e, id) => {
+    const n = liveNotifications.get(id);
+    if (!n) return;
+    forgetNotification(id);
+    try {
+        n.close();
+    } catch {
+        /* already gone */
+    }
 });
 
 ipcMain.on("tray:set-minimize-to-close", (_e, enabled) => {
@@ -658,7 +741,7 @@ async function createWindow() {
 // Tray glyph: white bubble with a black outline (visible on light and dark
 // taskbars), one bitmap per DPI step so it is never resampled by the OS. macOS
 // gets a black template image that the menu bar tints itself.
-function trayImage() {
+function trayImage(unread) {
     if (process.platform === "darwin") {
         const img = nativeImage.createFromPath(
             path.join(ICONS_DIR, "trayTemplate.png"),
@@ -675,7 +758,7 @@ function trayImage() {
         [64, 4],
     ]) {
         const rep = nativeImage.createFromPath(
-            path.join(ICONS_DIR, `tray-${size}.png`),
+            path.join(ICONS_DIR, `tray-${unread ? "unread-" : ""}${size}.png`),
         );
         if (rep.isEmpty()) continue;
         img.addRepresentation({
@@ -689,7 +772,7 @@ function trayImage() {
 }
 
 function createTray() {
-    const img = trayImage();
+    const img = trayImage(false);
     tray = new Tray(
         img.isEmpty() ? nativeImage.createFromPath(ICON_PATH) : img,
     );

@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.8.3
+
+✨ **New**
+
+- Desktop: a red dot appears at the top right of the tray icon while you have unread pings, like the browser tab icon.
+
+🐛 **Fixes**
+
+- Desktop: pings now show a system pop-up. Notifications are posted by the desktop app itself, and clicking one brings the window back and opens the room.
+- Desktop: the taskbar icon no longer shows as blank in installed builds. The icon files are now unpacked so Windows can read them.
+
 ## v1.8.2
 
 ✨ **New**

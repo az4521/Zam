@@ -1,6 +1,6 @@
 {
     "name": "zam",
-    "version": "1.8.2",
+    "version": "1.8.3",
     "private": true,
     "main": "electron/main.cjs",
     "scripts": {
@@ -33,6 +33,9 @@
         "directories": {
             "output": "dist-electron"
         },
+        "asarUnpack": [
+            "electron/icons/**"
+        ],
         "files": [
             "electron/**/*",
             "build/**/*",
