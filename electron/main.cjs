@@ -33,6 +33,7 @@ const BUILD_DIR = path.join(__dirname, "..", "build");
 // bar, and the tray glyphs are white-with-black-outline silhouettes.
 // nativeImage reads through Chromium, not Node's fs, so it cannot see inside
 // app.asar: packaged builds load the icons from the asarUnpack'd copy.
+const APP_USER_MODEL_ID = "moe.crafty.matrix";
 const ICONS_DIR = path
     .join(__dirname, "icons")
     .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
@@ -615,6 +616,26 @@ async function createWindow() {
     const windowIcon = nativeImage.createFromPath(ICON_PATH);
     if (!windowIcon.isEmpty() && process.platform !== "darwin")
         mainWindow.setIcon(windowIcon);
+    // Windows resolves a taskbar button's icon through the Start-menu shortcut
+    // registered for the app's AppUserModelID, and a stale shortcut (a dead
+    // portable/temp-dir one, say) turns it blank. Pin the icon explicitly.
+    if (process.platform === "win32") {
+        try {
+            mainWindow.setAppDetails({
+                appId: APP_USER_MODEL_ID,
+                appIconPath: path.join(ICONS_DIR, "icon.ico"),
+                appIconIndex: 0,
+                // Windows ignores the relaunch icon unless a relaunch command
+                // and display name are supplied alongside it.
+                relaunchCommand: app.isPackaged
+                    ? `"${process.execPath}"`
+                    : `"${process.execPath}" "${app.getAppPath()}"`,
+                relaunchDisplayName: "Zam",
+            });
+        } catch (err) {
+            console.error("setAppDetails failed:", err);
+        }
+    }
 
     // A taskbar flash lasts until the user comes back; clear it (Linux never
     // clears it by itself) as soon as they do.
@@ -802,7 +823,7 @@ if (!app.requestSingleInstanceLock()) {
     app.whenReady().then(() => {
         // Required on Windows for native (Web Notification API) notifications
         // to display and be attributed to the app.
-        app.setAppUserModelId("moe.crafty.matrix");
+        app.setAppUserModelId(APP_USER_MODEL_ID);
         // Must be installed before any renderer can call getDisplayMedia().
         setupDisplayMediaHandler();
         createWindow();
