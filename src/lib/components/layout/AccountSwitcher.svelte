@@ -44,6 +44,7 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
         PROFILE_FIELDS,
+        formatStatusMessage,
         parseBanner,
         parsePronouns,
         parseStatus,
@@ -51,6 +52,7 @@
         readFieldWithLegacy,
     } from "$lib/utils/extendedProfile";
     import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         OWN_PRESENCE_OPTIONS,
         presenceDot,
@@ -388,10 +390,11 @@
                         title="Set your status"
                     >
                         {#if status}
-                            {#if status.emoji}<span class="flex-shrink-0"
-                                    >{status.emoji}</span
-                                >{/if}
-                            <span class="truncate">{status.text}</span>
+                            <span class="truncate"
+                                >{@html renderPlainTextWithTwemoji(
+                                    formatStatusMessage(status),
+                                )}</span
+                            >
                         {:else}
                             <SmilePlus size={16} class="flex-shrink-0" />
                             <span class="italic truncate">Set a status</span>
@@ -406,7 +409,9 @@
                     {displayName}
                 </p>
                 <p class="text-sm text-discord-textSecondary truncate">
-                    {me}{pronouns ? ` • ${pronouns}` : ""}
+                    {me}{@html pronouns
+                        ? ` • ${renderPlainTextWithTwemoji(pronouns)}`
+                        : ""}
                 </p>
             </div>
 

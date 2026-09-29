@@ -4,6 +4,7 @@
     import { fetchOwnExtendedProfile } from "$lib/matrix/client";
     import { saveOwnStatus } from "$lib/matrix/ownStatus";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         MAX_STATUS_TEXT_LENGTH,
         PROFILE_FIELDS,
@@ -74,9 +75,9 @@
             aria-expanded={pickerOpen}
             class="w-9 flex-shrink-0 flex items-center justify-center rounded bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary"
         >
-            {#if emoji}<span class="text-base">{emoji}</span>{:else}<Smile
-                    size={16}
-                />{/if}
+            {#if emoji}<span class="text-base"
+                    >{@html renderPlainTextWithTwemoji(emoji)}</span
+                >{:else}<Smile size={16} />{/if}
         </button>
         <input
             bind:value={text}

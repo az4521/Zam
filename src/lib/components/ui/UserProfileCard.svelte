@@ -37,6 +37,7 @@
         PROFILE_FIELDS,
         describeCall,
         formatLocalTime,
+        formatStatusMessage,
         isSameStatus,
         parseBanner,
         parseBiography,
@@ -72,6 +73,7 @@
     } from "$lib/matrix/crypto";
     import { userTrustBadge } from "$lib/utils/verification";
     import { createStaleGuard } from "$lib/utils/staleGuard";
+    import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         verificationState,
         verifyUser,
@@ -483,13 +485,14 @@
             </div>
             {#if pronouns}
                 <p class="text-xs text-discord-textSecondary truncate">
-                    {pronouns}
+                    {@html renderPlainTextWithTwemoji(pronouns)}
                 </p>
             {/if}
             {#if status}
                 <p class="mt-1 text-xs text-discord-textSecondary truncate">
-                    {#if status.emoji}<span class="mr-1">{status.emoji}</span
-                        >{/if}{status.text}
+                    {@html renderPlainTextWithTwemoji(
+                        formatStatusMessage(status),
+                    )}
                 </p>
             {/if}
             {#if !status && callText}
@@ -499,14 +502,14 @@
             {/if}
             {#if presence?.statusMsg && !isSameStatus(presence.statusMsg, status)}
                 <p class="mt-1 text-xs text-discord-textSecondary truncate">
-                    {presence.statusMsg}
+                    {@html renderPlainTextWithTwemoji(presence.statusMsg)}
                 </p>
             {/if}
             {#if bio}
                 <p
                     class="mt-2 text-xs text-discord-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
                 >
-                    {bio}
+                    {@html renderPlainTextWithTwemoji(bio)}
                 </p>
             {/if}
             {#if localTime}
