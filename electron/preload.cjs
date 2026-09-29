@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld("desktop", {
                 sourceName,
             }),
     },
+    notify: {
+        flash: () => ipcRenderer.send("notify:flash"),
+    },
     tray: {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),

@@ -42,6 +42,9 @@ declare global {
                     sourceName?: string,
                 ) => void;
             };
+            notify?: {
+                flash: () => void;
+            };
             tray?: {
                 setMinimizeToClose: (enabled: boolean) => void;
             };

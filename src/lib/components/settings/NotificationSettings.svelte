@@ -28,8 +28,10 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         setActiveSessionGraceMs,
+        setDesktopAlertMode,
         settingsState,
     } from "$lib/stores/settings.svelte";
+    import type { DesktopAlertMode } from "$lib/utils/desktopAlert";
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
 
     function currentPermission(): NotificationPermission | "unsupported" {
@@ -61,6 +63,24 @@
         soundEnabled = enabled;
         localStorage.setItem("notifSoundEnabled", String(enabled));
     }
+
+    const alertModeOptions: ReadonlyArray<{
+        value: DesktopAlertMode;
+        label: string;
+        title: string;
+    }> = [
+        {
+            value: "loud",
+            label: "Loud only",
+            title: "Only notifications that make a sound",
+        },
+        {
+            value: "all",
+            label: "Silent and loud",
+            title: "Every notification, loud or silent",
+        },
+        { value: "none", label: "None", title: "Never alert on this device" },
+    ];
 
     let graceSaveError = $state(false);
     let graceSavePending = $state(false);
@@ -346,6 +366,34 @@
                 checked={soundEnabled}
                 onChange={setSoundEnabled}
                 label="Notification sound"
+            />
+        </div>
+    </section>
+
+    <section data-setting-anchor="notif-desktop">
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            Desktop alerts
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    Pop-up and taskbar flash
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    Which notifications show a system pop-up and, in the desktop
+                    app, flash the taskbar icon while the window is in the
+                    background.
+                </p>
+            </div>
+            <OptionSelector
+                value={settingsState.desktopAlertMode}
+                options={alertModeOptions}
+                onChange={setDesktopAlertMode}
+                ariaLabel="Desktop alerts"
             />
         </div>
     </section>

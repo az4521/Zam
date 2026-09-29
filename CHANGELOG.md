@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.8.2
+
+✨ **New**
+
+- **Desktop alerts setting:** Settings → Notifications → Desktop alerts chooses which notifications show a pop-up and flash the taskbar: loud only, silent and loud (the default), or none. Silent notifications no longer make the system chime.
+- Desktop: the taskbar button flashes (the dock icon bounces on macOS) when a notification or incoming call arrives while the window is in the background.
+
+🎨 **Icons**
+
+- Android: the notification icon is much bigger, filling the status bar slot instead of sitting in a padded box.
+- Desktop: the app now has a proper taskbar icon on Windows, with hand-sized icons from 16 to 256 px so small sizes stay crisp everywhere.
+- Desktop: the tray icon is the white logo with a black outline, so it shows on light and dark taskbars alike.
+
 ## v1.8.1
 
 🔒 **Privacy & security**

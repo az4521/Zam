@@ -216,6 +216,18 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "notifications",
+        label: "Desktop alerts (pop-up and taskbar flash)",
+        keywords: [
+            "popup",
+            "taskbar",
+            "flash",
+            "desktop notification",
+            "toast",
+        ],
+        anchor: "notif-desktop",
+    },
+    {
+        tab: "notifications",
         label: "Quiet on my other devices",
         keywords: ["active session", "grace", "suppress", "multi-device"],
         anchor: "notif-devices",

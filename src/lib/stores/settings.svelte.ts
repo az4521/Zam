@@ -36,6 +36,10 @@ import {
     type LinkPreviewMedia,
 } from "$lib/utils/linkPreviewPolicy";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
+import {
+    normalizeDesktopAlertMode,
+    type DesktopAlertMode,
+} from "$lib/utils/desktopAlert";
 import type { ClientCustomization } from "$lib/utils/customization";
 import { applyThemeColors } from "$lib/utils/theme";
 import { sanitizeThemeColors, type ThemeColors } from "$lib/utils/themePalette";
@@ -280,6 +284,11 @@ export const settingsState = $state({
      *  key into the ACTIVE account's scope and DELETE it, silently dropping the
      *  toggle for every other account on this device — with no error anywhere. */
     hideNotificationBody: readBool("hideNotificationBody", false),
+    /** Device-global: which notifications raise the OS pop-up and taskbar
+     *  flash: "loud" (sound tweak only), "all" (loud + silent, the default) or
+     *  "none". Device-local by design (readString/writeString, never scoped):
+     *  it is a per-machine call, like hideNotificationBody. */
+    desktopAlertMode: normalizeDesktopAlertMode(readString("desktopAlertMode")),
     /** Keep the mobile room-list drawer open after navigating (Home, spaces,
      *  rooms) instead of auto-closing it. */
     keepSidebarOpen: readBool("keepSidebarOpen", false),
@@ -787,6 +796,12 @@ export function setLinkPreviewMedia(value: LinkPreviewMedia): void {
 export function setHideNotificationBody(value: boolean): void {
     settingsState.hideNotificationBody = value;
     writeBool("hideNotificationBody", value);
+}
+
+export function setDesktopAlertMode(value: DesktopAlertMode): void {
+    const next = normalizeDesktopAlertMode(value);
+    settingsState.desktopAlertMode = next;
+    writeString("desktopAlertMode", next);
 }
 
 export function setKeepSidebarOpen(value: boolean): void {

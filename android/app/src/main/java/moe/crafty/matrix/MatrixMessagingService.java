@@ -680,7 +680,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // only, so it must be a transparent-background silhouette. The
             // adaptive foreground layer is a white-on-transparent logo, unlike
             // ic_launcher (a near-opaque square that would show as a blob).
-            .setSmallIcon(R.mipmap.ic_launcher_adaptive_fore)
+            .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
@@ -826,7 +826,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             this, notificationId + 2, declineIntent, piFlags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher_adaptive_fore)
+            .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle("Incoming call")
             .setContentText(display)
             .setCategory(NotificationCompat.CATEGORY_CALL)

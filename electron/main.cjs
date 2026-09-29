@@ -27,7 +27,14 @@ const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
-const ICON_PATH = path.join(BUILD_DIR, "favicon.png");
+// Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
+// size so Windows never has to scale a 1024px PNG down for the taskbar/title
+// bar, and the tray glyphs are white-with-black-outline silhouettes.
+const ICONS_DIR = path.join(__dirname, "icons");
+const ICON_PATH = path.join(
+    ICONS_DIR,
+    process.platform === "win32" ? "icon.ico" : "icon.png",
+);
 
 let mainWindow = null;
 let tray = null;
@@ -289,6 +296,15 @@ ipcMain.on("updates:set-auto", (_e, enabled) => {
     autoUpdatePref = !!enabled;
 });
 
+// A notification arrived for a window the user is not looking at: flash the
+// taskbar button (Windows/Linux) or bounce the dock icon (macOS).
+ipcMain.on("notify:flash", () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFocused())
+        return;
+    if (process.platform === "darwin") app.dock?.bounce("informational");
+    else mainWindow.flashFrame(true);
+});
+
 ipcMain.on("tray:set-minimize-to-close", (_e, enabled) => {
     minimizeToTrayOnClose = !!enabled;
 });
@@ -511,6 +527,17 @@ async function createWindow() {
         },
     });
 
+    // Belt and braces for the taskbar button: the constructor option is applied
+    // lazily on some Windows setups, an explicit setIcon always sticks.
+    const windowIcon = nativeImage.createFromPath(ICON_PATH);
+    if (!windowIcon.isEmpty() && process.platform !== "darwin")
+        mainWindow.setIcon(windowIcon);
+
+    // A taskbar flash lasts until the user comes back; clear it (Linux never
+    // clears it by itself) as soon as they do.
+    mainWindow.on("focus", () => mainWindow.flashFrame(false));
+    mainWindow.on("show", () => mainWindow.flashFrame(false));
+
     mainWindow.loadURL(url);
 
     const appOrigin = new URL(url).origin;
@@ -628,9 +655,44 @@ async function createWindow() {
     });
 }
 
+// Tray glyph: white bubble with a black outline (visible on light and dark
+// taskbars), one bitmap per DPI step so it is never resampled by the OS. macOS
+// gets a black template image that the menu bar tints itself.
+function trayImage() {
+    if (process.platform === "darwin") {
+        const img = nativeImage.createFromPath(
+            path.join(ICONS_DIR, "trayTemplate.png"),
+        );
+        img.setTemplateImage(true);
+        return img;
+    }
+    const img = nativeImage.createEmpty();
+    for (const [size, scaleFactor] of [
+        [16, 1],
+        [24, 1.5],
+        [32, 2],
+        [48, 3],
+        [64, 4],
+    ]) {
+        const rep = nativeImage.createFromPath(
+            path.join(ICONS_DIR, `tray-${size}.png`),
+        );
+        if (rep.isEmpty()) continue;
+        img.addRepresentation({
+            scaleFactor,
+            width: size,
+            height: size,
+            buffer: rep.toPNG(),
+        });
+    }
+    return img;
+}
+
 function createTray() {
-    const img = nativeImage.createFromPath(ICON_PATH);
-    tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
+    const img = trayImage();
+    tray = new Tray(
+        img.isEmpty() ? nativeImage.createFromPath(ICON_PATH) : img,
+    );
     tray.setToolTip("Zam");
     tray.setContextMenu(
         Menu.buildFromTemplate([

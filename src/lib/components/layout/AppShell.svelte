@@ -192,6 +192,7 @@
     import { previewForEvent } from "$lib/utils/encryptionState";
     import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
+    import { flashTaskbar, shouldAlertDesktop } from "$lib/utils/desktopAlert";
     import { shouldNotifyThreadEvent } from "$lib/utils/threadNotify";
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { decideDrawerSnap, MAX_SNAP_MS } from "$lib/utils/drawerSnap";
@@ -689,19 +690,23 @@
         event: MatrixEvent,
         room: Room,
         body: string,
+        loud: boolean,
     ) {
         // This session's notifications have already been taken down; posting
         // another one now would strand it above the next account's session.
         if (notificationsShutDown) return;
-        if (
-            typeof Notification === "undefined" ||
-            Notification.permission !== "granted"
-        )
-            return;
+        if (!shouldAlertDesktop(settingsState.desktopAlertMode, loud)) return;
         if (
             document.hasFocus() &&
             !roomsState.showInbox &&
             roomsState.activeRoomId === room.roomId
+        )
+            return;
+        // Taskbar flash / dock bounce needs no notification permission.
+        flashTaskbar();
+        if (
+            typeof Notification === "undefined" ||
+            Notification.permission !== "granted"
         )
             return;
         const sender = getMemberName(room, event.getSender() ?? "");
@@ -730,6 +735,8 @@
                 // rather than looking like an unexplained cast.
                 tag: `room:${room.roomId}`,
                 renotify: true,
+                // Silent-tier notifications must not make the OS chime.
+                silent: !loud,
             } as NotificationOptions & { renotify?: boolean });
             n.onclick = () => {
                 routeNotificationTap(room.roomId, postedBy, eventId);
@@ -883,7 +890,7 @@
 
         // Any notifying event also pops a desktop notification.
         if (live && !quietForOtherDevice)
-            showDesktopNotification(event, room, body);
+            showDesktopNotification(event, room, body, loud);
     }
 
     // Incoming DM calls get their own notification and suppression rule: the
@@ -938,12 +945,13 @@
         // Same latch as showDesktopNotification: after a clear, this page is on
         // its way out of the session and must post nothing further.
         if (notificationsShutDown) return;
+        if (document.hasFocus()) return;
+        flashTaskbar();
         if (
             typeof Notification === "undefined" ||
             Notification.permission !== "granted"
         )
             return;
-        if (document.hasFocus()) return;
         const room = getRoom(roomId);
         if (!room) return;
         const partnerId = getDMPartnerId(room);
