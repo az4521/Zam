@@ -1636,6 +1636,17 @@ const messages: Record<MessageKey, string> = {
         "Chiffrer les nouveaux messages directs",
     "sessionSettings.newDmsYouStartAreEncrypted":
         "Les nouveaux messages directs que vous démarrez sont chiffrés par défaut. Les messages directs existants ne changent pas. Désactivez ceci si vous écrivez à des personnes dont le client ne prend pas en charge le chiffrement.",
+    "identityChange.own":
+        "Your cross-signing keys changed. Verify this session again, or reset and re-sign your devices, before trusting encrypted messages.",
+    "identityChange.other":
+        "{user}'s cross-signing identity changed. Encrypted messages to them are held back until you accept the new identity.",
+    "identityChange.accept": "Accept new identity",
+    "identityChange.withdraw": "Withdraw verification",
+    "identityChange.dismiss": "Dismiss identity warning",
+    "sessionSettings.excludeInsecureDevices":
+        "Exclude non-cross-signed devices",
+    "sessionSettings.excludeInsecureDevicesHelp":
+        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Recommended. Turn off only for development or testing.",
     "sessionSettings.onlySendToVerifiedDevices":
         "N'envoyer qu'aux appareils vérifiés",
     "sessionSettings.refuseToEncryptMessagesForSessions":

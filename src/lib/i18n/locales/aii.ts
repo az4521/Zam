@@ -1537,6 +1537,17 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.encryptNewDirectMessages": "ܛܫܝ ܐܓܪ̈ܬܐ ܫܪܝܪ̈ܬܐ ܚܕ̈ܬܐ",
     "sessionSettings.newDmsYouStartAreEncrypted":
         "ܐܓܪ̈ܬܐ ܫܪܝܪ̈ܬܐ ܚܕ̈ܬܐ ܕܫܪܐ ܝܘܬ ܥܕܝܠܐܝܬ ܡܛܫܝ̈ܬܐ ܝܢ. ܐܓܪ̈ܬܐ ܕܐܝܬ ܠܐ ܫܚܠܦܝ. ܛܦܝ ܗܕܐ ܐܢ ܫܕܪܐ ܝܘܬ ܠܢܫ̈ܐ ܕܬܘܟܢܝܬܐ ܕܝܗܘܢ ܠܐ ܡܣܝܥܐ ܛܘܫܝܐ.",
+    "identityChange.own":
+        "Your cross-signing keys changed. Verify this session again, or reset and re-sign your devices, before trusting encrypted messages.",
+    "identityChange.other":
+        "{user}'s cross-signing identity changed. Encrypted messages to them are held back until you accept the new identity.",
+    "identityChange.accept": "Accept new identity",
+    "identityChange.withdraw": "Withdraw verification",
+    "identityChange.dismiss": "Dismiss identity warning",
+    "sessionSettings.excludeInsecureDevices":
+        "Exclude non-cross-signed devices",
+    "sessionSettings.excludeInsecureDevicesHelp":
+        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Recommended. Turn off only for development or testing.",
     "sessionSettings.onlySendToVerifiedDevices": "ܫܕܪ ܒܣ ܠܡܐܢ̈ܐ ܡܫܪܪ̈ܐ",
     "sessionSettings.refuseToEncryptMessagesForSessions":
         "ܠܐ ܛܫܝ ܐܓܪ̈ܬܐ ܩܐ ܓܠܣ̈ܐ ܕܠܐ ܫܪܪܠܘܟ. ܐܢܝ̈ ܠܐ ܒܕ ܩܒܠܝ ܐܓܪ̈ܬܐ ܕܝܘܟ ܒܟܠ - ܐܦ ܓܠܣ̈ܐ ܕܝܘܟ ܕܠܐ ܡܫܪܪ̈ܐ. ܥܕܝܠܐܝܬ ܛܦܝܐ ܝܠܗ.",

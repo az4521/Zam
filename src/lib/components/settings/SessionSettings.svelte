@@ -20,6 +20,7 @@
         getOwnDeviceKeyInfo,
         getDeviceTrust,
         applyVerifiedOnlySending,
+        applyDeviceIsolation,
     } from "$lib/matrix/crypto";
     import { deviceTrustBadge } from "$lib/utils/verification";
     import {
@@ -36,6 +37,7 @@
         settingsState,
         setEncryptNewDms,
         setSendToVerifiedOnly,
+        setExcludeInsecureDevices,
     } from "$lib/stores/settings.svelte";
 
     let devices = $state<DeviceInfo[]>([]);
@@ -168,6 +170,11 @@
     function toggleVerifiedOnly(value: boolean) {
         setSendToVerifiedOnly(value);
         applyVerifiedOnlySending(value);
+    }
+
+    function toggleExcludeInsecure(value: boolean) {
+        setExcludeInsecureDevices(value);
+        applyDeviceIsolation(value);
     }
 
     async function loadTrust() {
@@ -428,6 +435,25 @@
                     checked={settingsState.encryptNewDms}
                     onChange={setEncryptNewDms}
                     label={t("sessionSettings.encryptNewDirectMessages")}
+                />
+            </div>
+            <div
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("sessionSettings.excludeInsecureDevices")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t(
+                            "sessionSettings.excludeInsecureDevicesHelp",
+                        )}
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.excludeInsecureDevices}
+                    onChange={toggleExcludeInsecure}
+                    label={t("sessionSettings.excludeInsecureDevices")}
                 />
             </div>
             <div

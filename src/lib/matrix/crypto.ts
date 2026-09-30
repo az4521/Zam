@@ -30,6 +30,8 @@ import {
     decodeRecoveryKey,
     deriveRecoveryKeyFromPassphrase,
     DecryptionKeyDoesNotMatchError,
+    AllDevicesIsolationMode,
+    OnlySignedDevicesIsolationMode,
 } from "matrix-js-sdk/lib/crypto-api";
 import type {
     VerificationRequest,
@@ -76,6 +78,10 @@ import { supportsPasswordUia } from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
 import { setSessionCryptoStatus } from "$lib/stores/sessionHealth.svelte";
+import {
+    setIdentityAlert,
+    clearIdentityAlerts,
+} from "$lib/stores/identityAlerts.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
@@ -106,6 +112,25 @@ export function applyVerifiedOnlySending(enabled: boolean): void {
     const crypto = getClient()?.getCrypto();
     if (!crypto) return;
     crypto.globalBlacklistUnverifiedDevices = enabled;
+}
+
+/**
+ * MSC4153: apply the device isolation mode. When enabled, keys are only shared
+ * with cross-signed devices (others get `m.room_key.withheld` /
+ * `m.unverified`) and events from non-cross-signed devices fail to decrypt
+ * instead of rendering. Like `globalBlacklistUnverifiedDevices` this is
+ * in-memory only, so it is re-applied on every `initCrypto`.
+ */
+export function applyDeviceIsolation(excludeInsecure: boolean): void {
+    getClient()
+        ?.getCrypto()
+        ?.setDeviceIsolationMode(
+            excludeInsecure
+                ? new OnlySignedDevicesIsolationMode()
+                : new AllDevicesIsolationMode(false),
+        );
+    clearEventShieldCache();
+    bumpTimelineTick();
 }
 
 /**
@@ -152,6 +177,13 @@ export async function initCrypto(
         if (cryptoApi) {
             cryptoApi.globalBlacklistUnverifiedDevices =
                 readScoped("settings:sendToVerifiedOnly", userId) === "true";
+            // MSC4153 default is ON: only an explicit "false" opts out.
+            cryptoApi.setDeviceIsolationMode(
+                readScoped("settings:excludeInsecureDevices", userId) ===
+                    "false"
+                    ? new AllDevicesIsolationMode(false)
+                    : new OnlySignedDevicesIsolationMode(),
+            );
         }
         attachDecryptionListener(client);
         attachSecurityListeners(client);
@@ -234,6 +266,20 @@ function attachSecurityListeners(client: MatrixClient): void {
     for (const event of SECURITY_EVENTS) {
         client.on(event as never, handler as never);
     }
+    // MSC4153: a cross-signing identity changing must be surfaced. The trust
+    // event carries the affected user; our own keys changing arrives as
+    // `KeysChanged`.
+    const trustHandler = (userId: string): void => {
+        void refreshIdentityAlert(userId);
+    };
+    const keysHandler = (): void => {
+        const me = getClient()?.getUserId();
+        if (me) void refreshIdentityAlert(me);
+    };
+    client.on(CryptoEvent.UserTrustStatusChanged as never, trustHandler as never);
+    client.on(CryptoEvent.KeysChanged as never, keysHandler as never);
+    identityHandlers = { trustHandler, keysHandler };
+    keysHandler();
     // `KeyBackupSessionsRemaining` carries a `(remaining: number)` payload, so
     // it can't ride the shared no-arg handler above — it gets its own pair.
     const remainingHandler = (remaining: number): void => {
@@ -250,7 +296,84 @@ function attachSecurityListeners(client: MatrixClient): void {
     securityHandler = handler;
 }
 
+let identityHandlers: {
+    trustHandler: (userId: string) => void;
+    keysHandler: () => void;
+} | null = null;
+
+/**
+ * Re-read one user's cross-signing status and raise or clear their identity
+ * alert. Other users alert on `needsUserApproval` (identity replaced since we
+ * pinned it). Our own account alerts when we were verified before but this
+ * session no longer is: our keys were replaced and devices must re-sign.
+ */
+export async function refreshIdentityAlert(userId: string): Promise<void> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!crypto) return;
+    try {
+        const status = await crypto.getUserVerificationStatus(userId);
+        const own = userId === client?.getUserId();
+        const raised = own
+            ? status.known &&
+              !status.isVerified() &&
+              status.wasCrossSigningVerified()
+            : status.needsUserApproval;
+        setIdentityAlert(
+            raised
+                ? {
+                      userId,
+                      own,
+                      wasVerified: status.wasCrossSigningVerified(),
+                  }
+                : null,
+            userId,
+        );
+    } catch {
+        // Never let an alert lookup break sync or rendering.
+    }
+}
+
+/** Check every joined member of an encrypted room (bounded) for a changed identity. */
+export async function checkRoomIdentities(roomId: string): Promise<void> {
+    const room = getClient()?.getRoom(roomId);
+    if (!room || !isRoomEncrypted(room)) return;
+    const me = getClient()?.getUserId();
+    const members = room
+        .getJoinedMembers()
+        .map((m) => m.userId)
+        .filter((id) => id !== me)
+        .slice(0, 200);
+    await Promise.all(members.map((id) => refreshIdentityAlert(id)));
+}
+
+/** Accept a user's new identity (pin it) so sending to them resumes. */
+export async function acceptIdentityChange(userId: string): Promise<void> {
+    await getClient()?.getCrypto()?.pinCurrentUserIdentity(userId);
+    await refreshIdentityAlert(userId);
+}
+
+/** Drop the "must stay verified" requirement for a user whose identity changed. */
+export async function withdrawVerificationRequirement(
+    userId: string,
+): Promise<void> {
+    await getClient()?.getCrypto()?.withdrawVerificationRequirement(userId);
+    await refreshIdentityAlert(userId);
+}
+
 function detachSecurityListeners(): void {
+    if (securityListenerClient && identityHandlers) {
+        securityListenerClient.off(
+            CryptoEvent.UserTrustStatusChanged as never,
+            identityHandlers.trustHandler as never,
+        );
+        securityListenerClient.off(
+            CryptoEvent.KeysChanged as never,
+            identityHandlers.keysHandler as never,
+        );
+    }
+    identityHandlers = null;
+    clearIdentityAlerts();
     if (securityListenerClient && securityHandler) {
         for (const event of SECURITY_EVENTS) {
             securityListenerClient.off(

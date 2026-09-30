@@ -1560,6 +1560,17 @@ export const en = {
     "sessionSettings.encryptNewDirectMessages": "Encrypt new direct messages",
     "sessionSettings.newDmsYouStartAreEncrypted":
         "New DMs you start are encrypted by default. Existing DMs are left unchanged. Turn this off if you message people whose clients don't support encryption.",
+    "identityChange.own":
+        "Your cross-signing keys changed. Verify this session again, or reset and re-sign your devices, before trusting encrypted messages.",
+    "identityChange.other":
+        "{user}'s cross-signing identity changed. Encrypted messages to them are held back until you accept the new identity.",
+    "identityChange.accept": "Accept new identity",
+    "identityChange.withdraw": "Withdraw verification",
+    "identityChange.dismiss": "Dismiss identity warning",
+    "sessionSettings.excludeInsecureDevices":
+        "Exclude non-cross-signed devices",
+    "sessionSettings.excludeInsecureDevicesHelp":
+        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Recommended. Turn off only for development or testing.",
     "sessionSettings.onlySendToVerifiedDevices":
         "Only send to verified devices",
     "sessionSettings.refuseToEncryptMessagesForSessions":

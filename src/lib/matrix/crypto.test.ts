@@ -85,6 +85,7 @@ function makeClient() {
     const cryptoObj: Record<string, unknown> = {
         onCryptoEvent: h.onCryptoEvent,
         roomEncryptors: h.roomEncryptors,
+        setDeviceIsolationMode: vi.fn(),
     };
     return {
         initRustCrypto: h.initRustCrypto,
@@ -216,6 +217,7 @@ describe("getEventShield", () => {
                 onCryptoEvent: h.onCryptoEvent,
                 roomEncryptors: h.roomEncryptors,
                 getEncryptionInfoForEvent,
+                setDeviceIsolationMode: vi.fn(),
             }),
         };
     }
@@ -252,6 +254,21 @@ describe("getEventShield", () => {
             colour: 1,
             reason: 2,
         });
+    });
+
+    // MSC4153: excluding non-cross-signed devices is the default; the mode is
+    // in-memory only in the SDK so initCrypto must apply it every session.
+    it("applies OnlySignedDevicesIsolationMode at init by default", async () => {
+        const mod = await import("./crypto");
+        const client = makeShieldClient(vi.fn());
+        const cryptoApi = client.getCrypto();
+        client.getCrypto = () => cryptoApi;
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        const arg = cryptoApi.setDeviceIsolationMode.mock.calls[0]?.[0] as {
+            kind: number;
+        };
+        expect(arg?.kind).toBe(1); // DeviceIsolationModeKind.OnlySigned
     });
 
     it("returns null when the event is unencrypted or not yet decrypted", async () => {
@@ -1204,5 +1221,49 @@ describe("startUserVerification", () => {
             "@them:example.org",
             "!dm:example.org",
         );
+    });
+});
+
+// MSC4153: a changed cross-signing identity must raise an alert.
+describe("refreshIdentityAlert", () => {
+    const status = (over: Record<string, unknown>) => ({
+        known: true,
+        needsUserApproval: false,
+        isVerified: () => false,
+        wasCrossSigningVerified: () => false,
+        ...over,
+    });
+    async function run(userId: string, st: unknown) {
+        vi.resetModules();
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => ({ getUserVerificationStatus: async () => st }),
+        });
+        const mod = await import("./crypto");
+        const store = await import("$lib/stores/identityAlerts.svelte");
+        await mod.refreshIdentityAlert(userId);
+        return store.identityAlertState.alerts;
+    }
+
+    it("alerts when another user's identity needs approval", async () => {
+        const alerts = await run(
+            "@bob:example.org",
+            status({ needsUserApproval: true }),
+        );
+        expect(alerts).toEqual([
+            { userId: "@bob:example.org", own: false, wasVerified: false },
+        ]);
+    });
+
+    it("alerts when our own verified identity is replaced", async () => {
+        const alerts = await run(
+            "@me:example.org",
+            status({ wasCrossSigningVerified: () => true }),
+        );
+        expect(alerts[0]).toMatchObject({ own: true, wasVerified: true });
+    });
+
+    it("raises nothing for an unchanged identity", async () => {
+        expect(await run("@bob:example.org", status({}))).toEqual([]);
     });
 });

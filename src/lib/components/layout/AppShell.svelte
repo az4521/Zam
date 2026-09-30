@@ -116,6 +116,8 @@
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
     import CryptoUnavailableBanner from "$lib/components/layout/CryptoUnavailableBanner.svelte";
+    import IdentityChangeBanner from "$lib/components/layout/IdentityChangeBanner.svelte";
+    import { checkRoomIdentities } from "$lib/matrix/crypto";
     import {
         markNotification,
         clearReadNotifications,
@@ -1079,6 +1081,13 @@
     // on classic /sync.
     $effect(() => {
         setSlidingSyncActiveRoom(roomsState.activeRoomId);
+    });
+
+    // MSC4153: surface changed cross-signing identities among the open room's
+    // members.
+    $effect(() => {
+        const id = roomsState.activeRoomId;
+        if (id) void checkRoomIdentities(id);
     });
 
     $effect(() => {
@@ -2387,4 +2396,5 @@
 
 <UpdateToastWatch />
 <CryptoUnavailableBanner />
+<IdentityChangeBanner />
 <JoinConsentDialog />

@@ -322,6 +322,9 @@ export const settingsState = $state({
      *  Default OFF: turning it on means messages silently fail to reach any
      *  device the user hasn't verified. */
     sendToVerifiedOnly: readAccountBool("sendToVerifiedOnly", false),
+    /** MSC4153: only share keys with / decrypt from cross-signed devices.
+     *  Default ON; the off switch exists for development and testing. */
+    excludeInsecureDevices: readAccountBool("excludeInsecureDevices", true),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
     /** The presence status_msg we last mirrored our profile status into. A
@@ -604,6 +607,10 @@ export function reloadAccountSettings(): void {
         "sendToVerifiedOnly",
         false,
     );
+    settingsState.excludeInsecureDevices = readAccountBool(
+        "excludeInsecureDevices",
+        true,
+    );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.ownStatusMessage =
         readAccountString("ownStatusMessage") ?? "";
@@ -867,6 +874,11 @@ export function setActiveSessionGraceMs(value: number): void {
 export function setSendToVerifiedOnly(value: boolean): void {
     settingsState.sendToVerifiedOnly = value;
     writeAccountBool("sendToVerifiedOnly", value);
+}
+
+export function setExcludeInsecureDevices(value: boolean): void {
+    settingsState.excludeInsecureDevices = value;
+    writeAccountBool("excludeInsecureDevices", value);
 }
 
 export function setOwnStatusMessageSetting(value: string): void {
