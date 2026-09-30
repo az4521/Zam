@@ -18,6 +18,8 @@
         onDecryptedTimelineEvent,
         onLocalEchoUpdated,
         onSyncPrepared,
+        isInitialSyncComplete,
+        isInLiveTimeline,
         onReactionEvent,
         onPollEvent,
         onEditEvent,
@@ -528,8 +530,40 @@
 
     let jumpingToEventId = $state<string | null>(null);
 
+    // A notification tap on a cold start / PWA resume can land here before the
+    // first sync has delivered the notified event. Wait (bounded) for it rather
+    // than falling straight into a detached context view: that view ignores
+    // live events, so the room looked frozen with none of the newer messages.
+    function waitForInitialSync(timeoutMs: number): Promise<void> {
+        if (isInitialSyncComplete()) return Promise.resolve();
+        return new Promise((resolve) => {
+            const done = () => {
+                clearTimeout(timer);
+                unsub();
+                resolve();
+            };
+            const timer = setTimeout(done, timeoutMs);
+            const unsub = onSyncPrepared(done);
+        });
+    }
+
     async function scrollToMessage(eventId: string) {
-        let el = document.querySelector(`[data-event-id="${eventId}"]`);
+        const query = () =>
+            document.querySelector(`[data-event-id="${eventId}"]`);
+        let el = query();
+        if (!el) {
+            const rid = room.roomId;
+            await waitForInitialSync(10_000);
+            if (room.roomId !== rid) return;
+            // In the live timeline but not rendered yet: this effect runs in
+            // the same flush as the room-open effect that re-reads the list,
+            // so wait for that render instead of building a context window.
+            if (isInLiveTimeline(room, eventId)) {
+                await tick();
+                if (room.roomId !== rid) return;
+                el = query();
+            }
+        }
         if (!el) {
             jumpingToEventId = eventId;
             // MessageArea is one persistent instance (not keyed by room), so
@@ -570,6 +604,9 @@
         scrollStopTimeout = setTimeout(() => {
             target.classList.remove("message-highlight");
             stopScrollIntoView();
+            // A short context window can sit at the bottom without ever
+            // scrolling, so onScroll would never page it forward.
+            catchUpContextView();
         }, 2000);
     }
 
@@ -921,6 +958,13 @@
         untrack(() => {
             const events = getTimelineMessages(room);
             setMessages(id, events);
+            // Re-derive "more history?" on every visit instead of trusting a
+            // verdict latched on an earlier one. While we were elsewhere a
+            // gappy sync may have replaced this room's timeline with a short
+            // fresh one that CAN paginate; a stale false then showed only the
+            // post-gap messages (older ones "vanished") and scrolling to the
+            // top did nothing. loadPreviousMessages re-checks the real token.
+            setCanLoadMore(id, true);
             // Determine if there are unread messages by checking read marker vs last event
             const marker = getReadUpToEventId(room);
             const lastEventId = events[events.length - 1]?.getId();
@@ -984,6 +1028,10 @@
         const currentRoom = room;
         const currentRoomId = roomId;
         const unsub = onSyncPrepared(() => {
+            if (isContextView) {
+                catchUpContextView();
+                return;
+            }
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
             backfillFromTop();
             if (isAtBottom) markAsReadIfDisplayable();
@@ -1024,7 +1072,15 @@
         const currentRoom = room;
         const currentRoomId = roomId;
         const unsub = onTimelineReset(currentRoom, () => {
-            if (isContextView) return; // context view uses its own timeline set
+            // Context view uses its own window; just let it catch up.
+            if (isContextView) {
+                // The store's copy is now stale; refresh it so rejoinLive (or
+                // a room switch back) does not briefly show pre-gap events.
+                setMessages(currentRoomId, getTimelineMessages(currentRoom));
+                setCanLoadMore(currentRoomId, true);
+                catchUpContextView();
+                return;
+            }
             // Capture what the reset is about to discard — the handler runs
             // before setMessages, so `messages` is still the pre-reset list.
             const prevOldestId = isAtBottom ? undefined : messages[0]?.getId();
@@ -1162,10 +1218,18 @@
     // Subscribe to new live timeline events (incoming and confirmed own messages)
     $effect(() => {
         const currentRoomId = roomId; // capture for closure
+        // Capture the Room too: the prop can already point at the NEXT room
+        // before this effect is torn down, and re-reading `room` in the
+        // callback then wrote that room's events under this room's id.
+        const currentRoom = room;
         const unsub = onTimelineEvent(
             (event: MatrixEvent, eventRoom: Room, isLiveAppend: boolean) => {
                 bumpUnreadTick();
-                if (eventRoom.roomId !== currentRoomId || isContextView) return;
+                if (eventRoom.roomId !== currentRoomId) return;
+                if (isContextView) {
+                    catchUpContextView();
+                    return;
+                }
                 if (isLiveAppend) {
                     // Normal tail append — fast path, the event is the newest.
                     appendMessage(currentRoomId, event);
@@ -1178,7 +1242,10 @@
                     // timeline, out-of-order related event). appendMessage would
                     // place it at the tail in the wrong spot; re-read the whole
                     // timeline so it lands in its correct position.
-                    setMessages(currentRoomId, getTimelineMessages(room));
+                    setMessages(
+                        currentRoomId,
+                        getTimelineMessages(currentRoom),
+                    );
                     if (isAtBottom) {
                         tick().then(() => scrollToBottom(false));
                     }
@@ -1236,9 +1303,10 @@
     // Subscribe to local echo updates (own pending messages in Detached ordering mode)
     $effect(() => {
         const currentRoomId = roomId;
+        const currentRoom = room;
         const unsub = onLocalEchoUpdated((eventRoom: Room) => {
-            if (eventRoom.roomId === currentRoomId) {
-                setMessages(currentRoomId, getTimelineMessages(room));
+            if (eventRoom.roomId === currentRoomId && !isContextView) {
+                setMessages(currentRoomId, getTimelineMessages(currentRoom));
                 if (isAtBottom) {
                     tick().then(() => scrollToBottom(false));
                 }
@@ -1465,6 +1533,12 @@
             markAsReadIfDisplayable();
         // Loading older messages near the top is driven by the IntersectionObserver
         // on topSentinelEl (see below) — more reliable than a scroll-position check.
+        // Backstop: the observer only fires on an intersection TRANSITION, so a
+        // fill that ended while the sentinel stayed in view (a failed load, a
+        // latch cleared later) never restarts on its own. Any scroll near the
+        // top re-asks; the gate makes a redundant call a no-op.
+        if (!loadingOlder && hasOlderToLoad() && isTopSentinelNearViewport())
+            void backfillFromTop();
         // Loading newer messages (and rejoining live) is driven here: while in a
         // jumped-to context view, approaching the bottom pages the window forward.
         if (isContextView) {
@@ -1597,17 +1671,38 @@
     // rejoin the present" that jumping to an old message used to lack.
     async function maybeLoadNewer() {
         if (loadingNewer || !isContextView || !contextWindow) return;
-        if (contextWindowCanPaginate(contextWindow, true)) {
+        const win = contextWindow;
+        if (contextWindowCanPaginate(win, true)) {
             loadingNewer = true;
+            let grew = false;
             try {
-                await paginateContextWindow(contextWindow, true);
-                contextMessages = getContextWindowEvents(contextWindow);
+                grew = await paginateContextWindow(win, true);
+                if (contextWindow !== win) return; // left the view mid-load
+                contextMessages = getContextWindowEvents(win);
             } finally {
                 loadingNewer = false;
             }
-        } else if (isAtBottom) {
+            // Only onScroll drives this, and a window whose content still fits
+            // (or sits at the bottom) produces no further scroll events, so
+            // keep going until it overflows or reaches the live edge.
+            await tick();
+            if (grew && contextWindow === win && isAtBottom)
+                void maybeLoadNewer();
+        } else if (isAtBottom && intervalId === undefined) {
+            // Not while a jump's scroll-into-view loop is still pinning the
+            // target: rejoining scrolls to the bottom and would yank it away.
             rejoinLive();
         }
+    }
+
+    // Something new happened in this room while a context view is showing
+    // (live message, sync caught up, timeline reset). The view ignores live
+    // events, so a user parked at its bottom saw nothing new arrive — the
+    // notification-tap case where newer messages never loaded. Page the window
+    // forward / hand back to live exactly as scrolling to the bottom would.
+    function catchUpContextView() {
+        if (!isContextView || !isAtBottom) return;
+        void maybeLoadNewer();
     }
 
     // Leave context view and return to the live timeline, scrolled to the
@@ -1641,6 +1736,14 @@
         return sentRect.bottom > rootRect.top - 400;
     }
 
+    // Retry timer for a backfill that failed while the top was in view.
+    let backfillRetryTimer: ReturnType<typeof setTimeout> | undefined;
+    const BACKFILL_RETRY_MS = 3000;
+    $effect(() => {
+        roomId; // a pending retry belongs to the room it was scheduled in
+        return () => clearTimeout(backfillRetryTimer);
+    });
+
     // Keep paginating older history while the top is in view and the server still
     // has more. Covers both "scrolled to the top" and "too few messages to fill
     // the viewport". Driven by the IntersectionObserver and the explicit fill
@@ -1658,6 +1761,18 @@
                 await loadOlderMessages();
                 await tick();
             }
+        } catch (err) {
+            // A failed /messages (flaky network, app just resumed) used to
+            // escape as an unhandled rejection and end the fill for good: the
+            // sentinel was still intersecting, so the observer (which only
+            // fires on a transition) never asked again and the top of the
+            // room sat there with no spinner and no pagination. Retry.
+            console.warn("Loading older messages failed; retrying:", err);
+            clearTimeout(backfillRetryTimer);
+            backfillRetryTimer = setTimeout(
+                () => void backfillFromTop(),
+                BACKFILL_RETRY_MS,
+            );
         } finally {
             // A request arrived while we held the gate (typically this room's
             // own first fill, swallowed by the previous room's loop): serve it.

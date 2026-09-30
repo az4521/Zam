@@ -1,4 +1,10 @@
 import type { MatrixEvent } from "matrix-js-sdk";
+import { dedupeById } from "$lib/utils/pendingEchoes";
+
+// MessageArea renders these with a keyed {#each} on event id; a single repeated
+// id throws `each_key_duplicate` and blanks the whole room. Every write goes
+// through this so no source (SDK echo quirks, a racing re-read) can do that.
+const byId = (e: MatrixEvent) => e.getId();
 
 interface RoomMessages {
     events: MatrixEvent[];
@@ -30,7 +36,7 @@ export function getMessages(roomId: string): MatrixEvent[] {
 export function setMessages(roomId: string, events: MatrixEvent[]): void {
     const existing = messagesState.byRoom[roomId];
     messagesState.byRoom[roomId] = {
-        events,
+        events: dedupeById(events, byId),
         isLoading: false,
         canLoadMore: existing?.canLoadMore ?? true,
     };
@@ -64,7 +70,7 @@ export function prependMessages(roomId: string, events: MatrixEvent[]): void {
     const existingIds = new Set(existing?.events.map((e) => e.getId()) ?? []);
     const newEvents = events.filter((e) => !existingIds.has(e.getId()));
     messagesState.byRoom[roomId] = {
-        events: [...newEvents, ...(existing?.events ?? [])],
+        events: dedupeById([...newEvents, ...(existing?.events ?? [])], byId),
         isLoading: false,
         canLoadMore: events.length >= 30,
     };

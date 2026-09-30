@@ -168,6 +168,11 @@ import {
 import { receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
+import {
+    classifyPendingEcho,
+    dedupeById,
+    isLocalEchoId,
+} from "$lib/utils/pendingEchoes";
 import { firstReusableDmRoom } from "$lib/utils/dmReuse";
 import { pickDmRoomVersion } from "$lib/utils/dmRoomVersion";
 import { planReconcileReload } from "$lib/utils/reconcileReload";
@@ -1007,8 +1012,13 @@ const SLIDING_ROOM_STATE: string[][] = [
 let activeSlidingSync: SlidingSync | null = null;
 let slidingActiveRoomId: string | null = null;
 
-// Rooms whose missing backward token has already been probed for this session.
-const slidingPrimedRooms = new Set<string>();
+// Live timelines whose missing backward token has already been probed. Keyed
+// by the timeline object, not the room id: a gappy/limited sync replaces the
+// room's live timeline, often again without a prev_batch under sliding sync,
+// and a once-per-room guard left that fresh timeline un-paginatable for the
+// rest of the session (scroll to the top, nothing loads). A WeakSet also lets
+// discarded timelines be collected.
+let slidingPrimedTimelines = new WeakSet<EventTimeline>();
 
 // Set when the account asked for sliding sync but the server can't do it.
 let slidingSyncFallbackReason: string | null = null;
@@ -1057,7 +1067,7 @@ async function buildSlidingSync(
 ): Promise<SlidingSync | undefined> {
     activeSlidingSync = null;
     slidingSyncFallbackReason = null;
-    slidingPrimedRooms.clear();
+    slidingPrimedTimelines = new WeakSet();
     const userId = client.getUserId();
     if (!userId || !isSlidingSyncEnabled(userId)) return undefined;
 
@@ -2114,21 +2124,61 @@ function collapseCallEvents(events: MatrixEvent[]): MatrixEvent[] {
     );
 }
 
+// Drop pending echoes the server already has (see utils/pendingEchoes): a SENT
+// echo whose real copy reached the timeline without a matching transaction_id,
+// or one restored from localStorage as NOT_SENT after the app was killed
+// mid-send. Left alone they render as "failed" and collide with the real event
+// on its id. removePendingEvent (not cancelPendingEvent, whose CANCELLED path
+// also removes the REAL event from the timeline by the shared id) also rewrites
+// the persisted pending list, so the stale echo does not come back on reload.
+function pruneDeliveredEchoes(room: Room): void {
+    const pending = room.getPendingEvents();
+    if (pending.length === 0) return;
+    for (const echo of pending) {
+        const id = echo.getId();
+        const verdict = classifyPendingEcho({
+            id,
+            status: echo.status,
+            inTimeline:
+                !isLocalEchoId(id) &&
+                !!room.getUnfilteredTimelineSet().findEventById(id!),
+        });
+        if (verdict === "drop") room.removePendingEvent(id!);
+    }
+}
+
 export function getTimelineMessages(room: Room): MatrixEvent[] {
+    pruneDeliveredEchoes(room);
     const timeline = collapseCallEvents(
         room.getLiveTimeline().getEvents().filter(isRenderableTimelineEvent),
     );
+    const timelineIds = new Set(timeline.map((e) => e.getId()));
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
     // can see a failed send and retry/delete it (see resendMessage /
-    // deleteFailedMessage); only drop ones already cancelled.
+    // deleteFailedMessage); only drop ones already cancelled, and never one
+    // whose id the timeline already renders (a duplicate key would throw in
+    // MessageArea's keyed {#each} and blank the whole room).
     const pending = room
         .getPendingEvents()
         .filter(
             (e) =>
                 isRenderableTimelineEvent(e) &&
-                e.status !== EventStatus.CANCELLED,
+                e.status !== EventStatus.CANCELLED &&
+                !timelineIds.has(e.getId()),
         );
-    return [...timeline, ...pending];
+    return dedupeById([...timeline, ...pending], (e) => e.getId());
+}
+
+/** Whether `eventId` is in the room's live timeline (or is one of our pending
+ *  echoes) — i.e. the normal live view can show it without a context window. */
+export function isInLiveTimeline(room: Room, eventId: string): boolean {
+    return (
+        room
+            .getLiveTimeline()
+            .getEvents()
+            .some((e) => e.getId() === eventId) ||
+        room.getPendingEvents().some((e) => e.getId() === eventId)
+    );
 }
 
 export function getLatestTimelineEvent(room: Room): MatrixEvent | undefined {
@@ -4577,13 +4627,13 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     // Sliding sync can hand over a room with a short (or all-hidden) timeline
     // and no prev_batch even though older history exists, which scrollback()
     // would read as "start of history" and the room would open as empty. Probe
-    // once per room; the once-only guard is what keeps a genuinely complete
+    // once per live timeline; the once-only guard is what keeps a genuinely complete
     // room from being re-primed (and re-paged) forever.
     const slidingProbe =
         isUsingSlidingSync() &&
         !hasBackwardToken &&
-        !slidingPrimedRooms.has(room.roomId);
-    if (slidingProbe) slidingPrimedRooms.add(room.roomId);
+        !slidingPrimedTimelines.has(timeline);
+    if (slidingProbe) slidingPrimedTimelines.add(timeline);
     if (
         slidingProbe ||
         shouldPrimePaginationToken({
@@ -4701,8 +4751,11 @@ export async function createContextWindow(
 /** The renderable message events currently held by a context window, filtered
  *  identically to the live timeline so the jump view matches normal rendering. */
 export function getContextWindowEvents(window: TimelineWindow): MatrixEvent[] {
-    return collapseCallEvents(
-        window.getEvents().filter(isRenderableTimelineEvent),
+    return dedupeById(
+        collapseCallEvents(
+            window.getEvents().filter(isRenderableTimelineEvent),
+        ),
+        (e) => e.getId(),
     );
 }
 
