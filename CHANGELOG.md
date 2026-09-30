@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.10.2
+
+🐛 **Fixed**
+
+- **Messages that looked failed but had sent:** if the app closed right after you sent a message, it could come back marked as failed even though it had been delivered, and when the real message loaded the whole room's chat log could stop showing with a duplicate key error. Delivered messages are now recognised and cleaned up, and a room can no longer be broken by a repeated message.
+- **Opening a room from a notification:** tapping a notification could open the room frozen on the notified message, with newer messages never loading. The room now opens in its normal live view when it can, and otherwise keeps loading newer messages until it catches up.
+- **Loading older messages:** scrolling to the top of a room sometimes did nothing, with no spinner, even though older messages existed. Failed loads now retry, and reaching the top always asks again.
+- **Messages disappearing after switching rooms:** after the app reconnected or resumed while you were in another room, coming back could show only the newest messages with no way to scroll back. Older history loads again as you scroll up.
+
 ## v1.10.1
 
 🐛 **Fixed**
