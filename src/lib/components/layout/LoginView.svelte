@@ -79,6 +79,12 @@
         mode === "register" || !loginOptions || loginOptions.password,
     );
     const sso = $derived(loginOptions?.sso ?? null);
+    // The shown sign-in options belong to the address in the field. Until a
+    // changed address has been looked up, Log In and SSO stay disabled so
+    // neither can act on the previous server's answer.
+    const optionsCurrent = $derived(
+        !optionsLoading && homeserverUrl.trim() === optionsFor,
+    );
 
     async function refreshLoginOptions(): Promise<void> {
         const typed = homeserverUrl.trim();
@@ -111,7 +117,7 @@
     });
 
     function startSso(idpId?: string) {
-        if (!sso || !optionsBaseUrl) return;
+        if (!sso || !optionsBaseUrl || !optionsCurrent) return;
         error = "";
         void requestWebPushPermission().catch(() => {});
         const leavesPage =
@@ -340,6 +346,7 @@
             <form
                 onsubmit={(e) => {
                     e.preventDefault();
+                    if (!optionsCurrent) return;
                     mode === "login" ? handleLogin() : handleRegister();
                 }}
                 class="space-y-4"
@@ -480,7 +487,10 @@
                 {#if showPasswordForm}
                     <button
                         type="submit"
-                        disabled={isLoading || !username || !password}
+                        disabled={isLoading ||
+                            !optionsCurrent ||
+                            !username ||
+                            !password}
                         aria-busy={isLoading ? "true" : undefined}
                         class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
                     >
@@ -525,7 +535,7 @@
                             <button
                                 type="button"
                                 onclick={() => startSso(provider.id)}
-                                disabled={isLoading || optionsLoading}
+                                disabled={isLoading || !optionsCurrent}
                                 class="w-full py-2.5 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary font-semibold rounded border border-discord-divider transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
                             >
                                 {t("loginView.continueWith", {
@@ -537,7 +547,7 @@
                         <button
                             type="button"
                             onclick={() => startSso()}
-                            disabled={isLoading || optionsLoading}
+                            disabled={isLoading || !optionsCurrent}
                             class="w-full py-2.5 {showPasswordForm &&
                             !sso.preferred
                                 ? 'bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary border border-discord-divider'

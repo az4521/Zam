@@ -50,20 +50,38 @@ function savePending(p: PendingSso): void {
     }
 }
 
-function takePending(): PendingSso | null {
+/** The pending attempt, if any and not expired. Does not consume it. */
+function readPending(): PendingSso | null {
     try {
         const raw = localStorage.getItem(PENDING_KEY);
-        localStorage.removeItem(PENDING_KEY);
         if (!raw) return null;
         const p = JSON.parse(raw) as PendingSso;
-        if (typeof p?.state !== "string" || typeof p.baseUrl !== "string")
+        if (
+            typeof p?.state !== "string" ||
+            typeof p.baseUrl !== "string" ||
+            Date.now() - p.createdAt > PENDING_TTL_MS
+        ) {
+            clearPending();
             return null;
-        if (Date.now() - p.createdAt > PENDING_TTL_MS) return null;
+        }
         return p;
     } catch {
         return null;
     }
 }
+
+function clearPending(): void {
+    try {
+        localStorage.removeItem(PENDING_KEY);
+    } catch {
+        // ignore storage errors
+    }
+}
+
+// Callback URLs already read in this process. Android keeps handing back the
+// launch URL that cold-started the app, so it must not be replayed against a
+// later attempt.
+const seenCallbacks = new Set<string>();
 
 function isElectronWithSso(): boolean {
     return typeof window !== "undefined" && !!window.desktop?.sso;
@@ -121,8 +139,9 @@ export function beginSsoLogin(opts: {
 
 /**
  * Parse a URL the SSO flow may have come back on. Returns null when it
- * carries no loginToken or no attempt is pending (a stale or unrelated URL);
- * "invalid" when the nonce does not match the pending attempt.
+ * carries no loginToken, was already read, or no attempt is pending (a stale
+ * or unrelated URL); "invalid" when the nonce does not match the pending
+ * attempt, which stays pending. Only a match consumes the attempt.
  */
 export function readSsoCallback(rawUrl: string): SsoCallback | null {
     let url: URL;
@@ -133,10 +152,15 @@ export function readSsoCallback(rawUrl: string): SsoCallback | null {
     }
     const loginToken = url.searchParams.get(TOKEN_PARAM);
     if (!loginToken) return null;
-    const pending = takePending();
+    if (seenCallbacks.has(url.href)) return null;
+    seenCallbacks.add(url.href);
+    const pending = readPending();
     if (!pending) return null;
+    // A mismatched nonce leaves the pending attempt untouched: a forged or
+    // stale callback must not be able to cancel the real sign-in.
     if (url.searchParams.get(STATE_PARAM) !== pending.state)
         return { kind: "invalid" };
+    clearPending();
     return { kind: "ok", loginToken, pending };
 }
 
