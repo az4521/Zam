@@ -18,6 +18,10 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            sso?: {
+                /** SSO redirect caught by the local server (path + query). */
+                onCallback: (cb: (url: string) => void) => () => void;
+            };
             updates?: {
                 check: () => void;
                 download: () => void;

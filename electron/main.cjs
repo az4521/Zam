@@ -78,10 +78,37 @@ const MIME = {
     ".txt": "text/plain",
 };
 
+const SSO_DONE_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Zam</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;background:#313338;color:#f2f3f5;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center}p{color:#b5bac1}</style>
+</head><body><div><h1>Signed in</h1><p>You can close this tab and return to Zam.</p></div></body></html>`;
+
+// Forward an SSO redirect (path + query from the local server) to the renderer
+// and bring the window forward so the user lands back in the app.
+function handleSsoCallback(reqUrl) {
+    if (!mainWindow) return;
+    mainWindow.webContents.send("sso:callback", reqUrl);
+    showWindow();
+}
+
 // Minimal static server for ../build with SPA fallback to index.html.
 function startServer() {
     return new Promise((resolve, reject) => {
         const server = http.createServer((req, res) => {
+            // SSO sign-in finishes in the SYSTEM browser (the IdP page is opened
+            // externally), and the homeserver redirects it back here with a
+            // one-time loginToken. Hand the full callback URL to the renderer,
+            // which checks its own sso_state nonce before redeeming the token,
+            // and tell the browser tab it can be closed.
+            if ((req.url || "").startsWith("/sso-callback")) {
+                handleSsoCallback(req.url);
+                res.writeHead(200, {
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Cache-Control": "no-store",
+                });
+                res.end(SSO_DONE_PAGE);
+                return;
+            }
             // Safely resolve and validate the requested path.
             let filePath = resolveStaticPath(BUILD_DIR, req.url || "/");
             if (!filePath) {

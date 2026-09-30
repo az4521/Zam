@@ -645,7 +645,7 @@ const messages: Record<MessageKey, string> = {
         "Leer lassen, falls nicht erforderlich",
     "loginView.useSlidingSync": "Sliding Sync verwenden",
     "loginView.fasterStartupOnServersThatSupport":
-        "Schnellerer Start auf Servern, die es unterstützen (experimentell).",
+        "Schnellerer Start auf Servern, die es unterstützen.",
     "loginView.pleaseWait": "Bitte warten…",
     "loginView.logIn": "Anmelden",
     "loginView.createAccount": "Konto erstellen",
@@ -661,6 +661,16 @@ const messages: Record<MessageKey, string> = {
         "Anmeldung fehlgeschlagen. Überprüfe deine Zugangsdaten.",
     "loginView.creatingAccount": "Konto wird erstellt…",
     "loginView.registrationFailed": "Registrierung fehlgeschlagen.",
+    "loginView.or": "oder",
+    "loginView.continueWithSso": "Weiter mit SSO",
+    "loginView.continueWith": "Weiter mit {name}",
+    "loginView.redirectingToSso": "Weiterleitung zu deinem Anmeldeanbieter…",
+    "loginView.finishSsoInBrowser":
+        "Schließe die Anmeldung im Browser ab und kehre dann hierher zurück.",
+    "loginView.ssoCouldNotBeVerified":
+        "Single Sign-On konnte nicht überprüft werden. Bitte versuche es erneut.",
+    "loginView.ssoFailed": "Single Sign-On fehlgeschlagen.",
+    "loginView.checkingServer": "Server wird geprüft…",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Mitglieder: {length}",

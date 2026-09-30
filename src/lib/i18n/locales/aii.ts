@@ -604,7 +604,7 @@ const messages: Record<MessageKey, string> = {
     "loginView.leaveBlankIfNotRequired": "ܫܒܘܩ ܣܦܝܩܐ ܐܢ ܠܐ ܝܠܗ ܡܚܝܒܐ",
     "loginView.useSlidingSync": "ܦܠܚ ܒܐܚܕܝܘܬܐ ܓܠܝܫܬܐ",
     "loginView.fasterStartupOnServersThatSupport":
-        "ܫܘܪܝܐ ܦܪܝܚܐ ܥܠ ܣܝܪܒܪ̈ܐ ܕܡܣܝܥܝ ܠܗ̇ (ܢܣܝܢܝܐ).",
+        "ܫܘܪܝܐ ܦܪܝܚܐ ܥܠ ܣܝܪܒܪ̈ܐ ܕܡܣܝܥܝ ܠܗ̇.",
     "loginView.pleaseWait": "ܒܒܥܘܬܐ ܢܛܘܪ…",
     "loginView.logIn": "ܥܘܠ",
     "loginView.createAccount": "ܒܪܝ ܚܘܫܒܢܐ",
@@ -620,6 +620,15 @@ const messages: Record<MessageKey, string> = {
         "ܥܠܠܐ ܠܐ ܦܠܚܠܗ. ܒܨܝ ܡܠ̈ܐ ܕܥܒܪܐ ܕܝܘܟ.",
     "loginView.creatingAccount": "ܒܒܪܝܐ ܚܘܫܒܢܐ…",
     "loginView.registrationFailed": "ܪܘܫܡܐ ܠܐ ܦܠܚܠܗ.",
+    "loginView.or": "ܝܢ",
+    "loginView.continueWithSso": "ܦܘܫ ܠܩܕܡ ܒ SSO",
+    "loginView.continueWith": "ܦܘܫ ܠܩܕܡ ܒ {name}",
+    "loginView.redirectingToSso": "ܒܫܕܪܐ ܠܡܛܝܒܢܐ ܕܥܠܠܐ…",
+    "loginView.finishSsoInBrowser": "ܫܠܡ ܥܠܠܐ ܓܘ ܡܦܬܫܢܐ، ܘܒܬܪ ܗܕܐ ܕܥܘܪ ܠܟܐ.",
+    "loginView.ssoCouldNotBeVerified":
+        "SSO ܠܐ ܡܨܐ ܗܘܐ ܡܫܪܪܐ. ܒܒܥܘܬܐ ܢܣܝ ܡܢ ܕܪܝܫ.",
+    "loginView.ssoFailed": "SSO ܠܐ ܦܠܚܠܗ.",
+    "loginView.checkingServer": "ܒܒܨܝܐ ܣܝܪܒܪ…",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "ܗܕܡ̈ܐ: {length}",

@@ -610,7 +610,7 @@ export const en = {
     "loginView.leaveBlankIfNotRequired": "Leave blank if not required",
     "loginView.useSlidingSync": "Use sliding sync",
     "loginView.fasterStartupOnServersThatSupport":
-        "Faster startup on servers that support it (experimental).",
+        "Faster startup on servers that support it.",
     "loginView.pleaseWait": "Please wait…",
     "loginView.logIn": "Log In",
     "loginView.createAccount": "Create Account",
@@ -626,6 +626,16 @@ export const en = {
         "Login failed. Check your credentials.",
     "loginView.creatingAccount": "Creating account…",
     "loginView.registrationFailed": "Registration failed.",
+    "loginView.or": "or",
+    "loginView.continueWithSso": "Continue with SSO",
+    "loginView.continueWith": "Continue with {name}",
+    "loginView.redirectingToSso": "Redirecting to your sign-in provider…",
+    "loginView.finishSsoInBrowser":
+        "Finish signing in in your browser, then come back here.",
+    "loginView.ssoCouldNotBeVerified":
+        "Single sign-on could not be verified. Please try again.",
+    "loginView.ssoFailed": "Single sign-on failed.",
+    "loginView.checkingServer": "Checking server…",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Members: {length}",

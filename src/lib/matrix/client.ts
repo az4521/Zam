@@ -27,6 +27,7 @@ import {
     M_BEACON_INFO,
     ContentHelpers,
     TimelineWindow,
+    SSOAction,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -133,6 +134,7 @@ import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
+import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
@@ -496,7 +498,14 @@ async function createAuthenticatedClient(opts: {
     return client;
 }
 
-async function resolveHomeserver(input: string): Promise<string> {
+/**
+ * `quiet` skips the "auto-discovery failed" toast: the login form looks the
+ * server up while the user is still typing, where a failed guess is expected.
+ */
+async function resolveHomeserver(
+    input: string,
+    { quiet = false }: { quiet?: boolean } = {},
+): Promise<string> {
     const normalized = input.trim().replace(/\/$/, "");
     const withProtocol = normalized.startsWith("http")
         ? normalized
@@ -529,7 +538,8 @@ async function resolveHomeserver(input: string): Promise<string> {
     if (outcome.action === "prompt") {
         // Auto-discovery failed but the typed address may still work — use it,
         // and inform the user (spec FAIL_PROMPT).
-        showErrorToast(t("client.serverAutoDiscoveryFailedUsingThe"));
+        if (!quiet)
+            showErrorToast(t("client.serverAutoDiscoveryFailedUsingThe"));
         return withProtocol;
     }
 
@@ -556,28 +566,24 @@ async function resolveHomeserver(input: string): Promise<string> {
     return base;
 }
 
-export async function login(
-    homeserverUrl: string,
-    username: string,
-    password: string,
-    slidingSync = false,
-): Promise<{
+type LoginResult = {
     userId: string;
     accessToken: string;
     deviceId: string;
     homeserverUrl: string;
-}> {
-    const resolvedBase = await resolveHomeserver(homeserverUrl);
-    const tempClient = createClient({ baseUrl: resolvedBase });
+};
 
-    const response = await tempClient.login("m.login.password", {
-        identifier: { type: "m.id.user", user: username },
-        password: password,
-        initial_device_display_name: "Zam",
-    });
-
+/**
+ * Shared tail of every sign-in path: record the sliding-sync choice, build the
+ * authenticated client from the /login (or /register) response and hand the
+ * session back to the caller.
+ */
+async function finishLogin(
+    tempClient: MatrixClient,
+    response: { user_id: string; access_token?: string; device_id?: string },
+    slidingSync: boolean,
+): Promise<LoginResult> {
     const resolvedURL = tempClient.getHomeserverUrl();
-
     tempClient.stopClient();
 
     // Must be recorded before the client is built: the store name depends on it.
@@ -597,18 +603,83 @@ export async function login(
     };
 }
 
+export async function login(
+    homeserverUrl: string,
+    username: string,
+    password: string,
+    slidingSync = false,
+): Promise<LoginResult> {
+    const resolvedBase = await resolveHomeserver(homeserverUrl);
+    const tempClient = createClient({ baseUrl: resolvedBase });
+
+    const response = await tempClient.login("m.login.password", {
+        identifier: { type: "m.id.user", user: username },
+        password: password,
+        initial_device_display_name: "Zam",
+    });
+
+    return finishLogin(tempClient, response, slidingSync);
+}
+
+/**
+ * Resolve a typed homeserver address (well-known included) and read which
+ * sign-in methods it offers. `baseUrl` is the resolved address, which the SSO
+ * flow must reuse so the loginToken is redeemed where it was issued.
+ */
+export async function getLoginOptions(
+    homeserverUrl: string,
+): Promise<{ baseUrl: string; options: LoginOptions }> {
+    const baseUrl = await resolveHomeserver(homeserverUrl, { quiet: true });
+    const tempClient = createClient({ baseUrl });
+    try {
+        const { flows } = await tempClient.loginFlows();
+        return { baseUrl, options: parseLoginFlows(flows) };
+    } finally {
+        tempClient.stopClient();
+    }
+}
+
+/** The homeserver's SSO redirect endpoint, optionally for one provider. */
+export function getSsoRedirectUrl(
+    baseUrl: string,
+    redirectUrl: string,
+    opts: { loginType: "sso" | "cas"; idpId?: string; register?: boolean },
+): string {
+    const tempClient = createClient({ baseUrl });
+    const url = tempClient.getSsoLoginUrl(
+        redirectUrl,
+        opts.loginType,
+        opts.idpId,
+        opts.register ? SSOAction.REGISTER : SSOAction.LOGIN,
+    );
+    tempClient.stopClient();
+    return url;
+}
+
+/**
+ * Redeem the one-time loginToken an SSO redirect handed back. `baseUrl` is
+ * the already-resolved homeserver the SSO flow started on.
+ */
+export async function loginWithSsoToken(
+    baseUrl: string,
+    loginToken: string,
+    slidingSync = false,
+): Promise<LoginResult> {
+    const tempClient = createClient({ baseUrl });
+    const response = await tempClient.login("m.login.token", {
+        token: loginToken,
+        initial_device_display_name: "Zam",
+    });
+    return finishLogin(tempClient, response, slidingSync);
+}
+
 export async function register(
     homeserverUrl: string,
     username: string,
     password: string,
     registrationToken?: string,
     slidingSync = false,
-): Promise<{
-    userId: string;
-    accessToken: string;
-    deviceId: string;
-    homeserverUrl: string;
-}> {
+): Promise<LoginResult> {
     const resolvedBase = await resolveHomeserver(homeserverUrl);
     const tempClient = createClient({ baseUrl: resolvedBase });
 
@@ -627,23 +698,7 @@ export async function register(
     }
 
     const response = await tempClient.registerRequest(body);
-    const resolvedURL = tempClient.getHomeserverUrl();
-    tempClient.stopClient();
-
-    setSlidingSyncEnabled(response.user_id, slidingSync);
-    await createAuthenticatedClient({
-        baseUrl: resolvedURL,
-        accessToken: response.access_token!,
-        userId: response.user_id,
-        deviceId: response.device_id!,
-    });
-
-    return {
-        userId: response.user_id,
-        accessToken: response.access_token!,
-        deviceId: response.device_id!,
-        homeserverUrl: resolvedURL,
-    };
+    return finishLogin(tempClient, response, slidingSync);
 }
 
 export async function reconnect(

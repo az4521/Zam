@@ -635,7 +635,7 @@ const messages: Record<MessageKey, string> = {
     "loginView.leaveBlankIfNotRequired": "Laisser vide si non nécessaire",
     "loginView.useSlidingSync": "Utiliser la synchronisation glissante",
     "loginView.fasterStartupOnServersThatSupport":
-        "Démarrage plus rapide sur les serveurs compatibles (expérimental).",
+        "Démarrage plus rapide sur les serveurs compatibles.",
     "loginView.pleaseWait": "Veuillez patienter…",
     "loginView.logIn": "Se connecter",
     "loginView.createAccount": "Créer le compte",
@@ -651,6 +651,17 @@ const messages: Record<MessageKey, string> = {
         "Échec de la connexion. Vérifiez vos identifiants.",
     "loginView.creatingAccount": "Création du compte…",
     "loginView.registrationFailed": "Échec de l'inscription.",
+    "loginView.or": "ou",
+    "loginView.continueWithSso": "Continuer avec le SSO",
+    "loginView.continueWith": "Continuer avec {name}",
+    "loginView.redirectingToSso":
+        "Redirection vers votre fournisseur de connexion…",
+    "loginView.finishSsoInBrowser":
+        "Terminez la connexion dans votre navigateur, puis revenez ici.",
+    "loginView.ssoCouldNotBeVerified":
+        "L'authentification unique n'a pas pu être vérifiée. Veuillez réessayer.",
+    "loginView.ssoFailed": "Échec de l'authentification unique.",
+    "loginView.checkingServer": "Vérification du serveur…",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Membres : {length}",

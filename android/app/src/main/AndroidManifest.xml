@@ -38,6 +38,15 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
 
+            <!-- SSO sign-in: the homeserver redirects the system browser back
+                 here with a one-time loginToken (see src/lib/matrix/sso.ts). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="moe.crafty.matrix" android:host="sso" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -7,6 +7,14 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
+    sso: {
+        // The local server caught an SSO redirect; `url` is its path + query.
+        onCallback: (cb) => {
+            const h = (_e, url) => cb(url);
+            ipcRenderer.on("sso:callback", h);
+            return () => ipcRenderer.removeListener("sso:callback", h);
+        },
+    },
     updates: {
         check: () => ipcRenderer.send("updates:check"),
         download: () => ipcRenderer.send("updates:download"),

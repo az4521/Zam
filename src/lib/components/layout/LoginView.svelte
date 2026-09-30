@@ -1,13 +1,29 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { onMount } from "svelte";
-    import { login, register } from "$lib/matrix/client";
+    import { page } from "$app/state";
+    import { replaceState } from "$app/navigation";
+    import {
+        login,
+        register,
+        getLoginOptions,
+        loginWithSsoToken,
+    } from "$lib/matrix/client";
+    import {
+        beginSsoLogin,
+        hasSsoParams,
+        listenForSsoCallbacks,
+        readSsoCallback,
+        withoutSsoParams,
+    } from "$lib/matrix/sso";
+    import type { LoginOptions } from "$lib/utils/loginFlows";
     import { auth, loadLastHomeserver } from "$lib/stores/auth.svelte";
     import { accountsState } from "$lib/stores/accounts.svelte";
     import { getDefaultHomeserver } from "$lib/config";
     import { parseLoginUsername } from "$lib/utils/loginIdentity";
     import { requestWebPushPermission } from "$lib/webPush";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import { Capacitor } from "@capacitor/core";
 
     interface Props {
         isAddAccountMode: boolean;
@@ -43,7 +59,129 @@
     let error = $state("");
     let statusMsg = $state("");
     let mode = $state<"login" | "register">("login");
-    let useSlidingSync = $state(false);
+    // On by default: servers without sliding sync fall back to regular sync
+    // on first start (see buildSlidingSync in client.ts).
+    let useSlidingSync = $state(true);
+    // Non-blocking note while an SSO flow runs in another window (desktop /
+    // Android), where this form stays usable in case the user abandons it.
+    let ssoHint = $state("");
+
+    // Sign-in methods the typed homeserver offers (GET /login). null = not
+    // known (yet, or the lookup failed): the password form is shown then.
+    let loginOptions = $state<LoginOptions | null>(null);
+    let optionsBaseUrl = $state("");
+    let optionsFor = $state("");
+    let optionsLoading = $state(false);
+    let optionsRequest = 0;
+    let redeemingSso = false;
+
+    const showPasswordForm = $derived(
+        mode === "register" || !loginOptions || loginOptions.password,
+    );
+    const sso = $derived(loginOptions?.sso ?? null);
+
+    async function refreshLoginOptions(): Promise<void> {
+        const typed = homeserverUrl.trim();
+        if (!typed || typed === optionsFor) return;
+        const request = ++optionsRequest;
+        optionsFor = typed;
+        optionsLoading = true;
+        try {
+            const { baseUrl, options } = await getLoginOptions(typed);
+            if (request !== optionsRequest) return;
+            loginOptions = options;
+            optionsBaseUrl = baseUrl;
+        } catch {
+            if (request !== optionsRequest) return;
+            // Unknown: fall back to the password form. optionsFor keeps the
+            // failed address so it is only retried once the field changes.
+            loginOptions = null;
+            optionsBaseUrl = "";
+        } finally {
+            if (request === optionsRequest) optionsLoading = false;
+        }
+    }
+
+    // Re-read the sign-in methods as the homeserver field settles.
+    $effect(() => {
+        const typed = homeserverUrl.trim();
+        if (typed === optionsFor) return;
+        const timer = setTimeout(() => void refreshLoginOptions(), 600);
+        return () => clearTimeout(timer);
+    });
+
+    function startSso(idpId?: string) {
+        if (!sso || !optionsBaseUrl) return;
+        error = "";
+        void requestWebPushPermission().catch(() => {});
+        const leavesPage =
+            !window.desktop?.sso && !Capacitor.isNativePlatform();
+        try {
+            beginSsoLogin({
+                baseUrl: optionsBaseUrl,
+                loginType: sso.loginType,
+                idpId,
+                register: mode === "register",
+                slidingSync: useSlidingSync,
+                addMode: isAddAccountMode,
+            });
+        } catch (err) {
+            error =
+                err instanceof Error ? err.message : t("loginView.ssoFailed");
+            return;
+        }
+        if (leavesPage) {
+            isLoading = true;
+            statusMsg = t("loginView.redirectingToSso");
+        } else {
+            ssoHint = t("loginView.finishSsoInBrowser");
+        }
+    }
+
+    // Drop loginToken / sso_state from the address bar (web) so a reload or a
+    // bookmark never replays them.
+    function stripSsoParamsFromUrl() {
+        const here = new URL(window.location.href);
+        if (!hasSsoParams(here)) return;
+        const clean = withoutSsoParams(here);
+        try {
+            replaceState(clean, page.state);
+        } catch {
+            history.replaceState(history.state, "", clean);
+        }
+    }
+
+    async function handleSsoCallback(rawUrl: string) {
+        const result = readSsoCallback(rawUrl);
+        stripSsoParamsFromUrl();
+        if (!result) return;
+        ssoHint = "";
+        if (result.kind === "invalid") {
+            error = t("loginView.ssoCouldNotBeVerified");
+            return;
+        }
+        if (redeemingSso) return;
+        redeemingSso = true;
+        error = "";
+        isLoading = true;
+        statusMsg = t("loginView.loggingIn");
+        homeserverUrl = result.pending.baseUrl;
+        try {
+            const session = await loginWithSsoToken(
+                result.pending.baseUrl,
+                result.loginToken,
+                result.pending.slidingSync,
+            );
+            await onAuthenticated(session);
+        } catch (err) {
+            error =
+                err instanceof Error ? err.message : t("loginView.ssoFailed");
+            isLoading = false;
+            statusMsg = "";
+        } finally {
+            redeemingSso = false;
+        }
+    }
 
     onMount(() => {
         // Surface a session-expiry / restore-failure message handed over via the
@@ -53,6 +191,8 @@
             error = auth.error;
             auth.error = null;
         }
+        void refreshLoginOptions();
+        return listenForSsoCallbacks((url) => void handleSsoCallback(url));
     });
 
     // Let the user type a full "@user:homeserver" MXID — split it into the bare
@@ -212,84 +352,112 @@
                     >
                         {t("loginView.homeserver")}
                     </label>
-                    <input
-                        id="server"
-                        type="text"
-                        bind:value={homeserverUrl}
-                        placeholder={defaultHomeserver}
-                        disabled={isLoading}
-                        class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
-                        required
-                    />
+                    <!-- The lookup spinner sits inside the field so it never
+                         shifts the form below. -->
+                    <div class="relative">
+                        <input
+                            id="server"
+                            type="text"
+                            bind:value={homeserverUrl}
+                            onblur={() => void refreshLoginOptions()}
+                            placeholder={defaultHomeserver}
+                            disabled={isLoading}
+                            class="w-full ps-3 pe-9 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
+                            required
+                        />
+                        {#if optionsLoading}
+                            <!-- Centred by the flex wrapper, not a translate:
+                                 animate-spin owns `transform` and would
+                                 override it. -->
+                            <span
+                                class="absolute inset-y-0 end-3 flex items-center pointer-events-none"
+                                title={t("loginView.checkingServer")}
+                                aria-hidden="true"
+                            >
+                                <span
+                                    class="w-4 h-4 border-2 border-discord-textMuted/40 border-t-discord-textMuted rounded-full animate-spin"
+                                ></span>
+                            </span>
+                        {/if}
+                        <span class="sr-only" role="status"
+                            >{optionsLoading
+                                ? t("loginView.checkingServer")
+                                : ""}</span
+                        >
+                    </div>
                 </div>
 
-                <!-- Username -->
-                <div>
-                    <label
-                        for="username"
-                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                    >
-                        {t("loginView.username")}
-                    </label>
-                    <input
-                        id="username"
-                        type="text"
-                        bind:value={username}
-                        onblur={applyFullUserId}
-                        placeholder={mode === "login"
-                            ? `@you:${new URL(defaultHomeserver).hostname}`
-                            : "yourusername"}
-                        disabled={isLoading}
-                        aria-invalid={error ? "true" : undefined}
-                        aria-describedby={error ? "login-error" : undefined}
-                        class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
-                        required
-                    />
-                </div>
-
-                <!-- Password -->
-                <div>
-                    <label
-                        for="password"
-                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                    >
-                        {t("loginView.password")}
-                    </label>
-                    <input
-                        id="password"
-                        type="password"
-                        bind:value={password}
-                        placeholder="••••••••••"
-                        disabled={isLoading}
-                        aria-invalid={error ? "true" : undefined}
-                        aria-describedby={error ? "login-error" : undefined}
-                        class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
-                        required
-                    />
-                </div>
-
-                <!-- Registration token (register mode only) -->
-                {#if mode === "register"}
+                {#if showPasswordForm}
+                    <!-- Username -->
                     <div>
                         <label
-                            for="token"
+                            for="username"
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                         >
-                            {t("loginView.registrationToken")}
-                            <span
-                                class="normal-case font-normal text-discord-textMuted"
-                                >{t("loginView.ifRequired")}</span
-                            >
+                            {t("loginView.username")}
                         </label>
                         <input
-                            id="token"
+                            id="username"
                             type="text"
-                            bind:value={registrationToken}
-                            placeholder={t("loginView.leaveBlankIfNotRequired")}
+                            bind:value={username}
+                            onblur={applyFullUserId}
+                            placeholder={mode === "login"
+                                ? `@you:${new URL(defaultHomeserver).hostname}`
+                                : "yourusername"}
                             disabled={isLoading}
+                            aria-invalid={error ? "true" : undefined}
+                            aria-describedby={error ? "login-error" : undefined}
                             class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
+                            required
                         />
                     </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label
+                            for="password"
+                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                        >
+                            {t("loginView.password")}
+                        </label>
+                        <input
+                            id="password"
+                            type="password"
+                            bind:value={password}
+                            placeholder="••••••••••"
+                            disabled={isLoading}
+                            aria-invalid={error ? "true" : undefined}
+                            aria-describedby={error ? "login-error" : undefined}
+                            class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
+                            required
+                        />
+                    </div>
+
+                    <!-- Registration token (register mode only) -->
+                    {#if mode === "register"}
+                        <div>
+                            <label
+                                for="token"
+                                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                            >
+                                {t("loginView.registrationToken")}
+                                <span
+                                    class="normal-case font-normal text-discord-textMuted"
+                                    >{t("loginView.ifRequired")}</span
+                                >
+                            </label>
+                            <input
+                                id="token"
+                                type="text"
+                                bind:value={registrationToken}
+                                placeholder={t(
+                                    "loginView.leaveBlankIfNotRequired",
+                                )}
+                                disabled={isLoading}
+                                class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
+                            />
+                        </div>
+                    {/if}
                 {/if}
 
                 <!-- Sliding sync -->
@@ -309,26 +477,85 @@
                     </span>
                 </label>
 
-                <button
-                    type="submit"
-                    disabled={isLoading || !username || !password}
-                    aria-busy={isLoading ? "true" : undefined}
-                    class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
-                >
-                    {#if isLoading}
-                        <span class="flex items-center justify-center gap-2">
+                {#if showPasswordForm}
+                    <button
+                        type="submit"
+                        disabled={isLoading || !username || !password}
+                        aria-busy={isLoading ? "true" : undefined}
+                        class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
+                    >
+                        {#if isLoading}
                             <span
-                                class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
-                            ></span>
-                            {statusMsg || t("loginView.pleaseWait")}
-                        </span>
-                    {:else if mode === "login"}
-                        {t("loginView.logIn")}
-                    {:else}
-                        {t("loginView.createAccount")}
-                    {/if}
-                </button>
+                                class="flex items-center justify-center gap-2"
+                            >
+                                <span
+                                    class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
+                                ></span>
+                                {statusMsg || t("loginView.pleaseWait")}
+                            </span>
+                        {:else if mode === "login"}
+                            {t("loginView.logIn")}
+                        {:else}
+                            {t("loginView.createAccount")}
+                        {/if}
+                    </button>
+                {/if}
             </form>
+
+            <!-- SSO (OIDC / OAuth / SAML / CAS via the homeserver) -->
+            {#if sso}
+                {#if showPasswordForm}
+                    <div
+                        class="flex items-center gap-3 my-4"
+                        aria-hidden="true"
+                    >
+                        <div class="flex-1 h-px bg-discord-divider"></div>
+                        <span
+                            class="text-xs uppercase tracking-wide text-discord-textMuted"
+                            >{t("loginView.or")}</span
+                        >
+                        <div class="flex-1 h-px bg-discord-divider"></div>
+                    </div>
+                {:else}
+                    <div class="mt-4"></div>
+                {/if}
+                <div class="space-y-2">
+                    {#if sso.providers.length > 0}
+                        {#each sso.providers as provider (provider.id)}
+                            <button
+                                type="button"
+                                onclick={() => startSso(provider.id)}
+                                disabled={isLoading || optionsLoading}
+                                class="w-full py-2.5 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary font-semibold rounded border border-discord-divider transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                            >
+                                {t("loginView.continueWith", {
+                                    name: provider.name,
+                                })}
+                            </button>
+                        {/each}
+                    {:else}
+                        <button
+                            type="button"
+                            onclick={() => startSso()}
+                            disabled={isLoading || optionsLoading}
+                            class="w-full py-2.5 {showPasswordForm &&
+                            !sso.preferred
+                                ? 'bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary border border-discord-divider'
+                                : 'bg-discord-accent hover:bg-discord-accentHover text-white'} font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+                        >
+                            {t("loginView.continueWithSso")}
+                        </button>
+                    {/if}
+                </div>
+                {#if ssoHint}
+                    <p
+                        role="status"
+                        class="mt-3 text-sm text-center text-discord-textSecondary"
+                    >
+                        {ssoHint}
+                    </p>
+                {/if}
+            {/if}
 
             <!-- Toggle mode -->
             <div class="mt-5 text-center">
