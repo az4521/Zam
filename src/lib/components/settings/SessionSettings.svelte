@@ -445,9 +445,7 @@
                         {t("sessionSettings.excludeInsecureDevices")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        {t(
-                            "sessionSettings.excludeInsecureDevicesHelp",
-                        )}
+                        {t("sessionSettings.excludeInsecureDevicesHelp")}
                     </p>
                 </div>
                 <ToggleSwitch

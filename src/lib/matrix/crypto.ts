@@ -276,7 +276,10 @@ function attachSecurityListeners(client: MatrixClient): void {
         const me = getClient()?.getUserId();
         if (me) void refreshIdentityAlert(me);
     };
-    client.on(CryptoEvent.UserTrustStatusChanged as never, trustHandler as never);
+    client.on(
+        CryptoEvent.UserTrustStatusChanged as never,
+        trustHandler as never,
+    );
     client.on(CryptoEvent.KeysChanged as never, keysHandler as never);
     identityHandlers = { trustHandler, keysHandler };
     keysHandler();
