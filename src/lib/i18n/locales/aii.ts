@@ -2781,6 +2781,48 @@ const messages: Record<MessageKey, string> = {
     "ownStatus.theServerStillHas": "ܣܝܪܒܪ ܗܠ ܗܫܐ ܐܝܬ ܠܗ: {leftovers}",
     "ownStatus.statusClearedButPresenceRemains":
         'ܐܝܟܢܝܘܬܐ ܫܝܦܬܐ ܝܠܗ̇، ܐܝܢܐ ܣܝܪܒܪ ܗܠ ܗܫܐ ܡܚܘܐ ܐܓܪܬܐ ܕܐܝܬܝܘܬܐ "{presenceLeft}". ܡܨܐ ܕܓܠܣܐ ܐܚܪܢܐ ܕܗܢܐ ܚܘܫܒܢܐ (ܬܘܟܢܝܬܐ ܐܚܪܬܐ) ܛܝܒܠܗ̇ - ܫܘܦ ܠܗ̇ ܬܡܢ، ܝܢ ܦܘܩ ܡܢ ܗܘ ܓܠܣܐ.',
+
+    // MSC2545 sharing, typing indicators, layout heading
+    "appearanceSettings.layout": "Layout",
+    "privacySafetySettings.sendTypingIndicators": "Send typing indicators",
+    "privacySafetySettings.letOthersInARoomSee":
+        "Let other people in a room see when you are typing. Turn off to type without anyone being told.",
+    "imagePackEditor.failedToUpdatePack": "Failed to update pack",
+    "imagePackEditor.addToMine": "Add to mine",
+    "imagePackEditor.addAllToMyPack":
+        "Copy every image in this pack into your own pack",
+    "imagePackEditor.addImageToMyPack": "Copy this image into your own pack",
+    "imagePackEditor.addedToYourPack":
+        "{count, plural, one {Added # image to your pack.} other {Added # images to your pack.}}",
+    "imagePackEditor.alreadyInYourPack": "Already in your pack.",
+    "imagePackEditor.editDetails": "Edit details",
+    "imagePackEditor.deletePack": "Delete pack",
+    "imagePackEditor.confirmDeletePack":
+        'Delete the pack "{name}" and all of its images?',
+    "imagePackEditor.useInAllRooms": "Use in all my rooms",
+    "imagePackEditor.useInAllRoomsHint":
+        "Its emoji and stickers show up everywhere you chat.",
+    "imagePackEditor.attribution": "Credit: {value}",
+    "imagePackEditor.attributionPlaceholder": "Credit / attribution (optional)",
+    "imagePackEditor.uploadPackAvatar": "Upload pack icon",
+    "imagePackEditor.removePackAvatar": "Remove icon",
+    "imagePackEditor.avatarReady": "Icon uploaded, save to apply.",
+    "sharedPackSettings.yourPackDetails": "Your pack details",
+    "sharedPackSettings.enabledEverywhere": "Packs enabled in all rooms",
+    "sharedPackSettings.enabledEverywhereHint":
+        "Packs from rooms you are in can be used in every room, not just the room that owns them.",
+    "sharedPackSettings.availableInYourRooms": "Packs in your rooms",
+    "sharedPackSettings.searchPacks": "Search packs",
+    "sharedPackSettings.noPacksFound": "No packs found",
+    "sharedPackSettings.noneEnabled": "No packs enabled in all rooms",
+    "sharedPackSettings.enable": "Use everywhere",
+    "sharedPackSettings.disable": "Stop using everywhere",
+    "sharedPackSettings.remove": "Remove",
+    "sharedPackSettings.unavailable":
+        "Not available: you are no longer in {room} or the pack was removed",
+    "sharedPackSettings.packSummary":
+        "{room}, {count, plural, one {# image} other {# images}}",
+    "sharedPackSettings.failedToSave": "Failed to save",
 };
 
 // The Assyrian calendar: Kanun, Shvat, Adar ...; khad-b-shabba ... shabta.

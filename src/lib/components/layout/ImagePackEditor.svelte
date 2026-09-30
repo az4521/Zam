@@ -7,6 +7,10 @@
         addRoomEmote,
         setRoomEmoteUsage,
         removeRoomEmoteImage,
+        setPackGlobal,
+        updateRoomPackMeta,
+        deleteRoomPack,
+        importImagesToUserPack,
         validateEmojiShortcode,
         uploadContent,
         mxcToHttp,
@@ -16,6 +20,7 @@
         type ImageUsage,
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { readImageInfo } from "$lib/utils/emotePacks";
     import {
         packKey,
         usageFromFlags,
@@ -38,6 +43,12 @@
     let emoteError = $state("");
     let newEmoteAsEmoji = $state(true);
     let newEmoteAsSticker = $state(false);
+    let editingKey = $state<string | null>(null);
+    let editName = $state("");
+    let editAttribution = $state("");
+    let editAvatarMxc = $state<string | null | undefined>(undefined);
+    let packBusy = $state<string | null>(null);
+    let notice = $state("");
 
     const currentAvatarUrl = $derived(getRoomAvatar(room));
 
@@ -146,7 +157,10 @@
 
         emoteUploading = true;
         try {
-            const mxcUrl = await uploadContent(file);
+            const [mxcUrl, info] = await Promise.all([
+                uploadContent(file),
+                readImageInfo(file),
+            ]);
             const stateKey = selectedEmoteStateKey();
             const normalized = await addRoomEmote(
                 room.roomId,
@@ -155,6 +169,7 @@
                 mxcUrl,
                 selectedEmotePackName(),
                 usage,
+                { info },
             );
             const httpUrl = mxcToHttp(mxcUrl);
             const nextImage = {
@@ -164,6 +179,7 @@
                 usage,
                 canEmoji: usage.includes("emoticon"),
                 canSticker: usage.includes("sticker"),
+                info,
             };
             const existingPack = currentEmotePacks().find(
                 (pack) => packKey(pack) === stateKey,
@@ -272,6 +288,130 @@
             emoteActionPending = null;
         }
     }
+
+    function packBusyKey(pack: CustomImagePack, action: string): string {
+        return `${pack.id}:${action}`;
+    }
+
+    async function toggleGlobal(pack: CustomImagePack, enabled: boolean) {
+        if (!pack.roomId) return;
+        packBusy = packBusyKey(pack, "global");
+        emoteError = "";
+        notice = "";
+        try {
+            await setPackGlobal(pack.roomId, packKey(pack), enabled);
+            emotePacks = emotePacks.map((p) =>
+                p.id === pack.id ? { ...p, global: enabled } : p,
+            );
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToUpdatePack");
+        } finally {
+            packBusy = null;
+        }
+    }
+
+    async function addToMine(pack: CustomImagePack, only?: CustomPackImage) {
+        packBusy = packBusyKey(pack, only ? `mine:${only.shortcode}` : "mine");
+        emoteError = "";
+        notice = "";
+        try {
+            const added = await importImagesToUserPack(
+                (only ? [only] : pack.images).map((item) => ({
+                    shortcode: item.shortcode,
+                    mxcUrl: item.mxcUrl,
+                    info: item.info,
+                    body: item.body,
+                    usage: item.usage,
+                })),
+            );
+            notice =
+                added.length > 0
+                    ? t("imagePackEditor.addedToYourPack", {
+                          count: added.length,
+                      })
+                    : t("imagePackEditor.alreadyInYourPack");
+            roomsState.roomsTick++;
+        } catch (err: any) {
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToUpdatePack");
+        } finally {
+            packBusy = null;
+        }
+    }
+
+    function startEdit(pack: CustomImagePack) {
+        editingKey = pack.id;
+        editName = pack.name;
+        editAttribution = pack.attribution ?? "";
+        editAvatarMxc = undefined;
+    }
+
+    async function pickPackAvatar(e: Event) {
+        const input = e.currentTarget as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file) return;
+        try {
+            editAvatarMxc = await uploadContent(file);
+        } catch (err: any) {
+            emoteError = err?.message ?? t("imagePackEditor.uploadFailed");
+        }
+    }
+
+    async function saveEdit(pack: CustomImagePack) {
+        if (!pack.roomId) return;
+        packBusy = packBusyKey(pack, "edit");
+        emoteError = "";
+        try {
+            await updateRoomPackMeta(pack.roomId, packKey(pack), {
+                displayName: editName,
+                attribution: editAttribution,
+                ...(editAvatarMxc !== undefined
+                    ? { avatarMxc: editAvatarMxc }
+                    : {}),
+            });
+            editingKey = null;
+            // The state event round-trips through sync; re-read shortly after.
+            setTimeout(() => {
+                loadEmotes();
+                roomsState.roomsTick++;
+            }, 600);
+            onUpdate?.();
+        } catch (err: any) {
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToUpdatePack");
+        } finally {
+            packBusy = null;
+        }
+    }
+
+    async function doDeletePack(pack: CustomImagePack) {
+        if (!pack.roomId) return;
+        if (
+            !confirm(
+                t("imagePackEditor.confirmDeletePack", { name: pack.name }),
+            )
+        )
+            return;
+        packBusy = packBusyKey(pack, "delete");
+        emoteError = "";
+        try {
+            await deleteRoomPack(pack.roomId, packKey(pack));
+            emotePacks = emotePacks.filter((p) => p.id !== pack.id);
+            if (selectedEmotePackKey === packKey(pack)) {
+                selectedEmotePackKey = "__new";
+            }
+            roomsState.roomsTick++;
+            onUpdate?.();
+        } catch (err: any) {
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToUpdatePack");
+        } finally {
+            packBusy = null;
+        }
+    }
 </script>
 
 <div class="space-y-4">
@@ -373,6 +513,7 @@
     {#if emoteError}<p class="text-sm text-discord-danger">
             {emoteError}
         </p>{/if}
+    {#if notice}<p class="text-sm text-discord-textMuted">{notice}</p>{/if}
 
     <div class="space-y-3">
         {#each emotePacks as pack (pack.id)}
@@ -400,8 +541,121 @@
                                   })
                                 : pack.sourceName}
                         </p>
+                        {#if pack.attribution}
+                            <p
+                                class="text-xs text-discord-textMuted truncate"
+                                title={pack.attribution}
+                            >
+                                {t("imagePackEditor.attribution", {
+                                    value: pack.attribution,
+                                })}
+                            </p>
+                        {/if}
+                    </div>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <button
+                            onclick={() => addToMine(pack)}
+                            disabled={packBusy === packBusyKey(pack, "mine")}
+                            class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                            title={t("imagePackEditor.addAllToMyPack")}
+                        >
+                            {t("imagePackEditor.addToMine")}
+                        </button>
+                        {#if canEdit && !pack.inherited}
+                            <button
+                                onclick={() =>
+                                    editingKey === pack.id
+                                        ? (editingKey = null)
+                                        : startEdit(pack)}
+                                class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover"
+                            >
+                                {t("imagePackEditor.editDetails")}
+                            </button>
+                            <button
+                                onclick={() => doDeletePack(pack)}
+                                disabled={packBusy ===
+                                    packBusyKey(pack, "delete")}
+                                class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
+                            >
+                                {t("imagePackEditor.deletePack")}
+                            </button>
+                        {/if}
                     </div>
                 </div>
+                <label
+                    class="flex items-center gap-2 px-3 py-2 border-b border-discord-divider text-xs text-discord-textPrimary"
+                >
+                    <input
+                        type="checkbox"
+                        checked={!!pack.global}
+                        onchange={(e) =>
+                            toggleGlobal(
+                                pack,
+                                (e.target as HTMLInputElement).checked,
+                            )}
+                        disabled={packBusy === packBusyKey(pack, "global")}
+                        class="accent-discord-accent"
+                    />
+                    <span class="flex-1 min-w-0">
+                        {t("imagePackEditor.useInAllRooms")}
+                        <span class="text-discord-textMuted">
+                            {t("imagePackEditor.useInAllRoomsHint")}
+                        </span>
+                    </span>
+                </label>
+                {#if editingKey === pack.id}
+                    <div
+                        class="grid gap-2 px-3 py-2 border-b border-discord-divider sm:grid-cols-2"
+                    >
+                        <input
+                            bind:value={editName}
+                            placeholder={t("imagePackEditor.packName")}
+                            class="min-w-0 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                        />
+                        <input
+                            bind:value={editAttribution}
+                            placeholder={t(
+                                "imagePackEditor.attributionPlaceholder",
+                            )}
+                            class="min-w-0 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                        />
+                        <div class="flex items-center gap-2 sm:col-span-2">
+                            <label
+                                class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-xs text-discord-textPrimary"
+                            >
+                                {t("imagePackEditor.uploadPackAvatar")}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    onchange={pickPackAvatar}
+                                />
+                            </label>
+                            {#if editAvatarMxc}
+                                <span class="text-xs text-discord-textMuted"
+                                    >{t("imagePackEditor.avatarReady")}</span
+                                >
+                            {/if}
+                            {#if pack.avatarUrl || editAvatarMxc}
+                                <button
+                                    onclick={() => (editAvatarMxc = null)}
+                                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                                >
+                                    {t("imagePackEditor.removePackAvatar")}
+                                </button>
+                            {/if}
+                            <span class="flex-1"></span>
+                            <button
+                                onclick={() => saveEdit(pack)}
+                                disabled={packBusy ===
+                                    packBusyKey(pack, "edit")}
+                                class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold disabled:opacity-50"
+                            >
+                                {t("common.save")}
+                            </button>
+                        </div>
+                    </div>
+                {/if}
                 <div class="space-y-1 p-2">
                     {#each pack.images as item (pack.id + ":" + item.shortcode)}
                         <div
@@ -474,6 +728,15 @@
                                     {t("imagePackEditor.sticker")}
                                 </label>
                             </div>
+                            <button
+                                onclick={() => addToMine(pack, item)}
+                                disabled={packBusy ===
+                                    packBusyKey(pack, `mine:${item.shortcode}`)}
+                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                                title={t("imagePackEditor.addImageToMyPack")}
+                            >
+                                {t("imagePackEditor.addToMine")}
+                            </button>
                             {#if canEdit && !pack.inherited}
                                 <button
                                     onclick={() =>

@@ -302,6 +302,9 @@ export const settingsState = $state({
     /** Send private read receipts (m.read.private): the server still tracks
      *  what you've read, but other users can't see it. Default is public. */
     privateReadReceipts: readAccountBool("privateReadReceipts", false),
+    /** Tell other room members when you are typing. Default ON. Turning it
+     *  off means no typing notification is ever sent (see sendTyping). */
+    sendTypingIndicators: readAccountBool("sendTypingIndicators", true),
     /** Whether new direct messages are created encrypted. Default ON (see
      *  DEFAULT_ENCRYPT_DMS, user decision 2026-07-30). Account-scoped and only
      *  a fallback: an account that turned the toggle off stays off, because
@@ -596,6 +599,10 @@ export function reloadAccountSettings(): void {
         "privateReadReceipts",
         false,
     );
+    settingsState.sendTypingIndicators = readAccountBool(
+        "sendTypingIndicators",
+        true,
+    );
     settingsState.encryptNewDms = readAccountBool(
         "encryptNewDms",
         DEFAULT_ENCRYPT_DMS,
@@ -855,6 +862,11 @@ export function setKeepSidebarOpen(value: boolean): void {
 export function setPrivateReadReceipts(value: boolean): void {
     settingsState.privateReadReceipts = value;
     writeAccountBool("privateReadReceipts", value);
+}
+
+export function setSendTypingIndicators(value: boolean): void {
+    settingsState.sendTypingIndicators = value;
+    writeAccountBool("sendTypingIndicators", value);
 }
 
 export function setEncryptNewDms(value: boolean): void {

@@ -2989,6 +2989,53 @@ const messages: Record<MessageKey, string> = {
     "ownStatus.theServerStillHas": "Le serveur contient encore : {leftovers}",
     "ownStatus.statusClearedButPresenceRemains":
         "Statut effacé, mais le serveur affiche encore le message de présence « {presenceLeft} ». Il est probablement défini par une autre session de ce compte (autre application ou client) - effacez-le là-bas, ou déconnectez cette session.",
+
+    // MSC2545 sharing, typing indicators, layout heading
+    "appearanceSettings.layout": "Mise en page",
+    "privacySafetySettings.sendTypingIndicators":
+        "Envoyer les indicateurs de saisie",
+    "privacySafetySettings.letOthersInARoomSee":
+        "Permet aux autres membres d'un salon de voir quand vous écrivez. Désactivez pour écrire sans que personne ne soit prévenu.",
+    "imagePackEditor.failedToUpdatePack": "Impossible de mettre à jour le pack",
+    "imagePackEditor.addToMine": "Ajouter aux miens",
+    "imagePackEditor.addAllToMyPack":
+        "Copier toutes les images de ce pack dans votre propre pack",
+    "imagePackEditor.addImageToMyPack":
+        "Copier cette image dans votre propre pack",
+    "imagePackEditor.addedToYourPack":
+        "{count, plural, one {# image ajoutée à votre pack.} other {# images ajoutées à votre pack.}}",
+    "imagePackEditor.alreadyInYourPack": "Déjà dans votre pack.",
+    "imagePackEditor.editDetails": "Modifier les détails",
+    "imagePackEditor.deletePack": "Supprimer le pack",
+    "imagePackEditor.confirmDeletePack":
+        "Supprimer le pack « {name} » et toutes ses images ?",
+    "imagePackEditor.useInAllRooms": "Utiliser dans tous mes salons",
+    "imagePackEditor.useInAllRoomsHint":
+        "Ses émojis et autocollants apparaissent partout où vous discutez.",
+    "imagePackEditor.attribution": "Crédit : {value}",
+    "imagePackEditor.attributionPlaceholder":
+        "Crédit / attribution (facultatif)",
+    "imagePackEditor.uploadPackAvatar": "Téléverser l'icône du pack",
+    "imagePackEditor.removePackAvatar": "Retirer l'icône",
+    "imagePackEditor.avatarReady":
+        "Icône téléversée, enregistrez pour l'appliquer.",
+    "sharedPackSettings.yourPackDetails": "Détails de votre pack",
+    "sharedPackSettings.enabledEverywhere":
+        "Packs activés dans tous les salons",
+    "sharedPackSettings.enabledEverywhereHint":
+        "Les packs des salons où vous êtes peuvent être utilisés dans tous les salons, pas seulement dans celui qui les possède.",
+    "sharedPackSettings.availableInYourRooms": "Packs de vos salons",
+    "sharedPackSettings.searchPacks": "Rechercher des packs",
+    "sharedPackSettings.noPacksFound": "Aucun pack trouvé",
+    "sharedPackSettings.noneEnabled": "Aucun pack activé dans tous les salons",
+    "sharedPackSettings.enable": "Utiliser partout",
+    "sharedPackSettings.disable": "Ne plus utiliser partout",
+    "sharedPackSettings.remove": "Retirer",
+    "sharedPackSettings.unavailable":
+        "Indisponible : vous n'êtes plus dans {room} ou le pack a été supprimé",
+    "sharedPackSettings.packSummary":
+        "{room}, {count, plural, one {# image} other {# images}}",
+    "sharedPackSettings.failedToSave": "Échec de l'enregistrement",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

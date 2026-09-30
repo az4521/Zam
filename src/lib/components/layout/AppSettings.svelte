@@ -13,6 +13,7 @@
     import SecuritySettings from "$lib/components/settings/SecuritySettings.svelte";
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
+    import SharedPackSettings from "$lib/components/settings/SharedPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
@@ -396,6 +397,7 @@
         <VoiceAudioSettings />
     {:else if tab === "emotes"}
         <CustomPackSettings kind="emotes" />
+        <SharedPackSettings />
     {:else if tab === "general"}
         <GeneralSettings />
     {:else if tab === "plugins"}

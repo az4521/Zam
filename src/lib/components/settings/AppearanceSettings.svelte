@@ -87,60 +87,67 @@
             </select>
         </div>
     </section>
-    <div
-        data-setting-anchor="theme-rightalign"
-        class="flex items-center gap-3 py-2 border-b border-discord-divider"
-    >
-        <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">
-                {t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
-            </p>
-            <p class="text-xs text-discord-textMuted">
-                {t("appearanceSettings.displayYourOwnMessagesOnThe")}
-            </p>
+    <section data-setting-anchor="appearance-layout">
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            {t("appearanceSettings.layout")}
+        </p>
+        <div
+            data-setting-anchor="theme-rightalign"
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("appearanceSettings.displayYourOwnMessagesOnThe")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.rightAlignOwnBubbles}
+                onChange={setRightAlignOwnBubbles}
+                label={t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
+            />
         </div>
-        <ToggleSwitch
-            checked={settingsState.rightAlignOwnBubbles}
-            onChange={setRightAlignOwnBubbles}
-            label={t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
-        />
-    </div>
-    <div
-        data-setting-anchor="appearance-namecolours"
-        class="flex items-center gap-3 py-2 border-b border-discord-divider"
-    >
-        <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">
-                {t("appearanceSettings.showNameColours")}
-            </p>
-            <p class="text-xs text-discord-textMuted">
-                {t("appearanceSettings.drawPeopleSNamesInThe")}
-            </p>
+        <div
+            data-setting-anchor="appearance-namecolours"
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("appearanceSettings.showNameColours")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("appearanceSettings.drawPeopleSNamesInThe")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.showNameColours}
+                onChange={setShowNameColours}
+                label={t("appearanceSettings.showNameColours")}
+            />
         </div>
-        <ToggleSwitch
-            checked={settingsState.showNameColours}
-            onChange={setShowNameColours}
-            label={t("appearanceSettings.showNameColours")}
-        />
-    </div>
-    <div
-        data-setting-anchor="appearance-keepsidebar"
-        class="flex items-center gap-3 py-2 border-b border-discord-divider"
-    >
-        <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">
-                {t("appearanceSettings.keepRoomListOpen")}
-            </p>
-            <p class="text-xs text-discord-textMuted">
-                {t("appearanceSettings.donTAutoCloseTheRoom")}
-            </p>
+        <div
+            data-setting-anchor="appearance-keepsidebar"
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("appearanceSettings.keepRoomListOpen")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("appearanceSettings.donTAutoCloseTheRoom")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.keepSidebarOpen}
+                onChange={setKeepSidebarOpen}
+                label={t("appearanceSettings.keepRoomListOpen")}
+            />
         </div>
-        <ToggleSwitch
-            checked={settingsState.keepSidebarOpen}
-            onChange={setKeepSidebarOpen}
-            label={t("appearanceSettings.keepRoomListOpen")}
-        />
-    </div>
+    </section>
     <ThemeColorEditor />
 
     <section data-setting-anchor="cust-timestamps">

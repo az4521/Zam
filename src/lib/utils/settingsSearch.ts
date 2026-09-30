@@ -279,6 +279,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "privacy",
+        label: t("privacySafetySettings.sendTypingIndicators"),
+        keywords: ["typing", "is typing", "indicator", "privacy"],
+        anchor: "notif-privacy",
+    },
+    {
+        tab: "privacy",
         label: t("settingsSearch.hideMessageTextInNotifications"),
         keywords: ["notification content", "preview", "privacy"],
         anchor: "notif-privacy",

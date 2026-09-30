@@ -5,6 +5,7 @@
     import BlockedUsersSettings from "$lib/components/settings/BlockedUsersSettings.svelte";
     import {
         setPrivateReadReceipts,
+        setSendTypingIndicators,
         setHideNotificationBody,
         setLinkPreviewMedia,
         settingsState,
@@ -80,6 +81,23 @@
                 checked={settingsState.privateReadReceipts}
                 onChange={onTogglePrivateReadReceipts}
                 label={t("privacySafetySettings.privateReadReceipts")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("privacySafetySettings.sendTypingIndicators")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("privacySafetySettings.letOthersInARoomSee")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.sendTypingIndicators}
+                onChange={setSendTypingIndicators}
+                label={t("privacySafetySettings.sendTypingIndicators")}
             />
         </div>
         <div

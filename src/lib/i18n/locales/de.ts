@@ -3015,6 +3015,51 @@ const messages: Record<MessageKey, string> = {
     "ownStatus.theServerStillHas": "Der Server hat noch: {leftovers}",
     "ownStatus.statusClearedButPresenceRemains":
         "Status gelöscht, aber der Server zeigt noch die Anwesenheitsnachricht „{presenceLeft}“. Sie wird wahrscheinlich von einer anderen Sitzung dieses Kontos gesetzt (andere App oder anderer Client) - lösche sie dort oder melde diese Sitzung ab.",
+
+    // MSC2545 sharing, typing indicators, layout heading
+    "appearanceSettings.layout": "Layout",
+    "privacySafetySettings.sendTypingIndicators": "Schreibanzeige senden",
+    "privacySafetySettings.letOthersInARoomSee":
+        "Andere Personen in einem Raum sehen, wenn du gerade schreibst. Deaktivieren, um zu schreiben, ohne dass es jemand erfährt.",
+    "imagePackEditor.failedToUpdatePack":
+        "Paket konnte nicht aktualisiert werden",
+    "imagePackEditor.addToMine": "Zu meinen hinzufügen",
+    "imagePackEditor.addAllToMyPack":
+        "Alle Bilder dieses Pakets in dein eigenes Paket kopieren",
+    "imagePackEditor.addImageToMyPack":
+        "Dieses Bild in dein eigenes Paket kopieren",
+    "imagePackEditor.addedToYourPack":
+        "{count, plural, one {# Bild zu deinem Paket hinzugefügt.} other {# Bilder zu deinem Paket hinzugefügt.}}",
+    "imagePackEditor.alreadyInYourPack": "Bereits in deinem Paket.",
+    "imagePackEditor.editDetails": "Details bearbeiten",
+    "imagePackEditor.deletePack": "Paket löschen",
+    "imagePackEditor.confirmDeletePack":
+        "Das Paket „{name}“ und alle seine Bilder löschen?",
+    "imagePackEditor.useInAllRooms": "In allen meinen Räumen verwenden",
+    "imagePackEditor.useInAllRoomsHint":
+        "Die Emojis und Sticker erscheinen überall, wo du chattest.",
+    "imagePackEditor.attribution": "Quelle: {value}",
+    "imagePackEditor.attributionPlaceholder": "Quelle / Urheber (optional)",
+    "imagePackEditor.uploadPackAvatar": "Paketsymbol hochladen",
+    "imagePackEditor.removePackAvatar": "Symbol entfernen",
+    "imagePackEditor.avatarReady":
+        "Symbol hochgeladen, zum Übernehmen speichern.",
+    "sharedPackSettings.yourPackDetails": "Details deines Pakets",
+    "sharedPackSettings.enabledEverywhere": "In allen Räumen aktivierte Pakete",
+    "sharedPackSettings.enabledEverywhereHint":
+        "Pakete aus Räumen, in denen du bist, können in jedem Raum verwendet werden, nicht nur im Raum, dem sie gehören.",
+    "sharedPackSettings.availableInYourRooms": "Pakete in deinen Räumen",
+    "sharedPackSettings.searchPacks": "Pakete suchen",
+    "sharedPackSettings.noPacksFound": "Keine Pakete gefunden",
+    "sharedPackSettings.noneEnabled": "Keine Pakete in allen Räumen aktiviert",
+    "sharedPackSettings.enable": "Überall verwenden",
+    "sharedPackSettings.disable": "Nicht mehr überall verwenden",
+    "sharedPackSettings.remove": "Entfernen",
+    "sharedPackSettings.unavailable":
+        "Nicht verfügbar: du bist nicht mehr in {room} oder das Paket wurde entfernt",
+    "sharedPackSettings.packSummary":
+        "{room}, {count, plural, one {# Bild} other {# Bilder}}",
+    "sharedPackSettings.failedToSave": "Speichern fehlgeschlagen",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

@@ -1924,6 +1924,12 @@
         const unsubVerification = initVerification();
         const unsubPlugins = initPlugins();
         const unsubAccountData = onAccountData((type) => {
+            // Pack changes made on another device (or by us) reach pickers.
+            if (
+                type === "im.ponies.user_emotes" ||
+                type === "im.ponies.emote_rooms"
+            )
+                roomsState.roomsTick++;
             if (
                 type === "im.client.space_layout" ||
                 type === "im.client.space_order"

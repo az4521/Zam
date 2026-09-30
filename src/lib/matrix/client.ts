@@ -139,6 +139,16 @@ import {
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
+import {
+    applyPackMeta,
+    hasEmoteRoom,
+    parseEmoteRooms,
+    uniqueShortcode,
+    withEmoteRoom,
+    type EmoteRoomRef,
+    type EmoteRoomsContent,
+    type PackMetaUpdate,
+} from "$lib/utils/emotePacks";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
@@ -357,6 +367,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
+        "im.ponies.emote_rooms": EmoteRoomsContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
         "moe.crafty.matrix.plugins": PluginSyncAccountData;
     }
@@ -4856,6 +4867,8 @@ export async function sendTyping(
     timeout: number = 25_000,
 ): Promise<void> {
     if (!matrixClient) return;
+    // Opted out: send no typing notification at all.
+    if (!settingsState.sendTypingIndicators) return;
     try {
         await matrixClient.sendTyping(roomId, isTyping, timeout);
     } catch {
@@ -6017,6 +6030,8 @@ interface RoomEmoteContent {
     images?: Record<string, RoomEmoteImageContent>;
     pack?: {
         display_name?: string;
+        avatar_url?: string;
+        attribution?: string;
         usage?: string[];
         [key: string]: unknown;
     };
@@ -6042,6 +6057,12 @@ export interface CustomImagePack {
     stateKey?: string;
     sourceName?: string;
     inherited?: boolean;
+    /** MSC2545 pack.attribution (credit for the artwork). */
+    attribution?: string;
+    /** Pack-level usage default, when the pack declares one. */
+    usage?: ImageUsage[];
+    /** Enabled globally via im.ponies.emote_rooms (usable in every room). */
+    global?: boolean;
     images: CustomPackImage[];
 }
 
@@ -6078,6 +6099,12 @@ function effectiveUsage(
         (u): u is ImageUsage => u === "emoticon" || u === "sticker",
     );
     return usage.length > 0 ? usage : ["emoticon", "sticker"];
+}
+
+/** Optional MSC2545 image `info` / `body` written alongside a new image. */
+export interface PackImageMeta {
+    info?: Record<string, unknown>;
+    body?: string;
 }
 
 // MSC2545 per-image metadata (info/body), forwarded onto CustomEmoji so a
@@ -6118,9 +6145,74 @@ function roomEmoteContentToPackImages(
                     usage,
                     canEmoji: usage.includes("emoticon"),
                     canSticker: usage.includes("sticker"),
+                    ...packImageMeta(data),
                 },
             ];
         });
+}
+
+function packAvatarUrl(
+    content: RoomEmoteContent,
+    room: Room,
+): string | undefined {
+    const avatar = content.pack?.avatar_url;
+    if (typeof avatar === "string" && avatar.startsWith("mxc://")) {
+        const http = mxcToHttp(avatar, 64);
+        if (http) return http;
+    }
+    return getRoomAvatar(room) ?? undefined;
+}
+
+function packUsageList(content: RoomEmoteContent): ImageUsage[] | undefined {
+    const usage = (content.pack?.usage ?? []).filter(
+        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
+    );
+    return usage.length > 0 ? usage : undefined;
+}
+
+function roomPackFromEvent(room: Room, event: MatrixEvent): CustomImagePack {
+    const content = event.getContent() as RoomEmoteContent;
+    const stateKey = event.getStateKey() ?? "";
+    return {
+        id: `${room.roomId}:${stateKey}`,
+        roomId: room.roomId,
+        stateKey,
+        name:
+            content.pack?.display_name ||
+            stateKey ||
+            t("client.emotes", {
+                value: room.name || t("client.room"),
+            }),
+        sourceName: room.name || room.roomId,
+        avatarUrl: packAvatarUrl(content, room),
+        attribution: content.pack?.attribution || undefined,
+        usage: packUsageList(content),
+        images: roomEmoteContentToPackImages(content),
+    };
+}
+
+function imagePackToEmojiPack(
+    pack: CustomImagePack,
+    kind: ImageUsage,
+): CustomEmojiPack {
+    return {
+        id: pack.id,
+        name: pack.name,
+        avatarUrl: pack.avatarUrl,
+        roomId: pack.roomId,
+        stateKey: pack.stateKey,
+        sourceName: pack.sourceName,
+        inherited: pack.inherited,
+        emojis: pack.images
+            .filter((i) => (kind === "emoticon" ? i.canEmoji : i.canSticker))
+            .map((i) => ({
+                shortcode: i.shortcode,
+                mxcUrl: i.mxcUrl,
+                url: i.url,
+                ...(i.info ? { info: i.info } : {}),
+                ...(i.body !== undefined ? { body: i.body } : {}),
+            })),
+    };
 }
 
 function roomEmoteContentToImages(
@@ -6157,25 +6249,13 @@ function getRoomEmotePacksBase(room: Room): CustomImagePack[] {
             .getState(EventTimeline.FORWARDS)
             ?.getStateEvents("im.ponies.room_emotes") ?? [];
     const arr = Array.isArray(events) ? events : [events];
+    const globals = emoteRoomsContent();
     return arr
         .map((event) => {
-            const content = event.getContent() as RoomEmoteContent;
-            const stateKey = event.getStateKey() ?? "";
-            const images = roomEmoteContentToPackImages(content);
-            return {
-                id: `${room.roomId}:${stateKey}`,
-                roomId: room.roomId,
-                stateKey,
-                name:
-                    content.pack?.display_name ||
-                    stateKey ||
-                    t("client.emotes", {
-                        value: room.name || t("client.room"),
-                    }),
-                sourceName: room.name || room.roomId,
-                avatarUrl: getRoomAvatar(room) ?? undefined,
-                images,
-            };
+            const pack = roomPackFromEvent(room, event);
+            return hasEmoteRoom(globals, room.roomId, pack.stateKey ?? "")
+                ? { ...pack, global: true }
+                : pack;
         })
         .filter((pack) => pack.images.length > 0);
 }
@@ -6201,7 +6281,7 @@ function getRoomImagePacks(room: Room, kind: ImageUsage): CustomEmojiPack[] {
                     stateKey ||
                     `${room.name || t("client.room")} ${kind === "sticker" ? t("common.stickers") : t("client.emojis")}`,
                 sourceName: room.name || room.roomId,
-                avatarUrl: getRoomAvatar(room) ?? undefined,
+                avatarUrl: packAvatarUrl(content, room),
                 emojis,
             };
         })
@@ -6447,6 +6527,7 @@ export async function addRoomEmote(
     mxcUrl: string,
     packName: string,
     usage: ImageUsage[],
+    meta?: PackImageMeta,
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
@@ -6463,6 +6544,8 @@ export async function addRoomEmote(
         ...existing,
         url: mxcUrl,
         usage: nextUsage,
+        ...(meta?.info ? { info: meta.info } : {}),
+        ...(meta?.body ? { body: meta.body } : {}),
     };
     await (matrixClient as any).sendStateEvent(
         roomId,
@@ -6686,6 +6769,7 @@ export async function addUserEmote(
     shortcode: string,
     mxcUrl: string,
     usage: ImageUsage[],
+    meta?: PackImageMeta,
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
@@ -6702,6 +6786,8 @@ export async function addUserEmote(
         ...existing,
         url: mxcUrl,
         usage: nextUsage,
+        ...(meta?.info ? { info: meta.info } : {}),
+        ...(meta?.body ? { body: meta.body } : {}),
     };
     await matrixClient.setAccountData("im.ponies.user_emotes", {
         ...current,
@@ -6816,6 +6902,192 @@ export async function removeUserEmoteImage(shortcode: string): Promise<void> {
     });
 }
 
+// ── MSC2545 sharing: global packs, metadata, import ──────────────────────────
+
+const EMOTE_ROOMS_KEY = "im.ponies.emote_rooms";
+
+function emoteRoomsContent(): EmoteRoomsContent | undefined {
+    return matrixClient?.getAccountData(EMOTE_ROOMS_KEY)?.getContent();
+}
+
+/** Every pack the user enabled globally, whether or not it still resolves. */
+export function getEmoteRoomSubscriptions(): EmoteRoomRef[] {
+    return parseEmoteRooms(emoteRoomsContent());
+}
+
+export function isPackGlobal(roomId: string, stateKey: string): boolean {
+    return hasEmoteRoom(emoteRoomsContent(), roomId, stateKey);
+}
+
+/** Enable or disable a room's pack for use in every room (emote_rooms). */
+export async function setPackGlobal(
+    roomId: string,
+    stateKey: string,
+    enabled: boolean,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await matrixClient.setAccountData(
+        EMOTE_ROOMS_KEY,
+        withEmoteRoom(emoteRoomsContent(), roomId, stateKey, enabled),
+    );
+}
+
+/** Packs the user enabled globally that we can still read (joined rooms). */
+export function getGlobalEmotePacks(): CustomImagePack[] {
+    if (!matrixClient) return [];
+    try {
+        return getEmoteRoomSubscriptions().flatMap((ref) => {
+            const room = matrixClient!.getRoom(ref.roomId);
+            if (!room || room.getMyMembership() !== "join") return [];
+            const event = room
+                .getLiveTimeline()
+                .getState(EventTimeline.FORWARDS)
+                ?.getStateEvents("im.ponies.room_emotes", ref.stateKey);
+            if (!event) return [];
+            const pack = roomPackFromEvent(room, event);
+            return pack.images.length > 0 ? [{ ...pack, global: true }] : [];
+        });
+    } catch {
+        return [];
+    }
+}
+
+/** Every pack in every joined room and space, flagged when enabled globally.
+ *  Backs the "share a pack across all my rooms" list in settings. */
+export function getJoinedRoomPacks(): CustomImagePack[] {
+    if (!matrixClient) return [];
+    try {
+        return matrixClient
+            .getRooms()
+            .filter((room) => room.getMyMembership() === "join")
+            .flatMap((room) => getRoomEmotePacks(room));
+    } catch {
+        return [];
+    }
+}
+
+/** Enabled-globally entries that no longer resolve (left the room, pack gone),
+ *  so settings can offer to drop them. */
+export function getStaleEmoteSubscriptions(): EmoteRoomRef[] {
+    if (!matrixClient) return [];
+    const live = new Set(getGlobalEmotePacks().map((pack) => pack.id));
+    return getEmoteRoomSubscriptions().filter(
+        (ref) => !live.has(`${ref.roomId}:${ref.stateKey}`),
+    );
+}
+
+export async function updateRoomPackMeta(
+    roomId: string,
+    stateKey: string,
+    update: PackMetaUpdate,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const current = await fetchRoomEmoteContent(roomId, stateKey);
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        applyPackMeta(current, update),
+        stateKey,
+    );
+}
+
+/** Delete a room pack (MSC2545: empty content removes it) and stop sharing it. */
+export async function deleteRoomPack(
+    roomId: string,
+    stateKey: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        "im.ponies.room_emotes",
+        {},
+        stateKey,
+    );
+    if (isPackGlobal(roomId, stateKey)) {
+        await setPackGlobal(roomId, stateKey, false);
+    }
+}
+
+export interface UserPackInfo {
+    name: string;
+    avatarUrl?: string;
+    attribution?: string;
+}
+
+export function getUserPackInfo(): UserPackInfo {
+    const content = getUserEmoteContent();
+    const avatar = content.pack?.avatar_url;
+    return {
+        name: content.pack?.display_name ?? "",
+        avatarUrl:
+            typeof avatar === "string"
+                ? (mxcToHttp(avatar, 64) ?? undefined)
+                : undefined,
+        attribution: content.pack?.attribution || undefined,
+    };
+}
+
+export async function updateUserPackMeta(
+    update: PackMetaUpdate,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const current = await fetchUserEmoteContent();
+    await matrixClient.setAccountData(
+        "im.ponies.user_emotes",
+        applyPackMeta(current, update),
+    );
+}
+
+export interface ImportableImage {
+    shortcode: string;
+    mxcUrl: string;
+    info?: Record<string, unknown>;
+    body?: string;
+    usage?: ImageUsage[];
+}
+
+/** Copy images from someone else's pack into the user's own pack in a single
+ *  account-data write. The media is referenced by its existing mxc URI, not
+ *  re-uploaded. Shortcode collisions get a numeric suffix; an image already
+ *  present (same mxc) is skipped. Returns the shortcodes that were added. */
+export async function importImagesToUserPack(
+    images: ImportableImage[],
+): Promise<string[]> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const current = await fetchUserEmoteContent();
+    const next = { ...(current.images ?? {}) };
+    const taken = new Set(Object.keys(next));
+    const haveUrls = new Set(Object.values(next).map((image) => image?.url));
+    const added: string[] = [];
+    for (const image of images) {
+        if (!image.mxcUrl.startsWith("mxc://") || haveUrls.has(image.mxcUrl))
+            continue;
+        const wanted = normalizeEmojiShortcode(image.shortcode);
+        if (validateEmojiShortcode(wanted)) continue;
+        const shortcode = uniqueShortcode(taken, wanted);
+        taken.add(shortcode);
+        haveUrls.add(image.mxcUrl);
+        const usage = normalizeUsage(image.usage ?? []);
+        next[shortcode] = {
+            url: image.mxcUrl,
+            usage: usage.length > 0 ? usage : ["emoticon", "sticker"],
+            ...(image.info ? { info: image.info } : {}),
+            ...(image.body ? { body: image.body } : {}),
+        };
+        added.push(shortcode);
+    }
+    if (added.length === 0) return added;
+    await matrixClient.setAccountData("im.ponies.user_emotes", {
+        ...current,
+        pack: {
+            ...(current.pack ?? {}),
+            display_name: current.pack?.display_name ?? "My Emotes",
+        },
+        images: next,
+    });
+    return added;
+}
+
 function uniquePacks<T extends { id: string }>(packs: T[]): T[] {
     const seen = new Set<string>();
     return packs.filter((pack) => {
@@ -6848,6 +7120,12 @@ export function getCustomEmojiPacks(
             packs.push(...getAvailableRoomEmojiPacks(spaceRoom));
         }
     }
+
+    packs.push(
+        ...getGlobalEmotePacks()
+            .map((pack) => imagePackToEmojiPack(pack, "emoticon"))
+            .filter((pack) => pack.emojis.length > 0),
+    );
 
     return uniquePacks(packs);
 }
@@ -6897,6 +7175,11 @@ export function getCustomStickerPacks(
         }
     }
 
+    for (const pack of getGlobalEmotePacks()) {
+        const { emojis, ...rest } = imagePackToEmojiPack(pack, "sticker");
+        if (emojis.length > 0) packs.push({ ...rest, stickers: emojis });
+    }
+
     return uniquePacks(packs);
 }
 
@@ -6931,6 +7214,12 @@ export function getCustomEmojis(
             );
         }
     }
+
+    add(
+        getGlobalEmotePacks().flatMap(
+            (pack) => imagePackToEmojiPack(pack, "emoticon").emojis,
+        ),
+    );
 
     return result;
 }
