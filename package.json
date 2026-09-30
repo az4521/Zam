@@ -113,6 +113,7 @@
         "marked": "^15.0.7",
         "matrix-js-sdk": "^43.0.0",
         "qrcode": "^1.5.4",
+        "spessasynth_core": "4.3.22",
         "unicode-emoji-json": "^0.8.0",
         "uuid": "^11.1.0"
     }

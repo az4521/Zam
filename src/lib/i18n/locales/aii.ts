@@ -68,6 +68,10 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.update": "ܚܕܬ",
     "aboutSettings.reloadToUpdate": "ܛܥܘܢ ܡܢ ܕܪܝܫ ܠܚܘܕܬܐ",
     "aboutSettings.youReOnTheLatestVersion": "ܗܢܐ ܝܠܗ ܢܘܣܚܐ ܐܚܪܝܐ.",
+    "aboutSettings.credits": "ܬܘܕܝ̈ܬܐ",
+    "aboutSettings.creditsMidiInstruments": "ܡܐܢ̈ܐ ܕ MIDI",
+    "aboutSettings.creditsSoundFont":
+        "ܡܢ {author}، ܥܠ ܫܬܐܣܐ ܕ Phoenix ܡܢ {original}. ܬܚܝܬ ܦܣܩܐ CC BY؛ ܫܘܚܠܦܐ ܠ General MIDI ܘܟܒܝܫܐ ܠ Zam.",
     "aboutSettings.troubleshooting": "ܬܘܪܨܐ ܕܦܘܕ̈ܐ",
     "aboutSettings.clearCacheAndResync": "ܫܘܦ ܓܙܐ ܘܛܥܘܢ ܡܢ ܕܪܝܫ",
     "aboutSettings.reDownloadsYourRoomsFromThe":

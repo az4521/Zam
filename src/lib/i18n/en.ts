@@ -64,6 +64,10 @@ export const en = {
     "aboutSettings.update": "Update",
     "aboutSettings.reloadToUpdate": "Reload to update",
     "aboutSettings.youReOnTheLatestVersion": "You’re on the latest version.",
+    "aboutSettings.credits": "Credits",
+    "aboutSettings.creditsMidiInstruments": "MIDI instruments",
+    "aboutSettings.creditsSoundFont":
+        "by {author}, based on Phoenix by {original}. Licensed under CC BY; remapped to General MIDI and compressed for Zam.",
     "aboutSettings.troubleshooting": "Troubleshooting",
     "aboutSettings.clearCacheAndResync": "Clear cache and resync",
     "aboutSettings.reDownloadsYourRoomsFromThe":

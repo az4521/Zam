@@ -69,6 +69,10 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.reloadToUpdate": "Recharger pour mettre à jour",
     "aboutSettings.youReOnTheLatestVersion":
         "Vous utilisez la dernière version.",
+    "aboutSettings.credits": "Crédits",
+    "aboutSettings.creditsMidiInstruments": "Instruments MIDI",
+    "aboutSettings.creditsSoundFont":
+        "par {author}, d'après Phoenix de {original}. Sous licence CC BY ; adapté au General MIDI et compressé pour Zam.",
     "aboutSettings.troubleshooting": "Dépannage",
     "aboutSettings.clearCacheAndResync": "Vider le cache et resynchroniser",
     "aboutSettings.reDownloadsYourRoomsFromThe":

@@ -329,6 +329,48 @@ ipcMain.on("updates:set-auto", (_e, enabled) => {
     autoUpdatePref = !!enabled;
 });
 
+// The OS's own General MIDI sound bank, for playing MIDI attachments with the
+// sounds the user's system synth uses (src/lib/utils/midiSoundBank.ts). Only
+// these fixed paths are ever read; the renderer supplies nothing. Resolves
+// null when none exists, and the renderer falls back to other banks.
+const SYSTEM_SOUND_BANKS = {
+    // Microsoft GS Wavetable Synth's bank (Roland GS, DLS).
+    win32: [
+        path.join(
+            process.env.SystemRoot || "C:\\Windows",
+            "System32",
+            "drivers",
+            "gm.dls",
+        ),
+    ],
+    // Apple's DLS synth bank.
+    darwin: [
+        "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
+    ],
+    // Distro-packaged SoundFonts (Debian/Ubuntu, Fedora, Arch).
+    linux: [
+        "/usr/share/sounds/sf2/default-GM.sf2",
+        "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+        "/usr/share/soundfonts/default.sf2",
+        "/usr/share/soundfonts/FluidR3_GM.sf2",
+        "/usr/share/sounds/sf3/default-GM.sf3",
+    ],
+};
+const MAX_SOUND_BANK_BYTES = 256 * 1024 * 1024;
+
+ipcMain.handle("soundbank:system", async () => {
+    for (const file of SYSTEM_SOUND_BANKS[process.platform] || []) {
+        try {
+            const stat = await fs.promises.stat(file);
+            if (!stat.isFile() || stat.size > MAX_SOUND_BANK_BYTES) continue;
+            return await fs.promises.readFile(file);
+        } catch {
+            // missing or unreadable: try the next one
+        }
+    }
+    return null;
+});
+
 // A notification arrived for a window the user is not looking at: flash the
 // taskbar button (Windows/Linux) or bounce the dock icon (macOS).
 ipcMain.on("notify:flash", () => {

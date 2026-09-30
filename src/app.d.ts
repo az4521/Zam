@@ -18,6 +18,8 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            /** The OS's General MIDI sound bank (DLS/SF2) bytes, or null. */
+            readSystemSoundBank?: () => Promise<Uint8Array | null>;
             sso?: {
                 /** SSO redirect caught by the local server (path + query). */
                 onCallback: (cb: (url: string) => void) => () => void;

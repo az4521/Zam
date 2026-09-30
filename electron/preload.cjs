@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // The OS's General MIDI sound bank bytes, or null (see main.cjs).
+    readSystemSoundBank: () => ipcRenderer.invoke("soundbank:system"),
     contextMenu: {
         // Right-click "Save image as": main hands over the image's src URL;
         // the renderer fetches it with auth and saves it.

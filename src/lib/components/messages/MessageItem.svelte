@@ -88,6 +88,7 @@
         stripFormattedFallback,
     } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
+    import { isMidiAttachment, midiUrlToWavUrl } from "$lib/utils/midi";
     import {
         videoSource,
         videoPoster,
@@ -1468,6 +1469,14 @@
         void audioAttempt; // re-run when the user retries a failed load
         if (!audioClicked || msgtype !== "m.audio") return;
         const file = content?.file as EncryptedFile | undefined;
+        const isMidi = isMidiAttachment(
+            (content?.info as { mimetype?: string } | undefined)?.mimetype,
+            mediaFilename,
+        );
+        let cancelled = false;
+        // <audio> can't decode MIDI, so synthesize it to WAV first.
+        const toPlayableAudio = (url: string) =>
+            isMidi ? midiUrlToWavUrl(url) : url;
         if (file) {
             // Encrypted audio
             audioLoading = true;
@@ -1477,7 +1486,9 @@
                 content?.info as { mimetype?: string } | undefined
             )?.mimetype;
             fetchDecryptedAttachmentBlob(file, mimetype)
+                .then(toPlayableAudio)
                 .then((url) => {
+                    if (cancelled) return URL.revokeObjectURL(url);
                     objectUrl = url;
                     audioBlobUrl = url;
                     audioLoading = false;
@@ -1487,6 +1498,7 @@
                     audioFailed = true;
                 });
             return () => {
+                cancelled = true;
                 if (objectUrl) URL.revokeObjectURL(objectUrl);
                 audioBlobUrl = null;
             };
@@ -1498,7 +1510,9 @@
             audioFailed = false;
             let objectUrl: string | null = null;
             fetchAttachmentBlob(httpUrl)
+                .then(toPlayableAudio)
                 .then((url) => {
+                    if (cancelled) return URL.revokeObjectURL(url);
                     objectUrl = url;
                     audioBlobUrl = url;
                     audioLoading = false;
@@ -1508,6 +1522,7 @@
                     audioFailed = true;
                 });
             return () => {
+                cancelled = true;
                 if (objectUrl) URL.revokeObjectURL(objectUrl);
                 audioBlobUrl = null;
             };
