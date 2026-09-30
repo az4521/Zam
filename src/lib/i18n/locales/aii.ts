@@ -104,6 +104,9 @@ const messages: Record<MessageKey, string> = {
     "accountSettings.passwordChanged": "ܡܠܬܐ ܕܥܒܪܐ ܝܠܗ̇ ܡܫܘܚܠܦܬܐ.",
     "accountSettings.thisServerDoesNotAllowChanging":
         "ܗܢܐ ܣܝܪܒܪ ܠܐ ܝܗܒ ܦܣܐ ܠܫܚܠܦܬܐ ܕܡܠܬܐ ܕܥܒܪܐ ܡܢ ܗܕܐ ܬܘܟܢܝܬܐ.",
+    "accountSettings.managedByProvider":
+        "ܡܠܬܐ ܕܥܒܪܐ، ܓܠܣ̈ܐ ܘܚܘܫܒܢܐ ܕܝܠܟ ܡܬܕܒܪܝܢ ܓܘ ܦܐܬܐ ܕܚܘܫܒܢܐ ܕܡܛܝܒܢܐ ܕܥܠܠܐ.",
+    "accountSettings.manageAccount": "ܕܒܪ ܚܘܫܒܢܐ",
     "accountSettings.emailPhoneNumbers": "ܐܝܡܝܠ ܘܡܢܝܢ̈ܐ ܕܬܠܝܦܘܢ",
     "accountSettings.noEmailAddressesOrPhoneNumbers":
         "ܠܝܬ ܐܝܡܝܠ ܝܢ ܡܢܝܢ̈ܐ ܕܬܠܝܦܘܢ ܐܣܝܪ̈ܐ ܥܡ ܗܢܐ ܚܘܫܒܢܐ.",
@@ -632,6 +635,17 @@ const messages: Record<MessageKey, string> = {
     "loginView.ssoCouldNotBeVerified":
         "SSO ܠܐ ܡܨܐ ܗܘܐ ܡܫܪܪܐ. ܒܒܥܘܬܐ ܢܣܝ ܡܢ ܕܪܝܫ.",
     "loginView.ssoFailed": "SSO ܠܐ ܦܠܚܠܗ.",
+    "loginView.continue": "ܦܘܫ ܠܩܕܡ",
+    "loginView.signInOnProviderPage":
+        "ܢܥܘܠ ܓܘ ܦܐܬܐ ܕܣܝܪܒܪ ܕܝܠܟ، ܘܒܬܪ ܗܕܐ ܕܥܘܪ ܠܟܐ.",
+    "loginView.oauthCancelled": "ܥܠܠܐ ܒܛܝܠܐ ܗܘܬ.",
+    "loginView.oauthDenied": "ܡܛܝܒܢܐ ܕܥܠܠܐ ܠܐ ܩܒܠܗ ܠܒܥܘܬܐ: {reason}",
+    "loginView.oauthCouldNotBeVerified":
+        "ܥܠܠܐ ܠܐ ܡܨܐ ܗܘܐ ܡܫܪܪܐ. ܒܒܥܘܬܐ ܢܣܝ ܡܢ ܕܪܝܫ.",
+    "loginView.oauthFailed": "ܥܠܠܐ ܠܐ ܦܠܚܠܗ. ܒܒܥܘܬܐ ܢܣܝ ܡܢ ܕܪܝܫ.",
+    "loginView.oauthRegistrationRefused": "ܗܢܐ ܣܝܪܒܪ ܠܐ ܩܒܠܗ Zam ܠܥܠܠܐ.",
+    "loginView.oauthRegistrationRefusedFallback":
+        "ܗܢܐ ܣܝܪܒܪ ܠܐ ܩܒܠܗ Zam ܠܥܠܠܐ. ܐܣܬܡܫ ܒܚܕܐ ܡܢ ܐܪܚܐ ܐܚܪܢܐ ܠܬܚܬ.",
     "loginView.checkingServer": "ܒܒܨܝܐ ܣܝܪܒܪ…",
 
     // src/lib/components/layout/MemberList.svelte
@@ -1508,6 +1522,7 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.rename": "ܫܚܠܦ ܫܡܐ",
     "sessionSettings.signOut": "ܦܘܩ؟",
     "sessionSettings.signOut2": "ܦܘܩ",
+    "sessionSettings.manageAtProvider": "ܕܒܪ",
     "sessionSettings.confirmYourAccountPasswordToSign":
         "ܫܪܪ ܡܠܬܐ ܕܥܒܪܐ ܕܚܘܫܒܢܐ ܕܝܘܟ ܩܐ ܡܦܩܬܐ ܡܢ ܗܢܐ ܓܠܣܐ.",
     "sessionSettings.accountPassword": "ܡܠܬܐ ܕܥܒܪܐ ܕܚܘܫܒܢܐ",
@@ -1901,6 +1916,8 @@ const messages: Record<MessageKey, string> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "ܗܢܐ ܣܝܪܒܪ ܕܒܝܬܐ ܠܐ ܡܣܝܥ ܐܚܕܝܘܬܐ ܓܠܝܫܬܐ، ܗܕܟܐ ܐܚܕܝܘܬܐ ܥܬܝܩܬܐ ܦܠܝܚܬܐ ܝܠܗ̇ ܒܕܘܟܬܗ̇.",
     "client.notLoggedIn": "ܠܐ ܥܠܝܠܐ ܝܘܬ",
+    "client.oauthProviderChanged":
+        "ܡܛܝܒܢܐ ܕܥܠܠܐ ܕܣܝܪܒܪ ܐܫܬܚܠܦ. ܒܒܥܘܬܐ ܢܣܝ ܡܢ ܕܪܝܫ.",
     "client.thisEventTypeCannotBeForwarded": "ܗܢܐ ܙܢܐ ܕܓܕܫܐ ܠܐ ܦܝܫ ܫܕܪܐ ܠܩܕܡ",
     "client.notConnected": "ܠܐ ܐܚܝܕܐ",
     "client.thisServerDoesNotAllowSigning":

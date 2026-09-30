@@ -29,6 +29,7 @@
         getOwnDisplayName,
         leaveVoiceCall,
         mxcToHttp,
+        signOutStoredAccount,
     } from "$lib/matrix/client";
     import { deleteCryptoStore } from "$lib/matrix/crypto";
     import {
@@ -189,21 +190,10 @@
         );
         if (!account) return;
         // Best-effort server-side token invalidation (spec-compliant
-        // servers drop the token's pushers with it). Local removal happens
-        // regardless — the account leaves this device either way.
-        try {
-            await fetch(
-                `${account.homeserverUrl.replace(/\/$/, "")}/_matrix/client/v3/logout`,
-                {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${account.accessToken}`,
-                    },
-                },
-            );
-        } catch {
-            // ignore — server unreachable; token stays valid server-side
-        }
+        // servers drop the token's pushers with it; OAuth accounts are
+        // revoked at their provider). Local removal happens regardless:
+        // the account leaves this device either way.
+        await signOutStoredAccount(account);
         // Wipe this account's rust-crypto store on its way off the device — it
         // has no live client, so we delete the IndexedDB directly (keyed to
         // this account, so it can't touch the active session's keys).

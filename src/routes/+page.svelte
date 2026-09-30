@@ -11,10 +11,14 @@
         stopClient,
         getClient,
         leaveVoiceCall,
+        setTokenRefreshListener,
+        updateServiceWorkerAuth,
+        getLatestTokens,
     } from "$lib/matrix/client";
+    import { isPendingOAuthCallback } from "$lib/matrix/oauth";
     import { unregisterPush } from "$lib/push";
     import { showToast } from "$lib/stores/toasts.svelte";
-    import { clearNativeSession } from "$lib/nativeSession";
+    import { clearNativeSession, syncNativeSession } from "$lib/nativeSession";
     // The crypto-store delete helper is deliberately NOT imported here: session
     // expiry must never wipe the crypto store (user decision, 2026-07-30 — only
     // an explicit logout does), and sessionTeardown.test.ts asserts on this
@@ -26,6 +30,7 @@
         saveSession,
         loadStoredSession,
         expireActiveSession,
+        applyRefreshedTokens,
     } from "$lib/stores/auth.svelte";
     import { accountsState, switchActive } from "$lib/stores/accounts.svelte";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
@@ -60,12 +65,36 @@
     const addModeAtInit = new URLSearchParams(window.location.search).has(
         "add",
     );
+    // Returning from an OAuth provider lands on "/" with the sign-in result in
+    // the URL. Restoring the stored account over it would swallow that result
+    // (add-account sign-ins come back here too), so it is treated like add mode.
+    const oauthReturnAtInit = isPendingOAuthCallback(window.location.href);
     let restoring = $state(
         shouldRestoreSession({
             hasStoredSession: !!loadStoredSession(),
-            isAddAccountMode: addModeAtInit,
+            isAddAccountMode: addModeAtInit || oauthReturnAtInit,
         }),
     );
+
+    // OAuth refresh tokens rotate: every refresh has to reach storage, the
+    // service worker and the native push mirror, or the next restart (or the
+    // next notification) uses a dead token. Registered before any client exists.
+    setTokenRefreshListener((tokens) => {
+        applyRefreshedTokens(tokens.userId, tokens);
+        if (auth.userId !== tokens.userId) return;
+        updateServiceWorkerAuth(tokens.accessToken);
+        const account = loadStoredSession();
+        if (auth.homeserverUrl && auth.userId) {
+            syncNativeSession({
+                homeserverUrl: auth.homeserverUrl,
+                accessToken: tokens.accessToken,
+                userId: auth.userId,
+                deviceId: auth.deviceId,
+                oauth: account?.oauth ?? null,
+                accessTokenExpiresAt: tokens.expiresAt ?? null,
+            }).catch(() => {});
+        }
+    });
 
     const view = $derived(
         isAddAccountMode
@@ -242,6 +271,13 @@
                     stored.userId,
                     stored.accessToken,
                     stored.deviceId,
+                    stored.oauth
+                        ? {
+                              oauth: stored.oauth,
+                              refreshToken: stored.refreshToken,
+                              accessTokenExpiresAt: stored.accessTokenExpiresAt,
+                          }
+                        : undefined,
                 );
                 await beginSync(attempt);
             } catch {
@@ -257,7 +293,10 @@
             commitStartup(attempt, () => {
                 auth.userId = stored.userId;
                 auth.homeserverUrl = stored.homeserverUrl;
-                auth.accessToken = stored.accessToken;
+                // A refresh during startup may already have rotated the token.
+                auth.accessToken =
+                    getLatestTokens(stored.userId)?.accessToken ??
+                    stored.accessToken;
                 auth.deviceId = stored.deviceId;
                 auth.isAuthenticated = true;
                 restoring = false;
@@ -278,16 +317,34 @@
         accessToken: string;
         deviceId: string;
         homeserverUrl: string;
+        refreshToken?: string;
+        oauth?: { clientId: string; issuer: string };
+        accessTokenExpiresAt?: number;
     }) {
+        // What to persist: the sign-in result, with any tokens a refresh has
+        // rotated since (sync may already be running against a new pair).
+        const sessionToSave = () => {
+            const latest = result.oauth ? getLatestTokens(result.userId) : null;
+            return {
+                userId: result.userId,
+                accessToken: latest?.accessToken ?? result.accessToken,
+                deviceId: result.deviceId,
+                homeserverUrl: result.homeserverUrl,
+                ...(result.oauth
+                    ? {
+                          oauth: result.oauth,
+                          refreshToken:
+                              latest?.refreshToken ?? result.refreshToken,
+                          accessTokenExpiresAt:
+                              latest?.expiresAt ?? result.accessTokenExpiresAt,
+                      }
+                    : {}),
+            };
+        };
         if (isAddAccountMode) {
             // No sync starts in this document: persisting and reloading IS the
             // switch, and the reload's restore path is the transaction.
-            saveSession({
-                userId: result.userId,
-                accessToken: result.accessToken,
-                deviceId: result.deviceId,
-                homeserverUrl: result.homeserverUrl,
-            });
+            saveSession(sessionToSave());
             window.location.assign("/");
             return;
         }
@@ -300,12 +357,7 @@
             throw new Error(takeStartupError(SYNC_START_FAILED_MESSAGE));
         }
         const committed = commitStartup(attempt, () => {
-            saveSession({
-                userId: result.userId,
-                accessToken: result.accessToken,
-                deviceId: result.deviceId,
-                homeserverUrl: result.homeserverUrl,
-            });
+            saveSession(sessionToSave());
             initServiceWorker();
         });
         // Superseded mid-startup (the token was revoked while we were

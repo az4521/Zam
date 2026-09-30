@@ -3,8 +3,9 @@ import {
     upsertAndActivate,
     removeAccountById,
     clearActiveAccount,
+    updateTokens,
 } from "$lib/stores/accounts.svelte";
-import type { StoredAccount } from "$lib/utils/accounts";
+import type { OAuthSessionInfo, StoredAccount } from "$lib/utils/accounts";
 
 const LAST_HOMESERVER_KEY = "matrix_last_homeserver";
 
@@ -13,6 +14,10 @@ interface StoredSession {
     accessToken: string;
     deviceId: string;
     homeserverUrl: string;
+    /** Native OAuth sessions only. */
+    refreshToken?: string;
+    oauth?: OAuthSessionInfo;
+    accessTokenExpiresAt?: number;
 }
 
 export const auth = $state({
@@ -50,6 +55,24 @@ export function saveSession(data: StoredSession): void {
     } catch {
         // ignore storage errors
     }
+}
+
+/**
+ * Persist a refreshed OAuth token pair: onto the account's registry entry (the
+ * refresh token rotates, so restart needs this one) and into the live auth
+ * state when it is the signed-in account.
+ */
+export function applyRefreshedTokens(
+    userId: string,
+    tokens: { accessToken: string; refreshToken?: string; expiresAt?: number },
+): void {
+    updateTokens(userId, tokens);
+    if (auth.userId === userId) auth.accessToken = tokens.accessToken;
+}
+
+/** Whether the active account signed in through native OAuth / OIDC. */
+export function isOAuthSession(): boolean {
+    return !!getActiveAccount()?.oauth;
 }
 
 /** The active account from the registry (what session-restore boots). */

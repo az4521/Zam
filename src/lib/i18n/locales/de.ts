@@ -108,6 +108,9 @@ const messages: Record<MessageKey, string> = {
     "accountSettings.passwordChanged": "Passwort geändert.",
     "accountSettings.thisServerDoesNotAllowChanging":
         "Dieser Server erlaubt es nicht, dein Passwort in dieser App zu ändern.",
+    "accountSettings.managedByProvider":
+        "Dein Passwort, deine Sitzungen und dein Konto werden auf der Kontoseite deines Anmeldeanbieters verwaltet.",
+    "accountSettings.manageAccount": "Konto verwalten",
     "accountSettings.emailPhoneNumbers": "E-Mail und Telefonnummern",
     "accountSettings.noEmailAddressesOrPhoneNumbers":
         "Mit diesem Konto sind keine E-Mail-Adressen oder Telefonnummern verknüpft.",
@@ -674,6 +677,20 @@ const messages: Record<MessageKey, string> = {
     "loginView.ssoCouldNotBeVerified":
         "Single Sign-On konnte nicht überprüft werden. Bitte versuche es erneut.",
     "loginView.ssoFailed": "Single Sign-On fehlgeschlagen.",
+    "loginView.continue": "Weiter",
+    "loginView.signInOnProviderPage":
+        "Du meldest dich auf der eigenen Seite deines Homeservers an und kehrst danach hierher zurück.",
+    "loginView.oauthCancelled": "Die Anmeldung wurde abgebrochen.",
+    "loginView.oauthDenied":
+        "Der Anmeldeanbieter hat die Anfrage abgelehnt: {reason}",
+    "loginView.oauthCouldNotBeVerified":
+        "Die Anmeldung konnte nicht überprüft werden. Bitte versuche es erneut.",
+    "loginView.oauthFailed":
+        "Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+    "loginView.oauthRegistrationRefused":
+        "Dieser Server erlaubt es Zam nicht, sich für die Anmeldung zu registrieren.",
+    "loginView.oauthRegistrationRefusedFallback":
+        "Dieser Server erlaubt es Zam nicht, sich für die Anmeldung zu registrieren. Nutze eine der anderen Optionen unten.",
     "loginView.checkingServer": "Server wird geprüft…",
 
     // src/lib/components/layout/MemberList.svelte
@@ -1623,6 +1640,7 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.rename": "Umbenennen",
     "sessionSettings.signOut": "Abmelden?",
     "sessionSettings.signOut2": "Abmelden",
+    "sessionSettings.manageAtProvider": "Verwalten",
     "sessionSettings.confirmYourAccountPasswordToSign":
         "Bestätige dein Kontopasswort, um diese Sitzung abzumelden.",
     "sessionSettings.accountPassword": "Kontopasswort",
@@ -2055,6 +2073,8 @@ const messages: Record<MessageKey, string> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "Dieser Heimserver unterstützt kein Sliding Sync, daher wird stattdessen die klassische Synchronisierung verwendet.",
     "client.notLoggedIn": "Nicht angemeldet",
+    "client.oauthProviderChanged":
+        "Der Anmeldeanbieter des Servers hat sich geändert. Bitte versuche es erneut.",
     "client.thisEventTypeCannotBeForwarded":
         "Dieser Ereignistyp kann nicht weitergeleitet werden",
     "client.notConnected": "Nicht verbunden",

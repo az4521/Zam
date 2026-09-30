@@ -9,6 +9,7 @@
         fetchOwnProfile,
         getOwnAvatarMxc,
         getOwnDisplayName,
+        getAccountManagementUrl,
         getOwnThreePids,
         getServerCapabilities,
         mxcToHttp,
@@ -17,7 +18,7 @@
         uploadContent,
         type ThreePid,
     } from "$lib/matrix/client";
-    import { auth } from "$lib/stores/auth.svelte";
+    import { auth, isOAuthSession } from "$lib/stores/auth.svelte";
     import { changeOwnPresence } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -48,6 +49,11 @@
     let avatarInput: HTMLInputElement | undefined = $state();
     let presenceError = $state("");
     let capabilities = $state<Capabilities | null>(null);
+    // Native OAuth sessions: the provider, not the homeserver, owns the
+    // password, sessions and deactivation, so those link to its account page.
+    const oauthSession = isOAuthSession();
+    let accountUrl = $state<string | null>(null);
+    let deactivateUrl = $state<string | null>(null);
     let threePids = $state<ThreePid[]>([]);
     let securityLoaded = $state(false);
 
@@ -95,6 +101,12 @@
     );
 
     async function load() {
+        if (oauthSession) {
+            void getAccountManagementUrl().then((u) => (accountUrl = u));
+            void getAccountManagementUrl("org.matrix.account_deactivate").then(
+                (u) => (deactivateUrl = u),
+            );
+        }
         try {
             const profile = await fetchOwnProfile();
             displayName = profile.displayName ?? "";
@@ -364,7 +376,20 @@
         >
             {t("accountSettings.password")}
         </p>
-        {#if canChangePassword}
+        {#if oauthSession}
+            <p class="text-sm text-discord-textMuted mb-3">
+                {t("accountSettings.managedByProvider")}
+            </p>
+            {#if accountUrl}
+                <a
+                    href={accountUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-block px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm"
+                    >{t("accountSettings.manageAccount")}</a
+                >
+            {/if}
+        {:else if canChangePassword}
             <div class="space-y-3 max-w-sm">
                 <input
                     type="password"
@@ -464,65 +489,85 @@
         >{t("accountSettings.logOut")}</button
     >
 
-    <section class="pt-4 border-t border-discord-divider space-y-3">
-        <p
-            class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
-        >
-            {t("accountSettings.dangerZone")}
-        </p>
-        {#if !deactivateOpen}
-            <button
-                onclick={() => (deactivateOpen = true)}
-                class="px-4 py-2 border border-discord-danger text-discord-danger rounded text-sm"
-                >{t("accountSettings.deactivateAccount")}</button
+    {#if !oauthSession || deactivateUrl || accountUrl}
+        <section class="pt-4 border-t border-discord-divider space-y-3">
+            <p
+                class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
             >
-        {:else}
-            <div class="space-y-3 max-w-sm">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("accountSettings.deactivationIsPermanentAndCannotBe")}
-                </p>
-                <input
-                    bind:value={deactivateTyped}
-                    placeholder={auth.userId ?? ""}
-                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2"
-                />
-                <input
-                    type="password"
-                    bind:value={deactivatePassword}
-                    autocomplete="current-password"
-                    placeholder={t("accountSettings.currentPassword")}
-                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2"
-                />
-                <div class="flex items-center justify-between gap-3">
-                    <span class="text-sm text-discord-textPrimary"
-                        >{t("accountSettings.eraseMessagesWherePossible")}</span
+                {t("accountSettings.dangerZone")}
+            </p>
+            {#if oauthSession}
+                {#if deactivateUrl ?? accountUrl}
+                    <a
+                        href={deactivateUrl ?? accountUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-block px-4 py-2 border border-discord-danger text-discord-danger rounded text-sm"
+                        >{t("accountSettings.deactivateAccount")}</a
                     >
-                    <ToggleSwitch
-                        checked={deactivateErase}
-                        onChange={(value) => (deactivateErase = value)}
-                        label={t("accountSettings.eraseMessagesWherePossible")}
+                {/if}
+            {:else if !deactivateOpen}
+                <button
+                    onclick={() => (deactivateOpen = true)}
+                    class="px-4 py-2 border border-discord-danger text-discord-danger rounded text-sm"
+                    >{t("accountSettings.deactivateAccount")}</button
+                >
+            {:else}
+                <div class="space-y-3 max-w-sm">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t(
+                            "accountSettings.deactivationIsPermanentAndCannotBe",
+                        )}
+                    </p>
+                    <input
+                        bind:value={deactivateTyped}
+                        placeholder={auth.userId ?? ""}
+                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2"
                     />
+                    <input
+                        type="password"
+                        bind:value={deactivatePassword}
+                        autocomplete="current-password"
+                        placeholder={t("accountSettings.currentPassword")}
+                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2"
+                    />
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-sm text-discord-textPrimary"
+                            >{t(
+                                "accountSettings.eraseMessagesWherePossible",
+                            )}</span
+                        >
+                        <ToggleSwitch
+                            checked={deactivateErase}
+                            onChange={(value) => (deactivateErase = value)}
+                            label={t(
+                                "accountSettings.eraseMessagesWherePossible",
+                            )}
+                        />
+                    </div>
+                    <div class="flex gap-2">
+                        <button
+                            onclick={deactivate}
+                            disabled={!deactivateArmed || deactivateBusy}
+                            class="px-4 py-2 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
+                            >{deactivateBusy
+                                ? t("accountSettings.deactivating")
+                                : t(
+                                      "accountSettings.deactivateAccount2",
+                                  )}</button
+                        >
+                        <button
+                            onclick={cancelDeactivation}
+                            disabled={deactivateBusy}
+                            class="px-4 py-2 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
+                            >{t("common.cancel")}</button
+                        >
+                    </div>
+                    {#if deactivateError}<p class="text-xs text-discord-danger">
+                            {deactivateError}
+                        </p>{/if}
                 </div>
-                <div class="flex gap-2">
-                    <button
-                        onclick={deactivate}
-                        disabled={!deactivateArmed || deactivateBusy}
-                        class="px-4 py-2 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
-                        >{deactivateBusy
-                            ? t("accountSettings.deactivating")
-                            : t("accountSettings.deactivateAccount2")}</button
-                    >
-                    <button
-                        onclick={cancelDeactivation}
-                        disabled={deactivateBusy}
-                        class="px-4 py-2 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                        >{t("common.cancel")}</button
-                    >
-                </div>
-                {#if deactivateError}<p class="text-xs text-discord-danger">
-                        {deactivateError}
-                    </p>{/if}
-            </div>
-        {/if}
-    </section>
+            {/if}
+        </section>
+    {/if}
 </div>

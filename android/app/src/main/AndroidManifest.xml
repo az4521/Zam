@@ -47,6 +47,17 @@
                 <data android:scheme="moe.crafty.matrix" android:host="sso" />
             </intent-filter>
 
+            <!-- OAuth sign-in: the provider redirects the system browser to
+                 moe.crafty.matrix:/oauth (RFC 8252 private-use scheme, the
+                 reverse-DNS of the registered client_uri). A host-less URI is
+                 only matched by a scheme-only filter (see src/lib/matrix/oauth.ts). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="moe.crafty.matrix" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -7,16 +7,29 @@
         login,
         register,
         getLoginOptions,
+        loginWithOAuthCode,
         loginWithSsoToken,
     } from "$lib/matrix/client";
     import {
         beginSsoLogin,
         hasSsoParams,
-        listenForSsoCallbacks,
         readSsoCallback,
         withoutSsoParams,
     } from "$lib/matrix/sso";
-    import type { LoginOptions } from "$lib/utils/loginFlows";
+    import {
+        OAuthRegistrationRefusedError,
+        beginOAuthLogin,
+        hasOAuthParams,
+        readOAuthCallback,
+        withoutOAuthParams,
+        type OAuthCallback,
+    } from "$lib/matrix/oauth";
+    import {
+        listenForLoginCallbacks,
+        loginLeavesPage,
+    } from "$lib/matrix/loginRedirect";
+    import type { ValidatedAuthMetadata } from "matrix-js-sdk";
+    import { pickSignInMethod, type LoginOptions } from "$lib/utils/loginFlows";
     import { auth, loadLastHomeserver } from "$lib/stores/auth.svelte";
     import { accountsState } from "$lib/stores/accounts.svelte";
     import { getDefaultHomeserver } from "$lib/config";
@@ -32,6 +45,9 @@
             accessToken: string;
             deviceId: string;
             homeserverUrl: string;
+            refreshToken?: string;
+            oauth?: { clientId: string; issuer: string };
+            accessTokenExpiresAt?: number;
         }) => void | Promise<void>;
         onContinueAs: (userId: string) => void;
         onBackToActive: () => void;
@@ -70,15 +86,25 @@
     // known (yet, or the lookup failed): the password form is shown then.
     let loginOptions = $state<LoginOptions | null>(null);
     let optionsBaseUrl = $state("");
+    // The homeserver's native OAuth metadata, when it publishes any. Sign-in
+    // goes through it when present; the password and SSO paths are the
+    // fallback for servers without it (or that refused to register this app).
+    let oauthMeta = $state<ValidatedAuthMetadata | null>(null);
+    let oauthRefused = $state(false);
     let optionsFor = $state("");
     let optionsLoading = $state(false);
     let optionsRequest = 0;
     let redeemingSso = false;
 
-    const showPasswordForm = $derived(
-        mode === "register" || !loginOptions || loginOptions.password,
+    const signInMethod = $derived(
+        pickSignInMethod(oauthRefused ? null : oauthMeta),
     );
-    const sso = $derived(loginOptions?.sso ?? null);
+    const useOAuth = $derived(signInMethod === "oauth");
+    const showPasswordForm = $derived(
+        !useOAuth &&
+            (mode === "register" || !loginOptions || loginOptions.password),
+    );
+    const sso = $derived(useOAuth ? null : (loginOptions?.sso ?? null));
     // The shown sign-in options belong to the address in the field. Until a
     // changed address has been looked up, Log In and SSO stay disabled so
     // neither can act on the previous server's answer.
@@ -93,15 +119,18 @@
         optionsFor = typed;
         optionsLoading = true;
         try {
-            const { baseUrl, options } = await getLoginOptions(typed);
+            const { baseUrl, options, oauth } = await getLoginOptions(typed);
             if (request !== optionsRequest) return;
             loginOptions = options;
+            oauthMeta = oauth;
+            oauthRefused = false;
             optionsBaseUrl = baseUrl;
         } catch {
             if (request !== optionsRequest) return;
             // Unknown: fall back to the password form. optionsFor keeps the
             // failed address so it is only retried once the field changes.
             loginOptions = null;
+            oauthMeta = null;
             optionsBaseUrl = "";
         } finally {
             if (request === optionsRequest) optionsLoading = false;
@@ -115,6 +144,45 @@
         const timer = setTimeout(() => void refreshLoginOptions(), 600);
         return () => clearTimeout(timer);
     });
+
+    async function startOAuth() {
+        if (!oauthMeta || !optionsBaseUrl || !optionsCurrent || isLoading)
+            return;
+        error = "";
+        void requestWebPushPermission().catch(() => {});
+        isLoading = true;
+        statusMsg = t("loginView.redirectingToSso");
+        try {
+            await beginOAuthLogin({
+                baseUrl: optionsBaseUrl,
+                metadata: oauthMeta,
+                register: mode === "register",
+                slidingSync: useSlidingSync,
+            });
+        } catch (err) {
+            isLoading = false;
+            statusMsg = "";
+            if (err instanceof OAuthRegistrationRefusedError) {
+                // Fall back to whatever the server still offers.
+                oauthRefused = true;
+                error =
+                    loginOptions?.password || loginOptions?.sso
+                        ? t("loginView.oauthRegistrationRefusedFallback")
+                        : t("loginView.oauthRegistrationRefused");
+            } else {
+                console.warn("[oauth] could not start sign-in", err);
+                error = t("loginView.oauthFailed");
+            }
+            return;
+        }
+        if (!loginLeavesPage()) {
+            // The provider opened in another window; keep the form usable in
+            // case the user abandons it.
+            isLoading = false;
+            statusMsg = "";
+            ssoHint = t("loginView.finishSsoInBrowser");
+        }
+    }
 
     function startSso(idpId?: string) {
         if (!sso || !optionsBaseUrl || !optionsCurrent) return;
@@ -144,12 +212,13 @@
         }
     }
 
-    // Drop loginToken / sso_state from the address bar (web) so a reload or a
-    // bookmark never replays them.
+    // Drop the sign-in result (loginToken / sso_state, or the OAuth code /
+    // state) from the address bar (web) so a reload or a bookmark never
+    // replays it.
     function stripSsoParamsFromUrl() {
         const here = new URL(window.location.href);
-        if (!hasSsoParams(here)) return;
-        const clean = withoutSsoParams(here);
+        if (!hasSsoParams(here) && !hasOAuthParams(here)) return;
+        const clean = withoutOAuthParams(withoutSsoParams(here));
         try {
             replaceState(clean, page.state);
         } catch {
@@ -189,6 +258,64 @@
         }
     }
 
+    async function handleOAuthResult(result: OAuthCallback) {
+        ssoHint = "";
+        if (result.kind === "invalid") {
+            error = t("loginView.oauthCouldNotBeVerified");
+            return;
+        }
+        // Back on the server the attempt started on, so a retry needs no retyping.
+        homeserverUrl = result.pending.baseUrl;
+        if (result.kind === "denied") {
+            error =
+                result.error === "access_denied"
+                    ? t("loginView.oauthCancelled")
+                    : t("loginView.oauthDenied", {
+                          reason: result.description || result.error,
+                      });
+            return;
+        }
+        if (redeemingSso) return;
+        redeemingSso = true;
+        error = "";
+        isLoading = true;
+        statusMsg = t("loginView.loggingIn");
+        try {
+            let session;
+            try {
+                session = await loginWithOAuthCode(result.pending, result.code);
+            } catch (err) {
+                console.warn("[oauth] sign-in failed", err);
+                error = t("loginView.oauthFailed");
+                isLoading = false;
+                statusMsg = "";
+                return;
+            }
+            try {
+                await onAuthenticated(session);
+            } catch (err) {
+                error =
+                    err instanceof Error
+                        ? err.message
+                        : t("loginView.oauthFailed");
+                isLoading = false;
+                statusMsg = "";
+            }
+        } finally {
+            redeemingSso = false;
+        }
+    }
+
+    function handleLoginCallback(rawUrl: string) {
+        const oauthResult = readOAuthCallback(rawUrl);
+        if (oauthResult) {
+            stripSsoParamsFromUrl();
+            void handleOAuthResult(oauthResult);
+            return;
+        }
+        void handleSsoCallback(rawUrl);
+    }
+
     onMount(() => {
         // Surface a session-expiry / restore-failure message handed over via the
         // auth store (expiry now flips state in place — no route hop — so the
@@ -198,7 +325,10 @@
             auth.error = null;
         }
         void refreshLoginOptions();
-        return listenForSsoCallbacks((url) => void handleSsoCallback(url));
+        return listenForLoginCallbacks(
+            handleLoginCallback,
+            (url) => hasSsoParams(url) || hasOAuthParams(url),
+        );
     });
 
     // Let the user type a full "@user:homeserver" MXID — split it into the bare
@@ -347,6 +477,10 @@
                 onsubmit={(e) => {
                     e.preventDefault();
                     if (!optionsCurrent) return;
+                    if (useOAuth) {
+                        void startOAuth();
+                        return;
+                    }
                     mode === "login" ? handleLogin() : handleRegister();
                 }}
                 class="space-y-4"
@@ -483,6 +617,41 @@
                         </span>
                     </span>
                 </label>
+
+                {#if useOAuth}
+                    <p class="text-xs text-discord-textMuted">
+                        {t("loginView.signInOnProviderPage")}
+                    </p>
+                    <button
+                        type="submit"
+                        disabled={isLoading || !optionsCurrent}
+                        aria-busy={isLoading ? "true" : undefined}
+                        class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
+                    >
+                        {#if isLoading}
+                            <span
+                                class="flex items-center justify-center gap-2"
+                            >
+                                <span
+                                    class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
+                                ></span>
+                                {statusMsg || t("loginView.pleaseWait")}
+                            </span>
+                        {:else if mode === "login"}
+                            {t("loginView.continue")}
+                        {:else}
+                            {t("loginView.createAccount")}
+                        {/if}
+                    </button>
+                    {#if ssoHint}
+                        <p
+                            role="status"
+                            class="text-sm text-center text-discord-textSecondary"
+                        >
+                            {ssoHint}
+                        </p>
+                    {/if}
+                {/if}
 
                 {#if showPasswordForm}
                     <button

@@ -23,6 +23,18 @@ export interface LoginOptions {
     } | null;
 }
 
+export type SignInMethod = "oauth" | "legacy";
+
+/**
+ * Which family of sign-in the form leads with. A homeserver that publishes
+ * native OAuth metadata signs users in through its provider ("oauth"); the
+ * rest, or one whose provider refused to register this app (metadata dropped
+ * by the caller), use the password and legacy SSO paths ("legacy").
+ */
+export function pickSignInMethod(oauthMetadata: unknown | null): SignInMethod {
+    return oauthMetadata ? "oauth" : "legacy";
+}
+
 /** Read the GET /login flows into what the sign-in form needs to show. */
 export function parseLoginFlows(flows: LoginFlow[]): LoginOptions {
     const password = flows.some((f) => f.type === "m.login.password");

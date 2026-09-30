@@ -13,13 +13,17 @@
 // the pending attempt saved here before a token is ever redeemed.
 
 import { Capacitor } from "@capacitor/core";
-import { App } from "@capacitor/app";
 import { getSsoRedirectUrl } from "$lib/matrix/client";
+import {
+    NATIVE_SCHEME,
+    isElectronWithSso,
+    openLoginUrl,
+} from "$lib/matrix/loginRedirect";
 
 const PENDING_KEY = "zam_sso_pending";
 const STATE_PARAM = "sso_state";
 const TOKEN_PARAM = "loginToken";
-const NATIVE_CALLBACK = "moe.crafty.matrix://sso";
+const NATIVE_CALLBACK = `${NATIVE_SCHEME}://sso`;
 /** An attempt older than this is abandoned (the token itself expires fast). */
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
@@ -83,10 +87,6 @@ function clearPending(): void {
 // later attempt.
 const seenCallbacks = new Set<string>();
 
-function isElectronWithSso(): boolean {
-    return typeof window !== "undefined" && !!window.desktop?.sso;
-}
-
 /** Where the homeserver should send the browser back to, per runtime. */
 function callbackUrl(state: string, addMode: boolean): string {
     if (Capacitor.isNativePlatform()) {
@@ -127,14 +127,7 @@ export function beginSsoLogin(opts: {
             register: opts.register,
         },
     );
-    if (isElectronWithSso()) {
-        // The window-open handler hands this to the system browser.
-        window.open(url, "_blank", "noopener");
-    } else {
-        // Web: a plain navigation. Capacitor sends off-app navigations to the
-        // system browser.
-        window.location.assign(url);
-    }
+    openLoginUrl(url);
 }
 
 /**
@@ -179,41 +172,4 @@ export function withoutSsoParams(url: URL): URL {
     // URLSearchParams writes a bare "?add" back as "?add="; keep it bare.
     clean.search = clean.search.replace(/=(?=&|$)/g, "");
     return clean;
-}
-
-/**
- * Deliver SSO callback URLs as they arrive: the current page (web), the
- * Electron local-server relay, or the Android deep link (including the one
- * that cold-started the app). Returns a disposer.
- */
-export function listenForSsoCallbacks(
-    cb: (rawUrl: string) => void,
-): () => void {
-    const disposers: Array<() => void> = [];
-
-    if (hasSsoParams(new URL(window.location.href))) cb(window.location.href);
-
-    if (window.desktop?.sso) {
-        disposers.push(window.desktop.sso.onCallback(cb));
-    }
-
-    if (Capacitor.isNativePlatform()) {
-        let disposed = false;
-        const isOurs = (u: string) => u.startsWith(NATIVE_CALLBACK);
-        App.getLaunchUrl()
-            .then((launch) => {
-                if (!disposed && launch?.url && isOurs(launch.url))
-                    cb(launch.url);
-            })
-            .catch(() => {});
-        const handle = App.addListener("appUrlOpen", (e) => {
-            if (isOurs(e.url)) cb(e.url);
-        });
-        disposers.push(() => {
-            disposed = true;
-            void handle.then((h) => h.remove()).catch(() => {});
-        });
-    }
-
-    return () => disposers.forEach((d) => d());
 }

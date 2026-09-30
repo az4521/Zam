@@ -343,6 +343,41 @@ together, and **nothing enforces it**: `activeSession.test.ts` pins the TypeScri
 change _there_ is loud, but no test reads `static/sw.js` or the Java service, and no gate compiles
 either of them.
 
+### Sign-in (`matrix/oauth.ts`, `matrix/sso.ts`, `LoginView.svelte`)
+
+Three ways in, chosen by what the typed homeserver offers (`getLoginOptions` in `client.ts`):
+
+- **Native OAuth 2.0 / OIDC** (MSC3861, the spec's OAuth API), when `/_matrix/client/v1/auth_metadata`
+  validates. `oauth.ts` discovers the provider, registers Zam once per (homeserver, redirect URI)
+  and caches the client id, then runs authorization-code + PKCE through the SDK's `OAuth2` class.
+  `loginWithOAuthCode` exchanges the code, asks `/whoami` who it is, and builds the client with
+  `oauthClientId` + `refreshToken` + `onTokenRefresh`, so **the SDK refreshes on M_UNKNOWN_TOKEN
+  and revokes both tokens on `logout`** — the app does not implement either. A refresh the provider
+  rejects surfaces as the ordinary `SessionLoggedOut` → `handleSessionExpired` path.
+- **Legacy SSO** (`sso.ts`): `m.login.sso` redirect, then `m.login.token`. The fallback for servers
+  without the OAuth API, and for one whose provider refuses client registration.
+- **Password** (`m.login.password`).
+
+Both browser flows share the callback channels in `loginRedirect.ts` (web: same origin; Electron:
+local server `/sso-callback` over IPC; Android: the `moe.crafty.matrix:` deep link) and the same
+guard: a random `state` nonce must match the pending attempt (kept in localStorage) before anything
+is redeemed; a mismatch leaves the attempt pending, a read URL is never processed twice, and attempts
+expire after 30 minutes. OAuth adds the response's `iss` check. There is no OIDC `nonce` because
+the Matrix scopes do not request an ID token.
+
+Refresh tokens **rotate**, so every refresh must be persisted or the next restart is signed out:
+`createAuthenticatedClient` routes the SDK's `onTokenRefresh` to a single listener
+(`setTokenRefreshListener`, registered in `routes/+page.svelte`) that writes the pair onto the
+account (`stores/auth.svelte.ts` → `updateAccountTokens`), the service worker and the native mirror.
+`getLatestTokens` covers a refresh that lands before a new login has been saved. The account record
+carries `oauth: { clientId, issuer }`, `refreshToken` and `accessTokenExpiresAt`; the native session
+record (`nativeSessionRecord.ts`) mirrors the client id, issuer and expiry but deliberately **not**
+the refresh token, since only the web layer refreshes.
+
+Under OAuth the homeserver no longer owns passwords, devices or deactivation:
+`isOAuthSession()` swaps those Settings forms for links to the provider's account management URL
+(`getAccountManagementUrl`, https only).
+
 ### Multi-account
 
 `stores/accounts.svelte.ts` holds the registry; `utils/scopedStorage.ts` namespaces per-account

@@ -55,7 +55,7 @@ Rooms
 
 User
 
-- SSO / OAuth login (password login only right now)
+- Sign-in methods: password, legacy SSO and native OAuth 2.0 / OIDC (Matrix Authentication Service) all work. Not done: QR-code login from another device, the OAuth device-code grant, and signing other sessions out from inside the app on an OAuth account (it links to the provider's account page instead)
 - Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to telling you your homeserver hasn't got one
 
 Media

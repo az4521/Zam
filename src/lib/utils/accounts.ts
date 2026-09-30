@@ -2,11 +2,26 @@
 // "matrix_accounts" localStorage key. All functions are immutable: they
 // return new objects and never touch storage — the accounts store owns I/O.
 
+/**
+ * What a native OAuth 2.0 / OIDC session needs beyond its access token: the
+ * client id this app registered under and the issuer that registered it.
+ * Absent on password and legacy-SSO sessions.
+ */
+export interface OAuthSessionInfo {
+    clientId: string;
+    issuer: string;
+}
+
 export interface StoredAccount {
     userId: string;
     accessToken: string;
     deviceId: string;
     homeserverUrl: string;
+    /** OAuth sessions only: rotates on every refresh, so it is always written back. */
+    refreshToken?: string;
+    oauth?: OAuthSessionInfo;
+    /** Epoch ms the access token stops working (OAuth sessions, when known). */
+    accessTokenExpiresAt?: number;
     /** Cached profile bits so the switcher can render inactive accounts. */
     displayName?: string;
     avatarUrl?: string;
@@ -33,6 +48,36 @@ function isValidAccount(a: unknown): a is StoredAccount {
     );
 }
 
+export function isOAuthSessionInfo(o: unknown): o is OAuthSessionInfo {
+    if (typeof o !== "object" || o === null) return false;
+    const v = o as Record<string, unknown>;
+    return (
+        typeof v.clientId === "string" &&
+        v.clientId.length > 0 &&
+        typeof v.issuer === "string" &&
+        v.issuer.length > 0
+    );
+}
+
+/**
+ * Drop malformed OAuth fields rather than the whole account: a bad `oauth`
+ * block must not sign the user out of a session whose access token still
+ * works, and a refresh token without its client id is unusable anyway.
+ */
+function sanitizeOAuthFields(a: StoredAccount): StoredAccount {
+    const { refreshToken, oauth, accessTokenExpiresAt, ...rest } = a;
+    if (!isOAuthSessionInfo(oauth)) return rest;
+    const out: StoredAccount = { ...rest, oauth };
+    if (typeof refreshToken === "string" && refreshToken)
+        out.refreshToken = refreshToken;
+    if (
+        typeof accessTokenExpiresAt === "number" &&
+        Number.isFinite(accessTokenExpiresAt)
+    )
+        out.accessTokenExpiresAt = accessTokenExpiresAt;
+    return out;
+}
+
 /** Corrupt JSON, wrong shape or unknown version → empty registry. */
 export function parseRegistry(raw: string | null): AccountRegistry {
     if (!raw) return emptyRegistry();
@@ -41,7 +86,9 @@ export function parseRegistry(raw: string | null): AccountRegistry {
         if (data?.version !== 1 || !Array.isArray(data.accounts)) {
             return emptyRegistry();
         }
-        const accounts = data.accounts.filter(isValidAccount);
+        const accounts = data.accounts
+            .filter(isValidAccount)
+            .map(sanitizeOAuthFields);
         const activeUserId =
             typeof data.activeUserId === "string" &&
             accounts.some((a) => a.userId === data.activeUserId)
@@ -92,6 +139,38 @@ export function upsertAccount(
         ? reg.accounts.map((a) => (a.userId === account.userId ? merged : a))
         : [...reg.accounts, merged];
     return { ...reg, accounts };
+}
+
+/**
+ * Write a refreshed token pair back onto an account. The refresh token
+ * ROTATES, so a refresh whose result is not stored strands the session on
+ * its next restart. No-op when the account is gone (signed out mid-refresh).
+ */
+export function updateAccountTokens(
+    reg: AccountRegistry,
+    userId: string,
+    tokens: {
+        accessToken: string;
+        refreshToken?: string;
+        expiresAt?: number;
+    },
+): AccountRegistry {
+    const existing = reg.accounts.find((a) => a.userId === userId);
+    if (!existing) return reg;
+    const next: StoredAccount = {
+        ...existing,
+        accessToken: tokens.accessToken,
+        // A response without a new refresh token means "keep using the old one".
+        refreshToken: tokens.refreshToken ?? existing.refreshToken,
+        accessTokenExpiresAt: tokens.expiresAt,
+    };
+    if (next.refreshToken === undefined) delete next.refreshToken;
+    if (next.accessTokenExpiresAt === undefined)
+        delete next.accessTokenExpiresAt;
+    return {
+        ...reg,
+        accounts: reg.accounts.map((a) => (a.userId === userId ? next : a)),
+    };
 }
 
 /** No-op when the userId is not in the registry. */

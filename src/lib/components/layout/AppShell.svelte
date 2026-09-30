@@ -27,7 +27,11 @@
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
     import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
 
-    import { auth, clearSession } from "$lib/stores/auth.svelte";
+    import {
+        auth,
+        clearSession,
+        loadStoredSession,
+    } from "$lib/stores/auth.svelte";
     import {
         roomsState,
         setActiveSpace,
@@ -1340,6 +1344,9 @@
                 accessToken: auth.accessToken,
                 userId: auth.userId,
                 deviceId: auth.deviceId,
+                oauth: loadStoredSession()?.oauth ?? null,
+                accessTokenExpiresAt:
+                    loadStoredSession()?.accessTokenExpiresAt ?? null,
             }).catch(() => {});
         }
 

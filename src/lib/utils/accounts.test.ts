@@ -7,6 +7,7 @@ import {
     setActive,
     removeAccount,
     getActive,
+    updateAccountTokens,
     type StoredAccount,
 } from "./accounts";
 
@@ -139,5 +140,86 @@ describe("removeAccount", () => {
         );
         reg = removeAccount(reg, "@a:x.org");
         expect(reg).toEqual(emptyRegistry());
+    });
+});
+
+describe("OAuth accounts", () => {
+    const oauthAcct = (userId: string): StoredAccount => ({
+        ...acct(userId),
+        refreshToken: `refresh-${userId}`,
+        oauth: { clientId: "client-1", issuer: "https://auth.example/" },
+        accessTokenExpiresAt: 1_000,
+    });
+
+    it("round-trips refresh token, client id and issuer through the registry", () => {
+        const reg = upsertAccount(emptyRegistry(), oauthAcct("@a:x.org"));
+        expect(parseRegistry(JSON.stringify(reg))).toEqual(reg);
+    });
+
+    it("drops malformed OAuth fields but keeps the account signed in", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            activeUserId: "@a:x.org",
+            accounts: [
+                {
+                    ...acct("@a:x.org"),
+                    refreshToken: "r",
+                    oauth: { clientId: "", issuer: "https://auth.example/" },
+                    accessTokenExpiresAt: 5,
+                },
+                {
+                    ...oauthAcct("@b:x.org"),
+                    refreshToken: 42,
+                    accessTokenExpiresAt: "soon",
+                },
+            ],
+        });
+        const [a, b] = parseRegistry(raw).accounts;
+        // No usable client id: the refresh token is useless, so it goes too.
+        expect(a).toEqual(acct("@a:x.org"));
+        expect(b.oauth).toEqual({
+            clientId: "client-1",
+            issuer: "https://auth.example/",
+        });
+        expect(b.refreshToken).toBeUndefined();
+        expect(b.accessTokenExpiresAt).toBeUndefined();
+    });
+
+    it("writes a rotated token pair back onto the account", () => {
+        let reg = upsertAccount(emptyRegistry(), oauthAcct("@a:x.org"));
+        reg = upsertAccount(reg, oauthAcct("@b:x.org"));
+        reg = updateAccountTokens(reg, "@a:x.org", {
+            accessToken: "new-access",
+            refreshToken: "new-refresh",
+            expiresAt: 9_000,
+        });
+        const a = reg.accounts.find((x) => x.userId === "@a:x.org")!;
+        expect(a).toMatchObject({
+            accessToken: "new-access",
+            refreshToken: "new-refresh",
+            accessTokenExpiresAt: 9_000,
+            oauth: { clientId: "client-1" },
+        });
+        // Only that account changed.
+        expect(reg.accounts.find((x) => x.userId === "@b:x.org")).toEqual(
+            oauthAcct("@b:x.org"),
+        );
+    });
+
+    it("keeps the old refresh token when a refresh does not rotate it", () => {
+        const reg = updateAccountTokens(
+            upsertAccount(emptyRegistry(), oauthAcct("@a:x.org")),
+            "@a:x.org",
+            { accessToken: "new-access" },
+        );
+        expect(reg.accounts[0].refreshToken).toBe("refresh-@a:x.org");
+        expect(reg.accounts[0].accessTokenExpiresAt).toBeUndefined();
+    });
+
+    it("ignores a refresh for an account that has since signed out", () => {
+        const reg = upsertAccount(emptyRegistry(), oauthAcct("@a:x.org"));
+        expect(
+            updateAccountTokens(reg, "@gone:x.org", { accessToken: "t" }),
+        ).toBe(reg);
     });
 });

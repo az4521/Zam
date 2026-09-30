@@ -63,6 +63,19 @@ export interface NativeSessionRecord {
     accessToken: string;
     userId: string;
     deviceId: string | null;
+    /**
+     * Native OAuth / OIDC sessions only: which client and issuer the token
+     * belongs to, and when it stops working. Absent (not null) for password and
+     * legacy-SSO sessions, so old readers and old records are unaffected.
+     *
+     * The REFRESH token is deliberately not mirrored. Refresh tokens rotate and
+     * the previous one dies on use, so a second holder that never refreshes
+     * gains nothing and only widens where the secret lives, while one that did
+     * refresh would strand the web layer's copy. The web layer owns the
+     * refresh and re-mirrors the new access token after each one.
+     */
+    oauth?: { clientId: string; issuer: string };
+    accessTokenExpiresAt?: number;
 }
 
 function nonBlankString(value: unknown): string | null {
@@ -101,6 +114,26 @@ function validUserId(value: unknown): string | null {
 }
 
 /**
+ * The optional OAuth fields, only when well-formed. A malformed block is
+ * dropped rather than failing the record: the credential tuple is still good.
+ */
+function oauthFields(
+    oauth: unknown,
+    expiresAt: unknown,
+): Pick<NativeSessionRecord, "oauth" | "accessTokenExpiresAt"> {
+    const o = oauth as { clientId?: unknown; issuer?: unknown } | null;
+    const clientId = nonBlankString(o?.clientId);
+    const issuer = nonBlankString(o?.issuer);
+    if (!clientId || !issuer) return {};
+    return {
+        oauth: { clientId, issuer },
+        ...(typeof expiresAt === "number" && Number.isFinite(expiresAt)
+            ? { accessTokenExpiresAt: expiresAt }
+            : {}),
+    };
+}
+
+/**
  * Build the record to store. Returns null — meaning "write nothing" — unless
  * the whole credential tuple is present and well-formed.
  */
@@ -109,6 +142,8 @@ export function serializeNativeSession(input: {
     accessToken: string;
     userId: string;
     deviceId?: string | null;
+    oauth?: { clientId: string; issuer: string } | null;
+    accessTokenExpiresAt?: number | null;
 }): string | null {
     const homeserverUrl = validHomeserverUrl(input.homeserverUrl);
     const accessToken = nonBlankString(input.accessToken);
@@ -124,6 +159,7 @@ export function serializeNativeSession(input: {
         // Always present, explicitly null when unknown: an omitted key would
         // be indistinguishable from a truncated record.
         deviceId: nonBlankString(input.deviceId),
+        ...oauthFields(input.oauth, input.accessTokenExpiresAt),
     };
     return JSON.stringify(record);
 }
@@ -167,5 +203,6 @@ export function parseNativeSession(raw: unknown): NativeSessionRecord | null {
         accessToken,
         userId,
         deviceId: nonBlankString(rawDevice),
+        ...oauthFields(record.oauth, record.accessTokenExpiresAt),
     };
 }

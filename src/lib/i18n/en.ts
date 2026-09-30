@@ -100,6 +100,9 @@ export const en = {
     "accountSettings.passwordChanged": "Password changed.",
     "accountSettings.thisServerDoesNotAllowChanging":
         "This server does not allow changing your password from this app.",
+    "accountSettings.managedByProvider":
+        "Your password, sessions and account are managed on your sign-in provider's account page.",
+    "accountSettings.manageAccount": "Manage account",
     "accountSettings.emailPhoneNumbers": "Email & phone numbers",
     "accountSettings.noEmailAddressesOrPhoneNumbers":
         "No email addresses or phone numbers are linked to this account.",
@@ -639,6 +642,19 @@ export const en = {
     "loginView.ssoCouldNotBeVerified":
         "Single sign-on could not be verified. Please try again.",
     "loginView.ssoFailed": "Single sign-on failed.",
+    "loginView.continue": "Continue",
+    "loginView.signInOnProviderPage":
+        "You will sign in on your homeserver's own page, then come back here.",
+    "loginView.oauthCancelled": "Sign-in was cancelled.",
+    "loginView.oauthDenied":
+        "The sign-in provider refused the request: {reason}",
+    "loginView.oauthCouldNotBeVerified":
+        "Sign-in could not be verified. Please try again.",
+    "loginView.oauthFailed": "Sign-in failed. Please try again.",
+    "loginView.oauthRegistrationRefused":
+        "This server would not let Zam register for sign-in.",
+    "loginView.oauthRegistrationRefusedFallback":
+        "This server would not let Zam register for sign-in. Use one of the other options below.",
     "loginView.checkingServer": "Checking server…",
 
     // src/lib/components/layout/MemberList.svelte
@@ -1529,6 +1545,7 @@ export const en = {
     "sessionSettings.rename": "Rename",
     "sessionSettings.signOut": "Sign out?",
     "sessionSettings.signOut2": "Sign out",
+    "sessionSettings.manageAtProvider": "Manage",
     "sessionSettings.confirmYourAccountPasswordToSign":
         "Confirm your account password to sign out this session.",
     "sessionSettings.accountPassword": "Account password",
@@ -1930,6 +1947,8 @@ export const en = {
     "client.thisHomeserverDoesnTSupportSliding":
         "This homeserver doesn't support sliding sync, so classic sync is being used instead.",
     "client.notLoggedIn": "Not logged in",
+    "client.oauthProviderChanged":
+        "The server's sign-in provider changed. Please try again.",
     "client.thisEventTypeCannotBeForwarded":
         "This event type cannot be forwarded",
     "client.notConnected": "Not connected",

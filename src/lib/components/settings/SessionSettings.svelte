@@ -5,8 +5,10 @@
         getOwnDeviceId,
         getOwnDevices,
         getOwnUserId,
+        getAccountManagementUrl,
         renameDevice,
     } from "$lib/matrix/client";
+    import { isOAuthSession } from "$lib/stores/auth.svelte";
     import {
         describeUserAgent,
         formatLastSeen,
@@ -50,6 +52,14 @@
     let passwordId = $state<string | null>(null);
     let password = $state("");
     let signOutBusy = $state(false);
+    // Native OAuth sessions: signing another session out is the provider's
+    // job (a homeserver DELETE /devices has no way to authorise it).
+    const oauthSession = isOAuthSession();
+    let sessionsUrl = $state<string | null>(null);
+    if (oauthSession)
+        void getAccountManagementUrl("org.matrix.sessions_list").then(
+            (u) => (sessionsUrl = u),
+        );
 
     // Read-only E2EE status for this device (Layer 0). Useful for live
     // cross-client verification; carries no actions yet.
@@ -306,7 +316,17 @@
                         >{t("sessionSettings.rename")}</button
                     >
                 {/if}
-                {#if !isCurrent && passwordId !== device.deviceId}
+                {#if !isCurrent && oauthSession}
+                    {#if sessionsUrl}
+                        <a
+                            href={sessionsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="px-2.5 py-1 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                            >{t("sessionSettings.manageAtProvider")}</a
+                        >
+                    {/if}
+                {:else if !isCurrent && passwordId !== device.deviceId}
                     <button
                         onclick={() => requestSignOut(device.deviceId)}
                         disabled={signOutBusy}

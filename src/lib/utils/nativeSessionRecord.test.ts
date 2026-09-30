@@ -349,3 +349,44 @@ describe("key names", () => {
         ]);
     });
 });
+
+describe("OAuth metadata in the native record", () => {
+    const OAUTH = {
+        oauth: { clientId: "client-1", issuer: "https://auth.example/" },
+        accessTokenExpiresAt: 1_800_000_000_000,
+    };
+
+    it("carries client id, issuer and expiry, and round-trips them", () => {
+        const raw = serializeNativeSession({ ...GOOD, ...OAUTH })!;
+        expect(JSON.parse(raw)).toMatchObject(OAUTH);
+        expect(parseNativeSession(raw)).toMatchObject(OAUTH);
+    });
+
+    it("never carries a refresh token, even if one is passed in", () => {
+        const raw = serializeNativeSession({
+            ...GOOD,
+            ...OAUTH,
+            refreshToken: "secret-refresh",
+        } as never)!;
+        expect(raw).not.toContain("secret-refresh");
+        expect(raw).not.toContain("refreshToken");
+    });
+
+    it("leaves password sessions byte-identical to before", () => {
+        const raw = serializeNativeSession(GOOD)!;
+        expect(Object.keys(JSON.parse(raw)).sort()).toEqual(
+            ["accessToken", "deviceId", "homeserverUrl", "userId", "v"].sort(),
+        );
+        expect(parseNativeSession(raw)?.oauth).toBeUndefined();
+    });
+
+    it("drops a malformed oauth block without discarding the credentials", () => {
+        for (const oauth of [{ clientId: "c" }, { issuer: "i" }, "x", null]) {
+            const raw = serializeNativeSession({ ...GOOD, oauth } as never)!;
+            expect(parseNativeSession(raw)).toMatchObject({
+                accessToken: GOOD.accessToken,
+            });
+            expect(parseNativeSession(raw)?.oauth).toBeUndefined();
+        }
+    });
+});

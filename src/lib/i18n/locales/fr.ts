@@ -107,6 +107,9 @@ const messages: Record<MessageKey, string> = {
     "accountSettings.passwordChanged": "Mot de passe modifié.",
     "accountSettings.thisServerDoesNotAllowChanging":
         "Ce serveur ne permet pas de changer votre mot de passe depuis cette application.",
+    "accountSettings.managedByProvider":
+        "Votre mot de passe, vos sessions et votre compte sont gérés sur la page de compte de votre fournisseur de connexion.",
+    "accountSettings.manageAccount": "Gérer le compte",
     "accountSettings.emailPhoneNumbers": "E-mail et numéros de téléphone",
     "accountSettings.noEmailAddressesOrPhoneNumbers":
         "Aucune adresse e-mail ni aucun numéro de téléphone n'est associé à ce compte.",
@@ -665,6 +668,19 @@ const messages: Record<MessageKey, string> = {
     "loginView.ssoCouldNotBeVerified":
         "L'authentification unique n'a pas pu être vérifiée. Veuillez réessayer.",
     "loginView.ssoFailed": "Échec de l'authentification unique.",
+    "loginView.continue": "Continuer",
+    "loginView.signInOnProviderPage":
+        "Vous vous connecterez sur la page de votre serveur d'accueil, puis vous reviendrez ici.",
+    "loginView.oauthCancelled": "La connexion a été annulée.",
+    "loginView.oauthDenied":
+        "Le fournisseur de connexion a refusé la demande : {reason}",
+    "loginView.oauthCouldNotBeVerified":
+        "La connexion n'a pas pu être vérifiée. Veuillez réessayer.",
+    "loginView.oauthFailed": "Échec de la connexion. Veuillez réessayer.",
+    "loginView.oauthRegistrationRefused":
+        "Ce serveur n'a pas autorisé Zam à s'enregistrer pour la connexion.",
+    "loginView.oauthRegistrationRefusedFallback":
+        "Ce serveur n'a pas autorisé Zam à s'enregistrer pour la connexion. Utilisez l'une des autres options ci-dessous.",
     "loginView.checkingServer": "Vérification du serveur…",
 
     // src/lib/components/layout/MemberList.svelte
@@ -1604,6 +1620,7 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.rename": "Renommer",
     "sessionSettings.signOut": "Déconnecter ?",
     "sessionSettings.signOut2": "Déconnecter",
+    "sessionSettings.manageAtProvider": "Gérer",
     "sessionSettings.confirmYourAccountPasswordToSign":
         "Confirmez le mot de passe de votre compte pour déconnecter cette session.",
     "sessionSettings.accountPassword": "Mot de passe du compte",
@@ -2032,6 +2049,8 @@ const messages: Record<MessageKey, string> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "Ce serveur d'accueil ne prend pas en charge la synchronisation glissante ; la synchronisation classique est utilisée.",
     "client.notLoggedIn": "Non connecté",
+    "client.oauthProviderChanged":
+        "Le fournisseur de connexion du serveur a changé. Veuillez réessayer.",
     "client.thisEventTypeCannotBeForwarded":
         "Ce type d'événement ne peut pas être transféré",
     "client.notConnected": "Non connecté",

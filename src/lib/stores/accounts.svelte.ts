@@ -9,6 +9,7 @@ import {
     upsertAccount,
     setActive,
     removeAccount,
+    updateAccountTokens,
     getActive,
     type AccountRegistry,
     type StoredAccount,
@@ -56,6 +57,19 @@ export function upsertAndActivate(account: StoredAccount): void {
 
 export function switchActive(userId: string): void {
     accountsState.registry = setActive(accountsState.registry, userId);
+    persist();
+}
+
+/** Write a refreshed OAuth token pair onto an account (no-op if it is gone). */
+export function updateTokens(
+    userId: string,
+    tokens: { accessToken: string; refreshToken?: string; expiresAt?: number },
+): void {
+    accountsState.registry = updateAccountTokens(
+        accountsState.registry,
+        userId,
+        tokens,
+    );
     persist();
 }
 

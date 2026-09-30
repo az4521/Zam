@@ -28,9 +28,11 @@ import {
     ContentHelpers,
     TimelineWindow,
     SSOAction,
+    OAuth2,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
+    ValidatedAuthMetadata,
     ISearchResults,
     MatrixClient,
     MatrixError,
@@ -56,6 +58,12 @@ import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
 } from "$lib/matrix/slidingSyncPref";
+import { discoverOAuthMetadata, type PendingOAuth } from "$lib/matrix/oauth";
+import type { OAuthSessionInfo, StoredAccount } from "$lib/utils/accounts";
+import {
+    buildAccountManagementUrl,
+    type AccountManagementAction,
+} from "$lib/utils/oauthAccount";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -397,11 +405,70 @@ function getSyncDbName(userId: string, deviceId: string): string {
     return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:${suffix}`;
 }
 
+/** A refreshed OAuth token pair, handed to whoever persists the session. */
+export interface RefreshedTokens {
+    userId: string;
+    accessToken: string;
+    refreshToken?: string;
+    /** Epoch ms the new access token stops working, when the provider said. */
+    expiresAt?: number;
+}
+
+let tokenRefreshListener: ((tokens: RefreshedTokens) => void) | null = null;
+
+/**
+ * Register the one place refreshed tokens are persisted. The refresh token
+ * rotates, so every refresh MUST reach storage or the next restart is signed
+ * out. Set once at boot, before any client exists.
+ */
+export function setTokenRefreshListener(
+    listener: ((tokens: RefreshedTokens) => void) | null,
+): void {
+    tokenRefreshListener = listener;
+}
+
+// The freshest token pair per account, kept apart from the registry so a
+// refresh that lands before a new login has been saved (sync is still
+// starting) is not lost: the caller reads it back when it does save.
+const latestTokens = new Map<
+    string,
+    { accessToken: string; refreshToken?: string; expiresAt?: number }
+>();
+
+/** The most recent tokens known for `userId` this page session, if refreshed or issued. */
+export function getLatestTokens(
+    userId: string,
+): { accessToken: string; refreshToken?: string; expiresAt?: number } | null {
+    return latestTokens.get(userId) ?? null;
+}
+
+function handleTokenRefresh(
+    userId: string,
+    tokens: { accessToken: string; refreshToken?: string; expiry?: Date },
+): void {
+    const refreshToken =
+        tokens.refreshToken ?? latestTokens.get(userId)?.refreshToken;
+    const next = {
+        accessToken: tokens.accessToken,
+        refreshToken,
+        expiresAt: tokens.expiry?.getTime(),
+    };
+    latestTokens.set(userId, next);
+    try {
+        tokenRefreshListener?.({ userId, ...next });
+    } catch (err) {
+        console.warn("[oauth] persisting refreshed tokens failed", err);
+    }
+}
+
 async function createAuthenticatedClient(opts: {
     baseUrl: string;
     accessToken: string;
     userId: string;
     deviceId: string;
+    refreshToken?: string;
+    oauth?: OAuthSessionInfo;
+    accessTokenExpiresAt?: number;
 }): Promise<MatrixClient> {
     matrixClient?.stopClient();
     // The slot below only changes several awaits later, and stopClient() does
@@ -449,8 +516,31 @@ async function createAuthenticatedClient(opts: {
     // it must be advertised by any client that can show a code.
     // cryptoCallbacks back secret storage (4S) so cross-signing/backup secrets
     // resolve without re-prompting during setup and when secrets arrive (Layer 2).
+    const { oauth, accessTokenExpiresAt, ...clientOpts } = opts;
+    if (oauth) {
+        latestTokens.set(opts.userId, {
+            accessToken: opts.accessToken,
+            refreshToken: opts.refreshToken,
+            expiresAt: accessTokenExpiresAt,
+        });
+    } else {
+        latestTokens.delete(opts.userId);
+        delete clientOpts.refreshToken;
+    }
     const commonOpts = {
-        ...opts,
+        ...clientOpts,
+        // The SDK refreshes on M_UNKNOWN_TOKEN (and shortly before a known
+        // expiry) and revokes at the provider on logout, given the client id.
+        ...(oauth
+            ? {
+                  oauthClientId: oauth.clientId,
+                  onTokenRefresh: (tokens: {
+                      accessToken: string;
+                      refreshToken?: string;
+                      expiry?: Date;
+                  }) => handleTokenRefresh(opts.userId, tokens),
+              }
+            : {}),
         timelineSupport: true,
         verificationMethods: [
             VerificationMethod.Sas,
@@ -571,6 +661,16 @@ type LoginResult = {
     accessToken: string;
     deviceId: string;
     homeserverUrl: string;
+    /** Native OAuth sessions only. */
+    refreshToken?: string;
+    oauth?: OAuthSessionInfo;
+    accessTokenExpiresAt?: number;
+};
+
+type OAuthTokens = {
+    refreshToken?: string;
+    oauth: OAuthSessionInfo;
+    accessTokenExpiresAt?: number;
 };
 
 /**
@@ -582,6 +682,7 @@ async function finishLogin(
     tempClient: MatrixClient,
     response: { user_id: string; access_token?: string; device_id?: string },
     slidingSync: boolean,
+    oauthTokens?: OAuthTokens,
 ): Promise<LoginResult> {
     const resolvedURL = tempClient.getHomeserverUrl();
     tempClient.stopClient();
@@ -593,6 +694,7 @@ async function finishLogin(
         accessToken: response.access_token!,
         userId: response.user_id,
         deviceId: response.device_id!,
+        ...oauthTokens,
     });
 
     return {
@@ -600,6 +702,7 @@ async function finishLogin(
         accessToken: response.access_token!,
         deviceId: response.device_id!,
         homeserverUrl: resolvedURL,
+        ...oauthTokens,
     };
 }
 
@@ -622,20 +725,143 @@ export async function login(
 }
 
 /**
- * Resolve a typed homeserver address (well-known included) and read which
- * sign-in methods it offers. `baseUrl` is the resolved address, which the SSO
- * flow must reuse so the loginToken is redeemed where it was issued.
+ * Resolve a typed homeserver address (well-known included) and read how it
+ * lets users sign in: native OAuth metadata when it publishes it, and the
+ * legacy /login flows. `baseUrl` is the resolved address, which every flow
+ * must reuse so a token is redeemed where it was issued. `options` is null
+ * when only the OAuth metadata could be read; it throws when neither could.
  */
-export async function getLoginOptions(
-    homeserverUrl: string,
-): Promise<{ baseUrl: string; options: LoginOptions }> {
+export async function getLoginOptions(homeserverUrl: string): Promise<{
+    baseUrl: string;
+    options: LoginOptions | null;
+    oauth: ValidatedAuthMetadata | null;
+}> {
     const baseUrl = await resolveHomeserver(homeserverUrl, { quiet: true });
     const tempClient = createClient({ baseUrl });
     try {
-        const { flows } = await tempClient.loginFlows();
-        return { baseUrl, options: parseLoginFlows(flows) };
+        const [flows, oauth] = await Promise.all([
+            tempClient.loginFlows().catch(() => null),
+            discoverOAuthMetadata(baseUrl),
+        ]);
+        if (!flows && !oauth)
+            throw new Error(t("client.discoveredHomeserverFailedValidation"));
+        return {
+            baseUrl,
+            options: flows ? parseLoginFlows(flows.flows) : null,
+            oauth,
+        };
     } finally {
         tempClient.stopClient();
+    }
+}
+
+/**
+ * Finish a native OAuth sign-in: exchange the authorization code (PKCE) for
+ * tokens, learn who they belong to, and start the session with refresh and
+ * revoke wired up. The provider is re-discovered and must still be the one
+ * the attempt started with.
+ */
+export async function loginWithOAuthCode(
+    pending: PendingOAuth,
+    code: string,
+): Promise<LoginResult> {
+    const metadata = await discoverOAuthMetadata(pending.baseUrl);
+    if (!metadata || metadata.issuer !== pending.issuer) {
+        throw new Error(t("client.oauthProviderChanged"));
+    }
+    const oauth2 = new OAuth2(metadata, {
+        clientId: pending.clientId,
+        deviceId: pending.deviceId,
+        codeVerifier: pending.codeVerifier,
+    });
+    const requestStart = Date.now();
+    const tokens = await oauth2.completeAuthorizationCodeGrant(
+        code,
+        pending.redirectUri,
+    );
+    const tempClient = createClient({
+        baseUrl: pending.baseUrl,
+        accessToken: tokens.access_token,
+    });
+    const who = await tempClient.whoami();
+    return finishLogin(
+        tempClient,
+        {
+            user_id: who.user_id,
+            access_token: tokens.access_token,
+            // The device id was requested in the scope; trust the server's
+            // answer if it differs.
+            device_id: who.device_id ?? pending.deviceId,
+        },
+        pending.slidingSync,
+        {
+            refreshToken: tokens.refresh_token,
+            oauth: { clientId: pending.clientId, issuer: metadata.issuer },
+            accessTokenExpiresAt: tokens.expires_in
+                ? requestStart + tokens.expires_in * 1000
+                : undefined,
+        },
+    );
+}
+
+/**
+ * The provider's account management page for the signed-in OAuth session
+ * (password, sessions, deactivation), optionally deep-linked to an action.
+ * Null when the session is not OAuth, or the provider publishes none.
+ */
+export async function getAccountManagementUrl(
+    action?: AccountManagementAction,
+    deviceId?: string,
+): Promise<string | null> {
+    const client = matrixClient;
+    if (!client) return null;
+    try {
+        const meta = await client.getAuthMetadata();
+        return buildAccountManagementUrl(meta.account_management_uri, {
+            action,
+            deviceId,
+            supportedActions: meta.account_management_actions_supported,
+        });
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Best-effort server-side sign-out of a stored account that has no live client
+ * (the switcher's "sign out" on a dormant account). OAuth sessions are revoked
+ * at the provider (refresh token first: it still works when the access token
+ * has lapsed); the rest use POST /logout. Never throws: the account leaves this
+ * device either way.
+ */
+export async function signOutStoredAccount(
+    account: StoredAccount,
+): Promise<void> {
+    try {
+        if (account.oauth) {
+            const metadata = await discoverOAuthMetadata(account.homeserverUrl);
+            if (!metadata) return;
+            const oauth2 = new OAuth2(metadata, {
+                clientId: account.oauth.clientId,
+                deviceId: account.deviceId,
+            });
+            await Promise.allSettled([
+                account.refreshToken
+                    ? oauth2.revokeToken(account.refreshToken, "refresh_token")
+                    : undefined,
+                oauth2.revokeToken(account.accessToken, "access_token"),
+            ]);
+            return;
+        }
+        await fetch(
+            `${account.homeserverUrl.replace(/\/$/, "")}/_matrix/client/v3/logout`,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${account.accessToken}` },
+            },
+        );
+    } catch {
+        // ignore: server unreachable; the token stays valid server-side
     }
 }
 
@@ -706,12 +932,18 @@ export async function reconnect(
     userId: string,
     accessToken: string,
     deviceId: string,
+    oauth?: {
+        oauth: OAuthSessionInfo;
+        refreshToken?: string;
+        accessTokenExpiresAt?: number;
+    },
 ): Promise<void> {
     await createAuthenticatedClient({
         baseUrl: homeserverUrl,
         accessToken,
         userId,
         deviceId,
+        ...oauth,
     });
 }
 
@@ -2642,10 +2874,14 @@ export async function initServiceWorker(): Promise<void> {
     }
 }
 
-/** Send updated auth credentials to an already-registered service worker. */
-export function updateServiceWorkerAuth(): void {
+/**
+ * Send updated auth credentials to an already-registered service worker.
+ * `accessToken` overrides the client's own: a refresh callback fires before
+ * the SDK swaps its stored token in.
+ */
+export function updateServiceWorkerAuth(accessToken?: string): void {
     if (!matrixClient) return;
-    const token = matrixClient.getAccessToken();
+    const token = accessToken ?? matrixClient.getAccessToken();
     const hsUrl = matrixClient.getHomeserverUrl();
     if (!token || !hsUrl) return;
     const authMsg = {

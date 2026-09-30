@@ -55,6 +55,9 @@ export async function syncNativeSession(session: {
      * WRONG one would look like another device and could silence this one.
      */
     deviceId?: string | null;
+    /** Native OAuth sessions: client + issuer the token belongs to. */
+    oauth?: { clientId: string; issuer: string } | null;
+    accessTokenExpiresAt?: number | null;
 }): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     const record = serializeNativeSession(session);
@@ -135,6 +138,10 @@ export interface NativeSessionState {
     deviceId: string | null;
     /** Whether an access token is present (not the token itself). */
     hasToken: boolean;
+    /** The OAuth issuer the mirrored session signed in through, if any. */
+    oauthIssuer?: string | null;
+    /** Epoch ms the mirrored access token stops working, if known. */
+    accessTokenExpiresAt?: number | null;
     /**
      * Whether the mirrored device-global "hide message text in notifications"
      * flag is set natively. Java has no compile-time linkage to this key, so
@@ -199,6 +206,8 @@ export async function readNativeSession(): Promise<NativeSessionState> {
             deviceId: record?.deviceId ?? null,
             // Presence only — the token itself never leaves this module.
             hasToken: !!record,
+            oauthIssuer: record?.oauth?.issuer ?? null,
+            accessTokenExpiresAt: record?.accessTokenExpiresAt ?? null,
             // Same comparison the Java side makes: only the literal "true".
             hideNotificationBody: hideBody === "true",
         };
