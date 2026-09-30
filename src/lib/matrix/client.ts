@@ -990,6 +990,9 @@ const SLIDING_LIST_STATE: string[][] = [
     ["m.room.tombstone", ""],
     ["m.room.join_rules", ""],
     ["m.space.parent", "*"],
+    // Space/room emoji packs are offered in every room's picker, not just the
+    // room that owns them, so they must be loaded for the whole list.
+    ["im.ponies.room_emotes", "*"],
     ["m.room.member", MSC3575_STATE_KEY_ME],
 ];
 
