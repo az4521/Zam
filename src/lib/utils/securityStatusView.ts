@@ -9,6 +9,7 @@
  */
 
 /** Outcome of one status read. */
+import { t } from "$lib/i18n";
 export type SecurityRead = "ok" | "unavailable" | "error";
 
 export interface SecurityPosture {
@@ -54,10 +55,8 @@ export function securitySetupState(p: SecurityPosture): SecuritySetupState {
     return complete ? "ready" : "partial";
 }
 
-const READ_FAILED_NOTICE =
-    "Couldn't read this account's encryption status. Nothing here is reliable until it loads - don't set up or reset recovery yet.";
-const UNAVAILABLE_NOTICE =
-    "Encryption isn't ready on this session yet. Reload if this persists.";
+const READ_FAILED_NOTICE = t("securityStatusView.couldnTReadThisAccountS");
+const UNAVAILABLE_NOTICE = t("securityStatusView.encryptionIsnTReadyOnThis");
 
 export interface SecurityPanelView {
     state: SecuritySetupState;

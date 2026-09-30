@@ -7,6 +7,7 @@
 // the unstable key, plus the stable one when the profile already carries it so
 // the two never drift apart. `legacy` keys are other clients' pre-MSC formats:
 // they are shown on other people's profiles but never written or edited.
+import { t } from "$lib/i18n";
 
 export interface FieldKeys {
     stable: string;
@@ -208,7 +209,7 @@ export function statusProblem(text: string, emoji: string): string | null {
     const hasText = text.trim() !== "";
     const hasEmoji = emoji.trim() !== "";
     if (hasText === hasEmoji) return null;
-    return "A status needs both an emoji and some text.";
+    return t("extendedProfile.aStatusNeedsBothAnEmoji");
 }
 
 /** One-line form of a status, "🌴 On holiday", for clients without emoji fields. */
@@ -279,11 +280,13 @@ export function describeCall(joinedTs: number, nowMs: number): string | null {
     const elapsed = nowMs - joinedTs * 1000;
     if (elapsed > MAX_PLAUSIBLE_CALL_MS) return null;
     const minutes = Math.max(0, Math.floor(elapsed / 60_000));
-    if (minutes < 1) return "In a call";
-    if (minutes < 60) return `In a call for ${minutes} min`;
+    if (minutes < 1) return t("extendedProfile.inACall");
+    if (minutes < 60) return t("extendedProfile.inACallForMin", { minutes });
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    return `In a call for ${hours} h${rest ? ` ${rest} min` : ""}`;
+    return rest
+        ? t("extendedProfile.inACallForHMin", { hours, minutes: rest })
+        : t("extendedProfile.inACallForH", { hours });
 }
 
 // ── Username colour (MSC4522) ──────────────────────────────────────────────
@@ -362,7 +365,7 @@ export function knownTimezones(): string[] {
 }
 
 /** Region for zones with no "/" in their name, such as "UTC". */
-export const OTHER_REGION = "Other";
+export const OTHER_REGION = t("extendedProfile.other");
 
 /** "Europe/London" to { region: "Europe", city: "London" }. */
 export function splitTimezone(zone: string): { region: string; city: string } {
@@ -471,11 +474,11 @@ export function parseConnections(value: unknown): ProfileConnection[] {
 export function connectionsProblem(rows: ProfileConnection[]): string | null {
     const filled = rows.filter((r) => r.uri.trim() || r.description.trim());
     if (filled.length > MAX_CONNECTIONS) {
-        return `At most ${MAX_CONNECTIONS} links.`;
+        return t("extendedProfile.atMostLinks", { MAX_CONNECTIONS });
     }
     for (const row of filled) {
         if (!isSafeConnectionUri(row.uri)) {
-            return "Links must be http, https, mailto or matrix addresses.";
+            return t("extendedProfile.linksMustBeHttpHttpsMailto");
         }
     }
     return null;

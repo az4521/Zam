@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         getSecurityStatus,
         setupRecovery,
@@ -261,7 +262,9 @@
             step = "show";
         } catch (e) {
             error =
-                e instanceof Error ? e.message : "Could not set up recovery";
+                e instanceof Error
+                    ? e.message
+                    : t("securitySettings.couldNotSetUpRecovery");
             step = "password";
         }
     }
@@ -317,7 +320,10 @@
                 usePassphrase ? passphrase : undefined,
             );
         } catch (e) {
-            error = e instanceof Error ? e.message : "Could not reset recovery";
+            error =
+                e instanceof Error
+                    ? e.message
+                    : t("securitySettings.couldNotResetRecovery");
             // Which half failed decides where the user lands. A failure past the
             // destructive step must never return to a submit that re-runs it
             // (audit CRYPTO-01) — that is the whole point of `repair`.
@@ -353,7 +359,7 @@
             error =
                 e instanceof Error
                     ? e.message
-                    : "Could not finish setting up recovery";
+                    : t("securitySettings.couldNotFinishSettingUpRecovery");
             // Still no recovery on the account, so stay put: `repair` is the only
             // honest place to be, and the machine refuses anything else.
             advanceReset({ type: "failed-after-destroy" });
@@ -423,7 +429,7 @@
             unlockError =
                 e instanceof Error
                     ? e.message
-                    : "Could not verify this session";
+                    : t("securitySettings.couldNotVerifyThisSession");
             // Stay on the entry step so the user can fix a typo and retry.
             unlockStep = "entry";
         }
@@ -448,7 +454,7 @@
      current claim about the account (audit CRYPTO-02). -->
 {#snippet staleMarker()}
     <p class="text-xs text-discord-textMuted py-1.5">
-        Showing the last reading that loaded - it may be out of date.
+        {t("securitySettings.showingTheLastReadingThatLoaded")}
     </p>
 {/snippet}
 
@@ -472,11 +478,10 @@
 <div class="space-y-6">
     <div>
         <h3 class="text-sm font-semibold text-discord-textPrimary mb-1">
-            Security &amp; Encryption
+            {t("securitySettings.securityEncryption")}
         </h3>
         <p class="text-xs text-discord-textMuted">
-            Set up recovery so your cross-signing identity and encrypted message
-            history survive signing out on every device.
+            {t("securitySettings.setUpRecoverySoYourCross")}
         </p>
     </div>
 
@@ -490,7 +495,7 @@
             {/if}
             <div class="flex items-center justify-between gap-3 py-1.5">
                 <span class="text-sm text-discord-textPrimary"
-                    >Verification</span
+                    >{t("securitySettings.verification")}</span
                 >
                 <span
                     class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {verificationStatusState
@@ -501,7 +506,8 @@
                           : verificationStatusState.view?.tone === 'unverified'
                             ? 'bg-discord-messageHover text-discord-textMuted'
                             : 'bg-discord-messageHover text-discord-textMuted'}"
-                    >{verificationStatusState.view?.label ?? "Checking…"}</span
+                    >{verificationStatusState.view?.label ??
+                        t("common.checking")}</span
                 >
             </div>
             {@render statusRow(
@@ -542,18 +548,19 @@
             )}
         {:else if panel.state === "loading"}
             <p class="text-xs text-discord-textMuted py-1.5">
-                Loading encryption status…
+                {t("securitySettings.loadingEncryptionStatus")}
             </p>
         {:else}
             <!-- Deliberately NOT the rows above: we don't know this account's
                  posture, and "Not set up" would claim we do. -->
             <p class="text-xs text-discord-textMuted py-1.5">
-                Encryption status unknown on this session.
+                {t("securitySettings.encryptionStatusUnknownOnThisSession")}
             </p>
         {/if}
         {#if status && showRows}
             <p class="text-[11px] text-discord-textMuted pt-1 pb-1.5">
-                Recovery key ID: <span class="font-mono"
+                {t("securitySettings.recoveryKeyId")}
+                <span class="font-mono"
                     >{secretStorageKeyLabel(status.defaultKeyId)}</span
                 >
             </p>
@@ -582,13 +589,12 @@
             {#if step === "idle" || step === "password" || step === "working"}
                 <div class="space-y-1">
                     <p class="text-sm font-medium text-discord-textPrimary">
-                        Set up recovery
+                        {t("securitySettings.setUpRecovery")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        We'll create a <strong>recovery key</strong> - a one-time
-                        code that unlocks your encrypted history and verifies new
-                        sessions. Store it somewhere safe like a password manager;
-                        it's shown only once and we can't recover it for you.
+                        {t("securitySettings.weLlCreateA")}
+                        <strong>{t("securitySettings.recoveryKey")}</strong>
+                        {t("securitySettings.aOneTimeCodeThatUnlocks")}
                     </p>
                 </div>
             {/if}
@@ -597,18 +603,19 @@
                 <button
                     onclick={beginSetup}
                     class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
-                    >Set up recovery</button
+                    >{t("securitySettings.setUpRecovery")}</button
                 >
             {:else if step === "password" || step === "working"}
                 <div class="space-y-2">
                     <p class="text-xs text-discord-textMuted">
-                        Confirm your account password to create your encryption
-                        keys.
+                        {t(
+                            "securitySettings.confirmYourAccountPasswordToCreate",
+                        )}
                     </p>
                     <input
                         type="password"
                         bind:value={password}
-                        placeholder="Account password"
+                        placeholder={t("securitySettings.accountPassword")}
                         disabled={step === "working"}
                         onkeydown={(e) =>
                             e.key === "Enter" && password && runSetup()}
@@ -623,17 +630,16 @@
                             disabled={step === "working"}
                             class="mt-0.5"
                         />
-                        <span
-                            >Also let me unlock with a passphrase I choose
-                            (optional - your recovery key still works and is
-                            still shown).</span
+                        <span>{t("securitySettings.alsoLetMeUnlockWithA")}</span
                         >
                     </label>
                     {#if usePassphrase}
                         <input
                             type="password"
                             bind:value={passphrase}
-                            placeholder="Recovery passphrase"
+                            placeholder={t(
+                                "securitySettings.recoveryPassphrase",
+                            )}
                             autocomplete="new-password"
                             disabled={step === "working"}
                             class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
@@ -644,8 +650,9 @@
                             </p>
                         {:else}
                             <p class="text-xs text-discord-textMuted">
-                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
-                                reset it for you.
+                                {t("securitySettings.atLeastCharactersWeCanT", {
+                                    MIN_PASSPHRASE_LENGTH,
+                                })}
                             </p>
                         {/if}
                     {/if}
@@ -655,26 +662,27 @@
                             disabled={step === "working" || setupBlocked}
                             class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
                             >{step === "working"
-                                ? "Setting up…"
-                                : "Continue"}</button
+                                ? t("securitySettings.settingUp")
+                                : t("securitySettings.continue")}</button
                         >
                         <button
                             onclick={cancel}
                             disabled={step === "working"}
                             class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
-                            >Cancel</button
+                            >{t("common.cancel")}</button
                         >
                     </div>
                 </div>
             {:else if step === "show"}
                 <div class="space-y-3">
                     <p class="text-sm font-medium text-discord-textPrimary">
-                        Save your recovery key
+                        {t("securitySettings.saveYourRecoveryKey")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        This is shown <strong>only once</strong>. Store it now -
-                        without it you can't recover your encrypted history if
-                        you lose access to your sessions.
+                        {t("securitySettings.thisIsShown")}
+                        <strong>{t("securitySettings.onlyOnce")}</strong>{t(
+                            "securitySettings.storeItNowWithoutItYou",
+                        )}
                     </p>
                     <div
                         class="font-mono text-sm text-discord-textPrimary bg-discord-backgroundDark rounded px-3 py-2 break-all select-all"
@@ -684,13 +692,13 @@
                     <button
                         onclick={copyKey}
                         class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
-                        >{copied ? "Copied ✓" : "Copy key"}</button
+                        >{copied
+                            ? t("securitySettings.copied")
+                            : t("securitySettings.copyKey")}</button
                     >
                     {#if keyHasPassphrase}
                         <p class="text-xs text-discord-textMuted">
-                            You can also unlock with the passphrase you chose.
-                            Keep the key anyway - it's the only way in if you
-                            forget the passphrase.
+                            {t("securitySettings.youCanAlsoUnlockWithThe")}
                         </p>
                     {/if}
                     <label
@@ -701,13 +709,15 @@
                             bind:checked={saved}
                             class="mt-0.5"
                         />
-                        <span>I've saved my recovery key somewhere safe.</span>
+                        <span
+                            >{t("securitySettings.iVeSavedMyRecoveryKey")}</span
+                        >
                     </label>
                     <button
                         onclick={finishSetup}
                         disabled={!saved}
                         class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                        >Done</button
+                        >{t("securitySettings.done")}</button
                     >
                 </div>
             {/if}
@@ -729,11 +739,10 @@
             {#if !resetView.blocking}
                 <div class="space-y-1">
                     <p class="text-sm font-medium text-discord-textPrimary">
-                        Recovery is set up
+                        {t("securitySettings.recoveryIsSetUp")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        Your cross-signing keys and a key backup are stored
-                        securely on the server, protected by your recovery key.
+                        {t("securitySettings.yourCrossSigningKeysAndA")}
                     </p>
                     <!-- This panel renders from the RETAINED payload, so when the
                          latest read didn't land it is a past reading like the rows
@@ -747,11 +756,10 @@
                      reset itself did on this session, not from a read. -->
                 <div class="space-y-1">
                     <p class="text-sm font-medium text-discord-textPrimary">
-                        Recovery is not set up
+                        {t("securitySettings.recoveryIsNotSetUp")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        This account has no recovery key and no key backup until
-                        you finish the step below.
+                        {t("securitySettings.thisAccountHasNoRecoveryKey")}
                     </p>
                 </div>
             {/if}
@@ -765,26 +773,29 @@
                     onclick={beginReset}
                     disabled={!panel.allowDestructive}
                     class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary disabled:opacity-50 disabled:no-underline"
-                    >Lost your recovery key? Reset recovery</button
+                    >{t(
+                        "securitySettings.lostYourRecoveryKeyResetRecovery",
+                    )}</button
                 >
             {:else if resetStep === "confirm"}
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-warning">
-                        Resetting creates a <strong>new</strong> recovery key and
-                        replaces your current backup. Your old recovery key stops
-                        working and other sessions may need re-verifying. Only do
-                        this if you've lost your current key.
+                        {t("securitySettings.resettingCreatesA")}
+                        <strong>{t("securitySettings.new")}</strong>
+                        {t(
+                            "securitySettings.recoveryKeyAndReplacesYourCurrent",
+                        )}
                     </p>
                     <div class="flex gap-2">
                         <button
                             onclick={() => advanceReset({ type: "confirmed" })}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm"
-                            >Continue</button
+                            >{t("securitySettings.continue")}</button
                         >
                         <button
                             onclick={cancelReset}
                             class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
-                            >Cancel</button
+                            >{t("common.cancel")}</button
                         >
                     </div>
                 </div>
@@ -797,15 +808,12 @@
                      time, and leaving quietly strands the account (CRYPTO-01). -->
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-warning">
-                        Your old recovery key and backup were reset, but the new
-                        recovery wasn't created. Finish setting it up now - your
-                        messages can't be recovered on a new session until you
-                        do.
+                        {t("securitySettings.yourOldRecoveryKeyAndBackup")}
                     </p>
                     <input
                         type="password"
                         bind:value={password}
-                        placeholder="Account password"
+                        placeholder={t("securitySettings.accountPassword")}
                         disabled={resetView.busy}
                         onkeydown={(e) =>
                             e.key === "Enter" && password && runRepair()}
@@ -820,17 +828,16 @@
                             disabled={resetView.busy}
                             class="mt-0.5"
                         />
-                        <span
-                            >Also let me unlock with a passphrase I choose
-                            (optional - your recovery key still works and is
-                            still shown).</span
+                        <span>{t("securitySettings.alsoLetMeUnlockWithA")}</span
                         >
                     </label>
                     {#if usePassphrase}
                         <input
                             type="password"
                             bind:value={passphrase}
-                            placeholder="Recovery passphrase"
+                            placeholder={t(
+                                "securitySettings.recoveryPassphrase",
+                            )}
                             autocomplete="new-password"
                             disabled={resetView.busy}
                             class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
@@ -841,8 +848,9 @@
                             </p>
                         {:else}
                             <p class="text-xs text-discord-textMuted">
-                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
-                                reset it for you.
+                                {t("securitySettings.atLeastCharactersWeCanT", {
+                                    MIN_PASSPHRASE_LENGTH,
+                                })}
                             </p>
                         {/if}
                     {/if}
@@ -851,19 +859,23 @@
                         disabled={resetView.busy || setupBlocked}
                         class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
                         >{resetView.busy
-                            ? "Working…"
-                            : "Finish setting up recovery"}</button
+                            ? t("securitySettings.working")
+                            : t(
+                                  "securitySettings.finishSettingUpRecovery",
+                              )}</button
                     >
                 </div>
             {:else if resetStep === "password" || resetStep === "destroying"}
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
                     <p class="text-xs text-discord-textMuted">
-                        Confirm your account password to reset recovery.
+                        {t(
+                            "securitySettings.confirmYourAccountPasswordToReset",
+                        )}
                     </p>
                     <input
                         type="password"
                         bind:value={password}
-                        placeholder="Account password"
+                        placeholder={t("securitySettings.accountPassword")}
                         disabled={resetView.busy}
                         onkeydown={(e) =>
                             e.key === "Enter" && password && runReset()}
@@ -878,17 +890,16 @@
                             disabled={resetView.busy}
                             class="mt-0.5"
                         />
-                        <span
-                            >Also let me unlock with a passphrase I choose
-                            (optional - your recovery key still works and is
-                            still shown).</span
+                        <span>{t("securitySettings.alsoLetMeUnlockWithA")}</span
                         >
                     </label>
                     {#if usePassphrase}
                         <input
                             type="password"
                             bind:value={passphrase}
-                            placeholder="Recovery passphrase"
+                            placeholder={t(
+                                "securitySettings.recoveryPassphrase",
+                            )}
                             autocomplete="new-password"
                             disabled={resetView.busy}
                             class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
@@ -899,8 +910,9 @@
                             </p>
                         {:else}
                             <p class="text-xs text-discord-textMuted">
-                                At least {MIN_PASSPHRASE_LENGTH} characters. We can't
-                                reset it for you.
+                                {t("securitySettings.atLeastCharactersWeCanT", {
+                                    MIN_PASSPHRASE_LENGTH,
+                                })}
                             </p>
                         {/if}
                     {/if}
@@ -910,14 +922,16 @@
                             disabled={resetView.busy || setupBlocked}
                             class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
                             >{resetView.busy
-                                ? "Resetting…"
-                                : "Reset & create new key"}</button
+                                ? t("securitySettings.resetting")
+                                : t(
+                                      "securitySettings.resetCreateNewKey",
+                                  )}</button
                         >
                         <button
                             onclick={cancelReset}
                             disabled={resetView.busy}
                             class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
-                            >Cancel</button
+                            >{t("common.cancel")}</button
                         >
                     </div>
                 </div>
@@ -940,7 +954,7 @@
         >
             <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-medium text-discord-textPrimary">
-                    Message history backup
+                    {t("securitySettings.messageHistoryBackup")}
                 </p>
                 {#if badge}
                     <span
@@ -983,7 +997,9 @@
                     <button
                         onclick={beginUnlock}
                         class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
-                        >Verify this session &amp; restore history</button
+                        >{t(
+                            "securitySettings.verifyThisSessionRestoreHistory",
+                        )}</button
                     >
                 {:else if unlockStep === "entry"}
                     <div class="space-y-2">
@@ -995,7 +1011,9 @@
                                     'key'
                                         ? 'bg-discord-accent text-white'
                                         : 'bg-discord-messageHover text-discord-textPrimary'}"
-                                    >Recovery key</button
+                                    >{t(
+                                        "securitySettings.recoveryKey2",
+                                    )}</button
                                 >
                                 <button
                                     onclick={() => (unlockMode = "passphrase")}
@@ -1003,23 +1021,28 @@
                                     'passphrase'
                                         ? 'bg-discord-accent text-white'
                                         : 'bg-discord-messageHover text-discord-textPrimary'}"
-                                    >Passphrase</button
+                                    >{t("securitySettings.passphrase")}</button
                                 >
                             </div>
                         {/if}
                         <p class="text-xs text-discord-textMuted">
-                            Enter your <strong
+                            {t("securitySettings.enterYour")}
+                            <strong
                                 >{effectiveUnlockMode === "key"
-                                    ? "recovery key"
-                                    : "recovery passphrase"}</strong
-                            > to verify this session and restore your encrypted message
-                            history.
+                                    ? t("securitySettings.recoveryKey")
+                                    : t(
+                                          "securitySettings.recoveryPassphrase2",
+                                      )}</strong
+                            >
+                            {t(
+                                "securitySettings.toVerifyThisSessionAndRestore",
+                            )}
                         </p>
                         {#if effectiveUnlockMode === "key"}
                             <input
                                 type="text"
                                 bind:value={unlockKey}
-                                placeholder="Recovery key"
+                                placeholder={t("securitySettings.recoveryKey2")}
                                 autocomplete="off"
                                 autocapitalize="none"
                                 spellcheck="false"
@@ -1033,7 +1056,9 @@
                             <input
                                 type="password"
                                 bind:value={unlockPassphrase}
-                                placeholder="Recovery passphrase"
+                                placeholder={t(
+                                    "securitySettings.recoveryPassphrase",
+                                )}
                                 autocomplete="current-password"
                                 onkeydown={(e) =>
                                     e.key === "Enter" &&
@@ -1047,12 +1072,12 @@
                                 onclick={runUnlock}
                                 disabled={!unlockReady}
                                 class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                                >Continue</button
+                                >{t("securitySettings.continue")}</button
                             >
                             <button
                                 onclick={cancelUnlock}
                                 class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
-                                >Cancel</button
+                                >{t("common.cancel")}</button
                             >
                         </div>
                     </div>
@@ -1077,8 +1102,8 @@
                 <div class="space-y-2">
                     <p class="text-sm font-medium text-discord-online">
                         {unlockResult.sessionVerified
-                            ? "This session is now verified"
-                            : "Encrypted history restored"}
+                            ? t("securitySettings.thisSessionIsNowVerified")
+                            : t("securitySettings.encryptedHistoryRestored")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         {restoreResultLabel(unlockResult)}.
@@ -1086,7 +1111,7 @@
                     <button
                         onclick={finishUnlock}
                         class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
-                        >Done</button
+                        >{t("securitySettings.done")}</button
                     >
                 </div>
             {/if}

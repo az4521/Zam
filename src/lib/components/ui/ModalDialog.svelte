@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Snippet } from "svelte";
     import { fade, scale } from "svelte/transition";
     import { focusTrap } from "$lib/actions/focusTrap";
@@ -52,7 +53,7 @@
         layerClass = "z-50 flex items-center justify-center",
         backdropClass = "bg-black/60",
         panelClass = "relative",
-        closeLabel = "Close dialog",
+        closeLabel = t("common.closeDialog"),
         onKeydown = undefined,
         children,
     }: Props = $props();

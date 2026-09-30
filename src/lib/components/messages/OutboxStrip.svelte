@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { Clock, Loader2, AlertCircle } from "lucide-svelte";
     import {
         getOutboxItems,
@@ -25,16 +26,17 @@
                 <!-- Status icon/label -->
                 {#if item.status === "queued"}
                     <Clock class="w-3.5 h-3.5 flex-shrink-0" />
-                    <span class="flex-shrink-0">Queued</span>
+                    <span class="flex-shrink-0">{t("outboxStrip.queued")}</span>
                 {:else if item.status === "sending"}
                     <Loader2 class="w-3.5 h-3.5 flex-shrink-0 animate-spin" />
-                    <span class="flex-shrink-0">Sending…</span>
+                    <span class="flex-shrink-0">{t("outboxStrip.sending")}</span
+                    >
                 {:else if item.status === "failed"}
                     <AlertCircle
                         class="w-3.5 h-3.5 flex-shrink-0 text-red-400"
                     />
                     <span class="flex-shrink-0 text-red-400"
-                        >{item.error || "Failed"}</span
+                        >{item.error || t("outboxStrip.failed")}</span
                     >
                 {/if}
 
@@ -50,14 +52,14 @@
                         onclick={() => retryOutboxItem(roomId, item.id)}
                         class="px-2 py-0.5 rounded bg-discord-backgroundTertiary hover:bg-discord-backgroundModifierHover text-discord-text text-xs font-medium transition-colors flex-shrink-0"
                     >
-                        Retry
+                        {t("common.retry")}
                     </button>
                     <button
                         type="button"
                         onclick={() => removeOutboxItem(roomId, item.id)}
                         class="px-2 py-0.5 rounded bg-discord-backgroundTertiary hover:bg-discord-backgroundModifierHover text-discord-textMuted text-xs font-medium transition-colors flex-shrink-0"
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 {/if}
             </div>

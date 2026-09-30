@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     startDeviceVerification,
     startUserVerification,
@@ -40,7 +41,9 @@ export const verificationState = new VerificationStore();
  * is in flight. It lives here rather than in `utils/verification` because it
  * describes this store's one-at-a-time rule, not anything about a request.
  */
-const ACCEPT_BUSY_TEXT = "Finishing another verification first. Try again.";
+const ACCEPT_BUSY_TEXT = t(
+    "verification.finishingAnotherVerificationFirstTryAgain",
+);
 
 /** controller.id -> the store's unsubscribe for its bump subscription. */
 const trackers = new Map<string, () => void>();

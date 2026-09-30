@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { untrack } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import {
@@ -68,11 +69,11 @@
     const emptyMessage = $derived(
         hasMore
             ? tab === "media"
-                ? "No media found in the last few hundred messages."
-                : "No files found in the last few hundred messages."
+                ? t("roomMediaPanel.noMediaFoundInTheLast")
+                : t("roomMediaPanel.noFilesFoundInTheLast")
             : tab === "media"
-              ? "No images or videos in this room yet."
-              : "No files in this room yet.",
+              ? t("roomMediaPanel.noImagesOrVideosInThis")
+              : t("roomMediaPanel.noFilesInThisRoomYet"),
     );
 
     // Everything in the Media tab is viewable: the Lightbox renders an image or
@@ -147,8 +148,8 @@
             // show the user something they can act on.
             console.error("Failed to load room media", e);
             if (gen === pullGen) {
-                if (reset) error = "Could not load media.";
-                else loadMoreError = "Could not load more media.";
+                if (reset) error = t("roomMediaPanel.couldNotLoadMedia");
+                else loadMoreError = t("roomMediaPanel.couldNotLoadMoreMedia");
             }
         } finally {
             // Never clear a flag a newer pull set: the guard above `return`s
@@ -203,7 +204,7 @@
             }
         } catch (e) {
             console.error("Failed to download attachment", e);
-            showErrorToast("Failed to download attachment");
+            showErrorToast(t("roomMediaPanel.failedToDownloadAttachment"));
         }
     }
 
@@ -306,13 +307,13 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
         >
-            Media
+            {t("roomMediaPanel.media")}
         </h3>
         <button
             onclick={onClose}
             class="text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-            title="Close"
-            aria-label="Close media panel"
+            title={t("common.close")}
+            aria-label={t("roomMediaPanel.closeMediaPanel")}
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
                 ><path
@@ -337,7 +338,10 @@
                 ? 'bg-discord-messageHover text-discord-textPrimary'
                 : 'text-discord-textMuted hover:text-discord-textPrimary'}"
         >
-            Media ({split.visual.length}{hasMore ? "+" : ""})
+            {t("roomMediaPanel.media2", {
+                length: split.visual.length,
+                value: hasMore ? "+" : "",
+            })}
         </button>
         <button
             id="room-media-tab-files"
@@ -350,7 +354,10 @@
                 ? 'bg-discord-messageHover text-discord-textPrimary'
                 : 'text-discord-textMuted hover:text-discord-textPrimary'}"
         >
-            Files ({split.files.length}{hasMore ? "+" : ""})
+            {t("roomMediaPanel.files", {
+                length: split.files.length,
+                value: hasMore ? "+" : "",
+            })}
         </button>
     </div>
 
@@ -377,7 +384,7 @@
                     onclick={() => pull(true)}
                     class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                 >
-                    Try again
+                    {t("roomMediaPanel.tryAgain")}
                 </button>
             </div>
         {:else if visible.length === 0}
@@ -398,7 +405,7 @@
                         onclick={() => openViewer(media)}
                         class="relative aspect-square rounded overflow-hidden bg-discord-background hover:opacity-80 transition-opacity"
                         title={media.kind === "video"
-                            ? `${media.name} - play`
+                            ? t("roomMediaPanel.play", { name: media.name })
                             : media.name}
                     >
                         {#if thumb}
@@ -428,7 +435,7 @@
                                     class="w-9 h-9 rounded-full bg-black/60 flex items-center justify-center"
                                 >
                                     <svg
-                                        class="w-4 h-4 text-white ml-0.5"
+                                        class="w-4 h-4 text-white ms-0.5"
                                         fill="currentColor"
                                         viewBox="0 0 24 24"
                                         ><path d="M8 5v14l11-7z" /></svg
@@ -436,8 +443,8 @@
                                 </span>
                             </span>
                             <span
-                                class="absolute bottom-1 right-1 px-1 rounded bg-black/60 text-white text-[0.625rem]"
-                                >{duration || "Video"}</span
+                                class="absolute bottom-1 end-1 px-1 rounded bg-black/60 text-white text-[0.625rem]"
+                                >{duration || t("roomMediaPanel.video")}</span
                             >
                         {/if}
                     </button>
@@ -448,7 +455,7 @@
                 {#each split.files as file (file.eventId)}
                     <button
                         onclick={() => download(file)}
-                        class="w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
                     >
                         <p
                             class="text-xs font-semibold text-discord-textPrimary truncate"
@@ -457,7 +464,9 @@
                         </p>
                         <p class="text-xs text-discord-textMuted">
                             {formatMediaSize(file.size) ||
-                                (file.kind === "audio" ? "Audio" : "File")}
+                                (file.kind === "audio"
+                                    ? t("roomMediaPanel.audio")
+                                    : t("roomMediaPanel.file"))}
                         </p>
                     </button>
                 {/each}
@@ -479,7 +488,7 @@
                     disabled={loadingMore}
                     class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                 >
-                    {loadingMore ? "Loading…" : "Load more"}
+                    {loadingMore ? t("common.loading") : t("common.loadMore")}
                 </button>
             </div>
         {/if}
@@ -507,7 +516,7 @@
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
             role="dialog"
             aria-modal="true"
-            aria-label="Decrypting media"
+            aria-label={t("roomMediaPanel.decryptingMedia")}
         >
             <div
                 class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
@@ -516,7 +525,7 @@
                     class="w-8 h-8 mx-auto mb-4 border-4 border-discord-accent border-t-transparent rounded-full animate-spin"
                 ></div>
                 <p class="text-sm text-discord-textPrimary">
-                    Decrypting media...
+                    {t("roomMediaPanel.decryptingMedia2")}
                 </p>
             </div>
         </div>
@@ -553,19 +562,19 @@
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
             role="dialog"
             aria-modal="true"
-            aria-label="Media could not be loaded"
+            aria-label={t("roomMediaPanel.mediaCouldNotBeLoaded")}
         >
             <div
                 class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
             >
                 <p class="text-sm text-discord-textPrimary mb-4">
-                    Could not load this media.
+                    {t("roomMediaPanel.couldNotLoadThisMedia")}
                 </p>
                 <button
                     onclick={() => (viewerIndex = null)}
                     class="px-4 py-1.5 text-sm rounded bg-discord-accent text-white hover:opacity-90 transition-opacity"
                 >
-                    Close
+                    {t("common.close")}
                 </button>
             </div>
         </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // Consent gate before a click-to-join (audit SEC-M3). Rendered once in
     // AppShell; shows when the join-consent store has a pending request. Text
     // only — the identifiers are plain strings, never {@html}.
@@ -34,18 +35,17 @@
             id="join-consent-title"
             class="mb-2 text-lg font-semibold text-discord-textPrimary"
         >
-            Join this room?
+            {t("joinConsentDialog.joinThisRoom")}
         </h2>
         <p class="mb-3 text-sm text-discord-textMuted">
-            You clicked a link to
+            {t("joinConsentDialog.youClickedALinkTo")}
             <span class="break-all font-medium text-discord-textPrimary"
                 >{pending.display}</span
-            >. Joining shares your Matrix ID with everyone in the room and adds
-            it to your room list.
+            >{t("joinConsentDialog.joiningSharesYourMatrixIdWith")}
         </p>
         {#if showResolved}
             <p class="mb-3 text-sm text-discord-textMuted">
-                This opens room
+                {t("joinConsentDialog.thisOpensRoom")}
                 <span class="break-all font-medium text-discord-textPrimary"
                     >{pending.resolvedRoomId}</span
                 >.
@@ -56,8 +56,7 @@
                 class="mb-3 rounded border border-discord-danger/40 bg-discord-danger/10 px-3 py-2 text-sm text-discord-danger"
                 role="alert"
             >
-                Warning: this link points at a different server than the room it
-                resolves to. Only continue if you trust the sender.
+                {t("joinConsentDialog.warningThisLinkPointsAtA")}
             </p>
         {/if}
         <div class="mt-4 flex justify-end gap-2">
@@ -66,14 +65,14 @@
                 onclick={() => resolveJoinConsent(false)}
                 class="rounded px-4 py-2 text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
             >
-                Cancel
+                {t("common.cancel")}
             </button>
             <button
                 type="button"
                 onclick={() => resolveJoinConsent(true)}
                 class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
-                Join room
+                {t("joinConsentDialog.joinRoom")}
             </button>
         </div>
     </ModalDialog>

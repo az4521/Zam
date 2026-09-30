@@ -7,6 +7,7 @@
 // visible tab set depends on whether the room is a space, and a selection that
 // is invalid for the current room falls back instead of rendering nothing.
 // No Svelte, no SDK imports.
+import { t } from "$lib/i18n";
 
 export type RoomSettingsTab =
     | "general"
@@ -27,14 +28,14 @@ export interface RoomSettingsTabEntry {
 export const DEFAULT_ROOM_SETTINGS_TAB: RoomSettingsTab = "general";
 
 const LABELS: Record<RoomSettingsTab, string> = {
-    general: "General",
-    access: "Access",
-    notifications: "Notifications",
-    security: "Security",
-    permissions: "Permissions",
-    members: "Members",
-    emotes: "Emotes",
-    rooms: "Rooms",
+    general: t("roomSettingsNav.general"),
+    access: t("roomSettingsNav.access"),
+    notifications: t("common.notifications"),
+    security: t("roomSettingsNav.security"),
+    permissions: t("roomSettingsNav.permissions"),
+    members: t("roomSettingsNav.members"),
+    emotes: t("roomSettingsNav.emotes"),
+    rooms: t("roomSettingsNav.rooms"),
 };
 
 /**

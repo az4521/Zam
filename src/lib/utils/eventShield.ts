@@ -14,6 +14,7 @@
  * NOTE: `NONE` is 0 and therefore FALSY — always compare explicitly, never test
  * a colour for truthiness.
  */
+import { t } from "$lib/i18n";
 export const EventShieldColourValue = {
     NONE: 0,
     GREY: 1,
@@ -49,7 +50,7 @@ export interface ShieldView {
     label: string;
 }
 
-const GENERIC_LABEL = "This message's encryption could not be fully verified.";
+const GENERIC_LABEL = t("eventShield.thisMessageSEncryptionCouldNot");
 
 /**
  * Wording per reason code. Kept close to the SDK's own doc comments so the
@@ -57,18 +58,24 @@ const GENERIC_LABEL = "This message's encryption could not be fully verified.";
  */
 const REASON_LABELS: Record<number, string> = {
     [EventShieldReasonValue.UNKNOWN]: GENERIC_LABEL,
-    [EventShieldReasonValue.UNVERIFIED_IDENTITY]:
-        "Encrypted by an unverified user.",
-    [EventShieldReasonValue.UNSIGNED_DEVICE]:
-        "Encrypted by a device not verified by its owner.",
-    [EventShieldReasonValue.UNKNOWN_DEVICE]:
-        "Encrypted by an unknown or deleted device.",
-    [EventShieldReasonValue.AUTHENTICITY_NOT_GUARANTEED]:
-        "The authenticity of this encrypted message can't be guaranteed on this device.",
-    [EventShieldReasonValue.VERIFICATION_VIOLATION]:
-        "The sender was previously verified but changed their identity.",
-    [EventShieldReasonValue.MISMATCHED_SENDER]:
-        "The sender doesn't match the owner of the device that sent this message.",
+    [EventShieldReasonValue.UNVERIFIED_IDENTITY]: t(
+        "eventShield.encryptedByAnUnverifiedUser",
+    ),
+    [EventShieldReasonValue.UNSIGNED_DEVICE]: t(
+        "eventShield.encryptedByADeviceNotVerified",
+    ),
+    [EventShieldReasonValue.UNKNOWN_DEVICE]: t(
+        "eventShield.encryptedByAnUnknownOrDeleted",
+    ),
+    [EventShieldReasonValue.AUTHENTICITY_NOT_GUARANTEED]: t(
+        "eventShield.theAuthenticityOfThisEncryptedMessage",
+    ),
+    [EventShieldReasonValue.VERIFICATION_VIOLATION]: t(
+        "eventShield.theSenderWasPreviouslyVerifiedBut",
+    ),
+    [EventShieldReasonValue.MISMATCHED_SENDER]: t(
+        "eventShield.theSenderDoesnTMatchThe",
+    ),
 };
 
 /**

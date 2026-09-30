@@ -1,4 +1,5 @@
 // Canonical notification-action shapes. static/sw.js is NOT bundled and hand-mirrors messageNotificationActions()/classifyNotificationAction — change one, change both.
+import { t } from "$lib/i18n";
 
 export interface NotifAction {
     action: string;
@@ -18,10 +19,10 @@ export function messageNotificationActions(): NotifAction[] {
         {
             action: "reply",
             type: "text",
-            title: "Reply",
-            placeholder: "Reply…",
+            title: t("notifActions.reply"),
+            placeholder: t("notifActions.reply2"),
         },
-        { action: "markread", title: "Mark as read" },
+        { action: "markread", title: t("notifActions.markAsRead") },
     ];
 }
 

@@ -6,6 +6,7 @@
  */
 
 /** Raw view model emitted by `getRoomThreads` (previews are raw message bodies). */
+import { t } from "$lib/i18n";
 export interface ThreadInfo {
     rootId: string;
     rootSenderId: string | null;
@@ -32,7 +33,7 @@ export interface ThreadListItem {
 }
 
 const MAX_PREVIEW_LEN = 120;
-const EMPTY_PREVIEW = "(no preview)";
+const EMPTY_PREVIEW = t("threadList.noPreview");
 
 /** Collapse whitespace, trim, fall back when empty, and bound the length. */
 function shapePreview(raw: string): string {

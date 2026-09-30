@@ -8,6 +8,7 @@
  * on web and Android, where no picker ever appears.
  */
 
+import { t } from "$lib/i18n";
 export type DisplaySourceKind = "screen" | "window";
 
 /** One entry exactly as `electron/main.cjs` serialises it. */
@@ -63,7 +64,11 @@ export function shapeDisplaySources(
         const name = entry.name?.trim();
         byId.set(id, {
             id,
-            name: name || (kind === "screen" ? "Screen" : "Untitled window"),
+            name:
+                name ||
+                (kind === "screen"
+                    ? t("displaySources.screen")
+                    : t("displaySources.untitledWindow")),
             kind,
             thumbnailDataUrl: safeThumbnail(entry.thumbnailDataUrl),
         });

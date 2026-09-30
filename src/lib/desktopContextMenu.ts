@@ -4,6 +4,7 @@
 // renderer, so a main-process download gets the server's JSON auth error.
 // Here the image is fetched with auth (or read from its blob: URL) and saved.
 // A no-op on web and Android, where `window.desktop` is undefined.
+import { t } from "$lib/i18n";
 
 import { fetchAttachmentBlob, getHomeserverBaseUrl } from "$lib/matrix/client";
 import { isSameOrigin } from "$lib/utils/mxcUri";
@@ -81,7 +82,7 @@ export function installDesktopSaveImage(): () => void {
     return bridge.onSaveImage((url) => {
         saveImage(url).catch((err) => {
             console.error("Failed to save image", err);
-            showErrorToast("Failed to save image");
+            showErrorToast(t("desktopContextMenu.failedToSaveImage"));
         });
     });
 }

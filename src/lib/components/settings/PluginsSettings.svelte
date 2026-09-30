@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import {
         installedPlugins,
@@ -133,8 +134,9 @@
         syncMessage = "";
         const res = await pushPluginSync();
         syncBusy = false;
-        if (res.ok) syncMessage = "Pushed your plugin set to your account.";
-        else syncError = res.error ?? "Push failed.";
+        if (res.ok)
+            syncMessage = t("pluginsSettings.pushedYourPluginSetToYour");
+        else syncError = res.error ?? t("pluginsSettings.pushFailed");
     }
 
     async function doPullPreview() {
@@ -149,7 +151,7 @@
             pullSummary = res.summary;
             pullPayload = res.payload;
         } else {
-            syncError = res.error ?? "Pull failed.";
+            syncError = res.error ?? t("pluginsSettings.pullFailed");
         }
     }
 
@@ -160,7 +162,7 @@
             await applyPull(pullPayload);
             pullSummary = null;
             pullPayload = null;
-            syncMessage = "Applied the synced plugin set.";
+            syncMessage = t("pluginsSettings.appliedTheSyncedPluginSet");
         } finally {
             syncBusy = false;
         }
@@ -187,7 +189,8 @@
         updateBusy[id] = true;
         delete updateError[id];
         const res = await updateRepoPlugin(id);
-        if (!res.ok) updateError[id] = res.error ?? "Update failed.";
+        if (!res.ok)
+            updateError[id] = res.error ?? t("pluginsSettings.updateFailed");
         refreshUpdates();
         updateBusy[id] = false;
     }
@@ -231,8 +234,10 @@
         } catch (err) {
             removeError[id] =
                 err instanceof Error && err.message
-                    ? `Couldn't remove plugin: ${err.message}`
-                    : "Couldn't remove plugin.";
+                    ? t("pluginsSettings.couldnTRemovePlugin", {
+                          message: err.message,
+                      })
+                    : t("pluginsSettings.couldnTRemovePlugin2");
         } finally {
             busy[id] = false;
         }
@@ -249,7 +254,7 @@
             import.meta.env.DEV,
         );
         if (!res.ok) {
-            repoError = res.reason ?? "Cannot add this repo.";
+            repoError = res.reason ?? t("pluginsSettings.cannotAddThisRepo");
             return;
         }
         addRepo(res.normalized!);
@@ -275,7 +280,9 @@
                 browse[ref] = {
                     loading: false,
                     entries: [],
-                    error: `No index.json (${res.status})`,
+                    error: t("pluginsSettings.noIndexJson", {
+                        status: res.status,
+                    }),
                 };
                 return;
             }
@@ -332,7 +339,7 @@
         installError = "";
         const res = await installRepoPlugin(ref, entry);
         if (!res.ok) {
-            installError = res.error ?? "Install failed.";
+            installError = res.error ?? t("pluginsSettings.installFailed");
         }
     }
 
@@ -354,12 +361,10 @@
             onclick={closeSync}
             class="text-sm text-discord-textMuted hover:text-discord-textPrimary"
         >
-            ← Back
+            {t("pluginsSettings.back")}
         </button>
         <p class="text-xs text-discord-textMuted">
-            Sync your enabled plugins + settings to your Matrix account
-            (per-device otherwise). Pulling shows what will change before
-            anything runs.
+            {t("pluginsSettings.syncYourEnabledPluginsSettingsTo")}
         </p>
         <div class="flex gap-2">
             <button
@@ -368,7 +373,7 @@
                 disabled={syncBusy}
                 class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
             >
-                Push to account
+                {t("pluginsSettings.pushToAccount")}
             </button>
             <button
                 type="button"
@@ -376,7 +381,7 @@
                 disabled={syncBusy}
                 class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
             >
-                Pull from account
+                {t("pluginsSettings.pullFromAccount")}
             </button>
         </div>
         {#if syncMessage}
@@ -390,55 +395,64 @@
                 class="p-3 rounded bg-discord-backgroundTertiary space-y-2 text-sm"
             >
                 <p class="font-semibold text-discord-textPrimary">
-                    This pull will:
+                    {t("pluginsSettings.thisPullWill")}
                 </p>
                 {#if pullSummary.reposToAdd.length}
                     <p class="text-discord-textSecondary">
-                        Add repos: {pullSummary.reposToAdd.join(", ")}
+                        {t("pluginsSettings.addRepos", {
+                            join: pullSummary.reposToAdd.join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.toEnable.length}
                     <p class="text-discord-textSecondary">
-                        Enable: {pullSummary.toEnable.join(", ")}
+                        {t("pluginsSettings.enable", {
+                            join: pullSummary.toEnable.join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.toDisable.length}
                     <p class="text-discord-textSecondary">
-                        Disable: {pullSummary.toDisable.join(", ")}
+                        {t("pluginsSettings.disable", {
+                            join: pullSummary.toDisable.join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.settingsChanges.length}
                     <p class="text-discord-textSecondary">
-                        Update settings for: {pullSummary.settingsChanges.join(
-                            ", ",
-                        )}
+                        {t("pluginsSettings.updateSettingsFor", {
+                            join: pullSummary.settingsChanges.join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.autoUpdateChange !== null}
                     <p class="text-discord-textSecondary">
-                        Set auto-update: {pullSummary.autoUpdateChange
-                            ? "on"
-                            : "off"}
+                        {t("pluginsSettings.setAutoUpdate", {
+                            value: pullSummary.autoUpdateChange ? "on" : "off",
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.autoUpdateOverrides.length}
                     <p class="text-discord-textSecondary">
-                        Set per-plugin auto-update: {pullSummary.autoUpdateOverrides
-                            .map((o) => `${o.id}=${o.value ? "on" : "off"}`)
-                            .join(", ")}
+                        {t("pluginsSettings.setPerPluginAutoUpdate", {
+                            join: pullSummary.autoUpdateOverrides
+                                .map((o) => `${o.id}=${o.value ? "on" : "off"}`)
+                                .join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.notInstalledHere.length}
                     <p class="text-discord-textMuted text-xs">
-                        Not installed on this device (install from Browse, then
-                        pull again): {pullSummary.notInstalledHere
-                            .map((n) => n.id)
-                            .join(", ")}
+                        {t("pluginsSettings.notInstalledOnThisDeviceInstall", {
+                            join: pullSummary.notInstalledHere
+                                .map((n) => n.id)
+                                .join(", "),
+                        })}
                     </p>
                 {/if}
                 {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null && pullSummary.autoUpdateOverrides.length === 0}
                     <p class="text-discord-textSecondary">
-                        Nothing to change; already in sync.
+                        {t("pluginsSettings.nothingToChangeAlreadyInSync")}
                     </p>
                 {/if}
                 <div class="flex gap-2 pt-1">
@@ -448,7 +462,7 @@
                         disabled={syncBusy}
                         class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
                     >
-                        Apply
+                        {t("pluginsSettings.apply")}
                     </button>
                     <button
                         type="button"
@@ -458,7 +472,7 @@
                         }}
                         class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 </div>
             </div>
@@ -471,11 +485,11 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
             >
-                Installed
+                {t("pluginsSettings.installed")}
             </p>
             {#if installedList.length === 0}
                 <p class="text-sm text-discord-textMuted text-center py-8">
-                    No plugins installed.
+                    {t("pluginsSettings.noPluginsInstalled")}
                 </p>
             {:else}
                 <div class="space-y-2">
@@ -517,14 +531,21 @@
                                             <span
                                                 class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-danger/20 text-discord-danger"
                                             >
-                                                Needs update
+                                                {t(
+                                                    "pluginsSettings.needsUpdate",
+                                                )}
                                             </span>
                                         {:else if pluginUpdates.available[p.id]}
                                             <span
                                                 class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
                                             >
-                                                Update to v{pluginUpdates
-                                                    .available[p.id]}
+                                                {t(
+                                                    "pluginsSettings.updateToV",
+                                                    {
+                                                        value: pluginUpdates
+                                                            .available[p.id],
+                                                    },
+                                                )}
                                             </span>
                                         {/if}
                                         <button
@@ -534,8 +555,8 @@
                                             class="text-xs text-discord-accent hover:underline disabled:opacity-50"
                                         >
                                             {updateBusy[p.id]
-                                                ? "Updating..."
-                                                : "Update"}
+                                                ? t("pluginsSettings.updating")
+                                                : t("pluginsSettings.update")}
                                         </button>
                                     </div>
                                 {/if}
@@ -562,7 +583,9 @@
                                         type="button"
                                         onclick={() =>
                                             (settingsForPluginId = p.id)}
-                                        title="Plugin settings"
+                                        title={t(
+                                            "pluginsSettings.pluginSettings",
+                                        )}
                                         class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                                     >
                                         <Settings size={16} />
@@ -571,9 +594,11 @@
                                 <ToggleSwitch
                                     checked={p.enabled}
                                     onChange={(next) => toggle(p.id, next)}
-                                    label="Enable {p.name}"
+                                    label={t("pluginsSettings.enable2", {
+                                        name: p.name,
+                                    })}
                                     title={busy[p.id]
-                                        ? "Working..."
+                                        ? t("pluginsSettings.working")
                                         : undefined}
                                 />
                                 {#if p.source === "repo"}
@@ -584,14 +609,26 @@
                                                 p.id,
                                                 e.currentTarget.value,
                                             )}
-                                        title="Auto-update this plugin"
+                                        title={t(
+                                            "pluginsSettings.autoUpdateThisPlugin",
+                                        )}
                                         class="text-xs rounded bg-discord-backgroundSecondary text-discord-textMuted border border-discord-divider px-1 py-0.5"
                                     >
                                         <option value="default"
-                                            >Auto: Default</option
+                                            >{t(
+                                                "pluginsSettings.autoDefault",
+                                            )}</option
                                         >
-                                        <option value="on">Auto: On</option>
-                                        <option value="off">Auto: Off</option>
+                                        <option value="on"
+                                            >{t(
+                                                "pluginsSettings.autoOn",
+                                            )}</option
+                                        >
+                                        <option value="off"
+                                            >{t(
+                                                "pluginsSettings.autoOff",
+                                            )}</option
+                                        >
                                     </select>
                                     {#if removePending === p.id}
                                         <button
@@ -600,15 +637,18 @@
                                                 (removePending = null)}
                                             class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                                         >
-                                            Cancel
+                                            {t("common.cancel")}
                                         </button>
                                         <button
                                             type="button"
                                             onclick={() => remove(p.id)}
-                                            aria-label="Confirm remove {p.name}"
+                                            aria-label={t(
+                                                "pluginsSettings.confirmRemove",
+                                                { name: p.name },
+                                            )}
                                             class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
                                         >
-                                            Remove
+                                            {t("common.remove")}
                                         </button>
                                     {:else}
                                         <button
@@ -616,8 +656,13 @@
                                             onclick={() =>
                                                 (removePending = p.id)}
                                             disabled={busy[p.id]}
-                                            title="Remove plugin"
-                                            aria-label="Remove {p.name}"
+                                            title={t(
+                                                "pluginsSettings.removePlugin",
+                                            )}
+                                            aria-label={t(
+                                                "pluginsSettings.remove",
+                                                { name: p.name },
+                                            )}
                                             class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
                                         >
                                             <Trash2 size={16} />
@@ -636,7 +681,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
             >
-                Browse
+                {t("pluginsSettings.browse")}
             </p>
             {#if installError}
                 <p class="text-sm text-discord-danger mb-2">{installError}</p>
@@ -651,7 +696,7 @@
                         </p>
                         {#if browse[repo.ref]?.loading}
                             <p class="text-xs text-discord-textMuted">
-                                Loading...
+                                {t("pluginsSettings.loading")}
                             </p>
                         {:else if browse[repo.ref]?.error}
                             <p class="text-xs text-discord-textMuted">
@@ -659,7 +704,7 @@
                             </p>
                         {:else if !browse[repo.ref]?.entries.length}
                             <p class="text-xs text-discord-textMuted">
-                                No plugins in this repo yet.
+                                {t("pluginsSettings.noPluginsInThisRepoYet")}
                             </p>
                         {:else}
                             <div class="space-y-2">
@@ -689,7 +734,9 @@
                                         {#if alreadyInstalled}
                                             <span
                                                 class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundTertiary text-discord-textMuted"
-                                                >Installed</span
+                                                >{t(
+                                                    "pluginsSettings.installed",
+                                                )}</span
                                             >
                                         {:else}
                                             <button
@@ -697,7 +744,9 @@
                                                 onclick={() =>
                                                     install(repo.ref, entry)}
                                                 class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-                                                >Install</button
+                                                >{t(
+                                                    "pluginsSettings.install",
+                                                )}</button
                                             >
                                         {/if}
                                     </div>
@@ -714,7 +763,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
             >
-                Repos
+                {t("pluginsSettings.repos")}
             </p>
             <div class="space-y-2 mb-4">
                 {#each repoList as repo (repo.ref)}
@@ -729,7 +778,7 @@
                             </p>
                             {#if repo.official}
                                 <p class="text-xs text-discord-textMuted">
-                                    Official
+                                    {t("pluginsSettings.official")}
                                 </p>
                             {/if}
                         </div>
@@ -737,7 +786,7 @@
                             <button
                                 type="button"
                                 onclick={() => removeRepo(repo.ref)}
-                                title="Remove repo"
+                                title={t("pluginsSettings.removeRepo")}
                                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
                             >
                                 <Trash2 size={16} />
@@ -749,17 +798,16 @@
 
             <div class="p-3 rounded bg-discord-backgroundTertiary space-y-3">
                 <p class="text-xs text-discord-textPrimary font-medium">
-                    Add a repo
+                    {t("pluginsSettings.addARepo")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Third-party repos run full-trust code with full access to
-                    your account and messages. Only add repos you trust.
+                    {t("pluginsSettings.thirdPartyReposRunFullTrust")}
                 </p>
                 <div class="flex gap-2">
                     <input
                         type="text"
                         bind:value={repoInput}
-                        placeholder="owner/repo or GitHub URL"
+                        placeholder={t("pluginsSettings.ownerRepoOrGithubUrl")}
                         class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
                         onkeydown={(e) => {
                             if (e.key === "Enter") submitAddRepo();
@@ -769,7 +817,7 @@
                         type="button"
                         onclick={submitAddRepo}
                         class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-                        >Add repo</button
+                        >{t("pluginsSettings.addRepo")}</button
                     >
                 </div>
                 {#if repoError}
@@ -783,7 +831,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
             >
-                Actions
+                {t("common.actions")}
             </p>
             <div class="space-y-3">
                 <button
@@ -792,7 +840,7 @@
                     class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 >
                     <RefreshCw size={16} />
-                    Sync plugins
+                    {t("pluginsSettings.syncPlugins")}
                 </button>
 
                 <button
@@ -801,7 +849,7 @@
                     class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 >
                     <Power size={16} />
-                    Disable all plugins
+                    {t("pluginsSettings.disableAllPlugins")}
                 </button>
 
                 <div
@@ -809,16 +857,18 @@
                 >
                     <div class="flex-1 min-w-0">
                         <p class="text-sm text-discord-textPrimary">
-                            Auto-update plugins
+                            {t("pluginsSettings.autoUpdatePlugins")}
                         </p>
                         <p class="text-xs text-discord-textMuted">
-                            Automatically pull newer versions of repo plugins.
+                            {t(
+                                "pluginsSettings.automaticallyPullNewerVersionsOfRepo",
+                            )}
                         </p>
                     </div>
                     <ToggleSwitch
                         checked={pluginPrefs.autoUpdate}
                         onChange={(next) => toggleAutoUpdate(next)}
-                        label="Auto-update plugins"
+                        label={t("pluginsSettings.autoUpdatePlugins")}
                     />
                 </div>
             </div>

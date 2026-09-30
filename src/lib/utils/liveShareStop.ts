@@ -13,6 +13,7 @@
 /** `"stopping"` = a live:false write is in flight; `"failed"` = it was rejected
  *  and the server beacon is still live. A share with `stop === null` is
  *  broadcasting normally. */
+import { t } from "$lib/i18n";
 export type StopPhase = "stopping" | "failed";
 
 export interface StopState {
@@ -48,8 +49,9 @@ export function decideStop(target: StopTarget | null): StopDecision {
 
 /** Shown when a stop write is rejected. Deliberately fixed copy: a raw
  *  MatrixError string tells the user nothing and leaks server detail. */
-export const STOP_FAILED_MESSAGE =
-    "Couldn't stop sharing your live location - it's still visible to this room. Use Retry stop to try again.";
+export const STOP_FAILED_MESSAGE = t(
+    "liveShareStop.couldnTStopSharingYourLive",
+);
 
 /**
  * How long a `live:false` write may stay in flight before the UI stops
@@ -107,8 +109,8 @@ export function pendingStopSweep(
 export function stopStatusLabel(stop: StopState | null): string | null {
     if (!stop) return null;
     return stop.phase === "stopping"
-        ? "Stopping…"
-        : "Still sharing - couldn't stop";
+        ? t("liveShareStop.stopping")
+        : t("liveShareStop.stillSharingCouldnTStop");
 }
 
 /**
@@ -119,15 +121,17 @@ export function stopStatusLabel(stop: StopState | null): string | null {
  */
 export function alreadySharingMessage(stop: StopState | null): string {
     if (!stop) {
-        return "You're already sharing your live location in this room.";
+        return t("liveShareStop.youReAlreadySharingYourLive");
     }
-    return "Your last live location share here hasn't stopped yet - stop it from the room's banner before starting a new one.";
+    return t("liveShareStop.yourLastLiveLocationShareHere");
 }
 
 /** Label for the stop/retry button in the banner and the map footer. */
 export function stopButtonLabel(stop: StopState | null): string {
-    if (!stop) return "Stop";
-    return stop.phase === "stopping" ? "Stopping…" : "Retry stop";
+    if (!stop) return t("liveShareStop.stop");
+    return stop.phase === "stopping"
+        ? t("liveShareStop.stopping")
+        : t("liveShareStop.retryStop");
 }
 
 const DOWN_STATES = new Set(["ERROR", "RECONNECTING"]);

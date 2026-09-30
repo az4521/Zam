@@ -10,6 +10,7 @@
  * power effectively infinite; 100 is the representable admin ceiling — it
  * passes every realistic gate and displays cleanly.
  */
+import { t } from "$lib/i18n";
 export const CREATOR_POWER_LEVEL = 100;
 
 /**
@@ -240,20 +241,32 @@ export function parsePowerLevelInput(
 ): ParsePowerLevelResult {
     const trimmed = raw.trim();
     if (!trimmed) {
-        return { ok: false, value: null, error: "Enter a power level" };
+        return {
+            ok: false,
+            value: null,
+            error: t("powerLevels.enterAPowerLevel"),
+        };
     }
     if (!/^-?\d+$/.test(trimmed)) {
-        return { ok: false, value: null, error: "Must be a whole number" };
+        return {
+            ok: false,
+            value: null,
+            error: t("powerLevels.mustBeAWholeNumber"),
+        };
     }
     const value = Number(trimmed);
     if (value < 0) {
-        return { ok: false, value: null, error: "Must be 0 or higher" };
+        return {
+            ok: false,
+            value: null,
+            error: t("powerLevels.mustBe0OrHigher"),
+        };
     }
     if (value > ceiling) {
         return {
             ok: false,
             value: null,
-            error: `You can't set a level above your own (${ceiling})`,
+            error: t("powerLevels.youCanTSetALevel", { ceiling }),
         };
     }
     return { ok: true, value, error: "" };

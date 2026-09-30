@@ -4,6 +4,7 @@
  * flow check. SDK-free so it can be unit-tested.
  */
 
+import { intlLocale, t } from "$lib/i18n";
 export interface DeviceInfo {
     deviceId: string;
     displayName?: string;
@@ -40,15 +41,18 @@ const DAY = 86_400_000;
  * calendar date. Servers may omit the timestamp entirely → "Unknown".
  */
 export function formatLastSeen(ts: number | undefined, now: number): string {
-    if (ts === undefined) return "Unknown";
-    const ago = (n: number, unit: string): string =>
-        `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+    if (ts === undefined) return t("deviceSessions.unknown");
     const age = now - ts;
-    if (age < MINUTE) return "Just now";
-    if (age < HOUR) return ago(Math.floor(age / MINUTE), "minute");
-    if (age < DAY) return ago(Math.floor(age / HOUR), "hour");
-    if (age < 7 * DAY) return ago(Math.floor(age / DAY), "day");
-    return new Date(ts).toLocaleDateString(undefined, {
+    if (age < MINUTE) return t("deviceSessions.justNow");
+    if (age < HOUR)
+        return t("deviceSessions.minutesAgo", {
+            count: Math.floor(age / MINUTE),
+        });
+    if (age < DAY)
+        return t("deviceSessions.hoursAgo", { count: Math.floor(age / HOUR) });
+    if (age < 7 * DAY)
+        return t("deviceSessions.daysAgo", { count: Math.floor(age / DAY) });
+    return new Date(ts).toLocaleDateString(intlLocale(), {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -80,7 +84,7 @@ export function describeUserAgent(ua: string | undefined): string | null {
     // Order matters again: Electron and Edge UAs also contain "Chrome",
     // Chrome UAs also contain "Safari".
     let client: string | null = null;
-    if (ua.includes("Electron/")) client = "Desktop app";
+    if (ua.includes("Electron/")) client = t("deviceSessions.desktopApp");
     else if (ua.includes("Edg/")) client = "Edge";
     else if (ua.includes("Firefox/")) client = "Firefox";
     else if (ua.includes("Chrome/")) client = "Chrome";
@@ -91,7 +95,7 @@ export function describeUserAgent(ua: string | undefined): string | null {
         if (product) client = product[1];
     }
 
-    if (client && os) return `${client} on ${os}`;
+    if (client && os) return t("deviceSessions.on", { client, os });
     return client ?? os;
 }
 

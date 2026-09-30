@@ -4,15 +4,16 @@
  * stays testable.
  */
 
+import { t } from "$lib/i18n";
 export interface DeviceOption {
     id: string;
     label: string;
 }
 
 const KIND_LABELS: Record<string, string> = {
-    audioinput: "Microphone",
-    audiooutput: "Speaker",
-    videoinput: "Camera",
+    audioinput: t("audioDevices.microphone"),
+    audiooutput: t("audioDevices.speaker"),
+    videoinput: t("audioDevices.camera"),
 };
 
 // Windows Chromium exposes virtual "default"/"communications" entries; the

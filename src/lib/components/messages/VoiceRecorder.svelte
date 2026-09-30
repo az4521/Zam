@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import { sendVoiceMessage } from "$lib/matrix/client";
     import {
@@ -57,7 +58,7 @@
         } catch {
             // A denial that arrives after teardown has no UI left to tell.
             if (!isCaptureCurrent(capture, ticket)) return;
-            showErrorToast("Microphone access was denied.");
+            showErrorToast(t("voiceRecorder.microphoneAccessWasDenied"));
             onClose();
             return;
         }
@@ -77,7 +78,7 @@
         };
         recorder.onstop = onStopped;
         recorder.onerror = () => {
-            showErrorToast("Recording failed.");
+            showErrorToast(t("voiceRecorder.recordingFailed"));
             cleanup();
             onClose();
         };
@@ -164,7 +165,7 @@
     async function send() {
         if (!recordedBlob || phase === "sending") return;
         if (recordedBlob.size === 0) {
-            showErrorToast("Nothing was recorded.");
+            showErrorToast(t("voiceRecorder.nothingWasRecorded"));
             discard();
             return;
         }
@@ -182,7 +183,7 @@
             showErrorToast(
                 err instanceof Error
                     ? err.message
-                    : "Failed to send voice message",
+                    : t("voiceRecorder.failedToSendVoiceMessage"),
             );
             phase = "preview";
         }
@@ -230,8 +231,8 @@
             type="button"
             onclick={discard}
             class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-            title="Cancel"
-            aria-label="Cancel recording"
+            title={t("common.cancel")}
+            aria-label={t("voiceRecorder.cancelRecording")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path
@@ -273,7 +274,7 @@
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="1.5" />
             </svg>
-            Stop
+            {t("voiceRecorder.stop")}
         </button>
     {:else}
         <!-- Discard -->
@@ -282,8 +283,8 @@
             onclick={discard}
             disabled={phase === "sending"}
             class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Discard"
-            aria-label="Discard recording"
+            title={t("voiceRecorder.discard")}
+            aria-label={t("voiceRecorder.discardRecording")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path
@@ -305,7 +306,8 @@
                     ></div>
                 {/each}
             {:else}
-                <span class="text-xs text-discord-textMuted">Voice message</span
+                <span class="text-xs text-discord-textMuted"
+                    >{t("voiceRecorder.voiceMessage")}</span
                 >
             {/if}
         </div>
@@ -337,12 +339,12 @@
                 <div
                     class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"
                 ></div>
-                Sending…
+                {t("voiceRecorder.sending")}
             {:else}
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
-                Send
+                {t("voiceRecorder.send")}
             {/if}
         </button>
     {/if}

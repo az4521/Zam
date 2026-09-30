@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
@@ -71,15 +72,19 @@
     }> = [
         {
             value: "loud",
-            label: "Loud only",
-            title: "Only notifications that make a sound",
+            label: t("notificationSettings.loudOnly"),
+            title: t("notificationSettings.onlyNotificationsThatMakeASound"),
         },
         {
             value: "all",
-            label: "Silent and loud",
-            title: "Every notification, loud or silent",
+            label: t("notificationSettings.silentAndLoud"),
+            title: t("notificationSettings.everyNotificationLoudOrSilent"),
         },
-        { value: "none", label: "None", title: "Never alert on this device" },
+        {
+            value: "none",
+            label: t("notificationSettings.none"),
+            title: t("notificationSettings.neverAlertOnThisDevice"),
+        },
     ];
 
     let graceSaveError = $state(false);
@@ -202,7 +207,10 @@
             // The server kept the old rule: say so, and let the row snap back to
             // the canonical value rather than showing the change as applied.
             showErrorToast(
-                toastMessage(e, "Could not save notification setting"),
+                toastMessage(
+                    e,
+                    t("notificationSettings.couldNotSaveNotificationSetting"),
+                ),
             );
         } finally {
             defaultRulesTick++;
@@ -222,18 +230,18 @@
     }> = [
         {
             value: "highlight_sound",
-            label: "Highlight + Sound",
-            title: "Notify with a highlight and sound",
+            label: t("notificationSettings.highlightSound"),
+            title: t("notificationSettings.notifyWithAHighlightAndSound"),
         },
         {
             value: "highlight",
-            label: "Highlight",
-            title: "Notify with a highlight",
+            label: t("notificationSettings.highlight"),
+            title: t("notificationSettings.notifyWithAHighlight"),
         },
         {
             value: "notify",
-            label: "Notify",
-            title: "Notify without a highlight",
+            label: t("notificationSettings.notify"),
+            title: t("notificationSettings.notifyWithoutAHighlight"),
         },
     ];
 
@@ -252,7 +260,9 @@
             await addKeywordRule(result.pattern, "highlight_sound");
             newKeyword = "";
         } catch (e) {
-            keywordError = (e as Error)?.message ?? "Failed to add keyword";
+            keywordError =
+                (e as Error)?.message ??
+                t("notificationSettings.failedToAddKeyword");
         } finally {
             addPending = false;
         }
@@ -264,7 +274,9 @@
         try {
             await setKeywordRuleBehavior(ruleId, behavior);
         } catch (e) {
-            keywordError = (e as Error)?.message ?? "Failed to update keyword";
+            keywordError =
+                (e as Error)?.message ??
+                t("notificationSettings.failedToUpdateKeyword");
         } finally {
             rowPending = null;
         }
@@ -276,7 +288,9 @@
         try {
             await setKeywordRuleEnabled(ruleId, enabled);
         } catch (e) {
-            keywordError = (e as Error)?.message ?? "Failed to update keyword";
+            keywordError =
+                (e as Error)?.message ??
+                t("notificationSettings.failedToUpdateKeyword");
         } finally {
             rowPending = null;
         }
@@ -288,7 +302,9 @@
         try {
             await deleteKeywordRule(ruleId);
         } catch (e) {
-            keywordError = (e as Error)?.message ?? "Failed to delete keyword";
+            keywordError =
+                (e as Error)?.message ??
+                t("notificationSettings.failedToDeleteKeyword");
         } finally {
             rowPending = null;
         }
@@ -299,7 +315,7 @@
     <h3
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >
-        This device
+        {t("notificationSettings.thisDevice")}
     </h3>
 
     {#if permission !== "granted"}
@@ -307,22 +323,28 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                System Permission
+                {t("notificationSettings.systemPermission")}
             </p>
             <div
                 class="flex items-center gap-3 py-2 border-b border-discord-divider"
             >
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-discord-textPrimary">
-                        Push notifications
+                        {t("notificationSettings.pushNotifications")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         {#if permission === "denied"}
-                            Permission is blocked in system settings
+                            {t(
+                                "notificationSettings.permissionIsBlockedInSystemSettings",
+                            )}
                         {:else if permission === "unsupported"}
-                            Notifications are not supported here
+                            {t(
+                                "notificationSettings.notificationsAreNotSupportedHere",
+                            )}
                         {:else}
-                            Allow this app to send notifications
+                            {t(
+                                "notificationSettings.allowThisAppToSendNotifications",
+                            )}
                         {/if}
                     </p>
                 </div>
@@ -334,12 +356,12 @@
                     class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-discord-accent flex items-center gap-2 flex-shrink-0"
                 >
                     {permissionLoading
-                        ? "Requesting…"
+                        ? t("notificationSettings.requesting")
                         : permission === "denied"
-                          ? "Blocked"
+                          ? t("notificationSettings.blocked")
                           : permission === "unsupported"
-                            ? "Unavailable"
-                            : "Enable"}
+                            ? t("notificationSettings.unavailable")
+                            : t("notificationSettings.enable")}
                 </button>
             </div>
         </section>
@@ -349,23 +371,23 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Sound
+            {t("notificationSettings.sound")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Notification sound
+                    {t("notificationSettings.notificationSound")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Play a sound for loud notifications
+                    {t("notificationSettings.playASoundForLoudNotifications")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={soundEnabled}
                 onChange={setSoundEnabled}
-                label="Notification sound"
+                label={t("notificationSettings.notificationSound")}
             />
         </div>
     </section>
@@ -374,26 +396,24 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Desktop alerts
+            {t("notificationSettings.desktopAlerts")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Pop-up and taskbar flash
+                    {t("notificationSettings.popUpAndTaskbarFlash")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Which notifications show a system pop-up and, in the desktop
-                    app, flash the taskbar icon while the window is in the
-                    background.
+                    {t("notificationSettings.whichNotificationsShowASystemPop")}
                 </p>
             </div>
             <OptionSelector
                 value={settingsState.desktopAlertMode}
                 options={alertModeOptions}
                 onChange={setDesktopAlertMode}
-                ariaLabel="Desktop alerts"
+                ariaLabel={t("notificationSettings.desktopAlerts")}
             />
         </div>
     </section>
@@ -402,21 +422,17 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Multiple Devices
+            {t("notificationSettings.multipleDevices")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Quiet on my other devices
+                    {t("notificationSettings.quietOnMyOtherDevices")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    While you're actively using one device, the others skip the
-                    notification sound and pop-up until that device has been
-                    idle this long. Applies to every device on your account;
-                    notifications still appear in your inbox and unread counts
-                    are unchanged.
+                    {t("notificationSettings.whileYouReActivelyUsingOne")}
                 </p>
             </div>
             <select
@@ -425,12 +441,14 @@
                     ? CUSTOM_OPTION
                     : String(settingsState.activeSessionGraceMs)}
                 onchange={(e) => onGraceSelect(e.currentTarget.value)}
-                aria-label="Quiet on my other devices"
+                aria-label={t("notificationSettings.quietOnMyOtherDevices")}
             >
                 {#each GRACE_OPTIONS as opt (opt.value)}
                     <option value={String(opt.value)}>{opt.label}</option>
                 {/each}
-                <option value={CUSTOM_OPTION}>Custom…</option>
+                <option value={CUSTOM_OPTION}
+                    >{t("notificationSettings.custom")}</option
+                >
             </select>
         </div>
         {#if graceIsCustom}
@@ -450,22 +468,28 @@
                             saveCustomGrace();
                         }
                     }}
-                    aria-label="Custom quiet duration, in minutes"
+                    aria-label={t(
+                        "notificationSettings.customQuietDurationInMinutes",
+                    )}
                     aria-invalid={customError ? "true" : undefined}
                 />
                 <span class="text-xs text-discord-textMuted"
-                    >minutes (max {MAX_CUSTOM_GRACE_MINUTES})</span
+                    >{t("notificationSettings.minutesMax", {
+                        MAX_CUSTOM_GRACE_MINUTES,
+                    })}</span
                 >
                 <button
                     onclick={saveCustomGrace}
                     disabled={graceSavePending}
                     class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
-                    >{graceSavePending ? "Saving…" : "Save"}</button
+                    >{graceSavePending
+                        ? t("common.saving")
+                        : t("common.save")}</button
                 >
             </div>
             {#if customError}
                 <p
-                    class="text-xs text-discord-danger mt-1 text-right"
+                    class="text-xs text-discord-danger mt-1 text-end"
                     aria-live="polite"
                 >
                     {customError}
@@ -478,16 +502,19 @@
                     class="flex-1 min-w-0 text-sm text-discord-danger"
                     aria-live="polite"
                 >
-                    Couldn't save to your account - your other devices may keep
-                    the old setting. Check your connection and try again.
+                    {t("notificationSettings.couldnTSaveToYourAccount")}
                 </p>
                 <button
                     onclick={() =>
                         publishGrace(settingsState.activeSessionGraceMs)}
                     disabled={graceSavePending}
-                    aria-label="Retry saving the other-device quiet setting"
+                    aria-label={t(
+                        "notificationSettings.retrySavingTheOtherDeviceQuiet",
+                    )}
                     class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
-                    >{graceSavePending ? "Retrying…" : "Retry"}</button
+                    >{graceSavePending
+                        ? t("notificationSettings.retrying")
+                        : t("common.retry")}</button
                 >
             </div>
         {/if}
@@ -496,18 +523,17 @@
     <h3
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >
-        Rules
+        {t("notificationSettings.rules")}
     </h3>
 
     <section data-setting-anchor="notif-rules">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
         >
-            Notification Rules
+            {t("notificationSettings.notificationRules")}
         </p>
         <p class="text-xs text-discord-textMuted mb-3">
-            Loud = notify with sound · Silent = notify without sound · Off = no
-            notification
+            {t("notificationSettings.loudNotifyWithSoundSilentNotify")}
         </p>
         <div class="space-y-1">
             {#each DEFAULT_PUSH_RULES as rule}
@@ -541,12 +567,14 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
         >
-            Keyword Highlights
+            {t("notificationSettings.keywordHighlights")}
         </p>
         <p class="text-xs text-discord-textMuted mb-3">
-            Get notified when a message contains a word or phrase. Matching is
-            case-insensitive; <span class="font-mono">*</span> and
-            <span class="font-mono">?</span> are wildcards.
+            {t("notificationSettings.getNotifiedWhenAMessageContains")}
+            <span class="font-mono">*</span>
+            {t("notificationSettings.and")}
+            <span class="font-mono">?</span>
+            {t("notificationSettings.areWildcards")}
         </p>
         <form
             class="flex items-center gap-2 mb-2"
@@ -558,15 +586,15 @@
             <input
                 bind:value={newKeyword}
                 type="text"
-                placeholder="Add a keyword…"
-                aria-label="New keyword"
+                placeholder={t("notificationSettings.addAKeyword")}
+                aria-label={t("notificationSettings.newKeyword")}
                 class="flex-1 min-w-0 px-3 py-1.5 rounded text-sm bg-discord-backgroundTertiary text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-1 focus:ring-discord-accent"
             />
             <button
                 type="submit"
                 disabled={addPending}
                 class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
-                >Add</button
+                >{t("common.add")}</button
             >
         </form>
         {#if keywordError}
@@ -574,7 +602,7 @@
         {/if}
         {#if keywordRules.length === 0}
             <p class="text-sm text-discord-textMuted italic">
-                No keyword rules yet.
+                {t("notificationSettings.noKeywordRulesYet")}
             </p>
         {:else}
             <div class="space-y-1">
@@ -590,18 +618,22 @@
                             value={rule.behavior}
                             options={behaviorOptions}
                             onChange={(b) => changeBehavior(rule.ruleId, b)}
-                            ariaLabel={`Behavior for ${rule.pattern}`}
+                            ariaLabel={t("notificationSettings.behaviorFor", {
+                                pattern: rule.pattern,
+                            })}
                         />
                         <ToggleSwitch
                             checked={rule.enabled}
                             onChange={(v) => toggleEnabled(rule.ruleId, v)}
-                            label={`Enable ${rule.pattern}`}
+                            label={t("notificationSettings.enable2", {
+                                pattern: rule.pattern,
+                            })}
                         />
                         <button
                             onclick={() => removeKeyword(rule.ruleId)}
                             disabled={rowPending === rule.ruleId}
                             class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
-                            >Delete</button
+                            >{t("common.delete")}</button
                         >
                     </div>
                 {/each}

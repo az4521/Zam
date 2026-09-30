@@ -6,23 +6,25 @@
  */
 
 /** Body shown in the timeline for an event we hold no keys for. */
-export const UTD_PLACEHOLDER_TEXT =
-    "Unable to decrypt - you may not have the keys for this message.";
+import { t } from "$lib/i18n";
+export const UTD_PLACEHOLDER_TEXT = t(
+    "encryptionState.unableToDecryptYouMayNot",
+);
 
 /**
  * Body shown when the sender DELIBERATELY withheld the room key from us
  * (`m.room_key.withheld`). This reads very differently from transient key-lag,
  * so it earns its own line instead of the generic "you may not have the keys".
  */
-export const UTD_WITHHELD_TEXT =
-    "The sender chose not to share the keys for this message.";
+export const UTD_WITHHELD_TEXT = t("encryptionState.theSenderChoseNotToShare");
 
 /**
  * As {@link UTD_WITHHELD_TEXT}, but specifically because THIS device is
  * unverified. Tells the reader the actionable fix (verify this device).
  */
-export const UTD_WITHHELD_UNVERIFIED_TEXT =
-    "The sender did not share the keys because this device is unverified. Verify this device to read messages like this.";
+export const UTD_WITHHELD_UNVERIFIED_TEXT = t(
+    "encryptionState.theSenderDidNotShareThe",
+);
 
 // matrix-js-sdk `DecryptionFailureCode` values we give distinct copy for. Kept
 // as string literals so this module stays SDK-free and unit-testable; the
@@ -55,7 +57,9 @@ export function utdPlaceholderText(
 }
 
 /** Room-list / notification preview when the last event can't be decrypted. */
-export const ENCRYPTED_MESSAGE_PLACEHOLDER = "🔒 Encrypted message";
+export const ENCRYPTED_MESSAGE_PLACEHOLDER = t(
+    "encryptionState.encryptedMessage",
+);
 
 /**
  * True when an event is still an encrypted envelope (no keys / not yet

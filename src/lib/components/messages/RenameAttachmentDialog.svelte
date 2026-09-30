@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // Rename a queued attachment before it is sent (Discord-style: tap the
     // attachment in the composer drawer). The caller owns the modal slot.
     import { focusTrap } from "$lib/actions/focusTrap";
@@ -38,7 +39,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t("common.closeDialog")}
         class="absolute inset-0 bg-black/60"
         onclick={onClose}
     ></button>
@@ -67,12 +68,12 @@
                 id="rename-attachment-title"
                 class="text-lg font-bold text-discord-textPrimary"
             >
-                Edit attachment
+                {t("renameAttachmentDialog.editAttachment")}
             </h2>
             <label class="flex flex-col gap-1.5">
                 <span
                     class="text-xs font-bold uppercase text-discord-textSecondary"
-                    >Filename</span
+                    >{t("renameAttachmentDialog.filename")}</span
                 >
                 <input
                     bind:this={inputEl}
@@ -89,14 +90,14 @@
                     onclick={onClose}
                     class="rounded px-4 py-2 text-sm font-medium text-discord-textPrimary hover:underline"
                 >
-                    Cancel
+                    {t("common.cancel")}
                 </button>
                 <button
                     type="submit"
                     disabled={!cleaned}
                     class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:bg-discord-accentHover disabled:opacity-50"
                 >
-                    Save
+                    {t("common.save")}
                 </button>
             </div>
         </form>

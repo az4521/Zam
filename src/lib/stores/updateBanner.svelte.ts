@@ -3,6 +3,7 @@
 // and on Android this is also where the launch-time check + download runs
 // (desktop already checks from its main process; here we just mirror its
 // status app-wide). No-op on web, where neither updater bridge is present.
+import { t } from "$lib/i18n";
 
 import {
     updateStatusView,
@@ -144,7 +145,9 @@ export async function runBannerAction(): Promise<void> {
                     // rather than leaving an unhandled rejection.
                     setStatus({
                         phase: "error",
-                        message: (e as Error)?.message ?? "Install failed",
+                        message:
+                            (e as Error)?.message ??
+                            t("updateBanner.installFailed"),
                     });
                 }
             }

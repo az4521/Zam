@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { searchUserDirectory, getOwnServerName } from "$lib/matrix/client";
     import type { UserSearchResult } from "$lib/matrix/client";
     import { isValidUserId, debounce } from "$lib/utils/userSearch";
@@ -15,7 +16,7 @@
         selected = $bindable<string[]>([]),
         excludeUserIds = [],
         autofocus = false,
-        placeholder = "Search for people…",
+        placeholder = t("userPicker.searchForPeople"),
         disabled = false,
         onpick,
     }: {
@@ -104,8 +105,7 @@
         } catch {
             if (mine !== seq) return;
             results = [];
-            searchError =
-                "User search failed - you can still enter a full user ID.";
+            searchError = t("userPicker.userSearchFailedYouCanStill");
             searched = true;
         } finally {
             if (mine === seq) searching = false;
@@ -212,7 +212,7 @@
                     <button
                         onclick={() => remove(userId)}
                         class="text-discord-textMuted hover:text-discord-textPrimary flex items-center"
-                        aria-label="Remove {userId}"
+                        aria-label={t("userPicker.remove", { userId })}
                     >
                         <X size={14} />
                     </button>
@@ -241,12 +241,11 @@
 
     <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {#if searching}
-            Searching…
+            {t("userPicker.searching")}
         {:else if searched && optionCount === 0}
-            No matching users
+            {t("userPicker.noMatchingUsers")}
         {:else if optionCount > 0}
-            {optionCount}
-            {optionCount === 1 ? "result" : "results"} available
+            {t("userPicker.available", { optionCount })}
         {/if}
     </div>
 
@@ -262,7 +261,7 @@
         <div
             id="{listId}-listbox"
             role="listbox"
-            aria-label="Search results"
+            aria-label={t("common.searchResults")}
             class="space-y-2"
         >
             {#if candidateShown}
@@ -274,7 +273,7 @@
                     aria-selected={activeIndex === 0}
                     tabindex="-1"
                     class:opacity-50={disabled || candidateExcluded}
-                    class="w-full flex items-center gap-2.5 px-2.5 py-2 text-left rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors {activeIndex ===
+                    class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors {activeIndex ===
                     0
                         ? 'ring-1 ring-inset ring-discord-accent'
                         : ''}"
@@ -286,17 +285,17 @@
                     <span class="min-w-0">
                         <span
                             class="block text-sm text-discord-textPrimary truncate"
-                            >Invite {candidateShown}</span
+                            >{t("userPicker.invite", { candidateShown })}</span
                         >
                         <span
                             class="block text-xs text-discord-textMuted truncate"
                         >
                             {#if candidateExcluded}
                                 {selected.includes(candidateShown)
-                                    ? "Already added"
-                                    : "Already in this room"}
+                                    ? t("userPicker.alreadyAdded")
+                                    : t("userPicker.alreadyInThisRoom")}
                             {:else}
-                                Send an invite to this exact user ID
+                                {t("userPicker.sendAnInviteToThisExact")}
                             {/if}
                         </span>
                     </span>
@@ -320,7 +319,7 @@
                             aria-selected={flatIndex === activeIndex}
                             tabindex="-1"
                             class:opacity-50={disabled}
-                            class="w-full flex items-center gap-2.5 px-2.5 py-2 text-left hover:bg-discord-messageHover transition-colors {flatIndex ===
+                            class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start hover:bg-discord-messageHover transition-colors {flatIndex ===
                             activeIndex
                                 ? 'ring-1 ring-inset ring-discord-accent'
                                 : ''}"
@@ -352,9 +351,11 @@
 
     {#if optionCount === 0 && searched && !searching && input.trim().length >= 2}
         <p class="text-xs text-discord-textMuted">
-            No matches. Type a full user ID like <span
-                class="text-discord-textSecondary">@user:server</span
-            > to invite someone the directory doesn't list.
+            {t("userPicker.noMatchesTypeAFullUser")}
+            <span class="text-discord-textSecondary"
+                >{t("userPicker.userServer")}</span
+            >
+            {t("userPicker.toInviteSomeoneTheDirectoryDoesn")}
         </p>
     {/if}
 </div>

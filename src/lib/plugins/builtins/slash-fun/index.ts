@@ -7,6 +7,7 @@
  * bypass and m.emote are all preserved. Interop-safe: produces standard
  * m.text / m.emote. Written against the `zam` host API only — no client.ts.
  */
+import { t } from "$lib/i18n";
 import type { Manifest } from "../../manifest";
 import type {
     PluginModule,
@@ -29,7 +30,7 @@ function withArt(art: string): (arg: string) => string {
 export const FUN_COMMANDS: PluginTransformCommand[] = [
     {
         name: "me",
-        description: "Send an action message",
+        description: t("slashFun.sendAnActionMessage"),
         kind: "emote",
         argKind: "text",
         argHint: "<message>",
@@ -37,7 +38,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "shrug",
-        description: "Append ¯\\_(ツ)_/¯ to your message",
+        description: t("slashFun.appendToYourMessage"),
         kind: "text-transform",
         argKind: "text",
         argHint: "[message]",
@@ -45,7 +46,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "tableflip",
-        description: "Append (╯°□°)╯︵ ┻━┻ to your message",
+        description: t("slashFun.appendToYourMessage2"),
         kind: "text-transform",
         argKind: "text",
         argHint: "[message]",
@@ -53,7 +54,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "unflip",
-        description: "Append ┬─┬ ノ( ゜-゜ノ) to your message",
+        description: t("slashFun.appendToYourMessage3"),
         kind: "text-transform",
         argKind: "text",
         argHint: "[message]",
@@ -61,7 +62,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "lenny",
-        description: "Append ( ͡° ͜ʖ ͡°) to your message",
+        description: t("slashFun.appendToYourMessage4"),
         kind: "text-transform",
         argKind: "text",
         argHint: "[message]",
@@ -69,7 +70,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "spoiler",
-        description: "Send your message as a spoiler",
+        description: t("slashFun.sendYourMessageAsASpoiler"),
         kind: "text-transform",
         argKind: "text",
         argHint: "<message>",
@@ -78,7 +79,7 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
     },
     {
         name: "plain",
-        description: "Send your message without markdown formatting",
+        description: t("slashFun.sendYourMessageWithoutMarkdownFormatting"),
         kind: "text-transform",
         argKind: "text",
         argHint: "<message>",
@@ -90,10 +91,9 @@ export const FUN_COMMANDS: PluginTransformCommand[] = [
 
 export const manifest: Manifest = {
     id: "zam.slash-fun",
-    name: "Fun slash commands",
+    name: t("slashFun.funSlashCommands"),
     version: "1.0.0",
-    description:
-        "Novelty slash commands: /me, /shrug, /tableflip, /unflip, /lenny, /spoiler, /plain.",
+    description: t("slashFun.noveltySlashCommandsMeShrugTableflip"),
     author: "Zam",
     entry: "builtin",
     capabilities: ["commands"],

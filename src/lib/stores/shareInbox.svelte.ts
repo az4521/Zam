@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     normalizeSharePayload,
     type ShareInput,
@@ -111,9 +112,7 @@ export async function deliverShareToRoom(
             })
         ) {
             stageShare(roomId, captionSnapshot, filesSnapshot);
-            showErrorToast(
-                "You're offline: the share was added to the composer",
-            );
+            showErrorToast(t("shareInbox.youReOfflineTheShareWas"));
             return;
         }
 
@@ -136,7 +135,9 @@ export async function deliverShareToRoom(
             // Partial or total failure: stage what remains unsent
             const remainder = shareRemainder(steps, sentCount);
             stageShare(roomId, remainder.text, remainder.files);
-            showErrorToast(matrixErrorMessage(err, "Couldn't send the share"));
+            showErrorToast(
+                matrixErrorMessage(err, t("shareInbox.couldnTSendTheShare")),
+            );
         }
 
         return;

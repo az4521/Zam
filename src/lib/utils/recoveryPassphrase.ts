@@ -11,6 +11,7 @@
  */
 
 /** Validated PBKDF2 parameters, ready to hand to the SDK's derivation helper. */
+import { t } from "$lib/i18n";
 export interface PassphraseParams {
     salt: string;
     iterations: number;
@@ -64,9 +65,12 @@ export const MIN_PASSPHRASE_LENGTH = 8;
  * derivation uses the verbatim string the user typed, spaces and all.
  */
 export function passphraseIssue(passphrase: string): string | null {
-    if (passphrase.trim().length === 0) return "Enter a passphrase.";
+    if (passphrase.trim().length === 0)
+        return t("recoveryPassphrase.enterAPassphrase");
     if (passphrase.trim().length < MIN_PASSPHRASE_LENGTH) {
-        return `Use at least ${MIN_PASSPHRASE_LENGTH} characters.`;
+        return t("recoveryPassphrase.useAtLeastCharacters", {
+            MIN_PASSPHRASE_LENGTH,
+        });
     }
     return null;
 }

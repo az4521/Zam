@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Portal from "$lib/components/ui/Portal.svelte";
     import { scale } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
@@ -53,7 +54,7 @@
              tries to focus a hidden element, which silently fails. -->
         <div
             role="dialog"
-            aria-label={current.label ?? "Plugin"}
+            aria-label={current.label ?? t("pluginPopoverHost.plugin")}
             use:positionCard={current.anchor}
             use:focusTrap={{ onEscape: closeModal }}
             in:scale|global={{

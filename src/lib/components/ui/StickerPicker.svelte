@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { tick } from "svelte";
     import {
         getCustomStickerPacks,
@@ -359,11 +360,15 @@
         <button
             type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
-            title="Drag or use arrow keys to resize"
-            aria-label="Resize picker"
+            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            title={t("common.dragOrUseArrowKeysTo")}
+            aria-label={t("common.resizePicker")}
         >
-            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+            <svg
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                class="w-4 h-4 mirror:-scale-x-100"
+            >
                 <path d="M2 2h5v1.5H3.5V7H2V2z" />
             </svg>
         </button>
@@ -373,16 +378,16 @@
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >Emoji</button
+                    >{t("common.emoji")}</button
                 >{/if}
             <button
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
-                >Stickers</button
+                >{t("common.stickers")}</button
             >
             {#if onSwitchToGif}<button
                     onclick={onSwitchToGif}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >GIFs</button
+                    >{t("common.gifs")}</button
                 >{/if}
         </div>
     {/if}
@@ -392,10 +397,10 @@
             bind:this={searchEl}
             type="text"
             bind:value={search}
-            placeholder="Search stickers…"
+            placeholder={t("stickerPicker.searchStickers")}
             onkeydown={onSearchKeydown}
             role="combobox"
-            aria-label="Search stickers"
+            aria-label={t("stickerPicker.searchStickers2")}
             aria-expanded={hasOptions}
             aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
@@ -410,7 +415,7 @@
         <p
             class="flex-1 flex items-center justify-center text-center text-discord-textMuted text-sm py-8 px-4"
         >
-            No sticker packs available
+            {t("stickerPicker.noStickerPacksAvailable")}
         </p>
     {:else}
         <!-- Tab bar -->
@@ -432,7 +437,7 @@
                         {#if pack.id === "user" && ownAvatarUrl}
                             <img
                                 src={ownAvatarUrl}
-                                alt="My stickers"
+                                alt={t("stickerPicker.myStickers")}
                                 class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else if pack.id === "user"}
@@ -478,19 +483,19 @@
             onscroll={onScroll}
             id="{listId}-listbox"
             role={hasOptions ? "listbox" : undefined}
-            aria-label={hasOptions ? "Stickers" : undefined}
+            aria-label={hasOptions ? t("common.stickers") : undefined}
             class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
         >
             {#if search}
                 {#if searchResults.length === 0}
                     <p class="text-center text-discord-textMuted text-sm py-8">
-                        No results
+                        {t("common.noResults")}
                     </p>
                 {:else}
                     <div
                         class="grid gap-1 mt-1"
                         role="group"
-                        aria-label="Search results"
+                        aria-label={t("common.searchResults")}
                         style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                     >
                         {#each searchResults as s, li (s.shortcode)}
@@ -526,14 +531,16 @@
                             data-section={pack.id}
                             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
                         >
-                            {pack.id === "user" ? "My Stickers" : pack.name}
+                            {pack.id === "user"
+                                ? t("stickerPicker.myStickers2")
+                                : pack.name}
                         </p>
                         {#if revealedSections.has(pack.id)}
                             <div
                                 class="grid gap-1 mb-2"
                                 role="group"
                                 aria-label={pack.id === "user"
-                                    ? "My Stickers"
+                                    ? t("stickerPicker.myStickers2")
                                     : pack.name}
                                 style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                             >

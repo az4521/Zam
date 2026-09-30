@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
@@ -108,7 +109,7 @@
         {/each}
         {#if overflow > 0}
             <div class="px-3 py-1 text-xs text-discord-textMuted">
-                +{overflow} more
+                {t("reactorPopover.more", { overflow })}
             </div>
         {/if}
     </div>
@@ -118,7 +119,7 @@
     <Portal>
         <button
             type="button"
-            aria-label="Close"
+            aria-label={t("common.close")}
             class="fixed inset-0 z-50 bg-black/40"
             onclick={() => onClose?.()}
         ></button>
@@ -127,7 +128,7 @@
                 <div
                     class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-discord-textMuted border-b border-discord-divider"
                 >
-                    Reacted with {label}
+                    {t("reactorPopover.reactedWith", { label })}
                 </div>
             {:else if dialogLabel && !label}
                 <div
@@ -146,7 +147,7 @@
         {#if desktopDismiss}
             <button
                 type="button"
-                aria-label="Close"
+                aria-label={t("common.close")}
                 class="fixed inset-0 z-40"
                 onclick={() => onClose?.()}
             ></button>
@@ -160,7 +161,7 @@
                 }}
                 class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
                 role="dialog"
-                aria-label={dialogLabel || "User list"}
+                aria-label={dialogLabel || t("reactorPopover.userList")}
             >
                 {@render rows()}
             </div>

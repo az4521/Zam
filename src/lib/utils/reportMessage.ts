@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 export interface ReportPayload {
     reason: string;
     score: number;
@@ -30,5 +31,5 @@ export function reportErrorMessage(err: unknown): string {
         const message = (err as { message?: unknown }).message;
         if (typeof message === "string" && message) return message;
     }
-    return "Failed to send report";
+    return t("reportMessage.failedToSendReport");
 }

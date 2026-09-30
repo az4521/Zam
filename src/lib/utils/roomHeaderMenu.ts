@@ -5,6 +5,7 @@
 // notifications, media, member list) move into a "⋯" bottom sheet. Which rows
 // exist, what they say and how they badge lives here so it can be tested
 // without a DOM; MessageArea only supplies the numbers and renders the result.
+import { t } from "$lib/i18n";
 
 import type { RegistryEntry } from "$lib/plugins/registry";
 import type { HeaderButton } from "$lib/plugins/types";
@@ -53,7 +54,7 @@ export function roomHeaderMenuRows(
     return [
         {
             key: "threads",
-            label: "Threads",
+            label: t("roomHeaderMenu.threads"),
             active: active("threads"),
             badge: mentions,
             // A mention count already says "unread" — don't say it twice.
@@ -61,28 +62,28 @@ export function roomHeaderMenuRows(
         },
         {
             key: "pinned",
-            label: "Pinned messages",
+            label: t("roomHeaderMenu.pinnedMessages"),
             active: active("pinned"),
             badge: badgeFor(input.pinnedCount),
             dot: false,
         },
         {
             key: "notifications",
-            label: "Notifications inbox",
+            label: t("roomHeaderMenu.notificationsInbox"),
             active: active("notifications"),
             badge: null,
             dot: false,
         },
         {
             key: "media",
-            label: "Media and files",
+            label: t("roomHeaderMenu.mediaAndFiles"),
             active: active("media"),
             badge: null,
             dot: false,
         },
         {
             key: "members",
-            label: "Member list",
+            label: t("roomHeaderMenu.memberList"),
             active: active("members"),
             badge: null,
             dot: false,

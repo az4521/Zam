@@ -6,6 +6,7 @@
 // `data-setting-anchor="<id>"` attribute. When present AND rendered, AppSettings
 // scrolls to it and flashes it after navigating; when absent (or the control is
 // conditionally hidden) selecting the result simply lands on the tab.
+import { t } from "$lib/i18n";
 
 import type { SettingsTab } from "$lib/utils/settingsNav";
 
@@ -32,106 +33,114 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     // account
     {
         tab: "account",
-        label: "Display name",
+        label: t("settingsSearch.displayName"),
         keywords: ["name", "nickname", "username"],
     },
     {
         tab: "account",
-        label: "Avatar",
+        label: t("settingsSearch.avatar"),
         keywords: ["photo", "picture", "profile pic", "image"],
     },
     {
         tab: "account",
-        label: "Presence",
+        label: t("settingsSearch.presence"),
         keywords: ["online", "away", "busy", "status", "availability"],
     },
     {
         tab: "account",
-        label: "Change password",
+        label: t("settingsSearch.changePassword"),
         keywords: ["password", "credentials"],
     },
-    { tab: "account", label: "Log out", keywords: ["sign out", "logout"] },
     {
         tab: "account",
-        label: "Deactivate account",
+        label: t("settingsSearch.logOut"),
+        keywords: ["sign out", "logout"],
+    },
+    {
+        tab: "account",
+        label: t("settingsSearch.deactivateAccount"),
         keywords: ["delete account", "close account", "remove account"],
     },
     // security (sessions subsection)
     {
         tab: "security",
-        label: "Sessions",
+        label: t("settingsSearch.sessions"),
         keywords: ["devices", "logins", "sign out other"],
     },
     {
         tab: "security",
-        label: "Encrypt new direct messages",
+        label: t("settingsSearch.encryptNewDirectMessages"),
         keywords: ["encryption", "e2e", "dm", "private"],
     },
     {
         tab: "security",
-        label: "Only send to verified devices",
+        label: t("settingsSearch.onlySendToVerifiedDevices"),
         keywords: ["verified", "trust", "cross-signing"],
     },
     // security
     {
         tab: "security",
-        label: "Set up recovery",
+        label: t("settingsSearch.setUpRecovery"),
         keywords: ["backup", "recovery key", "cross-signing", "4s"],
     },
     {
         tab: "security",
-        label: "Restore message history",
+        label: t("settingsSearch.restoreMessageHistory"),
         keywords: ["key backup", "unlock", "passphrase", "recovery"],
     },
     {
         tab: "security",
-        label: "Verify this session",
+        label: t("settingsSearch.verifyThisSession"),
         keywords: ["verification", "verify device"],
     },
     // appearance
     {
         tab: "appearance",
-        label: "Right-align my messages",
+        label: t("settingsSearch.rightAlignMyMessages"),
         keywords: ["bubble", "layout", "alignment", "imessage"],
         anchor: "theme-rightalign",
     },
     {
         tab: "account",
-        label: "Show when I am in a call",
+        label: t("settingsSearch.showWhenIAmInA"),
         keywords: ["call status", "in a call", "presence", "profile"],
     },
     {
         tab: "appearance",
-        label: "Show name colours",
+        label: t("settingsSearch.showNameColours"),
         keywords: ["username colour", "name color", "profile colour"],
         anchor: "appearance-namecolours",
     },
     {
         tab: "appearance",
-        label: "Text size",
+        label: t("settingsSearch.textSize"),
         keywords: ["font size", "zoom", "bigger text", "message size"],
     },
-    { tab: "appearance", label: "Font", keywords: ["typeface", "font family"] },
     {
         tab: "appearance",
-        label: "Theme presets",
+        label: t("settingsSearch.font"),
+        keywords: ["typeface", "font family"],
+    },
+    {
+        tab: "appearance",
+        label: t("settingsSearch.themePresets"),
         keywords: ["dark mode", "light mode", "amoled", "colors", "preset"],
     },
     {
         tab: "appearance",
-        label: "Import / export theme",
+        label: t("settingsSearch.importExportTheme"),
         keywords: ["theme code", "share theme", "copy theme", "paste"],
     },
     // appearance (timestamps)
     {
         tab: "appearance",
-        label: "Time format",
+        label: t("settingsSearch.timeFormat"),
         keywords: ["clock", "12 hour", "24 hour", "timestamp"],
         anchor: "cust-timestamps",
     },
     {
         tab: "appearance",
-        label: "Date format",
+        label: t("settingsSearch.dateFormat"),
         keywords: ["date", "calendar"],
         anchor: "cust-timestamps",
     },
@@ -144,90 +153,108 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     // messages-media (messages)
     {
         tab: "messages-media",
-        label: "Show Matrix IDs",
+        label: t("settingsSearch.showMatrixIds"),
         keywords: ["mxid", "username", "server name"],
         anchor: "cust-messages",
     },
     {
         tab: "messages-media",
-        label: "Read receipt avatars",
+        label: t("settingsSearch.readReceiptAvatars"),
         keywords: ["seen by", "read receipts"],
         anchor: "cust-messages",
     },
     {
         tab: "messages-media",
-        label: "Link previews",
+        label: t("settingsSearch.linkPreviews"),
         keywords: ["preview", "embed", "unfurl", "url"],
         anchor: "cust-messages",
     },
     {
         tab: "privacy",
-        label: "Link preview media",
+        label: t("settingsSearch.linkPreviewMedia"),
         keywords: ["preview", "media", "ip", "tracking", "proxied", "embed"],
         anchor: "notif-privacy",
     },
     {
         tab: "messages-media",
-        label: "Pause videos off-screen",
+        label: t("settingsSearch.pauseVideosOffScreen"),
         keywords: ["autoplay", "battery", "video"],
         anchor: "cust-messages",
     },
     {
         tab: "messages-media",
-        label: "Hold to open message menu",
+        label: t("settingsSearch.holdToOpenMessageMenu"),
         keywords: ["touch", "long press", "tap"],
         anchor: "cust-messages",
     },
     // messages-media (gifs)
     {
         tab: "messages-media",
-        label: "GIF default tab",
+        label: t("settingsSearch.gifDefaultTab"),
         keywords: ["gif", "picker", "tenor", "klipy"],
         anchor: "cust-gifs",
     },
     // general (behavior)
     {
         tab: "general",
-        label: "Minimise to tray on close",
+        label: t("settingsSearch.minimiseToTrayOnClose"),
         keywords: ["system tray", "background", "desktop"],
         anchor: "cust-behavior",
+    },
+    // appearance (language)
+    {
+        tab: "appearance",
+        label: t("settingsSearch.language"),
+        keywords: [
+            "language",
+            "translation",
+            "locale",
+            "english",
+            "assyrian",
+            "aramaic",
+            "suret",
+            "sureth",
+            "ܣܘܪܝܬ",
+            "ܠܫܢܐ",
+        ],
+        anchor: "appearance-language",
     },
     // appearance (reduce motion)
     {
         tab: "appearance",
-        label: "Reduce motion",
+        label: t("settingsSearch.reduceMotion"),
         keywords: ["animations", "accessibility", "battery"],
         anchor: "appearance-reducemotion",
     },
     // appearance (sidebar)
     {
         tab: "appearance",
-        label: "Keep room list open",
+        label: t("settingsSearch.keepRoomListOpen"),
         keywords: ["sidebar", "drawer"],
         anchor: "appearance-keepsidebar",
     },
     // emotes
     {
         tab: "emotes",
-        label: "Custom emotes",
+        label: t("settingsSearch.customEmotes"),
         keywords: ["emoji", "sticker", "emoticon", "upload"],
     },
     // notifications
     {
         tab: "notifications",
-        label: "Push notifications permission",
+        label: t("settingsSearch.pushNotificationsPermission"),
         keywords: ["enable notifications", "allow", "system"],
         anchor: "notif-system",
     },
     {
         tab: "notifications",
-        label: "Notification sound",
+        label: t("settingsSearch.notificationSound"),
         keywords: ["sound", "audio", "mute"],
         anchor: "notif-sound",
     },
     {
         tab: "notifications",
-        label: "Desktop alerts (pop-up and taskbar flash)",
+        label: t("settingsSearch.desktopAlertsPopUpAndTaskbar"),
         keywords: [
             "popup",
             "taskbar",
@@ -239,122 +266,134 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "notifications",
-        label: "Quiet on my other devices",
+        label: t("settingsSearch.quietOnMyOtherDevices"),
         keywords: ["active session", "grace", "suppress", "multi-device"],
         anchor: "notif-devices",
     },
     // privacy (notification privacy)
     {
         tab: "privacy",
-        label: "Private read receipts",
+        label: t("settingsSearch.privateReadReceipts"),
         keywords: ["hide read status", "privacy"],
         anchor: "notif-privacy",
     },
     {
         tab: "privacy",
-        label: "Hide message text in notifications",
+        label: t("settingsSearch.hideMessageTextInNotifications"),
         keywords: ["notification content", "preview", "privacy"],
         anchor: "notif-privacy",
     },
     {
         tab: "notifications",
-        label: "Notification rules",
+        label: t("settingsSearch.notificationRules"),
         keywords: ["mentions", "dms", "invites", "loud", "silent"],
         anchor: "notif-rules",
     },
     {
         tab: "notifications",
-        label: "Keyword highlights",
+        label: t("settingsSearch.keywordHighlights"),
         keywords: ["highlight", "alerts", "keywords", "patterns"],
         anchor: "notif-keywords",
     },
     // voice
-    { tab: "voice", label: "Input device", keywords: ["microphone", "mic"] },
     {
         tab: "voice",
-        label: "Output device",
+        label: t("settingsSearch.inputDevice"),
+        keywords: ["microphone", "mic"],
+    },
+    {
+        tab: "voice",
+        label: t("settingsSearch.outputDevice"),
         keywords: ["speaker", "audio output"],
     },
-    { tab: "voice", label: "Camera", keywords: ["webcam", "video"] },
     {
         tab: "voice",
-        label: "Noise suppression",
+        label: t("settingsSearch.camera"),
+        keywords: ["webcam", "video"],
+    },
+    {
+        tab: "voice",
+        label: t("settingsSearch.noiseSuppression"),
         keywords: ["denoise", "filter"],
     },
     {
         tab: "voice",
-        label: "Echo cancellation",
+        label: t("settingsSearch.echoCancellation"),
         keywords: ["echo", "feedback"],
     },
     {
         tab: "voice",
-        label: "Auto gain control",
+        label: t("settingsSearch.autoGainControl"),
         keywords: ["agc", "volume normalization"],
     },
     {
         tab: "voice",
-        label: "Mirror my camera",
+        label: t("settingsSearch.mirrorMyCamera"),
         keywords: ["flip", "mirror video"],
     },
-    { tab: "voice", label: "Call volume", keywords: ["volume", "loudness"] },
     {
         tab: "voice",
-        label: "Play call sounds",
+        label: t("settingsSearch.callVolume"),
+        keywords: ["volume", "loudness"],
+    },
+    {
+        tab: "voice",
+        label: t("settingsSearch.playCallSounds"),
         keywords: ["ringtone", "sound effects", "blips"],
     },
     {
         tab: "voice",
-        label: "Ring for incoming DM calls",
+        label: t("settingsSearch.ringForIncomingDmCalls"),
         keywords: ["ringtone", "incoming call"],
     },
     // privacy (blocked users)
     {
         tab: "privacy",
-        label: "Blocked users",
+        label: t("settingsSearch.blockedUsers"),
         keywords: ["ignore", "unblock", "block a user"],
     },
     // server
     {
         tab: "server",
-        label: "Server capabilities",
+        label: t("settingsSearch.serverCapabilities"),
         keywords: ["homeserver", "features", "support"],
     },
     // plugins
     {
         tab: "plugins",
-        label: "Plugins",
+        label: t("settingsSearch.plugins"),
         keywords: ["extensions", "add-ons", "install plugin"],
     },
     {
         tab: "plugins",
-        label: "Plugin repositories",
+        label: t("settingsSearch.pluginRepositories"),
         keywords: ["repo", "third-party", "add repo"],
     },
     {
         tab: "plugins",
-        label: "Sync plugins",
+        label: t("settingsSearch.syncPlugins"),
         keywords: ["sync settings", "push", "pull"],
     },
     // about
     {
         tab: "about",
-        label: "Check for updates",
+        label: t("settingsSearch.checkForUpdates"),
         keywords: ["update", "version", "upgrade"],
     },
     {
         tab: "about",
-        label: "Clear cache",
+        label: t("settingsSearch.clearCache"),
         keywords: ["resync", "fix rooms", "reload", "troubleshoot"],
     },
     // debug
     {
         tab: "debug",
-        label: "Show all events",
+        label: t("settingsSearch.showAllEvents"),
         keywords: ["timeline events", "raw events", "developer"],
     },
     {
         tab: "debug",
-        label: "Push diagnostics",
+        label: t("settingsSearch.pushDiagnostics"),
         keywords: ["push status", "fcm", "gateway", "troubleshoot"],
         anchor: "debug-push",
     },

@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     createClient,
     ClientEvent,
@@ -528,9 +529,7 @@ async function resolveHomeserver(input: string): Promise<string> {
     if (outcome.action === "prompt") {
         // Auto-discovery failed but the typed address may still work — use it,
         // and inform the user (spec FAIL_PROMPT).
-        showErrorToast(
-            "Server auto-discovery failed - using the address as typed",
-        );
+        showErrorToast(t("client.serverAutoDiscoveryFailedUsingThe"));
         return withProtocol;
     }
 
@@ -552,7 +551,7 @@ async function resolveHomeserver(input: string): Promise<string> {
         clearTimeout(timer);
     }
     if (!versionsOk) {
-        throw new Error("Discovered homeserver failed validation");
+        throw new Error(t("client.discoveredHomeserverFailedValidation"));
     }
     return base;
 }
@@ -770,8 +769,7 @@ async function buildSlidingSync(
         );
     } catch (err) {
         if (isSlidingSyncUnsupportedError(err)) {
-            const reason =
-                "This homeserver doesn't support sliding sync, so classic sync is being used instead.";
+            const reason = t("client.thisHomeserverDoesnTSupportSliding");
             console.warn(
                 "[matrix] sliding sync unsupported, falling back",
                 err,
@@ -961,7 +959,7 @@ export async function startSync(
 
 /** Retry a failed (NOT_SENT) local echo. */
 export async function resendMessage(event: MatrixEvent): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(event.getRoomId() ?? "");
     if (!room) return;
     await matrixClient.resendEvent(event, room);
@@ -1027,9 +1025,9 @@ export function loadFavouriteGifs(): FavouriteGif[] {
  * which returns exactly the possibly-stale data we are trying to look past.
  */
 export async function fetchFavouriteGifsFromServer(): Promise<FavouriteGif[]> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId();
-    if (!userId) throw new Error("Not logged in");
+    if (!userId) throw new Error(t("client.notLoggedIn"));
     // Returns null when the key has never been set for this account (404), so
     // the new key falling back to the legacy key is distinguishable from a key
     // that is set to an empty list.
@@ -1590,7 +1588,7 @@ export async function setRoomTag(
     tag: string,
     order?: number | string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // The SDK types `order` as number, but foreign non-numeric orders must
     // round-trip verbatim — cast at the boundary like the rest of this module.
     await (matrixClient as any).setRoomTag(
@@ -1627,7 +1625,7 @@ export async function deleteRoomTag(
     roomId: string,
     tag: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.deleteRoomTag(roomId, tag);
 }
 
@@ -1637,7 +1635,7 @@ export async function toggleRoomTag(
     roomId: string,
     toggle: "favourite" | "lowPriority",
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     if (roomTagToggleInFlight.has(roomId)) return;
     roomTagToggleInFlight.add(roomId);
     try {
@@ -1923,7 +1921,7 @@ export async function sendThreadReply(
         content: Record<string, unknown>,
     ) => Record<string, unknown>,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
     const latestEventId =
         (room && getThreadSummary(room, rootEventId).latestEventId) ||
@@ -2137,7 +2135,7 @@ export async function sendLocation(
     roomId: string,
     loc: { lat: number; lon: number; description?: string },
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.sendMessage(roomId, buildLocationContent(loc) as never);
 }
 
@@ -2149,7 +2147,7 @@ export async function startLiveBeacon(
     timeoutMs: number,
     description?: string,
 ): Promise<{ beaconInfoEventId: string }> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.unstable_createLiveBeacon(
         roomId,
         ContentHelpers.makeBeaconInfoContent(timeoutMs, true, description),
@@ -2167,7 +2165,7 @@ export async function stopLiveBeacon(
     roomId: string,
     knownBeaconInfoId?: string | null,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
     const me = matrixClient.getUserId();
     if (!room || !me) return;
@@ -2196,7 +2194,7 @@ export async function sendLiveBeaconLocation(
     lat: number,
     lon: number,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const geoUri = `geo:${lat},${lon}`;
     await matrixClient.sendEvent(
         roomId,
@@ -2289,7 +2287,7 @@ export async function sendTextMessage(
     roomId: string,
     text: string,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Build the content directly (2-arg sendMessage) so an m.mentions key rides
     // along unconditionally — its presence disables the legacy body-scan push
     // rules on the receiver. A plain text send never carries intentional
@@ -2403,7 +2401,7 @@ export async function sendFormattedMessage(
     formattedBody: string,
     mentions?: { user_ids?: string[]; room?: boolean },
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.sendMessage(roomId, {
         msgtype: "m.text",
         body,
@@ -2427,7 +2425,7 @@ export async function sendOutboxMessage(
     roomId: string,
     content: Record<string, unknown>,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
     // Snapshot the echoes that already exist so that, on failure, we cancel
     // ONLY the NOT_SENT echo our own send just created — never a concurrent
@@ -2464,7 +2462,7 @@ export async function sendEmote(
     mentions?: { user_ids?: string[]; room?: boolean },
     thread?: { rootEventId: string },
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const content: Record<string, unknown> = {
         msgtype: "m.emote",
         body,
@@ -2490,10 +2488,10 @@ export async function forwardMessage(
     roomId: string,
     event: MatrixEvent,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const eventType = event.getType();
     if (eventType !== "m.room.message" && eventType !== "m.sticker") {
-        throw new Error("This event type cannot be forwarded");
+        throw new Error(t("client.thisEventTypeCannotBeForwarded"));
     }
     await matrixClient.sendEvent(
         roomId,
@@ -2787,7 +2785,7 @@ export async function fetchServerNotifications(
     from?: string,
 ): Promise<ServerNotificationResult> {
     if (!matrixClient)
-        return { status: "error", error: new Error("Not connected") };
+        return { status: "error", error: new Error(t("client.notConnected")) };
     return fetchServerNotificationsForClient(matrixClient, limit, from);
 }
 
@@ -2836,13 +2834,13 @@ export async function fetchOwnProfile(): Promise<{
 }
 
 export async function setOwnDisplayName(name: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setDisplayName(name);
 }
 
 /** Set (mxc URI) or clear (empty string) the logged-in user's avatar. */
 export async function setOwnAvatarMxc(mxc: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setAvatarUrl(mxc);
 }
 
@@ -2872,7 +2870,7 @@ export async function setOwnProfileField(
     key: string,
     value: unknown | null,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     if (value === null) await matrixClient.deleteExtendedProfileProperty(key);
     else await matrixClient.setExtendedProfileProperty(key, value);
 }
@@ -2915,7 +2913,7 @@ export async function upgradeRoomToVersion(
     roomId: string,
     version: string,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const { replacement_room } = await matrixClient.upgradeRoom(
         roomId,
         version,
@@ -2980,7 +2978,7 @@ export function getOwnDeviceId(): string | null {
 
 /** Fetch all sessions (devices) the server has recorded for this account. */
 export async function getOwnDevices(): Promise<DeviceInfo[]> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const { devices } = await matrixClient.getDevices();
     return devices.map((d) => ({
         deviceId: d.device_id,
@@ -2997,7 +2995,7 @@ export async function renameDevice(
     deviceId: string,
     name: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setDeviceDetails(deviceId, { display_name: name });
 }
 
@@ -3013,7 +3011,7 @@ export async function deleteOwnDevice(
     deviceId: string,
     password?: string,
 ): Promise<DeleteDeviceResult> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId();
     try {
         await matrixClient.deleteDevice(deviceId);
@@ -3026,9 +3024,7 @@ export async function deleteOwnDevice(
         };
         if (uia.httpStatus !== 401 || !data.flows) throw e;
         if (!supportsPasswordUia(data.flows)) {
-            throw new Error(
-                "This server does not allow signing out sessions with a password - use its account page instead.",
-            );
+            throw new Error(t("client.thisServerDoesNotAllowSigning"));
         }
         if (password === undefined) return "password-required";
         try {
@@ -3041,7 +3037,7 @@ export async function deleteOwnDevice(
             return "deleted";
         } catch (retryError) {
             if ((retryError as MatrixError).httpStatus === 401) {
-                throw new Error("Incorrect password");
+                throw new Error(t("client.incorrectPassword"));
             }
             throw retryError;
         }
@@ -3067,7 +3063,7 @@ async function completeWithPasswordUia(
     attempt: (auth?: AuthDict) => Promise<unknown>,
     password: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId();
     try {
         await attempt(undefined);
@@ -3080,9 +3076,7 @@ async function completeWithPasswordUia(
         };
         if (uia.httpStatus !== 401 || !data.flows) throw serverErrorMessage(e);
         if (!supportsPasswordUia(data.flows)) {
-            throw new Error(
-                "This server does not allow confirming this action with a password - use its account page instead.",
-            );
+            throw new Error(t("client.thisServerDoesNotAllowConfirming"));
         }
         try {
             await attempt({
@@ -3093,7 +3087,7 @@ async function completeWithPasswordUia(
             });
         } catch (retryError) {
             if ((retryError as MatrixError).httpStatus === 401) {
-                throw new Error("Incorrect password");
+                throw new Error(t("client.incorrectPassword"));
             }
             throw serverErrorMessage(retryError);
         }
@@ -3111,7 +3105,7 @@ export async function changeAccountPassword(
     newPassword: string,
     logoutOtherDevices: boolean,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const client = matrixClient;
     await completeWithPasswordUia(
         // setPassword's auth parameter is required by its type, but an
@@ -3136,7 +3130,7 @@ export async function deactivateOwnAccount(
     password: string,
     erase: boolean,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const client = matrixClient;
     await completeWithPasswordUia(
         (auth) => client.deactivateAccount(auth, erase),
@@ -3151,7 +3145,7 @@ export interface ThreePid {
 
 /** The email addresses / phone numbers the server has linked to the account. */
 export async function getOwnThreePids(): Promise<ThreePid[]> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const { threepids } = await matrixClient.getThreePids();
     return threepids.map((t) => ({ medium: t.medium, address: t.address }));
 }
@@ -3441,8 +3435,8 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
         ruleId: RuleId.DM,
         kind: PushRuleKind.Underride,
-        label: "Direct messages",
-        description: "Messages in direct message rooms",
+        label: t("client.directMessages"),
+        description: t("client.messagesInDirectMessageRooms"),
         conditions: [
             { kind: "room_member_count", is: "2" },
             { kind: "event_match", key: "type", pattern: "m.room.message" },
@@ -3452,8 +3446,8 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
         ruleId: RuleId.Message,
         kind: PushRuleKind.Underride,
-        label: "Rooms",
-        description: "Messages in all other rooms",
+        label: t("client.rooms"),
+        description: t("client.messagesInAllOtherRooms"),
         conditions: [
             { kind: "event_match", key: "type", pattern: "m.room.message" },
         ],
@@ -3462,24 +3456,24 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
         ruleId: RuleId.IsUserMention,
         kind: PushRuleKind.Override,
-        label: "Full Matrix ID mentions",
-        description: "Messages using your full @user:homeserver ID",
+        label: t("client.fullMatrixIdMentions"),
+        description: t("client.messagesUsingYourFullUserHomeserver"),
         conditions: [{ kind: "is_user_mention" }],
         defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsDisplayName,
         kind: PushRuleKind.Override,
-        label: "Display name mentions",
-        description: "Messages containing your display name",
+        label: t("client.displayNameMentions"),
+        description: t("client.messagesContainingYourDisplayName"),
         conditions: [{ kind: "contains_display_name" }],
         defaultActions: MENTION_DEFAULT_ACTIONS,
     },
     {
         ruleId: RuleId.ContainsUserName,
         kind: PushRuleKind.ContentSpecific,
-        label: "Username mentions",
-        description: "Messages containing your username (without server)",
+        label: t("client.usernameMentions"),
+        description: t("client.messagesContainingYourUsernameWithoutServer"),
         pattern: "USERNAME_LOCALPART",
         defaultActions: MENTION_DEFAULT_ACTIONS,
     },
@@ -3489,8 +3483,8 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
         ruleId: RuleId.IsRoomMention,
         fallbackRuleIds: [RuleId.AtRoomNotification],
         kind: PushRuleKind.Override,
-        label: "@room mentions",
-        description: "Messages using @room to notify everyone",
+        label: t("client.roomMentions"),
+        description: t("client.messagesUsingRoomToNotifyEveryone"),
         conditions: [
             { kind: "event_match", key: "content.body", pattern: "@room" },
         ],
@@ -3499,8 +3493,8 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
     {
         ruleId: RuleId.InviteToSelf,
         kind: PushRuleKind.Override,
-        label: "Invitations",
-        description: "When you are invited to a room",
+        label: t("client.invitations"),
+        description: t("client.whenYouAreInvitedToA"),
         conditions: [
             { kind: "event_match", key: "type", pattern: "m.room.member" },
             {
@@ -3759,7 +3753,7 @@ export async function setRoomNotificationSetting(
             const room = client.getRoom(roomId);
             throw new Error(
                 pushRuleFailureMessage(
-                    room ? getRoomDisplayName(room) : "this room",
+                    room ? getRoomDisplayName(room) : t("client.thisRoom"),
                     classifyPushRuleWriteError(error),
                 ),
             );
@@ -3798,7 +3792,7 @@ export async function addKeywordRule(
     // rule_id/pattern starts with "." would collide with them. Reject up front
     // so the error surfaces through the caller's catch (see NotificationSettings).
     if (pattern.startsWith(".")) {
-        throw new Error("Keyword cannot start with '.'");
+        throw new Error(t("client.keywordCannotStartWith"));
     }
     return pushRuleWriteQueue.run(async () => {
         try {
@@ -3888,7 +3882,7 @@ export async function sendEdit(
     formattedBody?: string,
     originalMentions?: Mentions,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // v1.7 mentions module: split m.mentions across the replacement halves —
     // top-level carries only the mentions NEWLY introduced by this revision;
     // m.new_content carries the resolved final set. Conservative: original
@@ -4806,7 +4800,7 @@ export function getSpaceLayout(): SpaceLayout {
 }
 
 export async function setSpaceLayout(layout: SpaceLayout): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setAccountData(SPACE_LAYOUT_KEY, layout);
 }
 
@@ -4820,7 +4814,7 @@ export async function setSpaceOrder(order: string[]): Promise<void> {
 }
 
 export async function leaveRoom(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Leaving the room mid-call must also hang up — otherwise the SFU
     // connection and mic stay live in a room we're no longer a member of.
     if (getActiveVoiceRoomId() === roomId) await leaveVoiceCall();
@@ -4870,7 +4864,7 @@ export function getTombstone(room: Room): RoomTombstone | null {
 }
 
 export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Claim the room as landable up front: `/sync` won't confirm the join for
     // a few hundred ms, and any refresh in that window would otherwise decide
     // the room is gone and move the user off it.
@@ -4905,7 +4899,7 @@ export async function joinRoom(roomId: string, via?: string[]): Promise<void> {
 }
 
 export async function joinRoomByAlias(alias: string): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const result = await matrixClient.joinRoom(alias);
     await seedRoomStateIfMissing(result.roomId);
     const room = matrixClient.getRoom(result.roomId);
@@ -4920,7 +4914,7 @@ export async function joinRoomByAlias(alias: string): Promise<string> {
 export async function getRoomIdForAlias(
     alias: string,
 ): Promise<{ roomId: string; servers: string[] }> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const result = await matrixClient.getRoomIdForAlias(alias);
     return { roomId: result.room_id, servers: result.servers ?? [] };
 }
@@ -4940,7 +4934,7 @@ export async function getPublicRooms(
         limit?: number;
     } = {},
 ): Promise<PublicRoomsPage> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.publicRooms({
         server: opts.server,
         limit: opts.limit ?? 30,
@@ -5099,7 +5093,7 @@ const pendingFollowUps = createPendingFollowUps();
  * clear it. (No unit test guards this; `client.ts` has no test harness.)
  */
 async function writeDmDirectory(userId: string, roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const cur = matrixClient.getAccountData(EventType.Direct)?.getContent() as
         Record<string, string[]> | undefined;
     await matrixClient.setAccountData(
@@ -5143,7 +5137,7 @@ export async function createRoom(
     encrypt = false,
     videoRoom = false,
 ): Promise<RoomCreationResult> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
     const initialState = encryptionInitialState(encrypt);
@@ -5193,7 +5187,7 @@ export async function createSpace(
     name: string,
     topic: string,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const result = await matrixClient.createRoom({
         name: name || undefined,
         topic: topic || undefined,
@@ -5223,7 +5217,7 @@ export async function addRoomToSpace(
     spaceId: string,
     roomId: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId() ?? "";
     const serverName = userId.includes(":") ? userId.split(":")[1] : "";
     await (matrixClient as any).sendStateEvent(
@@ -5251,7 +5245,7 @@ export async function searchUserDirectory(
     term: string,
     limit = 10,
 ): Promise<{ users: UserSearchResult[]; limited: boolean }> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.searchUserDirectory({ term, limit });
     const users = mapUserSearchResults(res.results, {
         ownUserId: matrixClient.getUserId(),
@@ -5297,7 +5291,7 @@ export function createDirectMessage(
     const key = dmDedupeKey(ownUserId, userId);
     // A null key means the owner id isn't known yet: deduping on a degenerate
     // key would let a pre-whoami call and a post-whoami call mint two rooms.
-    if (!key) throw new Error("Not logged in");
+    if (!key) throw new Error(t("client.notLoggedIn"));
     dmEncryptIntent.raise(key, encrypt);
     return dmCreatesByUser.run(key, () =>
         // Read the intent at create time (below, in openDirectMessage) so a
@@ -5313,7 +5307,7 @@ async function openDirectMessage(
     userId: string,
     getEncrypt: () => boolean,
 ): Promise<RoomCreationResult> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Reuse existing DM room if one exists. An existing DM keeps its own
     // encryption state — we never change it here (encryption is irreversible).
     const existing = matrixClient
@@ -5415,7 +5409,7 @@ async function openDirectMessage(
  * failure (e.g. insufficient power level); the caller surfaces the error.
  */
 export async function enableRoomEncryption(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(
         roomId,
         ROOM_ENCRYPTION_EVENT_TYPE,
@@ -5430,7 +5424,7 @@ export async function inviteUser(
     userId: string,
     reason?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.invite(roomId, userId, reason);
 }
 
@@ -5443,7 +5437,7 @@ export async function inviteEmailToRoom(
     roomId: string,
     address: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.inviteByThreePid(roomId, "email", address);
 }
 
@@ -5488,7 +5482,7 @@ export function getInvitedRooms(): Room[] {
 }
 
 export async function acceptInvite(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Read whether this invite is a direct (1:1) chat and who sent it BEFORE
     // joining — once we join, the invite membership we inspect is superseded.
     const inviteRoom = matrixClient.getRoom(roomId);
@@ -5532,7 +5526,7 @@ export async function acceptInvite(roomId: string): Promise<void> {
 }
 
 export async function rejectInvite(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.leave(roomId);
 }
 
@@ -5546,7 +5540,7 @@ export async function knockRoom(
     reason?: string,
     via?: string[],
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const result = await matrixClient.knockRoom(
         roomIdOrAlias,
         buildKnockOpts(reason, via),
@@ -5563,7 +5557,7 @@ export function getKnockedRooms(): Room[] {
 
 /** Retract a pending knock by leaving the room. */
 export async function cancelKnock(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.leave(roomId);
 }
 
@@ -5614,7 +5608,7 @@ export async function sendReaction(
     eventId: string,
     key: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Deduplicate: don't send if user already has this reaction (including local echoes)
     const room = matrixClient.getRoom(roomId);
     if (room) {
@@ -5638,7 +5632,7 @@ export async function removeReaction(
     roomId: string,
     reactionEventId: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.redactEvent(roomId, reactionEventId);
 }
 
@@ -5647,7 +5641,7 @@ export async function deleteMessage(
     eventId: string,
     reason?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // 4-arg form: txnId undefined (SDK generates one), opts carries the
     // optional redaction reason. Omitting opts entirely when there is no
     // reason keeps the request byte-identical to the old 2-arg call.
@@ -5696,7 +5690,7 @@ export async function reportEvent(
     score: number,
     reason: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.reportEvent(roomId, eventId, score, reason);
 }
 
@@ -5884,7 +5878,9 @@ function getRoomEmotePacksBase(room: Room): CustomImagePack[] {
                 name:
                     content.pack?.display_name ||
                     stateKey ||
-                    `${room.name || "Room"} Emotes`,
+                    t("client.emotes", {
+                        value: room.name || t("client.room"),
+                    }),
                 sourceName: room.name || room.roomId,
                 avatarUrl: getRoomAvatar(room) ?? undefined,
                 images,
@@ -5912,7 +5908,7 @@ function getRoomImagePacks(room: Room, kind: ImageUsage): CustomEmojiPack[] {
                 name:
                     content.pack?.display_name ||
                     stateKey ||
-                    `${room.name || "Room"} ${kind === "sticker" ? "Stickers" : "Emojis"}`,
+                    `${room.name || t("client.room")} ${kind === "sticker" ? t("common.stickers") : t("client.emojis")}`,
                 sourceName: room.name || room.roomId,
                 avatarUrl: getRoomAvatar(room) ?? undefined,
                 emojis,
@@ -6047,9 +6043,9 @@ function isValidEmojiShortcode(shortcode: string): boolean {
 
 export function validateEmojiShortcode(shortcode: string): string | null {
     const normalized = normalizeEmojiShortcode(shortcode);
-    if (!normalized) return "Enter a shortcode.";
+    if (!normalized) return t("client.enterAShortcode");
     if (!isValidEmojiShortcode(normalized)) {
-        return "Use only letters, numbers, dots, underscores, pluses, and hyphens.";
+        return t("client.useOnlyLettersNumbersDotsUnderscores");
     }
     return null;
 }
@@ -6085,14 +6081,15 @@ async function setRoomPackImageUsage(
     shortcode: string,
     usage: ImageUsage[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const nextUsage = normalizeUsage(usage);
-    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    if (nextUsage.length === 0)
+        throw new Error(t("client.chooseAtLeastOneUsage"));
     const current = await fetchRoomEmoteContent(roomId, stateKey);
     const images = { ...(current.images ?? {}) };
     const existing = images[normalized];
-    if (!existing?.url) throw new Error("Image not found.");
+    if (!existing?.url) throw new Error(t("client.imageNotFound"));
     images[normalized] = {
         ...existing,
         usage: nextUsage,
@@ -6122,7 +6119,7 @@ async function addRoomPackImage(
     packName: string,
     kind: ImageUsage,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const error = validateEmojiShortcode(normalized);
     if (error) throw new Error(error);
@@ -6160,12 +6157,13 @@ export async function addRoomEmote(
     packName: string,
     usage: ImageUsage[],
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const error = validateEmojiShortcode(normalized);
     const nextUsage = normalizeUsage(usage);
     if (error) throw new Error(error);
-    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    if (nextUsage.length === 0)
+        throw new Error(t("client.chooseAtLeastOneUsage"));
 
     const current = await fetchRoomEmoteContent(roomId, stateKey);
     const images = { ...(current.images ?? {}) };
@@ -6231,7 +6229,7 @@ async function removeRoomPackImage(
     shortcode: string,
     kind: ImageUsage,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const current = await fetchRoomEmoteContent(roomId, stateKey);
     const images = { ...(current.images ?? {}) };
@@ -6287,7 +6285,7 @@ export async function removeRoomEmoteImage(
     stateKey: string,
     shortcode: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const current = await fetchRoomEmoteContent(roomId, stateKey);
     const images = { ...(current.images ?? {}) };
@@ -6368,7 +6366,7 @@ async function addUserPackImage(
     packName: string,
     kind: ImageUsage,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const error = validateEmojiShortcode(normalized);
     if (error) throw new Error(error);
@@ -6398,12 +6396,13 @@ export async function addUserEmote(
     mxcUrl: string,
     usage: ImageUsage[],
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const error = validateEmojiShortcode(normalized);
     const nextUsage = normalizeUsage(usage);
     if (error) throw new Error(error);
-    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    if (nextUsage.length === 0)
+        throw new Error(t("client.chooseAtLeastOneUsage"));
 
     const current = await fetchUserEmoteContent();
     const images = { ...(current.images ?? {}) };
@@ -6428,14 +6427,15 @@ export async function setUserEmoteUsage(
     shortcode: string,
     usage: ImageUsage[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const nextUsage = normalizeUsage(usage);
-    if (nextUsage.length === 0) throw new Error("Choose at least one usage.");
+    if (nextUsage.length === 0)
+        throw new Error(t("client.chooseAtLeastOneUsage"));
     const current = await fetchUserEmoteContent();
     const images = { ...(current.images ?? {}) };
     const existing = images[normalized];
-    if (!existing?.url) throw new Error("Image not found.");
+    if (!existing?.url) throw new Error(t("client.imageNotFound"));
     images[normalized] = {
         ...existing,
         usage: nextUsage,
@@ -6450,7 +6450,7 @@ async function removeUserPackImage(
     shortcode: string,
     kind: ImageUsage,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const current = await fetchUserEmoteContent();
     const images = { ...(current.images ?? {}) };
@@ -6514,7 +6514,7 @@ export async function removeUserSticker(shortcode: string): Promise<void> {
 }
 
 export async function removeUserEmoteImage(shortcode: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
     const current = await fetchUserEmoteContent();
     const images = { ...(current.images ?? {}) };
@@ -6736,7 +6736,7 @@ async function fetchPinnedEventIds(roomId: string): Promise<string[]> {
 }
 
 export async function pinMessage(room: Room, eventId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const current = await fetchPinnedEventIds(room.roomId);
     const pinned = [...new Set([...current, eventId])];
     await (matrixClient as any).sendStateEvent(
@@ -6748,7 +6748,7 @@ export async function pinMessage(room: Room, eventId: string): Promise<void> {
 }
 
 export async function unpinMessage(room: Room, eventId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const current = await fetchPinnedEventIds(room.roomId);
     const pinned = current.filter((id) => id !== eventId);
     await (matrixClient as any).sendStateEvent(
@@ -6763,7 +6763,7 @@ export async function setRoomPowerLevels(
     room: Room,
     updated: Partial<PowerLevels>,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     const current =
         state?.getStateEvents("m.room.power_levels", "")?.getContent() ?? {};
@@ -6771,7 +6771,8 @@ export async function setRoomPowerLevels(
     // Shape-check before writing so a malformed level surfaces as a clear error
     // instead of a cryptic server 400 (audit SEC-L12).
     const shapeError = validatePowerLevelsContent(content);
-    if (shapeError) throw new Error(`Invalid power levels: ${shapeError}`);
+    if (shapeError)
+        throw new Error(t("client.invalidPowerLevels", { shapeError }));
     await (matrixClient as any).sendStateEvent(
         room.roomId,
         "m.room.power_levels",
@@ -6794,7 +6795,7 @@ export function getServerAclContent(
 
 /** Write the room's `m.room.server_acl` (federation allow/deny lists). */
 export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(
         room.roomId,
         "m.room.server_acl",
@@ -6808,7 +6809,7 @@ export async function setUserPowerLevel(
     userId: string,
     level: number,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // A room-v12 (MSC4289) creator's power is immutable and NOT stored in the
     // users map — writing it there is a guaranteed server 403. Surface a clear
     // error instead of the raw federation rejection.
@@ -6816,9 +6817,7 @@ export async function setUserPowerLevel(
         isRoomCreator(room, userId) &&
         roomVersionHasImmutableCreators(room.getVersion())
     ) {
-        throw new Error(
-            "Room creators' power level cannot be set in v12 rooms",
-        );
+        throw new Error(t("client.roomCreatorsPowerLevelCannotBe"));
     }
     const pl = getRoomPowerLevels(room);
     await setRoomPowerLevels(room, { users: { ...pl.users, [userId]: level } });
@@ -6829,7 +6828,7 @@ export async function kickUser(
     userId: string,
     reason?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.kick(roomId, userId, reason);
 }
 
@@ -6838,12 +6837,12 @@ export async function banUser(
     userId: string,
     reason?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.ban(roomId, userId, reason);
 }
 
 export async function unbanUser(roomId: string, userId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.unban(roomId, userId);
 }
 
@@ -6872,7 +6871,7 @@ export function getIgnoredUsers(): string[] {
 
 /** Replaces the account's entire ignore list (m.ignored_user_list). */
 export async function setIgnoredUsers(userIds: string[]): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setIgnoredUsers(userIds);
 }
 
@@ -6881,7 +6880,7 @@ export function isUserIgnored(userId: string): boolean {
 }
 
 export async function setRoomName(roomId: string, name: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setRoomName(roomId, name);
 }
 
@@ -6889,7 +6888,7 @@ export async function setRoomTopic(
     roomId: string,
     topic: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setRoomTopic(roomId, topic);
 }
 
@@ -6897,7 +6896,7 @@ export async function setRoomAvatar(
     roomId: string,
     mxcUrl: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(roomId, "m.room.avatar", {
         url: mxcUrl,
     });
@@ -6912,7 +6911,7 @@ export function getJoinRule(room: Room): string {
 }
 
 export async function setJoinRule(roomId: string, rule: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(roomId, "m.room.join_rules", {
         join_rule: rule,
     });
@@ -6923,10 +6922,10 @@ export async function setRestrictedJoinRule(
     roomId: string,
     parentSpaceIds: string[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const content = buildRestrictedJoinRuleContent(parentSpaceIds);
     if (content.allow.length === 0) {
-        throw new Error("Restricted join requires at least one parent space");
+        throw new Error(t("client.restrictedJoinRequiresAtLeastOne"));
     }
     await (matrixClient as any).sendStateEvent(
         roomId,
@@ -6947,7 +6946,7 @@ export async function setHistoryVisibility(
     roomId: string,
     visibility: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(
         roomId,
         "m.room.history_visibility",
@@ -6959,7 +6958,7 @@ export async function setHistoryVisibility(
 export async function getRoomDirectoryVisibility(
     roomId: string,
 ): Promise<"public" | "private"> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.getRoomDirectoryVisibility(roomId);
     return (res as { visibility?: string })?.visibility === "public"
         ? "public"
@@ -6971,7 +6970,7 @@ export async function setRoomDirectoryVisibility(
     roomId: string,
     visibility: "public" | "private",
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).setRoomDirectoryVisibility(roomId, visibility);
 }
 
@@ -6989,7 +6988,7 @@ export async function setGuestAccess(
     roomId: string,
     access: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(roomId, "m.room.guest_access", {
         guest_access: access,
     });
@@ -6997,7 +6996,7 @@ export async function setGuestAccess(
 
 /** Local aliases this homeserver holds for the room. */
 export async function getLocalRoomAliases(roomId: string): Promise<string[]> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const res = await matrixClient.getLocalAliases(roomId);
     return res?.aliases ?? [];
 }
@@ -7007,13 +7006,13 @@ export async function createRoomAlias(
     alias: string,
     roomId: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.createAlias(alias, roomId);
 }
 
 /** Remove a local `#alias:server` from this server's directory. */
 export async function deleteRoomAlias(alias: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.deleteAlias(alias);
 }
 
@@ -7043,7 +7042,7 @@ export async function setCanonicalAliasContent(
     roomId: string,
     content: CanonicalAliasContent,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(
         roomId,
         "m.room.canonical_alias",
@@ -7103,16 +7102,14 @@ export async function setSpaceChildOrder(
     order: string,
     via: string[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // An m.space.child `order` must be ≤50 printable-ASCII chars (\x20–\x7E).
     // Generated fractional-index keys always satisfy this; a raw, user-typed
     // value may not — reject it rather than write a spec-invalid order the
     // homeserver would sort inconsistently. (An empty string is valid: it
     // clears the order below.)
     if (!isValidChildOrder(order)) {
-        throw new Error(
-            "Order must be at most 50 printable-ASCII characters (space to ~)",
-        );
+        throw new Error(t("client.orderMustBeAtMost50"));
     }
     const existing =
         matrixClient
@@ -7207,7 +7204,7 @@ export async function setSpaceChildSuggested(
     childRoomId: string,
     suggested: boolean,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const existing =
         matrixClient
             .getRoom(spaceId)
@@ -7217,7 +7214,7 @@ export async function setSpaceChildSuggested(
             ?.getContent() ?? {};
     const via = (existing as { via?: unknown }).via;
     if (!(via as { length?: number } | undefined)?.length) {
-        throw new Error("Cannot set suggested on a space child with no via");
+        throw new Error(t("client.cannotSetSuggestedOnASpace"));
     }
     const next: Record<string, unknown> = { ...existing };
     if (suggested) next.suggested = true;
@@ -7234,7 +7231,7 @@ export async function removeSpaceChild(
     spaceId: string,
     childRoomId: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await (matrixClient as any).sendStateEvent(
         spaceId,
         "m.space.child",
@@ -7250,7 +7247,7 @@ export async function sendSticker(
     sticker: CustomSticker,
     thread?: { rootEventId: string },
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not connected");
+    if (!matrixClient) throw new Error(t("client.notConnected"));
     const content: Record<string, unknown> = {
         body: sticker.body || sticker.shortcode,
         url: sticker.mxcUrl,
@@ -7548,11 +7545,11 @@ export async function sendPollResponse(
     pollStartEvent: MatrixEvent,
     answerIds: string[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const pollStartId = pollStartEvent.getId();
-    if (!pollStartId) throw new Error("Poll has no event id");
+    if (!pollStartId) throw new Error(t("client.pollHasNoEventId"));
     const poll = parsePollStart(pollStartEvent.getContent());
-    if (!poll) throw new Error("Unsupported poll");
+    if (!poll) throw new Error(t("client.unsupportedPoll"));
     const allowed = new Set(poll.answers.map((answer) => answer.id));
     const selected = [...new Set(answerIds)]
         .filter((id) => allowed.has(id))
@@ -7569,7 +7566,7 @@ export async function sendPollStart(
     roomId: string,
     data: PollStartData,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const { eventType, content } = buildPollStart(data);
     await matrixClient.sendEvent(roomId, eventType as never, content as never);
 }
@@ -7578,9 +7575,9 @@ export async function sendPollEnd(
     roomId: string,
     pollStartEvent: MatrixEvent,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const pollStartId = pollStartEvent.getId();
-    if (!pollStartId) throw new Error("Poll has no event id");
+    if (!pollStartId) throw new Error(t("client.pollHasNoEventId"));
     // Defence in depth — the server also enforces via the redact PL.
     const room = matrixClient.getRoom(roomId);
     const me = matrixClient.getUserId() ?? "";
@@ -7594,7 +7591,7 @@ export async function sendPollEnd(
                 getRoomPowerLevels(room).redact,
             )
         )
-            throw new Error("You can't close this poll");
+            throw new Error(t("client.youCanTCloseThisPoll"));
     }
     const { eventType, content } = buildPollEnd(pollStartId);
     await matrixClient.sendEvent(roomId, eventType as never, content as never);
@@ -7700,7 +7697,7 @@ export async function sendReply(
     formattedText?: string,
     mentions?: { user_ids?: string[]; room?: boolean },
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
 
     const content = buildReplyContent({
         replyEventId: replyToEvent.getId()!,
@@ -7775,7 +7772,7 @@ export async function setOwnPresence(
     presence: PresenceState,
     statusMsg?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setSyncPresence(SYNC_PRESENCE[presence]);
     // `undefined` omits status_msg; "" sends it explicitly, which is how a
     // cleared message is told apart from one we have no opinion about.
@@ -7943,7 +7940,7 @@ export async function sendCallNotify(
     roomId: string,
     calleeUserIds: string[],
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     if (calleeUserIds.length === 0) return;
     const content = buildCallNotifyContent({ calleeUserIds });
     await matrixClient.sendEvent(
@@ -8155,8 +8152,8 @@ let audioInputGoneNotified: ActiveVoiceCall | null = null;
 let videoInputGoneNotified: ActiveVoiceCall | null = null;
 
 const VOICE_DEVICE_NOTICE: Record<VoiceInputKind, string> = {
-    audioinput: "Microphone disconnected - switched to the default device",
-    videoinput: "Camera disconnected",
+    audioinput: t("client.microphoneDisconnectedSwitchedToTheDefault"),
+    videoinput: t("client.cameraDisconnected"),
 };
 
 /** The camera's REAL capture device, read off the live publication rather than
@@ -8392,9 +8389,9 @@ async function configuredRtcFoci(): Promise<unknown[]> {
  * promise.
  */
 export async function joinVoiceCall(roomId: string): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
-    if (!room) throw new Error("Unknown room");
+    if (!room) throw new Error(t("client.unknownRoom"));
     const seq = ++voiceJoinSeq;
     // Start the chunk fetch now so it overlaps leaveVoiceCallInternal(), the
     // mic permission prompt and configuredRtcFoci(); it is awaited just
@@ -8452,10 +8449,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         console.error("Voice call membership failed:", err);
         const detail = matrixErrorMessage(
             err,
-            "the server rejected it - you may lack permission to join calls in this room",
+            t("client.theServerRejectedItYouMay"),
         );
         for (const cb of voiceErrorSubscribers)
-            cb(`Call membership failed: ${detail}`);
+            cb(t("client.callMembershipFailed", { detail }));
         void leaveVoiceCall();
     };
     const onMyMembership = (room: Room, membership: string) => {
@@ -8534,7 +8531,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         if (seq !== voiceJoinSeq) return;
         if (!jwtRes.ok) {
             throw new Error(
-                `Voice server rejected the join (${jwtRes.status})`,
+                t("client.voiceServerRejectedTheJoin", {
+                    status: jwtRes.status,
+                }),
             );
         }
         const { url, jwt } = (await jwtRes.json()) as {
@@ -8651,7 +8650,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // exactly once, so only act here when we were connected.
             if (connected && activeVoice?.lkRoom === lkRoom) {
                 for (const cb of voiceErrorSubscribers)
-                    cb("Voice call disconnected");
+                    cb(t("client.voiceCallDisconnected"));
                 void leaveVoiceCall();
             }
         });
@@ -8663,9 +8662,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(lk.RoomEvent.LocalAudioSilenceDetected, () => {
             if (activeVoice !== call || silenceNotified) return;
             silenceNotified = true;
-            notifyVoiceNotice(
-                "Your microphone appears silent - check your input device",
-            );
+            notifyVoiceNotice(t("client.yourMicrophoneAppearsSilentCheckYour"));
         });
         lkRoom.on(lk.RoomEvent.MediaDevicesError, (e: Error) => {
             if (activeVoice !== call) return;
@@ -8676,7 +8673,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // error", and a denied camera permission double-toasts alongside
             // setCameraEnabled's own (accurate) message.
             if (isUserCancel(e)) return;
-            notifyVoiceNotice(`Audio device error: ${e.message}`);
+            notifyVoiceNotice(
+                t("client.audioDeviceError", { message: e.message }),
+            );
         });
 
         await lkRoom.connect(url, jwt);
@@ -8848,9 +8847,7 @@ async function switchInputWithRecovery(
     ) {
         persist(previousId);
         if (activeVoice === call)
-            notifyVoiceNotice(
-                `Couldn't switch to that ${what} - kept your previous one`,
-            );
+            notifyVoiceNotice(t("client.couldnTSwitchToThatKept", { what }));
         return;
     }
     const onDefault = await trySwitch("default", false);
@@ -8858,8 +8855,8 @@ async function switchInputWithRecovery(
     if (activeVoice !== call) return;
     notifyVoiceNotice(
         onDefault
-            ? `Couldn't switch to that ${what} - using the default device`
-            : `Couldn't switch to that ${what} - pick another device`,
+            ? t("client.couldnTSwitchToThatUsing", { what })
+            : t("client.couldnTSwitchToThatPick", { what }),
     );
 }
 
@@ -8880,7 +8877,7 @@ export async function setVoiceInputDevice(
         "audioinput",
         deviceId ?? "default",
         !!deviceId,
-        "microphone",
+        t("client.deviceNounMicrophone"),
     );
 }
 
@@ -8931,7 +8928,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         // Left the call while the picker was open: LiveKit already dropped
         // the late track, and a failure toast for an ended call is noise.
         if (activeVoice !== call) return false;
-        notifyVoiceNotice("Could not start screen share");
+        notifyVoiceNotice(t("client.couldNotStartScreenShare"));
         return false;
     }
 }
@@ -8980,7 +8977,7 @@ async function applyScreenShareQualityNow(
     } catch (err) {
         console.error("Screen share quality change failed:", err);
         if (activeVoice === call) {
-            notifyVoiceNotice("Couldn't change screen share quality");
+            notifyVoiceNotice(t("client.couldnTChangeScreenShareQuality"));
         }
     }
 }
@@ -9009,7 +9006,7 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         console.error("Camera enable failed:", err);
         // Same as screen share: no toast once the call has ended.
         if (activeVoice !== call) return false;
-        notifyVoiceNotice("Could not start the camera - check permissions");
+        notifyVoiceNotice(t("client.couldNotStartTheCameraCheck"));
         return false;
     }
 }
@@ -9021,7 +9018,13 @@ export async function setVideoInputDevice(
 ): Promise<void> {
     const call = activeVoice;
     if (!call || !deviceId) return;
-    await switchInputWithRecovery(call, "videoinput", deviceId, true, "camera");
+    await switchInputWithRecovery(
+        call,
+        "videoinput",
+        deviceId,
+        true,
+        t("client.deviceNounCamera"),
+    );
 }
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a
@@ -9056,7 +9059,7 @@ export async function setVoiceCaptureConstraints(c: {
         console.error("Voice capture constraints change failed:", err);
         await track.restartTrack({ ...c, deviceId }).catch(() => {});
         if (activeVoice === call) {
-            notifyVoiceNotice("Couldn't apply audio processing change");
+            notifyVoiceNotice(t("client.couldnTApplyAudioProcessingChange"));
         }
     }
 }

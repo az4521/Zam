@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room, ISearchResults } from "matrix-js-sdk";
     import {
         searchRoomMessages,
@@ -134,7 +135,10 @@
             onClose();
         } else {
             console.error("Message search failed", e);
-            error = e instanceof Error ? e.message : "Search failed";
+            error =
+                e instanceof Error
+                    ? e.message
+                    : t("messageSearchPanel.searchFailed");
         }
     }
 
@@ -153,7 +157,7 @@
         error =
             outcome.error instanceof Error
                 ? outcome.error.message
-                : "Search failed";
+                : t("messageSearchPanel.searchFailed");
     }
 
     function metaOf(e: any): SearchEventMeta {
@@ -294,7 +298,7 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
         >
-            Search Messages
+            {t("messageSearchPanel.searchMessages")}
         </h3>
     </div>
 
@@ -309,7 +313,7 @@
             bind:this={inputEl}
             bind:value={term}
             type="text"
-            placeholder="Search - try from: or has:image"
+            placeholder={t("messageSearchPanel.searchTryFromOrHasImage")}
             class="w-full px-2 py-1.5 text-sm rounded bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted outline-none focus:ring-1 focus:ring-discord-accent"
             oninput={() => {
                 updateActiveToken();
@@ -344,7 +348,7 @@
                 {#each suggestions as s, i}
                     <button
                         type="button"
-                        class="w-full text-left px-3 py-2 text-sm transition-colors"
+                        class="w-full text-start px-3 py-2 text-sm transition-colors"
                         class:bg-discord-messageHover={i === selectedIdx}
                         onpointerdown={(e) => {
                             e.preventDefault();
@@ -379,13 +383,13 @@
             </p>
         {:else if searched === null}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                Search for messages in this room.
+                {t("messageSearchPanel.searchForMessagesInThisRoom")}
             </p>
         {:else if rows.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
                 {hasMore
-                    ? "No matches in the results loaded so far."
-                    : 'No results for "' + searched + '".'}
+                    ? t("messageSearchPanel.noMatchesInTheResultsLoaded")
+                    : t("messageSearchPanel.noResultsFor", { searched })}
             </p>
             {#if hasMore}
                 <div class="p-2">
@@ -394,13 +398,15 @@
                         disabled={loadingMore}
                         class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                     >
-                        {loadingMore ? "Loading…" : "Load more"}
+                        {loadingMore
+                            ? t("common.loading")
+                            : t("common.loadMore")}
                     </button>
                 </div>
             {/if}
         {:else}
             <p class="text-xs text-discord-textMuted px-4 mt-2">
-                {resultCount} result{resultCount === 1 ? "" : "s"}
+                {t("messageSearchPanel.resultCount", { count: resultCount })}
             </p>
             <div class="p-2 space-y-1">
                 {#each rows as event (event.getId())}
@@ -409,7 +415,7 @@
                     {@const name = getMemberName(room, sender)}
                     <button
                         onclick={() => jumpTo(event.getId()!)}
-                        class="w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
@@ -423,7 +429,7 @@
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
+                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
                                 >{compactDateTime(event.getTs())}</span
                             >
                         </div>
@@ -445,7 +451,9 @@
                         disabled={loadingMore}
                         class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
                     >
-                        {loadingMore ? "Loading…" : "Load more"}
+                        {loadingMore
+                            ? t("common.loading")
+                            : t("common.loadMore")}
                     </button>
                 {/if}
             </div>

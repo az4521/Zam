@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import { Direction, Filter, MatrixEvent } from "matrix-js-sdk";
 import type { MatrixClient } from "matrix-js-sdk";
 import { matrixClient, captureClient, ownedClientOrThrow } from "./runtime";
@@ -314,7 +315,7 @@ export function mxcToHttp(
 
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
 export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const baseUrl = matrixClient.getHomeserverUrl();
     // The access token must NEVER leave the homeserver. Refuse to attach it (or
     // even fetch) any URL that isn't on our homeserver — mirrors getContentType's
@@ -329,7 +330,10 @@ export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers });
-    if (!resp.ok) throw new Error(`Failed to fetch attachment: ${resp.status}`);
+    if (!resp.ok)
+        throw new Error(
+            t("media.failedToFetchAttachment", { status: resp.status }),
+        );
     const blob = await resp.blob();
     return URL.createObjectURL(blob);
 }
@@ -346,9 +350,10 @@ export async function fetchDecryptedAttachmentBlob(
     file: EncryptedFileInfo & { url: string },
     mimetype?: string,
 ): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const httpUrl = mxcToHttp(file.url);
-    if (!httpUrl) throw new Error("Encrypted attachment has an invalid URL");
+    if (!httpUrl)
+        throw new Error(t("media.encryptedAttachmentHasAnInvalidUrl"));
     const baseUrl = matrixClient.getHomeserverUrl();
     if (!isSameOrigin(httpUrl, baseUrl)) {
         throw new Error("Refusing to fetch a non-homeserver URL with auth");
@@ -358,7 +363,11 @@ export async function fetchDecryptedAttachmentBlob(
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers });
     if (!resp.ok) {
-        throw new Error(`Failed to fetch encrypted attachment: ${resp.status}`);
+        throw new Error(
+            t("media.failedToFetchEncryptedAttachment", {
+                status: resp.status,
+            }),
+        );
     }
     const ciphertext = await resp.arrayBuffer();
     const plaintext = await decryptAttachment(ciphertext, file);
@@ -414,7 +423,7 @@ export async function fetchRoomMediaPage(
     fromToken: string | null,
     limit = 40,
 ): Promise<RoomMediaPage> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
 
     const filter = new Filter(matrixClient.getUserId());
@@ -462,7 +471,7 @@ export async function fetchRoomMediaPage(
     return { items, nextToken, encrypted };
 }
 export async function uploadContent(file: File): Promise<string> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const { content_uri } = await matrixClient.uploadContent(file, {
         name: file.name,
     });

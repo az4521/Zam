@@ -8,6 +8,7 @@
 //
 // Desktop is unaffected: it keeps every button inline. This model only drives
 // the touch layout.
+import { t } from "$lib/i18n";
 
 /** The actions that move off the inline bar and into the overflow sheet. */
 export type MessageActionKey =
@@ -54,13 +55,24 @@ export function messageActionsMenu(
     ctx: MessageActionContext,
 ): MessageActionRow[] {
     const rows: MessageActionRow[] = [];
-    if (ctx.canEdit) rows.push({ key: "edit", label: "Edit" });
+    if (ctx.canEdit)
+        rows.push({ key: "edit", label: t("messageActionsMenu.edit") });
     if (ctx.canPin)
-        rows.push({ key: "pin", label: ctx.isPinned ? "Unpin" : "Pin" });
-    if (ctx.hasLink) rows.push({ key: "copy-link", label: "Copy link" });
-    if (ctx.canReport) rows.push({ key: "report", label: "Report" });
+        rows.push({
+            key: "pin",
+            label: ctx.isPinned
+                ? t("messageActionsMenu.unpin")
+                : t("messageActionsMenu.pin"),
+        });
+    if (ctx.hasLink)
+        rows.push({
+            key: "copy-link",
+            label: t("messageActionsMenu.copyLink"),
+        });
+    if (ctx.canReport)
+        rows.push({ key: "report", label: t("messageActionsMenu.report") });
     if (ctx.canRedact)
-        rows.push({ key: "redact", label: "Remove", danger: true });
+        rows.push({ key: "redact", label: t("common.remove"), danger: true });
     if (ctx.canDelete)
         rows.push({
             key: "delete",

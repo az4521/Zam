@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import { ExternalLink } from "lucide-svelte";
     import LocationMap from "$lib/components/ui/LocationMap.svelte";
@@ -55,7 +56,9 @@
             id: m.id,
             lat: m.lat,
             lon: m.lon,
-            label: m.isSelf ? "You" : getMemberName(room, m.owner),
+            label: m.isSelf
+                ? t("liveLocationMapView.you")
+                : getMemberName(room, m.owner),
             avatarUrl: getMemberAvatar(room, m.owner),
             isSelf: m.isSelf,
         }));
@@ -78,7 +81,7 @@
         <button
             onclick={onClose}
             class="p-2 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            title="Back"
+            title={t("liveLocationMapView.back")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path
@@ -87,12 +90,12 @@
             </svg>
         </button>
         <span class="font-semibold text-discord-textPrimary">
-            Live location
+            {t("liveLocationMapView.liveLocation")}
         </span>
         <button
             onclick={() => mapEl?.recenter()}
-            class="ml-auto p-2 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            title="Recenter"
+            class="ms-auto p-2 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            title={t("liveLocationMapView.recenter")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path
@@ -112,7 +115,7 @@
                 <p
                     class="rounded bg-discord-backgroundSecondary/90 px-4 py-2 text-sm text-discord-textMuted"
                 >
-                    Waiting for a location fix…
+                    {t("liveLocationMapView.waitingForALocationFix")}
                 </p>
             </div>
         {/if}
@@ -135,17 +138,21 @@
                         ? "font-semibold text-discord-danger"
                         : "text-discord-textPrimary"}
                 >
-                    {stopStatusLabel(ownStop) ?? "Sharing live location"} · {remainingLabel(
+                    {stopStatusLabel(ownStop) ??
+                        t("liveLocationMapView.sharingLiveLocation")} · {remainingLabel(
                         ownShare.expiresAt,
                         now,
                     )}
                 </span>
                 {#if ownShare.lastSentTs}
                     <span class="text-xs text-discord-textMuted">
-                        last updated at {timeOnly(ownShare.lastSentTs)} ({updatedAgoLabel(
-                            ownShare.lastSentTs,
-                            now,
-                        )})
+                        {t("liveLocationMapView.lastUpdatedAt", {
+                            timeOnly: timeOnly(ownShare.lastSentTs),
+                            updatedAgoLabel: updatedAgoLabel(
+                                ownShare.lastSentTs,
+                                now,
+                            ),
+                        })}
                     </span>
                 {/if}
                 <!-- Disabled only for the in-flight write, which always
@@ -155,9 +162,11 @@
                     type="button"
                     disabled={ownStop?.phase === "stopping"}
                     onclick={() => stopShare(room.roomId)}
-                    class="ml-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    class="ms-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {ownStop ? stopButtonLabel(ownStop) : "Stop sharing"}
+                    {ownStop
+                        ? stopButtonLabel(ownStop)
+                        : t("common.stopSharing")}
                 </button>
             </div>
         {/if}
@@ -176,14 +185,15 @@
                     href={mapLinkFor(s.lat, s.lon)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="ml-auto text-discord-accent hover:underline flex-shrink-0 inline-flex items-center gap-1"
-                    >OSM <ExternalLink size={14} /></a
+                    class="ms-auto text-discord-accent hover:underline flex-shrink-0 inline-flex items-center gap-1"
+                    >{t("liveLocationMapView.osm")}
+                    <ExternalLink size={14} /></a
                 >
             </div>
         {/each}
         {#if !ownShare && sharers.filter((s) => !s.isSelf).length === 0}
             <p class="text-xs text-discord-textMuted">
-                No active live shares in this room.
+                {t("liveLocationMapView.noActiveLiveSharesInThis")}
             </p>
         {/if}
     </div>

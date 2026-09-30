@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { MatrixEvent } from "matrix-js-sdk";
     import {
         getRoom,
@@ -141,15 +142,15 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
         >
-            Notifications
+            {t("common.notifications")}
         </h3>
         {#if (serverSupport === "no" || serverSupport === "error") && items.length > 0}
             <button
                 onclick={clearLocal}
                 class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
-                title="Clear all"
+                title={t("notificationsPanel.clearAll")}
             >
-                Clear all
+                {t("notificationsPanel.clearAll")}
             </button>
         {/if}
     </div>
@@ -159,9 +160,9 @@
             <button
                 type="button"
                 onclick={refresh}
-                class="w-full px-4 py-2 text-left text-xs text-discord-textMuted bg-discord-backgroundTertiary hover:text-discord-textPrimary"
+                class="w-full px-4 py-2 text-start text-xs text-discord-textMuted bg-discord-backgroundTertiary hover:text-discord-textPrimary"
             >
-                Could not refresh server notifications. Tap to retry.
+                {t("notificationsPanel.couldNotRefreshServerNotificationsTap")}
             </button>
         {/if}
         {#if loading && serverSupport === "unknown"}
@@ -172,7 +173,7 @@
             </div>
         {:else if items.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                No notifications.
+                {t("notificationsPanel.noNotifications")}
             </p>
         {:else}
             <div class="p-2 space-y-1">
@@ -192,7 +193,7 @@
                         (Enter and Space both reach the same `onclick`), and the
                         card renders only text, spans and an avatar image — no
                         nested link or control to swallow.
-                        `block w-full text-left` restores the <div>'s layout,
+                        `block w-full text-start` restores the <div>'s layout,
                         which the UA button styles would otherwise shrink-wrap
                         and centre.
 
@@ -209,11 +210,13 @@
                     <button
                         type="button"
                         onclick={() => jump(n.roomId, n.eventId)}
-                        class="block w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
+                        class="block w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-s-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
                             ? 'border-discord-warning/30 opacity-60'
                             : 'border-discord-warning/70'}"
                     >
-                        <span class="sr-only">Jump to message:</span>
+                        <span class="sr-only"
+                            >{t("notificationsPanel.jumpToMessage")}</span
+                        >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
                                 src={avatarUrl}
@@ -226,17 +229,17 @@
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
+                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
                                 >{compactDateTime(n.ts)}</span
                             >
                         </div>
                         <p class="text-xs text-discord-textMuted truncate mb-1">
-                            in #{roomName}
+                            {t("notificationsPanel.in", { roomName })}
                         </p>
                         <p
                             class="text-xs text-discord-textPrimary line-clamp-3 break-words"
                         >
-                            {n.body || "(message)"}
+                            {n.body || t("notificationsPanel.message")}
                         </p>
                     </button>
                 {/each}

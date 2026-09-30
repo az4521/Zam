@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import type { Room, RoomMember } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -96,7 +97,7 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
         >
-            Members: {members.length}
+            {t("memberList.members", { length: members.length })}
         </h3>
     </div>
 
@@ -107,14 +108,14 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Admins: {admins.length}
+                    {t("memberList.admins", { length: admins.length })}
                 </p>
                 {#each admins as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
                     <button
                         onclick={(e) =>
                             openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -125,7 +126,7 @@
                             />
                             <div
                                 title={presence?.label}
-                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
                                     'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
                             ></div>
                         </div>
@@ -136,7 +137,7 @@
                                 {memberDisplayName(member)}
                             </p>
                             <p class="text-xs text-discord-textMuted truncate">
-                                Admin
+                                {t("memberList.admin")}
                             </p>
                         </div>
                     </button>
@@ -149,14 +150,14 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Moderators: {moderators.length}
+                    {t("memberList.moderators", { length: moderators.length })}
                 </p>
                 {#each moderators as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
                     <button
                         onclick={(e) =>
                             openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -167,7 +168,7 @@
                             />
                             <div
                                 title={presence?.label}
-                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
                                     'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
                             ></div>
                         </div>
@@ -188,14 +189,14 @@
                 <p
                     class="px-4 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Members: {regularMembers.length}
+                    {t("memberList.members", { length: regularMembers.length })}
                 </p>
                 {#each regularMembers as member (member.userId)}
                     {@const presence = memberPresence.get(member.userId)}
                     <button
                         onclick={(e) =>
                             openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-left flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
                     >
                         <div class="relative flex-shrink-0">
                             <Avatar
@@ -206,7 +207,7 @@
                             />
                             <div
                                 title={presence?.label}
-                                class="absolute bottom-0 right-0 w-2.5 h-2.5 {presence?.dotClass ??
+                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
                                     'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
                             ></div>
                         </div>

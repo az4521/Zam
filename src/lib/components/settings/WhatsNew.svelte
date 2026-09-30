@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { intlLocale, t } from "$lib/i18n";
     import { onMount } from "svelte";
     import {
         APP_VERSION,
@@ -34,7 +35,9 @@
     function formatDate(iso: string): string {
         if (!iso) return "";
         const d = new Date(iso);
-        return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString();
+        return Number.isNaN(d.getTime())
+            ? ""
+            : d.toLocaleDateString(intlLocale());
     }
 </script>
 
@@ -42,14 +45,16 @@
     <p
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >
-        What's New
+        {t("whatsNew.whatSNew")}
     </p>
 
     {#if loading}
-        <p class="text-sm text-discord-textMuted">Loading release notes…</p>
+        <p class="text-sm text-discord-textMuted">
+            {t("whatsNew.loadingReleaseNotes")}
+        </p>
     {:else if failed || releases.length === 0}
         <p class="text-sm text-discord-textMuted">
-            Release notes unavailable.
+            {t("whatsNew.releaseNotesUnavailable")}
             <button
                 type="button"
                 class="underline text-discord-accent hover:text-discord-textPrimary"
@@ -58,7 +63,7 @@
                         `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
                     )}
             >
-                View on GitHub
+                {t("whatsNew.viewOnGithub")}
             </button>
         </p>
     {:else}

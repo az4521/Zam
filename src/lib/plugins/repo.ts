@@ -5,6 +5,7 @@
  * No imports except semver — kept pure for unit-testability.
  */
 
+import { t } from "$lib/i18n";
 import { isValidSemver } from "./semver";
 
 const VALID_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -32,11 +33,11 @@ export interface PluginIndexEntry {
  */
 export function normalizeRepoRef(slugOrUrl: string): RepoRef {
     if (typeof slugOrUrl !== "string") {
-        throw new Error("Repo reference must be a string");
+        throw new Error(t("repo.repoReferenceMustBeAString"));
     }
 
     if (!slugOrUrl || slugOrUrl.trim() === "") {
-        throw new Error("Repo reference cannot be empty");
+        throw new Error(t("repo.repoReferenceCannotBeEmpty"));
     }
 
     let input = slugOrUrl.trim();
@@ -79,13 +80,13 @@ export function normalizeRepoRef(slugOrUrl: string): RepoRef {
 
     // Validate branch
     if (!branch) {
-        throw new Error("Branch cannot be empty");
+        throw new Error(t("repo.branchCannotBeEmpty"));
     }
     if (/\s/.test(branch)) {
         throw new Error("Branch cannot contain whitespace");
     }
     if (branch.includes("..")) {
-        throw new Error("Branch cannot contain '..'");
+        throw new Error(t("repo.branchCannotContain"));
     }
 
     // Parse owner/repo
@@ -93,31 +94,29 @@ export function normalizeRepoRef(slugOrUrl: string): RepoRef {
 
     // Reject extra path segments (anything beyond owner/repo)
     if (parts.length > 2) {
-        throw new Error(
-            "Invalid repo reference: extra path segments (not /tree/<branch>)",
-        );
+        throw new Error(t("repo.invalidRepoReferenceExtraPathSegments"));
     }
 
     if (parts.length !== 2) {
-        throw new Error("Invalid repo reference: must be owner/repo");
+        throw new Error(t("repo.invalidRepoReferenceMustBeOwner"));
     }
 
     const [owner, repo] = parts;
 
     // Validate owner
     if (!owner || owner.trim() === "") {
-        throw new Error("Owner cannot be empty");
+        throw new Error(t("repo.ownerCannotBeEmpty"));
     }
     if (!VALID_NAME_PATTERN.test(owner)) {
-        throw new Error("Invalid owner: must match [A-Za-z0-9][A-Za-z0-9._-]*");
+        throw new Error(t("repo.invalidOwnerMustMatchAZa"));
     }
 
     // Validate repo
     if (!repo || repo.trim() === "") {
-        throw new Error("Repo cannot be empty");
+        throw new Error(t("repo.repoCannotBeEmpty"));
     }
     if (!VALID_NAME_PATTERN.test(repo)) {
-        throw new Error("Invalid repo: must match [A-Za-z0-9][A-Za-z0-9._-]*");
+        throw new Error(t("repo.invalidRepoMustMatchAZa"));
     }
 
     return { owner, repo, branch };

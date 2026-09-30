@@ -1,10 +1,11 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import QRCode from "qrcode";
     import { qrModulePath, qrViewBoxSize } from "$lib/utils/qrCode";
 
     let {
         bytes,
-        label = "QR code for device verification",
+        label = t("qrCodeImage.qrCodeForDeviceVerification"),
     }: { bytes: Uint8ClampedArray; label?: string } = $props();
 
     // `QRCode.create` is synchronous, so this stays a plain $derived. Error
@@ -47,6 +48,6 @@
     </svg>
 {:else}
     <p class="text-xs text-discord-danger" role="alert">
-        Could not render the verification code.
+        {t("qrCodeImage.couldNotRenderTheVerificationCode")}
     </p>
 {/if}

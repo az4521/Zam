@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         addUserEmoji,
         addUserEmote,
@@ -40,7 +41,11 @@
     let asSticker = $state(false);
 
     const singular = $derived(
-        kind === "emotes" ? "Image" : kind === "emojis" ? "Emoji" : "Sticker",
+        kind === "emotes"
+            ? t("customPackSettings.image")
+            : kind === "emojis"
+              ? t("common.emoji")
+              : t("customPackSettings.sticker"),
     );
 
     function sort(values: PackItem[]): PackItem[] {
@@ -73,7 +78,7 @@
         error = validateEmojiShortcode(shortcode) ?? "";
         const selectedUsage = usage(asEmoji, asSticker);
         if (kind === "emotes" && selectedUsage.length === 0) {
-            error = "Choose at least one usage.";
+            error = t("customPackSettings.chooseAtLeastOneUsage");
         }
         if (error) {
             input.value = "";
@@ -104,7 +109,9 @@
             shortcode = "";
             roomsState.roomsTick++;
         } catch (uploadError) {
-            error = (uploadError as Error)?.message ?? "Upload failed";
+            error =
+                (uploadError as Error)?.message ??
+                t("customPackSettings.uploadFailed");
         } finally {
             uploading = false;
             input.value = "";
@@ -125,7 +132,7 @@
         } catch (removeError) {
             error =
                 (removeError as Error)?.message ??
-                `Failed to remove ${singular}`;
+                t("customPackSettings.failedToRemove", { singular });
         } finally {
             pending = null;
         }
@@ -141,7 +148,7 @@
             changed === "sticker" ? enabled : !!item.canSticker,
         );
         if (next.length === 0) {
-            error = "Choose at least one usage.";
+            error = t("customPackSettings.chooseAtLeastOneUsage");
             return;
         }
         pending = `${item.shortcode}:${changed}`;
@@ -159,7 +166,9 @@
             );
             roomsState.roomsTick++;
         } catch (usageError) {
-            error = (usageError as Error)?.message ?? "Failed to update usage";
+            error =
+                (usageError as Error)?.message ??
+                t("customPackSettings.failedToUpdateUsage");
         } finally {
             pending = null;
         }
@@ -177,7 +186,7 @@
             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             for={`user-${kind}-shortcode`}
         >
-            Add {singular}
+            {t("customPackSettings.add", { singular })}
         </label>
         <div
             class="grid gap-2 {kind === 'emotes'
@@ -187,15 +196,15 @@
             <div
                 class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
             >
-                <span class="pl-3 text-sm text-discord-textMuted">:</span>
+                <span class="ps-3 text-sm text-discord-textMuted">:</span>
                 <input
                     id={`user-${kind}-shortcode`}
                     bind:value={shortcode}
                     disabled={uploading}
-                    placeholder="shortcode"
+                    placeholder={t("customPackSettings.shortcode")}
                     class="min-w-0 flex-1 bg-transparent text-discord-textPrimary text-sm py-2 outline-none"
                 />
-                <span class="pr-3 text-sm text-discord-textMuted">:</span>
+                <span class="pe-3 text-sm text-discord-textMuted">:</span>
             </div>
             {#if kind === "emotes"}
                 <div
@@ -207,7 +216,8 @@
                             type="checkbox"
                             bind:checked={asEmoji}
                             disabled={uploading}
-                        /> Emoji</label
+                        />
+                        {t("common.emoji")}</label
                     >
                     <label
                         class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
@@ -215,7 +225,8 @@
                             type="checkbox"
                             bind:checked={asSticker}
                             disabled={uploading}
-                        /> Sticker</label
+                        />
+                        {t("customPackSettings.sticker")}</label
                     >
                 </div>
             {/if}
@@ -224,7 +235,7 @@
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
-                {uploading ? "Uploading…" : "Upload Image"}
+                {uploading ? t("common.uploading") : t("common.uploadImage")}
                 <input
                     type="file"
                     accept="image/*"
@@ -275,7 +286,8 @@
                                         .checked,
                                 )}
                             disabled={pending === `${item.shortcode}:emoticon`}
-                        /> Emoji</label
+                        />
+                        {t("common.emoji")}</label
                     >
                     <label
                         class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
@@ -290,14 +302,17 @@
                                         .checked,
                                 )}
                             disabled={pending === `${item.shortcode}:sticker`}
-                        /> Sticker</label
+                        />
+                        {t("customPackSettings.sticker")}</label
                     >
                 {/if}
                 <button
                     onclick={() => remove(item)}
                     disabled={pending === `${item.shortcode}:remove`}
                     class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
-                    title={`Remove ${singular.toLowerCase()}`}
+                    title={t("customPackSettings.remove", {
+                        toLowerCase: singular.toLowerCase(),
+                    })}
                 >
                     <X size={14} aria-hidden="true" />
                 </button>
@@ -305,7 +320,11 @@
         {/each}
         {#if items.length === 0}
             <p class="text-sm text-discord-textMuted text-center py-4">
-                No custom {kind === "emotes" ? "images" : kind}
+                {kind === "emotes"
+                    ? t("customPackSettings.noCustomImages")
+                    : kind === "emojis"
+                      ? t("customPackSettings.noCustomEmojis")
+                      : t("customPackSettings.noCustomStickers")}
             </p>
         {/if}
     </div>

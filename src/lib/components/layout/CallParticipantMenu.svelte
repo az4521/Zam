@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
@@ -282,7 +283,7 @@
         if (followUp.status === "none" || followUp.status === "ok") return;
         const task = followUp.task;
         showErrorToast(followUp.message, {
-            label: "Retry",
+            label: t("common.retry"),
             // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
             // back as its own "unconfirmed" toast instead of hanging forever
             // with the affordance already expired.
@@ -323,7 +324,7 @@
             }
             setActiveRoom(roomId);
         },
-        "Could not open a direct message",
+        t("callParticipantMenu.couldNotOpenADirectMessage"),
     );
     const onToggleBlock = act(
         "block",
@@ -340,7 +341,7 @@
         await act(
             "kick",
             () => kickUser(room.roomId, userId),
-            () => `Could not kick ${name}`,
+            () => t("callParticipantMenu.couldNotKick", { name }),
         )();
     }
     async function onBan() {
@@ -351,7 +352,7 @@
         await act(
             "ban",
             () => banUser(room.roomId, userId),
-            () => `Could not ban ${name}`,
+            () => t("callParticipantMenu.couldNotBan", { name }),
         )();
     }
     const onMention = () => {
@@ -370,8 +371,8 @@
 {#snippet menuItems()}
     <button
         onclick={onProfile}
-        class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
-        >Profile</button
+        class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+        >{t("callParticipantMenu.profile")}</button
     >
     {#if isSelf}
         <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -383,17 +384,17 @@
             onkeydown={(e) => handleParentKeydown(e, "input")}
             aria-expanded={openSection === "input"}
             data-submenu-parent="input"
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
             <ChevronRight
                 size={14}
                 class="transition-transform flex-shrink-0 {openSection ===
                 'input'
                     ? 'rotate-90'
-                    : ''}"
+                    : 'mirror:-scale-x-100'}"
             />
-            <span class="flex-shrink-0">Input</span>
-            <span class="text-xs text-discord-textMuted truncate ml-auto">
+            <span class="flex-shrink-0">{t("callParticipantMenu.input")}</span>
+            <span class="text-xs text-discord-textMuted truncate ms-auto">
                 {activeDeviceLabel(mics, settingsState.audioInputDeviceId)}
             </span>
         </button>
@@ -403,7 +404,7 @@
                 onkeydown={(e) => handleDeviceKeydown(e, "input")}
                 aria-pressed={!settingsState.audioInputDeviceId}
                 data-submenu-device="input"
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
             >
                 <span class="w-3 flex items-center justify-center">
                     {#if !settingsState.audioInputDeviceId}<Circle
@@ -411,7 +412,7 @@
                             fill="currentColor"
                         />{/if}
                 </span>
-                Default
+                {t("common.default")}
             </button>
             {#each mics as m (m.id)}
                 <button
@@ -419,7 +420,7 @@
                     onkeydown={(e) => handleDeviceKeydown(e, "input")}
                     aria-pressed={settingsState.audioInputDeviceId === m.id}
                     data-submenu-device="input"
-                    class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                    class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if settingsState.audioInputDeviceId === m.id}<Circle
@@ -441,17 +442,17 @@
             onkeydown={(e) => handleParentKeydown(e, "output")}
             aria-expanded={openSection === "output"}
             data-submenu-parent="output"
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
             <ChevronRight
                 size={14}
                 class="transition-transform flex-shrink-0 {openSection ===
                 'output'
                     ? 'rotate-90'
-                    : ''}"
+                    : 'mirror:-scale-x-100'}"
             />
-            <span class="flex-shrink-0">Output</span>
-            <span class="text-xs text-discord-textMuted truncate ml-auto">
+            <span class="flex-shrink-0">{t("callParticipantMenu.output")}</span>
+            <span class="text-xs text-discord-textMuted truncate ms-auto">
                 {activeDeviceLabel(speakers, settingsState.audioOutputDeviceId)}
             </span>
         </button>
@@ -461,7 +462,7 @@
                 onkeydown={(e) => handleDeviceKeydown(e, "output")}
                 aria-pressed={!settingsState.audioOutputDeviceId}
                 data-submenu-device="output"
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
             >
                 <span class="w-3 flex items-center justify-center">
                     {#if !settingsState.audioOutputDeviceId}<Circle
@@ -469,7 +470,7 @@
                             fill="currentColor"
                         />{/if}
                 </span>
-                Default
+                {t("common.default")}
             </button>
             {#each speakers as s (s.id)}
                 <button
@@ -477,7 +478,7 @@
                     onkeydown={(e) => handleDeviceKeydown(e, "output")}
                     aria-pressed={settingsState.audioOutputDeviceId === s.id}
                     data-submenu-device="output"
-                    class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 pl-6"
+                    class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if settingsState.audioOutputDeviceId === s.id}<Circle
@@ -494,13 +495,15 @@
         <button
             onclick={onMessage}
             disabled={pending !== null}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors disabled:opacity-50"
-            >{pending === "message" ? "Opening…" : "Message"}</button
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors disabled:opacity-50"
+            >{pending === "message"
+                ? t("callParticipantMenu.opening")
+                : t("callParticipantMenu.message")}</button
         >
         <button
             onclick={onMention}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
-            >Mention</button
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+            >{t("callParticipantMenu.mention")}</button
         >
 
         <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -511,7 +514,7 @@
                     for="user-volume-{userId}"
                     class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
                 >
-                    User Volume
+                    {t("callParticipantMenu.userVolume")}
                 </label>
                 <span
                     class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
@@ -534,17 +537,17 @@
         <button
             onclick={() => setUserLocalMute(userId, !audio.muted)}
             aria-pressed={audio.muted}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
             <span class="w-3 flex items-center justify-center">
                 {#if audio.muted}<Circle size={8} fill="currentColor" />{/if}
             </span>
-            Mute
+            {t("common.mute")}
         </button>
         <button
             onclick={() => setUserVideoHidden(userId, !audio.videoHidden)}
             aria-pressed={audio.videoHidden}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
         >
             <span class="w-3 flex items-center justify-center">
                 {#if audio.videoHidden}<Circle
@@ -552,7 +555,7 @@
                         fill="currentColor"
                     />{/if}
             </span>
-            Hide video
+            {t("callParticipantMenu.hideVideo")}
         </button>
 
         <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -560,12 +563,12 @@
         <button
             onclick={onToggleBlock}
             disabled={pending !== null}
-            class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors disabled:opacity-50"
+            class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors disabled:opacity-50"
             >{pending === "block"
-                ? "Saving…"
+                ? t("common.saving")
                 : blocked
-                  ? "Unblock"
-                  : "Block"}</button
+                  ? t("common.unblock")
+                  : t("common.block")}</button
         >
 
         {#if gates.canKick || gates.canBan}
@@ -575,24 +578,24 @@
             <button
                 onclick={onKick}
                 disabled={pending !== null}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
                 >{pending === "kick"
-                    ? "Kicking…"
+                    ? t("callParticipantMenu.kicking")
                     : confirming === "kick"
-                      ? `Confirm kick ${name}?`
-                      : `Kick ${name} from room`}</button
+                      ? t("callParticipantMenu.confirmKick", { name })
+                      : t("callParticipantMenu.kickFromRoom", { name })}</button
             >
         {/if}
         {#if gates.canBan}
             <button
                 onclick={onBan}
                 disabled={pending !== null}
-                class="w-full text-left px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
                 >{pending === "ban"
-                    ? "Banning…"
+                    ? t("callParticipantMenu.banning")
                     : confirming === "ban"
-                      ? `Confirm ban ${name}?`
-                      : `Ban ${name}`}</button
+                      ? t("callParticipantMenu.confirmBan", { name })
+                      : t("callParticipantMenu.ban", { name })}</button
             >
         {/if}
     {/if}
@@ -602,7 +605,7 @@
     {#if touch}
         <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("common.closeMenu")}
             class="fixed inset-0 z-50 bg-black/40"
             onclick={onClose}
         ></button>

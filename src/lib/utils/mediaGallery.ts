@@ -10,6 +10,7 @@
  * yields no neighbours rather than throwing, so a stale index can never crash
  * the pager.
  */
+import { t } from "$lib/i18n";
 export interface GalleryNav {
     prevIndex: number | null;
     nextIndex: number | null;
@@ -38,5 +39,9 @@ export function galleryPositionLabel(
     more = false,
 ): string | null {
     if (length < 2 || current < 0 || current >= length) return null;
-    return `${current + 1} of ${length}${more ? "+" : ""}`;
+    return t("mediaGallery.of", {
+        value: current + 1,
+        length,
+        value2: more ? "+" : "",
+    });
 }

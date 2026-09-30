@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     interface Props {
         src: string;
         alt?: string;
@@ -57,7 +58,14 @@
 
     const isVideo = $derived(kind === "video");
     const mediaNoun = $derived(isVideo ? "video" : "image");
-    const MediaNoun = $derived(isVideo ? "Video" : "Image");
+    const MediaNoun = $derived(
+        isVideo ? t("lightbox.video") : t("lightbox.image"),
+    );
+    // `mediaNoun` above is also compared against file names, so it stays
+    // English; this is the word shown to people.
+    const mediaNounLabel = $derived(
+        isVideo ? t("lightbox.videoNoun") : t("lightbox.imageNoun"),
+    );
 
     // Reactively tracks favourite state (reads favouritesState.gifs $state).
     const favourited = $derived(
@@ -443,7 +451,7 @@
     <!-- Backdrop: clicking outside the media closes the viewer. -->
     <button
         type="button"
-        aria-label="Close {mediaNoun} viewer"
+        aria-label={t("lightbox.closeViewer", { mediaNoun: mediaNounLabel })}
         in:fade={{ duration: motionOK() ? 150 : 0 }}
         class="absolute inset-0 bg-black/80"
         onclick={onClose}
@@ -456,7 +464,10 @@
         class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
         role="dialog"
         aria-modal="true"
-        aria-label="{MediaNoun} viewer{position ? `, ${position}` : ''}"
+        aria-label={t("lightbox.viewer", {
+            MediaNoun,
+            value: position ? `, ${position}` : "",
+        })}
         in:scaleTransition={{
             start: 0.97,
             opacity: 0,
@@ -469,7 +480,7 @@
              its size and the name truncates. -->
         {#if position || shownName}
             <div
-                class="absolute top-3 left-3 z-10 flex items-center gap-2 max-w-[calc(100%-10rem)]"
+                class="absolute top-3 start-3 z-10 flex items-center gap-2 max-w-[calc(100%-10rem)]"
             >
                 {#if position}
                     <!-- aria-hidden: the live region below carries the same
@@ -500,17 +511,17 @@
         </p>
         <!-- Top-right action buttons -->
         <div
-            class="absolute top-3 right-3 z-10 flex items-center gap-2 pointer-events-auto"
+            class="absolute top-3 end-3 z-10 flex items-center gap-2 pointer-events-auto"
         >
             {#if favourite}
                 <button
                     onclick={toggleFavourite}
                     title={favourited
-                        ? "Remove from favourites"
-                        : "Add to favourites"}
+                        ? t("common.removeFromFavourites")
+                        : t("common.addToFavourites")}
                     aria-label={favourited
-                        ? "Remove from favourites"
-                        : "Add to favourites"}
+                        ? t("common.removeFromFavourites")
+                        : t("common.addToFavourites")}
                     class="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
                 >
                     {#if favourited}
@@ -542,8 +553,8 @@
             {/if}
             <button
                 onclick={download}
-                title="Download"
-                aria-label="Download"
+                title={t("lightbox.download")}
+                aria-label={t("lightbox.download")}
                 class="p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
             >
                 <svg
@@ -565,9 +576,11 @@
         {#if onPrev}
             <button
                 onclick={onPrev}
-                title="Previous"
-                aria-label="Previous {mediaNoun}"
-                class="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+                title={t("lightbox.previous")}
+                aria-label={t("lightbox.previous2", {
+                    mediaNoun: mediaNounLabel,
+                })}
+                class="absolute start-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
             >
                 <svg
                     class="w-5 h-5"
@@ -587,9 +600,9 @@
         {#if onNext}
             <button
                 onclick={onNext}
-                title="Next"
-                aria-label="Next {mediaNoun}"
-                class="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+                title={t("lightbox.next")}
+                aria-label={t("lightbox.next2", { mediaNoun: mediaNounLabel })}
+                class="absolute end-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
             >
                 <svg
                     class="w-5 h-5"
@@ -650,8 +663,7 @@
                         >
                             {#if videoFailed}
                                 <p class="px-4 text-sm text-white text-center">
-                                    Could not load this video. Use Download to
-                                    save it instead.
+                                    {t("lightbox.couldNotLoadThisVideoUse")}
                                 </p>
                             {:else}
                                 <div

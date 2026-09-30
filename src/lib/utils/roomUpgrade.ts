@@ -10,6 +10,7 @@
  * positive when `a` is newer, and `null` when the two are non-numeric and
  * unequal (ordering undefined across stable/unstable ids). Parses `/^(\d+)/`.
  */
+import { t } from "$lib/i18n";
 export function compareRoomVersions(a: string, b: string): number | null {
     if (a === b) return 0;
     const ma = /^(\d+)/.exec(a.trim());
@@ -81,7 +82,7 @@ export function getRoomUpgradeState(
     ) {
         return {
             available: false,
-            reason: "The server's recommended room version isn't available.",
+            reason: t("roomUpgrade.theServerSRecommendedRoomVersion"),
             recommendedVersion: input.currentVersion,
             isCurrentLatest: false,
         };
@@ -98,7 +99,9 @@ export function getRoomUpgradeState(
     if (isCurrentLatest) {
         return {
             available: false,
-            reason: `This room is on the latest version (v${recommendedVersion}).`,
+            reason: t("roomUpgrade.thisRoomIsOnTheLatest", {
+                recommendedVersion,
+            }),
             recommendedVersion,
             isCurrentLatest: true,
         };
@@ -106,7 +109,7 @@ export function getRoomUpgradeState(
     if (input.myPowerLevel < input.tombstonePowerLevel) {
         return {
             available: false,
-            reason: "You don't have permission to upgrade this room.",
+            reason: t("roomUpgrade.youDonTHavePermissionTo"),
             recommendedVersion,
             isCurrentLatest: false,
         };

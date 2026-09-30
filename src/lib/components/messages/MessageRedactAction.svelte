@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import { deleteMessage } from "$lib/matrix/client";
     import {
@@ -63,7 +64,10 @@
             if (open) closeModal();
         } catch (deleteError) {
             status = "error";
-            error = matrixErrorMessage(deleteError, "Failed to remove message");
+            error = matrixErrorMessage(
+                deleteError,
+                t("messageRedactAction.failedToRemoveMessage"),
+            );
         }
     }
 
@@ -98,8 +102,8 @@
             bind:this={buttonEl}
             onclick={() => (open ? closeModal() : show())}
             class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-            title="Remove message"
-            aria-label="Remove message"
+            title={t("messageRedactAction.removeMessage")}
+            aria-label={t("messageRedactAction.removeMessage")}
             aria-expanded={open}
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -119,10 +123,10 @@
         <div
             bind:this={dialogEl}
             class="{interfaceState.isTouchscreen
-                ? 'fixed left-2 right-2 z-50'
+                ? 'fixed start-2 end-2 z-50'
                 : below
-                  ? 'absolute top-full right-0 mt-1 z-50 w-72'
-                  : 'absolute bottom-full right-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-left"
+                  ? 'absolute top-full end-0 mt-1 z-50 w-72'
+                  : 'absolute bottom-full end-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-start"
             style={interfaceState.isTouchscreen
                 ? `bottom: ${keyboardOffset + 8}px;`
                 : ""}
@@ -130,13 +134,13 @@
             <p
                 class="text-xs font-semibold uppercase text-discord-textMuted mb-2"
             >
-                Remove this message?
+                {t("messageRedactAction.removeThisMessage")}
             </p>
             <textarea
                 bind:this={textareaEl}
                 bind:value={reason}
                 rows="2"
-                placeholder="Reason (optional)"
+                placeholder={t("common.reasonOptional")}
                 disabled={status === "sending"}
                 class="w-full resize-none rounded bg-discord-backgroundSecondary border border-discord-divider p-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:border-discord-accent"
             ></textarea>
@@ -147,13 +151,15 @@
                 <button
                     onclick={closeModal}
                     class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    >Cancel</button
+                    >{t("common.cancel")}</button
                 >
                 <button
                     onclick={submit}
                     disabled={status === "sending"}
                     class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >{status === "sending" ? "Removing…" : "Remove"}</button
+                    >{status === "sending"
+                        ? t("messageRedactAction.removing")
+                        : t("common.remove")}</button
                 >
             </div>
         </div>

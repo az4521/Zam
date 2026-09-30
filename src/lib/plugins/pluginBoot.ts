@@ -4,6 +4,7 @@
  * store; does fetch → Blob → import(blobUrl) for repo bundles; persists the
  * per-device enabled set to localStorage["zam_plugins"].
  */
+import { t } from "$lib/i18n";
 import {
     createPluginLoader,
     type LoadablePlugin,
@@ -715,13 +716,13 @@ export async function getPullSummary(): Promise<{
         if (!raw)
             return {
                 ok: false,
-                error: "No plugin sync data on your account yet.",
+                error: t("pluginBoot.noPluginSyncDataOnYour"),
             };
         const payload = parseSyncPayload(raw);
         if (!payload)
             return {
                 ok: false,
-                error: "The sync data on your account is malformed.",
+                error: t("pluginBoot.theSyncDataOnYourAccount"),
             };
         return {
             ok: true,
@@ -785,7 +786,9 @@ export async function applyUpdateCheck(
         if (!res.ok)
             markPluginError(
                 id,
-                `Auto-update failed: ${res.error ?? "unknown"}`,
+                t("pluginBoot.autoUpdateFailed", {
+                    value: res.error ?? "unknown",
+                }),
             );
     }
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import {
         EventType,
@@ -196,30 +197,32 @@
 
         <!-- Panel -->
         <div
-            class="relative ml-auto w-[600px] max-w-[90vw] bg-[#1a1a2e] text-[#e0e0e0] flex flex-col shadow-2xl pointer-events-auto overflow-hidden"
+            class="relative ms-auto w-[600px] max-w-[90vw] bg-[#1a1a2e] text-[#e0e0e0] flex flex-col shadow-2xl pointer-events-auto overflow-hidden"
         >
             <!-- Header -->
             <div
                 class="flex items-center justify-between px-3 py-2 bg-[#0d0d1a] border-b border-[#333] flex-shrink-0"
             >
                 <span class="font-mono text-xs font-bold text-yellow-400"
-                    >DEBUG PANEL</span
+                    >{t("debugPanel.debugPanel")}</span
                 >
                 <div class="flex items-center gap-2">
                     <span class="font-mono text-xs text-gray-400"
-                        >Sync: <span class="text-green-400">{syncState}</span
-                        ></span
+                        >{t("debugPanel.sync")}
+                        <span class="text-green-400">{syncState}</span></span
                     >
                     <button
                         onclick={refresh}
                         class="text-xs px-2 py-0.5 rounded bg-[#2a2a4a] hover:bg-[#3a3a5a] font-mono"
-                        >↻ refresh</button
+                        >{t("debugPanel.refresh")}</button
                     >
                     <button
                         onclick={copyReport}
                         class="text-xs px-2 py-0.5 rounded bg-[#2a4a2a] hover:bg-[#3a5a3a] font-mono"
                     >
-                        {copyDone ? "✓ copied" : "⧉ copy"}
+                        {copyDone
+                            ? t("debugPanel.copied")
+                            : t("debugPanel.copy")}
                     </button>
                     <button
                         onclick={() => (interfaceState.debugOpen = false)}
@@ -235,11 +238,13 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#1a1a0d] border-b border-[#333] text-yellow-300 font-bold"
                     >
-                        UNREAD STATE
+                        {t("debugPanel.unreadState")}
                     </div>
                     <div class="px-3 py-2 flex flex-col gap-1">
                         <div>
-                            <span class="text-gray-500">unread: </span>
+                            <span class="text-gray-500"
+                                >{t("debugPanel.unread")}
+                            </span>
                             <span
                                 class:text-red-400={unreadDebug.unreadInfo
                                     .unread}
@@ -248,7 +253,9 @@
                             >
                                 {unreadDebug.unreadInfo.unread}
                             </span>
-                            <span class="text-gray-500 ml-3">highlight: </span>
+                            <span class="text-gray-500 ms-3"
+                                >{t("debugPanel.highlight")}
+                            </span>
                             <span
                                 class:text-red-400={unreadDebug.unreadInfo
                                     .highlight}
@@ -259,44 +266,52 @@
                             </span>
                         </div>
                         <div>
-                            <span class="text-gray-500">userId: </span>
+                            <span class="text-gray-500"
+                                >{t("debugPanel.userid")}
+                            </span>
                             <span class="text-purple-300"
                                 >{unreadDebug.userId ?? "none"}</span
                             >
                         </div>
                         <div>
-                            <span class="text-gray-500">readUpToId: </span>
+                            <span class="text-gray-500"
+                                >{t("debugPanel.readuptoid")}
+                            </span>
                             <span class="text-blue-300 break-all"
                                 >{unreadDebug.readUpToId ?? "none"}</span
                             >
                         </div>
                         <div>
                             <span class="text-gray-500"
-                                >readIdx in timeline:
+                                >{t("debugPanel.readidxInTimeline")}
                             </span>
                             <span
                                 class:text-red-400={unreadDebug.readIdx === -1}
                                 class:text-green-400={unreadDebug.readIdx >= 0}
                             >
                                 {unreadDebug.readIdx === -2
-                                    ? "no receipt"
+                                    ? t("debugPanel.noReceipt")
                                     : unreadDebug.readIdx === -1
-                                      ? "-1 (not in window!)"
+                                      ? t("debugPanel.n1NotInWindow")
                                       : unreadDebug.readIdx}
                             </span>
                             <span class="text-gray-500">
-                                / {unreadDebug.totalEvents} events</span
+                                {t("debugPanel.events", {
+                                    totalEvents: unreadDebug.totalEvents,
+                                })}</span
                             >
                         </div>
                         <div>
                             <span class="text-gray-500"
-                                >last event sender:
+                                >{t("debugPanel.lastEventSender")}
                             </span>
                             <span class="text-purple-300"
                                 >{unreadDebug.lastEvent?.getSender() ??
                                     "none"}</span
                             >
-                            <span class="text-gray-500 ml-2">(me: </span>
+                            <span class="text-gray-500 ms-2"
+                                >{t("debugPanel.me")}
+                            </span>
                             <span class="text-purple-300"
                                 >{unreadDebug.userId}</span
                             >
@@ -304,7 +319,9 @@
                         </div>
                         <div>
                             <span class="text-gray-500"
-                                >notification events after read marker:
+                                >{t(
+                                    "debugPanel.notificationEventsAfterReadMarker",
+                                )}
                             </span>
                             <span
                                 class:text-red-400={unreadDebug
@@ -316,15 +333,16 @@
                             </span>
                         </div>
                         {#each unreadDebug.notifEventsAfterRead as e}
-                            <div class="pl-4 text-[11px] text-orange-300">
-                                [{formatTs(e.getTs())}] {e.getType()} from {e
-                                    .getSender()
-                                    ?.split(":")[0]} - {msgPreview(
-                                    e.getContent(),
-                                )}
+                            <div class="ps-4 text-[11px] text-orange-300">
+                                {t("debugPanel.from", {
+                                    formatTs: formatTs(e.getTs()),
+                                    getType: e.getType(),
+                                    value: e.getSender()?.split(":")[0],
+                                    msgPreview: msgPreview(e.getContent()),
+                                })}
                             </div>
                             <div
-                                class="pl-4 text-[10px] text-gray-600 break-all"
+                                class="ps-4 text-[10px] text-gray-600 break-all"
                             >
                                 {e.getId()}
                             </div>
@@ -337,7 +355,7 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#0d1a0d] border-b border-[#333] text-green-300 font-bold"
                     >
-                        PUSH RULES
+                        {t("debugPanel.pushRules")}
                     </div>
                     {#if pushRulesDebug}
                         {#each Object.entries(pushRulesDebug) as [kind, rules]}
@@ -366,19 +384,25 @@
                                             >
                                             {#if rule.default}<span
                                                     class="text-gray-600"
-                                                    >(default)</span
+                                                    >{t(
+                                                        "debugPanel.default",
+                                                    )}</span
                                                 >{/if}
                                         </div>
-                                        <div class="pl-4 text-gray-400">
-                                            actions: {JSON.stringify(
-                                                rule.actions,
-                                            )}
+                                        <div class="ps-4 text-gray-400">
+                                            {t("debugPanel.actions", {
+                                                stringify: JSON.stringify(
+                                                    rule.actions,
+                                                ),
+                                            })}
                                         </div>
                                         {#if rule.conditions}
-                                            <div class="pl-4 text-gray-600">
-                                                conditions: {JSON.stringify(
-                                                    rule.conditions,
-                                                )}
+                                            <div class="ps-4 text-gray-600">
+                                                {t("debugPanel.conditions", {
+                                                    stringify: JSON.stringify(
+                                                        rule.conditions,
+                                                    ),
+                                                })}
                                             </div>
                                         {/if}
                                     </div>
@@ -387,7 +411,7 @@
                         {/each}
                     {:else}
                         <div class="px-3 py-2 text-gray-600 italic">
-                            no push rules found
+                            {t("debugPanel.noPushRulesFound")}
                         </div>
                     {/if}
                 </section>
@@ -397,7 +421,9 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#0d1a1a] border-b border-[#333] text-cyan-300 font-bold"
                     >
-                        READ RECEIPTS ({receiptsDebug.length} events with receipts)
+                        {t("debugPanel.readReceiptsEventsWithReceipts", {
+                            length: receiptsDebug.length,
+                        })}
                     </div>
                     {#each receiptsDebug as { event, receipts }}
                         <div class="px-3 py-1 border-b border-[#1a1a1a]">
@@ -405,15 +431,15 @@
                                 <span class="text-yellow-300"
                                     >{formatTs(event.getTs())}</span
                                 >
-                                <span class="text-blue-300 ml-2"
+                                <span class="text-blue-300 ms-2"
                                     >{event.getType()}</span
                                 >
-                                <span class="text-gray-600 ml-2 break-all"
+                                <span class="text-gray-600 ms-2 break-all"
                                     >{event.getId()}</span
                                 >
                             </div>
                             {#each receipts as r}
-                                <div class="pl-4 text-[11px] flex gap-2">
+                                <div class="ps-4 text-[11px] flex gap-2">
                                     <span class="text-purple-300"
                                         >{r.userId}</span
                                     >
@@ -429,7 +455,7 @@
                     {/each}
                     {#if receiptsDebug.length === 0}
                         <div class="px-3 py-2 text-gray-600 italic">
-                            no receipts
+                            {t("debugPanel.noReceipts")}
                         </div>
                     {/if}
                 </section>
@@ -439,14 +465,14 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#1a0d1a] border-b border-[#333] text-pink-400 font-bold"
                     >
-                        URL PREVIEW INSPECTOR
+                        {t("debugPanel.urlPreviewInspector")}
                     </div>
                     <div class="px-3 py-2 flex gap-2">
                         <input
                             bind:value={previewUrl}
                             onkeydown={(e) =>
                                 e.key === "Enter" && fetchPreview()}
-                            placeholder="https://..."
+                            placeholder={t("debugPanel.https")}
                             class="flex-1 bg-[#0d0d1a] border border-[#333] rounded px-2 py-1 text-[#e0e0e0] outline-none focus:border-pink-400 text-xs"
                         />
                         <button
@@ -472,8 +498,9 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#0d1a0d] border-b border-[#333] text-green-400 font-bold"
                     >
-                        STORE MESSAGES ({filteredMessages.length}) - what the UI
-                        renders
+                        {t("debugPanel.storeMessagesWhatTheUiRenders", {
+                            length: filteredMessages.length,
+                        })}
                     </div>
                     {#each filteredMessages as e, i}
                         {@const s = eventSummary(e)}
@@ -499,24 +526,28 @@
                                     {s.status}
                                 </span>
                                 {#if s.isRedacted}<span class="text-red-400"
-                                        >REDACTED</span
+                                        >{t("debugPanel.redacted")}</span
                                     >{/if}
                                 {#if s.relType}<span class="text-orange-400"
-                                        >rel={s.relType}</span
+                                        >{t("debugPanel.rel", {
+                                            relType: s.relType,
+                                        })}</span
                                     >{/if}
                             </div>
-                            <div class="text-gray-400 pl-4 truncate">
+                            <div class="text-gray-400 ps-4 truncate">
                                 {msgPreview(s.content)}
                             </div>
                             <div
-                                class="text-gray-600 pl-4 text-[10px] truncate"
+                                class="text-gray-600 ps-4 text-[10px] truncate"
                             >
                                 {s.id}
                             </div>
                         </div>
                     {/each}
                     {#if filteredMessages.length === 0}
-                        <div class="px-3 py-2 text-gray-600 italic">empty</div>
+                        <div class="px-3 py-2 text-gray-600 italic">
+                            {t("debugPanel.empty")}
+                        </div>
                     {/if}
                 </section>
 
@@ -525,7 +556,9 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#1a0d0d] border-b border-[#333] text-red-400 font-bold"
                     >
-                        PENDING EVENTS ({pendingEvents.length})
+                        {t("debugPanel.pendingEvents", {
+                            length: pendingEvents.length,
+                        })}
                     </div>
                     {#each pendingEvents as e, i}
                         {@const s = eventSummary(e)}
@@ -546,21 +579,25 @@
                                     >{s.status}</span
                                 >
                                 {#if s.relType}<span class="text-orange-400"
-                                        >rel={s.relType}</span
+                                        >{t("debugPanel.rel", {
+                                            relType: s.relType,
+                                        })}</span
                                     >{/if}
                             </div>
-                            <div class="text-gray-400 pl-4 truncate">
+                            <div class="text-gray-400 ps-4 truncate">
                                 {msgPreview(s.content)}
                             </div>
                             <div
-                                class="text-gray-600 pl-4 text-[10px] truncate"
+                                class="text-gray-600 ps-4 text-[10px] truncate"
                             >
                                 {s.id}
                             </div>
                         </div>
                     {/each}
                     {#if pendingEvents.length === 0}
-                        <div class="px-3 py-2 text-gray-600 italic">empty</div>
+                        <div class="px-3 py-2 text-gray-600 italic">
+                            {t("debugPanel.empty")}
+                        </div>
                     {/if}
                 </section>
 
@@ -569,7 +606,9 @@
                     <div
                         class="sticky top-0 px-3 py-1 bg-[#0d0d1a] border-b border-[#333] text-blue-400 font-bold"
                     >
-                        RAW TIMELINE ({allTimelineEvents.length} events)
+                        {t("debugPanel.rawTimelineEvents", {
+                            length: allTimelineEvents.length,
+                        })}
                     </div>
                     {#each allTimelineEvents as e, i}
                         {@const s = eventSummary(e)}
@@ -597,19 +636,21 @@
                                         >{s.status}</span
                                     >{/if}
                                 {#if s.isRedacted}<span class="text-red-400"
-                                        >REDACTED</span
+                                        >{t("debugPanel.redacted")}</span
                                     >{/if}
                                 {#if s.relType}<span class="text-orange-400"
-                                        >rel={s.relType}</span
+                                        >{t("debugPanel.rel", {
+                                            relType: s.relType,
+                                        })}</span
                                     >{/if}
                             </div>
                             {#if s.type === "m.room.message" || s.type === "m.sticker"}
-                                <div class="text-gray-400 pl-4 truncate">
+                                <div class="text-gray-400 ps-4 truncate">
                                     {msgPreview(s.content)}
                                 </div>
                             {/if}
                             <div
-                                class="text-gray-600 pl-4 text-[10px] truncate"
+                                class="text-gray-600 ps-4 text-[10px] truncate"
                             >
                                 {s.id}
                             </div>

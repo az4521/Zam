@@ -357,7 +357,7 @@ describe("ModalDialog adoption — the dialogs stay dismissable", () => {
     // Marker per dialog: the colour picker has no visible heading to point at,
     // so it names itself with `label` where the other two use `labelledBy`.
     const DIALOGS: Array<[string, string]> = [
-        ["the colour picker", 'label="Folder Color"'],
+        ["the colour picker", 'label={t("spaceSidebar.folderColor")}'],
         ["the create-room dialog", 'labelledBy="space-create-room-title"'],
         ["the add-room dialog", 'labelledBy="space-add-room-title"'],
     ];

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import {
         getRoomThreads,
@@ -38,10 +39,13 @@
         ensureThreadsLoaded(room)
             .catch((err) => {
                 console.error("Failed to load room threads:", err);
-                showErrorToast("Couldn't load threads for this room.", {
-                    label: "Retry",
-                    run: () => retryTick++,
-                });
+                showErrorToast(
+                    t("threadsListPanel.couldnTLoadThreadsForThis"),
+                    {
+                        label: t("common.retry"),
+                        run: () => retryTick++,
+                    },
+                );
             })
             .finally(() => {
                 loading = false;
@@ -73,13 +77,13 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
         >
-            Threads
+            {t("threadsListPanel.threads")}
         </h3>
         <button
             onclick={onClose}
             class="text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-            title="Close"
-            aria-label="Close threads panel"
+            title={t("common.close")}
+            aria-label={t("threadsListPanel.closeThreadsPanel")}
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
                 ><path
@@ -98,7 +102,7 @@
             </div>
         {:else if items.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                No threads in this room yet.
+                {t("threadsListPanel.noThreadsInThisRoomYet")}
             </p>
         {:else}
             <div class="p-2 space-y-1">
@@ -118,7 +122,7 @@
                             onOpenThread(item.rootId);
                             onClose();
                         }}
-                        class="w-full text-left p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
@@ -134,32 +138,36 @@
                             {#if item.participated}
                                 <span
                                     role="img"
-                                    aria-label="You participated"
+                                    aria-label={t(
+                                        "threadsListPanel.youParticipated",
+                                    )}
                                     class="text-discord-accent flex-shrink-0 flex items-center"
-                                    title="You participated"
+                                    title={t(
+                                        "threadsListPanel.youParticipated",
+                                    )}
                                 >
                                     <Circle size={8} fill="currentColor" />
                                 </span>
                             {/if}
                             {#if badge === "mention"}
                                 <span
-                                    class="ml-auto flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
-                                    title="Unread mentions"
+                                    class="ms-auto flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                    title={t("threadsListPanel.unreadMentions")}
                                     >{item.unreadHighlight > 99
                                         ? "99+"
                                         : item.unreadHighlight}</span
                                 >
                             {:else if badge === "unread"}
                                 <span
-                                    class="ml-auto flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
-                                    title="Unread replies"
+                                    class="ms-auto flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                                    title={t("threadsListPanel.unreadReplies")}
                                 ></span>
                             {/if}
                             <span
                                 class="text-xs text-discord-textMuted {badge ===
                                 'none'
-                                    ? 'ml-auto'
-                                    : 'ml-2'} flex-shrink-0"
+                                    ? 'ms-auto'
+                                    : 'ms-2'} flex-shrink-0"
                                 >{pinnedDate(item.latestTs)}</span
                             >
                         </div>
@@ -172,10 +180,9 @@
                             class="flex items-center gap-1 mt-1 text-xs text-discord-textMuted"
                         >
                             <span class="text-discord-accent"
-                                >{item.replyCount}
-                                {item.replyCount === 1
-                                    ? "reply"
-                                    : "replies"}</span
+                                >{t("common.replyCount", {
+                                    count: item.replyCount,
+                                })}</span
                             >
                             <span>·</span>
                             <span class="truncate">{item.latestPreview}</span>

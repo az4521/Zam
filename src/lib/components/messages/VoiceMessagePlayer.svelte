@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onDestroy, tick } from "svelte";
     import {
         fetchAttachmentBlob,
@@ -142,7 +143,7 @@
             >
         {:else}
             <svg
-                class="w-4 h-4 text-white ml-0.5"
+                class="w-4 h-4 text-white ms-0.5"
                 fill="currentColor"
                 viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
             >
@@ -154,7 +155,7 @@
             <div
                 role="slider"
                 tabindex="0"
-                aria-label="Seek"
+                aria-label={t("voiceMessagePlayer.seek")}
                 aria-valuemin="0"
                 aria-valuemax="100"
                 aria-valuenow={Math.round(progress * 100)}
@@ -201,13 +202,13 @@
             </div>
         {:else}
             <p class="text-discord-textPrimary text-xs font-medium truncate">
-                Voice message
+                {t("voiceMessagePlayer.voiceMessage")}
             </p>
         {/if}
     </div>
 
     <span
-        class="text-discord-textMuted text-xs tabular-nums flex-shrink-0 w-9 text-right"
+        class="text-discord-textMuted text-xs tabular-nums flex-shrink-0 w-9 text-end"
     >
         {timeLabel}
     </span>

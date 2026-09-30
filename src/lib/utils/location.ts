@@ -2,6 +2,7 @@
  * Pure helpers for m.location (MSC3488) sharing + rendering. No DOM/SDK state.
  */
 
+import { t } from "$lib/i18n";
 export interface LocationInput {
     lat: number;
     lon: number;
@@ -48,7 +49,7 @@ export function buildLocationContent(
     loc: LocationInput,
 ): Record<string, unknown> {
     const geoUri = `geo:${loc.lat},${loc.lon}`;
-    const label = loc.description?.trim() || "Location";
+    const label = loc.description?.trim() || t("location.location");
     return {
         msgtype: "m.location",
         body: `${label} (${geoUri})`,

@@ -6,6 +6,7 @@
  * handed in as the plain shape `/messages` returns (see MediaSourceEvent).
  */
 
+import { t } from "$lib/i18n";
 import { formatCallDuration } from "./callDuration";
 import type { EncryptedFileInfo } from "./decryptAttachment";
 
@@ -80,10 +81,10 @@ const KIND_BY_MSGTYPE: Record<string, MediaKind> = {
 };
 
 const FALLBACK_NAME: Record<MediaKind, string> = {
-    image: "Image",
-    video: "Video",
-    file: "File",
-    audio: "Audio",
+    image: t("roomMedia.image"),
+    video: t("roomMedia.video"),
+    file: t("roomMedia.file"),
+    audio: t("roomMedia.audio"),
 };
 
 function str(value: unknown): string | null {
@@ -464,8 +465,8 @@ export function splitMediaItems(items: RoomMediaItem[]): {
 export function formatMediaSize(bytes: number | null | undefined): string {
     if (!bytes || bytes <= 0) return "";
     return bytes / 1024 < 1024
-        ? `${(bytes / 1024).toFixed(1)} KB`
-        : `${(bytes / 1048576).toFixed(1)} MB`;
+        ? t("roomMedia.kb", { toFixed: (bytes / 1024).toFixed(1) })
+        : t("roomMedia.mb", { toFixed: (bytes / 1048576).toFixed(1) });
 }
 
 /** Duration badge for a video tile, sharing the call timer's mm:ss / h:mm:ss

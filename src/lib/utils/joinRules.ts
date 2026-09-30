@@ -6,6 +6,7 @@
  */
 
 /** join_rule value for a space-restricted room (MSC3083). */
+import { t } from "$lib/i18n";
 export const RESTRICTED_JOIN_RULE = "restricted";
 
 /** allow-entry type granting join to members of a room (=== SDK RestrictedAllowType.RoomMembership). */
@@ -81,13 +82,13 @@ export function getRestrictedJoinState(
     if (input.parentSpaceIds.length === 0) {
         return {
             available: false,
-            reason: "Only available for rooms inside a space",
+            reason: t("joinRules.onlyAvailableForRoomsInsideA"),
         };
     }
     if (!roomVersionSupportsRestricted(input.roomVersion)) {
         return {
             available: false,
-            reason: "This room's version doesn't support space-restricted joining",
+            reason: t("joinRules.thisRoomSVersionDoesnT"),
         };
     }
     return { available: true, reason: "" };

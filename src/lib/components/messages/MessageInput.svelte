@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { tick, untrack } from "svelte";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import {
@@ -655,12 +656,20 @@
         const names = typingUsers
             .slice(0, 3)
             .map((id) => getMemberName(room!, id));
-        if (typingUsers.length === 1) return `${names[0]} is typing…`;
+        if (typingUsers.length === 1)
+            return t("messageInput.isTyping", { value: names[0] });
         if (typingUsers.length === 2)
-            return `${names[0]} and ${names[1]} are typing…`;
+            return t("messageInput.andAreTyping", {
+                value: names[0],
+                value2: names[1],
+            });
         if (typingUsers.length === 3)
-            return `${names[0]}, ${names[1]}, and ${names[2]} are typing…`;
-        return "Several people are typing…";
+            return t("messageInput.andAreTyping2", {
+                value: names[0],
+                value2: names[1],
+                value3: names[2],
+            });
+        return t("messageInput.severalPeopleAreTyping");
     }
 
     export function focus() {
@@ -764,12 +773,12 @@
     });
     const composerPlaceholder = $derived(
         disabled
-            ? "Select a room to start chatting"
+            ? t("messageInput.selectARoomToStartChatting")
             : isThread
-              ? "Reply in thread..."
+              ? t("messageInput.replyInThread")
               : replyToEvent
-                ? `Reply to ${replyTargetName}...`
-                : `Message #${roomName}`,
+                ? t("messageInput.replyTo", { replyTargetName })
+                : t("messageInput.message", { roomName }),
     );
 
     // Focus textarea when reply is set
@@ -1019,21 +1028,20 @@
             getOwnServerName(),
             room ? getRoomMembers(room) : [],
         );
-        if (!userId) throw new Error(`"${token}" is not a valid user`);
+        if (!userId)
+            throw new Error(t("messageInput.isNotAValidUser", { token }));
         return userId;
     }
 
     async function applyPowerLevel(token: string, level: number) {
-        if (!room) throw new Error("No room selected");
+        if (!room) throw new Error(t("messageInput.noRoomSelected"));
         const userId = resolveUserOrThrow(token);
         if (!room.getMember(userId))
-            throw new Error(`${userId} is not in this room`);
+            throw new Error(t("messageInput.isNotInThisRoom", { userId }));
         const pl = getRoomPowerLevels(room);
         const required = pl.events["m.room.power_levels"] ?? pl.state_default;
         if (getMyPowerLevel(room) < required)
-            throw new Error(
-                "You don't have permission to change power levels in this room",
-            );
+            throw new Error(t("messageInput.youDonTHavePermissionTo"));
         await setUserPowerLevel(room, userId, level);
     }
 
@@ -1080,7 +1088,9 @@
                 break;
             }
             default:
-                throw new Error(`Unhandled command: /${command.name}`);
+                throw new Error(
+                    t("messageInput.unhandledCommand", { name: command.name }),
+                );
         }
     }
 
@@ -1120,7 +1130,9 @@
                 renderComposer(0);
             } catch (err) {
                 console.error(`Plugin command /${command.name} failed:`, err);
-                showErrorToast(matrixErrorMessage(err, "Command failed"));
+                showErrorToast(
+                    matrixErrorMessage(err, t("messageInput.commandFailed")),
+                );
             } finally {
                 isSending = false;
                 textareaEl?.focus();
@@ -1141,7 +1153,9 @@
                 clearDraft(effComposerKey);
                 renderComposer(0);
             } catch (err) {
-                showErrorToast(matrixErrorMessage(err, "Command failed"));
+                showErrorToast(
+                    matrixErrorMessage(err, t("messageInput.commandFailed")),
+                );
             } finally {
                 isSending = false;
                 textareaEl?.focus();
@@ -1172,7 +1186,9 @@
             body = command.kind === "emote" ? arg : command.transform!(arg);
         } catch (err) {
             console.error(`Command /${command.name} transform threw:`, err);
-            showErrorToast(matrixErrorMessage(err, "Command failed"));
+            showErrorToast(
+                matrixErrorMessage(err, t("messageInput.commandFailed")),
+            );
             return;
         }
         const usePlain = command.kind === "text-transform" && !!command.plain;
@@ -1234,7 +1250,9 @@
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } catch (err) {
             console.error("Slash command failed:", err);
-            showErrorToast(matrixErrorMessage(err, "Failed to send"));
+            showErrorToast(
+                matrixErrorMessage(err, t("messageInput.failedToSend")),
+            );
         } finally {
             isSending = false;
             textareaEl?.focus();
@@ -1285,7 +1303,11 @@
         if (!isSending && !disabled && fileQueue.length === 0) {
             const parsed = parseSlashCommand(text, pluginSlashCommands);
             if (parsed && "unknown" in parsed) {
-                showErrorToast(`Unknown command: /${parsed.unknown}`);
+                showErrorToast(
+                    t("messageInput.unknownCommand", {
+                        unknown: parsed.unknown,
+                    }),
+                );
                 return;
             }
             if (parsed && "command" in parsed) {
@@ -1506,7 +1528,9 @@
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         } catch (err) {
             console.error("Failed to send:", err);
-            showErrorToast(matrixErrorMessage(err, "Failed to send"));
+            showErrorToast(
+                matrixErrorMessage(err, t("messageInput.failedToSend")),
+            );
             // Restore ONLY the files that were not successfully sent — an
             // already-sent file must never come back (would duplicate on the
             // next send: audit MEDIA-03). The optimistic clear revoked the
@@ -1895,7 +1919,7 @@
     <!-- Reply preview bar -->
     {#if replyToEvent}
         <div
-            class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-discord-backgroundTertiary rounded-t-lg border-l-2 border-discord-accent"
+            class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-discord-backgroundTertiary rounded-t-lg border-s-2 border-discord-accent"
         >
             <svg
                 class="w-4 h-4 text-discord-accent flex-shrink-0"
@@ -1908,16 +1932,16 @@
             </svg>
             <div class="flex-1 min-w-0 text-xs">
                 <span class="text-discord-accent font-semibold">
-                    Replying to {replyTargetName}
+                    {t("messageInput.replyingTo", { replyTargetName })}
                 </span>
-                <span class="text-discord-textMuted ml-2 truncate"
+                <span class="text-discord-textMuted ms-2 truncate"
                     >{getReplyPreview()}</span
                 >
             </div>
             <button
                 onclick={onCancelReply}
                 class="flex-shrink-0 p-0.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                title="Cancel reply (Esc)"
+                title={t("messageInput.cancelReplyEsc")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -1943,9 +1967,9 @@
         >
             <Loader2 class="w-3.5 h-3.5 animate-spin" />
             <span
-                >Sending {sendingFileCount} attachment{sendingFileCount === 1
-                    ? ""
-                    : "s"}…</span
+                >{t("messageInput.sendingAttachments", {
+                    count: sendingFileCount,
+                })}</span
             >
         </div>
     {/if}
@@ -1962,8 +1986,10 @@
                     <button
                         type="button"
                         onclick={() => openRename(item)}
-                        title="Edit attachment"
-                        aria-label="Edit attachment {item.name}"
+                        title={t("messageInput.editAttachment")}
+                        aria-label={t("messageInput.editAttachment2", {
+                            name: item.name,
+                        })}
                         class="w-20 h-20 rounded-lg bg-discord-backgroundTertiary flex items-center justify-center overflow-hidden border border-discord-divider hover:border-discord-accent transition-colors"
                     >
                         {#if item.previewUrl}
@@ -1994,8 +2020,8 @@
                     <!-- Remove button -->
                     <button
                         onclick={() => removeFromQueue(item.id)}
-                        class="absolute -top-0 -right-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
-                        title="Remove"
+                        class="absolute -top-0 -end-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
+                        title={t("common.remove")}
                     >
                         <svg
                             class="w-3 h-3"
@@ -2035,7 +2061,7 @@
                         commitEmoji(candidate);
                     }}
                     onpointerenter={() => (emojiSelectedIdx = i)}
-                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
                     class:bg-discord-messageHover={i === emojiSelectedIdx}
                 >
                     {#if candidate.kind === "unicode"}
@@ -2058,7 +2084,7 @@
                             >:{candidate.shortcode}:</span
                         >
                         <span class="text-xs text-discord-textMuted"
-                            >custom</span
+                            >{t("messageInput.custom")}</span
                         >
                     {/if}
                 </button>
@@ -2081,7 +2107,7 @@
                         suppressNextClick();
                         commitMention(member);
                     }}
-                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
                     class:bg-discord-messageHover={i === mentionSelectedIdx}
                     onpointerenter={() => (mentionSelectedIdx = i)}
                 >
@@ -2119,7 +2145,7 @@
                         commitSlashCommand(command);
                     }}
                     onpointerenter={() => (slashSelectedIdx = i)}
-                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-left transition-colors"
+                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
                     class:bg-discord-messageHover={i === slashSelectedIdx}
                 >
                     <span
@@ -2133,7 +2159,7 @@
                         >
                     {/if}
                     <span
-                        class="text-xs text-discord-textMuted truncate ml-auto"
+                        class="text-xs text-discord-textMuted truncate ms-auto"
                         >{command.description}</span
                     >
                 </button>
@@ -2146,11 +2172,14 @@
         <div
             class="flex items-center justify-between gap-2 px-3 py-1.5 bg-discord-backgroundSecondary rounded-t-lg text-xs text-discord-textMuted"
         >
-            <span>Your next message will start a <b>thread</b></span>
+            <span
+                >{t("messageInput.yourNextMessageWillStartA")}
+                <b>{t("messageInput.thread")}</b></span
+            >
             <button
                 onclick={() => (createThreadArmed = false)}
                 class="p-0.5 rounded hover:text-discord-textPrimary transition-colors"
-                title="Cancel thread creation"
+                title={t("messageInput.cancelThreadCreation")}
             >
                 <svg
                     class="w-3.5 h-3.5"
@@ -2170,7 +2199,7 @@
     {:else}
         <div
             class="input-box relative flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
-            class:rounded-tl-none={!!replyToEvent}
+            class:rounded-ss-none={!!replyToEvent}
         >
             <!-- "+" actions menu -->
             <div class="flex-shrink-0 relative">
@@ -2178,7 +2207,7 @@
                     onclick={() => openComposerActions(effComposerKey)}
                     {disabled}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Add"
+                    title={t("common.add")}
                 >
                     <Plus size={20} />
                 </button>
@@ -2188,7 +2217,7 @@
                     <div class="fixed inset-0 z-40" onclick={closeModal}></div>
                     {#if interfaceState.isTouchscreen}
                         <div
-                            class="fixed left-2 z-50"
+                            class="fixed start-2 z-50"
                             style="bottom: {keyboardOffset + 8}px;"
                         >
                             <ComposerActionsMenu
@@ -2211,7 +2240,7 @@
                             />
                         </div>
                     {:else}
-                        <div class="absolute bottom-full left-0 mb-2 z-50">
+                        <div class="absolute bottom-full start-0 mb-2 z-50">
                             <ComposerActionsMenu
                                 {roomId}
                                 onClose={closeModal}
@@ -2255,6 +2284,7 @@
                     detectSlashQuery();
                 }}
                 placeholder={composerPlaceholder}
+                dir="auto"
                 contenteditable={!disabled}
                 autocapitalize="sentences"
                 spellcheck="true"
@@ -2282,7 +2312,7 @@
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
                         : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Favourite GIFs"
+                    title={t("messageInput.favouriteGifs")}
                 >
                     <ImagePlay size={20} />
                 </button>
@@ -2295,7 +2325,7 @@
                     ></div>
                     {#if interfaceState.isTouchscreen}
                         <div
-                            class="fixed left-0 right-0 z-50"
+                            class="fixed start-0 end-0 z-50"
                             style="bottom: {keyboardOffset}px;"
                         >
                             <GifPicker
@@ -2306,7 +2336,7 @@
                             />
                         </div>
                     {:else}
-                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                        <div class="absolute bottom-full end-0 mb-2 z-50">
                             <GifPicker
                                 onSelect={insertGif}
                                 onClose={() => closePicker("gif", true)}
@@ -2331,7 +2361,7 @@
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
                         : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Stickers"
+                    title={t("common.stickers")}
                     {disabled}
                 >
                     <Sticker size={20} />
@@ -2345,7 +2375,7 @@
                     ></div>
                     {#if interfaceState.isTouchscreen}
                         <div
-                            class="fixed left-0 right-0 z-50"
+                            class="fixed start-0 end-0 z-50"
                             style="bottom: {keyboardOffset}px;"
                         >
                             <StickerPicker
@@ -2357,7 +2387,7 @@
                             />
                         </div>
                     {:else}
-                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                        <div class="absolute bottom-full end-0 mb-2 z-50">
                             <StickerPicker
                                 {roomId}
                                 onSelect={sendStickerMessage}
@@ -2375,7 +2405,7 @@
                 <button
                     onclick={() => openPicker("emoji")}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Emoji"
+                    title={t("common.emoji")}
                     {disabled}
                 >
                     <Smile size={20} />
@@ -2387,7 +2417,7 @@
                     <div class="fixed inset-0 z-40" onclick={closeModal}></div>
                     {#if interfaceState.isTouchscreen}
                         <div
-                            class="fixed left-0 right-0 z-50"
+                            class="fixed start-0 end-0 z-50"
                             style="bottom: {keyboardOffset}px;"
                         >
                             <EmojiPicker
@@ -2400,7 +2430,7 @@
                             />
                         </div>
                     {:else}
-                        <div class="absolute bottom-full right-0 mb-2 z-50">
+                        <div class="absolute bottom-full end-0 mb-2 z-50">
                             <EmojiPicker
                                 {room}
                                 onSelect={insertEmoji}
@@ -2464,7 +2494,7 @@
                 class="flex-shrink-0 p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed {canSend
                     ? 'text-discord-accent hover:text-discord-accentHover hover:bg-discord-messageHover'
                     : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                title="Send message"
+                title={t("messageInput.sendMessage")}
             >
                 {#if isSending}
                     <div
@@ -2521,7 +2551,7 @@
         display: inline-block;
         width: auto;
         height: 1.25em;
-        margin-right: 0.15rem;
+        margin-inline-end: 0.15rem;
         vertical-align: -0.25em;
         object-fit: contain;
     }

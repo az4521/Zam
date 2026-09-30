@@ -7,6 +7,7 @@
  * `pluginHost.ts` and `media.ts` read the slot through the live bindings / accessors below;
  * only the install/release helpers write it.
  */
+import { t } from "$lib/i18n";
 import type { IndexedDBStore, MatrixClient } from "matrix-js-sdk";
 import {
     captureOwnership,
@@ -38,7 +39,7 @@ export function readOwner(): {
 
 /** Snapshot the owner for an operation that spans awaits. */
 export function captureClient(): ClientOwnership<MatrixClient> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("runtime.notLoggedIn"));
     return captureOwnership(matrixClient, clientGeneration);
 }
 

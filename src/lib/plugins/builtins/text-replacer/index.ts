@@ -4,16 +4,16 @@
 // standard m.text; with no rules (or disabled) it is a pure no-op, so a recipient
 // without the plugin is unaffected. Written against the `zam` host API only — no
 // client.ts. Replacement logic is the pure, TDD'd applyReplacements engine.
+import { t } from "$lib/i18n";
 import type { Manifest } from "../../manifest";
 import type { PluginModule, Disposable } from "../../types";
 import { applyReplacements, type ReplaceRule } from "./textReplace";
 
 export const manifest: Manifest = {
     id: "zam.text-replacer",
-    name: "Text replacer",
+    name: t("textReplacer.textReplacer"),
     version: "1.0.0",
-    description:
-        "Apply your own string or regex substitutions to outgoing message text.",
+    description: t("textReplacer.applyYourOwnStringOrRegex"),
     author: "Zam",
     entry: "builtin",
     capabilities: ["messages:send"],
@@ -21,28 +21,31 @@ export const manifest: Manifest = {
         {
             key: "rules",
             type: "list",
-            label: "Replacement rules",
-            description:
-                "Applied to your outgoing message text in order. Recipients see standard text.",
+            label: t("textReplacer.replacementRules"),
+            description: t("textReplacer.appliedToYourOutgoingMessageText"),
             default: [],
             fields: [
                 {
                     key: "match",
                     type: "text",
-                    label: "Find",
-                    placeholder: "text or pattern",
+                    label: t("textReplacer.find"),
+                    placeholder: t("textReplacer.textOrPattern"),
                 },
-                { key: "replacement", type: "text", label: "Replace with" },
+                {
+                    key: "replacement",
+                    type: "text",
+                    label: t("textReplacer.replaceWith"),
+                },
                 {
                     key: "isRegex",
                     type: "toggle",
-                    label: "Regex",
+                    label: t("textReplacer.regex"),
                     default: false,
                 },
                 {
                     key: "caseInsensitive",
                     type: "toggle",
-                    label: "Ignore case",
+                    label: t("textReplacer.ignoreCase"),
                     default: false,
                 },
             ],

@@ -5,6 +5,7 @@
  * since deployed clients (Element included) still send the unstable form.
  */
 
+import { t } from "$lib/i18n";
 export const POLL_START_TYPES = [
     "org.matrix.msc3381.poll.start",
     "m.poll.start",
@@ -301,18 +302,25 @@ function nonEmptyAnswers(answers: string[]): string[] {
 export function validatePollDraft(
     draft: PollDraft,
 ): { ok: true } | { ok: false; reason: string } {
-    if (!draft.question.trim()) return { ok: false, reason: "Add a question." };
+    if (!draft.question.trim())
+        return { ok: false, reason: t("pollContent.addAQuestion") };
     const answers = nonEmptyAnswers(draft.answers);
     if (answers.length < 2)
-        return { ok: false, reason: "Add at least two options." };
+        return { ok: false, reason: t("pollContent.addAtLeastTwoOptions") };
     if (answers.length > MAX_ANSWERS)
-        return { ok: false, reason: `At most ${MAX_ANSWERS} options.` };
+        return {
+            ok: false,
+            reason: t("pollContent.atMostOptions", { MAX_ANSWERS }),
+        };
     if (
         !Number.isInteger(draft.maxSelections) ||
         draft.maxSelections < 1 ||
         draft.maxSelections > answers.length
     )
-        return { ok: false, reason: "Invalid number of selections." };
+        return {
+            ok: false,
+            reason: t("pollContent.invalidNumberOfSelections"),
+        };
     return { ok: true };
 }
 
@@ -363,7 +371,7 @@ export function buildPollStart(data: PollStartData): {
 
 export function buildPollEnd(
     pollStartId: string,
-    text = "The poll has ended.",
+    text = t("pollContent.thePollHasEnded"),
 ): { eventType: string; content: Record<string, unknown> } {
     return {
         eventType: "org.matrix.msc3381.poll.end",

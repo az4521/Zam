@@ -5,6 +5,8 @@
 // timestamp re-renders live when a format setting changes.
 
 import { format } from "date-fns";
+import { t } from "$lib/i18n";
+import { dateFnsLocale } from "$lib/i18n/dateLocale";
 import { settingsState } from "$lib/stores/settings.svelte";
 
 export type TimeClock = "12h" | "24h";
@@ -22,7 +24,10 @@ export interface TimeFormatOpts {
 // `dateStyle: "default"` preserves each surface's current look, while any other
 // style renders dates uniformly across the whole app.
 const OLDER_MSG_DATE = "yyyy/MM/dd";
-const SEPARATOR_DATE = "EEEE, MMMM d, yyyy";
+// Word-based patterns come from the catalogue: other languages order day and
+// month differently ("EEEE, d MMMM yyyy").
+const SEPARATOR_DATE = t("timeFormat.separatorDatePattern");
+const MONTH_DAY_DATE = t("timeFormat.monthDayPattern");
 
 // Normalize a persisted/hand-edited value; unknown → default. These are called
 // by the settings store while it initializes, which (via the settingsState
@@ -50,9 +55,9 @@ export function safeFormat(
     fallbackPattern: string,
 ): string {
     try {
-        return format(ts, pattern);
+        return format(ts, pattern, { locale: dateFnsLocale() });
     } catch {
-        return format(ts, fallbackPattern);
+        return format(ts, fallbackPattern, { locale: dateFnsLocale() });
     }
 }
 
@@ -66,14 +71,16 @@ export function previewDatePattern(
 ): string | null {
     if (!pattern.trim()) return null;
     try {
-        return format(now, pattern);
+        return format(now, pattern, { locale: dateFnsLocale() });
     } catch {
         return null;
     }
 }
 
 export function timePart(ts: number, opts: TimeFormatOpts): string {
-    return format(ts, opts.timeClock === "24h" ? "HH:mm" : "h:mm a");
+    return format(ts, opts.timeClock === "24h" ? "HH:mm" : "h:mm a", {
+        locale: dateFnsLocale(),
+    });
 }
 
 function stylePattern(opts: TimeFormatOpts, defaultPattern: string): string {
@@ -122,7 +129,7 @@ export function formatMessageTimestamp(
         return datePart(ts, opts, OLDER_MSG_DATE) + " " + time;
     const cat = dayCategory(ts, opts.now);
     if (cat === "today") return time;
-    if (cat === "yesterday") return "Yesterday at " + time;
+    if (cat === "yesterday") return t("timeFormat.yesterdayAt", { time });
     return datePart(ts, opts, OLDER_MSG_DATE) + " " + time;
 }
 
@@ -130,8 +137,8 @@ export function formatMessageTimestamp(
 export function formatDaySeparator(ts: number, opts: TimeFormatOpts): string {
     if (!opts.alwaysAbsolute) {
         const cat = dayCategory(ts, opts.now);
-        if (cat === "today") return "Today";
-        if (cat === "yesterday") return "Yesterday";
+        if (cat === "today") return t("timeFormat.today");
+        if (cat === "yesterday") return t("timeFormat.yesterday");
     }
     return datePart(ts, opts, SEPARATOR_DATE);
 }
@@ -141,7 +148,10 @@ export function formatCompactDateTime(
     ts: number,
     opts: TimeFormatOpts,
 ): string {
-    return datePart(ts, opts, "MMM d") + ", " + timePart(ts, opts);
+    return t("timeFormat.compactDateTime", {
+        date: datePart(ts, opts, MONTH_DAY_DATE),
+        time: timePart(ts, opts),
+    });
 }
 
 /** Date-only surfaces (pinned "MMM d", sessions "MMM d, yyyy"). */
@@ -191,7 +201,7 @@ export function compactDateTime(ts: number): string {
 }
 
 export function pinnedDate(ts: number): string {
-    return formatDateOnly(ts, currentOpts(), "MMM d");
+    return formatDateOnly(ts, currentOpts(), MONTH_DAY_DATE);
 }
 
 /** Full absolute date + time — the message hover tooltip. */

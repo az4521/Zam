@@ -10,10 +10,11 @@
  */
 
 /** Suffix used when the body is hidden or absent. */
-export const HIDDEN_BODY_SUFFIX = "sent a message";
+import { t } from "$lib/i18n";
+export const HIDDEN_BODY_SUFFIX = t("notificationPrivacy.sentAMessage");
 
 /** Last-resort text when there is neither a sender name nor a usable body. */
-export const GENERIC_NOTIFICATION_BODY = "New message";
+export const GENERIC_NOTIFICATION_BODY = t("notificationPrivacy.newMessage");
 
 export interface NotificationBodyOptions {
     /** Display name (or MXID) of the sender; may be empty. */

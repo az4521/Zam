@@ -1,4 +1,5 @@
 // src/lib/utils/audioPlayback.ts
+import { t } from "$lib/i18n";
 
 // Pure view logic for the lazy audio row in MessageItem. The component owns the
 // three flags (a fetched blob, a fetch in flight, a fetch that errored); this
@@ -26,11 +27,11 @@ export function audioPlaybackMode(state: {
 export function audioStatusLabel(mode: AudioPlaybackMode): string {
     switch (mode) {
         case "loading":
-            return "Loading…";
+            return t("common.loading");
         case "failed":
-            return "Failed to load · Retry";
+            return t("audioPlayback.failedToLoadRetry");
         case "idle":
-            return "Click to play";
+            return t("audioPlayback.clickToPlay");
         case "ready":
             return "";
     }

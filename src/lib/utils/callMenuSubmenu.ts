@@ -6,6 +6,7 @@
  * device-option shaping in $lib/utils/audioDevices.
  */
 
+import { t } from "$lib/i18n";
 import type { DeviceOption } from "./audioDevices";
 
 export type SubmenuSection = "input" | "output";
@@ -30,6 +31,8 @@ export function activeDeviceLabel(
     devices: DeviceOption[],
     selectedId: string | null,
 ): string {
-    if (!selectedId) return "Default";
-    return devices.find((d) => d.id === selectedId)?.label ?? "Default";
+    if (!selectedId) return t("common.default");
+    return (
+        devices.find((d) => d.id === selectedId)?.label ?? t("common.default")
+    );
 }

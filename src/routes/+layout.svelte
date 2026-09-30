@@ -1,9 +1,14 @@
 <script lang="ts">
+    import { applyDocumentLocale, t } from "$lib/i18n";
     import "../app.css";
     import { onMount } from "svelte";
     import { Capacitor } from "@capacitor/core";
 
     let { children } = $props();
+
+    // <html lang dir> for the active language (app.html sets it pre-paint;
+    // this keeps it right if that inline script was skipped).
+    applyDocumentLocale();
 
     function anchorUrl(target: EventTarget | null): URL | null {
         const anchor = (target as Element | null)?.closest?.("a");
@@ -86,22 +91,25 @@
             const url = anchorUrl(e.target);
             if (!url || (url.protocol !== "http:" && url.protocol !== "https:"))
                 return;
-            const t = e.touches[0];
-            lpStartX = t.clientX;
-            lpStartY = t.clientY;
+            const touch = e.touches[0];
+            lpStartX = touch.clientX;
+            lpStartY = touch.clientY;
             lpTimer = setTimeout(async () => {
                 lpTimer = null;
                 if (await copyText(url.href)) {
                     longPressCopied = true;
                     navigator.vibrate?.(30);
-                    showToast("Link copied");
+                    showToast(t("rootLayout.linkCopied"));
                 }
             }, 500);
         }
         function onTouchMove(e: TouchEvent) {
             if (!lpTimer) return;
-            const t = e.touches[0];
-            if (Math.hypot(t.clientX - lpStartX, t.clientY - lpStartY) > 10) {
+            const touch = e.touches[0];
+            if (
+                Math.hypot(touch.clientX - lpStartX, touch.clientY - lpStartY) >
+                10
+            ) {
                 clearTimeout(lpTimer);
                 lpTimer = null;
             }

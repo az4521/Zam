@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import type { IPushRule, PushRuleAction } from "matrix-js-sdk";
 
 export type KeywordBehavior =
@@ -115,16 +116,16 @@ export function validateKeyword(
 ): { ok: true; pattern: string } | { ok: false; error: string } {
     const pattern = normalizeKeyword(input);
     if (pattern.length === 0) {
-        return { ok: false, error: "Keyword cannot be empty" };
+        return { ok: false, error: t("keywordRules.keywordCannotBeEmpty") };
     }
     // Dotted ids are reserved for server-default push rules; a content rule
     // whose pattern/rule_id starts with "." would collide/confuse.
     if (pattern.startsWith(".")) {
-        return { ok: false, error: "Keyword cannot start with '.'" };
+        return { ok: false, error: t("keywordRules.keywordCannotStartWith") };
     }
     const lower = pattern.toLocaleLowerCase();
     if (existingPatterns.some((p) => p.toLocaleLowerCase() === lower)) {
-        return { ok: false, error: "You already have a rule for this keyword" };
+        return { ok: false, error: t("keywordRules.youAlreadyHaveARuleFor") };
     }
     return { ok: true, pattern };
 }

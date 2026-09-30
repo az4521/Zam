@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import {
         getReactions,
@@ -88,7 +89,7 @@
             } catch (err) {
                 console.error("Failed to send reaction:", err);
                 showErrorToast(
-                    matrixErrorMessage(err, "Could not add reaction"),
+                    matrixErrorMessage(err, t("reactions.couldNotAddReaction")),
                 );
             }
         }

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         fetchOwnExtendedProfile,
         getPresence,
@@ -34,7 +35,9 @@
             ];
         } catch (e) {
             profile = undefined;
-            error = (e as Error)?.message ?? "Failed to fetch the profile";
+            error =
+                (e as Error)?.message ??
+                t("extendedProfileDebug.failedToFetchTheProfile");
         } finally {
             loading = false;
         }
@@ -44,7 +47,7 @@
         try {
             await navigator.clipboard.writeText(profileJson);
         } catch {
-            error = "Could not copy to clipboard";
+            error = t("extendedProfileDebug.couldNotCopyToClipboard");
         }
     }
 </script>
@@ -53,7 +56,7 @@
     <p
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >
-        Extended profile
+        {t("extendedProfileDebug.extendedProfile")}
     </p>
     <div class="flex gap-2 mb-2">
         <button
@@ -61,35 +64,41 @@
             onclick={load}
             disabled={loading}
             class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-            >{loading ? "Loading…" : "Fetch from server"}</button
+            >{loading
+                ? t("common.loading")
+                : t("extendedProfileDebug.fetchFromServer")}</button
         >
         {#if profile}
             <button
                 type="button"
                 onclick={copy}
                 class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                >Copy</button
+                >{t("common.copy")}</button
             >
         {/if}
     </div>
     {#if error}<p class="text-xs text-discord-danger">{error}</p>{/if}
     {#if profile === null}
         <p class="text-xs text-discord-textMuted">
-            This server does not support extended profiles.
+            {t("extendedProfileDebug.thisServerDoesNotSupportExtended")}
         </p>
     {:else if profile}
         <pre
             class="text-xs font-mono text-discord-textSecondary bg-discord-backgroundTertiary rounded p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">{profileJson}</pre>
         <p class="mt-2 text-xs text-discord-textMuted">
-            Presence (GET /presence, straight from the server): {presence
-                ? JSON.stringify(presence)
-                : "none, or the server refused"}
+            {t("extendedProfileDebug.presenceGetPresenceStraightFromThe", {
+                value: presence
+                    ? JSON.stringify(presence)
+                    : t("extendedProfileDebug.noneOrTheServerRefused"),
+            })}
         </p>
         <p class="mt-1 text-xs text-discord-textMuted">
-            Server rules for fields (m.profile_fields): {profileFields ===
-            undefined
-                ? "not advertised (no restrictions)"
-                : JSON.stringify(profileFields)}
+            {t("extendedProfileDebug.serverRulesForFieldsMProfile", {
+                value:
+                    profileFields === undefined
+                        ? t("extendedProfileDebug.notAdvertisedNoRestrictions")
+                        : JSON.stringify(profileFields),
+            })}
         </p>
     {/if}
 </section>

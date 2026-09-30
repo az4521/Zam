@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { Phone, PhoneOff } from "lucide-svelte";
     import {
@@ -32,7 +33,9 @@
     );
     const name = $derived(
         (void roomsState.roomsTick,
-        room && partnerId ? getMemberName(room, partnerId) : "Unknown"),
+        room && partnerId
+            ? getMemberName(room, partnerId)
+            : t("incomingCallCard.unknown")),
     );
     const avatar = $derived(
         (void roomsState.roomsTick,
@@ -54,13 +57,15 @@
         <p class="text-sm font-semibold text-discord-textPrimary truncate">
             {name}
         </p>
-        <p class="text-xs text-discord-textMuted">Incoming call</p>
+        <p class="text-xs text-discord-textMuted">
+            {t("incomingCallCard.incomingCall")}
+        </p>
     </div>
     <button
         type="button"
         class="p-2 rounded-full bg-discord-danger hover:bg-discord-dangerHover transition-colors"
-        title="Decline"
-        aria-label="Decline call from {name}"
+        title={t("common.decline")}
+        aria-label={t("incomingCallCard.declineCallFrom", { name })}
         onclick={() => onDecline(roomId)}
     >
         <PhoneOff size={16} class="text-white" />
@@ -68,8 +73,8 @@
     <button
         type="button"
         class="p-2 rounded-full bg-discord-accent hover:bg-discord-accentHover transition-colors disabled:opacity-60"
-        title="Accept"
-        aria-label="Accept call from {name}"
+        title={t("incomingCallCard.accept")}
+        aria-label={t("incomingCallCard.acceptCallFrom", { name })}
         disabled={busy}
         onclick={() => onAccept(roomId)}
     >

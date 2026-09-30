@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import {
         getPinnedEventIds,
@@ -126,7 +127,7 @@
         <h3
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
         >
-            Pinned Messages
+            {t("pinnedMessagesPanel.pinnedMessages")}
         </h3>
     </div>
 
@@ -139,7 +140,7 @@
             </div>
         {:else if pinnedEvents.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                No pinned messages.
+                {t("pinnedMessagesPanel.noPinnedMessages")}
             </p>
         {:else}
             <div class="p-2 space-y-1">
@@ -162,7 +163,7 @@
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ml-auto flex-shrink-0"
+                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
                                 >{pinnedDate(event.getTs())}</span
                             >
                         </div>
@@ -180,7 +181,7 @@
                                     onClose();
                                 }}
                                 class="text-xs text-discord-accent hover:underline"
-                                >Jump</button
+                                >{t("pinnedMessagesPanel.jump")}</button
                             >
                             {#if canPin}
                                 <span class="text-discord-textMuted text-xs"
@@ -213,7 +214,7 @@
                                     }}
                                     disabled={pendingUnpin.has(event.getId()!)}
                                     class="text-xs text-discord-textMuted hover:text-discord-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >Unpin</button
+                                    >{t("pinnedMessagesPanel.unpin")}</button
                                 >
                             {/if}
                         </div>

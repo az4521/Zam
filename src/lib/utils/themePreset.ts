@@ -5,6 +5,7 @@
  * Three built-in read-only presets (Default Dark/Light/AMOLED) plus custom user presets.
  */
 
+import { t } from "$lib/i18n";
 import {
     sanitizeThemeColors,
     DEFAULT_THEME_COLORS,
@@ -111,7 +112,7 @@ export function forkFromEdit(
     // Dedupe if shadowing a built-in
     let finalName = newName;
     if (isBuiltinPreset(newName)) {
-        finalName = `${newName} (Copy)`;
+        finalName = t("themePreset.copy", { newName });
     }
 
     return {

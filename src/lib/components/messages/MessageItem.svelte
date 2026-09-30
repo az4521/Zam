@@ -11,6 +11,7 @@
 </script>
 
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -554,7 +555,7 @@
         if (confirmed) {
             deleteMessage(room.roomId, eventId).catch((err) => {
                 console.error("[MessageItem] delete failed", err);
-                showErrorToast("Couldn't delete the message");
+                showErrorToast(t("messageItem.couldnTDeleteTheMessage"));
             });
         }
         if (deleteRefocus) {
@@ -742,7 +743,7 @@
             clearTimeout(linkCopiedTimer);
             linkCopiedTimer = setTimeout(() => (linkCopied = false), 1500);
         } catch {
-            showErrorToast("Couldn't copy the message link");
+            showErrorToast(t("messageItem.couldnTCopyTheMessageLink"));
         }
     }
 
@@ -895,7 +896,9 @@
         } catch (e) {
             console.error("Failed to update pinned messages", e);
             showErrorToast(
-                wasPinned ? "Failed to unpin message" : "Failed to pin message",
+                wasPinned
+                    ? t("messageItem.failedToUnpinMessage")
+                    : t("messageItem.failedToPinMessage"),
             );
         } finally {
             pinning = false;
@@ -975,7 +978,7 @@
             case "delete":
                 deleteMessage(room.roomId, eventId).catch((err) => {
                     console.error("[MessageItem] delete failed", err);
-                    showErrorToast("Couldn't delete the message");
+                    showErrorToast(t("messageItem.couldnTDeleteTheMessage"));
                 });
                 break;
         }
@@ -1797,7 +1800,10 @@
             navigateToMatrixTarget(target).catch((err) => {
                 console.error("Failed to open Matrix link:", err);
                 showErrorToast(
-                    matrixErrorMessage(err, "Could not open the Matrix link"),
+                    matrixErrorMessage(
+                        err,
+                        t("messageItem.couldNotOpenTheMatrixLink"),
+                    ),
                 );
             });
         }
@@ -1849,7 +1855,7 @@
         ></div>{/if}
     {#if interfaceState.isTouchscreen}
         <div
-            class="fixed left-0 right-0 z-50"
+            class="fixed start-0 end-0 z-50"
             style="bottom: {keyboardOffset}px;"
         >
             <EmojiPicker
@@ -1881,7 +1887,7 @@
     class="group {interfaceState.isTouchscreen
         ? ''
         : 'hover:bg-discord-messageHover'} relative px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
-        ? 'bg-discord-warning/10 border-l-2 border-discord-warning'
+        ? 'bg-discord-warning/10 border-s-2 border-discord-warning'
         : ''}"
     class:pt-3={showHeader}
     class:bg-discord-messageHover={mobileSelected}
@@ -1949,7 +1955,7 @@
                         openProfileCard(senderId, e.currentTarget);
                     }}
                     class="block rounded-full"
-                    title="View profile"
+                    title={t("messageItem.viewProfile")}
                 >
                     <Avatar
                         src={avatarSrc}
@@ -2024,7 +2030,7 @@
                 plain-text spans (no {@html}, no link, no nested control), so
                 the native element is safe — and it gets Enter/Space activation
                 through the SAME onclick instead of a hand-rolled key handler.
-                `w-full text-left` restores the <div>'s box, which the UA button
+                `w-full text-start` restores the <div>'s box, which the UA button
                 styles would otherwise shrink-wrap and centre.
 
                 The purpose is an sr-only child, NOT `aria-label`: aria-label
@@ -2036,13 +2042,15 @@
             -->
                 <button
                     type="button"
-                    class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                     onclick={(e) => {
                         e.preventDefault();
                         jumpToReply(replyTarget.getId()!);
                     }}
                 >
-                    <span class="sr-only">Jump to the replied-to message:</span>
+                    <span class="sr-only"
+                        >{t("messageItem.jumpToTheRepliedToMessage")}</span
+                    >
                     <Reply
                         class="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0 self-center"
                     />
@@ -2077,13 +2085,15 @@
                  from the keyboard and read identically to assistive tech. -->
                 <button
                     type="button"
-                    class="flex w-full text-left items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
                     onclick={(e) => {
                         e.preventDefault();
                         jumpToReply(inReplyToId);
                     }}
                 >
-                    <span class="sr-only">Jump to the replied-to message:</span>
+                    <span class="sr-only"
+                        >{t("messageItem.jumpToTheRepliedToMessage")}</span
+                    >
                     <div
                         class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0"
                     ></div>
@@ -2106,10 +2116,12 @@
                                  target is not mislabelled. No parent = not loaded. -->
                             <span class="text-xs text-discord-textMuted italic"
                                 >{!replyTarget
-                                    ? "Original message not loaded"
+                                    ? t("messageItem.originalMessageNotLoaded")
                                     : replyTarget.isRedacted()
-                                      ? "Original message deleted"
-                                      : "Original message unavailable"}</span
+                                      ? t("messageItem.originalMessageDeleted")
+                                      : t(
+                                            "messageItem.originalMessageUnavailable",
+                                        )}</span
                             >
                         {/if}
                     </div>
@@ -2125,6 +2137,7 @@
                         use:spoilers
                         use:matrixLinks
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
+                        dir="auto"
                         class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                     >
                         {#if formattedBody()}
@@ -2133,8 +2146,8 @@
                             {@html withTwemoji(plainToHtml(body()))}
                         {/if}
                         {#if isEdited}
-                            <span class="text-xs text-discord-textMuted ml-1"
-                                >(edited)</span
+                            <span class="text-xs text-discord-textMuted ms-1"
+                                >{t("messageItem.edited")}</span
                             >
                         {/if}
                     </div>
@@ -2197,7 +2210,7 @@
                             class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                         ></div>
                         <span class="text-xs text-discord-textMuted"
-                            >Decrypting image...</span
+                            >{t("messageItem.decryptingImage")}</span
                         >
                     </div>
                 {:else if file && imageDecryptFailed}
@@ -2214,7 +2227,7 @@
                             />
                         </svg>
                         <span class="text-xs text-discord-danger"
-                            >Couldn't decrypt image</span
+                            >{t("messageItem.couldnTDecryptImage")}</span
                         >
                     </div>
                 {:else if thumb && !mediaImgRetry.failed}
@@ -2256,9 +2269,9 @@
                             <button
                                 onclick={toggleImageFavourite}
                                 title={imageIsFavourited
-                                    ? "Remove from favourites"
-                                    : "Add to favourites"}
-                                class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
+                                    ? t("common.removeFromFavourites")
+                                    : t("common.addToFavourites")}
+                                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
                             >
                                 {#if imageIsFavourited}
                                     <svg
@@ -2333,7 +2346,7 @@
                     {/if}
                 {:else}
                     <span class="text-xs text-discord-textMuted italic"
-                        >[Image unavailable]</span
+                        >{t("messageItem.imageUnavailable")}</span
                     >
                 {/if}
             {:else if msgtype === "m.video"}
@@ -2346,7 +2359,7 @@
                             class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                         ></div>
                         <span class="text-xs text-discord-textMuted"
-                            >Decrypting video...</span
+                            >{t("messageItem.decryptingVideo")}</span
                         >
                     </div>
                 {:else if videoDecryptFailed}
@@ -2364,14 +2377,14 @@
                         </svg>
                         <div class="flex-1 min-w-0">
                             <span class="text-xs text-discord-danger"
-                                >Couldn't decrypt video</span
+                                >{t("messageItem.couldnTDecryptVideo")}</span
                             >
                         </div>
                         <button
                             class="px-2 py-1 text-xs font-medium text-discord-textPrimary bg-discord-backgroundSecondary hover:bg-discord-messageHover rounded transition-colors"
                             onclick={retryVideoDecrypt}
                         >
-                            Retry
+                            {t("common.retry")}
                         </button>
                     </div>
                 {:else if videoSrc === null}
@@ -2396,10 +2409,10 @@
                             <p
                                 class="text-sm font-medium text-discord-textPrimary truncate"
                             >
-                                {mediaFilename || "Video"}
+                                {mediaFilename || t("messageItem.video")}
                             </p>
                             <p class="text-xs text-discord-textMuted">
-                                Can't be played here
+                                {t("messageItem.canTBePlayedHere")}
                             </p>
                         </div>
                     </div>
@@ -2455,7 +2468,7 @@
                                     class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
                                 >
                                     <svg
-                                        class="w-7 h-7 text-white ml-1"
+                                        class="w-7 h-7 text-white ms-1"
                                         fill="currentColor"
                                         viewBox="0 0 24 24"
                                         ><path d="M8 5v14l11-7z" /></svg
@@ -2483,7 +2496,7 @@
                                         : 'bg-discord-accent'}"
                                 >
                                     <svg
-                                        class="w-5 h-5 text-white ml-0.5"
+                                        class="w-5 h-5 text-white ms-0.5"
                                         fill="currentColor"
                                         viewBox="0 0 24 24"
                                         ><path d="M8 5v14l11-7z" /></svg
@@ -2493,7 +2506,8 @@
                                     <p
                                         class="text-sm font-medium text-discord-textPrimary truncate"
                                     >
-                                        {mediaFilename || "Video"}
+                                        {mediaFilename ||
+                                            t("messageItem.video")}
                                     </p>
                                     <!-- A failed load has to SAY so. Silently
                                      dropping back to "Click to play" is
@@ -2505,10 +2519,14 @@
                                             : 'text-discord-textMuted'}"
                                     >
                                         {videoFailed
-                                            ? "Playback failed · Click to retry"
+                                            ? t(
+                                                  "messageItem.playbackFailedClickToRetry",
+                                              )
                                             : videoDuration
-                                              ? `${videoDuration} · Click to play`
-                                              : "Click to play"}
+                                              ? t("messageItem.clickToPlay", {
+                                                    videoDuration,
+                                                })
+                                              : t("messageItem.clickToPlay2")}
                                     </p>
                                 </div>
                             </div>
@@ -2552,7 +2570,7 @@
                                 ></div>
                             {:else if !audioBlobUrl}
                                 <svg
-                                    class="w-4 h-4 text-white ml-0.5"
+                                    class="w-4 h-4 text-white ms-0.5"
                                     fill="currentColor"
                                     viewBox="0 0 24 24"
                                     ><path d="M8 5v14l11-7z" /></svg
@@ -2572,7 +2590,7 @@
                             <p
                                 class="text-discord-textPrimary text-xs font-medium truncate mb-1"
                             >
-                                {mediaFilename || "Audio"}
+                                {mediaFilename || t("messageItem.audio")}
                             </p>
                             {#if audioBlobUrl}
                                 <!-- svelte-ignore a11y_media_has_caption -->
@@ -2640,9 +2658,16 @@
                         </p>
                         <p class="text-discord-textMuted text-xs">
                             {#if fileSize}{fileSize / 1024 < 1024
-                                    ? (fileSize / 1024).toFixed(1) + " KB"
-                                    : (fileSize / 1048576).toFixed(1) +
-                                      " MB"}{:else}File attachment{/if}
+                                    ? t("messageItem.kb", {
+                                          toFixed: (fileSize / 1024).toFixed(1),
+                                      })
+                                    : t("messageItem.mb", {
+                                          toFixed: (fileSize / 1048576).toFixed(
+                                              1,
+                                          ),
+                                      })}{:else}{t(
+                                    "messageItem.fileAttachment",
+                                )}{/if}
                         </p>
                     </div>
                     {#if fileUrl || file}
@@ -2671,7 +2696,7 @@
                                 }
                             }}
                             class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
-                            title="Download"
+                            title={t("messageItem.download")}
                         >
                             <svg
                                 class="w-5 h-5"
@@ -2688,6 +2713,7 @@
             {:else if isEditing}
                 <div class="mt-1">
                     <textarea
+                        dir="auto"
                         bind:this={editTextareaEl}
                         bind:value={editText}
                         onkeydown={onEditKeydown}
@@ -2696,20 +2722,22 @@
                         style="field-sizing: content; max-height: 200px;"
                     ></textarea>
                     <p class="text-xs text-discord-textMuted mt-1">
-                        <kbd class="font-mono">Enter</kbd> to save &middot;
-                        <kbd class="font-mono">Esc</kbd> to cancel
+                        <kbd class="font-mono">Enter</kbd>
+                        {t("messageItem.toSave")}
+                        <kbd class="font-mono">Esc</kbd>
+                        {t("messageItem.toCancel")}
                     </p>
                     <div class="flex gap-2 mt-1">
                         <button
                             onclick={saveEdit}
                             disabled={isSavingEdit || !editText.trim()}
                             class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
-                            >Save</button
+                            >{t("common.save")}</button
                         >
                         <button
                             onclick={cancelEdit}
                             class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
-                            >Cancel</button
+                            >{t("common.cancel")}</button
                         >
                     </div>
                 </div>
@@ -2719,6 +2747,7 @@
                         use:spoilers
                         use:matrixLinks
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
+                        dir="auto"
                         class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
                         class:emoji-only={emojiOnly}
                         class:italic={msgtype === "m.emote"}
@@ -2739,8 +2768,8 @@
                             {@html withTwemoji(plainToHtml(body()))}
                         {/if}
                         {#if isEdited}
-                            <span class="text-xs text-discord-textMuted ml-1"
-                                >(edited)</span
+                            <span class="text-xs text-discord-textMuted ms-1"
+                                >{t("messageItem.edited")}</span
                             >
                         {/if}
                     </div>
@@ -2794,7 +2823,7 @@
                 <button
                     onclick={() => onOpenThread?.(eventId)}
                     class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
-                    title="Open thread"
+                    title={t("messageItem.openThread")}
                 >
                     <svg
                         class="w-3 h-3 flex-shrink-0"
@@ -2805,8 +2834,7 @@
                             d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
                         />
                     </svg>
-                    {threadSummary.count}
-                    {threadSummary.count === 1 ? "reply" : "replies"}
+                    {t("common.replyCount", { count: threadSummary.count })}
                     {#if threadSummary.latestTs > 0}
                         <span class="text-discord-textMuted"
                             >&middot; {timeOnly(threadSummary.latestTs)}</span
@@ -2819,7 +2847,7 @@
              row never runs under the out-of-flow read-receipt overlay; not needed
              when own bubbles are right-aligned — the overlay is on the LEFT then) -->
             <div
-                class:pr-14={interfaceState.isTouchscreen &&
+                class:pe-14={interfaceState.isTouchscreen &&
                     receipts.length > 0 &&
                     !bubble.alignOwn}
                 class:flex={bubble.alignOwn}
@@ -2846,20 +2874,22 @@
                         <line x1="12" y1="8" x2="12" y2="12" />
                         <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
-                    <span>Failed to send.</span>
+                    <span>{t("messageItem.failedToSend")}</span>
                     <button
                         class="font-semibold underline hover:no-underline disabled:opacity-50"
                         disabled={isResending}
                         onclick={retrySend}
                     >
-                        {isResending ? "Retrying…" : "Retry"}
+                        {isResending
+                            ? t("messageItem.retrying")
+                            : t("common.retry")}
                     </button>
                     <span class="text-discord-textMuted">·</span>
                     <button
                         class="font-semibold underline hover:no-underline"
                         onclick={() => deleteFailedMessage(event)}
                     >
-                        Delete
+                        {t("common.delete")}
                     </button>
                 </div>
             {/if}
@@ -2873,11 +2903,13 @@
                 <button
                     type="button"
                     onclick={openReaderList}
-                    aria-label="Show who read this message"
-                    title={`${receipts.length} ${receipts.length === 1 ? "person has" : "people have"} read this`}
+                    aria-label={t("messageItem.showWhoReadThisMessage")}
+                    title={t("messageItem.readThis", {
+                        count: receipts.length,
+                    })}
                     class="absolute bottom-0 flex items-center justify-center gap-0.5 max-w-[45%] min-h-6 min-w-6 rounded pointer-events-auto"
-                    class:right-4={!bubble.alignOwn}
-                    class:left-4={bubble.alignOwn}
+                    class:end-4={!bubble.alignOwn}
+                    class:start-4={bubble.alignOwn}
                 >
                     {#each receiptCluster.shown as r (r.userId)}
                         <Avatar
@@ -2888,7 +2920,7 @@
                         />
                     {/each}
                     {#if receiptCluster.overflow > 0}
-                        <span class="text-[10px] text-discord-textMuted ml-1"
+                        <span class="text-[10px] text-discord-textMuted ms-1"
                             >+{receiptCluster.overflow}</span
                         >
                     {/if}
@@ -2907,7 +2939,7 @@
                         y={readerY}
                         onClose={closeReaderList}
                         modalId="read-receipts"
-                        dialogLabel="Read by"
+                        dialogLabel={t("messageItem.readBy")}
                     />
                 {/if}
             {/if}
@@ -2915,7 +2947,7 @@
             <!-- Inline timestamp (non-grouped messages, shows on hover) -->
             {#if bubble.showInlineHoverTime}
                 <span
-                    class="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
+                    class="absolute start-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
                 >
                     {timeOnly(timestamp)}
                 </span>
@@ -2924,7 +2956,7 @@
     </div>
     {#if swipeRevealIcon !== "none" && !isFailed}
         <div
-            class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
+            class="absolute end-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
             'edit'
                 ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
                 : 'bg-discord-accent text-white'}"
@@ -2980,7 +3012,7 @@
         <div
             data-message-actions
             role="toolbar"
-            aria-label="Message actions"
+            aria-label={t("messageItem.messageActions")}
             class="{actionBarPinned
                 ? 'flex'
                 : `hidden ${
@@ -2989,15 +3021,15 @@
                       isEditing
                           ? ''
                           : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-                  }`} absolute right-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
         >
             {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
                 <button
                     data-message-action
                     onclick={startEdit}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title="Edit message"
-                    aria-label="Edit message"
+                    title={t("messageItem.editMessage")}
+                    aria-label={t("messageItem.editMessage")}
                 >
                     <svg
                         class="w-4 h-4"
@@ -3013,7 +3045,7 @@
             {#if !interfaceState.isTouchscreen && isOwnMessage}
                 {#if confirmingDelete}
                     <span class="text-xs text-discord-textMuted px-1"
-                        >Delete?</span
+                        >{t("messageItem.delete")}</span
                     >
                     <!--
                     Deliberately NOT `data-message-action`: these two run their
@@ -3028,22 +3060,24 @@
                         onclick={() => resolveDelete(true)}
                         onkeydown={onDeleteKeydown}
                         class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
-                        aria-label="Yes, delete message">Yes</button
+                        aria-label={t("messageItem.yesDeleteMessage")}
+                        >{t("messageItem.yes")}</button
                     >
                     <button
                         bind:this={deleteNoEl}
                         onclick={() => resolveDelete(false)}
                         onkeydown={onDeleteKeydown}
                         class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
-                        aria-label="No, keep message">No</button
+                        aria-label={t("messageItem.noKeepMessage")}
+                        >{t("messageItem.no")}</button
                     >
                 {:else}
                     <button
                         data-message-action
                         onclick={() => (confirmingDelete = true)}
                         class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                        title="Delete message"
-                        aria-label="Delete message"
+                        title={t("messageItem.deleteMessage")}
+                        aria-label={t("messageItem.deleteMessage")}
                     >
                         <svg
                             class="w-4 h-4"
@@ -3065,8 +3099,12 @@
                     class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
                         ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                    title={isPinned ? "Unpin message" : "Pin message"}
-                    aria-label={isPinned ? "Unpin message" : "Pin message"}
+                    title={isPinned
+                        ? t("messageItem.unpinMessage")
+                        : t("messageItem.pinMessage")}
+                    aria-label={isPinned
+                        ? t("messageItem.unpinMessage")
+                        : t("messageItem.pinMessage")}
                 >
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
                         ><path
@@ -3091,8 +3129,8 @@
                         }
                     }}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title="Add reaction"
-                    aria-label="Add reaction"
+                    title={t("messageItem.addReaction")}
+                    aria-label={t("messageItem.addReaction")}
                     aria-expanded={showEmojiPicker}
                 >
                     <svg
@@ -3110,8 +3148,8 @@
                     <div
                         bind:this={emojiPickerEl}
                         class={emojiPickerBelow
-                            ? "absolute top-full right-0 mt-1 z-50"
-                            : "absolute bottom-full right-0 mb-1 z-50"}
+                            ? "absolute top-full end-0 mt-1 z-50"
+                            : "absolute bottom-full end-0 mb-1 z-50"}
                     >
                         <EmojiPicker
                             {room}
@@ -3136,8 +3174,8 @@
                 data-message-action
                 onclick={() => onReply(event)}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Reply"
-                aria-label="Reply"
+                title={t("messageItem.reply")}
+                aria-label={t("messageItem.reply")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -3150,10 +3188,12 @@
                     data-message-action
                     onclick={() => onOpenThread(threadRootId)}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={isThreadReply ? "Open thread" : "Reply in thread"}
+                    title={isThreadReply
+                        ? t("messageItem.openThread")
+                        : t("messageItem.replyInThread")}
                     aria-label={isThreadReply
-                        ? "Open thread"
-                        : "Reply in thread"}
+                        ? t("messageItem.openThread")
+                        : t("messageItem.replyInThread")}
                 >
                     <svg
                         class="w-4 h-4"
@@ -3171,8 +3211,8 @@
                     data-message-action
                     onclick={openForwardDialog}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title="Forward message"
-                    aria-label="Forward message"
+                    title={t("messageItem.forwardMessage")}
+                    aria-label={t("messageItem.forwardMessage")}
                 >
                     <Forward size={16} />
                 </button>
@@ -3205,8 +3245,8 @@
                     data-message-action
                     onclick={openActionsSheet}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title="More actions"
-                    aria-label="More actions"
+                    title={t("messageItem.moreActions")}
+                    aria-label={t("messageItem.moreActions")}
                     aria-haspopup="menu"
                 >
                     <svg
@@ -3225,10 +3265,12 @@
                     data-message-action
                     onclick={copyMessageLink}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={linkCopied ? "Link copied!" : "Copy message link"}
+                    title={linkCopied
+                        ? t("messageItem.linkCopied")
+                        : t("messageItem.copyMessageLink")}
                     aria-label={linkCopied
-                        ? "Link copied"
-                        : "Copy message link"}
+                        ? t("messageItem.linkCopied2")
+                        : t("messageItem.copyMessageLink")}
                 >
                     {#if linkCopied}
                         <Check size={16} />

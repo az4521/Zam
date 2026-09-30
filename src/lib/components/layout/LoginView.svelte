@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { login, register } from "$lib/matrix/client";
     import { auth, loadLastHomeserver } from "$lib/stores/auth.svelte";
@@ -76,7 +77,7 @@
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
-            statusMsg = "Logging in…";
+            statusMsg = t("loginView.loggingIn");
             const result = await login(
                 url,
                 loginUsername,
@@ -88,7 +89,7 @@
             error =
                 err instanceof Error
                     ? err.message
-                    : "Login failed. Check your credentials.";
+                    : t("loginView.loginFailedCheckYourCredentials");
             isLoading = false;
             statusMsg = "";
         }
@@ -104,7 +105,7 @@
             let url = homeserverUrl.trim();
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
-            statusMsg = "Creating account…";
+            statusMsg = t("loginView.creatingAccount");
             const result = await register(
                 url,
                 registrationUsername,
@@ -114,7 +115,10 @@
             );
             await onAuthenticated(result);
         } catch (err) {
-            error = err instanceof Error ? err.message : "Registration failed.";
+            error =
+                err instanceof Error
+                    ? err.message
+                    : t("loginView.registrationFailed");
             isLoading = false;
             statusMsg = "";
         }
@@ -122,7 +126,14 @@
 </script>
 
 <svelte:head>
-    <title>Zam - {mode === "login" ? "Sign In" : "Register"}</title>
+    <title
+        >{t("loginView.zam", {
+            value:
+                mode === "login"
+                    ? t("loginView.signIn")
+                    : t("loginView.register"),
+        })}</title
+    >
 </svelte:head>
 
 <div
@@ -141,19 +152,21 @@
                 </div>
                 {#if mode === "login"}
                     <h1 class="text-2xl font-bold text-discord-textPrimary">
-                        {isAddAccountMode ? "Add an account" : "Welcome back!"}
+                        {isAddAccountMode
+                            ? t("loginView.addAnAccount")
+                            : t("loginView.welcomeBack")}
                     </h1>
                     <p class="text-discord-textSecondary mt-1">
                         {isAddAccountMode
-                            ? "Sign in with another Matrix account"
-                            : "Sign in to your Matrix account"}
+                            ? t("loginView.signInWithAnotherMatrixAccount")
+                            : t("loginView.signInToYourMatrixAccount")}
                     </p>
                 {:else}
                     <h1 class="text-2xl font-bold text-discord-textPrimary">
-                        Create an account
+                        {t("loginView.createAnAccount")}
                     </h1>
                     <p class="text-discord-textSecondary mt-1">
-                        Register on a Matrix homeserver
+                        {t("loginView.registerOnAMatrixHomeserver")}
                     </p>
                 {/if}
             </div>
@@ -197,7 +210,7 @@
                         for="server"
                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                     >
-                        Homeserver
+                        {t("loginView.homeserver")}
                     </label>
                     <input
                         id="server"
@@ -216,7 +229,7 @@
                         for="username"
                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                     >
-                        Username
+                        {t("loginView.username")}
                     </label>
                     <input
                         id="username"
@@ -240,7 +253,7 @@
                         for="password"
                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                     >
-                        Password
+                        {t("loginView.password")}
                     </label>
                     <input
                         id="password"
@@ -262,16 +275,17 @@
                             for="token"
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                         >
-                            Registration Token <span
+                            {t("loginView.registrationToken")}
+                            <span
                                 class="normal-case font-normal text-discord-textMuted"
-                                >(if required)</span
+                                >{t("loginView.ifRequired")}</span
                             >
                         </label>
                         <input
                             id="token"
                             type="text"
                             bind:value={registrationToken}
-                            placeholder="Leave blank if not required"
+                            placeholder={t("loginView.leaveBlankIfNotRequired")}
                             disabled={isLoading}
                             class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none transition-colors disabled:opacity-60 text-sm"
                         />
@@ -288,10 +302,9 @@
                         class="mt-0.5 w-4 h-4 accent-discord-accent"
                     />
                     <span class="text-sm text-discord-textSecondary">
-                        Use sliding sync
+                        {t("loginView.useSlidingSync")}
                         <span class="block text-xs text-discord-textMuted">
-                            Faster startup on servers that support it
-                            (experimental).
+                            {t("loginView.fasterStartupOnServersThatSupport")}
                         </span>
                     </span>
                 </label>
@@ -307,12 +320,12 @@
                             <span
                                 class="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"
                             ></span>
-                            {statusMsg || "Please wait…"}
+                            {statusMsg || t("loginView.pleaseWait")}
                         </span>
                     {:else if mode === "login"}
-                        Log In
+                        {t("loginView.logIn")}
                     {:else}
-                        Create Account
+                        {t("loginView.createAccount")}
                     {/if}
                 </button>
             </form>
@@ -321,7 +334,7 @@
             <div class="mt-5 text-center">
                 {#if mode === "login"}
                     <p class="text-sm text-discord-textMuted">
-                        Don't have an account?
+                        {t("loginView.donTHaveAnAccount")}
                         <button
                             onclick={() => {
                                 mode = "register";
@@ -329,12 +342,12 @@
                             }}
                             class="text-discord-accent hover:underline font-medium"
                         >
-                            Register
+                            {t("loginView.register")}
                         </button>
                     </p>
                 {:else}
                     <p class="text-sm text-discord-textMuted">
-                        Already have an account?
+                        {t("loginView.alreadyHaveAnAccount")}
                         <button
                             onclick={() => {
                                 mode = "login";
@@ -342,7 +355,7 @@
                             }}
                             class="text-discord-accent hover:underline font-medium"
                         >
-                            Sign in
+                            {t("loginView.signIn2")}
                         </button>
                     </p>
                 {/if}
@@ -353,7 +366,9 @@
                     <button
                         onclick={onBackToActive}
                         class="text-sm text-discord-accent hover:underline font-medium"
-                        >← Back to {accountsState.registry.activeUserId}</button
+                        >{t("loginView.backTo", {
+                            activeUserId: accountsState.registry.activeUserId,
+                        })}</button
                     >
                 </div>
             {/if}
@@ -363,14 +378,14 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
                     >
-                        Or continue as
+                        {t("loginView.orContinueAs")}
                     </p>
                     <div class="space-y-1">
                         {#each dormantAccounts as account (account.userId)}
                             <button
                                 onclick={() => onContinueAs(account.userId)}
                                 disabled={isLoading}
-                                class="w-full flex items-center gap-2.5 p-2 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-left transition-colors disabled:opacity-50"
+                                class="w-full flex items-center gap-2.5 p-2 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-start transition-colors disabled:opacity-50"
                             >
                                 <Avatar
                                     src={account.avatarUrl ?? null}
@@ -398,8 +413,7 @@
             <p
                 class="text-center text-xs text-discord-textMuted mt-4 leading-relaxed"
             >
-                Your credentials are sent directly to your homeserver and never
-                stored by this app beyond your device.
+                {t("loginView.yourCredentialsAreSentDirectlyTo")}
             </p>
         </div>
     </div>

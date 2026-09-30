@@ -4,6 +4,7 @@
  * cache state. No SDK, DOM, or localStorage — unit-tested pure functions.
  */
 
+import { t } from "$lib/i18n";
 import { repoKey, type RepoRef } from "./repo";
 
 export interface CheckInstallIdParams {
@@ -27,26 +28,29 @@ export function checkInstallId(params: CheckInstallIdParams): string | null {
 
     // Manifest id must match entry id
     if (manifestId !== entryId) {
-        return `Plugin id mismatch: index lists "${entryId}", manifest declares "${manifestId}"`;
+        return t("pluginPin.pluginIdMismatchIndexListsManifest", {
+            entryId,
+            manifestId,
+        });
     }
 
     // Must not be a built-in id
     if (builtinIds.includes(manifestId)) {
-        return `Cannot install plugin with id "${manifestId}": it is a built-in plugin`;
+        return t("pluginPin.cannotInstallPluginWithIdIt", { manifestId });
     }
 
     // Must not collide with an already-installed plugin from a different source
     const existing = installed[manifestId];
     if (existing) {
         if (existing.source === "builtin") {
-            return `Cannot install plugin with id "${manifestId}": it is a built-in plugin`;
+            return t("pluginPin.cannotInstallPluginWithIdIt", { manifestId });
         }
         // Check if it's from a different repo
         if (
             existing.repoRef &&
             repoKey(existing.repoRef) !== repoKey(repoRef)
         ) {
-            return `Plugin "${manifestId}" is already installed from a different repository`;
+            return t("pluginPin.pluginIsAlreadyInstalledFromA", { manifestId });
         }
         // Same repo re-install is OK
     }

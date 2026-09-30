@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import {
         APP_VERSION,
@@ -37,7 +38,7 @@
 
 <ModalDialog
     {onClose}
-    label="What's New"
+    label={t("whatsNewModal.whatSNew")}
     layerClass="z-[60] flex items-center justify-center p-4"
     backdropClass="bg-black/50"
     panelClass="relative w-full max-w-md rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
@@ -46,12 +47,12 @@
         class="flex items-center justify-between border-b border-discord-divider px-4 py-3 flex-shrink-0"
     >
         <h2 class="text-base font-semibold text-discord-textPrimary">
-            What's New in v{APP_VERSION}
+            {t("whatsNewModal.whatSNewInV", { APP_VERSION })}
         </h2>
         <button
             type="button"
             onclick={onClose}
-            aria-label="Close"
+            aria-label={t("common.close")}
             class="text-discord-textMuted hover:text-discord-textPrimary text-lg leading-none px-1"
         >
             ✕
@@ -59,10 +60,10 @@
     </header>
     <div class="overflow-y-auto px-4 py-3 flex-1 min-h-0">
         {#if loading}
-            <p class="text-sm text-discord-textMuted">Loading…</p>
+            <p class="text-sm text-discord-textMuted">{t("common.loading")}</p>
         {:else if failed}
             <p class="text-sm text-discord-textMuted">
-                Release notes unavailable.
+                {t("whatsNewModal.releaseNotesUnavailable")}
                 <button
                     type="button"
                     class="underline"
@@ -71,7 +72,7 @@
                             `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
                         )}
                 >
-                    View on GitHub
+                    {t("whatsNewModal.viewOnGithub")}
                 </button>
             </p>
         {:else}
@@ -86,7 +87,7 @@
             onclick={onClose}
             class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
         >
-            Got it
+            {t("whatsNewModal.gotIt")}
         </button>
     </footer>
 </ModalDialog>

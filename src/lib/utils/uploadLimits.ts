@@ -7,13 +7,15 @@
  * queued and surface the failure itself.
  */
 
+import { t } from "$lib/i18n";
 const KIB = 1024;
 const MIB = 1024 * 1024;
 
 /** Human-readable byte limit — KB below a megabyte so a small limit isn't rendered as "0 MB". */
 export function formatByteLimit(bytes: number): string {
-    if (bytes >= MIB) return `${Math.round(bytes / MIB)} MB`;
-    return `${Math.round(bytes / KIB)} KB`;
+    if (bytes >= MIB)
+        return t("uploadLimits.mb", { round: Math.round(bytes / MIB) });
+    return t("uploadLimits.kb", { round: Math.round(bytes / KIB) });
 }
 
 /** A null limit means the server advertised none; the boundary itself is allowed. */
@@ -26,7 +28,10 @@ export function exceedsUploadLimit(
 }
 
 export function uploadLimitMessage(fileName: string, limit: number): string {
-    return `"${fileName}" exceeds the server's ${formatByteLimit(limit)} upload limit`;
+    return t("uploadLimits.exceedsTheServerSUploadLimit", {
+        fileName,
+        formatByteLimit: formatByteLimit(limit),
+    });
 }
 
 export class FileTooLargeError extends Error {

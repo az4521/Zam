@@ -1,6 +1,7 @@
 // Device-local message text size and font family logic.
 // Pure resolution, clamping, and DOM-apply helpers for adjustable message
 // display. Sets --zam-font-family and the ROOT font-size (app-wide scale).
+import { t } from "$lib/i18n";
 
 export const MSG_FONT_SIZE_MIN = 12;
 export const MSG_FONT_SIZE_MAX = 24;
@@ -13,16 +14,16 @@ export const MESSAGE_FONTS: readonly {
     label: string;
     stack: string | null;
 }[] = [
-    { key: "system", label: "System default", stack: null },
+    { key: "system", label: t("messageDisplay.systemDefault"), stack: null },
     {
         key: "inter",
         label: "Inter",
-        stack: '"Inter", "Helvetica Neue", Arial, sans-serif',
+        stack: '"Inter", "Helvetica Neue", Arial, "Noto Sans Syriac Eastern", "Noto Sans Syriac", "Estrangelo Edessa", sans-serif',
     },
     {
         key: "atkinson",
         label: "Atkinson Hyperlegible",
-        stack: '"Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif',
+        stack: '"Atkinson Hyperlegible", "Helvetica Neue", Arial, "Noto Sans Syriac Eastern", "Noto Sans Syriac", "Estrangelo Edessa", sans-serif',
     },
 ];
 

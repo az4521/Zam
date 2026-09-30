@@ -6,6 +6,7 @@
 // categories that pushes a full-screen sub-page. `settingsNavView` is the single
 // place that decides which of those three surfaces is showing, so the component
 // stays declarative and the behaviour is unit-testable. No Svelte, no SDK imports.
+import { t } from "$lib/i18n";
 
 export type SettingsTab =
     | "account"
@@ -36,31 +37,31 @@ export const SETTINGS_GROUPS: readonly {
     tabs: readonly SettingsTabEntry[];
 }[] = [
     {
-        title: "Account",
+        title: t("settingsNav.account"),
         tabs: [
-            { id: "account", label: "Account" },
-            { id: "security", label: "Security & Sessions" },
-            { id: "privacy", label: "Privacy & Safety" },
+            { id: "account", label: t("settingsNav.account") },
+            { id: "security", label: t("settingsNav.securitySessions") },
+            { id: "privacy", label: t("settingsNav.privacySafety") },
         ],
     },
     {
-        title: "App",
+        title: t("settingsNav.app"),
         tabs: [
-            { id: "appearance", label: "Appearance" },
-            { id: "messages-media", label: "Messages & Media" },
-            { id: "notifications", label: "Notifications" },
-            { id: "voice", label: "Voice & Video" },
-            { id: "emotes", label: "Emotes" },
+            { id: "appearance", label: t("settingsNav.appearance") },
+            { id: "messages-media", label: t("settingsNav.messagesMedia") },
+            { id: "notifications", label: t("common.notifications") },
+            { id: "voice", label: t("settingsNav.voiceVideo") },
+            { id: "emotes", label: t("settingsNav.emotes") },
         ],
     },
     {
-        title: "Advanced",
+        title: t("settingsNav.advanced"),
         tabs: [
-            { id: "general", label: "General" },
-            { id: "plugins", label: "Plugins" },
-            { id: "server", label: "Server" },
-            { id: "about", label: "About" },
-            { id: "debug", label: "Debug" },
+            { id: "general", label: t("settingsNav.general") },
+            { id: "plugins", label: t("settingsNav.plugins") },
+            { id: "server", label: t("settingsNav.server") },
+            { id: "about", label: t("settingsNav.about") },
+            { id: "debug", label: t("settingsNav.debug") },
         ],
     },
 ];

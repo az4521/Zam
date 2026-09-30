@@ -4,6 +4,7 @@
  * come from untrusted event content and must never throw during render.
  */
 
+import { t } from "$lib/i18n";
 import { parseGeoUri } from "./location";
 
 const BEACON_INFO_TYPES = ["m.beacon_info", "org.matrix.msc3672.beacon_info"];
@@ -103,22 +104,26 @@ export function ownedLatestLocation(beacon: {
 /** Human "time left" for a live share, given its expiry and the current time. */
 export function remainingLabel(expiresAt: number, now: number): string {
     const ms = expiresAt - now;
-    if (ms <= 0) return "Expired";
+    if (ms <= 0) return t("liveLocation.expired");
     const totalMin = Math.round(ms / 60000);
-    if (totalMin < 1) return "less than a minute left";
-    if (totalMin < 60) return `${totalMin} min left`;
+    if (totalMin < 1) return t("liveLocation.lessThanAMinuteLeft");
+    if (totalMin < 60) return t("liveLocation.minLeft", { totalMin });
     const h = Math.floor(totalMin / 60);
     const m = totalMin % 60;
-    return m === 0 ? `${h} h left` : `${h} h ${m} min left`;
+    return m === 0
+        ? t("liveLocation.hLeft", { h })
+        : t("liveLocation.hMinLeft", { h, m });
 }
 
 /** Human "last updated" label for a location fix at `ts`, relative to `now`. */
 export function updatedAgoLabel(ts: number, now: number): string {
     const diff = now - ts;
-    if (diff < 10000) return "just now";
-    if (diff < 60000) return `${Math.floor(diff / 1000)} s ago`;
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
-    return `${Math.floor(diff / 3600000)} h ago`;
+    if (diff < 10000) return t("liveLocation.justNow");
+    if (diff < 60000)
+        return t("liveLocation.sAgo", { floor: Math.floor(diff / 1000) });
+    if (diff < 3600000)
+        return t("liveLocation.minAgo", { floor: Math.floor(diff / 60000) });
+    return t("liveLocation.hAgo", { floor: Math.floor(diff / 3600000) });
 }
 
 /**
@@ -155,7 +160,7 @@ export function shouldSendUpdate(
 
 /** The offered live-share durations, in presentation order. */
 export const LIVE_SHARE_DURATIONS: { label: string; ms: number }[] = [
-    { label: "15 minutes", ms: 900000 },
-    { label: "1 hour", ms: 3600000 },
-    { label: "8 hours", ms: 28800000 },
+    { label: t("liveLocation.n15Minutes"), ms: 900000 },
+    { label: t("liveLocation.n1Hour"), ms: 3600000 },
+    { label: t("liveLocation.n8Hours"), ms: 28800000 },
 ];

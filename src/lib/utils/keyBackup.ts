@@ -11,6 +11,7 @@
  * SDK-free mirror of matrix-js-sdk's `ImportRoomKeyProgressData` (the discriminated
  * union reported by `restoreKeyBackup`'s progressCallback).
  */
+import { t } from "$lib/i18n";
 export type RestoreProgress =
     | { stage: "fetch" }
     | {
@@ -35,13 +36,19 @@ export interface RestoreProgressView {
 export function restoreProgressView(
     progress: RestoreProgress | null,
 ): RestoreProgressView {
-    if (!progress) return { label: "Preparing…", percent: null };
+    if (!progress) return { label: t("keyBackup.preparing"), percent: null };
     if (progress.stage === "fetch") {
-        return { label: "Fetching your encrypted history…", percent: null };
+        return {
+            label: t("keyBackup.fetchingYourEncryptedHistory"),
+            percent: null,
+        };
     }
     const { successes, total } = progress;
     if (total <= 0) {
-        return { label: "Restoring your encrypted history…", percent: null };
+        return {
+            label: t("keyBackup.restoringYourEncryptedHistory"),
+            percent: null,
+        };
     }
     const processed = progress.successes + progress.failures;
     const percent = Math.min(
@@ -49,7 +56,7 @@ export function restoreProgressView(
         Math.max(0, Math.round((processed / total) * 100)),
     );
     return {
-        label: `Restoring ${successes} of ${total} keys…`,
+        label: t("keyBackup.restoringOfKeys", { successes, total }),
         percent,
     };
 }
@@ -63,11 +70,11 @@ export interface RestoreResult {
 /** Final, human-readable summary of a completed restore. */
 export function restoreResultLabel(result: RestoreResult): string {
     const { total, imported } = result;
-    if (total <= 0) return "No encrypted history to restore";
+    if (total <= 0) return t("keyBackup.noEncryptedHistoryToRestore");
     if (imported >= total) {
-        return `${total} ${total === 1 ? "key" : "keys"} restored`;
+        return t("keyBackup.restored", { count: total });
     }
-    return `${imported} of ${total} keys restored`;
+    return t("keyBackup.ofKeysRestored", { imported, total });
 }
 
 /** Plain, SDK-free model of the account's key-backup posture. */
@@ -91,26 +98,31 @@ export interface BackupBadge {
 
 /** Short status badge for the backup row. */
 export function backupBadge(model: BackupStatusModel): BackupBadge {
-    if (!model.exists) return { label: "Not set up", tone: "inactive" };
-    if (!model.trusted) return { label: "Not trusted", tone: "warning" };
-    if (!model.active) return { label: "Not connected", tone: "warning" };
-    return { label: "On", tone: "active" };
+    if (!model.exists)
+        return { label: t("keyBackup.notSetUp"), tone: "inactive" };
+    if (!model.trusted)
+        return { label: t("keyBackup.notTrusted"), tone: "warning" };
+    if (!model.active)
+        return { label: t("keyBackup.notConnected"), tone: "warning" };
+    return { label: t("keyBackup.on"), tone: "active" };
 }
 
 /** One-line descriptive summary for the backup row. */
 export function backupSummaryLabel(model: BackupStatusModel): string {
     if (!model.exists) {
-        return "Encrypted message history isn't being backed up. Set up recovery to protect it.";
+        return t("keyBackup.encryptedMessageHistoryIsnTBeing");
     }
     if (!model.trusted) {
-        return "A backup exists on the server but isn't trusted by this session yet.";
+        return t("keyBackup.aBackupExistsOnTheServer");
     }
     if (!model.active) {
-        return "A backup exists but this session isn't connected to it. Enter your recovery key to restore your history.";
+        return t("keyBackup.aBackupExistsButThisSession");
     }
     return model.version
-        ? `Message history is being backed up (v${model.version}).`
-        : "Message history is being backed up.";
+        ? t("keyBackup.messageHistoryIsBeingBackedUp", {
+              version: model.version,
+          })
+        : t("keyBackup.messageHistoryIsBeingBackedUp2");
 }
 
 /**
@@ -143,8 +155,8 @@ export function backupDetailLines(detail: BackupDetail): string[] {
     const lines: string[] = [];
     const { count, sessionsRemaining } = detail;
     if (count != null) {
-        if (count <= 0) lines.push("No keys backed up yet");
-        else lines.push(`${count} ${count === 1 ? "key" : "keys"} backed up`);
+        if (count <= 0) lines.push(t("keyBackup.noKeysBackedUpYet"));
+        else lines.push(t("keyBackup.backedUp", { count }));
     }
     // `sessionsRemaining` describes THIS session's upload queue, so it only
     // means anything while this session is actually backing up. On an inactive
@@ -153,12 +165,10 @@ export function backupDetailLines(detail: BackupDetail): string[] {
     if (detail.active && sessionsRemaining != null) {
         if (sessionsRemaining > 0) {
             lines.push(
-                `${sessionsRemaining} ${
-                    sessionsRemaining === 1 ? "key" : "keys"
-                } still to upload`,
+                t("keyBackup.stillToUpload", { count: sessionsRemaining }),
             );
         } else {
-            lines.push("Everything on this session is backed up");
+            lines.push(t("keyBackup.everythingOnThisSessionIsBacked"));
         }
     }
     return lines;
@@ -169,7 +179,7 @@ const KEY_ID_VISIBLE = 8;
 
 /** Short, human-safe rendering of the account's default secret-storage key id. */
 export function secretStorageKeyLabel(defaultKeyId: string | null): string {
-    if (!defaultKeyId) return "Not set";
+    if (!defaultKeyId) return t("keyBackup.notSet");
     return defaultKeyId.length > KEY_ID_VISIBLE
         ? `${defaultKeyId.slice(0, KEY_ID_VISIBLE)}…`
         : defaultKeyId;

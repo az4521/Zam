@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // Shown while a stored session is being silently restored, on the same
     // tertiary background as the login card so the restore reads as one
     // continuous surface — no login-card flash before the shell appears.
@@ -12,6 +13,6 @@
         <div
             class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
         ></div>
-        <span>Restoring session…</span>
+        <span>{t("splash.restoringSession")}</span>
     </div>
 </div>

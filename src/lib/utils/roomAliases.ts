@@ -9,6 +9,7 @@
  */
 
 /** The spec caps a full room alias at 255 bytes. */
+import { t } from "$lib/i18n";
 export const MAX_ALIAS_LENGTH = 255;
 
 /** `m.room.canonical_alias` content. Both fields are optional in the spec. */
@@ -58,29 +59,44 @@ export function validateAliasLocalpart(
     serverName: string,
     existing: string[] = [],
 ): AliasValidation {
-    if (!localpart) return { valid: false, reason: "Enter an address." };
+    if (!localpart)
+        return { valid: false, reason: t("roomAliases.enterAnAddress") };
     if (/\s/.test(localpart))
-        return { valid: false, reason: "Addresses cannot contain spaces." };
+        return {
+            valid: false,
+            reason: t("roomAliases.addressesCannotContainSpaces"),
+        };
     if (localpart.includes(":"))
-        return { valid: false, reason: "Addresses cannot contain ':'." };
+        return {
+            valid: false,
+            reason: t("roomAliases.addressesCannotContain"),
+        };
     if (localpart.includes("#"))
-        return { valid: false, reason: "Addresses cannot contain '#'." };
+        return {
+            valid: false,
+            reason: t("roomAliases.addressesCannotContain2"),
+        };
     if (/[\u0000-\u001f]/.test(localpart))
         return {
             valid: false,
-            reason: "Addresses cannot contain control characters.",
+            reason: t("roomAliases.addressesCannotContainControlCharacters"),
         };
 
     const full = buildAlias(localpart, serverName);
     if (byteLength(full) > MAX_ALIAS_LENGTH)
         return {
             valid: false,
-            reason: `Address is too long (max ${MAX_ALIAS_LENGTH} characters).`,
+            reason: t("roomAliases.addressIsTooLongMaxCharacters", {
+                MAX_ALIAS_LENGTH,
+            }),
         };
 
     const lower = full.toLowerCase();
     if (existing.some((a) => a.toLowerCase() === lower))
-        return { valid: false, reason: "That address already exists." };
+        return {
+            valid: false,
+            reason: t("roomAliases.thatAddressAlreadyExists"),
+        };
 
     return { valid: true, reason: null };
 }

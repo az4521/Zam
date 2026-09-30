@@ -34,7 +34,7 @@ import { fileURLToPath } from "node:url";
  *
  * It DOES pin, per element: that each drawer's `inert`/`aria-hidden` sits in
  * the opening tag of the element carrying that drawer's own
- * `transform: translateX(<var>px)` — whatever that element's tag name and
+ * `transform: translateX(<var> * DIR px)` (DIR mirrors it for RTL) — whatever that element's tag name and
  * whatever order its attributes are in — bound to that drawer's own derived and
  * no other; that the derived comes from a correctly-signed call; and, as a
  * complete set, that no other occurrence of `inert` or `aria-hidden` — valued
@@ -252,19 +252,19 @@ const messageArea = () => readComponent("MessageArea.svelte");
 const leftDrawerTag = () =>
     drawerOpeningTag(
         appShell(),
-        "transform: translateX({drawerTranslate}px)",
+        "transform: translateX({drawerTranslate * DIR}px)",
         "<SpaceSidebar",
     );
 const rightPanelTag = () =>
     drawerOpeningTag(
         messageArea(),
-        "transform: translateX({pinnedTranslate}px)",
+        "transform: translateX({pinnedTranslate * DIR}px)",
         "{#if showNotificationsPanel}",
     );
 const memberDrawerTag = () =>
     drawerOpeningTag(
         messageArea(),
-        "transform: translateX({memberTranslate}px)",
+        "transform: translateX({memberTranslate * DIR}px)",
         "<MemberList",
     );
 

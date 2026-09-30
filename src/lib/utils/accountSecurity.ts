@@ -11,18 +11,20 @@
  * The server still applies its own password policy; its errors are surfaced
  * separately.
  */
+import { t } from "$lib/i18n";
 export function validatePasswordChange(fields: {
     current: string;
     next: string;
     confirm: string;
 }): string | null {
-    if (!fields.current) return "Enter your current password.";
-    if (!fields.next) return "Enter a new password.";
+    if (!fields.current) return t("accountSecurity.enterYourCurrentPassword");
+    if (!fields.next) return t("accountSecurity.enterANewPassword");
     if (fields.next.length < 8)
-        return "New password must be at least 8 characters.";
+        return t("accountSecurity.newPasswordMustBeAtLeast");
     if (fields.next === fields.current)
-        return "New password must be different from your current password.";
-    if (fields.confirm !== fields.next) return "Passwords do not match.";
+        return t("accountSecurity.newPasswordMustBeDifferentFrom");
+    if (fields.confirm !== fields.next)
+        return t("accountSecurity.passwordsDoNotMatch");
     return null;
 }
 

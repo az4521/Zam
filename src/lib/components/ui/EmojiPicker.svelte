@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { tick } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import { EMOJI_CATEGORIES, ALL_EMOJIS } from "$lib/data/emojis";
@@ -456,11 +457,15 @@
         <button
             type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
-            title="Drag or use arrow keys to resize"
-            aria-label="Resize picker"
+            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            title={t("common.dragOrUseArrowKeysTo")}
+            aria-label={t("common.resizePicker")}
         >
-            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+            <svg
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                class="w-4 h-4 mirror:-scale-x-100"
+            >
                 <path d="M2 2h5v1.5H3.5V7H2V2z" />
             </svg>
         </button>
@@ -469,17 +474,17 @@
         <div class="flex border-b border-discord-divider flex-shrink-0">
             <button
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
-                >Emoji</button
+                >{t("common.emoji")}</button
             >
             {#if onSwitchToSticker}<button
                     onclick={onSwitchToSticker}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >Stickers</button
+                    >{t("common.stickers")}</button
                 >{/if}
             {#if onSwitchToGif}<button
                     onclick={onSwitchToGif}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >GIFs</button
+                    >{t("common.gifs")}</button
                 >{/if}
         </div>
     {/if}
@@ -489,10 +494,10 @@
             bind:this={searchEl}
             type="text"
             bind:value={search}
-            placeholder="Search emoji…"
+            placeholder={t("emojiPicker.searchEmoji")}
             onkeydown={onSearchKeydown}
             role="combobox"
-            aria-label="Search emoji"
+            aria-label={t("emojiPicker.searchEmoji2")}
             aria-expanded={hasOptions}
             aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
@@ -521,7 +526,7 @@
                         {#if tab.id === "user" && ownAvatarUrl}
                             <img
                                 src={ownAvatarUrl}
-                                alt="My emojis"
+                                alt={t("emojiPicker.myEmojis")}
                                 class="w-5 h-5 rounded-full object-cover"
                             />
                         {:else if tab.id === "user"}
@@ -568,25 +573,25 @@
         onscroll={onScroll}
         id="{listId}-listbox"
         role={hasOptions ? "listbox" : undefined}
-        aria-label={hasOptions ? "Emoji" : undefined}
+        aria-label={hasOptions ? t("common.emoji") : undefined}
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
         {#if search}
             {#if searchCustom.length === 0 && searchStandard.length === 0}
                 <p class="text-center text-discord-textMuted text-sm py-8">
-                    No results
+                    {t("common.noResults")}
                 </p>
             {/if}
             {#if searchCustom.length > 0}
                 <p
                     class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 py-1"
                 >
-                    Custom
+                    {t("emojiPicker.custom")}
                 </p>
                 <div
                     class="grid gap-1 mb-2"
                     role="group"
-                    aria-label="Custom"
+                    aria-label={t("emojiPicker.custom")}
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchCustom as e, li (e.packId + ":" + e.shortcode)}
@@ -621,13 +626,13 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 py-1"
                     >
-                        Standard
+                        {t("emojiPicker.standard")}
                     </p>
                 {/if}
                 <div
                     class="grid gap-1"
                     role="group"
-                    aria-label="Standard"
+                    aria-label={t("emojiPicker.standard")}
                     style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                 >
                     {#each searchStandard as e, li (e.name)}
@@ -660,14 +665,16 @@
                         data-section={pack.id}
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
                     >
-                        {pack.id === "user" ? "My Emojis" : pack.name}
+                        {pack.id === "user"
+                            ? t("emojiPicker.myEmojis2")
+                            : pack.name}
                     </p>
                     {#if revealedSections.has(pack.id)}
                         <div
                             class="grid gap-1 mb-2"
                             role="group"
                             aria-label={pack.id === "user"
-                                ? "My Emojis"
+                                ? t("emojiPicker.myEmojis2")
                                 : pack.name}
                             style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
                         >

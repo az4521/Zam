@@ -6,6 +6,7 @@
  * maintaining all other validation rules.
  */
 
+import { t } from "$lib/i18n";
 export interface ParseMutePowerLevelResult {
     ok: boolean;
     /** The parsed level when ok; null otherwise. */
@@ -34,10 +35,18 @@ export function parseMutePowerLevelInput(
 ): ParseMutePowerLevelResult {
     const trimmed = raw.trim();
     if (!trimmed) {
-        return { ok: false, value: null, error: "Enter a power level" };
+        return {
+            ok: false,
+            value: null,
+            error: t("mutePowerLevel.enterAPowerLevel"),
+        };
     }
     if (!/^-?\d+$/.test(trimmed)) {
-        return { ok: false, value: null, error: "Must be a whole number" };
+        return {
+            ok: false,
+            value: null,
+            error: t("mutePowerLevel.mustBeAWholeNumber"),
+        };
     }
     const value = Number(trimmed);
 
@@ -51,7 +60,7 @@ export function parseMutePowerLevelInput(
         return {
             ok: false,
             value: null,
-            error: `Use ${MUTE_POWER_LEVEL} to mute`,
+            error: t("mutePowerLevel.useToMute", { MUTE_POWER_LEVEL }),
         };
     }
 
@@ -59,7 +68,7 @@ export function parseMutePowerLevelInput(
         return {
             ok: false,
             value: null,
-            error: `You can't set a level above your own (${ceiling})`,
+            error: t("mutePowerLevel.youCanTSetALevel", { ceiling }),
         };
     }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { Hash, Menu } from "lucide-svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import { joinRoom, type SpaceChildInfo } from "$lib/matrix/client";
@@ -18,7 +19,7 @@
         roomsState.spaces.find((s) => s.roomId === roomsState.activeSpaceId)
             ?.name ||
             roomsState.spaceDrillName ||
-            "this space",
+            t("spaceLandingPanel.thisSpace"),
     );
 
     const joinable = $derived(
@@ -46,7 +47,9 @@
             // The sidebar's Browse Channels list owns the knock/request flow —
             // point at it rather than growing a second copy here.
             showErrorToast(
-                `Couldn't join ${child.name || "that room"}. Try it from Browse Rooms in the room list.`,
+                t("spaceLandingPanel.couldnTJoinTryItFrom", {
+                    value: child.name || t("spaceLandingPanel.thatRoom"),
+                }),
             );
         } finally {
             const next = new Set(joiningIds);
@@ -64,7 +67,7 @@
             <button
                 onclick={onMenuOpen}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                aria-label="Open room list"
+                aria-label={t("common.openRoomList")}
             >
                 <Menu size={20} />
             </button>
@@ -82,16 +85,15 @@
                 <div
                     class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
                 ></div>
-                <span>Loading rooms…</span>
+                <span>{t("spaceLandingPanel.loadingRooms")}</span>
             </div>
         {:else if joinable.length > 0}
             <div class="max-w-2xl mx-auto">
                 <h2 class="text-2xl font-bold text-discord-textPrimary mb-1">
-                    Browse rooms
+                    {t("spaceLandingPanel.browseRooms")}
                 </h2>
                 <p class="text-discord-textMuted mb-6">
-                    You haven't joined a room in {spaceName} yet. Pick one to get
-                    started.
+                    {t("spaceLandingPanel.youHavenTJoinedARoom", { spaceName })}
                 </p>
                 <ul class="flex flex-col gap-2">
                     {#each joinable as child (child.roomId)}
@@ -118,10 +120,9 @@
                             </div>
                             <span
                                 class="text-xs text-discord-textMuted shrink-0 hidden sm:inline"
-                                >{child.numMembers}
-                                {child.numMembers === 1
-                                    ? "member"
-                                    : "members"}</span
+                                >{t("common.memberCount", {
+                                    count: child.numMembers,
+                                })}</span
                             >
                             <button
                                 onclick={() => handleJoin(child)}
@@ -129,8 +130,8 @@
                                 class="px-4 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover disabled:opacity-50 text-white text-sm font-semibold transition-colors shrink-0"
                             >
                                 {joiningIds.has(child.roomId)
-                                    ? "Joining…"
-                                    : "Join"}
+                                    ? t("common.joining")
+                                    : t("common.join")}
                             </button>
                         </li>
                     {/each}
@@ -141,11 +142,12 @@
                 class="h-full flex flex-col items-center justify-center text-center"
             >
                 <h2 class="text-xl font-bold text-discord-textPrimary mb-2">
-                    Nothing joined here yet
+                    {t("spaceLandingPanel.nothingJoinedHereYet")}
                 </h2>
                 <p class="text-discord-textMuted max-w-sm">
-                    Only other spaces live inside {spaceName}, open one from the
-                    room list to browse its rooms.
+                    {t("spaceLandingPanel.onlyOtherSpacesLiveInsideOpen", {
+                        spaceName,
+                    })}
                 </p>
             </div>
         {:else}
@@ -153,7 +155,7 @@
                 class="h-full flex flex-col items-center justify-center text-center"
             >
                 <p class="text-discord-textMuted max-w-sm">
-                    There are no rooms in {spaceName} yet.
+                    {t("spaceLandingPanel.thereAreNoRoomsInYet", { spaceName })}
                 </p>
             </div>
         {/if}

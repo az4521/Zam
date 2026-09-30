@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { MatrixEvent } from "matrix-js-sdk";
     import { Search, X } from "lucide-svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -49,7 +50,7 @@
             showErrorToast(
                 err instanceof Error
                     ? err.message
-                    : "Failed to forward message",
+                    : t("forwardMessageDialog.failedToForwardMessage"),
             );
             isSending = false;
         }
@@ -70,14 +71,14 @@
                 id="forward-title"
                 class="text-base font-semibold text-discord-textPrimary"
             >
-                Forward message
+                {t("forwardMessageDialog.forwardMessage")}
             </h2>
             <button
                 type="button"
                 onclick={closeModal}
                 class="p-1.5 rounded text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
-                aria-label="Close"
-                title="Close"><X size={20} /></button
+                aria-label={t("common.close")}
+                title={t("common.close")}><X size={20} /></button
             >
         </div>
 
@@ -85,13 +86,13 @@
             <label class="relative block">
                 <Search
                     size={16}
-                    class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
+                    class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
                 />
                 <input
                     data-autofocus
                     bind:value={query}
-                    placeholder="Search rooms"
-                    class="w-full rounded bg-discord-backgroundTertiary py-2 pl-9 pr-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
+                    placeholder={t("forwardMessageDialog.searchRooms")}
+                    class="w-full rounded bg-discord-backgroundTertiary py-2 ps-9 pe-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
                 />
             </label>
         </div>
@@ -103,7 +104,7 @@
                     onclick={() => (selectedRoomId = room.roomId)}
                     ondblclick={submit}
                     aria-pressed={selectedRoomId === room.roomId}
-                    class="flex w-full items-center gap-3 rounded px-2 py-2 text-left transition-colors {selectedRoomId ===
+                    class="flex w-full items-center gap-3 rounded px-2 py-2 text-start transition-colors {selectedRoomId ===
                     room.roomId
                         ? 'bg-discord-accent/20'
                         : 'hover:bg-discord-messageHover'}"
@@ -122,7 +123,7 @@
                 </button>
             {:else}
                 <p class="px-3 py-8 text-center text-sm text-discord-textMuted">
-                    No joined rooms found
+                    {t("forwardMessageDialog.noJoinedRoomsFound")}
                 </p>
             {/each}
         </div>
@@ -132,14 +133,16 @@
                 type="button"
                 onclick={closeModal}
                 class="px-3 py-2 text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary"
-                >Cancel</button
+                >{t("common.cancel")}</button
             >
             <button
                 type="button"
                 onclick={submit}
                 disabled={!selectedRoomId || isSending}
                 class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
-                >{isSending ? "Forwarding…" : "Forward"}</button
+                >{isSending
+                    ? t("forwardMessageDialog.forwarding")
+                    : t("forwardMessageDialog.forward")}</button
             >
         </div>
     </ModalDialog>

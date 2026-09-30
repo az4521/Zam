@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         pollDialogState,
         closeCreatePollDialog,
@@ -48,7 +49,9 @@
             closeCreatePollDialog();
         } catch (err) {
             showErrorToast(
-                err instanceof Error ? err.message : "Failed to create poll",
+                err instanceof Error
+                    ? err.message
+                    : t("createPollDialog.failedToCreatePoll"),
             );
             submitting = false;
         }
@@ -58,7 +61,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t("common.closeDialog")}
         class="absolute inset-0 bg-black/60"
         onclick={closeCreatePollDialog}
     ></button>
@@ -73,7 +76,7 @@
             id="create-poll-title"
             class="text-lg font-bold text-discord-textPrimary"
         >
-            Create poll
+            {t("createPollDialog.createPoll")}
         </h2>
 
         <!-- Question -->
@@ -82,13 +85,13 @@
                 for="poll-question"
                 class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
             >
-                Question
+                {t("createPollDialog.question")}
             </label>
             <input
                 id="poll-question"
                 type="text"
                 bind:value={question}
-                placeholder="Ask something…"
+                placeholder={t("createPollDialog.askSomething")}
                 maxlength="340"
                 class="w-full rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
             />
@@ -99,7 +102,7 @@
             <span
                 class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
             >
-                Options
+                {t("createPollDialog.options")}
             </span>
             <div class="flex flex-col gap-2">
                 {#each answers as _answer, i (i)}
@@ -107,8 +110,12 @@
                         <input
                             type="text"
                             bind:value={answers[i]}
-                            placeholder={`Option ${i + 1}`}
-                            aria-label={`Option ${i + 1}`}
+                            placeholder={t("createPollDialog.option", {
+                                value: i + 1,
+                            })}
+                            aria-label={t("createPollDialog.option", {
+                                value: i + 1,
+                            })}
                             maxlength="340"
                             class="flex-1 rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
                         />
@@ -116,8 +123,8 @@
                             type="button"
                             onclick={() => removeAnswer(i)}
                             disabled={answers.length <= 2}
-                            aria-label="Remove option"
-                            title="Remove option"
+                            aria-label={t("createPollDialog.removeOption")}
+                            title={t("createPollDialog.removeOption")}
                             class="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         >
                             <svg
@@ -139,7 +146,7 @@
                     onclick={addAnswer}
                     class="self-start mt-1 text-sm font-medium text-discord-accent hover:text-discord-accentHover hover:underline transition-colors"
                 >
-                    + Add option
+                    {t("createPollDialog.addOption")}
                 </button>
             {/if}
         </div>
@@ -149,7 +156,7 @@
             <span
                 class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
             >
-                Results
+                {t("createPollDialog.results")}
             </span>
             <div
                 class="flex gap-1 rounded bg-discord-backgroundTertiary p-1 text-sm"
@@ -162,7 +169,7 @@
                         ? 'bg-discord-accent text-white'
                         : 'text-discord-textSecondary hover:text-discord-textPrimary'}"
                 >
-                    Show as people vote
+                    {t("createPollDialog.showAsPeopleVote")}
                 </button>
                 <button
                     type="button"
@@ -172,7 +179,7 @@
                         ? 'bg-discord-accent text-white'
                         : 'text-discord-textSecondary hover:text-discord-textPrimary'}"
                 >
-                    Hide until closed
+                    {t("createPollDialog.hideUntilClosed")}
                 </button>
             </div>
         </div>
@@ -185,14 +192,14 @@
                 class="h-4 w-4 rounded accent-discord-accent"
             />
             <span class="text-sm text-discord-textPrimary">
-                Allow selecting multiple options
+                {t("createPollDialog.allowSelectingMultipleOptions")}
             </span>
         </label>
 
         <!-- Footer -->
         <div class="flex items-center justify-end gap-3 pt-1">
             {#if errorReason}
-                <span class="mr-auto text-xs text-discord-textMuted"
+                <span class="me-auto text-xs text-discord-textMuted"
                     >{errorReason}</span
                 >
             {/if}
@@ -201,7 +208,7 @@
                 onclick={closeCreatePollDialog}
                 class="px-4 py-2 rounded text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
             >
-                Cancel
+                {t("common.cancel")}
             </button>
             <button
                 type="button"
@@ -209,7 +216,9 @@
                 disabled={submitting || validation.ok !== true}
                 class="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {submitting ? "Creating…" : "Create poll"}
+                {submitting
+                    ? t("createPollDialog.creating")
+                    : t("createPollDialog.createPoll")}
             </button>
         </div>
     </div>

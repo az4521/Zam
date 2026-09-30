@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { ShieldQuestion } from "lucide-svelte";
     import {
         verificationState,
@@ -83,7 +84,7 @@
             class="rounded px-2.5 py-1 text-xs text-discord-textPrimary transition-colors bg-discord-messageHover hover:bg-discord-danger/20 hover:text-discord-danger disabled:opacity-60"
             onclick={() => declineIncoming(controller)}
         >
-            Decline
+            {t("common.decline")}
         </button>
         <button
             type="button"
@@ -91,7 +92,7 @@
             disabled={busy}
             onclick={accept}
         >
-            {busy ? "…" : "Verify"}
+            {busy ? "…" : t("common.verify")}
         </button>
     {/if}
 </div>

@@ -9,12 +9,12 @@
  */
 
 /** Structural stand-in for GeolocationPositionError (jsdom lacks the class). */
+import { t } from "$lib/i18n";
 export interface GeoErrorLike {
     code: number;
 }
 
-const HTTPS_HINT =
-    "Location needs a secure (HTTPS) connection - open the app over https.";
+const HTTPS_HINT = t("geoErrors.locationNeedsASecureHttpsConnection");
 
 /** Message for a getCurrentPosition/watchPosition error callback. */
 export function geoErrorMessage(
@@ -24,20 +24,20 @@ export function geoErrorMessage(
     switch (err?.code) {
         case 1: // PERMISSION_DENIED
             return secureContext
-                ? "Location permission was denied - check site permissions."
+                ? t("geoErrors.locationPermissionWasDeniedCheckSite")
                 : HTTPS_HINT;
         case 2: // POSITION_UNAVAILABLE
-            return "Your position is unavailable (location off or no GPS fix).";
+            return t("geoErrors.yourPositionIsUnavailableLocationOff");
         case 3: // TIMEOUT
-            return "Timed out getting your location.";
+            return t("geoErrors.timedOutGettingYourLocation");
         default:
-            return "Couldn't get your location.";
+            return t("geoErrors.couldnTGetYourLocation");
     }
 }
 
 /** Message for when navigator.geolocation itself is missing. */
 export function geolocationUnavailableMessage(secureContext: boolean): string {
     return secureContext
-        ? "Location isn't available in this browser."
+        ? t("geoErrors.locationIsnTAvailableInThis")
         : HTTPS_HINT;
 }

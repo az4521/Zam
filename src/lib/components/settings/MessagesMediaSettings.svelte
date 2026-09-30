@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
@@ -14,7 +15,7 @@
 
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
-        { value: "favourites", label: "Favourites" },
+        { value: "favourites", label: t("messagesMediaSettings.favourites") },
     ];
 </script>
 
@@ -23,22 +24,23 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Messages
+            {t("messagesMediaSettings.messages")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">Show Matrix IDs</p>
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.showMatrixIds")}
+                </p>
                 <p class="text-xs text-discord-textMuted">
-                    Show full Matrix ids like @user:server instead of display
-                    names throughout the app.
+                    {t("messagesMediaSettings.showFullMatrixIdsLikeUser")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.showMatrixIds}
                 onChange={setShowMatrixIds}
-                label="Show Matrix IDs"
+                label={t("messagesMediaSettings.showMatrixIds")}
             />
         </div>
         <div
@@ -46,19 +48,16 @@
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Read receipt avatars
+                    {t("messagesMediaSettings.readReceiptAvatars")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Show who has read each message as small avatars underneath
-                    it. This only changes what you see on this device - to stop
-                    others seeing how far you've read, use Private read receipts
-                    in Privacy & Safety.
+                    {t("messagesMediaSettings.showWhoHasReadEachMessage")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.showReadReceiptAvatars}
                 onChange={setShowReadReceiptAvatars}
-                label="Read receipt avatars"
+                label={t("messagesMediaSettings.readReceiptAvatars")}
             />
         </div>
         <div
@@ -66,17 +65,16 @@
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Hold to open message menu
+                    {t("messagesMediaSettings.holdToOpenMessageMenu")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    On touch devices, open a message's actions by holding it
-                    instead of tapping. When off, a tap opens the menu.
+                    {t("messagesMediaSettings.onTouchDevicesOpenAMessage")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.holdToOpenMessageMenu}
                 onChange={setHoldToOpenMessageMenu}
-                label="Hold to open message menu"
+                label={t("messagesMediaSettings.holdToOpenMessageMenu")}
             />
         </div>
         <div
@@ -84,34 +82,31 @@
         >
             <div class="flex-1 min-w-0">
                 <span class="text-sm text-discord-textPrimary"
-                    >Link previews</span
+                    >{t("messagesMediaSettings.linkPreviews")}</span
                 >
                 <p class="text-xs text-discord-textMuted">
-                    When off, no link preview is loaded and your homeserver
-                    never fetches the linked page on your behalf. Control where
-                    preview media loads from in Privacy & Safety.
+                    {t("messagesMediaSettings.whenOffNoLinkPreviewIs")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.linkPreviewsEnabled}
                 onChange={setLinkPreviewsEnabled}
-                label="Link previews"
+                label={t("messagesMediaSettings.linkPreviews")}
             />
         </div>
         <div class="flex items-center gap-3 py-2">
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Pause videos off-screen
+                    {t("messagesMediaSettings.pauseVideosOffScreen")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Pause a playing video when it scrolls out of view to save
-                    battery. You restart it yourself when you scroll back.
+                    {t("messagesMediaSettings.pauseAPlayingVideoWhenIt")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.pauseVideoOnScrollOff}
                 onChange={setPauseVideoOnScrollOff}
-                label="Pause videos off-screen"
+                label={t("messagesMediaSettings.pauseVideosOffScreen")}
             />
         </div>
     </section>
@@ -120,23 +115,24 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            GIFs
+            {t("common.gifs")}
         </p>
         <div
             class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="flex-1 min-w-0">
-                <span class="text-sm text-discord-textPrimary">Default tab</span
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("messagesMediaSettings.defaultTab")}</span
                 >
                 <p class="text-xs text-discord-textMuted">
-                    Which tab the GIF picker opens on.
+                    {t("messagesMediaSettings.whichTabTheGifPickerOpens")}
                 </p>
             </div>
             <OptionSelector
                 value={settingsState.gifDefaultTab}
                 options={gifTabOptions}
                 onChange={setGifDefaultTab}
-                ariaLabel="Default GIF tab"
+                ariaLabel={t("messagesMediaSettings.defaultGifTab")}
             />
         </div>
     </section>

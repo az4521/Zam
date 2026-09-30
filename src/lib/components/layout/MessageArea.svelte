@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { localeInfo, t } from "$lib/i18n";
     import { tick, untrack, onMount } from "svelte";
     import type { Room, MatrixEvent, TimelineWindow } from "matrix-js-sdk";
     import type { CallSummary } from "$lib/utils/callSummary";
@@ -626,6 +627,10 @@
 
     // Animated right drawer (mobile member list)
     const MEMBER_WIDTH = 280;
+    // The side drawers always slide in from the right: the panel arrangement
+    // is pinned left-to-right in every language (see the root below).
+    const DIR = 1;
+    const uiDir = localeInfo().dir;
     let memberTranslate = $state(MEMBER_WIDTH);
     let isMemberDragging = $state(false);
     let memberDragPending = false;
@@ -658,7 +663,8 @@
     function memberDragMove(e: TouchEvent) {
         if (!memberDragPending && !isMemberDragging) return;
         const touch = e.touches[0];
-        const dx = touch.clientX - memberDragStartX;
+        const rawDx = touch.clientX - memberDragStartX;
+        const dx = rawDx * DIR;
         const dy = touch.clientY - memberDragStartY;
 
         if (memberDragPending) {
@@ -670,7 +676,7 @@
             }
             // Horizontal gesture inside a scrollable code block / table — let it
             // scroll natively instead of opening the member drawer.
-            if (targetCanScrollHoriz(dragTarget, dx)) {
+            if (targetCanScrollHoriz(dragTarget, rawDx)) {
                 memberDragPending = false;
                 cleanupMemberListeners();
                 return;
@@ -766,7 +772,8 @@
     function pinnedDragMove(e: TouchEvent) {
         if (!pinnedDragPending && !isPinnedDragging) return;
         const touch = e.touches[0];
-        const dx = touch.clientX - pinnedDragStartX;
+        const rawDx = touch.clientX - pinnedDragStartX;
+        const dx = rawDx * DIR;
         const dy = touch.clientY - pinnedDragStartY;
         if (pinnedDragPending) {
             if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
@@ -777,7 +784,7 @@
             }
             // Horizontal gesture inside a scrollable code block / table — let it
             // scroll natively instead of opening the pinned drawer.
-            if (targetCanScrollHoriz(dragTarget, dx)) {
+            if (targetCanScrollHoriz(dragTarget, rawDx)) {
                 pinnedDragPending = false;
                 cleanupPinnedListeners();
                 return;
@@ -1120,7 +1127,10 @@
         const arrivedBody = event.getContent()?.body;
         const next = recordArrival(announcerState, {
             eventId: event.getId() ?? "",
-            sender: event.sender?.name ?? event.getSender() ?? "Someone",
+            sender:
+                event.sender?.name ??
+                event.getSender() ??
+                t("messageArea.someone"),
             isOwn: event.getSender() === auth.userId,
             // showAllEvents lets non-message events through, where `body` may
             // be missing or not a string.
@@ -1706,7 +1716,10 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- Pinned left-to-right so the chat stays left of its side panels in every
+     language; the chat and each panel get the UI direction back. -->
 <div
+    dir="ltr"
     class="flex flex-1 min-w-0 overflow-hidden relative"
     ondragenter={onDragEnter}
     ondragleave={onDragLeave}
@@ -1742,13 +1755,19 @@
                         d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
                     />
                 </svg>
-                <p class="text-lg font-semibold">Drop to attach</p>
+                <p class="text-lg font-semibold">
+                    {t("messageArea.dropToAttach")}
+                </p>
             </div>
         </div>
     {/if}
 
     <!-- Main chat area -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden" data-chat-area>
+    <div
+        dir={uiDir}
+        class="flex-1 flex flex-col min-w-0 overflow-hidden"
+        data-chat-area
+    >
         <!-- Room header -->
         <div
             class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
@@ -1756,8 +1775,8 @@
             {#if isMobile}
                 <button
                     onclick={onMenuOpen}
-                    class="relative p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
-                    title="Open room list"
+                    class="relative p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    title={t("common.openRoomList")}
                 >
                     <svg
                         class="w-5 h-5"
@@ -1770,8 +1789,8 @@
                     </svg>
                     {#if hasAnyLoud}
                         <span
-                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-danger border border-discord-background"
-                            aria-label="Unread notifications"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-danger border border-discord-background"
+                            aria-label={t("messageArea.unreadNotifications")}
                         ></span>
                     {/if}
                 </button>
@@ -1791,8 +1810,8 @@
             {#if roomEncrypted}
                 <span
                     class="flex-shrink-0 text-discord-textMuted"
-                    title="Encryption enabled"
-                    aria-label="Encryption enabled"
+                    title={t("messageArea.encryptionEnabled")}
+                    aria-label={t("messageArea.encryptionEnabled")}
                 >
                     <Lock size={16} />
                 </span>
@@ -1817,10 +1836,12 @@
                     class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50 {joining
                         ? 'animate-pulse'
                         : ''}"
-                    title={joining ? "Joining voice call…" : "Start voice call"}
+                    title={joining
+                        ? t("messageArea.joiningVoiceCall")
+                        : t("messageArea.startVoiceCall")}
                     aria-label={joining
-                        ? "Joining voice call…"
-                        : "Start voice call"}
+                        ? t("messageArea.joiningVoiceCall")
+                        : t("messageArea.startVoiceCall")}
                 >
                     <Phone size={20} />
                 </button>
@@ -1830,8 +1851,8 @@
                 <button
                     onclick={() => showCallView(room.roomId)}
                     class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
-                    title="Show call"
-                    aria-label="Show call"
+                    title={t("messageArea.showCall")}
+                    aria-label={t("messageArea.showCall")}
                 >
                     <Volume2 size={20} />
                 </button>
@@ -1843,7 +1864,7 @@
                     class="p-1.5 rounded transition-colors {showSearchPanel
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Search messages"
+                    title={t("messageArea.searchMessages")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
                         ><path
@@ -1862,8 +1883,8 @@
                     class="relative p-1.5 rounded transition-colors {showThreadsPanel
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Threads"
-                    aria-label="Toggle threads list"
+                    title={t("messageArea.threads")}
+                    aria-label={t("messageArea.toggleThreadsList")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
                         ><path
@@ -1872,16 +1893,16 @@
                     >
                     {#if threadRollup.mentions > 0}
                         <span
-                            class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
-                            title="Unread thread mentions"
+                            class="absolute -top-1 -end-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            title={t("messageArea.unreadThreadMentions")}
                             >{threadRollup.mentions > 99
                                 ? "99+"
                                 : threadRollup.mentions}</span
                         >
                     {:else if threadRollup.anyUnread}
                         <span
-                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
-                            title="Unread threads"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            title={t("messageArea.unreadThreads")}
                         ></span>
                     {/if}
                 </button>
@@ -1891,9 +1912,11 @@
                     class="p-1.5 rounded transition-colors {showPinnedPanel
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Pinned messages{pinnedCount > 0
-                        ? ` (${pinnedCount})`
-                        : ''}"
+                    title={pinnedCount > 0
+                        ? t("messageArea.pinnedMessagesCount", {
+                              count: pinnedCount,
+                          })
+                        : t("messageArea.pinnedMessages")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
                         ><path
@@ -1907,7 +1930,7 @@
                     class="p-1.5 rounded transition-colors {showNotificationsPanel
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Notifications inbox"
+                    title={t("messageArea.notificationsInbox")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
                         ><path
@@ -1921,8 +1944,8 @@
                     class="p-1.5 rounded transition-colors {showMediaPanel
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Media and files"
-                    aria-label="Media and files"
+                    title={t("messageArea.mediaAndFiles")}
+                    aria-label={t("messageArea.mediaAndFiles")}
                 >
                     <Image size={20} />
                 </button>
@@ -1932,7 +1955,7 @@
                     class="p-1.5 rounded transition-colors {showMemberList
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="Toggle member list"
+                    title={t("messageArea.toggleMemberList")}
                 >
                     <Users size={20} />
                 </button>
@@ -1965,24 +1988,24 @@
                     class="relative p-1.5 rounded transition-colors flex-shrink-0 {overflowActive
                         ? 'text-discord-accent bg-discord-messageHover'
                         : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
-                    title="More"
-                    aria-label="More room options"
+                    title={t("messageArea.more")}
+                    aria-label={t("messageArea.moreRoomOptions")}
                     aria-haspopup="menu"
                     aria-expanded={overflowOpen}
                 >
                     <MoreHorizontal size={20} />
                     {#if threadRollup.mentions > 0}
                         <span
-                            class="absolute -top-1 -right-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
-                            title="Unread thread mentions"
+                            class="absolute -top-1 -end-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            title={t("messageArea.unreadThreadMentions")}
                             >{threadRollup.mentions > 99
                                 ? "99+"
                                 : threadRollup.mentions}</span
                         >
                     {:else if threadRollup.anyUnread}
                         <span
-                            class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
-                            title="Unread threads"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            title={t("messageArea.unreadThreads")}
                         ></span>
                     {/if}
                 </button>
@@ -2003,7 +2026,7 @@
             onwheel={stopScrollIntoView}
             ontouchstart={stopScrollIntoView}
             role="log"
-            aria-label="Message timeline"
+            aria-label={t("messageArea.messageTimeline")}
             aria-live="off"
             class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{isAtBottom
                 ? ' *:[overflow-anchor:none]'
@@ -2041,14 +2064,15 @@
                     <h3
                         class="text-2xl font-bold text-discord-textPrimary mb-1"
                     >
-                        Welcome to #{@html renderPlainTextWithTwemoji(
-                            roomName,
-                        )}!
+                        {t(
+                            "messageArea.welcomeTo",
+                        )}{@html renderPlainTextWithTwemoji(roomName)}!
                     </h3>
                     <p class="text-discord-textMuted">
-                        This is the beginning of the #{@html renderPlainTextWithTwemoji(
-                            roomName,
-                        )} room.
+                        {t(
+                            "messageArea.thisIsTheBeginningOfThe",
+                        )}{@html renderPlainTextWithTwemoji(roomName)}
+                        {t("messageArea.room")}
                     </p>
                 </div>
             {/if}
@@ -2077,7 +2101,7 @@
                         <div class="flex-1 h-px bg-discord-danger/60"></div>
                         <span
                             class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
-                            >New Messages</span
+                            >{t("messageArea.newMessages")}</span
                         >
                         <div class="flex-1 h-px bg-discord-danger/60"></div>
                     </div>
@@ -2096,13 +2120,15 @@
                                 d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"
                             /></svg
                         >
-                        <span class="italic">Message from a blocked user</span>
+                        <span class="italic"
+                            >{t("messageArea.messageFromABlockedUser")}</span
+                        >
                         <button
                             onclick={() =>
                                 (revealedBlockedIds[event.getId() ?? ""] =
                                     true)}
                             class="text-discord-accent hover:underline font-medium"
-                            >Show blocked message</button
+                            >{t("messageArea.showBlockedMessage")}</button
                         >
                     </div>
                 {:else}
@@ -2144,7 +2170,7 @@
                         <p
                             class="text-sm font-semibold text-discord-textPrimary"
                         >
-                            This room has been upgraded
+                            {t("messageArea.thisRoomHasBeenUpgraded")}
                         </p>
                         <p class="text-xs text-discord-textMuted truncate">
                             {tombstone.body}
@@ -2156,10 +2182,10 @@
                         class="flex-shrink-0 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                         {replacementAlreadyJoined
-                            ? "Go to new room"
+                            ? t("messageArea.goToNewRoom")
                             : joiningUpgrade
-                              ? "Joining…"
-                              : "Join new room"}
+                              ? t("common.joining")
+                              : t("messageArea.joinNewRoom")}
                     </button>
                 </div>
             {/if}
@@ -2190,7 +2216,7 @@
              open so it doesn't fight the autocomplete for the same space. -->
         {#if !isAtBottom && !isContextView && messages.length > 0 && !composerAutocompleteOpen}
             <div
-                class="absolute left-0 right-0 flex justify-center z-10 pointer-events-none"
+                class="absolute start-0 end-0 flex justify-center z-10 pointer-events-none"
                 style="bottom: {composerHeight + 12}px;"
             >
                 <button
@@ -2207,7 +2233,7 @@
                             d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"
                         />
                     </svg>
-                    Jump to present
+                    {t("messageArea.jumpToPresent")}
                 </button>
             </div>
         {/if}
@@ -2215,7 +2241,7 @@
         <!-- Searching for unloaded message indicator -->
         {#if jumpingToEventId}
             <div
-                class="absolute left-0 right-0 flex justify-center z-10 pointer-events-none"
+                class="absolute start-0 end-0 flex justify-center z-10 pointer-events-none"
                 style="bottom: {composerHeight + 12}px;"
             >
                 <div
@@ -2224,7 +2250,7 @@
                     <div
                         class="w-3.5 h-3.5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                     ></div>
-                    Searching for message…
+                    {t("messageArea.searchingForMessage")}
                 </div>
             </div>
         {/if}
@@ -2232,7 +2258,7 @@
         <!-- Context view banner -->
         {#if isContextView}
             <div
-                class="absolute top-12 left-0 right-0 flex justify-center z-10 pointer-events-none"
+                class="absolute top-12 start-0 end-0 flex justify-center z-10 pointer-events-none"
             >
                 <div
                     class="pointer-events-auto bg-discord-warning/20 text-discord-warning px-3 py-1.5 rounded-full shadow-lg text-sm border border-discord-warning/40 flex items-center gap-2"
@@ -2245,11 +2271,11 @@
                             d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                         /></svg
                     >
-                    Viewing message context
+                    {t("messageArea.viewingMessageContext")}
                     <button
                         onclick={rejoinLive}
-                        class="ml-1 underline hover:no-underline"
-                        >Return to live</button
+                        class="ms-1 underline hover:no-underline"
+                        >{t("messageArea.returnToLive")}</button
                     >
                 </div>
             </div>
@@ -2276,213 +2302,217 @@
     </div>
 
     <!-- Debug panel (Ctrl+Shift+D to toggle) -->
-    <DebugPanel {room} />
+    <div class="contents" dir={uiDir}>
+        <DebugPanel {room} />
 
-    <!-- User profile card (opened from the member list or a message header) -->
-    <UserProfileCard {room} />
+        <!-- User profile card (opened from the member list or a message header) -->
+        <UserProfileCard {room} />
 
-    <!-- Right panel (pinned or notifications inbox) -->
-    {#if isMobile}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div
-            class="absolute inset-0 z-30"
-            style="background: rgba(0,0,0,{pinnedBackdropOpacity}); pointer-events: {pinnedBackdropOpacity >
-            0.01
-                ? 'auto'
-                : 'none'};"
-            onclick={() => {
-                if (!isPinnedDragging) closeSidebar();
-            }}
-        ></div>
-        <div
-            class="absolute inset-y-0 right-0 z-40 h-full"
-            style="width: {PINNED_WIDTH}px; transform: translateX({pinnedTranslate}px); {isPinnedDragging
-                ? ''
-                : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {pinnedTranslate >=
-            PINNED_WIDTH
-                ? ''
-                : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
-            inert={rightPanelClosed}
-            aria-hidden={rightPanelClosed ? "true" : undefined}
-        >
-            {#if showNotificationsPanel}
-                <NotificationsPanel
-                    onClose={closeSidebar}
-                    onJumpTo={(_rid, eid) => scrollToMessage(eid)}
-                />
-            {:else if showSearchPanel}
-                <MessageSearchPanel
-                    {room}
-                    onClose={closeSidebar}
-                    onJumpTo={scrollToMessage}
-                />
-            {:else if showThreadsPanel}
-                <ThreadsListPanel
-                    {room}
-                    onClose={closeSidebar}
-                    onOpenThread={openThread}
-                />
-            {:else if showMediaPanel}
-                <RoomMediaPanel {room} onClose={closeSidebar} />
-            {:else}
-                <PinnedMessagesPanel
-                    {room}
-                    onClose={closeSidebar}
-                    onJumpTo={scrollToMessage}
-                />
-            {/if}
-        </div>
-    {:else if showNotificationsPanel}
-        <NotificationsPanel
-            onClose={closeSidebar}
-            onJumpTo={(_rid, eid) => scrollToMessage(eid)}
-        />
-    {:else if showSearchPanel}
-        <MessageSearchPanel
-            {room}
-            onClose={closeSidebar}
-            onJumpTo={scrollToMessage}
-        />
-    {:else if showThreadsPanel}
-        <ThreadsListPanel
-            {room}
-            onClose={closeSidebar}
-            onOpenThread={openThread}
-        />
-    {:else if showMediaPanel}
-        <RoomMediaPanel {room} onClose={closeSidebar} />
-    {:else if showPinnedPanel}
-        <PinnedMessagesPanel
-            {room}
-            onClose={closeSidebar}
-            onJumpTo={scrollToMessage}
-        />
-    {/if}
+        <!-- Right panel (pinned or notifications inbox) -->
+        {#if isMobile}
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <div
+                class="absolute inset-0 z-30"
+                style="background: rgba(0,0,0,{pinnedBackdropOpacity}); pointer-events: {pinnedBackdropOpacity >
+                0.01
+                    ? 'auto'
+                    : 'none'};"
+                onclick={() => {
+                    if (!isPinnedDragging) closeSidebar();
+                }}
+            ></div>
+            <div
+                class="absolute inset-y-0 right-0 z-40 h-full"
+                style="width: {PINNED_WIDTH}px; transform: translateX({pinnedTranslate *
+                    DIR}px); {isPinnedDragging
+                    ? ''
+                    : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {pinnedTranslate >=
+                PINNED_WIDTH
+                    ? ''
+                    : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
+                inert={rightPanelClosed}
+                aria-hidden={rightPanelClosed ? "true" : undefined}
+            >
+                {#if showNotificationsPanel}
+                    <NotificationsPanel
+                        onClose={closeSidebar}
+                        onJumpTo={(_rid, eid) => scrollToMessage(eid)}
+                    />
+                {:else if showSearchPanel}
+                    <MessageSearchPanel
+                        {room}
+                        onClose={closeSidebar}
+                        onJumpTo={scrollToMessage}
+                    />
+                {:else if showThreadsPanel}
+                    <ThreadsListPanel
+                        {room}
+                        onClose={closeSidebar}
+                        onOpenThread={openThread}
+                    />
+                {:else if showMediaPanel}
+                    <RoomMediaPanel {room} onClose={closeSidebar} />
+                {:else}
+                    <PinnedMessagesPanel
+                        {room}
+                        onClose={closeSidebar}
+                        onJumpTo={scrollToMessage}
+                    />
+                {/if}
+            </div>
+        {:else if showNotificationsPanel}
+            <NotificationsPanel
+                onClose={closeSidebar}
+                onJumpTo={(_rid, eid) => scrollToMessage(eid)}
+            />
+        {:else if showSearchPanel}
+            <MessageSearchPanel
+                {room}
+                onClose={closeSidebar}
+                onJumpTo={scrollToMessage}
+            />
+        {:else if showThreadsPanel}
+            <ThreadsListPanel
+                {room}
+                onClose={closeSidebar}
+                onOpenThread={openThread}
+            />
+        {:else if showMediaPanel}
+            <RoomMediaPanel {room} onClose={closeSidebar} />
+        {:else if showPinnedPanel}
+            <PinnedMessagesPanel
+                {room}
+                onClose={closeSidebar}
+                onJumpTo={scrollToMessage}
+            />
+        {/if}
 
-    <!-- Member list sidebar (animated overlay on mobile, inline on desktop) -->
-    {#if isMobile}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-        <div
-            class="absolute inset-0 z-30"
-            style="background: rgba(0,0,0,{memberBackdropOpacity}); pointer-events: {memberBackdropOpacity >
-            0.01
-                ? 'auto'
-                : 'none'};"
-            onclick={() => {
-                if (!isMemberDragging) closeSidebar();
-            }}
-        ></div>
-        <div
-            class="absolute inset-y-0 right-0 z-40 h-full"
-            style="width: {MEMBER_WIDTH}px; transform: translateX({memberTranslate}px); {isMemberDragging
-                ? ''
-                : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {memberTranslate >=
-            MEMBER_WIDTH
-                ? ''
-                : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
-            inert={memberDrawerClosed}
-            aria-hidden={memberDrawerClosed ? "true" : undefined}
-        >
+        <!-- Member list sidebar (animated overlay on mobile, inline on desktop) -->
+        {#if isMobile}
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+            <div
+                class="absolute inset-0 z-30"
+                style="background: rgba(0,0,0,{memberBackdropOpacity}); pointer-events: {memberBackdropOpacity >
+                0.01
+                    ? 'auto'
+                    : 'none'};"
+                onclick={() => {
+                    if (!isMemberDragging) closeSidebar();
+                }}
+            ></div>
+            <div
+                class="absolute inset-y-0 right-0 z-40 h-full"
+                style="width: {MEMBER_WIDTH}px; transform: translateX({memberTranslate *
+                    DIR}px); {isMemberDragging
+                    ? ''
+                    : 'transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);'} {memberTranslate >=
+                MEMBER_WIDTH
+                    ? ''
+                    : 'box-shadow: -25px 0 50px -12px rgba(0,0,0,0.5);'}"
+                inert={memberDrawerClosed}
+                aria-hidden={memberDrawerClosed ? "true" : undefined}
+            >
+                <MemberList {room} />
+            </div>
+        {:else if showMemberList}
             <MemberList {room} />
-        </div>
-    {:else if showMemberList}
-        <MemberList {room} />
-    {/if}
+        {/if}
 
-    <!-- Plugin room-header panel (single sidebar slot). Additive: no inbound
+        <!-- Plugin room-header panel (single sidebar slot). Additive: no inbound
          rendering touched. Title is escaped text; body is the plugin's own DOM
          mounted via pluginMount (cleanup runs on unmount/close/supersede). -->
-    {#if pluginPanel.current}
-        {@const panel = pluginPanel.current}
-        {#if isMobile}
-            <div
-                class="absolute inset-0 z-40 flex flex-col bg-discord-backgroundPrimary"
-            >
+        {#if pluginPanel.current}
+            {@const panel = pluginPanel.current}
+            {#if isMobile}
                 <div
-                    class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                    class="absolute inset-0 z-40 flex flex-col bg-discord-backgroundPrimary"
                 >
-                    <span
-                        class="font-semibold text-discord-textPrimary truncate"
-                        >{panel.title}</span
-                    >
-                    <button
-                        onclick={closeSidebar}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
-                        aria-label="Close panel"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-                {#key panel.key}
                     <div
-                        class="flex-1 overflow-y-auto"
-                        use:pluginMount={panel.render}
-                    ></div>
-                {/key}
-            </div>
-        {:else}
-            <div
-                class="w-80 flex-shrink-0 flex flex-col border-l border-discord-divider bg-discord-backgroundSecondary"
-            >
+                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                    >
+                        <span
+                            class="font-semibold text-discord-textPrimary truncate"
+                            >{panel.title}</span
+                        >
+                        <button
+                            onclick={closeSidebar}
+                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                            aria-label={t("messageArea.closePanel")}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                    {#key panel.key}
+                        <div
+                            class="flex-1 overflow-y-auto"
+                            use:pluginMount={panel.render}
+                        ></div>
+                    {/key}
+                </div>
+            {:else}
                 <div
-                    class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                    class="w-80 flex-shrink-0 flex flex-col border-l border-discord-divider bg-discord-backgroundSecondary"
                 >
-                    <span
-                        class="font-semibold text-discord-textPrimary truncate"
-                        >{panel.title}</span
-                    >
-                    <button
-                        onclick={closeSidebar}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
-                        aria-label="Close panel"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-                {#key panel.key}
                     <div
-                        class="flex-1 overflow-y-auto"
-                        use:pluginMount={panel.render}
-                    ></div>
-                {/key}
-            </div>
+                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                    >
+                        <span
+                            class="font-semibold text-discord-textPrimary truncate"
+                            >{panel.title}</span
+                        >
+                        <button
+                            onclick={closeSidebar}
+                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                            aria-label={t("messageArea.closePanel")}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                    {#key panel.key}
+                        <div
+                            class="flex-1 overflow-y-auto"
+                            use:pluginMount={panel.render}
+                        ></div>
+                    {/key}
+                </div>
+            {/if}
         {/if}
-    {/if}
 
-    <!-- Thread panel. Mobile: always fullscreen over the timeline (the w-80
+        <!-- Thread panel. Mobile: always fullscreen over the timeline (the w-80
          side sheet was unusably cramped). Desktop: side panel by default,
          with an expand toggle that swaps it to fullscreen. -->
-    {#if threadRootId}
-        {#if isMobile}
-            <div class="absolute inset-0 z-40">
+        {#if threadRootId}
+            {#if isMobile}
+                <div class="absolute inset-0 z-40">
+                    <ThreadPanel
+                        {room}
+                        rootEventId={threadRootId}
+                        onClose={closeThread}
+                        fullscreen
+                    />
+                </div>
+            {:else if threadFullscreen}
+                <div class="absolute inset-0 z-30">
+                    <ThreadPanel
+                        {room}
+                        rootEventId={threadRootId}
+                        onClose={closeThread}
+                        fullscreen
+                        onToggleFullscreen={() =>
+                            (threadFullscreen = !threadFullscreen)}
+                    />
+                </div>
+            {:else}
                 <ThreadPanel
                     {room}
                     rootEventId={threadRootId}
                     onClose={closeThread}
-                    fullscreen
-                />
-            </div>
-        {:else if threadFullscreen}
-            <div class="absolute inset-0 z-30">
-                <ThreadPanel
-                    {room}
-                    rootEventId={threadRootId}
-                    onClose={closeThread}
-                    fullscreen
                     onToggleFullscreen={() =>
                         (threadFullscreen = !threadFullscreen)}
                 />
-            </div>
-        {:else}
-            <ThreadPanel
-                {room}
-                rootEventId={threadRootId}
-                onClose={closeThread}
-                onToggleFullscreen={() =>
-                    (threadFullscreen = !threadFullscreen)}
-            />
+            {/if}
         {/if}
-    {/if}
+    </div>
 </div>
 
 {#if isMobile && overflowOpen}

@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     startLiveBeacon,
     stopLiveBeacon,
@@ -333,7 +334,7 @@ export async function startShare(
     }
     const room = getRoom(roomId);
     if (!room || !canShareLiveBeacon(room)) {
-        showErrorToast("You can't share live location in this room.");
+        showErrorToast(t("liveLocation.youCanTShareLiveLocation"));
         return;
     }
     if (!hasGeolocation()) {
@@ -364,7 +365,9 @@ export async function startShare(
         ({ beaconInfoEventId } = await startLiveBeacon(roomId, durationMs));
     } catch (err) {
         showErrorToast(
-            err instanceof Error ? err.message : "Couldn't start live location",
+            err instanceof Error
+                ? err.message
+                : t("liveLocation.couldnTStartLiveLocation"),
         );
         return;
     }

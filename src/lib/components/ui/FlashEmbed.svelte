@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     interface Props {
         src: string; // HTTP URL to the SWF
     }
@@ -80,8 +81,8 @@
     {#if player}
         <button
             onclick={() => player.ruffle().suspend()}
-            title="Suspend"
-            class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/flash:opacity-100 transition-opacity hover:bg-black/70"
+            title={t("flashEmbed.suspend")}
+            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/flash:opacity-100 transition-opacity hover:bg-black/70"
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />

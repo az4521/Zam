@@ -3,6 +3,7 @@
  * merged with user-added repos (deduped), add-repo validation, and a stable
  * installed-list sort. No DOM/SDK/localStorage/fetch — unit-testable.
  */
+import { t } from "$lib/i18n";
 import { normalizeRepoRef } from "./repo";
 
 /** The built-in official plugin source (spec §4). Non-removable in the UI. */
@@ -64,7 +65,7 @@ export function canAddRepo(
     if (!trimmed) {
         return {
             ok: false,
-            reason: "Enter a repo (owner/repo or a GitHub URL).",
+            reason: t("repoList.enterARepoOwnerRepoOr"),
         };
     }
     let owner: string, repo: string, branch: string;
@@ -77,12 +78,12 @@ export function canAddRepo(
     if (!allowOfficial && id === repoIdentity(OFFICIAL_REPO)) {
         return {
             ok: false,
-            reason: "That is the official repo (already included).",
+            reason: t("repoList.thatIsTheOfficialRepoAlready"),
         };
     }
     for (const existing of userRepos) {
         if (repoIdentity(existing) === id) {
-            return { ok: false, reason: "That repo is already added." };
+            return { ok: false, reason: t("repoList.thatRepoIsAlreadyAdded") };
         }
     }
     const normalized =

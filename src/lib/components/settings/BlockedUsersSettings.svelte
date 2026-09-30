@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
         ignoredUsersState,
@@ -17,7 +18,9 @@
         try {
             await unblockUser(userId);
         } catch (unblockError) {
-            error = (unblockError as Error)?.message ?? "Failed";
+            error =
+                (unblockError as Error)?.message ??
+                t("blockedUsersSettings.failed");
         } finally {
             pending = null;
         }
@@ -26,13 +29,12 @@
 
 <div class="space-y-4">
     <p class="text-xs text-discord-textMuted">
-        Messages from blocked users are hidden in every room. The list is stored
-        on your account and applies to all your sessions.
+        {t("blockedUsersSettings.messagesFromBlockedUsersAreHidden")}
     </p>
     {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
     {#if userIds.length === 0}
         <p class="text-sm text-discord-textMuted text-center py-8">
-            You haven't blocked anyone.
+            {t("blockedUsersSettings.youHavenTBlockedAnyone")}
         </p>
     {:else}
         <div class="space-y-1">
@@ -55,7 +57,7 @@
                         onclick={() => unblock(userId)}
                         disabled={pending === userId}
                         class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
-                        >Unblock</button
+                        >{t("common.unblock")}</button
                     >
                 </div>
             {/each}

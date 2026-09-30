@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { ShieldQuestion } from "lucide-svelte";
     import type { VerificationController } from "$lib/matrix/crypto";
     import {
@@ -20,12 +21,13 @@
     );
     const heading = $derived(
         view.isSelfVerification
-            ? "Verify your other session"
-            : "Verification request",
+            ? t("verificationRequestCard.verifyYourOtherSession")
+            : t("verificationRequestCard.verificationRequest"),
     );
     const subtitle = $derived(
         view.isSelfVerification
-            ? (view.otherDeviceId ?? "Another of your sessions")
+            ? (view.otherDeviceId ??
+                  t("verificationRequestCard.anotherOfYourSessions"))
             : view.otherUserId,
     );
 
@@ -73,7 +75,7 @@
         class="px-2.5 py-1 rounded text-xs bg-discord-messageHover text-discord-textPrimary hover:bg-discord-danger/20 hover:text-discord-danger transition-colors disabled:opacity-60"
         onclick={() => declineIncoming(controller)}
     >
-        Decline
+        {t("common.decline")}
     </button>
     <button
         type="button"
@@ -81,6 +83,6 @@
         disabled={busy}
         onclick={accept}
     >
-        {busy ? "…" : "Verify"}
+        {busy ? "…" : t("common.verify")}
     </button>
 </div>

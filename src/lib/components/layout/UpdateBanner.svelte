@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // A subtle, dismissible "update ready" prompt (fed by the updateBanner
     // store's app-shell watch), so a found/downloaded update doesn't wait for
     // the user to open Settings → About. Renders nothing on web or when there's
@@ -54,8 +55,8 @@
             </span>
             <button
                 onclick={dismissUpdateBanner}
-                aria-label="Dismiss update notification"
-                class="-mr-1 flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
+                aria-label={t("updateBanner.dismissUpdateNotification")}
+                class="-me-1 flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
             >
                 <svg
                     class="h-4 w-4"

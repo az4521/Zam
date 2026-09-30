@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         getUrlPreview,
         getHomeserverBaseUrl,
@@ -278,7 +279,7 @@
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
         loading="lazy"
-        title="YouTube video"
+        title={t("linkPreview.youtubeVideo")}
     ></iframe>
 {:else if directEmbed?.type === "video"}
     <!-- svelte-ignore a11y_media_has_caption -->
@@ -304,7 +305,7 @@
                 <!-- Author -->
                 <div class="flex flex-col min-w-0">
                     <p class="text-xs text-discord-textMuted mb-0.5">
-                        X / Twitter
+                        {t("linkPreview.xTwitter")}
                     </p>
                     <p
                         class="text-sm font-semibold text-discord-accent leading-snug"
@@ -504,9 +505,9 @@
             <button
                 onclick={toggleFavourite}
                 title={favourited
-                    ? "Remove from favourites"
-                    : "Add to favourites"}
-                class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+                    ? t("common.removeFromFavourites")
+                    : t("common.addToFavourites")}
+                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
             >
                 {#if favourited}
                     <svg
@@ -607,7 +608,7 @@
                                         class="w-10 h-10 rounded-full bg-black/60 flex items-center justify-center"
                                     >
                                         <svg
-                                            class="w-5 h-5 text-white ml-0.5"
+                                            class="w-5 h-5 text-white ms-0.5"
                                             fill="currentColor"
                                             viewBox="0 0 24 24"
                                             ><path d="M8 5v14l11-7z" /></svg
@@ -652,7 +653,7 @@
         type="button"
         onclick={() => (revealedFor = url)}
         class="mt-1 inline-flex items-center gap-1.5 rounded border border-discord-divider bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textSecondary transition-colors hover:text-discord-textPrimary hover:border-discord-accent/50"
-        title="Loading it contacts the site hosting it, which reveals your IP address"
+        title={t("linkPreview.loadingItContactsTheSiteHosting")}
     >
         <svg
             class="w-3.5 h-3.5"
@@ -673,7 +674,7 @@
                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
             />
         </svg>
-        Load preview media
+        {t("linkPreview.loadPreviewMedia")}
     </button>
 {/if}
 
@@ -721,7 +722,7 @@
             {:else}
                 <button
                     type="button"
-                    aria-label="Play video"
+                    aria-label={t("linkPreview.playVideo")}
                     class="relative max-w-lg w-full max-h-96 rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
                     style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
                     onclick={() => (videoPlaying = true)}
@@ -741,7 +742,7 @@
                             class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
                         >
                             <svg
-                                class="w-7 h-7 text-white ml-1"
+                                class="w-7 h-7 text-white ms-1"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                                 ><path d="M8 5v14l11-7z" /></svg
@@ -753,9 +754,9 @@
             <button
                 onclick={toggleFavourite}
                 title={favourited
-                    ? "Remove from favourites"
-                    : "Add to favourites"}
-                class="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+                    ? t("common.removeFromFavourites")
+                    : t("common.addToFavourites")}
+                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
             >
                 {#if favourited}
                     <svg

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount, onDestroy } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
@@ -132,7 +133,9 @@
             });
         } catch {
             if (isCaptureCurrent(micCapture, ticket))
-                micError = "Microphone unavailable - check browser permissions";
+                micError = t(
+                    "voiceAudioSettings.microphoneUnavailableCheckBrowserPermissions",
+                );
             return;
         }
         // A grant that arrives after the tab closed (or after a newer start)
@@ -216,7 +219,9 @@
             }
         } catch {
             if (isCaptureCurrent(cameraCapture, ticket))
-                cameraError = "Camera unavailable - check browser permissions";
+                cameraError = t(
+                    "voiceAudioSettings.cameraUnavailableCheckBrowserPermissions",
+                );
             return;
         }
         // Leaving the tab (or clicking Preview twice) used to leave the camera
@@ -316,21 +321,21 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Input device
+            {t("voiceAudioSettings.inputDevice")}
         </p>
         <select
             class={selectClass}
             value={settingsState.audioInputDeviceId ?? ""}
             onchange={(e) => pickInput(e.currentTarget.value)}
         >
-            <option value="">Default</option>
+            <option value="">{t("common.default")}</option>
             {#each inputs as d (d.id)}
                 <option value={d.id}>{d.label}</option>
             {/each}
         </select>
         {#if inputFallback}
             <p class="text-xs text-discord-warning mt-1">
-                Saved microphone not found - using the default until it returns.
+                {t("voiceAudioSettings.savedMicrophoneNotFoundUsingThe")}
             </p>
         {/if}
         {#if micError}
@@ -338,7 +343,7 @@
         {:else}
             <div
                 class="mt-3 h-2 rounded bg-discord-backgroundTertiary overflow-hidden"
-                title="Microphone level"
+                title={t("voiceAudioSettings.microphoneLevel")}
             >
                 <div
                     class="h-full bg-discord-accent"
@@ -351,7 +356,9 @@
                     ? 'bg-discord-accent text-white'
                     : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
             >
-                {loopbackOn ? "Stop test" : "Test mic"}
+                {loopbackOn
+                    ? t("voiceAudioSettings.stopTest")
+                    : t("voiceAudioSettings.testMic")}
             </button>
         {/if}
     </section>
@@ -360,7 +367,7 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Output device
+            {t("voiceAudioSettings.outputDevice")}
         </p>
         {#if outputMode === "picker"}
             <select
@@ -368,7 +375,7 @@
                 value={settingsState.audioOutputDeviceId ?? ""}
                 onchange={(e) => pickOutput(e.currentTarget.value)}
             >
-                <option value="">Default</option>
+                <option value="">{t("common.default")}</option>
                 {#each outputs as d (d.id)}
                     <option value={d.id}>{d.label}</option>
                 {/each}
@@ -378,11 +385,11 @@
                 onclick={() => void chooseOutputViaBrowser()}
                 class="px-3 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary hover:bg-discord-messageHover"
             >
-                Choose output device…
+                {t("voiceAudioSettings.chooseOutputDevice")}
             </button>
         {:else}
             <p class="text-xs text-discord-textMuted">
-                Audio output is routed by the operating system on this platform.
+                {t("voiceAudioSettings.audioOutputIsRoutedByThe")}
             </p>
         {/if}
         {#if outputMode !== "hidden"}
@@ -391,12 +398,12 @@
                     void playSpeakerTestTone(settingsState.audioOutputDeviceId)}
                 class="mt-2 px-3 py-1 rounded text-xs font-medium bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover"
             >
-                Test speaker
+                {t("voiceAudioSettings.testSpeaker")}
             </button>
         {/if}
         <div class="mt-3 flex items-center gap-3">
             <p class="text-sm text-discord-textPrimary flex-shrink-0">
-                Call volume
+                {t("voiceAudioSettings.callVolume")}
             </p>
             <input
                 type="range"
@@ -415,7 +422,7 @@
         {#if voiceCallState.connState === "connected"}
             <div
                 class="mt-3 h-2 rounded bg-discord-backgroundTertiary overflow-hidden"
-                title="Incoming call audio"
+                title={t("voiceAudioSettings.incomingCallAudio")}
             >
                 <div
                     class="h-full bg-discord-accent transition-[width] duration-75"
@@ -423,8 +430,7 @@
                 ></div>
             </div>
             <p class="text-xs text-discord-textMuted mt-1">
-                Incoming call audio - if this moves but you hear nothing, check
-                the selected output device and system volume.
+                {t("voiceAudioSettings.incomingCallAudioIfThisMoves")}
             </p>
         {/if}
     </section>
@@ -433,13 +439,13 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Voice processing
+            {t("voiceAudioSettings.voiceProcessing")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <p class="flex-1 text-sm text-discord-textPrimary">
-                Noise suppression
+                {t("voiceAudioSettings.noiseSuppression")}
             </p>
             <ToggleSwitch
                 checked={settingsState.noiseSuppression}
@@ -447,14 +453,14 @@
                     setNoiseSuppression(v);
                     applyConstraints();
                 }}
-                label="Noise suppression"
+                label={t("voiceAudioSettings.noiseSuppression")}
             />
         </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <p class="flex-1 text-sm text-discord-textPrimary">
-                Echo cancellation
+                {t("voiceAudioSettings.echoCancellation")}
             </p>
             <ToggleSwitch
                 checked={settingsState.echoCancellation}
@@ -462,14 +468,14 @@
                     setEchoCancellation(v);
                     applyConstraints();
                 }}
-                label="Echo cancellation"
+                label={t("voiceAudioSettings.echoCancellation")}
             />
         </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <p class="flex-1 text-sm text-discord-textPrimary">
-                Auto gain control
+                {t("voiceAudioSettings.autoGainControl")}
             </p>
             <ToggleSwitch
                 checked={settingsState.autoGainControl}
@@ -477,7 +483,7 @@
                     setAutoGainControl(v);
                     applyConstraints();
                 }}
-                label="Auto gain control"
+                label={t("voiceAudioSettings.autoGainControl")}
             />
         </div>
     </section>
@@ -486,14 +492,14 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Camera
+            {t("voiceAudioSettings.camera")}
         </p>
         <select
             class={selectClass}
             value={settingsState.videoInputDeviceId ?? ""}
             onchange={(e) => pickCamera(e.currentTarget.value)}
         >
-            <option value="">Default</option>
+            <option value="">{t("common.default")}</option>
             {#each cameras as d (d.id)}
                 <option value={d.id}>{d.label}</option>
             {/each}
@@ -501,16 +507,16 @@
         <div class="flex items-center justify-between py-2">
             <div>
                 <div class="text-sm font-medium text-discord-textPrimary">
-                    Mirror my camera
+                    {t("voiceAudioSettings.mirrorMyCamera")}
                 </div>
                 <div class="text-xs text-discord-textMuted">
-                    Flip your own preview. Others always see you un-mirrored.
+                    {t("voiceAudioSettings.flipYourOwnPreviewOthersAlways")}
                 </div>
             </div>
             <ToggleSwitch
                 checked={settingsState.mirrorCamera}
                 onChange={(v) => setMirrorCamera(v)}
-                label="Mirror my camera"
+                label={t("voiceAudioSettings.mirrorMyCamera")}
             />
         </div>
         <button
@@ -519,7 +525,9 @@
                 ? 'bg-discord-accent text-white'
                 : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
         >
-            {cameraOn ? "Stop preview" : "Preview"}
+            {cameraOn
+                ? t("voiceAudioSettings.stopPreview")
+                : t("voiceAudioSettings.preview")}
         </button>
         {#if cameraError}
             <p class="text-xs text-discord-danger mt-2">{cameraError}</p>
@@ -540,13 +548,13 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Call sounds
+            {t("voiceAudioSettings.callSounds")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <p class="flex-1 text-sm text-discord-textPrimary">
-                Play call sounds
+                {t("voiceAudioSettings.playCallSounds")}
             </p>
             <ToggleSwitch
                 checked={settingsState.callSoundsEnabled}
@@ -555,12 +563,12 @@
                     configureCallSounds({ enabled: v });
                     if (v) playCallSound("selfJoin");
                 }}
-                label="Play call sounds"
+                label={t("voiceAudioSettings.playCallSounds")}
             />
         </div>
         <div class="mt-3 flex items-center gap-3">
             <p class="text-sm text-discord-textPrimary flex-shrink-0">
-                Sound volume
+                {t("voiceAudioSettings.soundVolume")}
             </p>
             <input
                 type="range"
@@ -583,18 +591,17 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Ringing
+            {t("voiceAudioSettings.ringing")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1">
                 <p class="text-sm text-discord-textPrimary">
-                    Ring for incoming DM calls
+                    {t("voiceAudioSettings.ringForIncomingDmCalls")}
                 </p>
                 <p class="text-xs text-discord-textMuted mt-0.5">
-                    Direct messages ring. Rooms never do - you join those from
-                    the room itself.
+                    {t("voiceAudioSettings.directMessagesRingRoomsNeverDo")}
                 </p>
             </div>
             <ToggleSwitch
@@ -615,7 +622,7 @@
                         ringNotifyHint = null;
                     }
                 }}
-                label="Ring for incoming DM calls"
+                label={t("voiceAudioSettings.ringForIncomingDmCalls")}
             />
         </div>
         {#if ringNotifyHint}
@@ -623,7 +630,7 @@
         {/if}
         <div class="mt-3 flex items-center gap-3">
             <p class="text-sm text-discord-textPrimary flex-shrink-0">
-                Ringtone volume
+                {t("voiceAudioSettings.ringtoneVolume")}
             </p>
             <input
                 type="range"

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
@@ -628,7 +629,7 @@
         if (followUp.status === "none" || followUp.status === "ok") return;
         const task = followUp.task;
         showErrorToast(followUp.message, {
-            label: "Retry",
+            label: t("common.retry"),
             // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
             // back as its own "unconfirmed" toast instead of hanging forever
             // with the affordance already expired.
@@ -652,7 +653,10 @@
             setActiveRoom(roomId);
             closeModal();
         } catch (e: any) {
-            modalError = e?.data?.error ?? e?.message ?? "Something went wrong";
+            modalError =
+                e?.data?.error ??
+                e?.message ??
+                t("spaceSidebar.somethingWentWrong");
         } finally {
             modalLoading = false;
         }
@@ -911,7 +915,7 @@
         class:rounded-xl={roomsState.activeSpaceId === null}
         class:bg-discord-backgroundSecondary={roomsState.activeSpaceId !== null}
         class:hover:rounded-xl={roomsState.activeSpaceId !== null}
-        title="Home"
+        title={t("spaceSidebar.home")}
     >
         <svg
             class="w-6 h-6 transition-colors {roomsState.activeSpaceId === null
@@ -925,11 +929,11 @@
         {#each [getHomeNotifs()] as n}
             {#if roomsState.activeSpaceId === null}
                 <div
-                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
+                    class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-e-full"
                 ></div>
             {:else if n.unread}
                 <div
-                    class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {n.loud ||
+                    class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 rounded-e-full pointer-events-none {n.loud ||
                     n.highlight
                         ? 'h-4 bg-discord-danger'
                         : 'h-2 bg-discord-textPrimary'}"
@@ -996,18 +1000,18 @@
                 />
                 {#if isActive}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
+                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-e-full"
                     ></div>
                 {:else if spaceNotifs.unread}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {spaceNotifs.loud ||
+                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 rounded-e-full pointer-events-none {spaceNotifs.loud ||
                         spaceNotifs.highlight
                             ? 'h-4 bg-discord-danger'
                             : 'h-2 bg-discord-textPrimary'}"
                     ></div>
                 {:else}
                     <div
-                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
+                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-e-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
                     ></div>
                 {/if}
             </button>
@@ -1101,18 +1105,18 @@
                     </div>
                     {#if folderHasActive && !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-r-full"
+                            class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-e-full"
                         ></div>
                     {:else if folderNotifs.unread && !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {folderNotifs.loud ||
+                            class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 rounded-e-full pointer-events-none {folderNotifs.loud ||
                             folderNotifs.highlight
                                 ? 'h-4 bg-discord-danger'
                                 : 'h-2 bg-discord-textPrimary'}"
                         ></div>
                     {:else if !isExpanded}
                         <div
-                            class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
+                            class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-e-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
                         ></div>
                     {/if}
                 </button>
@@ -1176,18 +1180,18 @@
                                 />
                                 {#if isActive}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-6 bg-discord-textPrimary rounded-r-full"
+                                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-6 bg-discord-textPrimary rounded-e-full"
                                     ></div>
                                 {:else if isn.unread}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 rounded-r-full pointer-events-none {isn.loud ||
+                                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 rounded-e-full pointer-events-none {isn.loud ||
                                         isn.highlight
                                             ? 'h-3 bg-discord-danger'
                                             : 'h-1.5 bg-discord-textPrimary'}"
                                     ></div>
                                 {:else}
                                     <div
-                                        class="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-r-full opacity-0 group-hover:opacity-100 group-hover:h-4 transition-all duration-200"
+                                        class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-e-full opacity-0 group-hover:opacity-100 group-hover:h-4 transition-all duration-200"
                                     ></div>
                                 {/if}
                             </button>
@@ -1217,8 +1221,8 @@
     <button
         onclick={openAddMenu}
         class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0"
-        title="Add a space"
-        aria-label="Add a space"
+        title={t("spaceSidebar.addASpace")}
+        aria-label={t("spaceSidebar.addASpace")}
         aria-haspopup="menu"
         aria-expanded={addMenuOpen}
     >
@@ -1235,7 +1239,7 @@
     <button
         onclick={openExplore}
         class="group w-12 h-12 rounded-2xl flex items-center justify-center bg-discord-backgroundSecondary hover:rounded-xl hover:bg-discord-textPositive transition-all duration-200 flex-shrink-0"
-        title="Explore rooms"
+        title={t("spaceSidebar.exploreRooms")}
     >
         <svg
             class="w-6 h-6 text-discord-textSecondary group-hover:text-white transition-colors"
@@ -1293,14 +1297,14 @@
     {#if addMenuOpen}
         <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("common.closeMenu")}
             class="fixed inset-0 z-40"
             onclick={closeModal}
         ></button>
     {/if}
     <div
         role="menu"
-        aria-label="Add a space"
+        aria-label={t("spaceSidebar.addASpace")}
         use:activeFocusTrap={{ active: addMenuOpen, onEscape: closeModal }}
         class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-52 {addMenuOpen
             ? ''
@@ -1325,12 +1329,12 @@
              so it becomes the identical Tailwind arbitrary value. -->
         <ModalDialog
             onClose={closeModal}
-            label="Folder Color"
+            label={t("spaceSidebar.folderColor")}
             panelClass="relative w-[240px] bg-discord-backgroundSecondary rounded-xl shadow-2xl p-4 flex flex-col gap-3"
             backdropClass="bg-black/50"
         >
             <p class="text-sm font-semibold text-discord-textPrimary">
-                Folder Color
+                {t("spaceSidebar.folderColor")}
             </p>
 
             <!-- SV box + hue slider -->
@@ -1366,7 +1370,7 @@
                 >
                     <!-- Cursor bar -->
                     <div
-                        class="absolute left-0 right-0 h-1 -translate-y-1/2 pointer-events-none rounded-sm"
+                        class="absolute start-0 end-0 h-1 -translate-y-1/2 pointer-events-none rounded-sm"
                         style="top: {(cpHue / 360) *
                             100}%; box-shadow: 0 0 0 1.5px white, 0 0 0 2.5px rgba(0,0,0,0.5);"
                     ></div>
@@ -1416,12 +1420,12 @@
                 <button
                     onclick={commitColor}
                     class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
-                    >Save</button
+                    >{t("common.save")}</button
                 >
                 <button
                     onclick={closeModal}
                     class="flex-1 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
-                    >Cancel</button
+                    >{t("common.cancel")}</button
                 >
             </div>
         </ModalDialog>
@@ -1441,20 +1445,20 @@
                 id="space-create-room-title"
                 class="text-lg font-bold text-discord-textPrimary"
             >
-                Create room in space
+                {t("spaceSidebar.createRoomInSpace")}
             </h2>
             <div class="flex flex-col gap-3">
                 <div>
                     <label
                         for="create-room-name"
                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                        >Room name</label
+                        >{t("spaceSidebar.roomName")}</label
                     >
                     <input
                         id="create-room-name"
                         data-autofocus
                         bind:value={modalInput1}
-                        placeholder="my-room"
+                        placeholder={t("spaceSidebar.myRoom")}
                         class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                     />
                 </div>
@@ -1462,14 +1466,15 @@
                     <label
                         for="create-room-topic"
                         class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                        >Topic <span class="normal-case font-normal"
-                            >(optional)</span
+                        >{t("common.topic")}
+                        <span class="normal-case font-normal"
+                            >{t("spaceSidebar.optional")}</span
                         ></label
                     >
                     <input
                         id="create-room-topic"
                         bind:value={modalInput2}
-                        placeholder="What's this room about?"
+                        placeholder={t("spaceSidebar.whatSThisRoomAbout")}
                         class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                     />
                 </div>
@@ -1480,9 +1485,11 @@
                         class="mt-0.5 accent-discord-accent"
                     />
                     <span class="text-sm text-discord-textPrimary"
-                        >Video room
+                        >{t("common.videoRoom")}
                         <span class="block text-xs text-discord-textMuted"
-                            >Opens straight into a call. Messages still work.</span
+                            >{t(
+                                "spaceSidebar.opensStraightIntoACallMessages",
+                            )}</span
                         ></span
                     >
                 </label>
@@ -1495,7 +1502,7 @@
                     onclick={closeModal}
                     disabled={modalLoading}
                     class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                    >Cancel</button
+                    >{t("common.cancel")}</button
                 >
                 <button
                     onclick={submitCreateRoom}
@@ -1505,7 +1512,7 @@
                     {#if modalLoading}<div
                             class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
                         ></div>{/if}
-                    Create
+                    {t("spaceSidebar.create")}
                 </button>
             </div>
         </ModalDialog>
@@ -1523,18 +1530,18 @@
                 id="space-add-room-title"
                 class="text-lg font-bold text-discord-textPrimary"
             >
-                Add existing room to space
+                {t("spaceSidebar.addExistingRoomToSpace")}
             </h2>
             {#if candidates.length === 0}
                 <p class="text-sm text-discord-textMuted">
-                    No rooms available to add.
+                    {t("spaceSidebar.noRoomsAvailableToAdd")}
                 </p>
             {:else}
                 <div class="flex flex-col gap-1 max-h-72 overflow-y-auto">
                     {#each candidates as room}
                         <button
                             onclick={() => submitAddRoom(room.roomId)}
-                            class="w-full text-left px-3 py-2 rounded text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                            class="w-full text-start px-3 py-2 rounded text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
                         >
                             <Avatar
                                 src={getRoomAvatar(room)}
@@ -1554,7 +1561,7 @@
                 <button
                     onclick={closeModal}
                     class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    >Cancel</button
+                    >{t("common.cancel")}</button
                 >
             </div>
         </ModalDialog>
@@ -1570,7 +1577,7 @@
         {#if cm.touch}
             <button
                 type="button"
-                aria-label="Close menu"
+                aria-label={t("common.closeMenu")}
                 class="fixed inset-0 z-50 bg-black/40"
                 onclick={closeModal}
             ></button>
@@ -1579,25 +1586,25 @@
             {#if cm.kind === "space"}
                 <button
                     onclick={() => handleOpenSpaceSettings(cm.spaceId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                    >Space Settings</button
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                    >{t("spaceSidebar.spaceSettings")}</button
                 >
                 {#if (void roomsState.roomsTick, canInviteToRoom(cm.spaceId))}
                     <button
                         onclick={() => handleInviteToSpace(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                        >Invite People</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                        >{t("common.invitePeople")}</button
                     >
                 {/if}
                 <button
                     onclick={() => handleCopySpaceLink(cm.spaceId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                    >Copy Space Link</button
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                    >{t("spaceSidebar.copySpaceLink")}</button
                 >
                 <button
                     onclick={() => handleMarkSpaceRead(cm.spaceId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                    >Mark as Read</button
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                    >{t("spaceSidebar.markAsRead")}</button
                 >
                 <div class="w-full h-px bg-discord-divider my-1"></div>
                 {@const currentNotif = getRoomNotificationSetting(cm.spaceId)}
@@ -1605,7 +1612,7 @@
                 <p
                     class="px-3 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
                 >
-                    Notifications
+                    {t("common.notifications")}
                 </p>
                 {#each [["default", "Default"], ["all", "All Messages"], ["mentions", "Mentions Only"], ["mute", "Mute"]] as const as [val, label]}
                     <button
@@ -1615,7 +1622,7 @@
                                 val as RoomNotificationSetting,
                             )}
                         aria-pressed={currentNotif === val}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
                     >
                         <span class="w-3 flex items-center justify-center">
                             {#if currentNotif === val}<Circle
@@ -1630,13 +1637,13 @@
                     <div class="w-full h-px bg-discord-divider my-1"></div>
                     <button
                         onclick={() => openCreateRoom(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                        >Create Room</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                        >{t("spaceSidebar.createRoom")}</button
                     >
                     <button
                         onclick={() => openAddRoom(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                        >Add Existing Room</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                        >{t("spaceSidebar.addExistingRoom")}</button
                     >
                 {/if}
                 <div class="w-full h-px bg-discord-divider my-1"></div>
@@ -1644,42 +1651,42 @@
                     <button
                         onclick={() =>
                             handleRemoveFromFolder(cm.spaceId, cm.folderId!)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                        >Remove from folder</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                        >{t("spaceSidebar.removeFromFolder")}</button
                     >
                     <div class="w-full h-px bg-discord-divider my-1"></div>
                 {:else}
                     <button
                         onclick={() => handleNewFolder(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                        >New Folder</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                        >{t("spaceSidebar.newFolder")}</button
                     >
                     <div class="w-full h-px bg-discord-divider my-1"></div>
                 {/if}
                 {#if leaveConfirmId === cm.spaceId}
                     <button
                         onclick={() => handleLeaveSpace(cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-discord-danger text-white font-medium text-left"
-                        >Click again to leave</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-discord-danger text-white font-medium text-start"
+                        >{t("spaceSidebar.clickAgainToLeave")}</button
                     >
                 {:else}
                     <button
                         onclick={() => (leaveConfirmId = cm.spaceId)}
-                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-left"
-                        >Leave Space</button
+                        class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-start"
+                        >{t("spaceSidebar.leaveSpace")}</button
                     >
                 {/if}
             {:else if cm.kind === "folder"}
                 <button
                     onclick={() => openColorPicker(cm.folderId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-left"
-                    >Set Color</button
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-textPrimary hover:bg-discord-accent hover:text-white text-start"
+                    >{t("spaceSidebar.setColor")}</button
                 >
                 <div class="w-full h-px bg-discord-divider my-1"></div>
                 <button
                     onclick={() => handleDissolveFolder(cm.folderId)}
-                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-left"
-                    >Dissolve Folder</button
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white text-start"
+                    >{t("spaceSidebar.dissolveFolder")}</button
                 >
             {/if}
         {/snippet}

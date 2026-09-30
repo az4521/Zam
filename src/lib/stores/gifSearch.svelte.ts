@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     fetchKlipy,
     trendingUrl,
@@ -74,7 +75,7 @@ async function run(
         cachedAt = Date.now();
     } catch {
         if (seq !== requestSeq) return;
-        gifSearchState.error = "Couldn't reach KLIPY - try again.";
+        gifSearchState.error = t("gifSearch.couldnTReachKlipyTryAgain");
         if (!append) gifSearchState.items = [];
     } finally {
         if (seq === requestSeq) gifSearchState.loading = false;

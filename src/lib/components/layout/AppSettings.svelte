@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import AppearanceSettings from "$lib/components/settings/AppearanceSettings.svelte";
     import MessagesMediaSettings from "$lib/components/settings/MessagesMediaSettings.svelte";
     import GeneralSettings from "$lib/components/settings/GeneralSettings.svelte";
@@ -186,7 +187,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
     <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t("common.closeDialog")}
         class="absolute inset-0 bg-black/60"
         onclick={onClose}
     ></button>
@@ -211,10 +212,10 @@
                 <button
                     bind:this={backButtonEl}
                     onclick={goBackToList}
-                    aria-label="Back to settings"
-                    class="-ml-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    aria-label={t("appSettings.backToSettings")}
+                    class="-ms-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
                 >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft class="mirror:-scale-x-100" size={20} />
                 </button>
             {/if}
             <h2
@@ -223,11 +224,11 @@
             >
                 {view.mode === "detail"
                     ? settingsTabLabel(view.tab)
-                    : "Settings"}
+                    : t("common.settings")}
             </h2>
             <button
                 onclick={onClose}
-                aria-label="Close settings"
+                aria-label={t("appSettings.closeSettings")}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -246,8 +247,8 @@
                     type="search"
                     bind:value={searchQuery}
                     onkeydown={onSearchKeydown}
-                    placeholder="Search settings…"
-                    aria-label="Search settings"
+                    placeholder={t("appSettings.searchSettings")}
+                    aria-label={t("appSettings.searchSettings2")}
                     class="w-full px-3 py-2 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
                 />
             </div>
@@ -257,8 +258,10 @@
         <p class="sr-only" aria-live="polite">
             {#if searchActive}
                 {searchResults.length === 0
-                    ? "No settings match"
-                    : `${searchResults.length} ${searchResults.length === 1 ? "result" : "results"}`}
+                    ? t("appSettings.noSettingsMatch")
+                    : t("appSettings.resultCount", {
+                          count: searchResults.length,
+                      })}
             {/if}
         </p>
 
@@ -266,20 +269,20 @@
             <div
                 class="flex-1 overflow-y-auto py-2"
                 role="group"
-                aria-label="Search results"
+                aria-label={t("common.searchResults")}
             >
                 {#if searchResults.length === 0}
                     <p
                         class="px-6 py-8 text-sm text-discord-textMuted text-center"
                     >
-                        No settings match "{searchQuery}".
+                        {t("appSettings.noSettingsMatch2", { searchQuery })}
                     </p>
                 {:else}
                     {#each searchResults as result (result.tab + result.label)}
                         <button
                             type="button"
                             onclick={() => selectResult(result)}
-                            class="w-full flex items-center justify-between gap-3 px-6 py-3 text-left hover:bg-discord-messageHover transition-colors"
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3 text-start hover:bg-discord-messageHover transition-colors"
                         >
                             <span
                                 class="min-w-0 truncate text-sm text-discord-textPrimary"
@@ -306,13 +309,13 @@
                         <button
                             bind:this={categoryEls[tab.id]}
                             onclick={() => selectTab(tab.id)}
-                            class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-left text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-start text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
                         >
                             <span class="min-w-0 truncate">{tab.label}</span>
                             <ChevronRight
                                 size={20}
                                 aria-hidden="true"
-                                class="flex-shrink-0 text-discord-textMuted"
+                                class="mirror:-scale-x-100 flex-shrink-0 text-discord-textMuted"
                             />
                         </button>
                     {/each}
@@ -334,7 +337,7 @@
             <!-- Desktop: category sidebar beside the active panel. -->
             <div class="flex flex-row flex-1 min-h-0">
                 <nav
-                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-r border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
+                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-e border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
                 >
                     {#each settingsGroups as group (group.title)}
                         <div
@@ -346,7 +349,7 @@
                             <button
                                 bind:this={sidebarEls[tab.id]}
                                 onclick={() => selectTab(tab.id)}
-                                class="flex-shrink-0 w-full whitespace-nowrap text-left px-3 py-2 rounded text-sm font-medium transition-colors"
+                                class="flex-shrink-0 w-full whitespace-nowrap text-start px-3 py-2 rounded text-sm font-medium transition-colors"
                                 class:bg-discord-messageHover={view.tab ===
                                     tab.id}
                                 class:text-discord-textPrimary={view.tab ===

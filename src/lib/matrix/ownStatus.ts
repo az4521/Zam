@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import {
     fetchOwnExtendedProfile,
     getPresence,
@@ -52,19 +53,22 @@ async function assertCleared(profile: ExtendedProfile | null): Promise<void> {
         ...PROFILE_FIELDS.status.legacy,
     ]) {
         if (profile?.[key] !== undefined)
-            leftovers.push(`profile field ${key}`);
+            leftovers.push(t("ownStatus.profileField", { key }));
     }
     const presence = auth.userId ? await getPresence(auth.userId) : null;
     const presenceLeft = presence?.statusMsg;
     if (leftovers.length > 0) {
-        throw new Error(`The server still has: ${leftovers.join(", ")}`);
+        throw new Error(
+            t("ownStatus.theServerStillHas", {
+                leftovers: leftovers.join(", "),
+            }),
+        );
     }
     if (presenceLeft) {
         // Some servers (Tuwunel) keep one presence message per device and show
         // the newest, so another signed-in session can keep it alive.
         throw new Error(
-            `Status cleared, but the server still shows the presence message "${presenceLeft}". ` +
-                "It is probably set by another session of this account (another app or client) - clear it there, or sign that session out.",
+            t("ownStatus.statusClearedButPresenceRemains", { presenceLeft }),
         );
     }
 }

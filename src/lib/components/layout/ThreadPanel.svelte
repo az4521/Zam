@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { tick, untrack } from "svelte";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
@@ -179,14 +180,16 @@
         class="h-12 px-4 flex items-center justify-between border-b border-discord-divider flex-shrink-0"
     >
         <span class="font-semibold text-discord-textPrimary text-sm"
-            >Thread</span
+            >{t("threadPanel.thread")}</span
         >
         <div class="flex items-center gap-1">
             {#if onToggleFullscreen}
                 <button
                     onclick={onToggleFullscreen}
                     class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={fullscreen ? "Collapse thread" : "Expand thread"}
+                    title={fullscreen
+                        ? t("threadPanel.collapseThread")
+                        : t("threadPanel.expandThread")}
                 >
                     {#if fullscreen}
                         <svg
@@ -214,7 +217,7 @@
             <button
                 onclick={onClose}
                 class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                title="Close thread"
+                title={t("threadPanel.closeThread")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -256,7 +259,7 @@
     <div bind:this={scrollEl} class="flex-1 overflow-y-auto py-2">
         {#if messages.length === 0}
             <p class="text-xs text-discord-textMuted text-center mt-4 px-4">
-                No replies yet. Start the thread below.
+                {t("threadPanel.noRepliesYetStartTheThread")}
             </p>
         {/if}
         {#if messages.length > 0 && !noMoreOlder}
@@ -266,7 +269,9 @@
                     disabled={loadingOlder}
                     class="text-xs text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 transition-colors"
                 >
-                    {loadingOlder ? "Loading…" : "Load older replies"}
+                    {loadingOlder
+                        ? t("common.loading")
+                        : t("threadPanel.loadOlderReplies")}
                 </button>
             </div>
         {/if}

@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 export type SyncTone = "ok" | "warn" | "error" | "idle";
 
 export interface SyncStatus {
@@ -14,15 +15,15 @@ export function syncStateLabel(state: string | null | undefined): SyncStatus {
     switch (state) {
         case "PREPARED":
         case "SYNCING":
-            return { label: "Connected", tone: "ok" };
+            return { label: t("syncStatus.connected"), tone: "ok" };
         case "RECONNECTING":
         case "CATCHUP":
-            return { label: "Reconnecting…", tone: "warn" };
+            return { label: t("syncStatus.reconnecting"), tone: "warn" };
         case "ERROR":
-            return { label: "Connection error", tone: "error" };
+            return { label: t("syncStatus.connectionError"), tone: "error" };
         case "STOPPED":
-            return { label: "Offline", tone: "idle" };
+            return { label: t("syncStatus.offline"), tone: "idle" };
         default:
-            return { label: "Connecting…", tone: "idle" };
+            return { label: t("syncStatus.connecting"), tone: "idle" };
     }
 }

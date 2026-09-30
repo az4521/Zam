@@ -2,6 +2,7 @@
 // report a change the server did not take (NOTIF-01), never create a rule after
 // a transport failure, never mutate the cached rules on a failed write — are
 // unit-testable independently of the SDK.
+import { t } from "$lib/i18n";
 
 import type { PushRuleLevel } from "$lib/matrix/pushRules";
 
@@ -114,12 +115,20 @@ export function pushRuleFailureMessage(
 ): string {
     switch (reason) {
         case "rule-missing":
-            return `Your homeserver has no "${label}" notification rule, so it could not be changed.`;
+            return t("pushRuleWrite.yourHomeserverHasNoNotificationRule", {
+                label,
+            });
         case "rule-rejected":
-            return `Your homeserver rejected the change to "${label}" notifications.`;
+            return t("pushRuleWrite.yourHomeserverRejectedTheChangeTo", {
+                label,
+            });
         case "mismatch":
-            return `"${label}" notifications did not change on your homeserver.`;
+            return t("pushRuleWrite.notificationsDidNotChangeOnYour", {
+                label,
+            });
         default:
-            return `Could not save "${label}" notifications. Check your connection and try again.`;
+            return t("pushRuleWrite.couldNotSaveNotificationsCheckYour", {
+                label,
+            });
     }
 }

@@ -11,10 +11,17 @@ export function targetCanScrollHoriz(el: Element | null, dx: number): boolean {
             const overflowX = getComputedStyle(node).overflowX;
             if (overflowX === "auto" || overflowX === "scroll") {
                 const maxScroll = node.scrollWidth - node.clientWidth;
-                // Swipe right (dx > 0) scrolls content toward the start;
-                // swipe left (dx < 0) scrolls toward the end.
-                if (dx > 0 && node.scrollLeft > 0) return true;
-                if (dx < 0 && node.scrollLeft < maxScroll) return true;
+                // RTL scrollers report scrollLeft in [-max, 0] (0 = the right
+                // edge); shift it so `left` is always the physical distance
+                // scrolled from the left edge.
+                const rtl = getComputedStyle(node).direction === "rtl";
+                const left = rtl
+                    ? node.scrollLeft + maxScroll
+                    : node.scrollLeft;
+                // Swipe right (dx > 0) reveals content to the left; swipe
+                // left (dx < 0) reveals content to the right.
+                if (dx > 0 && left > 0) return true;
+                if (dx < 0 && left < maxScroll) return true;
             }
         }
         node = node.parentElement;

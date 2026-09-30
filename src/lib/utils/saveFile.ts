@@ -4,6 +4,7 @@
 // WebView): that is a silent no-op, since the WebView has no download manager
 // for blob: URLs, so the bytes go through the native MediaSaver plugin
 // (android/.../MediaSaverPlugin.java) into the Downloads folder.
+import { t } from "$lib/i18n";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { showToast } from "$lib/stores/toasts.svelte";
@@ -78,7 +79,7 @@ export async function saveObjectUrl(
             filename: name,
             mimeType: blob.type || "application/octet-stream",
         });
-        showToast(`Saved to Downloads`, { tone: "accent" });
+        showToast(t("saveFile.savedToDownloads"), { tone: "accent" });
         return;
     }
     const a = document.createElement("a");

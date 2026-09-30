@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import UserPicker from "$lib/components/ui/UserPicker.svelte";
     import { Check, X } from "lucide-svelte";
     import {
@@ -49,7 +50,7 @@
         if (emailInviting) return;
         const addr = emailAddress.trim();
         if (!isValidEmail(addr)) {
-            emailError = "Enter a valid email address.";
+            emailError = t("invitePanel.enterAValidEmailAddress");
             return;
         }
         emailError = "";
@@ -62,7 +63,10 @@
             emailOutcome = {
                 ok: false,
                 address: addr,
-                error: matrixErrorMessage(e, "Could not send the email invite"),
+                error: matrixErrorMessage(
+                    e,
+                    t("invitePanel.couldNotSendTheEmailInvite"),
+                ),
             };
         }
         emailInviting = false;
@@ -80,7 +84,10 @@
                 done.push({
                     userId,
                     ok: false,
-                    error: matrixErrorMessage(e, "Could not send the invite"),
+                    error: matrixErrorMessage(
+                        e,
+                        t("invitePanel.couldNotSendTheInvite"),
+                    ),
                 });
             }
         }
@@ -93,8 +100,12 @@
 
 <div class="space-y-3">
     <p class="text-sm text-discord-textSecondary">
-        Invite people to <span class="text-discord-textPrimary font-medium"
-            >{room?.name ?? "this " + (isSpace ? "space" : "room")}</span
+        {t("invitePanel.invitePeopleTo")}
+        <span class="text-discord-textPrimary font-medium"
+            >{room?.name ??
+                (isSpace
+                    ? t("invitePanel.thisSpace")
+                    : t("invitePanel.thisRoom"))}</span
         >.
     </p>
 
@@ -106,7 +117,9 @@
                 <li class="flex items-center gap-2">
                     <span
                         role="img"
-                        aria-label={o.ok ? "Invited" : "Failed"}
+                        aria-label={o.ok
+                            ? t("invitePanel.invited")
+                            : t("invitePanel.failed")}
                         class="flex items-center {o.ok
                             ? 'text-discord-textPositive'
                             : 'text-discord-danger'}"
@@ -128,14 +141,14 @@
 
     <div class="border-t border-discord-backgroundTertiary pt-3 space-y-2">
         <p class="text-xs font-semibold uppercase text-discord-textMuted">
-            Invite by email
+            {t("invitePanel.inviteByEmail")}
         </p>
         {#if emailState.available}
             <div class="flex gap-2">
                 <input
                     type="email"
                     bind:value={emailAddress}
-                    placeholder="name@example.com"
+                    placeholder={t("invitePanel.nameExampleCom")}
                     onkeydown={(e) => {
                         if (e.key === "Enter") doEmailInvite();
                     }}
@@ -145,7 +158,9 @@
                     onclick={doEmailInvite}
                     disabled={!emailAddress.trim() || emailInviting}
                     class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                    >{emailInviting ? "Inviting…" : "Invite"}</button
+                    >{emailInviting
+                        ? t("invitePanel.inviting")
+                        : t("invitePanel.invite")}</button
                 >
             </div>
             {#if emailError}
@@ -155,7 +170,9 @@
                 <p class="flex items-center gap-2 text-sm">
                     <span
                         role="img"
-                        aria-label={emailOutcome.ok ? "Invited" : "Failed"}
+                        aria-label={emailOutcome.ok
+                            ? t("invitePanel.invited")
+                            : t("invitePanel.failed")}
                         class="flex items-center {emailOutcome.ok
                             ? 'text-discord-textPositive'
                             : 'text-discord-danger'}"
@@ -184,7 +201,7 @@
             <button
                 onclick={onClose}
                 class="px-4 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary transition-colors"
-                >Close</button
+                >{t("common.close")}</button
             >
         {/if}
         <button
@@ -192,10 +209,10 @@
             disabled={!selected.length || inviting}
             class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
             >{inviting
-                ? "Inviting…"
+                ? t("invitePanel.inviting")
                 : selected.length > 1
-                  ? `Invite ${selected.length}`
-                  : "Invite"}</button
+                  ? t("invitePanel.invite2", { length: selected.length })
+                  : t("invitePanel.invite")}</button
         >
     </div>
 </div>

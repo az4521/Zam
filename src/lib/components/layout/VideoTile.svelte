@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Track } from "livekit-client";
     import { Maximize2 } from "lucide-svelte";
     import { videoTrack } from "$lib/actions/videoTrack";
@@ -44,15 +45,15 @@
     ></video>
     {#if !compact}
         <div
-            class="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
+            class="absolute bottom-2 start-2 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
         >
             <span class="text-xs text-white truncate">{label}</span>
         </div>
         <button
             onclick={toggleFullscreen}
-            class="absolute bottom-2 right-2 p-1.5 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-            title="Fullscreen"
-            aria-label="Fullscreen"
+            class="absolute bottom-2 end-2 p-1.5 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            title={t("videoTile.fullscreen")}
+            aria-label={t("videoTile.fullscreen")}
         >
             <Maximize2 size={16} />
         </button>

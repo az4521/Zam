@@ -7,6 +7,7 @@
 /**
  * Parsed server ACL configuration. Matrix spec shape with camelCase names.
  */
+import { t } from "$lib/i18n";
 export interface ServerAcl {
     /** Allow list of server-name globs (default: empty = deny all). */
     allow: string[];
@@ -169,18 +170,18 @@ export function validateServerAcl(
     const warnings: string[] = [];
 
     if (acl.allow.length === 0) {
-        warnings.push(
-            "Allow list is empty, which denies all servers from federating.",
-        );
+        warnings.push(t("serverAcl.allowListIsEmptyWhichDenies"));
     }
 
     if (acl.deny.includes("*")) {
-        warnings.push("Deny list contains *, which bans all servers.");
+        warnings.push(t("serverAcl.denyListContainsWhichBansAll"));
     }
 
     if (ownServerName && !matchesServerAcl(ownServerName, acl)) {
         warnings.push(
-            `This configuration bans your own server (${ownServerName}), which will break federation.`,
+            t("serverAcl.thisConfigurationBansYourOwnServer", {
+                ownServerName,
+            }),
         );
     }
 

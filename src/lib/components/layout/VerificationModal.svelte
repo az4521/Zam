@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         ShieldCheck,
         ShieldAlert,
@@ -50,8 +51,10 @@
     const startPending = $derived(view?.startPending ?? false);
     const title = $derived(
         isSelf
-            ? "Verify your other session"
-            : `Verify ${view?.otherUserId ?? "user"}`,
+            ? t("verificationModal.verifyYourOtherSession")
+            : t("verificationModal.verify", {
+                  value: view?.otherUserId ?? "user",
+              }),
     );
 
     // Local UX state: reset whenever the modal retargets to a new flow.
@@ -94,7 +97,9 @@
             confirmed = true;
         } catch (e) {
             errorMsg =
-                e instanceof Error ? e.message : "Could not confirm the match";
+                e instanceof Error
+                    ? e.message
+                    : t("verificationModal.couldNotConfirmTheMatch");
         } finally {
             busy = false;
         }
@@ -111,7 +116,7 @@
             errorMsg =
                 e instanceof Error
                     ? e.message
-                    : "Could not report the mismatch";
+                    : t("verificationModal.couldNotReportTheMismatch");
         } finally {
             busy = false;
         }
@@ -175,7 +180,7 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <button
             type="button"
-            aria-label="Close dialog"
+            aria-label={t("common.closeDialog")}
             class="absolute inset-0 bg-black/50"
             onclick={closeActive}
         ></button>
@@ -206,8 +211,8 @@
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         {isSelf
-                            ? "This session is now trusted."
-                            : "Their identity is now verified."}
+                            ? t("verificationModal.thisSessionIsNowTrusted")
+                            : t("verificationModal.theirIdentityIsNowVerified")}
                     </p>
                 </div>
             {:else if kind === "cancelled"}
@@ -217,7 +222,7 @@
                         {statusLabel}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        No trust was established. You can start again anytime.
+                        {t("verificationModal.noTrustWasEstablishedYouCan")}
                     </p>
                 </div>
             {:else if view.awaitingReciprocateConfirm}
@@ -237,13 +242,17 @@
                         aria-live="polite"
                     >
                         {isSelf
-                            ? "Did your other session just scan this code?"
-                            : `Did ${view.otherUserId} just scan this code?`}
+                            ? t("verificationModal.didYourOtherSessionJustScan")
+                            : t("verificationModal.didJustScanThisCode", {
+                                  otherUserId: view.otherUserId,
+                              })}
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         {isSelf
-                            ? "Only confirm if you scanned it yourself, just now."
-                            : "Only confirm if you watched them scan it, just now."}
+                            ? t("verificationModal.onlyConfirmIfYouScannedIt")
+                            : t(
+                                  "verificationModal.onlyConfirmIfYouWatchedThem",
+                              )}
                     </p>
                 </div>
                 <!-- "No" first in BOTH DOM and visual order. It is the SAFE
@@ -256,19 +265,22 @@
                         onclick={denyScanned}
                         class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors"
                     >
-                        No
+                        {t("verificationModal.no")}
                     </button>
                     <button
                         onclick={confirmScanned}
                         class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
                     >
-                        Yes, I scanned it
+                        {t("verificationModal.yesIScannedIt")}
                     </button>
                 </div>
             {:else if emojiRows.length > 0 && !confirmed}
                 <p class="mt-4 text-xs text-discord-textMuted">
-                    Confirm the same emoji appear, in the same order, on your
-                    other {isSelf ? "session" : "device with this user"}.
+                    {t("verificationModal.confirmTheSameEmojiAppearIn", {
+                        value: isSelf
+                            ? t("verificationModal.session")
+                            : t("verificationModal.deviceWithThisUser"),
+                    })}
                 </p>
                 <div class="mt-4 space-y-2">
                     {#each emojiRows as row, rowIndex (rowIndex)}
@@ -295,14 +307,16 @@
                         disabled={busy}
                         class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
                     >
-                        They don't match
+                        {t("verificationModal.theyDonTMatch")}
                     </button>
                     <button
                         onclick={match}
                         disabled={busy}
                         class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
-                        {busy ? "Confirming…" : "They match"}
+                        {busy
+                            ? t("verificationModal.confirming")
+                            : t("verificationModal.theyMatch")}
                     </button>
                 </div>
             {:else if showChooser}
@@ -314,19 +328,28 @@
                             <QrCodeImage
                                 bytes={view.qrBytes}
                                 label={isSelf
-                                    ? "Verification code for your other session"
-                                    : `Verification code for ${view.otherUserId}`}
+                                    ? t(
+                                          "verificationModal.verificationCodeForYourOtherSession",
+                                      )
+                                    : t(
+                                          "verificationModal.verificationCodeFor",
+                                          { otherUserId: view.otherUserId },
+                                      )}
                             />
                             <p class="text-xs text-discord-textMuted">
                                 {isSelf
-                                    ? "Scan this with your other session."
-                                    : "Ask them to scan this code."}
+                                    ? t(
+                                          "verificationModal.scanThisWithYourOtherSession",
+                                      )
+                                    : t(
+                                          "verificationModal.askThemToScanThisCode",
+                                      )}
                             </p>
                         {:else if view.qrError}
                             <!-- The reason itself renders in the shared alert
                                  below; this only fills the empty pane. -->
                             <p class="text-xs text-discord-textMuted">
-                                No code to show right now.
+                                {t("verificationModal.noCodeToShowRightNow")}
                             </p>
                         {:else}
                             <Loader2
@@ -353,7 +376,9 @@
                                     class="text-xs text-discord-danger"
                                     role="alert"
                                 >
-                                    Could not load the scanner.
+                                    {t(
+                                        "verificationModal.couldNotLoadTheScanner",
+                                    )}
                                 </p>
                             {:else}
                                 <Loader2
@@ -372,15 +397,15 @@
                                 onclick={() => attempt++}
                                 class="px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-xs transition-colors"
                             >
-                                Scan again
+                                {t("verificationModal.scanAgain")}
                             </button>
                         {/if}
                     </div>
                 {:else}
                     <p class="mt-4 text-xs text-discord-textMuted">
                         {startPending
-                            ? "Starting…"
-                            : "Compare a short list of emoji to verify, or use a QR code."}
+                            ? t("common.starting")
+                            : t("verificationModal.compareAShortListOfEmoji")}
                     </p>
                     <div class="mt-4 flex flex-col gap-2">
                         {#if methods.canSas}
@@ -390,39 +415,41 @@
                             <button
                                 onclick={chooseSas}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold text-left transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold text-start transition-colors disabled:opacity-50"
                             >
                                 <ShieldCheck
                                     size={18}
                                     class="text-white shrink-0"
                                 />
-                                Compare emoji
+                                {t("verificationModal.compareEmoji")}
                             </button>
                         {/if}
                         {#if methods.canShowQr}
                             <button
                                 onclick={openShowQr}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-left transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-start transition-colors disabled:opacity-50"
                             >
                                 <QrCode
                                     size={18}
                                     class="text-discord-textMuted shrink-0"
                                 />
-                                Show a code for the other side to scan
+                                {t("verificationModal.showACodeForTheOther")}
                             </button>
                         {/if}
                         {#if methods.canScanQr}
                             <button
                                 onclick={openScanQr}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-left transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-start transition-colors disabled:opacity-50"
                             >
                                 <Camera
                                     size={18}
                                     class="text-discord-textMuted shrink-0"
                                 />
-                                Scan their code with the camera
+                                {t(
+                                    "verificationModal.scanTheirCodeWithTheCamera",
+                                )}
                             </button>
                         {/if}
                     </div>
@@ -432,8 +459,8 @@
                         onclick={() => (pane = "choose")}
                         class="mt-4 flex items-center gap-1.5 text-xs text-discord-textMuted hover:text-discord-textPrimary transition-colors"
                     >
-                        <ArrowLeft size={14} />
-                        Choose a different method
+                        <ArrowLeft class="mirror:-scale-x-100" size={14} />
+                        {t("verificationModal.chooseADifferentMethod")}
                     </button>
                 {/if}
             {:else}
@@ -444,7 +471,7 @@
                     />
                     <p class="text-sm text-discord-textSecondary">
                         {confirmed
-                            ? "Waiting for the other side to confirm…"
+                            ? t("verificationModal.waitingForTheOtherSideTo")
                             : statusLabel}
                     </p>
                 </div>
@@ -461,8 +488,8 @@
                 class="mt-5 w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm transition-colors"
             >
                 {kind === "success" || kind === "cancelled"
-                    ? "Close"
-                    : "Cancel"}
+                    ? t("common.close")
+                    : t("common.cancel")}
             </button>
         </div>
     </div>

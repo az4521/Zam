@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { goto } from "$app/navigation";
     import {
         Check,
@@ -131,7 +132,9 @@
             await changeOwnPresence(value);
             view = "main";
         } catch (e) {
-            presenceError = (e as Error)?.message ?? "Could not set presence";
+            presenceError =
+                (e as Error)?.message ??
+                t("accountSwitcher.couldNotSetPresence");
         }
     }
 
@@ -209,7 +212,7 @@
     }
 
     const rowClass =
-        "w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors rounded-[inherit]";
+        "w-full flex items-center gap-3 px-3 py-2.5 text-start text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors rounded-[inherit]";
     const groupClass =
         "mx-2 mt-2 rounded-lg bg-discord-backgroundTertiary/60 divide-y divide-discord-divider";
     const flyoutClass =
@@ -221,7 +224,7 @@
         <button
             type="button"
             onclick={() => setPresence(option.value)}
-            class="w-full flex items-center gap-3 p-2 rounded text-left hover:bg-discord-messageHover transition-colors"
+            class="w-full flex items-center gap-3 p-2 rounded text-start hover:bg-discord-messageHover transition-colors"
         >
             <span
                 class="w-3 h-3 rounded-full flex-shrink-0 {presenceDotClass(
@@ -254,7 +257,7 @@
         >
             <button
                 onclick={() => switchTo(account.userId)}
-                class="flex-1 flex items-center gap-2.5 p-2 min-w-0 text-left"
+                class="flex-1 flex items-center gap-2.5 p-2 min-w-0 text-start"
             >
                 <Avatar
                     src={account.avatarUrl ?? null}
@@ -284,15 +287,17 @@
                  stop while `opacity-0` hides both it and its focus ring. -->
             <button
                 onclick={() => signOut(account.userId)}
-                class="flex-shrink-0 px-2 py-1 mr-1 rounded text-xs font-medium transition-colors {confirmSignOutId ===
+                class="flex-shrink-0 px-2 py-1 me-1 rounded text-xs font-medium transition-colors {confirmSignOutId ===
                 account.userId
                     ? 'bg-discord-danger text-white'
                     : 'text-discord-textMuted hover:text-discord-danger opacity-0 group-hover/account:opacity-100 group-focus-within/account:opacity-100'} {isTouch
                     ? '!opacity-100'
                     : ''}"
-                title="Sign out {account.userId}"
+                title={t("accountSwitcher.signOut", { userId: account.userId })}
             >
-                {confirmSignOutId === account.userId ? "Confirm" : "Sign out"}
+                {confirmSignOutId === account.userId
+                    ? t("accountSwitcher.confirm")
+                    : t("accountSwitcher.signOut2")}
             </button>
         </div>
     {/each}
@@ -301,13 +306,15 @@
 
     <button
         onclick={addAccount}
-        class="w-full flex items-center gap-2.5 p-2 rounded hover:bg-discord-messageHover text-left transition-colors"
+        class="w-full flex items-center gap-2.5 p-2 rounded hover:bg-discord-messageHover text-start transition-colors"
     >
         <span
             class="w-8 h-8 rounded-full bg-discord-backgroundTertiary flex items-center justify-center text-discord-accent text-lg font-bold flex-shrink-0"
             >+</span
         >
-        <span class="text-sm text-discord-textPrimary">Add account</span>
+        <span class="text-sm text-discord-textPrimary"
+            >{t("accountSwitcher.addAccount")}</span
+        >
     </button>
 {/snippet}
 
@@ -329,13 +336,13 @@
     -->
     <ModalDialog
         onClose={closeModal}
-        label="Account menu"
+        label={t("accountSwitcher.accountMenu")}
         layerClass="z-50"
         backdropClass={isTouch ? "bg-black/40" : "cursor-default"}
         panelClass="absolute bg-discord-backgroundSecondary border border-discord-divider shadow-xl {isTouch
             ? 'inset-x-0 bottom-0 rounded-t-lg pb-4 max-h-[85dvh] overflow-y-auto'
             : 'bottom-16 left-2 w-80 rounded-lg pb-2'}"
-        closeLabel="Close account menu"
+        closeLabel={t("accountSwitcher.closeAccountMenu")}
     >
         {#if isTouch && (view === "presence" || view === "accounts" || view === "status")}
             <div class="p-2">
@@ -344,7 +351,8 @@
                     onclick={() => open("main")}
                     class="flex items-center gap-1 px-2 py-1.5 text-sm text-discord-textMuted hover:text-discord-textPrimary"
                 >
-                    <ChevronLeft size={16} /> Back
+                    <ChevronLeft class="mirror:-scale-x-100" size={16} />
+                    {t("accountSwitcher.back")}
                 </button>
                 {#if view === "presence"}{@render presenceMenu()}{:else if view === "accounts"}{@render accountsMenu()}{:else}<div
                         class="px-2 pt-1"
@@ -377,7 +385,7 @@
                         />
                         <span
                             title={presenceLabel(presenceValue)}
-                            class="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full border-4 border-discord-backgroundSecondary {presenceDotClass(
+                            class="absolute bottom-0.5 end-0.5 w-5 h-5 rounded-full border-4 border-discord-backgroundSecondary {presenceDotClass(
                                 presenceDot(presenceValue),
                             )}"
                         ></span>
@@ -386,8 +394,8 @@
                         type="button"
                         onclick={() =>
                             open(view === "status" ? "main" : "status")}
-                        class="mt-1 max-w-[11rem] flex items-center gap-2 rounded-2xl bg-discord-backgroundTertiary/80 hover:bg-discord-messageHover px-3 py-2 text-left text-sm text-discord-textSecondary transition-colors"
-                        title="Set your status"
+                        class="mt-1 max-w-[11rem] flex items-center gap-2 rounded-2xl bg-discord-backgroundTertiary/80 hover:bg-discord-messageHover px-3 py-2 text-start text-sm text-discord-textSecondary transition-colors"
+                        title={t("accountSwitcher.setYourStatus")}
                     >
                         {#if status}
                             <span class="truncate"
@@ -397,7 +405,9 @@
                             >
                         {:else}
                             <SmilePlus size={16} class="flex-shrink-0" />
-                            <span class="italic truncate">Set a status</span>
+                            <span class="italic truncate"
+                                >{t("accountSwitcher.setAStatus")}</span
+                            >
                         {/if}
                     </button>
                 </div>
@@ -420,9 +430,10 @@
                     <button
                         type="button"
                         onclick={() => open("main")}
-                        class="-ml-1 mb-2 flex items-center gap-1 px-1 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                        class="-ms-1 mb-2 flex items-center gap-1 px-1 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
                     >
-                        <ChevronLeft size={16} /> Back
+                        <ChevronLeft class="mirror:-scale-x-100" size={16} />
+                        {t("accountSwitcher.back")}
                     </button>
                     <OwnStatusEditor onDone={() => open("main")} />
                 </div>
@@ -439,7 +450,9 @@
                             class={rowClass}
                         >
                             <Pencil size={18} class="text-discord-textMuted" />
-                            <span class="flex-1">Edit Profile</span>
+                            <span class="flex-1"
+                                >{t("accountSwitcher.editProfile")}</span
+                            >
                         </button>
                     </div>
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -455,7 +468,7 @@
                             class={rowClass}
                         >
                             <span
-                                class="w-3 h-3 rounded-full ml-0.5 mr-0.5 flex-shrink-0 {presenceDotClass(
+                                class="w-3 h-3 rounded-full ms-0.5 me-0.5 flex-shrink-0 {presenceDotClass(
                                     presenceDot(presenceValue),
                                 )}"
                             ></span>
@@ -464,7 +477,7 @@
                             >
                             <ChevronRight
                                 size={16}
-                                class="text-discord-textMuted"
+                                class="mirror:-scale-x-100 text-discord-textMuted"
                             />
                         </button>
                         {#if view === "presence" && !isTouch}
@@ -489,10 +502,12 @@
                             class={rowClass}
                         >
                             <Users size={18} class="text-discord-textMuted" />
-                            <span class="flex-1">Switch Accounts</span>
+                            <span class="flex-1"
+                                >{t("accountSwitcher.switchAccounts")}</span
+                            >
                             <ChevronRight
                                 size={16}
-                                class="text-discord-textMuted"
+                                class="mirror:-scale-x-100 text-discord-textMuted"
                             />
                         </button>
                         {#if view === "accounts" && !isTouch}

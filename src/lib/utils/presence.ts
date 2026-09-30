@@ -1,6 +1,7 @@
 // Presence mapping helpers (Matrix spec §14.6 Presence). Kept SDK-free —
 // client.ts and the presence store feed in raw strings from matrix-js-sdk
 // User objects / m.presence events; components consume the mapped values.
+import { t } from "$lib/i18n";
 
 /** The three presence states the spec allows a user to have. */
 export type PresenceState = "online" | "unavailable" | "offline";
@@ -51,11 +52,11 @@ export function presenceDotClass(dot: PresenceDot): string {
 export function presenceLabel(state: PresenceState): string {
     switch (state) {
         case "online":
-            return "Online";
+            return t("presence.online");
         case "unavailable":
-            return "Away";
+            return t("presence.away");
         case "offline":
-            return "Offline";
+            return t("presence.offline");
     }
 }
 
@@ -67,17 +68,17 @@ export const OWN_PRESENCE_OPTIONS: ReadonlyArray<{
 }> = [
     {
         value: "online",
-        label: "Online",
-        description: "Seen as online while the app is syncing",
+        label: t("presence.online"),
+        description: t("presence.seenAsOnlineWhileTheApp"),
     },
     {
         value: "unavailable",
-        label: "Away",
-        description: "Shown as idle to other users",
+        label: t("presence.away"),
+        description: t("presence.shownAsIdleToOtherUsers"),
     },
     {
         value: "offline",
-        label: "Invisible",
-        description: "Appear offline to other users",
+        label: t("presence.invisible"),
+        description: t("presence.appearOfflineToOtherUsers"),
     },
 ];

@@ -12,6 +12,7 @@
  * reloads and re-evaluates from a clean registry. Never persisted.
  */
 
+import { t } from "$lib/i18n";
 export interface HealedRoomRegistry {
     /** Record that `roomId`'s state was healed out-of-band. Idempotent. */
     markHealed(roomId: string): void;
@@ -49,11 +50,7 @@ export function roomStateTrustBadge(healed: boolean): RoomStateTrustBadge {
     if (!healed) return { unverified: false, label: "", tooltip: "" };
     return {
         unverified: true,
-        label: "Unverified room state",
-        tooltip:
-            "Some of this room's details (roles, membership, and permissions) " +
-            "were fetched directly from the server and haven't been confirmed " +
-            "through sync, so they may be inaccurate. Actions are still enforced " +
-            "by the server regardless of what is shown here.",
+        label: t("roomStateTrust.unverifiedRoomState"),
+        tooltip: t("roomStateTrust.unverifiedRoomStateTooltip"),
     };
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // App-shell banner shown when rust-crypto failed to initialise this
     // session (audit SEC-M6): encrypted rooms show placeholders and sends to
     // them fail closed. Reactive via the sessionHealth store; dismissible for
@@ -31,18 +32,19 @@
             />
         </svg>
         <span class="min-w-0 text-sm text-discord-textPrimary">
-            Encryption is unavailable this session: encrypted messages can't be
-            read or sent. Reload to try again.
+            {t(
+                "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted",
+            )}
         </span>
         <button
             onclick={reload}
             class="flex-shrink-0 rounded bg-discord-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90"
         >
-            Reload
+            {t("cryptoUnavailableBanner.reload")}
         </button>
         <button
             onclick={dismissCryptoBanner}
-            aria-label="Dismiss encryption warning"
+            aria-label={t("cryptoUnavailableBanner.dismissEncryptionWarning")}
             class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
         >
             <svg

@@ -12,6 +12,7 @@
  * subpath into a module we want SDK-free and testable. crypto.ts passes the
  * real `request.phase` (same numeric values) straight into these helpers.
  */
+import { t } from "$lib/i18n";
 export const VerificationPhaseValue = {
     Unsent: 1,
     Requested: 2,
@@ -54,24 +55,26 @@ export function verificationPhaseLabel(
     switch (phase) {
         case VerificationPhaseValue.Unsent:
         case VerificationPhaseValue.Requested:
-            return "Waiting for the other side to accept…";
+            return t("verification.waitingForTheOtherSideTo");
         case VerificationPhaseValue.Ready:
             // Method-neutral on purpose, and true where it is actually SHOWN:
             // the modal prints its own copy while the user picks a method, so
             // this only reaches the screen when there is nothing to pick (no QR
             // on either side, and the caller starts the emoji check itself).
-            return "Accepted - setting up the check…";
+            return t("verification.acceptedSettingUpTheCheck");
         case VerificationPhaseValue.Started:
             // NOT "compare the emoji": a QR flow spends this entire phase
             // waiting for the other side to confirm, with no emoji in
             // existence. The compare instruction belongs next to the emoji.
-            return "Verifying…";
+            return t("verification.verifying");
         case VerificationPhaseValue.Done:
-            return opts.isSelf ? "Session verified" : "User verified";
+            return opts.isSelf
+                ? t("verification.sessionVerified")
+                : t("verification.userVerified");
         case VerificationPhaseValue.Cancelled:
-            return "Verification cancelled";
+            return t("verification.verificationCancelled");
         default:
-            return "Verifying…";
+            return t("verification.verifying");
     }
 }
 
@@ -90,8 +93,9 @@ export interface TrustBadge {
 export function deviceTrustBadge(
     status: { isVerified: boolean; signedByOwner?: boolean } | null,
 ): TrustBadge {
-    if (status?.isVerified) return { label: "Verified", tone: "verified" };
-    return { label: "Unverified", tone: "unverified" };
+    if (status?.isVerified)
+        return { label: t("verification.verified"), tone: "verified" };
+    return { label: t("verification.unverified"), tone: "unverified" };
 }
 
 /**
@@ -107,9 +111,10 @@ export function userTrustBadge(
     } | null,
 ): TrustBadge {
     if (status?.needsApproval)
-        return { label: "Identity changed", tone: "warning" };
-    if (status?.isVerified) return { label: "Verified", tone: "verified" };
-    return { label: "Unverified", tone: "unverified" };
+        return { label: t("verification.identityChanged"), tone: "warning" };
+    if (status?.isVerified)
+        return { label: t("verification.verified"), tone: "verified" };
+    return { label: t("verification.unverified"), tone: "unverified" };
 }
 
 /**
@@ -126,7 +131,7 @@ export function userTrustBadge(
  */
 export function acceptFailureText(error: unknown): string {
     console.warn("[matrix] verification accept failed", error);
-    return "Couldn't accept this request. Try again.";
+    return t("verification.couldnTAcceptThisRequestTry");
 }
 
 export interface SasEmoji {

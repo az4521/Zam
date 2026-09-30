@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import {
@@ -33,7 +34,11 @@
 
     function errorMessage(e: unknown): string {
         const err = e as { data?: { error?: string }; message?: string };
-        return err?.data?.error ?? err?.message ?? "Something went wrong";
+        return (
+            err?.data?.error ??
+            err?.message ??
+            t("roomDirectory.somethingWentWrong")
+        );
     }
 
     async function search() {
@@ -118,14 +123,16 @@
                 id="room-directory-title"
                 class="text-lg font-bold text-discord-textPrimary"
             >
-                Explore rooms
+                {t("roomDirectory.exploreRooms")}
             </h2>
             <p class="text-sm text-discord-textMuted">
-                Public rooms {serverInput.trim()
-                    ? `on ${normalizeServerInput(serverInput)}`
-                    : "on your homeserver"}
+                {t("roomDirectory.publicRooms", {
+                    value: serverInput.trim()
+                        ? `on ${normalizeServerInput(serverInput)}`
+                        : t("roomDirectory.onYourHomeserver"),
+                })}
                 {#if totalEstimate !== null}
-                    · ~{totalEstimate} rooms
+                    {t("roomDirectory.rooms", { totalEstimate })}
                 {/if}
             </p>
         </div>
@@ -133,7 +140,7 @@
         <button
             onclick={closeModal}
             class="text-discord-textMuted hover:text-discord-textPrimary transition-colors p-1"
-            title="Close"
+            title={t("common.close")}
         >
             <svg
                 class="w-5 h-5"
@@ -164,19 +171,19 @@
         <input
             data-autofocus
             bind:value={searchInput}
-            placeholder="Search rooms…"
+            placeholder={t("roomDirectory.searchRooms")}
             class="flex-1 px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
         />
         <input
             bind:value={serverInput}
-            placeholder="Server (optional)"
+            placeholder={t("roomDirectory.serverOptional")}
             class="w-44 px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
         />
         <button
             onclick={search}
             disabled={loading}
             class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
-            >Search</button
+            >{t("roomDirectory.search")}</button
         >
     </div>
 
@@ -193,7 +200,7 @@
             </div>
         {:else if rooms.length === 0 && searched && !error}
             <p class="text-sm text-discord-textMuted text-center py-10">
-                No rooms found.
+                {t("roomDirectory.noRoomsFound")}
             </p>
         {:else}
             {#each rooms as entry (entry.roomId)}
@@ -216,14 +223,15 @@
                             {#if entry.isSpace}
                                 <span
                                     class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-discord-backgroundSecondary text-discord-textMuted flex-shrink-0"
-                                    >Space</span
+                                    >{t("roomDirectory.space")}</span
                                 >
                             {/if}
                         </div>
                         <p class="text-xs text-discord-textMuted truncate">
                             {#if entry.alias}{entry.alias} ·
-                            {/if}{entry.memberCount}
-                            {entry.memberCount === 1 ? "member" : "members"}
+                            {/if}{t("common.memberCount", {
+                                count: entry.memberCount,
+                            })}
                             {#if entry.topic}
                                 · {entry.topic}{/if}
                         </p>
@@ -237,14 +245,14 @@
                         <button
                             onclick={() => openJoined(entry)}
                             class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors flex-shrink-0"
-                            >Open</button
+                            >{t("roomDirectory.open")}</button
                         >
                     {:else if entry.joinRule === "knock"}
                         <button
                             disabled
-                            title="This room requires a knock - not supported yet"
+                            title={t("roomDirectory.thisRoomRequiresAKnockNot")}
                             class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary text-discord-textMuted opacity-60 cursor-not-allowed flex-shrink-0"
-                            >Knock only</button
+                            >{t("roomDirectory.knockOnly")}</button
                         >
                     {:else}
                         <button
@@ -257,7 +265,7 @@
                                     class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
                                 ></div>
                             {/if}
-                            Join
+                            {t("common.join")}
                         </button>
                     {/if}
                 </div>
@@ -273,7 +281,7 @@
                             class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                         ></div>
                     {/if}
-                    Load more
+                    {t("common.loadMore")}
                 </button>
             {/if}
         {/if}

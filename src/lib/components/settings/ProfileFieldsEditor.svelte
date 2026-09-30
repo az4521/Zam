@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         fetchOwnExtendedProfile,
         mxcToHttp,
@@ -146,9 +147,9 @@
     const statusIssue = $derived(statusProblem(statusText, statusEmoji));
     const timezoneIssue = $derived(
         timezoneText.trim() && !parseTimezone(timezoneText)
-            ? "Use a timezone name like Europe/London."
+            ? t("profileFieldsEditor.useATimezoneNameLikeEurope")
             : tzRegion && !timezoneText.trim()
-              ? "Choose a city."
+              ? t("profileFieldsEditor.chooseACity2")
               : null,
     );
     const connectionsIssue = $derived(connectionsProblem(connectionRows));
@@ -218,7 +219,9 @@
         try {
             bannerMxc = await uploadContent(file);
         } catch (e) {
-            error = (e as Error)?.message ?? "Banner upload failed";
+            error =
+                (e as Error)?.message ??
+                t("profileFieldsEditor.bannerUploadFailed");
         } finally {
             bannerUploading = false;
         }
@@ -296,7 +299,9 @@
             saved = true;
             setTimeout(() => (saved = false), 2000);
         } catch (e) {
-            error = (e as Error)?.message ?? "Failed to save profile fields";
+            error =
+                (e as Error)?.message ??
+                t("profileFieldsEditor.failedToSaveProfileFields");
         } finally {
             busy = false;
         }
@@ -324,16 +329,18 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
         >
-            More about you
+            {t("profileFieldsEditor.moreAboutYou")}
         </p>
 
         {#if allowed(PROFILE_FIELDS.banner)}
             <div>
-                <span class="text-sm text-discord-textPrimary">Banner</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.banner")}</span
+                >
                 {#if bannerSrc}
                     <img
                         src={bannerSrc}
-                        alt="Your banner"
+                        alt={t("profileFieldsEditor.yourBanner")}
                         class="mt-1 h-20 w-full max-w-sm rounded object-cover"
                     />
                 {/if}
@@ -344,15 +351,15 @@
                         disabled={bannerUploading}
                         class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
                         >{bannerUploading
-                            ? "Uploading…"
-                            : "Change banner"}</button
+                            ? t("common.uploading")
+                            : t("profileFieldsEditor.changeBanner")}</button
                     >
                     {#if bannerMxc}
                         <button
                             type="button"
                             onclick={() => (bannerMxc = null)}
                             class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                            >Remove</button
+                            >{t("common.remove")}</button
                         >
                     {/if}
                 </div>
@@ -370,50 +377,55 @@
             <div class="flex items-center gap-3">
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-discord-textPrimary">
-                        Show when I am in a call
+                        {t("profileFieldsEditor.showWhenIAmInA")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        Adds "In a call" to your profile while you are connected
-                        to a voice call, and removes it when you leave.
+                        {t("profileFieldsEditor.addsInACallToYour")}
                     </p>
                 </div>
                 <ToggleSwitch
                     checked={settingsState.shareCallStatus}
                     onChange={setShareCallStatus}
-                    label="Show when I am in a call"
+                    label={t("profileFieldsEditor.showWhenIAmInA")}
                 />
             </div>
         {/if}
 
         {#if allowed(PROFILE_FIELDS.pronouns)}
             <label class="block">
-                <span class="text-sm text-discord-textPrimary">Pronouns</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.pronouns")}</span
+                >
                 <input
                     bind:value={pronounsText}
-                    placeholder="she/her, they/them"
+                    placeholder={t("profileFieldsEditor.sheHerTheyThem")}
                     class="mt-1 {inputClass}"
                 />
                 <span class="text-xs text-discord-textMuted"
-                    >Separate with commas, most preferred first.</span
+                    >{t(
+                        "profileFieldsEditor.separateWithCommasMostPreferredFirst",
+                    )}</span
                 >
             </label>
         {/if}
 
         {#if allowed(PROFILE_FIELDS.status)}
             <div>
-                <span class="text-sm text-discord-textPrimary">Status</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.status")}</span
+                >
                 <div class="mt-1 flex gap-2">
                     <input
                         bind:value={statusEmoji}
                         maxlength={MAX_STATUS_EMOJI_LENGTH}
                         placeholder="🌴"
-                        aria-label="Status emoji"
+                        aria-label={t("profileFieldsEditor.statusEmoji")}
                         class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm text-center rounded px-2 py-2 outline-none"
                     />
                     <button
                         type="button"
                         onclick={() => (emojiPickerOpen = !emojiPickerOpen)}
-                        aria-label="Pick a status emoji"
+                        aria-label={t("profileFieldsEditor.pickAStatusEmoji")}
                         aria-expanded={emojiPickerOpen}
                         class="px-2 rounded bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary"
                     >
@@ -422,8 +434,10 @@
                     <input
                         bind:value={statusText}
                         maxlength={MAX_STATUS_TEXT_LENGTH}
-                        placeholder="On holiday until the 23rd"
-                        aria-label="Status text"
+                        placeholder={t(
+                            "profileFieldsEditor.onHolidayUntilThe23rd",
+                        )}
+                        aria-label={t("profileFieldsEditor.statusText")}
                         class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                     />
                 </div>
@@ -444,12 +458,16 @@
 
         {#if allowed(PROFILE_FIELDS.biography)}
             <label class="block">
-                <span class="text-sm text-discord-textPrimary">Bio</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.bio")}</span
+                >
                 <textarea
                     bind:value={bioText}
                     maxlength={MAX_BIOGRAPHY_LENGTH}
                     rows="4"
-                    placeholder="Tell people about yourself"
+                    placeholder={t(
+                        "profileFieldsEditor.tellPeopleAboutYourself",
+                    )}
                     class="mt-1 resize-y {inputClass}"
                 ></textarea>
             </label>
@@ -457,17 +475,21 @@
 
         {#if allowed(PROFILE_FIELDS.timezone)}
             <div>
-                <span class="text-sm text-discord-textPrimary">Timezone</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.timezone")}</span
+                >
                 <div class="mt-1 flex gap-2">
                     {#if timezones.length > 0}
                         <select
                             value={tzRegion}
                             onchange={(e) =>
                                 chooseTzRegion(e.currentTarget.value)}
-                            aria-label="Timezone region"
+                            aria-label={t("profileFieldsEditor.timezoneRegion")}
                             class="w-2/5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-2 outline-none"
                         >
-                            <option value="">Not set</option>
+                            <option value=""
+                                >{t("profileFieldsEditor.notSet")}</option
+                            >
                             {#each tzGroups.regions as region (region)}
                                 <option value={region}>{region}</option>
                             {/each}
@@ -477,10 +499,12 @@
                             onchange={(e) =>
                                 chooseTzCity(e.currentTarget.value)}
                             disabled={!tzRegion}
-                            aria-label="Timezone city"
+                            aria-label={t("profileFieldsEditor.timezoneCity")}
                             class="flex-1 min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-2 outline-none disabled:opacity-50"
                         >
-                            <option value="">Choose a city</option>
+                            <option value=""
+                                >{t("profileFieldsEditor.chooseACity")}</option
+                            >
                             {#each tzGroups.cities[tzRegion] ?? [] as city (city)}
                                 <option value={city}
                                     >{timezoneCityLabel(city)}</option
@@ -491,8 +515,8 @@
                         <!-- Old engines cannot list zones: type the name. -->
                         <input
                             bind:value={timezoneText}
-                            placeholder="Europe/London"
-                            aria-label="Timezone"
+                            placeholder={t("profileFieldsEditor.europeLondon")}
+                            aria-label={t("profileFieldsEditor.timezone")}
                             class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                         />
                     {/if}
@@ -500,7 +524,7 @@
                         type="button"
                         onclick={useBrowserTimezone}
                         class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                        >Use mine</button
+                        >{t("profileFieldsEditor.useMine")}</button
                     >
                 </div>
                 {#if timezoneIssue}<p class="mt-1 text-xs text-discord-danger">
@@ -512,7 +536,7 @@
         {#if allowed(PROFILE_FIELDS.usernameColour)}
             <div>
                 <span class="text-sm text-discord-textPrimary"
-                    >Username colour</span
+                    >{t("profileFieldsEditor.usernameColour")}</span
                 >
                 {#if colourDark && colourLight}
                     <div class="mt-1 flex flex-wrap items-center gap-3">
@@ -520,7 +544,9 @@
                             <input
                                 type="color"
                                 bind:value={colourDark}
-                                aria-label="Username colour on dark themes"
+                                aria-label={t(
+                                    "profileFieldsEditor.usernameColourOnDarkThemes",
+                                )}
                                 class="w-10 h-8 rounded cursor-pointer"
                             />
                             <span
@@ -529,14 +555,16 @@
                                 >{displayName || auth.userId}</span
                             >
                             <span class="text-xs text-discord-textMuted"
-                                >dark themes</span
+                                >{t("profileFieldsEditor.darkThemes")}</span
                             >
                         </div>
                         <div class="flex items-center gap-2">
                             <input
                                 type="color"
                                 bind:value={colourLight}
-                                aria-label="Username colour on light themes"
+                                aria-label={t(
+                                    "profileFieldsEditor.usernameColourOnLightThemes",
+                                )}
                                 class="w-10 h-8 rounded cursor-pointer"
                             />
                             <span
@@ -545,14 +573,15 @@
                                 >{displayName || auth.userId}</span
                             >
                             <span class="text-xs text-discord-textMuted"
-                                >light themes</span
+                                >{t("profileFieldsEditor.lightThemes")}</span
                             >
                         </div>
                         <button
                             type="button"
                             class={smallButtonClass}
                             onclick={clearColour}
-                            title="Reset to default">✕</button
+                            title={t("profileFieldsEditor.resetToDefault")}
+                            >✕</button
                         >
                     </div>
                 {:else}
@@ -561,41 +590,47 @@
                             type="button"
                             onclick={chooseColour}
                             class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                            >Choose a colour</button
+                            >{t("profileFieldsEditor.chooseAColour")}</button
                         >
                     </div>
                 {/if}
                 <span class="text-xs text-discord-textMuted"
-                    >One colour for dark themes and one for light, so your name
-                    stays readable either way.</span
+                    >{t("profileFieldsEditor.oneColourForDarkThemesAnd")}</span
                 >
             </div>
         {/if}
 
         {#if allowed(PROFILE_FIELDS.connections)}
             <div>
-                <span class="text-sm text-discord-textPrimary">Links</span>
+                <span class="text-sm text-discord-textPrimary"
+                    >{t("profileFieldsEditor.links")}</span
+                >
                 <div class="mt-1 space-y-2">
                     {#each connectionRows as row, index (index)}
                         <div class="flex gap-2">
                             <input
                                 bind:value={row.description}
                                 maxlength={MAX_CONNECTION_DESCRIPTION}
-                                placeholder="Label"
-                                aria-label="Link label"
+                                placeholder={t("profileFieldsEditor.label")}
+                                aria-label={t("profileFieldsEditor.linkLabel")}
                                 class="w-1/3 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                             />
                             <input
                                 bind:value={row.uri}
-                                placeholder="https://example.org"
-                                aria-label="Link address"
+                                placeholder={t(
+                                    "profileFieldsEditor.httpsExampleOrg",
+                                )}
+                                aria-label={t(
+                                    "profileFieldsEditor.linkAddress",
+                                )}
                                 class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                             />
                             <button
                                 type="button"
                                 class={smallButtonClass}
                                 onclick={() => removeConnection(index)}
-                                title="Remove link">✕</button
+                                title={t("profileFieldsEditor.removeLink")}
+                                >✕</button
                             >
                         </div>
                     {/each}
@@ -604,7 +639,7 @@
                         onclick={addConnection}
                         disabled={connectionRows.length >= MAX_CONNECTIONS}
                         class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm disabled:opacity-50"
-                        >Add link</button
+                        >{t("profileFieldsEditor.addLink")}</button
                     >
                 </div>
                 {#if connectionsIssue}<p
@@ -620,11 +655,11 @@
                 onclick={save}
                 disabled={busy || !dirty || !!problem || bannerUploading}
                 class="px-4 py-2 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                >{busy ? "Saving…" : "Save"}</button
+                >{busy ? t("common.saving") : t("common.save")}</button
             >
             {#if error}<span class="text-xs text-discord-danger">{error}</span
                 >{:else if saved}<span class="text-xs text-discord-textPositive"
-                    >Saved</span
+                    >{t("profileFieldsEditor.saved")}</span
                 >{/if}
         </div>
     </section>

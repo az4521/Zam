@@ -4,6 +4,7 @@
  * SDK/media wiring lives in $lib/matrix/client; this module stays testable.
  */
 
+import { t } from "$lib/i18n";
 export interface VoiceParticipant {
     userId: string;
     deviceId: string;
@@ -128,11 +129,11 @@ export type VoiceConnState = "connecting" | "connected" | "reconnecting" | null;
 export function connStateLabel(state: VoiceConnState): string {
     switch (state) {
         case "connecting":
-            return "Connecting…";
+            return t("voiceCall.connecting");
         case "connected":
-            return "Voice connected";
+            return t("voiceCall.voiceConnected");
         case "reconnecting":
-            return "Reconnecting…";
+            return t("voiceCall.reconnecting");
         default:
             return "";
     }
@@ -261,13 +262,12 @@ export function callEndedMembershipMessage(
     sender: string | undefined,
     me: string,
 ): string | null {
-    if (membership === "ban")
-        return "You were banned from this room - call ended";
+    if (membership === "ban") return t("voiceCall.youWereBannedFromThisRoom");
     if (membership === "leave") {
         const removedBySelf = !sender || sender === me;
         return removedBySelf
-            ? "You left this room - call ended"
-            : "You were removed from this room - call ended";
+            ? t("voiceCall.youLeftThisRoomCallEnded")
+            : t("voiceCall.youWereRemovedFromThisRoom");
     }
     return null; // join / invite / knock: no teardown
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { reportEvent } from "$lib/matrix/client";
     import {
         closeModal,
@@ -98,8 +99,8 @@
             bind:this={buttonEl}
             onclick={() => (open ? closeModal() : show())}
             class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-            title="Report message"
-            aria-label="Report message"
+            title={t("messageReportAction.reportMessage")}
+            aria-label={t("messageReportAction.reportMessage")}
             aria-expanded={open}
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -117,27 +118,31 @@
         <div
             bind:this={dialogEl}
             class="{interfaceState.isTouchscreen
-                ? 'fixed left-2 right-2 z-50'
+                ? 'fixed start-2 end-2 z-50'
                 : below
-                  ? 'absolute top-full right-0 mt-1 z-50 w-72'
-                  : 'absolute bottom-full right-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-left"
+                  ? 'absolute top-full end-0 mt-1 z-50 w-72'
+                  : 'absolute bottom-full end-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-start"
             style={interfaceState.isTouchscreen
                 ? `bottom: ${keyboardOffset + 8}px;`
                 : ""}
         >
             {#if status === "sent"}
-                <p class="text-sm text-discord-textPrimary">Report sent</p>
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messageReportAction.reportSent")}
+                </p>
             {:else}
                 <p
                     class="text-xs font-semibold uppercase text-discord-textMuted mb-2"
                 >
-                    Report message
+                    {t("messageReportAction.reportMessage")}
                 </p>
                 <textarea
                     bind:this={textareaEl}
                     bind:value={reason}
                     rows="3"
-                    placeholder="Why are you reporting this message?"
+                    placeholder={t(
+                        "messageReportAction.whyAreYouReportingThisMessage",
+                    )}
                     disabled={status === "sending"}
                     class="w-full resize-none rounded bg-discord-backgroundSecondary border border-discord-divider p-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:border-discord-accent"
                 ></textarea>
@@ -149,7 +154,7 @@
                         bind:checked={offensive}
                         disabled={status === "sending"}
                     />
-                    Mark as extremely offensive
+                    {t("messageReportAction.markAsExtremelyOffensive")}
                 </label>
                 {#if status === "error"}
                     <p class="text-xs text-discord-danger mt-2">{error}</p>
@@ -158,7 +163,7 @@
                     <button
                         onclick={closeModal}
                         class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                        >Cancel</button
+                        >{t("common.cancel")}</button
                     >
                     <button
                         onclick={submit}
@@ -166,8 +171,8 @@
                             status === "sending"}
                         class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >{status === "sending"
-                            ? "Reporting…"
-                            : "Report"}</button
+                            ? t("messageReportAction.reporting")
+                            : t("messageReportAction.report")}</button
                     >
                 </div>
             {/if}

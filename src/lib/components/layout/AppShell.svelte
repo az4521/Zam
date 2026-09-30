@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { localeInfo, t } from "$lib/i18n";
     import { onMount, untrack } from "svelte";
     import { motionOK } from "$lib/utils/motionPreference";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
@@ -259,6 +260,11 @@
         19.5 *
         (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
     let drawerWidth = $state(initialDrawerWidth);
+    // The panel arrangement is pinned left-to-right in every language (see
+    // the `dir="ltr"` shell below), so the drawer always slides in from the
+    // left; only panel *contents* follow the UI direction.
+    const DIR = 1;
+    const uiDir = localeInfo().dir;
     let drawerTranslate = $state(-initialDrawerWidth);
     let isDragging = $state(false);
     let dragStartX = 0;
@@ -308,7 +314,8 @@
     function drawerDragMove(e: TouchEvent) {
         if (!dragPending && !isDragging) return;
         const touch = e.touches[0];
-        const dx = touch.clientX - dragStartX;
+        const rawDx = touch.clientX - dragStartX;
+        const dx = rawDx * DIR;
         const dy = touch.clientY - dragStartY;
 
         if (dragPending) {
@@ -321,7 +328,7 @@
             }
             // Horizontal gesture that began inside a scrollable code block /
             // table — let it scroll natively instead of opening the drawer.
-            if (targetCanScrollHoriz(dragTarget, dx)) {
+            if (targetCanScrollHoriz(dragTarget, rawDx)) {
                 dragPending = false;
                 cleanupDocListeners();
                 return;
@@ -351,7 +358,7 @@
             // release drops it toward zero, which correctly cancels a flick.
             const dt = e.timeStamp - lastMoveT;
             if (dt > 0) {
-                dragVelocity = (touch.clientX - lastMoveX) / dt;
+                dragVelocity = ((touch.clientX - lastMoveX) / dt) * DIR;
                 lastMoveX = touch.clientX;
                 lastMoveT = e.timeStamp;
             }
@@ -974,12 +981,14 @@
         const room = getRoom(roomId);
         if (!room) return;
         const partnerId = getDMPartnerId(room);
-        const name = partnerId ? getMemberName(room, partnerId) : "Someone";
+        const name = partnerId
+            ? getMemberName(room, partnerId)
+            : t("appShell.someone");
         const postedBy = auth.userId;
         try {
             const native = showNativeNotification({
-                title: `${name} is calling`,
-                body: "Incoming call",
+                title: t("appShell.isCalling", { name }),
+                body: t("appShell.incomingCall"),
                 tag: `call:${roomId}`,
             });
             if (native) {
@@ -993,8 +1002,8 @@
                 Notification.permission !== "granted"
             )
                 return;
-            const n = new Notification(`${name} is calling`, {
-                body: "Incoming call",
+            const n = new Notification(t("appShell.isCalling", { name }), {
+                body: t("appShell.incomingCall"),
                 icon: "/favicon.png",
                 badge: "/favicon_foreground.png",
                 tag: `call:${roomId}`,
@@ -1286,7 +1295,7 @@
         // createAuthenticatedClient, so this fires only on a real fallback.
         if (sessionHealthState.syncStoreFallback) {
             showErrorToast(
-                "Offline message storage is unavailable this session, so history won't be saved for next time.",
+                t("appShell.offlineMessageStorageIsUnavailableThis"),
             );
             // Consume the flag so an SPA remount (e.g. "add account" → cancel →
             // goto("/")) does not re-fire the toast without a new fallback.
@@ -1492,9 +1501,7 @@
                         restoreErr,
                     );
                 }
-                showErrorToast(
-                    "Couldn't send your reply. It's saved as a draft.",
-                );
+                showErrorToast(t("appShell.couldnTSendYourReplyIt"));
                 // Always delete the stash on failure (already consumed)
                 if (stashId) await deleteQuickReplyStash(stashId);
             }
@@ -1856,7 +1863,7 @@
                         );
                     }
 
-                    showToast("Your notification reply was saved as a draft", {
+                    showToast(t("appShell.yourNotificationReplyWasSavedAs"), {
                         tone: "accent",
                     });
                 } catch (err) {
@@ -2115,7 +2122,10 @@
 </script>
 
 <svelte:head>
-    <title>{notificationCount > 0 ? `(${notificationCount}) Zam` : "Zam"}</title
+    <title
+        >{notificationCount > 0
+            ? t("appShell.zam", { notificationCount })
+            : "Zam"}</title
     >
 </svelte:head>
 
@@ -2132,12 +2142,16 @@
                 aria-hidden="true"
                 class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
             ></div>
-            <span>Redirecting…</span>
+            <span>{t("appShell.redirecting")}</span>
         </div>
     </div>
 {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- The panel arrangement (servers, rooms, chat, member list) keeps the
+         same left-to-right order in every language; each panel's contents
+         get the UI direction back via `dir={uiDir}` wrappers below. -->
     <div
+        dir="ltr"
         class="flex overflow-hidden bg-discord-background"
         style="position: fixed; inset: 0;"
         ontouchstart={drawerDragStart}
@@ -2155,16 +2169,20 @@
                         onHomeClick={() => setActiveSpace(null)}
                         onOpenSpaceSettings={openRoomSettings}
                     />
-                    <RoomList
-                        onOpenSpaceSettings={openRoomSettings}
-                        onOpenRoomSettings={openRoomSettings}
+                    <div class="contents" dir={uiDir}>
+                        <RoomList
+                            onOpenSpaceSettings={openRoomSettings}
+                            onOpenRoomSettings={openRoomSettings}
+                        />
+                    </div>
+                </div>
+                <div class="contents" dir={uiDir}>
+                    <UpdateBanner />
+                    <ProfileFooter
+                        onLogout={handleLogout}
+                        onSettings={openAppSettings}
                     />
                 </div>
-                <UpdateBanner />
-                <ProfileFooter
-                    onLogout={handleLogout}
-                    onSettings={openAppSettings}
-                />
             </div>
         {:else}
             <!-- Mobile: animated drawer + backdrop -->
@@ -2183,7 +2201,8 @@
             <div
                 bind:offsetWidth={drawerWidth}
                 class="fixed inset-y-0 left-0 z-40 flex flex-col w-[19.5rem]"
-                style="transform: translateX({drawerTranslate}px); {isDragging
+                style="transform: translateX({drawerTranslate *
+                    DIR}px); {isDragging
                     ? ''
                     : `transition: transform ${snapDurationMs}ms cubic-bezier(0.2, 0, 0, 1);`} {drawerTranslate <=
                 -drawerWidth
@@ -2197,22 +2216,29 @@
                         onHomeClick={() => setActiveSpace(null)}
                         onOpenSpaceSettings={openRoomSettings}
                     />
-                    <RoomList
-                        onOpenSpaceSettings={openRoomSettings}
-                        onOpenRoomSettings={openRoomSettings}
+                    <div class="contents" dir={uiDir}>
+                        <RoomList
+                            onOpenSpaceSettings={openRoomSettings}
+                            onOpenRoomSettings={openRoomSettings}
+                        />
+                    </div>
+                </div>
+                <div class="contents" dir={uiDir}>
+                    <ProfileFooter
+                        onLogout={handleLogout}
+                        onSettings={() => {
+                            openAppSettings();
+                            interfaceState.leftOpen = false;
+                        }}
                     />
                 </div>
-                <ProfileFooter
-                    onLogout={handleLogout}
-                    onSettings={() => {
-                        openAppSettings();
-                        interfaceState.leftOpen = false;
-                    }}
-                />
             </div>
         {/if}
 
-        <main class="flex flex-1 min-w-0 overflow-hidden bg-discord-background">
+        <main
+            dir={uiDir}
+            class="flex flex-1 min-w-0 overflow-hidden bg-discord-background"
+        >
             {#if roomsState.showInbox}
                 <InboxPanel
                     isMobile={interfaceState.isMobile}
@@ -2260,29 +2286,26 @@
                         <h2
                             class="text-2xl font-bold text-discord-textPrimary mb-2"
                         >
-                            No rooms yet
+                            {t("appShell.noRoomsYet")}
                         </h2>
                         <p class="text-discord-textMuted max-w-sm">
-                            Create a room or start a direct message to get
-                            going.
+                            {t("appShell.createARoomOrStartA")}
                         </p>
                     {:else}
                         <h2
                             class="text-2xl font-bold text-discord-textPrimary mb-2"
                         >
-                            Nothing in Home
+                            {t("appShell.nothingInHome")}
                         </h2>
                         <p class="text-discord-textMuted max-w-sm">
-                            All of your rooms live in spaces - open one to see
-                            them. Rooms and direct messages outside a space show
-                            up here.
+                            {t("appShell.allOfYourRoomsLiveIn")}
                         </p>
                     {/if}
                     {#if interfaceState.isMobile}
                         <button
                             onclick={() => (interfaceState.leftOpen = true)}
                             class="mt-6 px-5 py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded-lg text-sm font-semibold transition-colors"
-                            >Open Room List</button
+                            >{t("appShell.openRoomList")}</button
                         >
                     {/if}
                 </div>
@@ -2291,7 +2314,9 @@
 
         <!-- Settings overlay -->
         {#if interfaceState.modal === "app-settings"}
-            <AppSettings onClose={closeModal} onLogout={handleLogout} />
+            <div class="contents" dir={uiDir}>
+                <AppSettings onClose={closeModal} onLogout={handleLogout} />
+            </div>
         {/if}
     </div>
 {/if}

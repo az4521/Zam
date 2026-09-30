@@ -9,6 +9,7 @@
  * locally but lacking full setup reads "needs-setup" to nudge completion.
  */
 
+import { t } from "$lib/i18n";
 import type { SecuritySetupState } from "./securityStatusView";
 
 export type VerificationStatusKind =
@@ -39,8 +40,8 @@ export function reconcileVerification(args: {
         case "loading":
             return {
                 kind: "unavailable",
-                label: "Checking encryption…",
-                detail: "Checking encryption…",
+                label: t("verificationStatus.checkingEncryption"),
+                detail: t("verificationStatus.checkingEncryption"),
                 tone: "neutral",
                 actionable: false,
                 actionLabel: null,
@@ -49,8 +50,8 @@ export function reconcileVerification(args: {
         case "unavailable":
             return {
                 kind: "unavailable",
-                label: "Encryption unavailable",
-                detail: "Encryption unavailable",
+                label: t("verificationStatus.encryptionUnavailable"),
+                detail: t("verificationStatus.encryptionUnavailable"),
                 tone: "neutral",
                 actionable: false,
                 actionLabel: null,
@@ -59,8 +60,8 @@ export function reconcileVerification(args: {
         case "read-failed":
             return {
                 kind: "unavailable",
-                label: "Status unavailable",
-                detail: "Status unavailable",
+                label: t("verificationStatus.statusUnavailable"),
+                detail: t("verificationStatus.statusUnavailable"),
                 tone: "neutral",
                 actionable: false,
                 actionLabel: null,
@@ -70,8 +71,10 @@ export function reconcileVerification(args: {
             // The ONLY bare green "verified" — encryption is fully set up.
             return {
                 kind: "verified",
-                label: "Verified",
-                detail: "This session is verified and encryption is fully set up.",
+                label: t("verificationStatus.verified"),
+                detail: t(
+                    "verificationStatus.thisSessionIsVerifiedAndEncryption",
+                ),
                 tone: "verified",
                 actionable: false,
                 actionLabel: null,
@@ -80,11 +83,11 @@ export function reconcileVerification(args: {
         case "fresh":
             return {
                 kind: "needs-setup",
-                label: "Not set up",
-                detail: "Set up encryption to secure your messages across devices.",
+                label: t("verificationStatus.notSetUp"),
+                detail: t("verificationStatus.setUpEncryptionToSecureYour"),
                 tone: "warning",
                 actionable: true,
-                actionLabel: "Set up",
+                actionLabel: t("verificationStatus.setUp"),
             };
 
         case "partial":
@@ -94,21 +97,23 @@ export function reconcileVerification(args: {
             if (deviceTrust?.isVerified === true) {
                 return {
                     kind: "needs-setup",
-                    label: "Encryption setup incomplete",
-                    detail: "This session is verified, but encryption setup is incomplete.",
+                    label: t("verificationStatus.encryptionSetupIncomplete"),
+                    detail: t(
+                        "verificationStatus.thisSessionIsVerifiedButEncryption",
+                    ),
                     tone: "warning",
                     actionable: true,
-                    actionLabel: "Finish setup",
+                    actionLabel: t("verificationStatus.finishSetup"),
                 };
             } else {
                 // Device not verified or null — the user needs to verify.
                 return {
                     kind: "unverified",
-                    label: "Unverified",
-                    detail: "This session isn't verified yet.",
+                    label: t("verificationStatus.unverified"),
+                    detail: t("verificationStatus.thisSessionIsnTVerifiedYet"),
                     tone: "unverified",
                     actionable: true,
-                    actionLabel: "Verify",
+                    actionLabel: t("common.verify"),
                 };
             }
     }

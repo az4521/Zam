@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 export type UpdatePhase =
     | "idle"
     | "checking"
@@ -44,7 +45,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
     switch (phase) {
         case "checking":
             return {
-                label: "Checking for updates…",
+                label: t("updateStatus.checkingForUpdates"),
                 action: "none",
                 actionLabel: "",
                 busy: true,
@@ -53,9 +54,11 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
 
         case "up-to-date":
             return {
-                label: `You're on the latest version${versionSuffix}`,
+                label: t("updateStatus.youReOnTheLatestVersion", {
+                    versionSuffix,
+                }),
                 action: "check",
-                actionLabel: "Check for updates",
+                actionLabel: t("updateStatus.checkForUpdates"),
                 busy: false,
                 percent: null,
             };
@@ -67,9 +70,9 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             // launch check in the main process and surfaces as "downloading",
             // so it never lands here as a stuck "available".
             return {
-                label: `Update available${versionSuffix}`,
+                label: t("updateStatus.updateAvailable", { versionSuffix }),
                 action: "download",
-                actionLabel: "Download & install",
+                actionLabel: t("updateStatus.downloadInstall"),
                 busy: false,
                 percent: null,
             };
@@ -78,8 +81,8 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             // Name the version being fetched so the target stays visible past
             // the "available" prompt; fall back to a generic label without one.
             const downloading = version
-                ? `Downloading v${version}`
-                : "Downloading update";
+                ? t("updateStatus.downloadingV", { version })
+                : t("updateStatus.downloadingUpdate");
             return {
                 label: `${downloading}… ${clampedPercent}%`,
                 action: "none",
@@ -94,35 +97,41 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             // user tap in the OS package installer. Fire that instead.
             if (platform === "android") {
                 return {
-                    label: `Update ready${versionSuffix} - Install`,
+                    label: t("updateStatus.updateReadyInstall", {
+                        versionSuffix,
+                    }),
                     action: "install",
-                    actionLabel: "Install",
+                    actionLabel: t("updateStatus.install"),
                     busy: false,
                     percent: null,
                 };
             }
             return {
-                label: `Update ready${versionSuffix} - restart to apply`,
+                label: t("updateStatus.updateReadyRestartToApply", {
+                    versionSuffix,
+                }),
                 action: "restart",
-                actionLabel: "Restart to apply",
+                actionLabel: t("updateStatus.restartToApply"),
                 busy: false,
                 percent: null,
             };
 
         case "unsupported":
             return {
-                label: `A new version is available${versionSuffix}`,
+                label: t("updateStatus.aNewVersionIsAvailable", {
+                    versionSuffix,
+                }),
                 action: "open-release",
-                actionLabel: "Open release page",
+                actionLabel: t("updateStatus.openReleasePage"),
                 busy: false,
                 percent: null,
             };
 
         case "error":
             return {
-                label: message ?? "Update check failed",
+                label: message ?? t("updateStatus.updateCheckFailed"),
                 action: "check",
-                actionLabel: "Check for updates",
+                actionLabel: t("updateStatus.checkForUpdates"),
                 busy: false,
                 percent: null,
             };
@@ -130,9 +139,9 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
         case "idle":
         default:
             return {
-                label: "Check for updates to install the latest version.",
+                label: t("updateStatus.checkForUpdatesToInstallThe"),
                 action: "check",
-                actionLabel: "Check for updates",
+                actionLabel: t("updateStatus.checkForUpdates"),
                 busy: false,
                 percent: null,
             };

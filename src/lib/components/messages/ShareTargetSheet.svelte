@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         X,
         ArrowLeft,
@@ -153,10 +154,12 @@
             role="status"
             class="border-b border-discord-divider px-4 py-3 text-sm text-discord-textMuted"
         >
-            {payload.droppedFiles} file(s) weren't added. Shares are limited to {SHARE_MAX_FILES}
-            files, {SHARE_MAX_FILE_BYTES / 1024 / 1024} MB each and {SHARE_MAX_TOTAL_BYTES /
-                1024 /
-                1024} MB in total.
+            {t("shareTargetSheet.fileSWerenTAddedShares", {
+                droppedFiles: payload.droppedFiles,
+                SHARE_MAX_FILES,
+                value: SHARE_MAX_FILE_BYTES / 1024 / 1024,
+                value2: SHARE_MAX_TOTAL_BYTES / 1024 / 1024,
+            })}
         </div>
     {/if}
 {/snippet}
@@ -166,7 +169,7 @@
         <textarea
             bind:value={caption}
             rows="2"
-            placeholder="Add a message…"
+            placeholder={t("shareTargetSheet.addAMessage")}
             class="w-full resize-none rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
         ></textarea>
     </div>
@@ -177,13 +180,13 @@
         <label class="relative block">
             <Search
                 size={16}
-                class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
+                class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
             />
             <input
                 data-autofocus
                 bind:value={query}
-                placeholder="Search rooms"
-                class="w-full rounded bg-discord-backgroundTertiary py-2 pl-9 pr-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
+                placeholder={t("shareTargetSheet.searchRooms")}
+                class="w-full rounded bg-discord-backgroundTertiary py-2 ps-9 pe-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
             />
         </label>
     </div>
@@ -196,7 +199,7 @@
                 type="button"
                 onclick={() => (selectedRoomId = room.roomId)}
                 aria-pressed={selectedRoomId === room.roomId}
-                class="flex w-full items-center gap-3 rounded px-2 py-2 text-left transition-colors hover:bg-discord-messageHover {selectedRoomId ===
+                class="flex w-full items-center gap-3 rounded px-2 py-2 text-start transition-colors hover:bg-discord-messageHover {selectedRoomId ===
                 room.roomId
                     ? 'bg-discord-messageHover ring-1 ring-discord-accent'
                     : ''}"
@@ -215,7 +218,7 @@
             </button>
         {:else}
             <p class="px-3 py-8 text-center text-sm text-discord-textMuted">
-                No joined rooms found
+                {t("shareTargetSheet.noJoinedRoomsFound")}
             </p>
         {/each}
     </div>
@@ -227,14 +230,14 @@
             type="button"
             onclick={clearShare}
             class="px-3 py-2 text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary"
-            >Cancel</button
+            >{t("common.cancel")}</button
         >
         <button
             type="button"
             onclick={submit}
             disabled={!selectedRoomId || empty}
             class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
-            >Send</button
+            >{t("shareTargetSheet.send")}</button
         >
     </div>
 {/snippet}
@@ -256,14 +259,18 @@
                         type="button"
                         onclick={clearShare}
                         class="rounded p-1.5 text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
-                        aria-label="Close"
-                        title="Close"><ArrowLeft size={20} /></button
+                        aria-label={t("common.close")}
+                        title={t("common.close")}
+                        ><ArrowLeft
+                            class="mirror:-scale-x-100"
+                            size={20}
+                        /></button
                     >
                     <h2
                         id="share-target-title"
                         class="text-base font-semibold text-discord-textPrimary"
                     >
-                        Share to a room
+                        {t("shareTargetSheet.shareToARoom")}
                     </h2>
                 </div>
                 {@render fileList()}
@@ -288,14 +295,14 @@
                         id="share-target-title"
                         class="text-base font-semibold text-discord-textPrimary"
                     >
-                        Share to a room
+                        {t("shareTargetSheet.shareToARoom")}
                     </h2>
                     <button
                         type="button"
                         onclick={clearShare}
-                        class="ml-2 rounded p-1.5 text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
-                        aria-label="Close"
-                        title="Close"><X size={20} /></button
+                        class="ms-2 rounded p-1.5 text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
+                        aria-label={t("common.close")}
+                        title={t("common.close")}><X size={20} /></button
                     >
                 </div>
                 {@render fileList()}

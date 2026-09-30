@@ -11,6 +11,7 @@
  * performs NO URL fetch, so the prod CSP `font-src` never applies (a blob:/url
  * @font-face would — we deliberately avoid it).
  */
+import { t } from "$lib/i18n";
 import { CUSTOM_FONT_FAMILY } from "./messageDisplay";
 
 export const CUSTOM_FONT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -28,13 +29,13 @@ export function validateCustomFontFile(file: {
 }): FontValidationResult {
     const ext = extensionOf(file.name);
     if (!ext || !(ALLOWED_EXTS as readonly string[]).includes(ext)) {
-        return { ok: false, reason: "Use a .woff2, .ttf, or .otf font file." };
+        return { ok: false, reason: t("customFont.useAWoff2TtfOrOtf") };
     }
     if (file.size <= 0) {
-        return { ok: false, reason: "That font file is empty." };
+        return { ok: false, reason: t("customFont.thatFontFileIsEmpty") };
     }
     if (file.size > CUSTOM_FONT_MAX_BYTES) {
-        return { ok: false, reason: "Font file is too large (max 10 MB)." };
+        return { ok: false, reason: t("customFont.fontFileIsTooLargeMax") };
     }
     return { ok: true, ext, displayName: displayNameOf(file.name) };
 }
@@ -51,7 +52,7 @@ function displayNameOf(name: string): string {
     const dot = base.lastIndexOf(".");
     const stem = dot > 0 ? base.slice(0, dot) : base;
     const trimmed = stem.trim();
-    const safe = trimmed.length > 0 ? trimmed : "Custom font";
+    const safe = trimmed.length > 0 ? trimmed : t("customFont.customFont");
     return safe.length > MAX_NAME_LEN ? safe.slice(0, MAX_NAME_LEN) : safe;
 }
 

@@ -6,6 +6,7 @@
  * Split out of `client.ts` (audit ARCH-01). It reads the client slot from
  * `runtime.ts` and reuses the room/media helpers `client.ts` exports.
  */
+import { t } from "$lib/i18n";
 import type {
     PluginRoomSummary,
     PluginMemberSummary,
@@ -45,7 +46,7 @@ const pluginMediaOwners = createMediaOwnership();
 /** Throw when any of `urls` was uploaded under an earlier client generation. */
 function assertMediaOwned(urls: string[], generation: number): void {
     if (urls.some((url) => pluginMediaOwners.isForeign(url, generation))) {
-        throw new Error("Media was uploaded by a different account");
+        throw new Error(t("pluginHost.mediaWasUploadedByADifferent"));
     }
 }
 
@@ -211,7 +212,7 @@ export async function redactOwnEvent(
     eventId: string,
     reason?: string,
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not logged in");
+    if (!matrixClient) throw new Error(t("pluginHost.notLoggedIn"));
     const room = getRoom(roomId);
     const ev = room?.findEventById(eventId);
     const sender = ev?.getSender();
@@ -235,7 +236,7 @@ export async function sendPluginSticker(
     },
     thread?: { rootEventId: string },
 ): Promise<void> {
-    if (!matrixClient) throw new Error("Not connected");
+    if (!matrixClient) throw new Error(t("pluginHost.notConnected"));
     const owner = captureClient();
     const content: Record<string, unknown> = {
         body: sticker.body || sticker.shortcode || "sticker",

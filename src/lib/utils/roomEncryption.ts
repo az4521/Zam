@@ -7,6 +7,7 @@
  */
 
 /** The only encryption algorithm this client enables (Matrix standard). */
+import { t } from "$lib/i18n";
 export const ENCRYPTION_ALGORITHM = "m.megolm.v1.aes-sha2";
 
 /** State event type that switches a room to encrypted. */
@@ -28,9 +29,9 @@ export const DEFAULT_ENCRYPT_DMS = true;
 export const ENABLE_ENCRYPTION_CONFIRM_PHRASE = "ENABLE";
 
 /** Warning shown before enabling encryption; it can never be turned off again. */
-export const ENABLE_ENCRYPTION_WARNING =
-    "Encryption can't be turned off once it's on. Everyone will need a client " +
-    "that supports encryption to read new messages.";
+export const ENABLE_ENCRYPTION_WARNING = t(
+    "roomEncryption.enableEncryptionWarning",
+);
 
 /** Minimal shape of a room's power-levels needed to gate the encryption event. */
 export interface EncryptionPowerLevels {
@@ -74,13 +75,16 @@ export function getEnableEncryptionState(
     input: EnableEncryptionInput,
 ): EnableEncryptionState {
     if (input.alreadyEncrypted) {
-        return { canEnable: false, reason: "This room is already encrypted." };
+        return {
+            canEnable: false,
+            reason: t("roomEncryption.thisRoomIsAlreadyEncrypted"),
+        };
     }
     const required = encryptionEventPowerLevel(input.powerLevels);
     if (input.myPowerLevel < required) {
         return {
             canEnable: false,
-            reason: `You need power level ${required} to enable encryption.`,
+            reason: t("roomEncryption.youNeedPowerLevelToEnable", { required }),
         };
     }
     return { canEnable: true, reason: "" };
@@ -149,8 +153,9 @@ export function shouldEncryptNewDm(input: NewDmEncryptionInput): boolean {
  * room (encryption is irreversible), so the only cue is the absence of a lock —
  * easy to miss. Shared by all three DM entry points.
  */
-export const PLAINTEXT_DM_REUSE_WARNING =
-    "You already have a direct message with this user, and it isn't encrypted. Encryption can't be added automatically - open it and turn it on from the room's Security settings.";
+export const PLAINTEXT_DM_REUSE_WARNING = t(
+    "roomEncryption.youAlreadyHaveADirectMessage",
+);
 
 /** Inputs to "should we warn that this DM is an un-upgraded plaintext reuse?". */
 export interface PlaintextDmReuseInput {

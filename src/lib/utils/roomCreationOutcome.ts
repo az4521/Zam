@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import { matrixErrorMessage } from "./knock";
 
 /**
@@ -50,7 +51,10 @@ export const NO_FOLLOW_UP: RoomFollowUp = Object.freeze({
  * which would otherwise run straight into the sentence that follows it.
  */
 function detailSentence(err: unknown): string {
-    const detail = matrixErrorMessage(err, "the server rejected the change");
+    const detail = matrixErrorMessage(
+        err,
+        t("roomCreationOutcome.theServerRejectedTheChange"),
+    );
     return /[.!?]$/.test(detail) ? detail : `${detail}.`;
 }
 
@@ -67,9 +71,13 @@ export function followUpFailureMessage(
     err: unknown,
 ): string {
     if (task.kind === "space-link") {
-        return `The room was created, but adding it to the space failed: ${detailSentence(err)}`;
+        return t("roomCreationOutcome.theRoomWasCreatedButAdding", {
+            detailSentence: detailSentence(err),
+        });
     }
-    return `The direct message was created, but saving it to your DM list failed: ${detailSentence(err)} It may appear as a normal room until this is retried.`;
+    return t("roomCreationOutcome.theDirectMessageWasCreatedBut", {
+        detailSentence: detailSentence(err),
+    });
 }
 
 /**
@@ -83,9 +91,9 @@ export function followUpFailureMessage(
  */
 export function followUpTimeoutMessage(task: RoomFollowUpTask): string {
     if (task.kind === "space-link") {
-        return "The room was created, but adding it to the space hasn't been confirmed yet - it may still be saving. Retry if the room doesn't show up in the space.";
+        return t("roomCreationOutcome.theRoomWasCreatedButAdding2");
     }
-    return "The direct message was created, but saving it to your DM list hasn't been confirmed yet - it may still be saving. Retry if it doesn't show up in your DM list.";
+    return t("roomCreationOutcome.theDirectMessageWasCreatedBut2");
 }
 
 /**

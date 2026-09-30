@@ -13,6 +13,7 @@
 // Migrated from core settings ownDoubleTapAction/otherDoubleTapAction/
 // doubleTapReaction. Per-space reaction overrides (doubleTapReactionBySpace)
 // are intentionally NOT migrated (v1) — see the plan's Decisions.
+import { t } from "$lib/i18n";
 import type { Manifest } from "../../manifest";
 import type { PluginModule, Disposable } from "../../types";
 import { resolveDoubleTapAction, isActive } from "./resolve";
@@ -20,10 +21,9 @@ import { resolveSwipeAction as resolveSwipe } from "./swipeResolve";
 
 export const manifest: Manifest = {
     id: "zam.double-tap-reply",
-    name: "Double-tap & swipe actions",
+    name: t("doubleTapReply.doubleTapSwipeActions"),
     version: "1.0.0",
-    description:
-        "Double-tap a message to reply, react, or edit, or swipe it left to reply / edit.",
+    description: t("doubleTapReply.doubleTapAMessageToReply"),
     author: "Zam",
     entry: "builtin",
     capabilities: ["composer", "messages:read", "messages:send"],
@@ -31,40 +31,39 @@ export const manifest: Manifest = {
         {
             key: "ownAction",
             type: "select",
-            label: "Double-tap your messages",
+            label: t("doubleTapReply.doubleTapYourMessages"),
             default: "edit",
             options: [
-                { value: "none", label: "Nothing" },
-                { value: "reaction", label: "Reaction" },
-                { value: "reply", label: "Reply" },
-                { value: "edit", label: "Edit" },
+                { value: "none", label: t("doubleTapReply.nothing") },
+                { value: "reaction", label: t("doubleTapReply.reaction") },
+                { value: "reply", label: t("doubleTapReply.reply") },
+                { value: "edit", label: t("doubleTapReply.edit") },
             ],
         },
         {
             key: "otherAction",
             type: "select",
-            label: "Double-tap other messages",
+            label: t("doubleTapReply.doubleTapOtherMessages"),
             default: "reaction",
             options: [
-                { value: "none", label: "Nothing" },
-                { value: "reaction", label: "Reaction" },
-                { value: "reply", label: "Reply" },
+                { value: "none", label: t("doubleTapReply.nothing") },
+                { value: "reaction", label: t("doubleTapReply.reaction") },
+                { value: "reply", label: t("doubleTapReply.reply") },
             ],
         },
         {
             key: "reaction",
             type: "text",
-            label: "Reaction emoji",
+            label: t("doubleTapReply.reactionEmoji"),
             default: "👍",
-            description: "Sent when a double-tap action is set to Reaction.",
+            description: t("doubleTapReply.sentWhenADoubleTapAction"),
         },
         {
             key: "swipeEnabled",
             type: "toggle",
-            label: "Swipe to reply / edit",
+            label: t("doubleTapReply.swipeToReplyEdit"),
             default: true,
-            description:
-                "Swipe a message left to reply; swipe your own further to edit.",
+            description: t("doubleTapReply.swipeAMessageLeftToReply"),
         },
     ],
 };
@@ -101,7 +100,7 @@ export const plugin: PluginModule = {
                 const key = zam.settings.get<string>("reaction", "👍") || "👍";
                 zam.matrix.react(ctx.roomId, ctx.eventId, key).catch((err) => {
                     console.error("[zam.double-tap-reply] react failed", err);
-                    zam.ui.notify({ body: "Failed to react" });
+                    zam.ui.notify({ body: t("doubleTapReply.failedToReact") });
                 });
             }
         };

@@ -1,3 +1,5 @@
+import plugin from "tailwindcss/plugin";
+
 /**
  * The BRAND palette. This is what `colors.discord` is, and therefore what
  * `border-`, `ring-`, `divide-`, `outline-`, `placeholder-`, `accent-` and the
@@ -85,6 +87,14 @@ export default {
                     "Helvetica Neue",
                     "Helvetica",
                     "Arial",
+                    // Syriac script (Suret UI and messages). The Latin fonts
+                    // above have no Syriac glyphs, so these only ever draw
+                    // Syriac characters. Eastern (Madnhaya) first: it is the
+                    // script Assyrian Neo-Aramaic is normally written in.
+                    "Noto Sans Syriac Eastern",
+                    "Noto Sans Syriac",
+                    "Estrangelo Edessa",
+                    "Segoe UI Historic",
                     "sans-serif",
                 ],
                 mono: [
@@ -97,5 +107,14 @@ export default {
             },
         },
     },
-    plugins: [],
+    plugins: [
+        // `mirror:` applies when the element itself is right-to-left
+        // (`:dir(rtl)`). Tailwind's built-in `rtl:` matches any element with
+        // an RTL ancestor, which is wrong here: the app shell pins its panel
+        // arrangement with nested `dir="ltr"` while panel contents stay RTL,
+        // so something inside a pinned region must not mirror.
+        plugin(({ addVariant }) => {
+            addVariant("mirror", "&:dir(rtl)");
+        }),
+    ],
 };

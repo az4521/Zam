@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         settingsState,
@@ -41,7 +42,7 @@
         <div
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
         >
-            Resolution
+            {t("screenShareQualityChips.resolution")}
         </div>
         <div class="flex flex-wrap gap-1.5">
             {#each SCREEN_RESOLUTIONS as r (r.key)}
@@ -63,7 +64,7 @@
         <div
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
         >
-            Frame rate
+            {t("screenShareQualityChips.frameRate")}
         </div>
         <div class="flex flex-wrap gap-1.5">
             {#each SCREEN_FPS_OPTIONS as f (f)}
@@ -76,7 +77,7 @@
                     aria-pressed={settingsState.screenShareFps === String(f)}
                     onclick={() => pickFps(f)}
                 >
-                    {f} FPS
+                    {t("screenShareQualityChips.fps", { f })}
                 </button>
             {/each}
         </div>
@@ -84,11 +85,11 @@
     <div class="flex items-center justify-between gap-3">
         <div>
             <div class="text-sm text-discord-textPrimary">
-                Share system audio
+                {t("screenShareQualityChips.shareSystemAudio")}
             </div>
             {#if isLive}
                 <div class="text-xs text-discord-textMuted mt-0.5">
-                    Applies to next share
+                    {t("screenShareQualityChips.appliesToNextShare")}
                 </div>
             {/if}
         </div>
@@ -96,8 +97,8 @@
             checked={settingsState.shareSystemAudio}
             onChange={(v) => setShareSystemAudio(v)}
             label={isLive
-                ? "Share system audio (applies to next share)"
-                : "Share system audio"}
+                ? t("screenShareQualityChips.shareSystemAudioAppliesToNext")
+                : t("screenShareQualityChips.shareSystemAudio")}
         />
     </div>
 </div>

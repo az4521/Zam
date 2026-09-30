@@ -32,7 +32,7 @@
     <div
         role="status"
         aria-live="polite"
-        class="pointer-events-none fixed bottom-3 left-3 z-50 flex items-center gap-2 rounded-full bg-discord-backgroundTertiary/95 px-3 py-1.5 text-xs font-medium text-discord-textSecondary shadow-lg ring-1 ring-black/20"
+        class="pointer-events-none fixed bottom-3 start-3 z-50 flex items-center gap-2 rounded-full bg-discord-backgroundTertiary/95 px-3 py-1.5 text-xs font-medium text-discord-textSecondary shadow-lg ring-1 ring-black/20"
     >
         <span
             class="h-2 w-2 flex-shrink-0 rounded-full {offline

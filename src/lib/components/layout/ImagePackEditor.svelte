@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import { untrack } from "svelte";
     import {
@@ -70,12 +71,20 @@
 
     function selectedEmotePackName(): string {
         if (selectedEmotePackKey === "__new") {
-            return newEmotePackName.trim() || `${room.name || "Room"} Emotes`;
+            return (
+                newEmotePackName.trim() ||
+                t("imagePackEditor.emotes", {
+                    value: room.name || t("imagePackEditor.room"),
+                })
+            );
         }
         return (
             currentEmotePacks().find(
                 (pack) => packKey(pack) === selectedEmotePackKey,
-            )?.name || `${room.name || "Room"} Emotes`
+            )?.name ||
+            t("imagePackEditor.emotes", {
+                value: room.name || t("imagePackEditor.room"),
+            })
         );
     }
 
@@ -120,7 +129,7 @@
         emoteError = validateEmojiShortcode(emoteShortcode) ?? "";
         const usage = usageFromFlags(newEmoteAsEmoji, newEmoteAsSticker);
         if (!emoteError && usage.length === 0) {
-            emoteError = "Choose at least one usage.";
+            emoteError = t("imagePackEditor.chooseAtLeastOneUsage");
         }
         if (
             !emoteError &&
@@ -128,7 +137,7 @@
             currentEmotePacks().length > 0 &&
             !newEmotePackName.trim()
         ) {
-            emoteError = "Enter a pack name.";
+            emoteError = t("imagePackEditor.enterAPackName");
         }
         if (emoteError) {
             input.value = "";
@@ -190,7 +199,7 @@
             roomsState.roomsTick++;
             onUpdate?.();
         } catch (err: any) {
-            emoteError = err?.message ?? "Upload failed";
+            emoteError = err?.message ?? t("imagePackEditor.uploadFailed");
         } finally {
             emoteUploading = false;
             input.value = "";
@@ -209,7 +218,7 @@
             kind === "sticker" ? enabled : item.canSticker,
         );
         if (usage.length === 0) {
-            emoteError = "Choose at least one usage.";
+            emoteError = t("imagePackEditor.chooseAtLeastOneUsage");
             return;
         }
         emoteActionPending = `${stateKey}:${item.shortcode}:${kind}`;
@@ -225,7 +234,8 @@
             roomsState.roomsTick++;
             onUpdate?.();
         } catch (err: any) {
-            emoteError = err?.message ?? "Failed to update usage";
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToUpdateUsage");
         } finally {
             emoteActionPending = null;
         }
@@ -256,7 +266,8 @@
             roomsState.roomsTick++;
             onUpdate?.();
         } catch (err: any) {
-            emoteError = err?.message ?? "Failed to remove image";
+            emoteError =
+                err?.message ?? t("imagePackEditor.failedToRemoveImage");
         } finally {
             emoteActionPending = null;
         }
@@ -269,7 +280,7 @@
             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             for="room-emote-shortcode"
         >
-            Add Image
+            {t("imagePackEditor.addImage")}
         </label>
         <div class="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <div class="min-w-0">
@@ -281,7 +292,8 @@
                     {#each currentEmotePacks() as pack (pack.id)}
                         <option value={packKey(pack)}>{pack.name}</option>
                     {/each}
-                    <option value="__new">New pack</option>
+                    <option value="__new">{t("imagePackEditor.newPack")}</option
+                    >
                 </select>
             </div>
             <div
@@ -293,22 +305,22 @@
                     <input
                         bind:value={newEmotePackName}
                         disabled={!canEdit || emoteUploading}
-                        placeholder="Pack name"
+                        placeholder={t("imagePackEditor.packName")}
                         class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
                     />
                 {/if}
                 <div
                     class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
                 >
-                    <span class="pl-3 text-sm text-discord-textMuted">:</span>
+                    <span class="ps-3 text-sm text-discord-textMuted">:</span>
                     <input
                         id="room-emote-shortcode"
                         bind:value={emoteShortcode}
                         disabled={!canEdit || emoteUploading}
-                        placeholder="shortcode"
+                        placeholder={t("imagePackEditor.shortcode")}
                         class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
                     />
-                    <span class="pr-3 text-sm text-discord-textMuted">:</span>
+                    <span class="pe-3 text-sm text-discord-textMuted">:</span>
                 </div>
             </div>
             {#if canEdit}
@@ -317,7 +329,9 @@
                         ? 'opacity-50 pointer-events-none'
                         : ''}"
                 >
-                    {emoteUploading ? "Uploading…" : "Upload Image"}
+                    {emoteUploading
+                        ? t("common.uploading")
+                        : t("common.uploadImage")}
                     <input
                         type="file"
                         accept="image/*"
@@ -340,7 +354,7 @@
                     disabled={!canEdit || emoteUploading}
                     class="accent-discord-accent"
                 />
-                Use as emoji
+                {t("imagePackEditor.useAsEmoji")}
             </label>
             <label
                 class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
@@ -351,7 +365,7 @@
                     disabled={!canEdit || emoteUploading}
                     class="accent-discord-accent"
                 />
-                Use as sticker
+                {t("imagePackEditor.useAsSticker")}
             </label>
         </div>
     </div>
@@ -381,7 +395,9 @@
                         </p>
                         <p class="text-xs text-discord-textMuted truncate">
                             {pack.inherited
-                                ? `Inherited from ${pack.sourceName}`
+                                ? t("imagePackEditor.inheritedFrom", {
+                                      sourceName: pack.sourceName,
+                                  })
                                 : pack.sourceName}
                         </p>
                     </div>
@@ -433,7 +449,7 @@
                                                 `${packKey(pack)}:${item.shortcode}:emoticon`}
                                         class="accent-discord-accent"
                                     />
-                                    Emoji
+                                    {t("common.emoji")}
                                 </label>
                                 <label
                                     class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
@@ -455,7 +471,7 @@
                                                 `${packKey(pack)}:${item.shortcode}:sticker`}
                                         class="accent-discord-accent"
                                     />
-                                    Sticker
+                                    {t("imagePackEditor.sticker")}
                                 </label>
                             </div>
                             {#if canEdit && !pack.inherited}
@@ -465,7 +481,7 @@
                                     disabled={emoteActionPending ===
                                         `${packKey(pack)}:${item.shortcode}:remove`}
                                     class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                                    title="Remove image"
+                                    title={t("imagePackEditor.removeImage")}
                                 >
                                     <svg
                                         class="w-4 h-4"
@@ -485,7 +501,7 @@
         {#if emotePacks.length === 0}<p
                 class="text-sm text-discord-textMuted text-center py-4"
             >
-                No custom images
+                {t("imagePackEditor.noCustomImages")}
             </p>{/if}
     </div>
 </div>

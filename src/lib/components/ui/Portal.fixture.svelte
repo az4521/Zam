@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Portal from "$lib/components/ui/Portal.svelte";
 </script>
 
@@ -7,6 +8,6 @@
      observable here — the DOM LOCATION is, and that is what the fix changes. -->
 <div data-testid="origin">
     <Portal>
-        <div data-testid="portaled">hello</div>
+        <div data-testid="portaled">{t("portal.fixture.hello")}</div>
     </Portal>
 </div>

@@ -26,7 +26,7 @@
     .whats-new-prose :global(ul),
     .whats-new-prose :global(ol) {
         margin: 0.35em 0;
-        padding-left: 1.25em;
+        padding-inline-start: 1.25em;
         list-style: revert;
     }
     .whats-new-prose :global(a) {

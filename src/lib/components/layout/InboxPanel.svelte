@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
         getRoomAvatar,
@@ -29,7 +30,7 @@
             setActiveRoom(roomId);
         } catch (e) {
             console.error("Failed to accept invite", e);
-            showErrorToast("Failed to accept invite");
+            showErrorToast(t("inboxPanel.failedToAcceptInvite"));
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
@@ -41,7 +42,7 @@
             await rejectInvite(roomId);
         } catch (e) {
             console.error("Failed to reject invite", e);
-            showErrorToast("Failed to reject invite");
+            showErrorToast(t("inboxPanel.failedToRejectInvite"));
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
@@ -53,7 +54,7 @@
             await cancelKnock(roomId);
         } catch (e) {
             console.error("Failed to cancel join request", e);
-            showErrorToast("Failed to cancel join request");
+            showErrorToast(t("inboxPanel.failedToCancelJoinRequest"));
         } finally {
             busyIds = new Set([...busyIds].filter((id) => id !== roomId));
         }
@@ -67,15 +68,17 @@
         {#if isMobile}
             <button
                 onclick={onMenuOpen}
-                class="p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
-                title="Open room list"
+                class="p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                title={t("common.openRoomList")}
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
                 </svg>
             </button>
         {/if}
-        <h2 class="font-semibold text-discord-textPrimary">Inbox</h2>
+        <h2 class="font-semibold text-discord-textPrimary">
+            {t("inboxPanel.inbox")}
+        </h2>
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
@@ -96,10 +99,10 @@
                     >
                 </div>
                 <p class="text-discord-textPrimary font-semibold mb-1">
-                    No pending invites
+                    {t("inboxPanel.noPendingInvites")}
                 </p>
                 <p class="text-discord-textMuted text-sm">
-                    Room invites will appear here.
+                    {t("inboxPanel.roomInvitesWillAppearHere")}
                 </p>
             </div>
         {:else}
@@ -108,7 +111,9 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
                     >
-                        Pending invites: {roomsState.invitedRooms.length}
+                        {t("inboxPanel.pendingInvites", {
+                            length: roomsState.invitedRooms.length,
+                        })}
                     </p>
                 {/if}
                 {#each roomsState.invitedRooms as room (room.roomId)}
@@ -133,7 +138,7 @@
                             </p>
                             {#if sender}
                                 <p class="text-xs text-discord-textMuted">
-                                    Invited by {sender}
+                                    {t("inboxPanel.invitedBy", { sender })}
                                 </p>
                             {/if}
                             {#if topic}
@@ -149,7 +154,7 @@
                                 onclick={() => reject(room.roomId)}
                                 disabled={busy}
                                 class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50"
-                                >Ignore</button
+                                >{t("inboxPanel.ignore")}</button
                             >
                             <button
                                 onclick={() => accept(room.roomId)}
@@ -161,7 +166,7 @@
                                         class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
                                     ></div>
                                 {/if}
-                                Accept
+                                {t("inboxPanel.accept")}
                             </button>
                         </div>
                     </div>
@@ -173,7 +178,9 @@
                             ? 'mt-3'
                             : ''}"
                     >
-                        Pending join requests: {roomsState.knockedRooms.length}
+                        {t("inboxPanel.pendingJoinRequests", {
+                            length: roomsState.knockedRooms.length,
+                        })}
                     </p>
                     {#each roomsState.knockedRooms as room (room.roomId)}
                         {@const busy = busyIds.has(room.roomId)}
@@ -194,8 +201,7 @@
                                     )}
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
-                                    You asked to join - waiting for someone to
-                                    let you in.
+                                    {t("inboxPanel.youAskedToJoinWaitingFor")}
                                 </p>
                             </div>
                             <div class="flex gap-2 flex-shrink-0">
@@ -209,7 +215,7 @@
                                             class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"
                                         ></div>
                                     {/if}
-                                    Cancel request
+                                    {t("inboxPanel.cancelRequest")}
                                 </button>
                             </div>
                         </div>

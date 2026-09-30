@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import {
         APP_VERSION,
@@ -154,7 +155,8 @@
                 ...androidStatus,
                 phase: "error",
                 message:
-                    (checkError as Error)?.message ?? "Update check failed",
+                    (checkError as Error)?.message ??
+                    t("aboutSettings.updateCheckFailed"),
             };
         }
     }
@@ -184,7 +186,9 @@
             androidStatus = {
                 ...androidStatus,
                 phase: "error",
-                message: (downloadError as Error)?.message ?? "Download failed",
+                message:
+                    (downloadError as Error)?.message ??
+                    t("aboutSettings.downloadFailed"),
             };
         }
     }
@@ -206,7 +210,9 @@
             androidStatus = {
                 ...androidStatus,
                 phase: "error",
-                message: (installError as Error)?.message ?? "Install failed",
+                message:
+                    (installError as Error)?.message ??
+                    t("aboutSettings.installFailed"),
             };
         }
     }
@@ -251,7 +257,7 @@
         } catch (checkError) {
             error =
                 (checkError as Error)?.message ??
-                "Failed to check for updates.";
+                t("aboutSettings.failedToCheckForUpdates");
         } finally {
             checking = false;
         }
@@ -299,13 +305,15 @@
     </div>
     <div class="flex items-center gap-3 py-2">
         <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">Automatic updates</p>
+            <p class="text-sm text-discord-textPrimary">
+                {t("aboutSettings.automaticUpdates")}
+            </p>
             <p class="text-xs text-discord-textMuted">{autoDesc}</p>
         </div>
         <ToggleSwitch
             checked={settingsState.autoUpdateEnabled}
             onChange={onToggleAuto}
-            label="Automatic updates"
+            label={t("aboutSettings.automaticUpdates")}
         />
     </div>
 {/snippet}
@@ -315,7 +323,7 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Version
+            {t("aboutSettings.version")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
@@ -323,7 +331,7 @@
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">Zam</p>
                 <p class="text-xs text-discord-textMuted">
-                    Current version v{APP_VERSION}
+                    {t("aboutSettings.currentVersionV", { APP_VERSION })}
                 </p>
             </div>
             {#if isDesktopUpdater()}
@@ -336,7 +344,9 @@
                     disabled={checking}
                     class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
                 >
-                    {checking ? "Checking…" : "Check for updates"}
+                    {checking
+                        ? t("common.checking")
+                        : t("aboutSettings.checkForUpdates")}
                 </button>
             {/if}
         </div>
@@ -363,7 +373,7 @@
             >
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-semibold text-discord-textPrimary">
-                        Update available
+                        {t("aboutSettings.updateAvailable")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
                         v{info.current} → v{info.latest}
@@ -375,15 +385,15 @@
                     class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors flex-shrink-0 disabled:opacity-50"
                 >
                     {reloading
-                        ? "Reloading…"
+                        ? t("aboutSettings.reloading")
                         : CAN_INSTALL_UPDATE
-                          ? "Update"
-                          : "Reload to update"}
+                          ? t("aboutSettings.update")
+                          : t("aboutSettings.reloadToUpdate")}
                 </button>
             </div>
         {:else if info}
             <p class="text-sm text-discord-textMuted">
-                You’re on the latest version.
+                {t("aboutSettings.youReOnTheLatestVersion")}
             </p>
         {/if}
     {/if}
@@ -394,18 +404,17 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Troubleshooting
+            {t("aboutSettings.troubleshooting")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Clear cache and resync
+                    {t("aboutSettings.clearCacheAndResync")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Re-downloads your rooms from the server. Fixes rooms that
-                    are missing or stuck. You stay signed in.
+                    {t("aboutSettings.reDownloadsYourRoomsFromThe")}
                 </p>
             </div>
             <button
@@ -413,7 +422,9 @@
                 disabled={clearingCache}
                 class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
             >
-                {clearingCache ? "Resyncing…" : "Clear cache"}
+                {clearingCache
+                    ? t("aboutSettings.resyncing")
+                    : t("aboutSettings.clearCache")}
             </button>
         </div>
     </section>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -100,7 +101,7 @@
         {/if}
         <button
             onclick={dismissVerificationNudge}
-            aria-label="Dismiss"
+            aria-label={t("profileFooter.dismiss")}
             class="text-discord-textMuted hover:text-discord-textPrimary text-sm"
         >
             ×
@@ -113,8 +114,8 @@
 >
     <button
         onclick={openAccountSwitcher}
-        class="flex-1 flex items-center gap-2 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-left"
-        title="Switch accounts"
+        class="flex-1 flex items-center gap-2 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-start"
+        title={t("profileFooter.switchAccounts")}
     >
         <div class="relative">
             <Avatar
@@ -125,12 +126,13 @@
             />
             <div
                 title={ownPresence.label}
-                class="absolute bottom-0 right-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
+                class="absolute bottom-0 end-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
             ></div>
         </div>
         <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold text-discord-textPrimary truncate">
-                {auth.userId?.split(":")[0].replace("@", "") ?? "Unknown"}
+                {auth.userId?.split(":")[0].replace("@", "") ??
+                    t("profileFooter.unknown")}
             </p>
             <p class="text-xs text-discord-textSecondary truncate">
                 {auth.userId ?? ""}
@@ -140,8 +142,8 @@
     <button
         onclick={onSettings}
         class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-        title="Settings"
-        aria-label="Settings"
+        title={t("common.settings")}
+        aria-label={t("common.settings")}
     >
         <svg
             class="w-5 h-5"

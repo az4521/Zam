@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import BlockedUsersSettings from "$lib/components/settings/BlockedUsersSettings.svelte";
@@ -23,18 +24,20 @@
     }> = [
         {
             value: "all",
-            label: "All",
-            title: "Load preview media from wherever it is hosted",
+            label: t("privacySafetySettings.all"),
+            title: t("privacySafetySettings.loadPreviewMediaFromWhereverIt"),
         },
         {
             value: "proxied",
-            label: "Homeserver only",
-            title: "Only load preview media your own homeserver serves",
+            label: t("privacySafetySettings.homeserverOnly"),
+            title: t("privacySafetySettings.onlyLoadPreviewMediaYourOwn"),
         },
         {
             value: "none",
-            label: "Off",
-            title: "Never load preview media automatically",
+            label: t("privacySafetySettings.off"),
+            title: t(
+                "privacySafetySettings.neverLoadPreviewMediaAutomatically",
+            ),
         },
     ];
 
@@ -60,24 +63,23 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
         >
-            Privacy
+            {t("privacySafetySettings.privacy")}
         </p>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Private read receipts
+                    {t("privacySafetySettings.privateReadReceipts")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Hide your read receipts from other users. Your unread counts
-                    still work; others just can't see how far you've read.
+                    {t("privacySafetySettings.hideYourReadReceiptsFromOther")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.privateReadReceipts}
                 onChange={onTogglePrivateReadReceipts}
-                label="Private read receipts"
+                label={t("privacySafetySettings.privateReadReceipts")}
             />
         </div>
         <div
@@ -85,18 +87,18 @@
         >
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-discord-textPrimary">
-                    Hide message text in notifications
+                    {t("privacySafetySettings.hideMessageTextInNotifications")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    Notifications on this device say who messaged you, but not
-                    what they said. The sender and room names are still shown.
-                    Applies to this device only.
+                    {t("privacySafetySettings.notificationsOnThisDeviceSayWho")}
                 </p>
             </div>
             <ToggleSwitch
                 checked={settingsState.hideNotificationBody}
                 onChange={onToggleHideNotificationBody}
-                label="Hide message text in notifications"
+                label={t(
+                    "privacySafetySettings.hideMessageTextInNotifications",
+                )}
             />
         </div>
         <div
@@ -104,24 +106,19 @@
         >
             <div class="flex-1 min-w-0">
                 <span class="text-sm text-discord-textPrimary"
-                    >Link preview media</span
+                    >{t("privacySafetySettings.linkPreviewMedia")}</span
                 >
                 <p class="text-xs text-discord-textMuted">
-                    Preview images and videos usually come straight from the
-                    site that hosts them, so that site learns your IP address
-                    and when you read the message. "Homeserver only" loads just
-                    the copies your own server serves; "Off" loads none of it.
-                    Both also hide embedded YouTube players and X/Twitter cards,
-                    which always load straight from those sites. Either way,
-                    each affected preview keeps a button to load its media. The
-                    link-preview on/off switch lives in Messages & Media.
+                    {t(
+                        "privacySafetySettings.previewImagesAndVideosUsuallyCome",
+                    )}
                 </p>
             </div>
             <OptionSelector
                 value={settingsState.linkPreviewMedia}
                 options={linkPreviewOptions}
                 onChange={setLinkPreviewMedia}
-                ariaLabel="Link preview media"
+                ariaLabel={t("privacySafetySettings.linkPreviewMedia")}
             />
         </div>
     </section>
@@ -129,7 +126,7 @@
     <h3
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
     >
-        Blocked users
+        {t("privacySafetySettings.blockedUsers")}
     </h3>
     <BlockedUsersSettings />
 </div>

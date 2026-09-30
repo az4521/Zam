@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // Test-only host for ModalDialog: `mount()` cannot construct a snippet, so
     // the children live here. Not referenced by application code.
     import ModalDialog from "./ModalDialog.svelte";
@@ -33,8 +34,8 @@
     {panelClass}
     {onKeydown}
 >
-    <h2 id="fixture-title">Fixture dialog</h2>
-    <button type="button" id="fixture-close">Close</button>
+    <h2 id="fixture-title">{t("modalDialog.fixture.fixtureDialog")}</h2>
+    <button type="button" id="fixture-close">{t("common.close")}</button>
     {#if nominate}
         <input id="fixture-search" data-autofocus />
     {:else}

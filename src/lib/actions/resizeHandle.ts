@@ -131,9 +131,21 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
     const initial = resolvePickerSize(readNum, opts);
     apply(initial.w, initial.h);
 
-    let start: { x: number; y: number; w: number; h: number } | null = null;
+    // In RTL the panel is anchored bottom-LEFT with the grip top-RIGHT, so the
+    // horizontal sense of both the drag and the arrow keys flips.
+    const xSign = (): number =>
+        getComputedStyle(node).direction === "rtl" ? -1 : 1;
+
+    let start: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        sign: number;
+    } | null = null;
     function down(e: PointerEvent) {
         start = {
+            sign: xSign(),
             x: e.clientX,
             y: e.clientY,
             w: current.w,
@@ -145,7 +157,10 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
     }
     function move(e: PointerEvent) {
         if (!start) return;
-        apply(start.w + (start.x - e.clientX), start.h + (start.y - e.clientY));
+        apply(
+            start.w + (start.x - e.clientX) * start.sign,
+            start.h + (start.y - e.clientY),
+        );
     }
     function up() {
         if (!start) return;
@@ -161,7 +176,7 @@ export function resizeHandle(node: HTMLElement, opts: ResizeOpts) {
         const delta = resizeKeyDelta(e.key, e.shiftKey);
         if (!delta) return;
         e.preventDefault();
-        apply(current.w + delta.dw, current.h + delta.dh);
+        apply(current.w + delta.dw * xSign(), current.h + delta.dh);
         persist();
     }
 

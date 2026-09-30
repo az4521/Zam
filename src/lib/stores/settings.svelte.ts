@@ -5,6 +5,7 @@
 // as account data so they follow the account across devices — localStorage
 // stays the synchronous boot cache, the server is the source of truth once a
 // sync lands. See stores/customizationSync.svelte for the transport.
+import { t } from "$lib/i18n";
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import {
@@ -764,11 +765,11 @@ export async function uploadCustomFont(
     try {
         data = await file.arrayBuffer();
     } catch {
-        return { ok: false, reason: "Could not read that file." };
+        return { ok: false, reason: t("settings.couldNotReadThatFile") };
     }
     const registered = await registerCustomFontFace(data);
     if (!registered)
-        return { ok: false, reason: "That file isn't a valid font." };
+        return { ok: false, reason: t("settings.thatFileIsnTAValid") };
     const saved = await putStoredFont({
         id: "custom",
         name: v.displayName,
@@ -787,7 +788,7 @@ export async function uploadCustomFont(
             if (settingsState.messageFont === "custom")
                 applyMessageFont("custom");
         }
-        return { ok: false, reason: "Font couldn't be saved on this device." };
+        return { ok: false, reason: t("settings.fontCouldnTBeSavedOn") };
     }
     settingsState.customFontName = v.displayName;
     writeString("customFontName", v.displayName);
@@ -1019,7 +1020,7 @@ export function saveCustomPreset(
 ): void {
     if (!name) return;
     if (isBuiltinPreset(name)) {
-        throw new Error(`Cannot save a preset with built-in name: ${name}`);
+        throw new Error(t("settings.cannotSaveAPresetWithBuilt", { name }));
     }
     const clean = sanitizeThemeColors(colors);
     const preset: CustomPreset = { base, colors: clean };

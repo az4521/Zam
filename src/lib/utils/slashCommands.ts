@@ -5,6 +5,7 @@
  * transforms, so it can be unit-tested in isolation.
  */
 
+import { t } from "$lib/i18n";
 import type { PluginCommand } from "$lib/plugins/types";
 
 export type CommandArgKind = "none" | "text" | "user" | "roomAlias";
@@ -47,19 +48,19 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
     {
         name: "poll",
-        description: "Create a poll",
+        description: t("slashCommands.createAPoll"),
         argKind: "none",
         kind: "dialog",
     },
     {
         name: "location",
-        description: "Share your location",
+        description: t("slashCommands.shareYourLocation"),
         argKind: "none",
         kind: "dialog",
     },
     {
         name: "join",
-        description: "Join a room by address",
+        description: t("slashCommands.joinARoomByAddress"),
         argHint: "<#room:server>",
         argKind: "roomAlias",
         kind: "action",
@@ -68,13 +69,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     {
         name: "part",
         aliases: ["leave"],
-        description: "Leave the current room",
+        description: t("slashCommands.leaveTheCurrentRoom"),
         argKind: "none",
         kind: "action",
     },
     {
         name: "invite",
-        description: "Invite a user to this room",
+        description: t("slashCommands.inviteAUserToThisRoom"),
         argHint: "<@user:server>",
         argKind: "user",
         kind: "action",
@@ -82,7 +83,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
     {
         name: "topic",
-        description: "Set the room topic",
+        description: t("slashCommands.setTheRoomTopic"),
         argHint: "<text>",
         argKind: "text",
         kind: "action",
@@ -90,39 +91,39 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
     {
         name: "kick",
-        description: "Remove a user from this room",
-        argHint: "<@user:server> [reason]",
+        description: t("slashCommands.removeAUserFromThisRoom"),
+        argHint: t("slashCommands.userServerReason"),
         argKind: "user",
         kind: "action",
         requiresArg: true,
     },
     {
         name: "ban",
-        description: "Ban a user from this room",
-        argHint: "<@user:server> [reason]",
+        description: t("slashCommands.banAUserFromThisRoom"),
+        argHint: t("slashCommands.userServerReason"),
         argKind: "user",
         kind: "action",
         requiresArg: true,
     },
     {
         name: "nick",
-        description: "Set your display name",
-        argHint: "<display name>",
+        description: t("slashCommands.setYourDisplayName"),
+        argHint: t("slashCommands.displayName"),
         argKind: "text",
         kind: "action",
         requiresArg: true,
     },
     {
         name: "op",
-        description: "Set a user's power level",
-        argHint: "<@user:server> [level]",
+        description: t("slashCommands.setAUserSPowerLevel"),
+        argHint: t("slashCommands.userServerLevel"),
         argKind: "user",
         kind: "action",
         requiresArg: true,
     },
     {
         name: "deop",
-        description: "Reset a user's power level to default",
+        description: t("slashCommands.resetAUserSPowerLevel"),
         argHint: "<@user:server>",
         argKind: "user",
         kind: "action",
@@ -247,8 +248,11 @@ export function matchSlashCommands(
 /** Usage string for a command that was invoked without its required argument. */
 export function usageFor(command: SlashCommand): string {
     return command.argHint
-        ? `Usage: /${command.name} ${command.argHint}`
-        : `Usage: /${command.name}`;
+        ? t("slashCommands.usage", {
+              name: command.name,
+              argHint: command.argHint,
+          })
+        : t("slashCommands.usage2", { name: command.name });
 }
 
 /**

@@ -1,3 +1,4 @@
+import { t } from "$lib/i18n";
 import { untrack } from "svelte";
 import {
     joinVoiceCall,
@@ -75,8 +76,7 @@ import { isChunkLoadError } from "$lib/utils/chunkLoadError";
  *  this page fails instantly and identically — retrying is pointless and only
  *  a reload clears it. Say that, instead of toasting the raw
  *  "Failed to fetch dynamically imported module: …/CkYjDUEM.js". */
-const CHUNK_LOAD_MESSAGE =
-    "Couldn't load the call component. Check your connection, then reload the page to try again.";
+const CHUNK_LOAD_MESSAGE = t("voiceCall.couldnTLoadTheCallComponent");
 
 // Active-call view state plus a tick for "who is in a call" derivations
 // anywhere in the app (room list, banners). Media/SDK wiring stays in
@@ -350,7 +350,10 @@ export async function joinCall(roomId: string): Promise<void> {
             isChunkLoadError(err)
                 ? CHUNK_LOAD_MESSAGE
                 : (micErrorMessage(err) ??
-                      matrixErrorMessage(err, "Could not join the voice call")),
+                      matrixErrorMessage(
+                          err,
+                          t("voiceCall.couldNotJoinTheVoiceCall"),
+                      )),
         );
     } finally {
         voiceCallState.joinPendingRoomId = null;
@@ -375,8 +378,8 @@ function applyMuteState(next: MuteState, prev: MuteState): void {
         setVoicePlaybackMuted(prev.deafened);
         showErrorToast(
             next.micMuted
-                ? "Could not mute your microphone"
-                : "Could not unmute your microphone - check your input device",
+                ? t("voiceCall.couldNotMuteYourMicrophone")
+                : t("voiceCall.couldNotUnmuteYourMicrophoneCheck"),
         );
     });
 }

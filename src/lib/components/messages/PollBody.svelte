@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import {
         getPollView,
@@ -80,7 +81,9 @@
             draftAnswers = null;
         } catch (err) {
             showErrorToast(
-                err instanceof Error ? err.message : "Failed to submit vote",
+                err instanceof Error
+                    ? err.message
+                    : t("pollBody.failedToSubmitVote"),
             );
             isVoting = false;
             return;
@@ -115,7 +118,9 @@
             confirmingEnd = false;
         } catch (err) {
             showErrorToast(
-                err instanceof Error ? err.message : "Failed to close poll",
+                err instanceof Error
+                    ? err.message
+                    : t("pollBody.failedToClosePoll"),
             );
         } finally {
             endingPoll = false;
@@ -145,14 +150,16 @@
                 </p>
                 <p class="text-xs text-discord-textMuted">
                     {#if view.ended}
-                        Final results
+                        {t("pollBody.finalResults")}
                     {:else if view.showResults}
-                        Live poll
+                        {t("pollBody.livePoll")}
                     {:else}
-                        Results are revealed when the poll ends
+                        {t("pollBody.resultsAreRevealedWhenThePoll")}
                     {/if}
                     {#if view.poll.maxSelections > 1}
-                        · choose up to {view.poll.maxSelections}
+                        {t("pollBody.chooseUpTo", {
+                            maxSelections: view.poll.maxSelections,
+                        })}
                     {/if}
                 </p>
             </div>
@@ -173,7 +180,7 @@
                         ? 'border-discord-accent bg-discord-accent/10'
                         : isMine
                           ? 'border-discord-accent bg-discord-accent/10'
-                          : 'border-discord-divider bg-discord-backgroundTertiary'} text-left transition-colors disabled:cursor-default enabled:hover:border-discord-accent/60"
+                          : 'border-discord-divider bg-discord-backgroundTertiary'} text-start transition-colors disabled:cursor-default enabled:hover:border-discord-accent/60"
                 >
                     <div class="flex items-center justify-between gap-2">
                         <span
@@ -183,7 +190,7 @@
                             {#if isMine}
                                 <span
                                     class="text-xs text-discord-accent font-semibold whitespace-nowrap"
-                                    >✓ selected</span
+                                    >{t("pollBody.selected")}</span
                                 >
                             {/if}
                         </span>
@@ -218,39 +225,40 @@
                 disabled={isVoting || draftAnswers === null}
                 class="mt-2 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {isVoting ? "Submitting…" : "Submit vote"}
+                {isVoting ? t("pollBody.submitting") : t("pollBody.submitVote")}
             </button>
         {/if}
 
         <p class="mt-2 text-xs text-discord-textMuted">
             {#if view.showResults}
-                {view.totalVotes}
-                {view.totalVotes === 1 ? "vote" : "votes"}
+                {t("pollBody.voteCount", { count: view.totalVotes })}
             {:else}
-                Votes are hidden
+                {t("pollBody.votesAreHidden")}
             {/if}
             {#if !view.ended && isVoting}
-                · saving vote…{/if}
+                {t("pollBody.savingVote")}{/if}
         </p>
 
         {#if view.canEnd}
             {#if confirmingEnd}
                 <div class="mt-2 flex items-center gap-2">
                     <span class="text-xs text-discord-textMuted"
-                        >Close this poll?</span
+                        >{t("pollBody.closeThisPoll")}</span
                     >
                     <button
                         type="button"
                         onclick={endPoll}
                         disabled={endingPoll}
                         class="px-2.5 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-xs font-semibold transition-colors disabled:opacity-50"
-                        >{endingPoll ? "Closing…" : "Close poll"}</button
+                        >{endingPoll
+                            ? t("pollBody.closing")
+                            : t("pollBody.closePoll")}</button
                     >
                     <button
                         type="button"
                         onclick={() => (confirmingEnd = false)}
                         class="px-2.5 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary"
-                        >Cancel</button
+                        >{t("common.cancel")}</button
                     >
                 </div>
             {:else}
@@ -258,13 +266,13 @@
                     type="button"
                     onclick={() => (confirmingEnd = true)}
                     class="mt-2 text-xs text-discord-textMuted hover:text-discord-textPrimary underline"
-                    >Close poll</button
+                    >{t("pollBody.closePoll")}</button
                 >
             {/if}
         {/if}
     </div>
 {:else}
     <p class="text-xs text-discord-textMuted italic">
-        [Poll - unsupported format]
+        {t("pollBody.pollUnsupportedFormat")}
     </p>
 {/if}

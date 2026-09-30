@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     // Electron-only. The main process arbitrates getDisplayMedia() and pushes
     // the screen/window list here; this dialog collects the choice and sends it
     // back. It deliberately does NOT join the shared modal slot: it exists only
@@ -77,7 +78,7 @@
                         id="screenshare-picker-title"
                         class="text-base font-semibold text-discord-textPrimary"
                     >
-                        Choose what to share
+                        {t("screenSharePicker.chooseWhatToShare")}
                     </h2>
                 </div>
 
@@ -95,7 +96,7 @@
                                 {#each group.items as source (source.id)}
                                     <button
                                         type="button"
-                                        class="group flex flex-col overflow-hidden rounded border border-transparent bg-discord-background text-left hover:border-discord-accent focus-visible:border-discord-accent"
+                                        class="group flex flex-col overflow-hidden rounded border border-transparent bg-discord-background text-start hover:border-discord-accent focus-visible:border-discord-accent"
                                         onclick={() => pick(source)}
                                     >
                                         <div
@@ -110,7 +111,9 @@
                                             {:else}
                                                 <span
                                                     class="text-xs text-discord-textMuted"
-                                                    >No preview</span
+                                                    >{t(
+                                                        "screenSharePicker.noPreview",
+                                                    )}</span
                                                 >
                                             {/if}
                                         </div>
@@ -135,7 +138,7 @@
                         class="rounded px-4 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary"
                         onclick={cancel}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </button>
                 </div>
             </div>

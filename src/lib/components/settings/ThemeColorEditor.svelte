@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import {
         settingsState,
@@ -118,7 +119,9 @@
             saveNameInput = "";
         } catch (err) {
             importError =
-                err instanceof Error ? err.message : "Cannot save preset";
+                err instanceof Error
+                    ? err.message
+                    : t("themeColorEditor.cannotSavePreset");
             setTimeout(() => {
                 importError = "";
             }, 3000);
@@ -146,9 +149,9 @@
     function handleImport() {
         const p = decodeThemePreset(importText);
         if (p === null) {
-            importError = "Not a valid theme code";
+            importError = t("themeColorEditor.notAValidThemeCode");
         } else {
-            const importName = p.name || "Imported";
+            const importName = p.name || t("themeColorEditor.imported");
             try {
                 saveCustomPreset(importName, p.base, p.colors);
                 setActivePreset(importName);
@@ -157,14 +160,16 @@
                 importText = "";
             } catch (err) {
                 importError =
-                    err instanceof Error ? err.message : "Cannot import preset";
+                    err instanceof Error
+                        ? err.message
+                        : t("themeColorEditor.cannotImportPreset");
             }
         }
     }
 
     function handleDuplicate() {
         if (!activeIsBuiltin) return;
-        const copyName = `${activePresetName} (Copy)`;
+        const copyName = t("themeColorEditor.copy", { activePresetName });
         forkActivePreset(copyName, draft);
         setActivePreset(copyName);
         draft = { ...getPresetColors(copyName) };
@@ -215,19 +220,21 @@
     <p
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
     >
-        Theme colors
+        {t("themeColorEditor.themeColors")}
     </p>
 
     <!-- Top control row: Save | Import [Copy] -->
     <div class="flex flex-col gap-3 mb-4 pb-4 border-b border-discord-divider">
         <!-- Save section -->
         <div>
-            <span class="text-xs text-discord-textMuted mb-1 block">Save</span>
+            <span class="text-xs text-discord-textMuted mb-1 block"
+                >{t("common.save")}</span
+            >
             <div class="flex items-center gap-2">
                 <input
                     type="text"
                     bind:value={saveNameInput}
-                    placeholder="Preset name"
+                    placeholder={t("themeColorEditor.presetName")}
                     class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
                 />
                 <button
@@ -236,20 +243,21 @@
                     disabled={saveNameInput.trim() === ""}
                     onclick={handleSave}
                 >
-                    Save preset
+                    {t("themeColorEditor.savePreset")}
                 </button>
             </div>
         </div>
 
         <!-- Import + Copy section -->
         <div>
-            <span class="text-xs text-discord-textMuted mb-1 block">Import</span
+            <span class="text-xs text-discord-textMuted mb-1 block"
+                >{t("themeColorEditor.import")}</span
             >
             <div class="flex items-center gap-2">
                 <input
                     type="text"
                     bind:value={importText}
-                    placeholder="Paste theme code"
+                    placeholder={t("themeColorEditor.pasteThemeCode")}
                     class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border {importError
                         ? 'border-discord-danger'
                         : 'border-discord-divider focus:border-discord-accent'} outline-none"
@@ -260,15 +268,15 @@
                     disabled={importText.trim() === ""}
                     onclick={handleImport}
                 >
-                    Import
+                    {t("themeColorEditor.import")}
                 </button>
                 <button
                     type="button"
                     class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                     onclick={handleCopy}
-                    title="Copy current preset to clipboard"
+                    title={t("themeColorEditor.copyCurrentPresetToClipboard")}
                 >
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? t("themeColorEditor.copied") : t("common.copy")}
                 </button>
             </div>
         </div>
@@ -280,7 +288,9 @@
 
     <!-- Presets list -->
     <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">Presets</p>
+        <p class="text-sm text-discord-textPrimary mb-2">
+            {t("themeColorEditor.presets")}
+        </p>
         <div class="flex flex-col gap-1">
             {#each allPresetNames as name (name)}
                 {@const isBuiltin = isBuiltinPreset(name)}
@@ -348,7 +358,7 @@
                                 cancelRename();
                             }}
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </button>
                     {:else}
                         <span class="flex-1 text-sm text-discord-textPrimary"
@@ -357,11 +367,11 @@
                         {#if isBuiltin}
                             <span
                                 class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
-                                >Default</span
+                                >{t("common.default")}</span
                             >
                         {:else if deletePending === name}
                             <span class="text-xs text-discord-textMuted"
-                                >Delete?</span
+                                >{t("themeColorEditor.delete")}</span
                             >
                             <button
                                 type="button"
@@ -371,18 +381,21 @@
                                     deletePending = null;
                                 }}
                             >
-                                Cancel
+                                {t("common.cancel")}
                             </button>
                             <button
                                 type="button"
                                 class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
-                                aria-label={`Confirm delete ${name}`}
+                                aria-label={t(
+                                    "themeColorEditor.confirmDelete",
+                                    { name },
+                                )}
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     handleDelete(name);
                                 }}
                             >
-                                Delete
+                                {t("common.delete")}
                             </button>
                         {:else}
                             <button
@@ -392,20 +405,22 @@
                                     e.stopPropagation();
                                     startRename(name);
                                 }}
-                                title="Rename"
+                                title={t("themeColorEditor.rename")}
                             >
                                 ✎
                             </button>
                             <button
                                 type="button"
                                 class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
-                                aria-label={`Delete ${name}`}
+                                aria-label={t("themeColorEditor.delete2", {
+                                    name,
+                                })}
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     deletePending = name;
                                 }}
                             >
-                                Delete
+                                {t("common.delete")}
                             </button>
                         {/if}
                     {/if}
@@ -419,28 +434,30 @@
             class="mb-4 p-3 rounded bg-discord-backgroundTertiary border border-discord-divider"
         >
             <p class="text-sm text-discord-textPrimary mb-2">
-                Built-in presets are read-only. Duplicate to customize:
+                {t("themeColorEditor.builtInPresetsAreReadOnly")}
             </p>
             <button
                 type="button"
                 class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 transition-colors"
                 onclick={handleDuplicate}
             >
-                Duplicate to customize
+                {t("themeColorEditor.duplicateToCustomize")}
             </button>
         </div>
     {/if}
 
     <!-- Color pickers (grouped) -->
     <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-3">Colors</p>
+        <p class="text-sm text-discord-textPrimary mb-3">
+            {t("themeColorEditor.colors")}
+        </p>
 
         <!-- Backgrounds -->
         <div class="mb-4">
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                Backgrounds
+                {t("themeColorEditor.backgrounds")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["background", "backgroundSecondary", "backgroundTertiary"].includes(t.key) ) as token}
@@ -469,7 +486,7 @@
                             class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
-                            title="Reset to default"
+                            title={t("themeColorEditor.resetToDefault")}
                         >
                             ✕
                         </button>
@@ -483,7 +500,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                Text
+                {t("themeColorEditor.text")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["textPrimary", "textSecondary", "textMuted"].includes(t.key) ) as token}
@@ -512,7 +529,7 @@
                             class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
-                            title="Reset to default"
+                            title={t("themeColorEditor.resetToDefault")}
                         >
                             ✕
                         </button>
@@ -526,7 +543,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                Accents & semantics
+                {t("themeColorEditor.accentsSemantics")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["accent", "link", "danger", "positive", "warning"].includes(t.key) ) as token}
@@ -555,7 +572,7 @@
                             class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
-                            title="Reset to default"
+                            title={t("themeColorEditor.resetToDefault")}
                         >
                             ✕
                         </button>
@@ -569,7 +586,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                Presence
+                {t("themeColorEditor.presence")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["online", "idle", "dnd", "offline"].includes(t.key) ) as token}
@@ -598,7 +615,7 @@
                             class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
-                            title="Reset to default"
+                            title={t("themeColorEditor.resetToDefault")}
                         >
                             ✕
                         </button>
@@ -612,7 +629,7 @@
             <p
                 class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
             >
-                Details
+                {t("themeColorEditor.details")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["divider", "mention", "spoilerBackground", "ownBubbleBackground"].includes(t.key) ) as token}
@@ -641,7 +658,7 @@
                             class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
-                            title="Reset to default"
+                            title={t("themeColorEditor.resetToDefault")}
                         >
                             ✕
                         </button>
@@ -655,7 +672,7 @@
     {#if warnings.length > 0}
         <div class="mb-4">
             <p class="text-sm text-discord-textPrimary mb-2">
-                Contrast warnings
+                {t("themeColorEditor.contrastWarnings")}
             </p>
             <div class="flex flex-col gap-1">
                 {#each warnings as warning}
@@ -670,10 +687,10 @@
     <!-- Message display -->
     <div class="mt-6 pt-4 border-t border-discord-divider">
         <p class="text-sm font-semibold text-discord-textPrimary">
-            Message display
+            {t("themeColorEditor.messageDisplay")}
         </p>
         <p class="text-xs text-discord-textMuted mb-3">
-            Saved on this device only. Not synced across your account.
+            {t("themeColorEditor.savedOnThisDeviceOnlyNot")}
         </p>
 
         <div class="flex items-center justify-between mb-1">
@@ -681,16 +698,18 @@
                 class="block text-sm text-discord-textPrimary"
                 for="msg-size-range"
             >
-                App text size: {Math.round(
-                    appTextScalePercent(settingsState.messageFontSize),
-                )}%
+                {t("themeColorEditor.appTextSize", {
+                    round: Math.round(
+                        appTextScalePercent(settingsState.messageFontSize),
+                    ),
+                })}
             </label>
             <button
                 type="button"
                 class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                 onclick={() => setMessageFontSize(MSG_FONT_SIZE_DEFAULT)}
             >
-                Reset to default
+                {t("themeColorEditor.resetToDefault")}
             </button>
         </div>
         <input
@@ -704,14 +723,14 @@
             oninput={(e) => setMessageFontSize(Number(e.currentTarget.value))}
         />
         <p class="mt-1 text-xs text-discord-textMuted">
-            Scales all text and spacing across the app.
+            {t("themeColorEditor.scalesAllTextAndSpacingAcross")}
         </p>
 
         <label
             class="block text-sm text-discord-textPrimary mt-4 mb-1"
             for="msg-font-select"
         >
-            Font
+            {t("themeColorEditor.font")}
         </label>
         <select
             id="msg-font-select"
@@ -725,7 +744,9 @@
             {/each}
             {#if settingsState.customFontName}
                 <option value="custom"
-                    >Custom - {settingsState.customFontName}</option
+                    >{t("themeColorEditor.custom", {
+                        customFontName: settingsState.customFontName,
+                    })}</option
                 >
             {/if}
         </select>
@@ -744,8 +765,8 @@
                 disabled={fontUploadBusy}
             >
                 {settingsState.customFontName
-                    ? "Replace custom font…"
-                    : "Upload custom font…"}
+                    ? t("themeColorEditor.replaceCustomFont")
+                    : t("themeColorEditor.uploadCustomFont")}
             </button>
             {#if settingsState.customFontName}
                 <button
@@ -754,7 +775,7 @@
                     onclick={handleRemoveFont}
                     disabled={fontUploadBusy}
                 >
-                    Remove
+                    {t("common.remove")}
                 </button>
             {/if}
         </div>
@@ -762,7 +783,7 @@
             <p class="mt-1 text-xs text-discord-danger">{fontUploadError}</p>
         {/if}
         <p class="mt-1 text-xs text-discord-textMuted">
-            .woff2, .ttf, or .otf up to 10 MB. Stored on this device only.
+            {t("themeColorEditor.woff2TtfOrOtfUpTo")}
         </p>
 
         <p
@@ -771,7 +792,7 @@
                 settingsState.messageFont,
             ) ?? 'inherit'};"
         >
-            The quick brown fox jumps over the lazy dog.
+            {t("themeColorEditor.theQuickBrownFoxJumpsOver")}
         </p>
     </div>
 </div>

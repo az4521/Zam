@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import FlashEmbed from "./FlashEmbed.svelte";
 
     interface Props {
@@ -35,7 +36,7 @@
             <div
                 class="w-8 h-8 border-2 border-white/60 border-t-transparent rounded-full animate-spin"
             ></div>
-            <span class="text-white/60 text-xs">Loading…</span>
+            <span class="text-white/60 text-xs">{t("common.loading")}</span>
         {:else}
             <svg
                 class="w-12 h-12 text-white/80"
@@ -44,7 +45,9 @@
             >
                 <path d="M8 5v14l11-7z" />
             </svg>
-            <span class="text-white/60 text-xs font-medium">Adobe Flash</span>
+            <span class="text-white/60 text-xs font-medium"
+                >{t("swfEmbed.adobeFlash")}</span
+            >
         {/if}
     </button>
 {/if}

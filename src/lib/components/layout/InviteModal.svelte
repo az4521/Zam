@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import InvitePanel from "./InvitePanel.svelte";
     import { closeModal } from "$lib/stores/interface.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
@@ -9,7 +10,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center">
     <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t("common.closeDialog")}
         class="absolute inset-0 bg-black/60"
         onclick={closeModal}
     ></button>
@@ -24,7 +25,7 @@
             id="invite-modal-title"
             class="text-lg font-bold text-discord-textPrimary"
         >
-            Invite People
+            {t("common.invitePeople")}
         </h2>
         <InvitePanel {roomId} onClose={closeModal} />
     </div>

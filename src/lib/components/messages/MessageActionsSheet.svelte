@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import type {
@@ -71,7 +72,7 @@
 <Portal>
     <button
         type="button"
-        aria-label="Close menu"
+        aria-label={t("common.closeMenu")}
         class="fixed inset-0 z-40 bg-black/40"
         onclick={onClose}
     ></button>
@@ -79,13 +80,15 @@
         {#if pending}
             <div class="px-4 py-3">
                 <p class="text-sm text-discord-textPrimary mb-3">
-                    {pending.label} this message?
+                    {t("messageActionsSheet.thisMessage", {
+                        label: pending.label,
+                    })}
                 </p>
                 <div class="flex justify-end gap-2">
                     <button
                         onclick={() => (pending = null)}
                         class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                        >Cancel</button
+                        >{t("common.cancel")}</button
                     >
                     <button
                         onclick={() => run(pending!.key)}
@@ -95,12 +98,16 @@
                 </div>
             </div>
         {:else}
-            <div role="menu" aria-label="Message actions" class="pb-1">
+            <div
+                role="menu"
+                aria-label={t("messageActionsSheet.messageActions")}
+                class="pb-1"
+            >
                 {#each rows as row (row.key)}
                     <button
                         role="menuitem"
                         onclick={() => pick(row)}
-                        class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover {row.danger
+                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.danger
                             ? 'text-discord-danger'
                             : 'text-discord-textPrimary'}"
                     >
@@ -118,7 +125,7 @@
                     <button
                         role="menuitem"
                         onclick={() => runPlugin(row.key)}
-                        class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover text-discord-textPrimary"
+                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover text-discord-textPrimary"
                     >
                         {#if row.icon}
                             <svg

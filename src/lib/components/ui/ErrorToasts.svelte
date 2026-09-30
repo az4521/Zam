@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { fly } from "svelte/transition";
     import { X } from "lucide-svelte";
     import { toastsState, dismissToast } from "$lib/stores/toasts.svelte";
@@ -17,7 +18,7 @@
             <div
                 transition:fly={{ y: 12, duration: motionOK() ? 150 : 0 }}
                 role={toast.tone === "accent" ? "status" : "alert"}
-                class="pointer-events-auto w-[90vw] sm:w-auto sm:max-w-md rounded-lg border-l-4 {toast.tone ===
+                class="pointer-events-auto w-[90vw] sm:w-auto sm:max-w-md rounded-lg border-s-4 {toast.tone ===
                 'accent'
                     ? 'border-discord-accent'
                     : 'border-discord-danger'} bg-discord-backgroundTertiary text-discord-textPrimary text-sm shadow-lg px-4 py-2.5"
@@ -27,9 +28,9 @@
                         {toast.message}
                     </span>
                     <button
-                        class="-mr-1 shrink-0 text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                        class="-me-1 shrink-0 text-discord-textMuted hover:text-discord-textPrimary transition-colors"
                         onclick={() => dismissToast(toast.id)}
-                        aria-label="Dismiss"
+                        aria-label={t("errorToasts.dismiss")}
                     >
                         <X size={16} />
                     </button>

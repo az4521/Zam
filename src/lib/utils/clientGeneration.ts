@@ -18,14 +18,16 @@
  */
 
 /** A snapshot of who owned the client slot when an operation started. */
+import { t } from "$lib/i18n";
 export interface ClientOwnership<C> {
     readonly client: C;
     readonly generation: number;
 }
 
 /** Rejection message for an operation abandoned because ownership changed. */
-export const OWNERSHIP_LOST_MESSAGE =
-    "Session changed before the operation finished";
+export const OWNERSHIP_LOST_MESSAGE = t(
+    "clientGeneration.sessionChangedBeforeTheOperationFinished",
+);
 
 /**
  * The generation to install next. Strictly increasing and never reused, so a

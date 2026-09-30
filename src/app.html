@@ -23,6 +23,15 @@
                         .querySelector('meta[name="theme-color"]')
                         ?.setAttribute("content", color);
                 }
+                // Language and direction from the last run, before first
+                // paint, so an RTL UI never flashes laid out left-to-right.
+                // $lib/i18n keeps both keys current (and corrects them before
+                // the app renders if the browser language has changed).
+                var loc = localStorage.getItem("settings:locale");
+                var dir = localStorage.getItem("settings:localeDir");
+                if (loc) document.documentElement.lang = loc;
+                if (dir === "rtl" || dir === "ltr")
+                    document.documentElement.dir = dir;
                 var vars = localStorage.getItem("settings:themeVars");
                 if (vars) {
                     document.documentElement.style.cssText += vars;

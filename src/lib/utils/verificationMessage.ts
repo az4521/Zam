@@ -11,6 +11,7 @@
  */
 
 /** msgtype of an in-room verification request (it is an `m.room.message`). */
+import { t } from "$lib/i18n";
 export const VERIFICATION_REQUEST_MSGTYPE = "m.key.verification.request";
 
 /** Whether a timeline event is an in-room verification request. */
@@ -56,23 +57,25 @@ export function verificationRequestMessageView(
     const { isOwn, senderName, pending } = input;
     if (isOwn) {
         return {
-            heading: "Verification request sent",
+            heading: t("verificationMessage.verificationRequestSent"),
             subtitle: pending
-                ? "Waiting for them to accept…"
-                : "No longer pending",
+                ? t("verificationMessage.waitingForThemToAccept")
+                : t("verificationMessage.noLongerPending"),
             showActions: false,
         };
     }
     if (pending) {
         return {
-            heading: `${senderName} wants to verify`,
-            subtitle: "Compare emoji to confirm this is really them",
+            heading: t("verificationMessage.wantsToVerify", { senderName }),
+            subtitle: t("verificationMessage.compareEmojiToConfirmThisIs"),
             showActions: true,
         };
     }
     return {
-        heading: `${senderName} sent a verification request`,
-        subtitle: "No longer pending",
+        heading: t("verificationMessage.sentAVerificationRequest", {
+            senderName,
+        }),
+        subtitle: t("verificationMessage.noLongerPending"),
         showActions: false,
     };
 }

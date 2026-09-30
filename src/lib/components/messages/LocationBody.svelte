@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         parseGeoUri,
         formatCoords,
@@ -106,14 +107,16 @@
                         target="_blank"
                         rel="noopener noreferrer"
                         class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
-                        >OpenStreetMap <ExternalLink size={14} /></a
+                        >{t("locationBody.openstreetmap")}
+                        <ExternalLink size={14} /></a
                     >
                     <a
                         href={googleMapsLinkFor(coords.lat, coords.lon)}
                         target="_blank"
                         rel="noopener noreferrer"
                         class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
-                        >Google Maps <ExternalLink size={14} /></a
+                        >{t("locationBody.googleMaps")}
+                        <ExternalLink size={14} /></a
                     >
                 </div>
             </div>

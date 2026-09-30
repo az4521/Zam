@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         favouritesState,
         addFavouriteGif,
@@ -325,11 +326,15 @@
         <button
             type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 left-0 z-20 w-4 h-4 cursor-nwse-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
-            title="Drag or use arrow keys to resize"
-            aria-label="Resize picker"
+            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            title={t("common.dragOrUseArrowKeysTo")}
+            aria-label={t("common.resizePicker")}
         >
-            <svg viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4">
+            <svg
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                class="w-4 h-4 mirror:-scale-x-100"
+            >
                 <path d="M2 2h5v1.5H3.5V7H2V2z" />
             </svg>
         </button>
@@ -340,16 +345,16 @@
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >Emoji</button
+                    >{t("common.emoji")}</button
                 >{/if}
             {#if onSwitchToSticker}<button
                     onclick={onSwitchToSticker}
                     class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
-                    >Stickers</button
+                    >{t("common.stickers")}</button
                 >{/if}
             <button
                 class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
-                >GIFs</button
+                >{t("common.gifs")}</button
             >
         </div>
     {/if}
@@ -381,12 +386,12 @@
             oninput={onSearchInput}
             onkeydown={onSearchKeydown}
             placeholder={tab === "favourites"
-                ? "Search favourites…"
-                : "Search KLIPY…"}
+                ? t("gifPicker.searchFavourites")
+                : t("gifPicker.searchKlipy")}
             role="combobox"
             aria-label={tab === "favourites"
-                ? "Search favourites"
-                : "Search GIFs"}
+                ? t("gifPicker.searchFavourites2")
+                : t("gifPicker.searchGifs")}
             aria-expanded={hasOptions}
             aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
@@ -445,21 +450,21 @@
         onscroll={onGridScroll}
         id="{listId}-listbox"
         role={hasOptions ? "listbox" : undefined}
-        aria-label={hasOptions ? "GIF results" : undefined}
+        aria-label={hasOptions ? t("gifPicker.gifResults") : undefined}
         class="flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
         {#if tab === "favourites"}
             {#if visibleFavourites.length === 0}
                 <p class="text-center text-discord-textMuted text-sm py-8 px-4">
                     {favourites.length === 0
-                        ? "No favourite GIFs yet. Star a GIF to save it here."
-                        : "No results"}
+                        ? t("gifPicker.noFavouriteGifsYetStarA")
+                        : t("common.noResults")}
                 </p>
             {:else}
                 <div
                     class="columns-[165px] gap-x-1 mt-1"
                     role="group"
-                    aria-label="Favourites"
+                    aria-label={t("gifPicker.favourites")}
                 >
                     {#each visibleFavourites as gif, idx (gif.url)}
                         <div class="relative group/gif mb-1 break-inside-avoid">
@@ -477,8 +482,12 @@
                                 role="option"
                                 aria-selected={activeIndex === idx}
                                 aria-label={(gif.tags ?? []).length
-                                    ? `GIF tagged ${(gif.tags ?? []).join(", ")}`
-                                    : `Favourite GIF ${idx + 1}`}
+                                    ? t("gifPicker.gifTagged", {
+                                          join: (gif.tags ?? []).join(", "),
+                                      })
+                                    : t("gifPicker.favouriteGif", {
+                                          value: idx + 1,
+                                      })}
                                 tabindex="-1"
                                 class:ring-2={activeIndex === idx}
                                 class:ring-inset={activeIndex === idx}
@@ -505,7 +514,7 @@
                                  keyboard user gets a selection ring and nothing
                                  to act on. -->
                             <div
-                                class="absolute top-1 right-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen ||
+                                class="absolute top-1 end-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen ||
                                 activeIndex === idx
                                     ? 'opacity-100'
                                     : 'opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
@@ -515,7 +524,7 @@
                                         e.stopPropagation();
                                         startEditing(gif);
                                     }}
-                                    title="Edit tags"
+                                    title={t("gifPicker.editTags")}
                                     class="text-white {favBtnClass}"
                                 >
                                     <svg
@@ -533,7 +542,7 @@
                                         e.stopPropagation();
                                         removeFavouriteGif(gif.url);
                                     }}
-                                    title="Remove from favourites"
+                                    title={t("common.removeFromFavourites")}
                                     class="text-discord-warning {favBtnClass}"
                                 >
                                     <svg
@@ -565,13 +574,15 @@
                                         onkeydown={onTagKeydown}
                                         onblur={saveTags}
                                         autofocus
-                                        placeholder="cat, funny"
+                                        placeholder={t("gifPicker.catFunny")}
                                         class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
                                     />
                                     <p
                                         class="text-[10px] text-discord-textMuted"
                                     >
-                                        Comma-separated · Enter to save
+                                        {t(
+                                            "gifPicker.commaSeparatedEnterToSave",
+                                        )}
                                     </p>
                                 </div>
                             {/if}
@@ -590,13 +601,15 @@
                 </button>
             {:else if gifSearchState.items.length === 0 && !gifSearchState.loading}
                 <p class="text-center text-discord-textMuted text-sm py-8 px-4">
-                    No results
+                    {t("common.noResults")}
                 </p>
             {:else}
                 <div
                     class="columns-[165px] gap-x-1 mt-1"
                     role="group"
-                    aria-label={search.trim() ? "Search results" : "Trending"}
+                    aria-label={search.trim()
+                        ? t("common.searchResults")
+                        : t("gifPicker.trending")}
                 >
                     {#each gifSearchState.items as r, idx (r.id)}
                         <div class="relative group/gif mb-1 break-inside-avoid">
@@ -611,7 +624,9 @@
                                 id={optionId(listId, idx)}
                                 role="option"
                                 aria-selected={activeIndex === idx}
-                                aria-label="GIF result {idx + 1}"
+                                aria-label={t("gifPicker.gifResult", {
+                                    value: idx + 1,
+                                })}
                                 tabindex="-1"
                                 class:ring-2={activeIndex === idx}
                                 class:ring-inset={activeIndex === idx}
@@ -636,11 +651,11 @@
                                     toggleStar(r);
                                 }}
                                 title={isFavouriteGif(r.url)
-                                    ? "Remove from favourites"
-                                    : "Add to favourites"}
-                                aria-label="Favourite"
+                                    ? t("common.removeFromFavourites")
+                                    : t("common.addToFavourites")}
+                                aria-label={t("gifPicker.favourite")}
                                 aria-pressed={isFavouriteGif(r.url)}
-                                class="absolute top-1 right-1 transition-opacity {favBtnClass} {isFavouriteGif(
+                                class="absolute top-1 end-1 transition-opacity {favBtnClass} {isFavouriteGif(
                                     r.url,
                                 )
                                     ? 'text-discord-warning opacity-100'
@@ -663,7 +678,7 @@
                 </div>
                 {#if gifSearchState.loading}
                     <p class="text-center text-discord-textMuted text-xs py-3">
-                        Loading…
+                        {t("common.loading")}
                     </p>
                 {/if}
                 {#if gifSearchState.error}
@@ -680,9 +695,9 @@
 
     {#if tab !== "favourites"}
         <div
-            class="px-3 py-1.5 flex-shrink-0 border-t border-discord-divider text-[10px] text-discord-textMuted text-right"
+            class="px-3 py-1.5 flex-shrink-0 border-t border-discord-divider text-[10px] text-discord-textMuted text-end"
         >
-            Powered by KLIPY
+            {t("gifPicker.poweredByKlipy")}
         </div>
     {/if}
 </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { tick, untrack } from "svelte";
     import { flip } from "svelte/animate";
     import { scale } from "svelte/transition";
@@ -168,8 +169,12 @@
     ): string {
         const userId = identity.slice(0, identity.lastIndexOf(":"));
         const name =
-            userId === auth.userId ? "You" : getMemberName(room, userId);
-        return source === "screenshare" ? `${name}'s screen` : name;
+            userId === auth.userId
+                ? t("callView.you")
+                : getMemberName(room, userId);
+        return source === "screenshare"
+            ? t("callView.sScreen", { name })
+            : name;
     }
     function isLocalIdentity(identity: string): boolean {
         return identity.slice(0, identity.lastIndexOf(":")) === auth.userId;
@@ -209,8 +214,8 @@
     // focusTile() is a toggle, so the label has to say which way it goes.
     function spotlightLabel(key: string, label: string): string {
         return voiceCallState.focusedTileKey === key
-            ? `Exit spotlight for ${label}`
-            : `Spotlight ${label}`;
+            ? t("callView.exitSpotlightFor", { label })
+            : t("callView.spotlight", { label });
     }
 
     // Spotlighting and un-spotlighting both flip `{#if focusedTile}`, which
@@ -338,9 +343,9 @@
         {#if isMobile}
             <button
                 onclick={onMenuOpen}
-                class="p-1.5 -ml-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
-                title="Open room list"
-                aria-label="Open room list"
+                class="p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                title={t("common.openRoomList")}
+                aria-label={t("common.openRoomList")}
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
@@ -353,15 +358,15 @@
         </h2>
         {#if ringingOut}
             <span class="text-sm text-discord-textMuted flex-shrink-0">
-                Ringing…
+                {t("callView.ringing")}
             </span>
         {/if}
         <div class="flex-1"></div>
         <button
             onclick={showChatView}
             class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
-            title="Show chat"
-            aria-label="Show chat"
+            title={t("callView.showChat")}
+            aria-label={t("callView.showChat")}
         >
             <MessageSquare size={20} />
         </button>
@@ -382,7 +387,7 @@
                 class="flex-1 flex flex-col items-center justify-center gap-3 text-discord-textMuted"
             >
                 <Volume2 size={40} />
-                <p class="text-sm">No one is in this call</p>
+                <p class="text-sm">{t("callView.noOneIsInThisCall")}</p>
             </div>
         {:else if focusedTile}
             <!-- Spotlight: the focused stream fills the view -->
@@ -394,7 +399,7 @@
             <div
                 class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
                 onclick={clearFocus}
-                title="Back to grid"
+                title={t("callView.backToGrid")}
             >
                 <VideoTile
                     tile={focusedTile}
@@ -406,7 +411,7 @@
                 <button
                     type="button"
                     class={TILE_OVERLAY_BTN}
-                    aria-label="Back to grid"
+                    aria-label={t("callView.backToGrid")}
                     onclick={(e) => {
                         e.stopPropagation();
                         backToGrid();
@@ -417,31 +422,31 @@
             <div
                 class="flex-shrink-0 flex gap-2 justify-center overflow-x-auto py-1"
             >
-                {#each screenTiles as t (t.key)}
+                {#each screenTiles as tile (tile.key)}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
                         animate:flip={tileFlip()}
                         in:scale={tileIn()}
                         out:scale={tileOut()}
-                        class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-black cursor-pointer border-2 {t.key ===
+                        class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-black cursor-pointer border-2 {tile.key ===
                         voiceCallState.focusedTileKey
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
-                        onclick={() => focusTile(t.key)}
-                        title={tileLabel(t.identity, t.source)}
+                        onclick={() => focusTile(tile.key)}
+                        title={tileLabel(tile.identity, tile.source)}
                     >
                         <VideoTile
-                            tile={t}
-                            label={tileLabel(t.identity, t.source)}
+                            {tile}
+                            label={tileLabel(tile.identity, tile.source)}
                             compact
                         />
-                        {#if isLocalIdentity(t.identity)}
+                        {#if isLocalIdentity(tile.identity)}
                             <button
                                 type="button"
-                                class="{TILE_MENU_BTN} top-0.5 left-0.5 p-1"
-                                title="Screen share quality"
-                                aria-label="Screen share quality"
+                                class="{TILE_MENU_BTN} top-0.5 start-0.5 p-1"
+                                title={t("callView.screenShareQuality")}
+                                aria-label={t("callView.screenShareQuality")}
                                 onclick={openLiveQuality}
                             >
                                 <Settings size={14} />
@@ -451,12 +456,12 @@
                             type="button"
                             class={TILE_OVERLAY_BTN}
                             aria-label={spotlightLabel(
-                                t.key,
-                                tileLabel(t.identity, t.source),
+                                tile.key,
+                                tileLabel(tile.identity, tile.source),
                             )}
                             onclick={(e) => {
                                 e.stopPropagation();
-                                spotlightTile(t.key);
+                                spotlightTile(tile.key);
                             }}
                         ></button>
                     </div>
@@ -525,9 +530,9 @@
                         {/if}
                         <button
                             type="button"
-                            class="{TILE_MENU_BTN} top-0.5 right-0.5 p-1"
-                            title={`Options for ${name}`}
-                            aria-label={`Options for ${name}`}
+                            class="{TILE_MENU_BTN} top-0.5 end-0.5 p-1"
+                            title={t("callView.optionsFor", { name })}
+                            aria-label={t("callView.optionsFor", { name })}
                             onclick={(e) => {
                                 e.stopPropagation();
                                 const r =
@@ -550,29 +555,29 @@
                 class="grid gap-3 overflow-y-auto"
                 style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));"
             >
-                {#each screenTiles as t (t.key)}
+                {#each screenTiles as tile (tile.key)}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
                         animate:flip={tileFlip()}
                         in:scale={tileIn()}
                         out:scale={tileOut()}
-                        class="relative aspect-video rounded-lg overflow-hidden bg-black cursor-zoom-in border-2 {t.key ===
+                        class="relative aspect-video rounded-lg overflow-hidden bg-black cursor-zoom-in border-2 {tile.key ===
                         voiceCallState.focusedTileKey
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
-                        onclick={() => focusTile(t.key)}
+                        onclick={() => focusTile(tile.key)}
                     >
                         <VideoTile
-                            tile={t}
-                            label={tileLabel(t.identity, t.source)}
+                            {tile}
+                            label={tileLabel(tile.identity, tile.source)}
                         />
-                        {#if isLocalIdentity(t.identity)}
+                        {#if isLocalIdentity(tile.identity)}
                             <button
                                 type="button"
-                                class="{TILE_MENU_BTN} top-0.5 left-0.5 p-1"
-                                title="Screen share quality"
-                                aria-label="Screen share quality"
+                                class="{TILE_MENU_BTN} top-0.5 start-0.5 p-1"
+                                title={t("callView.screenShareQuality")}
+                                aria-label={t("callView.screenShareQuality")}
                                 onclick={openLiveQuality}
                             >
                                 <Settings size={14} />
@@ -582,12 +587,12 @@
                             type="button"
                             class={TILE_OVERLAY_BTN}
                             aria-label={spotlightLabel(
-                                t.key,
-                                tileLabel(t.identity, t.source),
+                                tile.key,
+                                tileLabel(tile.identity, tile.source),
                             )}
                             onclick={(e) => {
                                 e.stopPropagation();
-                                spotlightTile(t.key);
+                                spotlightTile(tile.key);
                             }}
                         ></button>
                     </div>
@@ -658,7 +663,7 @@
                             ></button>
                             {#if status.micOff || status.deafened || status.locallyMuted || status.multiDevice}
                                 <div
-                                    class="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60"
+                                    class="absolute top-2 start-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60"
                                 >
                                     {#if status.micOff}
                                         <MicOff
@@ -666,7 +671,9 @@
                                             class="text-discord-danger flex-shrink-0"
                                             aria-hidden="true"
                                         />
-                                        <span class="sr-only">Muted</span>
+                                        <span class="sr-only"
+                                            >{t("callView.muted")}</span
+                                        >
                                     {/if}
                                     {#if status.deafened}
                                         <HeadphoneOff
@@ -674,7 +681,9 @@
                                             class="text-discord-danger flex-shrink-0"
                                             aria-hidden="true"
                                         />
-                                        <span class="sr-only">Deafened</span>
+                                        <span class="sr-only"
+                                            >{t("callView.deafened")}</span
+                                        >
                                     {/if}
                                     {#if status.locallyMuted}
                                         <VolumeX
@@ -683,21 +692,26 @@
                                             aria-hidden="true"
                                         />
                                         <span class="sr-only"
-                                            >Muted for you</span
+                                            >{t("callView.mutedForYou")}</span
                                         >
                                     {/if}
                                     {#if status.multiDevice}
                                         <span
                                             class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
-                                            title="Joined from multiple devices"
+                                            title={t(
+                                                "callView.joinedFromMultipleDevices",
+                                            )}
                                         >
                                             <Smartphone
                                                 size={12}
                                                 aria-hidden="true"
                                             /><span class="sr-only"
-                                                >{deviceCounts.get(p.userId) ??
-                                                    1}
-                                                devices</span
+                                                >{t("callView.devices", {
+                                                    value:
+                                                        deviceCounts.get(
+                                                            p.userId,
+                                                        ) ?? 1,
+                                                })}</span
                                             ><span aria-hidden="true"
                                                 >{deviceCounts.get(p.userId) ??
                                                     1}</span
@@ -714,7 +728,7 @@
                                 size={80}
                             />
                             <div
-                                class="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
+                                class="absolute bottom-2 start-2 flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/60 max-w-[calc(100%-1rem)]"
                             >
                                 {#if status.micOff}
                                     <MicOff
@@ -722,7 +736,9 @@
                                         class="text-discord-danger flex-shrink-0"
                                         aria-hidden="true"
                                     />
-                                    <span class="sr-only">Muted</span>
+                                    <span class="sr-only"
+                                        >{t("callView.muted")}</span
+                                    >
                                 {/if}
                                 {#if status.deafened}
                                     <HeadphoneOff
@@ -730,7 +746,9 @@
                                         class="text-discord-danger flex-shrink-0"
                                         aria-hidden="true"
                                     />
-                                    <span class="sr-only">Deafened</span>
+                                    <span class="sr-only"
+                                        >{t("callView.deafened")}</span
+                                    >
                                 {/if}
                                 {#if status.locallyMuted}
                                     <VolumeX
@@ -738,19 +756,27 @@
                                         class="text-discord-textMuted flex-shrink-0"
                                         aria-hidden="true"
                                     />
-                                    <span class="sr-only">Muted for you</span>
+                                    <span class="sr-only"
+                                        >{t("callView.mutedForYou")}</span
+                                    >
                                 {/if}
                                 {#if status.multiDevice}
                                     <span
                                         class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
-                                        title="Joined from multiple devices"
+                                        title={t(
+                                            "callView.joinedFromMultipleDevices",
+                                        )}
                                     >
                                         <Smartphone
                                             size={12}
                                             aria-hidden="true"
                                         /><span class="sr-only"
-                                            >{deviceCounts.get(p.userId) ?? 1}
-                                            devices</span
+                                            >{t("callView.devices", {
+                                                value:
+                                                    deviceCounts.get(
+                                                        p.userId,
+                                                    ) ?? 1,
+                                            })}</span
                                         ><span aria-hidden="true"
                                             >{deviceCounts.get(p.userId) ??
                                                 1}</span
@@ -764,9 +790,9 @@
                         {/if}
                         <button
                             type="button"
-                            class="{TILE_MENU_BTN} top-2 right-2 p-1.5"
-                            title={`Options for ${name}`}
-                            aria-label={`Options for ${name}`}
+                            class="{TILE_MENU_BTN} top-2 end-2 p-1.5"
+                            title={t("callView.optionsFor", { name })}
+                            aria-label={t("callView.optionsFor", { name })}
                             onclick={(e) => {
                                 e.stopPropagation();
                                 const r =
@@ -794,7 +820,7 @@
                 onclick={() => void resumeVoicePlayback()}
                 class="px-3 py-1.5 rounded bg-discord-warning text-black text-xs font-semibold"
             >
-                Enable audio
+                {t("callView.enableAudio")}
             </button>
         {/if}
         {#if controlMode === "controls"}
@@ -806,8 +832,12 @@
                     class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.micMuted
                         ? 'text-discord-danger'
                         : 'text-discord-textPrimary'}"
-                    title={voiceCallState.micMuted ? "Unmute" : "Mute"}
-                    aria-label={voiceCallState.micMuted ? "Unmute" : "Mute"}
+                    title={voiceCallState.micMuted
+                        ? t("callView.unmute")
+                        : t("common.mute")}
+                    aria-label={voiceCallState.micMuted
+                        ? t("callView.unmute")
+                        : t("common.mute")}
                 >
                     {#if voiceCallState.micMuted}<MicOff size={20} />{:else}<Mic
                             size={20}
@@ -818,8 +848,12 @@
                     class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.deafened
                         ? 'text-discord-danger'
                         : 'text-discord-textPrimary'}"
-                    title={voiceCallState.deafened ? "Undeafen" : "Deafen"}
-                    aria-label={voiceCallState.deafened ? "Undeafen" : "Deafen"}
+                    title={voiceCallState.deafened
+                        ? t("callView.undeafen")
+                        : t("callView.deafen")}
+                    aria-label={voiceCallState.deafened
+                        ? t("callView.undeafen")
+                        : t("callView.deafen")}
                 >
                     {#if voiceCallState.deafened}<HeadphoneOff
                             size={20}
@@ -831,11 +865,11 @@
                         ? 'text-discord-accent'
                         : 'text-discord-textPrimary'}"
                     title={voiceCallState.cameraOn
-                        ? "Turn off camera"
-                        : "Turn on camera"}
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
                     aria-label={voiceCallState.cameraOn
-                        ? "Turn off camera"
-                        : "Turn on camera"}
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
                 >
                     {#if voiceCallState.cameraOn}<Video
                             size={20}
@@ -848,11 +882,11 @@
                             ? 'text-discord-accent'
                             : 'text-discord-textPrimary'}"
                         title={voiceCallState.screenSharing
-                            ? "Stop sharing"
-                            : "Share your screen"}
+                            ? t("common.stopSharing")
+                            : t("common.shareYourScreen")}
                         aria-label={voiceCallState.screenSharing
-                            ? "Stop sharing"
-                            : "Share your screen"}
+                            ? t("common.stopSharing")
+                            : t("common.shareYourScreen")}
                     >
                         <MonitorUp size={20} />
                     </button>
@@ -860,8 +894,8 @@
                 <button
                     onclick={leaveCall}
                     class="p-3 rounded-full bg-discord-danger hover:bg-discord-dangerHover text-white transition-colors"
-                    title="Disconnect"
-                    aria-label="Disconnect"
+                    title={t("callView.disconnect")}
+                    aria-label={t("callView.disconnect")}
                 >
                     <PhoneOff size={20} />
                 </button>
@@ -873,7 +907,7 @@
                 class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-discord-accent hover:bg-discord-accentHover text-white font-medium transition-colors disabled:opacity-60"
             >
                 <Phone size={20} />
-                {joining ? "Joining…" : "Join Call"}
+                {joining ? t("common.joining") : t("callView.joinCall")}
             </button>
         {/if}
     </div>

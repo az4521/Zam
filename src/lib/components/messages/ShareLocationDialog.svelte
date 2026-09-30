@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         locationDialogState,
         closeShareLocationDialog,
@@ -66,7 +67,7 @@
                 showErrorToast(
                     err instanceof Error
                         ? err.message
-                        : "Failed to start live location",
+                        : t("shareLocationDialog.failedToStartLiveLocation"),
                 );
                 sending = false;
             }
@@ -82,7 +83,9 @@
             closeShareLocationDialog();
         } catch (err) {
             showErrorToast(
-                err instanceof Error ? err.message : "Failed to share location",
+                err instanceof Error
+                    ? err.message
+                    : t("shareLocationDialog.failedToShareLocation"),
             );
             sending = false;
         }
@@ -92,7 +95,7 @@
 <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t("common.closeDialog")}
         class="absolute inset-0 bg-black/60"
         onclick={closeShareLocationDialog}
     ></button>
@@ -107,7 +110,7 @@
             id="share-location-title"
             class="text-lg font-bold text-discord-textPrimary"
         >
-            Share location
+            {t("shareLocationDialog.shareLocation")}
         </h2>
 
         {#if canLive}
@@ -120,7 +123,7 @@
                         ? 'bg-discord-accent text-white'
                         : 'bg-discord-backgroundTertiary text-discord-textSecondary hover:text-discord-textPrimary'}"
                 >
-                    Send once
+                    {t("shareLocationDialog.sendOnce")}
                 </button>
                 <button
                     type="button"
@@ -130,7 +133,7 @@
                         ? 'bg-discord-accent text-white'
                         : 'bg-discord-backgroundTertiary text-discord-textSecondary hover:text-discord-textPrimary'}"
                 >
-                    Share live
+                    {t("shareLocationDialog.shareLive")}
                 </button>
             </div>
         {/if}
@@ -153,7 +156,9 @@
                             d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"
                         />
                     </svg>
-                    {locating ? "Locating…" : "Use my current location"}
+                    {locating
+                        ? t("shareLocationDialog.locating")
+                        : t("shareLocationDialog.useMyCurrentLocation")}
                 </button>
                 {#if coords}
                     <p class="text-xs text-discord-textMuted">
@@ -168,13 +173,13 @@
                     for="location-description"
                     class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                 >
-                    Description (optional)
+                    {t("shareLocationDialog.descriptionOptional")}
                 </label>
                 <input
                     id="location-description"
                     type="text"
                     bind:value={description}
-                    placeholder="e.g. Home, the café on 5th…"
+                    placeholder={t("shareLocationDialog.eGHomeTheCafOn")}
                     maxlength="340"
                     class="w-full rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
                 />
@@ -186,7 +191,7 @@
                     for="live-duration"
                     class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
                 >
-                    Duration
+                    {t("shareLocationDialog.duration")}
                 </label>
                 <select
                     id="live-duration"
@@ -198,8 +203,7 @@
                     {/each}
                 </select>
                 <p class="text-xs text-discord-textMuted">
-                    Your live location is shared with this room until you stop
-                    or the timer ends.
+                    {t("shareLocationDialog.yourLiveLocationIsSharedWith")}
                 </p>
             </div>
         {/if}
@@ -207,14 +211,14 @@
         <!-- Footer -->
         <div class="flex items-center justify-end gap-3 pt-1">
             {#if error}
-                <span class="mr-auto text-xs text-discord-danger">{error}</span>
+                <span class="me-auto text-xs text-discord-danger">{error}</span>
             {/if}
             <button
                 type="button"
                 onclick={closeShareLocationDialog}
                 class="px-4 py-2 rounded text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
             >
-                Cancel
+                {t("common.cancel")}
             </button>
             <button
                 type="button"
@@ -223,9 +227,13 @@
                 class="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {#if mode === "live"}
-                    {sending ? "Starting…" : "Share live"}
+                    {sending
+                        ? t("common.starting")
+                        : t("shareLocationDialog.shareLive")}
                 {:else}
-                    {sending ? "Sharing…" : "Share"}
+                    {sending
+                        ? t("shareLocationDialog.sharing")
+                        : t("shareLocationDialog.share")}
                 {/if}
             </button>
         </div>

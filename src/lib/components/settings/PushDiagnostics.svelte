@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { getClient } from "$lib/matrix/client";
     import { verifyPushGateways, PUSH_GATEWAY_NOTIFY_URL } from "$lib/push";
@@ -19,32 +20,33 @@
     <p
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >
-        Push Gateway
+        {t("pushDiagnostics.pushGateway")}
     </p>
     <div class="py-2 border-b border-discord-divider">
-        <p class="text-sm text-discord-textPrimary">Notification relay</p>
+        <p class="text-sm text-discord-textPrimary">
+            {t("pushDiagnostics.notificationRelay")}
+        </p>
         <p class="text-xs text-discord-textMuted mb-1">
-            Push notifications are relayed through this gateway. It can see
-            which rooms and senders notify you, but never your message text.
+            {t("pushDiagnostics.pushNotificationsAreRelayedThroughThis")}
         </p>
         <p class="text-xs font-mono text-discord-textMuted break-all">
             {PUSH_GATEWAY_NOTIFY_URL}
         </p>
         {#if gatewayStatus?.status === "mismatch"}
             <p class="text-xs text-discord-danger mt-1">
-                Warning: your homeserver is routing this device's push
-                notifications to a different gateway ({gatewayStatus.mismatchedUrls.join(
-                    ", ",
-                )}). That gateway, not the one above, sees your notification
-                metadata.
+                {t("pushDiagnostics.warningYourHomeserverIsRoutingThis", {
+                    join: gatewayStatus.mismatchedUrls.join(", "),
+                })}
             </p>
         {:else if gatewayStatus?.status === "verified"}
             <p class="text-xs text-discord-textPositive mt-1">
-                Verified: your homeserver routes notifications to this gateway.
+                {t(
+                    "pushDiagnostics.verifiedYourHomeserverRoutesNotificationsTo",
+                )}
             </p>
         {:else if gatewayStatus?.status === "none"}
             <p class="text-xs text-discord-textMuted mt-1 italic">
-                No push notifications are registered on this account yet.
+                {t("pushDiagnostics.noPushNotificationsAreRegisteredOn")}
             </p>
         {/if}
     </div>

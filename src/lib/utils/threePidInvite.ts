@@ -11,6 +11,7 @@
  * non-empty local part, and a domain with a dotted label (non-empty on both
  * sides of the last dot).
  */
+import { t } from "$lib/i18n";
 export function isValidEmail(address: string): boolean {
     const addr = address.trim();
     if (!addr) return false;
@@ -44,13 +45,13 @@ export function getThreePidInviteState(opts: {
     if (!opts.canInvite) {
         return {
             available: false,
-            reason: "You don't have permission to invite people to this room.",
+            reason: t("threePidInvite.youDonTHavePermissionTo"),
         };
     }
     if (!opts.hasIdentityServer) {
         return {
             available: false,
-            reason: "Your homeserver has no identity server, so email invites aren't available.",
+            reason: t("threePidInvite.yourHomeserverHasNoIdentityServer"),
         };
     }
     return { available: true };

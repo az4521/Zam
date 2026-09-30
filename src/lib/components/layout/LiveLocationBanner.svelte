@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import { LocateFixed, ChevronRight } from "lucide-svelte";
     import {
@@ -98,23 +99,30 @@
         <button
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
-            class="text-left hover:underline {ownStop?.phase === 'failed'
+            class="text-start hover:underline {ownStop?.phase === 'failed'
                 ? 'font-semibold text-discord-danger'
                 : 'text-discord-textPrimary'}"
-            title="Open map"
-            >{stopStatusLabel(ownStop) ?? "Sharing live location"} · {remainingLabel(
+            title={t("liveLocationBanner.openMap")}
+            >{stopStatusLabel(ownStop) ??
+                t("liveLocationBanner.sharingLiveLocation")} · {remainingLabel(
                 ownShare.expiresAt,
                 now,
             )}{ownShare.lastSentTs
-                ? ` · last updated at ${timeOnly(ownShare.lastSentTs)} (${updatedAgoLabel(ownShare.lastSentTs, now)})`
+                ? t("liveLocationBanner.lastUpdatedAt", {
+                      timeOnly: timeOnly(ownShare.lastSentTs),
+                      updatedAgoLabel: updatedAgoLabel(
+                          ownShare.lastSentTs,
+                          now,
+                      ),
+                  })
                 : ""}</button
         >
         <button
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
-            class="ml-auto rounded bg-discord-backgroundSecondary px-3 py-1 text-xs font-semibold text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
+            class="ms-auto rounded bg-discord-backgroundSecondary px-3 py-1 text-xs font-semibold text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
         >
-            Map
+            {t("liveLocationBanner.map")}
         </button>
         <!-- Disabled only while the write is genuinely in flight; that phase
              always ends (ack, rejection, or the beacon's expiry timer), so the
@@ -139,16 +147,25 @@
             <LocateFixed size={16} class="text-discord-accent flex-shrink-0" />
             {#if others.length === 1}
                 <span
-                    >{getMemberName(room, others[0].beaconInfoOwner)} is sharing live
-                    location</span
+                    >{t("liveLocationBanner.isSharingLiveLocation", {
+                        getMemberName: getMemberName(
+                            room,
+                            others[0].beaconInfoOwner,
+                        ),
+                    })}</span
                 >
             {:else}
-                <span>{others.length} people sharing live location</span>
+                <span
+                    >{t("liveLocationBanner.peopleSharingLiveLocation", {
+                        length: others.length,
+                    })}</span
+                >
             {/if}
             <span
-                class="ml-auto text-xs text-discord-accent flex items-center gap-0.5"
+                class="ms-auto text-xs text-discord-accent flex items-center gap-0.5"
             >
-                View map <ChevronRight size={14} />
+                {t("liveLocationBanner.viewMap")}
+                <ChevronRight class="mirror:-scale-x-100" size={14} />
             </span>
         </button>
     </div>

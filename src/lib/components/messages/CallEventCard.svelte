@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import { Phone, PhoneMissed, PhoneCall } from "lucide-svelte";
     import {
@@ -14,10 +15,10 @@
     );
     const label = $derived(
         summary.outcome === "missed"
-            ? "Missed call"
+            ? t("callEventCard.missedCall")
             : summary.outcome === "ongoing"
-              ? "Ongoing call"
-              : "Call ended",
+              ? t("callEventCard.ongoingCall")
+              : t("callEventCard.callEnded"),
     );
     const duration = $derived(formatCallDuration(summary.durationMs));
 </script>

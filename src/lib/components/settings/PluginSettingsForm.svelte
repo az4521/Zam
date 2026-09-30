@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { untrack } from "svelte";
     import {
         installedPlugins,
@@ -122,21 +123,21 @@
         <button
             type="button"
             onclick={onBack}
-            aria-label="Back to plugins"
-            class="-ml-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+            aria-label={t("pluginSettingsForm.backToPlugins")}
+            class="-ms-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
         >
-            <ArrowLeft size={20} />
+            <ArrowLeft class="mirror:-scale-x-100" size={20} />
         </button>
         <h3
             class="text-base font-bold text-discord-textPrimary min-w-0 truncate"
         >
-            {pluginName} settings
+            {t("pluginSettingsForm.settings", { pluginName })}
         </h3>
     </div>
 
     {#if schema.length === 0}
         <p class="text-sm text-discord-textMuted">
-            This plugin has no settings.
+            {t("pluginSettingsForm.thisPluginHasNoSettings")}
         </p>
     {:else}
         <div class="space-y-4">
@@ -362,7 +363,9 @@
                                             onclick={() =>
                                                 moveRow(field, i, i - 1)}
                                             disabled={i === 0}
-                                            aria-label="Move up"
+                                            aria-label={t(
+                                                "pluginSettingsForm.moveUp",
+                                            )}
                                             class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                                         >
                                             <ChevronUp size={14} />
@@ -373,7 +376,9 @@
                                                 moveRow(field, i, i + 1)}
                                             disabled={i ===
                                                 rowsOf(field.key).length - 1}
-                                            aria-label="Move down"
+                                            aria-label={t(
+                                                "pluginSettingsForm.moveDown",
+                                            )}
                                             class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                                         >
                                             <ChevronDown size={14} />
@@ -381,7 +386,9 @@
                                         <button
                                             type="button"
                                             onclick={() => removeRow(field, i)}
-                                            aria-label="Remove row"
+                                            aria-label={t(
+                                                "pluginSettingsForm.removeRow",
+                                            )}
                                             class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
                                         >
                                             <Trash2 size={14} />
@@ -396,7 +403,7 @@
                             class="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-discord-backgroundTertiary text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                         >
                             <Plus size={14} />
-                            Add
+                            {t("common.add")}
                         </button>
                     </div>
                 {/if}

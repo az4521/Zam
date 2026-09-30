@@ -5,6 +5,7 @@
  * sanitization, CSS-var expansion, and contrast validation. No DOM, no stores.
  */
 
+import { t } from "$lib/i18n";
 import { parseHexColor, contrastRatio } from "./contrast";
 
 export type ThemeTokenKey =
@@ -46,7 +47,7 @@ export interface ContrastWarning {
 export const THEME_TOKENS: readonly ThemeToken[] = [
     {
         key: "accent",
-        label: "Accent",
+        label: t("themePalette.accent"),
         hexVars: [
             "--discord-accent",
             "--discord-accent-hover",
@@ -57,109 +58,109 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     },
     {
         key: "background",
-        label: "Background",
+        label: t("themePalette.background"),
         hexVars: ["--discord-bg"],
         rgbVars: ["--discord-bg-rgb"],
     },
     {
         key: "backgroundSecondary",
-        label: "Secondary background",
+        label: t("themePalette.secondaryBackground"),
         hexVars: ["--discord-bg-secondary"],
         rgbVars: ["--discord-bg-secondary-rgb"],
     },
     {
         key: "backgroundTertiary",
-        label: "Tertiary background",
+        label: t("themePalette.tertiaryBackground"),
         hexVars: ["--discord-bg-tertiary"],
         rgbVars: [],
     },
     {
         key: "textPrimary",
-        label: "Primary text",
+        label: t("themePalette.primaryText"),
         hexVars: ["--discord-text-primary"],
         rgbVars: [],
     },
     {
         key: "textSecondary",
-        label: "Secondary text",
+        label: t("themePalette.secondaryText"),
         hexVars: ["--discord-text-secondary"],
         rgbVars: [],
     },
     {
         key: "textMuted",
-        label: "Muted text",
+        label: t("themePalette.mutedText"),
         hexVars: ["--discord-text-muted"],
         rgbVars: [],
     },
     {
         key: "danger",
-        label: "Danger",
+        label: t("themePalette.danger"),
         hexVars: ["--discord-danger", "--discord-danger-fill"],
         rgbVars: ["--discord-danger-rgb", "--discord-danger-fill-rgb"],
     },
     {
         key: "positive",
-        label: "Positive",
+        label: t("themePalette.positive"),
         hexVars: ["--discord-positive"],
         rgbVars: [],
     },
     {
         key: "mention",
-        label: "Mention highlight",
+        label: t("themePalette.mentionHighlight"),
         hexVars: [],
         rgbVars: ["--discord-mention-highlight-rgb"],
     },
     {
         key: "link",
-        label: "Link",
+        label: t("themePalette.link"),
         hexVars: ["--discord-link"],
         rgbVars: ["--discord-link-rgb"],
     },
     {
         key: "warning",
-        label: "Warning",
+        label: t("themePalette.warning"),
         hexVars: ["--discord-warning"],
         rgbVars: ["--discord-warning-rgb"],
     },
     {
         key: "online",
-        label: "Online status",
+        label: t("themePalette.onlineStatus"),
         hexVars: ["--discord-online"],
         rgbVars: [],
     },
     {
         key: "idle",
-        label: "Idle status",
+        label: t("themePalette.idleStatus"),
         hexVars: ["--discord-idle"],
         rgbVars: [],
     },
     {
         key: "dnd",
-        label: "Do not disturb status",
+        label: t("themePalette.doNotDisturbStatus"),
         hexVars: ["--discord-dnd"],
         rgbVars: [],
     },
     {
         key: "offline",
-        label: "Offline status",
+        label: t("themePalette.offlineStatus"),
         hexVars: ["--discord-offline"],
         rgbVars: [],
     },
     {
         key: "divider",
-        label: "Divider",
+        label: t("themePalette.divider"),
         hexVars: ["--discord-divider"],
         rgbVars: [],
     },
     {
         key: "spoilerBackground",
-        label: "Spoiler background",
+        label: t("themePalette.spoilerBackground"),
         hexVars: ["--discord-spoiler-bg"],
         rgbVars: [],
     },
     {
         key: "ownBubbleBackground",
-        label: "Own message bubble",
+        label: t("themePalette.ownMessageBubble"),
         hexVars: ["--discord-own-bubble"],
         rgbVars: [],
     },
@@ -345,37 +346,37 @@ export function paletteContrastWarnings(
     }> = [
         {
             token: "textPrimary",
-            label: "Primary text on background",
+            label: t("themePalette.primaryTextOnBackground"),
             fg: resolved.textPrimary,
             bg: resolved.background,
         },
         {
             token: "textSecondary",
-            label: "Secondary text on background",
+            label: t("themePalette.secondaryTextOnBackground"),
             fg: resolved.textSecondary,
             bg: resolved.background,
         },
         {
             token: "textMuted",
-            label: "Muted text on tertiary background",
+            label: t("themePalette.mutedTextOnTertiaryBackground"),
             fg: resolved.textMuted,
             bg: resolved.backgroundTertiary,
         },
         {
             token: "accent",
-            label: "White text on accent buttons",
+            label: t("themePalette.whiteTextOnAccentButtons"),
             fg: "#ffffff",
             bg: resolved.accent,
         },
         {
             token: "danger",
-            label: "White text on danger buttons",
+            label: t("themePalette.whiteTextOnDangerButtons"),
             fg: "#ffffff",
             bg: resolved.danger,
         },
         {
             token: "ownBubbleBackground",
-            label: "White text on own bubble",
+            label: t("themePalette.whiteTextOnOwnBubble"),
             fg: "#ffffff",
             bg: resolved.ownBubbleBackground,
         },

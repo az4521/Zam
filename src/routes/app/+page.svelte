@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { goto } from "$app/navigation";
 
@@ -19,6 +20,6 @@
         <div
             class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
         ></div>
-        <span>Redirecting…</span>
+        <span>{t("appPage.redirecting")}</span>
     </div>
 </div>

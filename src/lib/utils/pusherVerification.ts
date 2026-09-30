@@ -16,6 +16,7 @@
  */
 
 /** A pusher reduced to the two fields this check needs. */
+import { t } from "$lib/i18n";
 export interface PusherLike {
     app_id: string;
     /** The gateway URL the homeserver will POST to (`data.url`). */
@@ -36,7 +37,7 @@ export interface PusherGatewayStatus {
 }
 
 /** Shown for one of our pushers whose `data.url` is missing entirely. */
-const MISSING_URL_LABEL = "(no gateway URL)";
+const MISSING_URL_LABEL = t("pusherVerification.noGatewayUrl");
 
 /**
  * Compare the homeserver's registered pushers against the gateway URL we asked

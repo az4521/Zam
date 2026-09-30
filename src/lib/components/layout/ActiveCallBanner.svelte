@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { Phone, PhoneOff, Video, VideoOff, MonitorUp } from "lucide-svelte";
@@ -88,10 +89,10 @@
              room, so showCallView alone suffices (no navigateToRoom). -->
         <button
             onclick={() => showCallView(room.roomId)}
-            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-left -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
-            title="Open call"
+            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-start -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
+            title={t("activeCallBanner.openCall")}
         >
-            <div class="flex -space-x-1.5">
+            <div class="flex -space-x-1.5 mirror:space-x-reverse">
                 {#each participants as p (p.userId)}
                     <div
                         class="rounded-full ring-2 {speaking.has(p.userId)
@@ -110,9 +111,11 @@
             </div>
             <span class="text-sm text-discord-textSecondary min-w-0 truncate">
                 {#if ringingOut}
-                    Ringing…
+                    {t("activeCallBanner.ringing")}
                 {:else}
-                    Voice call · {participants.length} in call
+                    {t("activeCallBanner.voiceCallInCall", {
+                        length: participants.length,
+                    })}
                 {/if}
             </span>
         </button>
@@ -127,11 +130,11 @@
                         ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                     title={voiceCallState.cameraOn
-                        ? "Turn off camera"
-                        : "Turn on camera"}
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
                     aria-label={voiceCallState.cameraOn
-                        ? "Turn off camera"
-                        : "Turn on camera"}
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
                 >
                     {#if voiceCallState.cameraOn}<Video
                             size={16}
@@ -144,11 +147,11 @@
                             ? 'text-discord-accent'
                             : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                         title={voiceCallState.screenSharing
-                            ? "Stop sharing"
-                            : "Share your screen"}
+                            ? t("common.stopSharing")
+                            : t("common.shareYourScreen")}
                         aria-label={voiceCallState.screenSharing
-                            ? "Stop sharing"
-                            : "Share your screen"}
+                            ? t("common.stopSharing")
+                            : t("common.shareYourScreen")}
                     >
                         <MonitorUp size={16} />
                     </button>
@@ -158,17 +161,18 @@
                 onclick={leaveCall}
                 class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-sm font-medium transition-colors flex-shrink-0"
             >
-                <PhoneOff size={14} /> Leave
+                <PhoneOff size={14} />
+                {t("activeCallBanner.leave")}
             </button>
         {:else}
             {@const joining = voiceCallState.joinPendingRoomId === room.roomId}
             <button
                 onclick={() => joinCall(room.roomId)}
                 disabled={voiceCallState.joinPendingRoomId !== null}
-                class="ml-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
+                class="ms-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
             >
                 <Phone size={14} />
-                {joining ? "Joining…" : "Join"}
+                {joining ? t("common.joining") : t("common.join")}
             </button>
         {/if}
     </div>

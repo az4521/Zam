@@ -16,6 +16,7 @@
  * keep those copies in step with this file.
  */
 
+import { t } from "$lib/i18n";
 export const ACTIVE_SESSION_KEY = "moe.crafty.matrix.active_session";
 
 /** Default grace: 60s of "the other device is in use" before we go quiet. */
@@ -57,14 +58,14 @@ export const MAX_GRACE_MS = 7_200_000;
 /** The choices offered in Settings. 0 = feature off. Anything else the user
  *  wants goes through the "Custom" input (`parseCustomGraceMinutes`). */
 export const GRACE_OPTIONS: readonly { value: number; label: string }[] = [
-    { value: 0, label: "Off - always notify" },
-    { value: 15_000, label: "15 seconds" },
-    { value: 30_000, label: "30 seconds" },
-    { value: 60_000, label: "1 minute" },
-    { value: 120_000, label: "2 minutes" },
-    { value: 300_000, label: "5 minutes" },
-    { value: 600_000, label: "10 minutes" },
-    { value: 1_800_000, label: "30 minutes" },
+    { value: 0, label: t("activeSession.offAlwaysNotify") },
+    { value: 15_000, label: t("activeSession.n15Seconds") },
+    { value: 30_000, label: t("activeSession.n30Seconds") },
+    { value: 60_000, label: t("activeSession.n1Minute") },
+    { value: 120_000, label: t("activeSession.n2Minutes") },
+    { value: 300_000, label: t("activeSession.n5Minutes") },
+    { value: 600_000, label: t("activeSession.n10Minutes") },
+    { value: 1_800_000, label: t("activeSession.n30Minutes") },
 ];
 
 /** Shortest custom duration. The presets already cover everything below a
@@ -91,20 +92,22 @@ export type CustomGraceParse =
 export function parseCustomGraceMinutes(input: string): CustomGraceParse {
     const trimmed = input.trim();
     if (trimmed.length === 0)
-        return { ok: false, error: "Enter a number of minutes." };
+        return { ok: false, error: t("activeSession.enterANumberOfMinutes") };
     const minutes = Number(trimmed);
     if (!Number.isFinite(minutes))
-        return { ok: false, error: "Enter a number of minutes." };
+        return { ok: false, error: t("activeSession.enterANumberOfMinutes") };
     const ms = Math.round(minutes * 60_000);
     if (ms < MIN_CUSTOM_GRACE_MS)
         return {
             ok: false,
-            error: "Choose at least 1 minute - use the list above for shorter times.",
+            error: t("activeSession.chooseAtLeast1MinuteUse"),
         };
     if (ms > MAX_GRACE_MS)
         return {
             ok: false,
-            error: `Choose ${MAX_CUSTOM_GRACE_MINUTES} minutes (2 hours) or less.`,
+            error: t("activeSession.chooseMinutes2HoursOrLess", {
+                MAX_CUSTOM_GRACE_MINUTES,
+            }),
         };
     return { ok: true, ms };
 }

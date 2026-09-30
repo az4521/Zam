@@ -12,6 +12,7 @@
  * and enable-encryption UI are Layers 2–4.
  */
 
+import { t } from "$lib/i18n";
 import { EventTimeline, MatrixEventEvent } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -774,7 +775,7 @@ function createVerificationController(
             startRequested = false;
             qrError = verificationFailureText(
                 e,
-                "Could not start the emoji check",
+                t("crypto.couldNotStartTheEmojiCheck"),
             );
         }
         emit();
@@ -838,7 +839,10 @@ function createVerificationController(
         mismatch: () => sasCallbacks?.mismatch(),
         cancel: () => {
             void request.cancel().catch((e) => {
-                verificationFailureText(e, "Could not cancel the verification");
+                verificationFailureText(
+                    e,
+                    t("crypto.couldNotCancelTheVerification"),
+                );
             });
         },
         startSas,
@@ -869,12 +873,12 @@ function createVerificationController(
                 qrBytes = bytes ?? null;
                 qrError = bytes
                     ? null
-                    : "No code available - the other side can't scan one.";
+                    : t("crypto.noCodeAvailableTheOtherSide");
             } catch (e) {
                 qrBytes = null;
                 qrError = verificationFailureText(
                     e,
-                    "Could not generate a QR code",
+                    t("crypto.couldNotGenerateAQrCode"),
                 );
             }
             emit();
@@ -902,7 +906,7 @@ function createVerificationController(
                 startRequested = false;
                 qrError = verificationFailureText(
                     e,
-                    "That code doesn't match this verification",
+                    t("crypto.thatCodeDoesnTMatchThis"),
                 );
             }
             emit();
@@ -920,7 +924,10 @@ function createVerificationController(
             try {
                 callbacks?.confirm();
             } catch (e) {
-                verificationFailureText(e, "Could not confirm the QR match");
+                verificationFailureText(
+                    e,
+                    t("crypto.couldNotConfirmTheQrMatch"),
+                );
             }
         },
         denyReciprocate: () => {
@@ -932,13 +939,16 @@ function createVerificationController(
                 try {
                     callbacks.cancel();
                 } catch (e) {
-                    verificationFailureText(e, "Could not cancel the QR match");
+                    verificationFailureText(
+                        e,
+                        t("crypto.couldNotCancelTheQrMatch"),
+                    );
                 }
             } else {
                 void request.cancel().catch((e) => {
                     verificationFailureText(
                         e,
-                        "Could not cancel the verification",
+                        t("crypto.couldNotCancelTheVerification"),
                     );
                 });
             }
@@ -972,7 +982,7 @@ export async function startDeviceVerification(
     const crypto = client?.getCrypto();
     const userId = client?.getUserId();
     if (!crypto || !userId) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
     // A device that just signed in may not be in our crypto store yet;
     // requestDeviceVerification throws "not a known device" for unknown
@@ -991,7 +1001,7 @@ export async function startUserVerification(
 ): Promise<VerificationController> {
     const crypto = getClient()?.getCrypto();
     if (!crypto) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
     // Only the room id matters here — verification rides in the room itself.
     // A failed m.direct write leaves the room unfiled, not unusable; it stays
@@ -1242,9 +1252,7 @@ function makeUiaPasswordCallback(
             };
             if (uia.httpStatus !== 401 || !data.flows) throw e;
             if (!supportsPasswordUia(data.flows)) {
-                throw new Error(
-                    "This server can't confirm encryption setup with a password - use its account page instead.",
-                );
+                throw new Error(t("crypto.thisServerCanTConfirmEncryption"));
             }
             const auth: AuthDict = {
                 type: "m.login.password",
@@ -1256,7 +1264,7 @@ function makeUiaPasswordCallback(
                 return await makeRequest(auth);
             } catch (retryError) {
                 if ((retryError as MatrixError).httpStatus === 401) {
-                    throw new Error("Incorrect password");
+                    throw new Error(t("crypto.incorrectPassword"));
                 }
                 throw retryError;
             }
@@ -1289,7 +1297,7 @@ export async function setupRecovery(
     const crypto = client?.getCrypto();
     const userId = client?.getUserId();
     if (!crypto || !userId) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
 
     // 1. Establish (or confirm) the cross-signing identity. Uploading the new
@@ -1309,7 +1317,7 @@ export async function setupRecovery(
     );
     const encoded = generated.encodedPrivateKey;
     if (!encoded) {
-        throw new Error("Failed to generate a recovery key");
+        throw new Error(t("crypto.failedToGenerateARecoveryKey"));
     }
 
     // 3. Create secret storage with that key as the default and mint a new key
@@ -1364,7 +1372,7 @@ export async function resetRecovery(
     const crypto = client?.getCrypto();
     const userId = client?.getUserId();
     if (!crypto || !userId) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
 
     // 1. Tear down the old (unusable) recovery. UIA-guarded → password dance.
@@ -1384,7 +1392,7 @@ export async function resetRecovery(
         throw new RecoverySetupIncompleteError(
             error instanceof Error && error.message.trim().length > 0
                 ? error.message
-                : "Your old recovery was reset, but setting up the new one failed.",
+                : t("crypto.yourOldRecoveryWasResetBut"),
             { cause: error },
         );
     }
@@ -1641,9 +1649,7 @@ async function completeUnlock(
             await crypto.loadSessionBackupPrivateKeyFromSecretStorage();
         } catch (e) {
             if (e instanceof DecryptionKeyDoesNotMatchError) {
-                throw new Error(
-                    "That key doesn't match this account's backup on the server.",
-                );
+                throw new Error(t("crypto.thatKeyDoesnTMatchThis"));
             }
             throw e;
         }
@@ -1697,7 +1703,7 @@ export async function unlockWithRecoveryKey(
     const client = getClient();
     const crypto = client?.getCrypto();
     if (!client || !crypto) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
 
     // 1. Decode. The SDK checks the prefix + parity byte and throws on a
@@ -1706,9 +1712,7 @@ export async function unlockWithRecoveryKey(
     try {
         decoded = decodeRecoveryKey(normalizeRecoveryKey(recoveryKey));
     } catch {
-        throw new Error(
-            "That doesn't look like a valid recovery key. Check for typos and try again.",
-        );
+        throw new Error(t("crypto.thatDoesnTLookLikeA"));
     }
 
     // 2. Validate against the account's default secret-storage key info. This is
@@ -1716,16 +1720,12 @@ export async function unlockWithRecoveryKey(
     const secretStorage = client.secretStorage;
     const keyTuple = await secretStorage.getKey();
     if (!keyTuple) {
-        throw new Error(
-            "This account has no recovery set up yet. Set up recovery first on a session that has your keys.",
-        );
+        throw new Error(t("crypto.thisAccountHasNoRecoverySet"));
     }
     const [keyId, keyInfo] = keyTuple;
     const matches = await secretStorage.checkKey(decoded, keyInfo);
     if (!matches) {
-        throw new Error(
-            "That recovery key doesn't match this account. Check for typos and try again.",
-        );
+        throw new Error(t("crypto.thatRecoveryKeyDoesnTMatch"));
     }
 
     // 3-5. Cache, restore history, cross-sign this session.
@@ -1752,15 +1752,13 @@ export async function unlockWithPassphrase(
     const client = getClient();
     const crypto = client?.getCrypto();
     if (!client || !crypto) {
-        throw new Error("Encryption is not ready on this session");
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
 
     const secretStorage = client.secretStorage;
     const keyTuple = await secretStorage.getKey();
     if (!keyTuple) {
-        throw new Error(
-            "This account has no recovery set up yet. Set up recovery first on a session that has your keys.",
-        );
+        throw new Error(t("crypto.thisAccountHasNoRecoverySet"));
     }
     const [keyId, keyInfo] = keyTuple;
 
@@ -1768,9 +1766,7 @@ export async function unlockWithPassphrase(
     // otherwise for a randomly-generated key, hence the validated read.
     const params = passphraseParams(keyInfo);
     if (!params) {
-        throw new Error(
-            "This account's recovery wasn't set up with a passphrase. Use your recovery key instead.",
-        );
+        throw new Error(t("crypto.thisAccountSRecoveryWasnT"));
     }
 
     // Derivation is WebCrypto-backed, so it throws a raw platform message on an
@@ -1786,16 +1782,12 @@ export async function unlockWithPassphrase(
             params.bits,
         );
     } catch {
-        throw new Error(
-            "Couldn't use your passphrase on this device. Try your recovery key instead.",
-        );
+        throw new Error(t("crypto.couldnTUseYourPassphraseOn"));
     }
 
     const matches = await secretStorage.checkKey(decoded, keyInfo);
     if (!matches) {
-        throw new Error(
-            "That passphrase doesn't match this account. Check for typos and try again.",
-        );
+        throw new Error(t("crypto.thatPassphraseDoesnTMatchThis"));
     }
 
     return completeUnlock(crypto, keyId, decoded, onProgress);

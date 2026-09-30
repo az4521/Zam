@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t, type MessageKey } from "$lib/i18n";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import {
@@ -58,18 +59,12 @@
 
     // What each row's badge is counting, for screen readers. The visible pill
     // is a bare number, which on its own announces as "Threads, 3".
-    const BADGE_NOUNS: Record<
-        RoomHeaderMenuKey,
-        { one: string; other: string }
-    > = {
-        threads: { one: "unread mention", other: "unread mentions" },
-        pinned: { one: "pinned message", other: "pinned messages" },
-        notifications: {
-            one: "unread notification",
-            other: "unread notifications",
-        },
-        media: { one: "item", other: "items" },
-        members: { one: "member", other: "members" },
+    const BADGE_NOUNS: Record<RoomHeaderMenuKey, MessageKey> = {
+        threads: "roomHeaderOverflowMenu.badgeThreads",
+        pinned: "roomHeaderOverflowMenu.badgePinned",
+        notifications: "roomHeaderOverflowMenu.badgeNotifications",
+        media: "roomHeaderOverflowMenu.badgeMedia",
+        members: "roomHeaderOverflowMenu.badgeMembers",
     };
 
     // `badge` is pill *text*, not a count: the model caps it at "99+", so the
@@ -77,8 +72,12 @@
     // keeps "99+" out of Number() (which would yield NaN) without needing to
     // parse anything.
     function badgeAnnouncement(key: RoomHeaderMenuKey, badge: string): string {
-        const noun = BADGE_NOUNS[key];
-        return `${badge} ${badge === "1" ? noun.one : noun.other}`;
+        // The plural form is picked from the count; `badge` is shown as-is so
+        // the "99+" cap survives into the announcement.
+        return t(BADGE_NOUNS[key], {
+            count: badge === "1" ? 1 : 2,
+            badge,
+        });
     }
 
     // The threads pill keeps `bg-discord-danger` because it counts unread
@@ -114,12 +113,16 @@
 <Portal>
     <button
         type="button"
-        aria-label="Close menu"
+        aria-label={t("common.closeMenu")}
         class="fixed inset-0 z-40 bg-black/40"
         onclick={onClose}
     ></button>
     <BottomSheet {onClose}>
-        <div role="menu" aria-label="More room options" class="pb-1">
+        <div
+            role="menu"
+            aria-label={t("roomHeaderOverflowMenu.moreRoomOptions")}
+            class="pb-1"
+        >
             {#each rows as row (row.key)}
                 <!--
                   menuitemcheckbox, not menuitem: each row toggles a panel, and
@@ -130,7 +133,7 @@
                     role="menuitemcheckbox"
                     aria-checked={row.active}
                     onclick={() => choose(row.key)}
-                    class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover {row.active
+                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.active
                         ? 'text-discord-accent'
                         : 'text-discord-textPrimary'}"
                 >
@@ -165,7 +168,9 @@
                             aria-hidden="true"
                             class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
                         ></span>
-                        <span class="sr-only">unread</span>
+                        <span class="sr-only"
+                            >{t("roomHeaderOverflowMenu.unread")}</span
+                        >
                     {/if}
                 </button>
             {/each}
@@ -174,7 +179,7 @@
                     role="menuitemcheckbox"
                     aria-checked={row.active}
                     onclick={() => choosePlugin(row.key)}
-                    class="w-full flex items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-discord-messageHover {row.active
+                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.active
                         ? 'text-discord-accent'
                         : 'text-discord-textPrimary'}"
                 >

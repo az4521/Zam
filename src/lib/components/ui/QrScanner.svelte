@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import jsQR from "jsqr";
     import { onDestroy, untrack } from "svelte";
     import { toQrPayloadBytes, isMatrixQrPayload } from "$lib/utils/qrCode";
@@ -22,7 +23,7 @@
     const DECODE_INTERVAL_MS = 100;
 
     let videoEl = $state<HTMLVideoElement | null>(null);
-    let status = $state("Starting the camera…");
+    let status = $state(t("qrScanner.startingTheCamera"));
     let stream: MediaStream | null = null;
     let frame: number | null = null;
     let canvas: HTMLCanvasElement | null = null;
@@ -72,12 +73,13 @@
     function cameraFailureText(e: unknown): string {
         console.warn("[matrix] could not open the camera for QR scanning", e);
         const name = e instanceof Error ? e.name : "";
-        if (name === "NotAllowedError") return "Camera access was denied.";
+        if (name === "NotAllowedError")
+            return t("qrScanner.cameraAccessWasDenied");
         if (name === "NotFoundError")
-            return "No camera was found on this device.";
+            return t("qrScanner.noCameraWasFoundOnThis");
         if (name === "NotReadableError")
-            return "The camera is already in use by another app.";
-        return "Could not open the camera. A secure (https) connection is required.";
+            return t("qrScanner.theCameraIsAlreadyInUse");
+        return t("qrScanner.couldNotOpenTheCameraA");
     }
 
     function scanFrame(now: DOMHighResTimeStamp): void {
@@ -118,7 +120,7 @@
                     // here, and a black square under "checking it…" reads as a
                     // crash. `fail()` below still blanks it if that throws.
                     stop(false);
-                    status = "Code found - checking it…";
+                    status = t("qrScanner.codeFoundCheckingIt");
                     try {
                         onScan(payload);
                         done = true;
@@ -126,11 +128,11 @@
                         // We are inside a rAF callback: an escaping throw would
                         // be an unhandled error with no path back to the UI.
                         console.warn("[matrix] QR scan handler threw", e);
-                        fail("Could not start verification with that code.");
+                        fail(t("qrScanner.couldNotStartVerificationWithThat"));
                     }
                     return;
                 }
-                if (found) status = "That isn't a verification code.";
+                if (found) status = t("qrScanner.thatIsnTAVerificationCode");
             }
         }
         frame = requestAnimationFrame(scanFrame);
@@ -138,7 +140,7 @@
 
     async function start(): Promise<void> {
         if (!navigator.mediaDevices?.getUserMedia) {
-            fail("This device has no camera available.");
+            fail(t("qrScanner.thisDeviceHasNoCameraAvailable"));
             return;
         }
         try {
@@ -157,7 +159,7 @@
         }
         const video = videoEl;
         if (!video) {
-            fail("Could not start the camera preview.");
+            fail(t("qrScanner.couldNotStartTheCameraPreview"));
             return;
         }
         video.srcObject = stream;
@@ -165,14 +167,14 @@
             await video.play();
         } catch (e) {
             console.warn("[matrix] could not start the camera preview", e);
-            fail("Could not start the camera preview.");
+            fail(t("qrScanner.couldNotStartTheCameraPreview"));
             return;
         }
         if (done) {
             stop();
             return;
         }
-        status = "Point the camera at their code.";
+        status = t("qrScanner.pointTheCameraAtTheirCode");
         frame = requestAnimationFrame(scanFrame);
     }
 

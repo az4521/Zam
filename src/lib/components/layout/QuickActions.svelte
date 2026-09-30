@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         createRoom,
         createSpace,
@@ -73,7 +74,7 @@
         if (followUp.status === "none" || followUp.status === "ok") return;
         const task = followUp.task;
         showErrorToast(followUp.message, {
-            label: "Retry",
+            label: t("common.retry"),
             // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
             // back as its own "unconfirmed" toast instead of hanging forever
             // with the affordance already expired.
@@ -124,7 +125,10 @@
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
-            error = e?.data?.error ?? e?.message ?? "Something went wrong";
+            error =
+                e?.data?.error ??
+                e?.message ??
+                t("quickActions.somethingWentWrong");
         } finally {
             loading = false;
         }
@@ -189,8 +193,7 @@
             } else {
                 const alias = input1.trim();
                 if (!alias.startsWith("#") && !alias.startsWith("!")) {
-                    error =
-                        "Enter a room address (#room:server.com) or room ID (!id:server.com)";
+                    error = t("quickActions.enterARoomAddressRoomServer");
                     return;
                 }
                 roomId = await joinRoomByAlias(alias);
@@ -199,7 +202,10 @@
             setActiveRoom(roomId);
             close();
         } catch (e: any) {
-            error = e?.data?.error ?? e?.message ?? "Something went wrong";
+            error =
+                e?.data?.error ??
+                e?.message ??
+                t("quickActions.somethingWentWrong");
             if (mode === "join-room" && shouldOfferKnock(e, undefined)) {
                 knockOffered = true;
             }
@@ -215,7 +221,10 @@
             await knockRoom(input1.trim(), knockReason);
             knockSent = true;
         } catch (e) {
-            error = matrixErrorMessage(e, "Could not send the join request");
+            error = matrixErrorMessage(
+                e,
+                t("quickActions.couldNotSendTheJoinRequest"),
+            );
         } finally {
             loading = false;
         }
@@ -236,8 +245,8 @@
     {#if !spaceId && !compact}
         <button
             onclick={() => open("create-dm")}
-            class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-left: 0.5rem;"
+            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            style="padding-inline-start: 0.5rem;"
         >
             <svg
                 class="w-4 h-4 flex-shrink-0 opacity-70"
@@ -248,14 +257,14 @@
                     d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
                 />
             </svg>
-            <span class="flex-1 truncate">New DM</span>
+            <span class="flex-1 truncate">{t("quickActions.newDm")}</span>
         </button>
     {/if}
     {#if !compact && (!spaceId || canAddRoomToSpace(spaceId))}
         <button
             onclick={() => open("create-room")}
-            class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-left: 0.5rem;"
+            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            style="padding-inline-start: 0.5rem;"
         >
             <svg
                 class="w-4 h-4 flex-shrink-0 opacity-70"
@@ -267,7 +276,9 @@
                 />
             </svg>
             <span class="flex-1 truncate"
-                >{spaceId ? "Create room in space" : "Create new room"}</span
+                >{spaceId
+                    ? t("quickActions.createRoomInSpace")
+                    : t("quickActions.createNewRoom")}</span
             >
         </button>
     {/if}
@@ -275,8 +286,8 @@
         <button
             onclick={() => open("create-space")}
             role={compact ? "menuitem" : undefined}
-            class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-left: 0.5rem;"
+            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            style="padding-inline-start: 0.5rem;"
         >
             <svg
                 class="w-4 h-4 flex-shrink-0 opacity-70"
@@ -287,13 +298,15 @@
                     d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
                 />
             </svg>
-            <span class="flex-1 truncate">Create new space</span>
+            <span class="flex-1 truncate"
+                >{t("quickActions.createNewSpace")}</span
+            >
         </button>
         <button
             onclick={() => open("join-room")}
             role={compact ? "menuitem" : undefined}
-            class="w-full flex items-center gap-2 pr-2 py-1.5 text-left text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-left: 0.5rem;"
+            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            style="padding-inline-start: 0.5rem;"
         >
             <svg
                 class="w-4 h-4 flex-shrink-0 opacity-70"
@@ -304,7 +317,9 @@
                     d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"
                 />
             </svg>
-            <span class="flex-1 truncate">Join room by address</span>
+            <span class="flex-1 truncate"
+                >{t("quickActions.joinRoomByAddress")}</span
+            >
         </button>
     {/if}
 </div>
@@ -323,11 +338,15 @@
                 class="text-lg font-bold text-discord-textPrimary"
             >
                 {#if mode === "create-room"}{spaceId
-                        ? "Create room in space"
-                        : "Create a room"}
-                {:else if mode === "create-space"}Create a space
-                {:else if mode === "create-dm"}New direct message
-                {:else}Join a room
+                        ? t("quickActions.createRoomInSpace")
+                        : t("quickActions.createARoom")}
+                {:else if mode === "create-space"}{t(
+                        "quickActions.createASpace",
+                    )}
+                {:else if mode === "create-dm"}{t(
+                        "quickActions.newDirectMessage",
+                    )}
+                {:else}{t("quickActions.joinARoom")}
                 {/if}
             </h2>
 
@@ -339,13 +358,13 @@
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                         >
                             {mode === "create-space"
-                                ? "Space name"
-                                : "Room name"}
+                                ? t("quickActions.spaceName")
+                                : t("quickActions.roomName")}
                         </label>
                         <input
                             bind:value={input1}
                             placeholder={mode === "create-space"
-                                ? "My Space"
+                                ? t("quickActions.mySpace")
                                 : "my-room"}
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                         />
@@ -355,15 +374,16 @@
                         <label
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
                         >
-                            Topic <span class="normal-case font-normal"
-                                >(optional)</span
+                            {t("common.topic")}
+                            <span class="normal-case font-normal"
+                                >{t("quickActions.optional")}</span
                             >
                         </label>
                         <input
                             bind:value={input2}
                             placeholder={mode === "create-space"
-                                ? "What's this space about?"
-                                : "What's this room about?"}
+                                ? t("quickActions.whatSThisSpaceAbout")
+                                : t("quickActions.whatSThisRoomAbout")}
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                         />
                     </div>
@@ -375,11 +395,12 @@
                                 class="mt-0.5 accent-discord-accent"
                             />
                             <span class="text-sm text-discord-textPrimary"
-                                >Video room
+                                >{t("common.videoRoom")}
                                 <span
                                     class="block text-xs text-discord-textMuted"
-                                    >Opens straight into a call. Messages still
-                                    work.</span
+                                    >{t(
+                                        "quickActions.opensStraightIntoACallMessages",
+                                    )}</span
                                 ></span
                             >
                         </label>
@@ -392,10 +413,12 @@
                                 class="mt-0.5 accent-discord-accent"
                             />
                             <span class="text-sm text-discord-textPrimary"
-                                >Enable encryption
+                                >{t("quickActions.enableEncryption")}
                                 <span
                                     class="block text-xs text-discord-textMuted"
-                                    >Can't be turned off later.</span
+                                    >{t(
+                                        "quickActions.canTBeTurnedOffLater",
+                                    )}</span
                                 ></span
                             >
                         </label>
@@ -408,7 +431,7 @@
                         autofocus
                         disabled={loading}
                         onpick={startDm}
-                        placeholder="Find someone to message…"
+                        placeholder={t("quickActions.findSomeoneToMessage")}
                     />
                     {#if cryptoReady}
                         <label class="flex items-start gap-2.5 cursor-pointer">
@@ -418,10 +441,12 @@
                                 class="mt-0.5 accent-discord-accent"
                             />
                             <span class="text-sm text-discord-textPrimary"
-                                >Encrypt this DM
+                                >{t("quickActions.encryptThisDm")}
                                 <span
                                     class="block text-xs text-discord-textMuted"
-                                    >Can't be turned off later.</span
+                                    >{t(
+                                        "quickActions.canTBeTurnedOffLater",
+                                    )}</span
                                 ></span
                             >
                         </label>
@@ -436,7 +461,7 @@
                             <button
                                 onclick={openNoticeRoom}
                                 class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
-                                >Open the DM</button
+                                >{t("quickActions.openTheDm")}</button
                             >
                         </div>
                     {/if}
@@ -447,7 +472,7 @@
                         <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
                             class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
-                            >Room address or ID</label
+                            >{t("quickActions.roomAddressOrId")}</label
                         >
                         <input
                             bind:value={input1}
@@ -455,24 +480,22 @@
                                 resetKnock();
                                 error = "";
                             }}
-                            placeholder="#room:server.com"
+                            placeholder={t("quickActions.roomServerCom")}
                             class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                         />
                     </div>
                     {#if knockSent}
                         <p class="text-sm text-discord-textSecondary">
-                            Request sent - you'll be able to join once someone
-                            lets you in.
+                            {t("quickActions.requestSentYouLlBeAble")}
                         </p>
                     {:else if knockOffered}
                         <div>
                             <p class="text-sm text-discord-textMuted mb-1.5">
-                                You can't join this room directly, but you can
-                                request to join it.
+                                {t("quickActions.youCanTJoinThisRoom")}
                             </p>
                             <input
                                 bind:value={knockReason}
-                                placeholder="Reason (optional)"
+                                placeholder={t("common.reasonOptional")}
                                 class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
                             />
                         </div>
@@ -490,8 +513,8 @@
                     disabled={loading}
                     class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
                     >{mode === "join-room" && knockSent
-                        ? "Close"
-                        : "Cancel"}</button
+                        ? t("common.close")
+                        : t("common.cancel")}</button
                 >
                 {#if mode === "join-room" && knockSent}
                     <!-- Request already sent; nothing left to submit -->
@@ -506,7 +529,7 @@
                                 class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
                             ></div>
                         {/if}
-                        Request to join
+                        {t("quickActions.requestToJoin")}
                     </button>
                 {:else if mode !== "create-dm"}
                     <button
@@ -519,9 +542,11 @@
                                 class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
                             ></div>
                         {/if}
-                        {#if mode === "create-room"}Create
-                        {:else if mode === "create-space"}Create
-                        {:else}Join
+                        {#if mode === "create-room"}{t("quickActions.create")}
+                        {:else if mode === "create-space"}{t(
+                                "quickActions.create",
+                            )}
+                        {:else}{t("common.join")}
                         {/if}
                     </button>
                 {/if}

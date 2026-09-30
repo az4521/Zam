@@ -16,6 +16,7 @@
  * Pure and dependency-free so it can be unit-tested without a DOM or the SDK.
  */
 
+import { t } from "$lib/i18n";
 export interface ArrivedMessage {
     eventId: string;
     sender: string; // display name, already resolved by the caller
@@ -141,12 +142,17 @@ function describeArrivals(pending: readonly ArrivedMessage[]): string {
         const body = truncateBody(collapseWhitespace(only.body));
         // Bodiless events (an image, a sticker, an undecryptable message) still
         // deserve "something arrived, from whom".
-        return body ? `${only.sender}: ${body}` : `Message from ${only.sender}`;
+        return body
+            ? `${only.sender}: ${body}`
+            : t("liveAnnouncer.messageFrom", { sender: only.sender });
     }
     // A burst is summarised, not read out: reading five bodies back to back
     // buries the composer the user is trying to type in.
     const senders = new Set(pending.map((m) => m.sender));
     return senders.size === 1
-        ? `${pending.length} new messages from ${pending[0].sender}`
-        : `${pending.length} new messages`;
+        ? t("liveAnnouncer.newMessagesFrom", {
+              count: pending.length,
+              sender: pending[0].sender,
+          })
+        : t("liveAnnouncer.newMessages", { count: pending.length });
 }

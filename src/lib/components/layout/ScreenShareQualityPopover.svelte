@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
@@ -76,7 +77,7 @@
     {#if touch}
         <button
             type="button"
-            aria-label="Close"
+            aria-label={t("common.close")}
             class="fixed inset-0 z-50 bg-black/40"
             onclick={onClose}
         ></button>
@@ -93,7 +94,7 @@
                         class="w-full py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium"
                         onclick={goLive}
                     >
-                        Go Live
+                        {t("screenShareQualityPopover.goLive")}
                     </button>
                 {/if}
             </div>
@@ -110,7 +111,7 @@
             }}
             class="fixed z-50 w-64 rounded-lg bg-discord-backgroundTertiary border border-discord-divider shadow-xl p-3 space-y-3 overflow-y-auto"
             role="dialog"
-            aria-label="Screen share quality"
+            aria-label={t("screenShareQualityPopover.screenShareQuality")}
         >
             <ScreenShareQualityChips
                 onQualityChange={mode === "live"
@@ -123,7 +124,7 @@
                     class="w-full py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium"
                     onclick={goLive}
                 >
-                    Go Live
+                    {t("screenShareQualityPopover.goLive")}
                 </button>
             {/if}
         </div>

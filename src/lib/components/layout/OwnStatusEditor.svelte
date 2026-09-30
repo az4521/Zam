@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { Smile } from "lucide-svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import { fetchOwnExtendedProfile } from "$lib/matrix/client";
@@ -59,7 +60,9 @@
             savedText = text = status?.text ?? "";
             onDone?.();
         } catch (e) {
-            error = (e as Error)?.message ?? "Could not save status";
+            error =
+                (e as Error)?.message ??
+                t("ownStatusEditor.couldNotSaveStatus");
         } finally {
             busy = false;
         }
@@ -71,7 +74,7 @@
         <button
             type="button"
             onclick={() => (pickerOpen = !pickerOpen)}
-            aria-label="Pick a status emoji"
+            aria-label={t("ownStatusEditor.pickAStatusEmoji")}
             aria-expanded={pickerOpen}
             class="w-9 flex-shrink-0 flex items-center justify-center rounded bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary"
         >
@@ -82,8 +85,8 @@
         <input
             bind:value={text}
             maxlength={MAX_STATUS_TEXT_LENGTH}
-            placeholder="What's happening?"
-            aria-label="Status text"
+            placeholder={t("ownStatusEditor.whatSHappening")}
+            aria-label={t("ownStatusEditor.statusText")}
             onkeydown={(e) => {
                 if (e.key === "Enter") void save();
             }}
@@ -96,7 +99,7 @@
             onclick={() => save()}
             disabled={busy || !dirty || !!problem}
             class="px-3 py-1 bg-discord-accent text-white rounded text-xs font-medium disabled:opacity-50"
-            >{busy ? "Saving…" : "Save"}</button
+            >{busy ? t("common.saving") : t("common.save")}</button
         >
         {#if hasStatus}
             <button
@@ -104,7 +107,7 @@
                 onclick={() => save(true)}
                 disabled={busy}
                 class="px-3 py-1 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-xs font-medium disabled:opacity-50"
-                >Clear status</button
+                >{t("ownStatusEditor.clearStatus")}</button
             >
         {/if}
     </div>

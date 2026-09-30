@@ -14,6 +14,7 @@
 //
 // Session-scoped in-memory, like composerFileQueue — an account switch is a full
 // page reload, so there is no cross-account keying or persistence.
+import { t } from "$lib/i18n";
 
 import {
     emptyOutbox,
@@ -115,7 +116,7 @@ async function flushRoom(roomId: string): Promise<void> {
                     markFailed(
                         state.s,
                         item.id,
-                        matrixErrorMessage(err, "Failed to send"),
+                        matrixErrorMessage(err, t("outbox.failedToSend")),
                     ),
                 );
             }

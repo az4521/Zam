@@ -5,6 +5,7 @@
 // version is available. "Updating" opens the release page in the browser /
 // system browser (on Electron the window-open handler routes external URLs to
 // the OS browser), where the user can grab the new installer/APK.
+import { t } from "$lib/i18n";
 
 import { Capacitor } from "@capacitor/core";
 // GitHub repo to check for releases — shared with the APK download allowlist
@@ -101,13 +102,13 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     if (!res.ok) {
         throw new Error(
             res.status === 404
-                ? "No releases found yet."
-                : `GitHub API error (${res.status}).`,
+                ? t("update.noReleasesFoundYet")
+                : t("update.githubApiError", { status: res.status }),
         );
     }
     const data = await res.json();
     const latest: string = (data.tag_name ?? data.name ?? "").toString();
-    if (!latest) throw new Error("Could not read the latest version.");
+    if (!latest) throw new Error(t("update.couldNotReadTheLatestVersion"));
 
     return {
         current: APP_VERSION,
@@ -152,7 +153,8 @@ export async function fetchReleaseList(
         const res = await fetch(`${RELEASES_API}?per_page=${perPage}`, {
             headers: { Accept: "application/vnd.github+json" },
         });
-        if (!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+        if (!res.ok)
+            throw new Error(t("update.githubApiError", { status: res.status }));
         const data = await res.json();
         const list = Array.isArray(data)
             ? data
@@ -193,7 +195,8 @@ export async function fetchReleaseNotes(version: string): Promise<string> {
                 headers: { Accept: "application/vnd.github+json" },
             });
         }
-        if (!res.ok) throw new Error(`GitHub API error (${res.status}).`);
+        if (!res.ok)
+            throw new Error(t("update.githubApiError", { status: res.status }));
         const data = await res.json();
         const body = typeof data.body === "string" ? data.body : "";
         changelogCacheSet(key, body);

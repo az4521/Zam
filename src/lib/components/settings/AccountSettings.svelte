@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ProfileFieldsEditor from "$lib/components/settings/ProfileFieldsEditor.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
@@ -129,7 +130,9 @@
             avatarMxc = mxc;
             flashSaved();
         } catch (error) {
-            profileError = (error as Error)?.message ?? "Avatar upload failed";
+            profileError =
+                (error as Error)?.message ??
+                t("accountSettings.avatarUploadFailed");
         } finally {
             avatarUploading = false;
         }
@@ -144,7 +147,8 @@
             flashSaved();
         } catch (error) {
             profileError =
-                (error as Error)?.message ?? "Failed to remove avatar";
+                (error as Error)?.message ??
+                t("accountSettings.failedToRemoveAvatar");
         } finally {
             avatarUploading = false;
         }
@@ -157,7 +161,9 @@
             await setOwnDisplayName(displayName.trim());
             flashSaved();
         } catch (error) {
-            profileError = (error as Error)?.message ?? "Failed to save name";
+            profileError =
+                (error as Error)?.message ??
+                t("accountSettings.failedToSaveName");
         } finally {
             savingName = false;
         }
@@ -169,7 +175,8 @@
             await changeOwnPresence(value);
         } catch (error) {
             presenceError =
-                (error as Error)?.message ?? "Could not set presence";
+                (error as Error)?.message ??
+                t("accountSettings.couldNotSetPresence");
         }
     }
 
@@ -190,7 +197,8 @@
             passwordChanged = true;
         } catch (error) {
             passwordError =
-                (error as Error)?.message ?? "Failed to change password";
+                (error as Error)?.message ??
+                t("accountSettings.failedToChangePassword");
         } finally {
             passwordBusy = false;
         }
@@ -213,7 +221,8 @@
             onLogout();
         } catch (error) {
             deactivateError =
-                (error as Error)?.message ?? "Failed to deactivate account";
+                (error as Error)?.message ??
+                t("accountSettings.failedToDeactivateAccount");
             deactivateBusy = false;
         }
     }
@@ -228,13 +237,13 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Profile
+            {t("accountSettings.profile")}
         </p>
         <div class="flex items-center gap-4">
             {#if avatarUrl}
                 <img
                     src={avatarUrl}
-                    alt="Your avatar"
+                    alt={t("accountSettings.yourAvatar")}
                     class="w-20 h-20 rounded-full object-cover flex-shrink-0"
                 />
             {:else}
@@ -252,14 +261,16 @@
                     onclick={() => avatarInput?.click()}
                     disabled={avatarUploading}
                     class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                    >{avatarUploading ? "Uploading…" : "Change avatar"}</button
+                    >{avatarUploading
+                        ? t("common.uploading")
+                        : t("accountSettings.changeAvatar")}</button
                 >
                 {#if avatarMxc}
                     <button
                         onclick={removeAvatar}
                         disabled={avatarUploading}
                         class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                        >Remove</button
+                        >{t("common.remove")}</button
                     >
                 {/if}
             </div>
@@ -275,14 +286,14 @@
             <input
                 bind:value={displayName}
                 maxlength="255"
-                placeholder="Your display name"
+                placeholder={t("accountSettings.yourDisplayName")}
                 class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
             />
             <button
                 onclick={saveName}
                 disabled={savingName || !nameChanged}
                 class="px-4 py-2 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                >{savingName ? "Saving…" : "Save"}</button
+                >{savingName ? t("common.saving") : t("common.save")}</button
             >
         </div>
         {#if profileError}<p class="mt-2 text-xs text-discord-danger">
@@ -290,7 +301,7 @@
             </p>{:else if profileSaved}<p
                 class="mt-2 text-xs text-discord-textPositive"
             >
-                Saved
+                {t("accountSettings.saved")}
             </p>{/if}
     </section>
 
@@ -300,23 +311,26 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
         >
-            Account
+            {t("accountSettings.account")}
         </p>
         <div class="flex justify-between py-2 border-b border-discord-divider">
-            <span class="text-discord-textMuted">User ID</span><span
-                class="text-discord-textPrimary font-mono text-xs"
+            <span class="text-discord-textMuted"
+                >{t("accountSettings.userId")}</span
+            ><span class="text-discord-textPrimary font-mono text-xs"
                 >{auth.userId}</span
             >
         </div>
         <div class="flex justify-between py-2 border-b border-discord-divider">
-            <span class="text-discord-textMuted">Homeserver</span><span
-                class="text-discord-textPrimary text-xs"
+            <span class="text-discord-textMuted"
+                >{t("accountSettings.homeserver")}</span
+            ><span class="text-discord-textPrimary text-xs"
                 >{auth.homeserverUrl}</span
             >
         </div>
         <div class="flex justify-between py-2 border-b border-discord-divider">
-            <span class="text-discord-textMuted">Connection</span><span
-                class="text-discord-textPrimary text-xs"
+            <span class="text-discord-textMuted"
+                >{t("accountSettings.connection")}</span
+            ><span class="text-discord-textPrimary text-xs"
                 >{syncStatus.label}</span
             >
         </div>
@@ -326,14 +340,14 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Presence
+            {t("accountSettings.presence")}
         </p>
         <div class="flex items-center gap-3">
             <OptionSelector
                 value={settingsState.ownPresence}
                 options={OWN_PRESENCE_OPTIONS}
                 onChange={setPresence}
-                ariaLabel="Presence"
+                ariaLabel={t("accountSettings.presence")}
             />
             <p class="text-xs text-discord-textMuted">
                 {selectedPresence?.description}
@@ -348,7 +362,7 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Password
+            {t("accountSettings.password")}
         </p>
         {#if canChangePassword}
             <div class="space-y-3 max-w-sm">
@@ -356,45 +370,47 @@
                     type="password"
                     bind:value={currentPassword}
                     autocomplete="current-password"
-                    placeholder="Current password"
+                    placeholder={t("accountSettings.currentPassword")}
                     class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                 />
                 <input
                     type="password"
                     bind:value={newPassword}
                     autocomplete="new-password"
-                    placeholder="New password"
+                    placeholder={t("accountSettings.newPassword")}
                     class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                 />
                 <input
                     type="password"
                     bind:value={confirmPassword}
                     autocomplete="new-password"
-                    placeholder="Confirm new password"
+                    placeholder={t("accountSettings.confirmNewPassword")}
                     class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none"
                 />
                 <div class="flex items-center justify-between gap-3">
                     <span class="text-sm text-discord-textPrimary"
-                        >Sign out all other sessions</span
+                        >{t("accountSettings.signOutAllOtherSessions")}</span
                     >
                     <ToggleSwitch
                         checked={logoutOthers}
                         onChange={(value) => (logoutOthers = value)}
-                        label="Sign out all other sessions"
+                        label={t("accountSettings.signOutAllOtherSessions")}
                     />
                 </div>
                 <button
                     onclick={changePassword}
                     disabled={passwordBusy || passwordProblem !== null}
                     class="px-4 py-2 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
-                    >{passwordBusy ? "Changing…" : "Change password"}</button
+                    >{passwordBusy
+                        ? t("accountSettings.changing")
+                        : t("accountSettings.changePassword")}</button
                 >
                 {#if passwordError}<p class="text-xs text-discord-danger">
                         {passwordError}
                     </p>{:else if passwordChanged}<p
                         class="text-xs text-discord-textPositive"
                     >
-                        Password changed.
+                        {t("accountSettings.passwordChanged")}
                     </p>{:else if passwordProblem && (currentPassword || newPassword || confirmPassword)}<p
                         class="text-xs text-discord-textMuted"
                     >
@@ -403,7 +419,7 @@
             </div>
         {:else}
             <p class="text-sm text-discord-textMuted">
-                This server does not allow changing your password from this app.
+                {t("accountSettings.thisServerDoesNotAllowChanging")}
             </p>
         {/if}
     </section>
@@ -412,13 +428,13 @@
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
-            Email &amp; phone numbers
+            {t("accountSettings.emailPhoneNumbers")}
         </p>
         {#if !securityLoaded}
-            <p class="text-sm text-discord-textMuted">Loading…</p>
+            <p class="text-sm text-discord-textMuted">{t("common.loading")}</p>
         {:else if threePids.length === 0}
             <p class="text-sm text-discord-textMuted">
-                No email addresses or phone numbers are linked to this account.
+                {t("accountSettings.noEmailAddressesOrPhoneNumbers")}
             </p>
         {:else}
             {#each threePids as identifier (identifier.medium + identifier.address)}
@@ -427,8 +443,8 @@
                 >
                     <span class="text-discord-textMuted"
                         >{identifier.medium === "email"
-                            ? "Email"
-                            : "Phone"}</span
+                            ? t("accountSettings.email")
+                            : t("accountSettings.phone")}</span
                     ><span class="text-discord-textPrimary font-mono text-xs"
                         >{identifier.address}</span
                     >
@@ -437,7 +453,7 @@
         {/if}
         {#if securityLoaded && !canManageThreePids}
             <p class="mt-2 text-xs text-discord-textMuted">
-                This server does not allow managing them from this app.
+                {t("accountSettings.thisServerDoesNotAllowManaging")}
             </p>
         {/if}
     </section>
@@ -445,25 +461,25 @@
     <button
         onclick={onLogout}
         class="px-4 py-2 bg-discord-danger text-white rounded font-medium text-sm"
-        >Log Out</button
+        >{t("accountSettings.logOut")}</button
     >
 
     <section class="pt-4 border-t border-discord-divider space-y-3">
         <p
             class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
         >
-            Danger zone
+            {t("accountSettings.dangerZone")}
         </p>
         {#if !deactivateOpen}
             <button
                 onclick={() => (deactivateOpen = true)}
                 class="px-4 py-2 border border-discord-danger text-discord-danger rounded text-sm"
-                >Deactivate account…</button
+                >{t("accountSettings.deactivateAccount")}</button
             >
         {:else}
             <div class="space-y-3 max-w-sm">
                 <p class="text-sm text-discord-textPrimary">
-                    Deactivation is permanent and cannot be undone.
+                    {t("accountSettings.deactivationIsPermanentAndCannotBe")}
                 </p>
                 <input
                     bind:value={deactivateTyped}
@@ -474,17 +490,17 @@
                     type="password"
                     bind:value={deactivatePassword}
                     autocomplete="current-password"
-                    placeholder="Current password"
+                    placeholder={t("accountSettings.currentPassword")}
                     class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2"
                 />
                 <div class="flex items-center justify-between gap-3">
                     <span class="text-sm text-discord-textPrimary"
-                        >Erase messages where possible</span
+                        >{t("accountSettings.eraseMessagesWherePossible")}</span
                     >
                     <ToggleSwitch
                         checked={deactivateErase}
                         onChange={(value) => (deactivateErase = value)}
-                        label="Erase messages where possible"
+                        label={t("accountSettings.eraseMessagesWherePossible")}
                     />
                 </div>
                 <div class="flex gap-2">
@@ -493,14 +509,14 @@
                         disabled={!deactivateArmed || deactivateBusy}
                         class="px-4 py-2 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
                         >{deactivateBusy
-                            ? "Deactivating…"
-                            : "Deactivate account"}</button
+                            ? t("accountSettings.deactivating")
+                            : t("accountSettings.deactivateAccount2")}</button
                     >
                     <button
                         onclick={cancelDeactivation}
                         disabled={deactivateBusy}
                         class="px-4 py-2 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
-                        >Cancel</button
+                        >{t("common.cancel")}</button
                     >
                 </div>
                 {#if deactivateError}<p class="text-xs text-discord-danger">

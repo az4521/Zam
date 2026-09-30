@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import {
         Mic,
         MicOff,
@@ -89,13 +90,13 @@
                 onclick={() => void resumeVoicePlayback()}
                 class="w-full mb-1.5 px-2 py-1.5 rounded bg-discord-warning text-black text-xs font-semibold"
             >
-                Enable audio
+                {t("voiceCallPanel.enableAudio")}
             </button>
         {/if}
         <button
-            class="block w-full min-w-0 text-left"
+            class="block w-full min-w-0 text-start"
             onclick={openCallView}
-            title="Open call view"
+            title={t("voiceCallPanel.openCallView")}
         >
             <!-- spans, not <p>: a button may only contain phrasing content. -->
             <span
@@ -106,7 +107,7 @@
             >
                 {connStateLabel(voiceCallState.connState)}
                 {#if elapsed}
-                    <span class="ml-1 font-normal text-discord-textMuted"
+                    <span class="ms-1 font-normal text-discord-textMuted"
                         >{elapsed}</span
                     >
                 {/if}
@@ -124,8 +125,12 @@
                 class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.micMuted
                     ? 'text-discord-danger'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                title={voiceCallState.micMuted ? "Unmute" : "Mute"}
-                aria-label={voiceCallState.micMuted ? "Unmute" : "Mute"}
+                title={voiceCallState.micMuted
+                    ? t("voiceCallPanel.unmute")
+                    : t("common.mute")}
+                aria-label={voiceCallState.micMuted
+                    ? t("voiceCallPanel.unmute")
+                    : t("common.mute")}
             >
                 {#if voiceCallState.micMuted}<MicOff size={20} />{:else}<Mic
                         size={20}
@@ -136,8 +141,12 @@
                 class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.deafened
                     ? 'text-discord-danger'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                title={voiceCallState.deafened ? "Undeafen" : "Deafen"}
-                aria-label={voiceCallState.deafened ? "Undeafen" : "Deafen"}
+                title={voiceCallState.deafened
+                    ? t("voiceCallPanel.undeafen")
+                    : t("voiceCallPanel.deafen")}
+                aria-label={voiceCallState.deafened
+                    ? t("voiceCallPanel.undeafen")
+                    : t("voiceCallPanel.deafen")}
             >
                 {#if voiceCallState.deafened}<HeadphoneOff
                         size={20}
@@ -149,11 +158,11 @@
                     ? 'text-discord-accent'
                     : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                 title={voiceCallState.cameraOn
-                    ? "Turn off camera"
-                    : "Turn on camera"}
+                    ? t("common.turnOffCamera")
+                    : t("common.turnOnCamera")}
                 aria-label={voiceCallState.cameraOn
-                    ? "Turn off camera"
-                    : "Turn on camera"}
+                    ? t("common.turnOffCamera")
+                    : t("common.turnOnCamera")}
             >
                 {#if voiceCallState.cameraOn}<Video size={20} />{:else}<VideoOff
                         size={20}
@@ -166,20 +175,20 @@
                         ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
                     title={voiceCallState.screenSharing
-                        ? "Stop sharing"
-                        : "Share your screen"}
+                        ? t("common.stopSharing")
+                        : t("common.shareYourScreen")}
                     aria-label={voiceCallState.screenSharing
-                        ? "Stop sharing"
-                        : "Share your screen"}
+                        ? t("common.stopSharing")
+                        : t("common.shareYourScreen")}
                 >
                     <MonitorUp size={20} />
                 </button>
             {/if}
             <button
                 onclick={leaveCall}
-                class="ml-auto p-1.5 rounded hover:bg-discord-messageHover text-discord-danger"
-                title="Disconnect"
-                aria-label="Disconnect"
+                class="ms-auto p-1.5 rounded hover:bg-discord-messageHover text-discord-danger"
+                title={t("voiceCallPanel.disconnect")}
+                aria-label={t("voiceCallPanel.disconnect")}
             >
                 <PhoneOff size={20} />
             </button>

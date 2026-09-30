@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -238,7 +239,7 @@
             errorMsg =
                 outcome.error instanceof Error
                     ? outcome.error.message
-                    : "Could not start verification";
+                    : t("userProfileCard.couldNotStartVerification");
         }
     }
 
@@ -265,7 +266,7 @@
             clearTimeout(copyTimeout);
             copyTimeout = setTimeout(() => (copied = false), 1500);
         } catch {
-            errorMsg = "Could not copy to clipboard";
+            errorMsg = t("userProfileCard.couldNotCopyToClipboard");
         }
     }
 
@@ -280,7 +281,7 @@
         if (followUp.status === "none" || followUp.status === "ok") return;
         const task = followUp.task;
         showErrorToast(followUp.message, {
-            label: "Retry",
+            label: t("common.retry"),
             // retryRoomFollowUp is bounded, so a retry into a wedged sync comes
             // back as its own "unconfirmed" toast instead of hanging forever
             // with the affordance already expired.
@@ -340,7 +341,7 @@
             errorMsg =
                 outcome.error instanceof Error
                     ? outcome.error.message
-                    : "Could not open DM";
+                    : t("userProfileCard.couldNotOpenDm");
         }
     }
 
@@ -389,7 +390,9 @@
         errorMsg =
             outcome.error instanceof Error
                 ? outcome.error.message
-                : `Could not ${action}`;
+                : action === "kick"
+                  ? t("userProfileCard.couldNotKick")
+                  : t("userProfileCard.couldNotBan");
     }
 </script>
 
@@ -437,7 +440,7 @@
                 </div>
                 <div
                     title={presenceLabel(dotState)}
-                    class="absolute bottom-1 right-1 w-4 h-4 {presenceDotClass(
+                    class="absolute bottom-1 end-1 w-4 h-4 {presenceDotClass(
                         presenceDot(dotState),
                     )} rounded-full border-2 border-discord-backgroundSecondary"
                 ></div>
@@ -467,10 +470,12 @@
                 <button
                     onclick={copyUserId}
                     class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title="Copy user ID"
+                    title={t("userProfileCard.copyUserId")}
                 >
                     {#if copied}
-                        <span class="text-xs text-discord-online">Copied</span>
+                        <span class="text-xs text-discord-online"
+                            >{t("userProfileCard.copied")}</span
+                        >
                     {:else}
                         <svg
                             class="w-3.5 h-3.5"
@@ -514,7 +519,7 @@
             {/if}
             {#if localTime}
                 <p class="mt-2 text-xs text-discord-textMuted">
-                    {localTime} local time ({timezone})
+                    {t("userProfileCard.localTime", { localTime, timezone })}
                 </p>
             {/if}
             {#if connections.length > 0}
@@ -535,7 +540,7 @@
             {/if}
             {#if !member && !isSelf}
                 <p class="mt-1 text-xs text-discord-textMuted">
-                    Not a member of this room
+                    {t("userProfileCard.notAMemberOfThisRoom")}
                 </p>
             {/if}
 
@@ -544,7 +549,9 @@
                     <p
                         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
                     >
-                        Mutual rooms: {mutual.total}
+                        {t("userProfileCard.mutualRooms", {
+                            total: mutual.total,
+                        })}
                     </p>
                     {#each mutual.shown as name (name)}
                         <p class="text-xs text-discord-textSecondary truncate">
@@ -553,7 +560,9 @@
                     {/each}
                     {#if mutual.moreCount > 0}
                         <p class="text-xs text-discord-textMuted">
-                            +{mutual.moreCount} more
+                            {t("userProfileCard.more", {
+                                moreCount: mutual.moreCount,
+                            })}
                         </p>
                     {/if}
                 </div>
@@ -568,7 +577,9 @@
                         disabled={pending !== null}
                         class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
-                        {pending === "message" ? "Opening…" : "Message"}
+                        {pending === "message"
+                            ? t("userProfileCard.opening")
+                            : t("userProfileCard.message")}
                     </button>
                     {#if trustBadge && trustBadge.tone !== "verified"}
                         <button
@@ -576,7 +587,9 @@
                             disabled={pending !== null}
                             class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
                         >
-                            {pending === "verify" ? "Starting…" : "Verify user"}
+                            {pending === "verify"
+                                ? t("common.starting")
+                                : t("userProfileCard.verifyUser")}
                         </button>
                     {/if}
                     <button
@@ -587,10 +600,10 @@
                             : 'text-discord-danger'}"
                     >
                         {pending === "block"
-                            ? "Saving…"
+                            ? t("common.saving")
                             : blocked
-                              ? "Unblock"
-                              : "Block"}
+                              ? t("common.unblock")
+                              : t("common.block")}
                     </button>
                     {#if canKickTarget || canBanTarget}
                         <div class="flex gap-1.5">
@@ -601,10 +614,10 @@
                                     class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-warning/20 text-discord-warning text-sm font-semibold transition-colors disabled:opacity-50"
                                 >
                                     {pending === "kick"
-                                        ? "Kicking…"
+                                        ? t("userProfileCard.kicking")
                                         : confirming === "kick"
-                                          ? "Confirm kick?"
-                                          : "Kick"}
+                                          ? t("userProfileCard.confirmKick")
+                                          : t("userProfileCard.kick")}
                                 </button>
                             {/if}
                             {#if canBanTarget}
@@ -614,10 +627,10 @@
                                     class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
                                 >
                                     {pending === "ban"
-                                        ? "Banning…"
+                                        ? t("userProfileCard.banning")
                                         : confirming === "ban"
-                                          ? "Confirm ban?"
-                                          : "Ban"}
+                                          ? t("userProfileCard.confirmBan")
+                                          : t("userProfileCard.ban")}
                                 </button>
                             {/if}
                         </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { page } from "$app/state";
     import { goto } from "$app/navigation";
@@ -40,11 +41,11 @@
     import Splash from "$lib/components/layout/Splash.svelte";
     import LoginView from "$lib/components/layout/LoginView.svelte";
 
-    const RESTORE_FAILED_MESSAGE = "Failed to reconnect. Please log in again.";
-    const SYNC_START_FAILED_MESSAGE =
-        "Signed in, but syncing could not start. Please try again.";
-    const SESSION_EXPIRED_MESSAGE =
-        "Your session has expired. Please sign in again.";
+    const RESTORE_FAILED_MESSAGE = t("rootPage.failedToReconnectPleaseLogIn");
+    const SYNC_START_FAILED_MESSAGE = t("rootPage.signedInButSyncingCouldNot");
+    const SESSION_EXPIRED_MESSAGE = t(
+        "rootPage.yourSessionHasExpiredPleaseSign",
+    );
 
     // Add-account mode ("/?add"): reactive to the URL so an in-app SPA nav
     // (AccountSwitcher → goto("/?add")) flips it WITHOUT a route remount. It is
