@@ -21,6 +21,7 @@ import {
     MatrixEventEvent,
     Method,
     BeaconEvent,
+    SlidingSyncEvent,
     M_BEACON,
     M_BEACON_INFO,
     ContentHelpers,
@@ -38,6 +39,21 @@ import type {
     Beacon,
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
+import {
+    SlidingSync,
+    SlidingSyncState,
+    MSC3575_STATE_KEY_ME,
+    MSC3575_STATE_KEY_LAZY,
+    type MSC3575List,
+} from "matrix-js-sdk/lib/sliding-sync";
+import {
+    isSlidingSyncUnsupportedError,
+    nextWindowEnd,
+} from "$lib/utils/slidingSyncHelpers";
+import {
+    isSlidingSyncEnabled,
+    setSlidingSyncEnabled,
+} from "$lib/matrix/slidingSyncPref";
 import type * as LivekitClient from "livekit-client";
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -372,7 +388,10 @@ function getLocalStorage(): Storage | undefined {
 }
 
 function getSyncDbName(userId: string, deviceId: string): string {
-    return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:sync`;
+    // Sliding sync feeds the store differently from /sync v2, so the two never
+    // share a cache: flipping the toggle must not replay one's data as the other's.
+    const suffix = isSlidingSyncEnabled(userId) ? "sliding-sync" : "sync";
+    return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:${suffix}`;
 }
 
 async function createAuthenticatedClient(opts: {
@@ -542,6 +561,7 @@ export async function login(
     homeserverUrl: string,
     username: string,
     password: string,
+    slidingSync = false,
 ): Promise<{
     userId: string;
     accessToken: string;
@@ -561,6 +581,8 @@ export async function login(
 
     tempClient.stopClient();
 
+    // Must be recorded before the client is built: the store name depends on it.
+    setSlidingSyncEnabled(response.user_id, slidingSync);
     await createAuthenticatedClient({
         baseUrl: resolvedURL,
         accessToken: response.access_token!,
@@ -581,6 +603,7 @@ export async function register(
     username: string,
     password: string,
     registrationToken?: string,
+    slidingSync = false,
 ): Promise<{
     userId: string;
     accessToken: string;
@@ -608,6 +631,7 @@ export async function register(
     const resolvedURL = tempClient.getHomeserverUrl();
     tempClient.stopClient();
 
+    setSlidingSyncEnabled(response.user_id, slidingSync);
     await createAuthenticatedClient({
         baseUrl: resolvedURL,
         accessToken: response.access_token!,
@@ -647,6 +671,187 @@ export function isInitialSyncComplete(): boolean {
     return initialSyncComplete;
 }
 
+// Sliding sync tuning. The room list is a window that starts small (fast first
+// paint) and grows in the background until every joined room is loaded, so a
+// large account never waits on one giant initial response.
+const SLIDING_ALL_LIST = "all_rooms";
+const SLIDING_INITIAL_WINDOW = 30;
+const SLIDING_GROW_STEP = 100;
+const SLIDING_LIST_TIMELINE = 1;
+const SLIDING_ROOM_TIMELINE = 30;
+const SLIDING_TIMEOUT_MS = 30000;
+
+// What the room list / space tree / notification logic need for EVERY room.
+// Kept deliberately small: full state is only fetched for the open room.
+const SLIDING_LIST_STATE: string[][] = [
+    ["m.room.create", ""],
+    ["m.room.name", ""],
+    ["m.room.avatar", ""],
+    ["m.room.canonical_alias", ""],
+    ["m.room.topic", ""],
+    ["m.room.encryption", ""],
+    ["m.room.tombstone", ""],
+    ["m.room.join_rules", ""],
+    ["m.space.parent", "*"],
+    ["m.room.member", MSC3575_STATE_KEY_ME],
+];
+
+// The room being viewed gets everything (power levels, pins, members as the
+// timeline references them) plus a deeper timeline.
+const SLIDING_ROOM_STATE: string[][] = [
+    ["*", "*"],
+    ["m.room.member", MSC3575_STATE_KEY_ME],
+    ["m.room.member", MSC3575_STATE_KEY_LAZY],
+];
+
+let activeSlidingSync: SlidingSync | null = null;
+let slidingActiveRoomId: string | null = null;
+
+// Rooms whose missing backward token has already been probed for this session.
+const slidingPrimedRooms = new Set<string>();
+
+// Set when the account asked for sliding sync but the server can't do it.
+let slidingSyncFallbackReason: string | null = null;
+
+/** Why sliding sync was turned off for this session, or null if it wasn't. */
+export function getSlidingSyncFallbackReason(): string | null {
+    return slidingSyncFallbackReason;
+}
+
+/** True while the current client is syncing over sliding sync. */
+export function isUsingSlidingSync(): boolean {
+    return activeSlidingSync !== null;
+}
+
+/** How much of the room list sliding sync has loaded, or null on classic /sync. */
+export function getSlidingSyncProgress(): {
+    requested: number;
+    total: number;
+} | null {
+    if (!activeSlidingSync) return null;
+    const end =
+        activeSlidingSync.getListParams(SLIDING_ALL_LIST)?.ranges[0]?.[1];
+    const total =
+        activeSlidingSync.getListData(SLIDING_ALL_LIST)?.joinedCount ?? 0;
+    return { requested: Math.min((end ?? -1) + 1, total), total };
+}
+
+/**
+ * Subscribe the sliding-sync connection to the room being viewed so it gets
+ * full state and a deeper timeline than the room-list window provides. No-op
+ * on classic /sync (which already delivers everything).
+ */
+export function setSlidingSyncActiveRoom(roomId: string | null): void {
+    slidingActiveRoomId = roomId;
+    activeSlidingSync?.modifyRoomSubscriptions(new Set(roomId ? [roomId] : []));
+}
+
+/**
+ * A SlidingSync (MSC4186 simplified sliding sync, served natively by the
+ * homeserver) when this account opted in on the login page, else undefined so
+ * the SDK falls back to classic /sync.
+ */
+async function buildSlidingSync(
+    client: MatrixClient,
+    onFallback?: (reason: string) => void,
+): Promise<SlidingSync | undefined> {
+    activeSlidingSync = null;
+    slidingSyncFallbackReason = null;
+    slidingPrimedRooms.clear();
+    const userId = client.getUserId();
+    if (!userId || !isSlidingSyncEnabled(userId)) return undefined;
+
+    // Ask the server before committing: on one that lacks the endpoint sync
+    // would otherwise just sit in an error state with no way back.
+    try {
+        await client.slidingSync(
+            { lists: {}, timeout: 0, clientTimeout: 10000 },
+            client.getHomeserverUrl(),
+        );
+    } catch (err) {
+        if (isSlidingSyncUnsupportedError(err)) {
+            const reason =
+                "This homeserver doesn't support sliding sync, so classic sync is being used instead.";
+            console.warn(
+                "[matrix] sliding sync unsupported, falling back",
+                err,
+            );
+            // Turned off so the next boot doesn't probe and warn again; the
+            // user can re-enable it from Debug settings if the server changes.
+            setSlidingSyncEnabled(userId, false);
+            slidingSyncFallbackReason = reason;
+            onFallback?.(reason);
+            return undefined;
+        }
+        // Anything else (network blip, 5xx, rate limit) is not evidence the
+        // server can't do it; let the real sync loop retry as it normally does.
+    }
+
+    const lists = new Map<string, MSC3575List>([
+        [
+            SLIDING_ALL_LIST,
+            {
+                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                sort: ["by_recency"],
+                timeline_limit: SLIDING_LIST_TIMELINE,
+                required_state: SLIDING_LIST_STATE,
+            },
+        ],
+        [
+            // Spaces are few and their m.space.child events define the whole
+            // sidebar tree, so they are always fully loaded up front.
+            "spaces",
+            {
+                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                sort: ["by_name"],
+                filters: { room_types: ["m.space"] },
+                timeline_limit: 0,
+                required_state: [...SLIDING_LIST_STATE, ["m.space.child", "*"]],
+            },
+        ],
+        [
+            // Pending invites must never wait behind the recency window.
+            "invites",
+            {
+                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                sort: ["by_recency"],
+                filters: { is_invite: true },
+                timeline_limit: 0,
+                required_state: SLIDING_LIST_STATE,
+            },
+        ],
+    ]);
+
+    const sliding = new SlidingSync(
+        client.getHomeserverUrl(),
+        lists,
+        {
+            timeline_limit: SLIDING_ROOM_TIMELINE,
+            required_state: SLIDING_ROOM_STATE,
+        },
+        client,
+        SLIDING_TIMEOUT_MS,
+    );
+
+    // Grow every list one page per completed response until it covers all the
+    // rooms the server reports for it (so no list has a hard cap).
+    sliding.on(SlidingSyncEvent.Lifecycle, (state: SlidingSyncState) => {
+        if (state !== SlidingSyncState.Complete) return;
+        for (const key of lists.keys()) {
+            const total = sliding.getListData(key)?.joinedCount ?? 0;
+            const end = sliding.getListParams(key)?.ranges[0]?.[1];
+            const next = nextWindowEnd(end, total, SLIDING_GROW_STEP);
+            if (next !== null) sliding.setListRanges(key, [[0, next]]);
+        }
+    });
+
+    if (slidingActiveRoomId) {
+        sliding.modifyRoomSubscriptions(new Set([slidingActiveRoomId]));
+    }
+    activeSlidingSync = sliding;
+    return sliding;
+}
+
 /**
  * Start the sync loop for the current client and return a disposer that
  * detaches this session's listeners.
@@ -659,6 +864,7 @@ export function isInitialSyncComplete(): boolean {
 export async function startSync(
     onStateChange: (state: string) => void,
     onSessionExpired?: () => void,
+    onSlidingSyncFallback?: (reason: string) => void,
 ): Promise<() => void> {
     const owner = captureClient();
     const client = owner.client;
@@ -723,7 +929,12 @@ export async function startSync(
     };
 
     try {
+        const slidingSync = await buildSlidingSync(
+            client,
+            onSlidingSyncFallback,
+        );
         await client.startClient({
+            slidingSync: slidingSync,
             initialSyncLimit: 8,
             lazyLoadMembers: true,
             pendingEventOrdering: PendingEventOrdering.Detached,
@@ -2776,7 +2987,9 @@ export async function getOwnDevices(): Promise<DeviceInfo[]> {
         displayName: d.display_name,
         lastSeenIp: d.last_seen_ip,
         lastSeenTs: d.last_seen_ts,
-        lastSeenUserAgent: d.last_seen_user_agent,
+        // Not in the SDK's IMyDevice type since v42, but servers still send it.
+        lastSeenUserAgent: (d as { last_seen_user_agent?: string })
+            .last_seen_user_agent,
     }));
 }
 
@@ -3965,6 +4178,9 @@ let liveReconcileRunning = false;
  */
 export async function reconcileJoinedRoomsLive(): Promise<void> {
     if (!matrixClient || liveReconcileRunning) return;
+    // Sliding sync loads rooms in a growing window, so rooms outside it are
+    // "missing" by design, not because sync dropped them.
+    if (isUsingSlidingSync()) return;
     liveReconcileRunning = true;
     try {
         const server = await matrixClient.getJoinedRooms();
@@ -4058,9 +4274,21 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
     const owner = captureOwnership(matrixClient, clientGeneration);
     const timeline = room.getLiveTimeline();
+    const hasBackwardToken = !!timeline.getPaginationToken(Direction.Backward);
+    // Sliding sync can hand over a room with a short (or all-hidden) timeline
+    // and no prev_batch even though older history exists, which scrollback()
+    // would read as "start of history" and the room would open as empty. Probe
+    // once per room; the once-only guard is what keeps a genuinely complete
+    // room from being re-primed (and re-paged) forever.
+    const slidingProbe =
+        isUsingSlidingSync() &&
+        !hasBackwardToken &&
+        !slidingPrimedRooms.has(room.roomId);
+    if (slidingProbe) slidingPrimedRooms.add(room.roomId);
     if (
+        slidingProbe ||
         shouldPrimePaginationToken({
-            hasBackwardToken: !!timeline.getPaginationToken(Direction.Backward),
+            hasBackwardToken,
             timelineEventCount: timeline.getEvents().length,
         })
     ) {

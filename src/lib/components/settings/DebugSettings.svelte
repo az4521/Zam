@@ -1,7 +1,17 @@
 <script lang="ts">
     import ExtendedProfileDebug from "$lib/components/settings/ExtendedProfileDebug.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
-    import { getClient, getPushRuleSummary } from "$lib/matrix/client";
+    import { auth } from "$lib/stores/auth.svelte";
+    import {
+        isSlidingSyncEnabled,
+        setSlidingSyncEnabled,
+    } from "$lib/matrix/slidingSyncPref";
+    import {
+        getClient,
+        getPushRuleSummary,
+        getSlidingSyncProgress,
+        getSlidingSyncFallbackReason,
+    } from "$lib/matrix/client";
     import {
         checkGatewayHealth,
         fetchRegisteredPushers,
@@ -32,6 +42,41 @@
     let nativeSession = $state<NativeSessionState | null>(null);
     let webPush = $state<WebPushDebug | null>(null);
     let rules = $state(getPushRuleSummary());
+
+    // Flipping the mode needs a fresh client: sliding sync and /sync feed the
+    // store differently (each has its own cache), so apply it with a reload.
+    function toggleSlidingSync(enabled: boolean) {
+        if (!auth.userId) return;
+        setSlidingSyncEnabled(auth.userId, enabled);
+        window.location.reload();
+    }
+
+    const syncRows = $derived.by(() => {
+        const client = getClient();
+        const progress = getSlidingSyncProgress();
+        const sliding = auth.userId ? isSlidingSyncEnabled(auth.userId) : false;
+        return [
+            [
+                "Sync mode",
+                sliding ? "Sliding sync (MSC4186)" : "Classic /sync (v2)",
+            ],
+            ["Sync state", auth.syncState],
+            ...(getSlidingSyncFallbackReason()
+                ? ([["Fallback", getSlidingSyncFallbackReason()!]] as [
+                      string,
+                      string,
+                  ][])
+                : []),
+            ["Sliding sync endpoint", sliding ? auth.homeserverUrl : "(n/a)"],
+            ["Joined rooms loaded", String(client?.getRooms().length ?? 0)],
+            [
+                "Room list window",
+                progress
+                    ? `${progress.requested} of ${progress.total}`
+                    : "(n/a)",
+            ],
+        ] as [string, string][];
+    });
 
     const rows = $derived([
         ["Platform", pushDebug.native ? "Native (Capacitor)" : "Web/Desktop"],
@@ -140,6 +185,45 @@
                 label="Show all events"
             />
         </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            Sync Status
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">Use sliding sync</p>
+                <p class="text-xs text-discord-textMuted">
+                    Experimental. Loads rooms in a growing window. Reloads the
+                    app to apply.
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={auth.userId
+                    ? isSlidingSyncEnabled(auth.userId)
+                    : false}
+                onChange={toggleSlidingSync}
+                label="Use sliding sync"
+            />
+        </div>
+        {#each syncRows as [label, value]}
+            <div
+                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+            >
+                <span class="text-discord-textMuted flex-shrink-0 w-44"
+                    >{label}</span
+                >
+                <span
+                    class="text-discord-textPrimary break-all font-mono text-xs"
+                    >{value}</span
+                >
+            </div>
+        {/each}
     </section>
 
     <ExtendedProfileDebug />

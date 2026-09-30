@@ -42,6 +42,7 @@
     let error = $state("");
     let statusMsg = $state("");
     let mode = $state<"login" | "register">("login");
+    let useSlidingSync = $state(false);
 
     onMount(() => {
         // Surface a session-expiry / restore-failure message handed over via the
@@ -76,7 +77,12 @@
             if (!url.startsWith("http")) url = "https://" + url;
             url = url.replace(/\/$/, "");
             statusMsg = "Logging in…";
-            const result = await login(url, loginUsername, password);
+            const result = await login(
+                url,
+                loginUsername,
+                password,
+                useSlidingSync,
+            );
             await onAuthenticated(result);
         } catch (err) {
             error =
@@ -104,6 +110,7 @@
                 registrationUsername,
                 password,
                 registrationToken || undefined,
+                useSlidingSync,
             );
             await onAuthenticated(result);
         } catch (err) {
@@ -270,6 +277,24 @@
                         />
                     </div>
                 {/if}
+
+                <!-- Sliding sync -->
+                <label class="flex items-start gap-3 cursor-pointer">
+                    <input
+                        id="sliding-sync"
+                        type="checkbox"
+                        bind:checked={useSlidingSync}
+                        disabled={isLoading}
+                        class="mt-0.5 w-4 h-4 accent-discord-accent"
+                    />
+                    <span class="text-sm text-discord-textSecondary">
+                        Use sliding sync
+                        <span class="block text-xs text-discord-textMuted">
+                            Faster startup on servers that support it
+                            (experimental).
+                        </span>
+                    </span>
+                </label>
 
                 <button
                     type="submit"

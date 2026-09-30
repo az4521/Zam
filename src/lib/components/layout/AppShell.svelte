@@ -133,6 +133,7 @@
         getSpaceChildSignature,
         fetchSpaceHierarchy,
         scheduleJoinedRoomsReconcile,
+        setSlidingSyncActiveRoom,
         getRoom,
         getRoomDisplayName,
         getMemberName,
@@ -1060,6 +1061,13 @@
     // Safe in a tracked effect — every read is a plain reactive store field,
     // and closeRoomNotifications touches a plain Map and the Notification API,
     // never the SDK.
+    // Sliding sync only carries a windowed room list; the room being viewed
+    // needs its own subscription for full state and a deeper timeline. A no-op
+    // on classic /sync.
+    $effect(() => {
+        setSlidingSyncActiveRoom(roomsState.activeRoomId);
+    });
+
     $effect(() => {
         const openRoomId = roomsState.activeRoomId;
         if (!openRoomId) return;

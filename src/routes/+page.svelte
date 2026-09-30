@@ -12,6 +12,7 @@
         leaveVoiceCall,
     } from "$lib/matrix/client";
     import { unregisterPush } from "$lib/push";
+    import { showToast } from "$lib/stores/toasts.svelte";
     import { clearNativeSession } from "$lib/nativeSession";
     // The crypto-store delete helper is deliberately NOT imported here: session
     // expiry must never wipe the crypto store (user decision, 2026-07-30 — only
@@ -106,9 +107,13 @@
     async function beginSync(attempt: number): Promise<void> {
         disposeSync?.();
         disposeSync = null;
-        const dispose = await startSync((state) => {
-            auth.syncState = state;
-        }, handleSessionExpired);
+        const dispose = await startSync(
+            (state) => {
+                auth.syncState = state;
+            },
+            handleSessionExpired,
+            (reason) => showToast(reason, { tone: "accent" }),
+        );
         if (!isLiveAttempt(startup, attempt)) {
             dispose();
             return;
