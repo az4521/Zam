@@ -16,6 +16,7 @@ import {
     type IEvent,
     type MatrixClient,
 } from "matrix-js-sdk";
+import type { SpaceChildInfo } from "./client";
 
 const SNAPSHOT_VERSION = 1;
 
@@ -68,6 +69,8 @@ export interface RoomListSnapshot {
     savedAt: number;
     accountData: Partial<IEvent>[];
     rooms: CachedRoom[];
+    /** Last /hierarchy result per space (client.ts owns the shape). */
+    hierarchies?: Record<string, SpaceChildInfo[]>;
 }
 
 export interface MaterializedCache {

@@ -1,6 +1,7 @@
 import type { Room } from "matrix-js-sdk";
 import {
     findSpaceForRoom,
+    getCachedHierarchy,
     getRoom,
     getRoomsInSpace,
     getRoomTags,
@@ -265,7 +266,10 @@ export function setActiveSpace(
     // Restoring a space's last room is a navigation too: if that room is a
     // video room it must land on the call surface, not a stale timeline.
     applyDefaultSurface(roomsState.activeRoomId);
-    roomsState.spaceHierarchy = [];
+    // Last known children while the fresh /hierarchy loads, not a blank list.
+    roomsState.spaceHierarchy = spaceId
+        ? (getCachedHierarchy(spaceId) ?? [])
+        : [];
     roomsState.spaceDrillParentId = drill?.parentId ?? null;
     roomsState.spaceDrillName = drill?.name ?? null;
     roomsState.spaceDrillDepth = drill ? (drill.depth ?? 1) : 0;
@@ -320,7 +324,9 @@ export function navigateToRoom(roomId: string, eventId?: string): void {
     const targetSpace = findSpaceForRoom(roomId);
     if (targetSpace !== roomsState.activeSpaceId) {
         roomsState.activeSpaceId = targetSpace;
-        roomsState.spaceHierarchy = [];
+        roomsState.spaceHierarchy = targetSpace
+            ? (getCachedHierarchy(targetSpace) ?? [])
+            : [];
         roomsState.spaceDrillParentId = null;
         roomsState.spaceDrillName = null;
         roomsState.spaceDrillDepth = 0;

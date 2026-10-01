@@ -37,6 +37,8 @@
         getSpaceChildren,
         getSpaceChildIds,
         fetchSpaceHierarchy,
+        getCachedHierarchy,
+        patchCachedHierarchyEntry,
         getDMPartnerId,
         getRoomCallMemberships,
         getMemberName,
@@ -500,6 +502,7 @@
         roomId: string,
         patch: Partial<SpaceChildInfo>,
     ): void {
+        patchCachedHierarchyEntry(roomId, patch);
         roomsState.spaceHierarchy = roomsState.spaceHierarchy.map((r) =>
             r.roomId === roomId ? { ...r, ...patch } : r,
         );
@@ -1376,9 +1379,12 @@
             ancestors: string[],
         )}
             {@const expanded = !collapsedSubspaces.has(node.id)}
-            {@const kids = spaceChildren(node.id, subHierarchies[node.id])}
+            {@const hier =
+                subHierarchies[node.id] ?? getCachedHierarchy(node.id)}
+            {@const kids = spaceChildren(node.id, hier)}
             {@const sub = expanded ? null : subtreeState(node.id)}
-            {@const loading = subHierarchyLoading.has(node.id)}
+            <!-- Spinner only when there's nothing cached to show meanwhile. -->
+            {@const loading = subHierarchyLoading.has(node.id) && !hier}
             {@const nestedSpaces = kids.spaces.filter(
                 (c) => c.id !== node.id && !ancestors.includes(c.id),
             )}

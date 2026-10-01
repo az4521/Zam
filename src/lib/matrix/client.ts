@@ -1681,6 +1681,7 @@ function resetRoomListCache(): void {
     roomListCache = null;
     roomListComplete = false;
     lastSnapshotSaveAt = 0;
+    hierarchyCache.clear();
 }
 
 function lookupRoom(roomId: string): Room | null {
@@ -1722,6 +1723,8 @@ async function hydrateRoomListCache(client: MatrixClient): Promise<void> {
     const snapshot = await loadSnapshot(snapshotKey(userId, deviceId));
     if (!snapshot || matrixClient !== client || roomListComplete) return;
     roomListCache = materializeSnapshot(client, snapshot);
+    for (const [spaceId, list] of Object.entries(snapshot.hierarchies ?? {}))
+        if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
 }
 
 function markRoomListComplete(client: MatrixClient): void {
@@ -1745,7 +1748,10 @@ async function saveRoomListSnapshot(
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!userId || !deviceId) return;
-    await saveSnapshot(snapshotKey(userId, deviceId), buildSnapshot(client));
+    await saveSnapshot(snapshotKey(userId, deviceId), {
+        ...buildSnapshot(client),
+        hierarchies: Object.fromEntries(hierarchyCache),
+    });
 }
 
 /**
@@ -5273,7 +5279,7 @@ export async function fetchSpaceHierarchy(
             .map((r) => r.roomId),
     );
 
-    return rooms.map((r) => {
+    const result = rooms.map((r): SpaceChildInfo => {
         const mxcAvatar = r["avatar_url"] as string | undefined;
         const roomId = r["room_id"] as string;
         return {
@@ -5291,6 +5297,33 @@ export async function fetchSpaceHierarchy(
             isKnocked: knockedIds.has(roomId),
         };
     });
+    hierarchyCache.set(spaceId, result);
+    return result;
+}
+
+// Last fetched /hierarchy per space. Shown the moment a space or sub-space is
+// opened again (and on boot, via the room-list snapshot) while a fresh fetch
+// runs, so unjoined rooms and sub-space contents don't blink out on a switch.
+const hierarchyCache = new Map<string, SpaceChildInfo[]>();
+
+export function getCachedHierarchy(
+    spaceId: string,
+): SpaceChildInfo[] | undefined {
+    return hierarchyCache.get(spaceId);
+}
+
+/** Apply a local change (join, knock) to every cached hierarchy listing it. */
+export function patchCachedHierarchyEntry(
+    roomId: string,
+    patch: Partial<SpaceChildInfo>,
+): void {
+    for (const [spaceId, list] of hierarchyCache) {
+        if (!list.some((r) => r.roomId === roomId)) continue;
+        hierarchyCache.set(
+            spaceId,
+            list.map((r) => (r.roomId === roomId ? { ...r, ...patch } : r)),
+        );
+    }
 }
 
 const SPACE_ORDER_KEY = "im.client.space_order";
