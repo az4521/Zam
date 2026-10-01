@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld("desktop", {
     },
     // The OS's General MIDI sound bank bytes, or null (see main.cjs).
     readSystemSoundBank: () => ipcRenderer.invoke("soundbank:system"),
+    hasSystemSoundBank: () => ipcRenderer.invoke("soundbank:has-system"),
     contextMenu: {
         // Right-click "Save image as": main hands over the image's src URL;
         // the renderer fetches it with auth and saves it.

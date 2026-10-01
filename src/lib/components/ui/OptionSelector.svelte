@@ -3,6 +3,7 @@
         value: T;
         label: string;
         title?: string;
+        disabled?: boolean;
     }
 
     interface Props {
@@ -22,12 +23,14 @@
             onclick={() => onChange(option.value)}
             aria-pressed={value === option.value}
             title={option.title}
-            class="px-2.5 py-1 rounded text-xs font-medium transition-colors"
+            disabled={option.disabled}
+            class="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             class:bg-discord-accent={value === option.value}
             class:text-white={value === option.value}
             class:bg-discord-backgroundTertiary={value !== option.value}
             class:text-discord-textMuted={value !== option.value}
-            class:hover:bg-discord-messageHover={value !== option.value}
+            class:hover:bg-discord-messageHover={value !== option.value &&
+                !option.disabled}
         >
             {option.label}
         </button>

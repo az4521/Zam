@@ -25,6 +25,10 @@ import {
 } from "$lib/utils/timeFormat";
 import { normalizeGifTab, type GifTab } from "$lib/utils/klipy";
 import {
+    normalizeMidiSoundBank,
+    type MidiSoundBankChoice,
+} from "$lib/utils/midiSoundBankChoice";
+import {
     parseAudioMap,
     serializeAudioMap,
     type ParticipantAudio,
@@ -238,6 +242,11 @@ export const settingsState = $state({
      *  auto-play a video. Default ON (least surprising). Local-only, like
      *  showReadReceiptAvatars — it does not ride customization sync. */
     pauseVideoOnScrollOff: readBool("pauseVideoOnScrollOff", true),
+    /** Device-global: which sound bank plays MIDI attachments (see
+     *  utils/midiSoundBank). Default "system", which falls back to the bundled
+     *  bank where the OS has none. Local-only: a custom bank lives in this
+     *  device's IndexedDB. */
+    midiSoundBank: normalizeMidiSoundBank(readString("midiSoundBank")),
     /** Device-global: minimise animations and transitions (battery-saver /
      *  accessibility). Default OFF (motion on). Additive to the OS
      *  `prefers-reduced-motion` query — the OS preference is still honoured
@@ -744,6 +753,11 @@ export function setShowReadReceiptAvatars(value: boolean): void {
 export function setPauseVideoOnScrollOff(value: boolean): void {
     settingsState.pauseVideoOnScrollOff = value;
     writeBool("pauseVideoOnScrollOff", value);
+}
+
+export function setMidiSoundBank(value: MidiSoundBankChoice): void {
+    settingsState.midiSoundBank = value;
+    writeString("midiSoundBank", value);
 }
 
 export function setReduceMotion(value: boolean): void {

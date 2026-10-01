@@ -20,6 +20,8 @@ declare global {
             showWindow?: () => void;
             /** The OS's General MIDI sound bank (DLS/SF2) bytes, or null. */
             readSystemSoundBank?: () => Promise<Uint8Array | null>;
+            /** Whether readSystemSoundBank would find a bank. */
+            hasSystemSoundBank?: () => Promise<boolean>;
             sso?: {
                 /** SSO redirect caught by the local server (path + query). */
                 onCallback: (cb: (url: string) => void) => () => void;

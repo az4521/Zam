@@ -878,6 +878,27 @@ const messages: Record<MessageKey, string> = {
         "L'onglet sur lequel s'ouvre le sélecteur de GIF.",
     "messagesMediaSettings.defaultGifTab": "Onglet GIF par défaut",
     "messagesMediaSettings.favourites": "Favoris",
+    "midiSoundBank.midi": "MIDI",
+    "midiSoundBank.soundBank": "Banque de sons",
+    "midiSoundBank.theInstrumentSoundsUsedTo":
+        "Les sons d'instruments utilisés pour lire les pièces jointes MIDI.",
+    "midiSoundBank.system": "Système",
+    "midiSoundBank.included": "Incluse",
+    "midiSoundBank.custom": "Personnalisée",
+    "midiSoundBank.noSystemSoundBankFound":
+        "Aucune banque de sons système trouvée sur cet appareil : la banque incluse est utilisée.",
+    "midiSoundBank.chooseFile": "Choisir un fichier",
+    "midiSoundBank.chooseAnotherFile": "Choisir un autre fichier",
+    "midiSoundBank.saving": "Enregistrement…",
+    "midiSoundBank.sf2Sf3OrDlsUpTo":
+        "Personnalisée : un fichier SF2, SF3 ou DLS de 256 Mo max., conservé sur cet appareil.",
+    "midiSoundBank.useAnSf2Sf3OrDls": "Utilisez un fichier SF2, SF3 ou DLS.",
+    "midiSoundBank.thatFileIsEmpty": "Ce fichier est vide.",
+    "midiSoundBank.fileIsTooLarge":
+        "Ce fichier est trop volumineux (256 Mo max.).",
+    "midiSoundBank.notASoundBank": "Ce fichier n'est pas une banque de sons.",
+    "midiSoundBank.couldNotSave":
+        "Impossible d'enregistrer la banque de sons sur cet appareil (le stockage est peut-être plein).",
 
     // src/lib/components/ui/ModalDialog.fixture.svelte
     "modalDialog.fixture.fixtureDialog": "Boîte de dialogue de test",
@@ -2790,6 +2811,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviewMedia": "Médias des aperçus de liens",
     "settingsSearch.pauseVideosOffScreen":
         "Mettre en pause les vidéos hors écran",
+    "settingsSearch.midiSoundBank": "Banque de sons MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Maintenir pour ouvrir le menu du message",
     "settingsSearch.gifDefaultTab": "Onglet GIF par défaut",

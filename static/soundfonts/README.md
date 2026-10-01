@@ -20,13 +20,19 @@ To rebuild (needs ffmpeg with libopus on PATH):
 
 ## How it's used
 
-`src/lib/utils/midiSoundBank.ts` renders MIDI attachments with, in order:
+`src/lib/utils/midiSoundBank.ts` renders MIDI attachments with the bank
+picked under Settings > Messages & media > MIDI:
 
-1. The OS's own bank (desktop app only): `gm.dls` on Windows, Apple's
-   `gs_instruments.dls` on macOS, a distro SoundFont on Linux.
-2. This bank. Its Opus samples are decoded with WebCodecs, so browsers
-   without `AudioDecoder` skip it.
-3. The built-in oscillator synth in `src/lib/utils/midi.ts`.
+- **System** (default): the OS's own bank (desktop app only): `gm.dls` on
+  Windows, Apple's `gs_instruments.dls` on macOS, a distro SoundFont on
+  Linux. Greyed out where there is none.
+- **Included**: this bank. Its Opus samples are decoded with WebCodecs, so
+  browsers without `AudioDecoder` can't use it.
+- **Custom**: an SF2/SF3/DLS the user picks, stored in IndexedDB
+  (`src/lib/utils/customSoundBank.ts`).
+
+A choice that can't be met falls back to this bank, and with no bank at all
+the built-in oscillator synth in `src/lib/utils/midi.ts` plays instead.
 
 The file is fetched only when someone plays a MIDI attachment. It isn't in
 the service worker's offline precache, but it does ship inside the Electron

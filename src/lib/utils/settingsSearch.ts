@@ -183,6 +183,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "messages-media",
+        label: t("settingsSearch.midiSoundBank"),
+        keywords: ["midi", "soundfont", "sf2", "dls", "instruments", "music"],
+        anchor: "cust-midi",
+    },
+    {
+        tab: "messages-media",
         label: t("settingsSearch.holdToOpenMessageMenu"),
         keywords: ["touch", "long press", "tap"],
         anchor: "cust-messages",

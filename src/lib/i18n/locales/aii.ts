@@ -830,6 +830,26 @@ const messages: Record<MessageKey, string> = {
         "ܐܝܢܐ ܠܘܚܐ ܦܬܚ ܓܒܝܬܐ ܕ GIF.",
     "messagesMediaSettings.defaultGifTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",
     "messagesMediaSettings.favourites": "ܚܒܝ̈ܒܐ",
+    "midiSoundBank.midi": "MIDI",
+    "midiSoundBank.soundBank": "ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ",
+    "midiSoundBank.theInstrumentSoundsUsedTo":
+        "ܩ̈ܠܐ ܕܡܐܢ̈ܐ ܕܙܡܪܐ ܕܡܬܦܠܚܝ ܠܡܫܡܘܥܐ ܕܡ̈ܕܥܡܐ ܕ MIDI.",
+    "midiSoundBank.system": "ܛܟܣܐ",
+    "midiSoundBank.included": "ܥܡ ܦܪܘܓܪܡ",
+    "midiSoundBank.custom": "ܦܪܨܘܦܝܐ",
+    "midiSoundBank.noSystemSoundBankFound":
+        "ܠܝܬ ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܕܛܟܣܐ ܒܗܢܐ ܡܐܢܐ، ܡܛܠ ܗܕܐ ܗܘ ܕܥܡ ܦܪܘܓܪܡ ܡܬܦܠܚ.",
+    "midiSoundBank.chooseFile": "ܓܒܝ ܦܐܝܠ",
+    "midiSoundBank.chooseAnotherFile": "ܓܒܝ ܦܐܝܠ ܐܚܪܢܐ",
+    "midiSoundBank.saving": "ܒܢܛܪܐ…",
+    "midiSoundBank.sf2Sf3OrDlsUpTo":
+        "ܦܪܨܘܦܝܐ: ܦܐܝܠ SF2، SF3 ܐܘ DLS ܥܕܡܐ ܠ 256 MB، ܢܛܝܪܐ ܒܗܢܐ ܡܐܢܐ.",
+    "midiSoundBank.useAnSf2Sf3OrDls": "ܦܠܘܚ ܦܐܝܠ SF2، SF3 ܐܘ DLS.",
+    "midiSoundBank.thatFileIsEmpty": "ܗܘ ܦܐܝܠ ܣܦܝܩܐ ܝܠܗ.",
+    "midiSoundBank.fileIsTooLarge": "ܗܘ ܦܐܝܠ ܪܒܐ ܝܠܗ ܝܬܝܪ (ܝܬܝܪ ܡܢ ܟܠ 256 MB).",
+    "midiSoundBank.notASoundBank": "ܗܘ ܦܐܝܠ ܠܐ ܝܠܗ ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ.",
+    "midiSoundBank.couldNotSave":
+        "ܠܐ ܡܨܐ ܠܢܛܪܐ ܕܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܒܗܢܐ ܡܐܢܐ (ܐܝܟ ܕܡܬܚܙܐ ܡܠܝܐ ܝܠܗ).",
 
     // src/lib/components/ui/ModalDialog.fixture.svelte
     "modalDialog.fixture.fixtureDialog": "ܟܘܬܐ ܕܢܣܝܢܐ",
@@ -2600,6 +2620,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviews": "ܚܙܝ̈ܬܐ ܩܕܡܝ̈ܬܐ ܕܐܣܘܪ̈ܐ",
     "settingsSearch.linkPreviewMedia": "ܡܝܕܝܐ ܕܚܙܝܬܐ ܩܕܡܝܬܐ ܕܐܣܘܪ̈ܐ",
     "settingsSearch.pauseVideosOffScreen": "ܦܣܘܩ ܒܝܕܝܘ̈ܐ ܠܒܪ ܡܢ ܡܚܙܝܬܐ",
+    "settingsSearch.midiSoundBank": "ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܕ MIDI",
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",
     "settingsSearch.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",

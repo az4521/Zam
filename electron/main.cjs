@@ -358,18 +358,33 @@ const SYSTEM_SOUND_BANKS = {
 };
 const MAX_SOUND_BANK_BYTES = 256 * 1024 * 1024;
 
-ipcMain.handle("soundbank:system", async () => {
+async function findSystemSoundBank() {
     for (const file of SYSTEM_SOUND_BANKS[process.platform] || []) {
         try {
             const stat = await fs.promises.stat(file);
-            if (!stat.isFile() || stat.size > MAX_SOUND_BANK_BYTES) continue;
-            return await fs.promises.readFile(file);
+            if (stat.isFile() && stat.size <= MAX_SOUND_BANK_BYTES) return file;
         } catch {
             // missing or unreadable: try the next one
         }
     }
     return null;
+}
+
+ipcMain.handle("soundbank:system", async () => {
+    const file = await findSystemSoundBank();
+    if (!file) return null;
+    try {
+        return await fs.promises.readFile(file);
+    } catch {
+        return null;
+    }
 });
+
+// Whether a system bank exists, without reading it (the settings page asks).
+ipcMain.handle(
+    "soundbank:has-system",
+    async () => (await findSystemSoundBank()) !== null,
+);
 
 // A notification arrived for a window the user is not looking at: flash the
 // taskbar button (Windows/Linux) or bounce the dock icon (macOS).

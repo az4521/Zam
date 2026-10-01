@@ -879,6 +879,26 @@ export const en = {
         "Which tab the GIF picker opens on.",
     "messagesMediaSettings.defaultGifTab": "Default GIF tab",
     "messagesMediaSettings.favourites": "Favourites",
+    "midiSoundBank.midi": "MIDI",
+    "midiSoundBank.soundBank": "Sound bank",
+    "midiSoundBank.theInstrumentSoundsUsedTo":
+        "The instrument sounds used to play MIDI attachments.",
+    "midiSoundBank.system": "System",
+    "midiSoundBank.included": "Included",
+    "midiSoundBank.custom": "Custom",
+    "midiSoundBank.noSystemSoundBankFound":
+        "No system sound bank was found on this device, so the included one is used.",
+    "midiSoundBank.chooseFile": "Choose file",
+    "midiSoundBank.chooseAnotherFile": "Choose another file",
+    "midiSoundBank.saving": "Saving…",
+    "midiSoundBank.sf2Sf3OrDlsUpTo":
+        "Custom: an SF2, SF3 or DLS file up to 256 MB, kept on this device.",
+    "midiSoundBank.useAnSf2Sf3OrDls": "Use an SF2, SF3 or DLS file.",
+    "midiSoundBank.thatFileIsEmpty": "That file is empty.",
+    "midiSoundBank.fileIsTooLarge": "That file is too large (max 256 MB).",
+    "midiSoundBank.notASoundBank": "That file isn't a sound bank.",
+    "midiSoundBank.couldNotSave":
+        "Couldn't save the sound bank on this device (storage may be full).",
 
     // src/lib/components/ui/ModalDialog.fixture.svelte
     "modalDialog.fixture.fixtureDialog": "Fixture dialog",
@@ -2688,6 +2708,7 @@ export const en = {
     "settingsSearch.linkPreviews": "Link previews",
     "settingsSearch.linkPreviewMedia": "Link preview media",
     "settingsSearch.pauseVideosOffScreen": "Pause videos off-screen",
+    "settingsSearch.midiSoundBank": "MIDI sound bank",
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
     "settingsSearch.gifDefaultTab": "GIF default tab",
     "settingsSearch.minimiseToTrayOnClose": "Minimise to tray on close",

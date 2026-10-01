@@ -892,6 +892,27 @@ const messages: Record<MessageKey, string> = {
         "Welcher Tab in der GIF-Auswahl zuerst geöffnet wird.",
     "messagesMediaSettings.defaultGifTab": "Standard-GIF-Tab",
     "messagesMediaSettings.favourites": "Favoriten",
+    "midiSoundBank.midi": "MIDI",
+    "midiSoundBank.soundBank": "Soundbank",
+    "midiSoundBank.theInstrumentSoundsUsedTo":
+        "Die Instrumentenklänge, mit denen MIDI-Anhänge abgespielt werden.",
+    "midiSoundBank.system": "System",
+    "midiSoundBank.included": "Mitgeliefert",
+    "midiSoundBank.custom": "Eigene",
+    "midiSoundBank.noSystemSoundBankFound":
+        "Auf diesem Gerät wurde keine System-Soundbank gefunden, daher wird die mitgelieferte verwendet.",
+    "midiSoundBank.chooseFile": "Datei auswählen",
+    "midiSoundBank.chooseAnotherFile": "Andere Datei auswählen",
+    "midiSoundBank.saving": "Wird gespeichert…",
+    "midiSoundBank.sf2Sf3OrDlsUpTo":
+        "Eigene: eine SF2-, SF3- oder DLS-Datei bis 256 MB, auf diesem Gerät gespeichert.",
+    "midiSoundBank.useAnSf2Sf3OrDls":
+        "Verwende eine SF2-, SF3- oder DLS-Datei.",
+    "midiSoundBank.thatFileIsEmpty": "Diese Datei ist leer.",
+    "midiSoundBank.fileIsTooLarge": "Diese Datei ist zu groß (max. 256 MB).",
+    "midiSoundBank.notASoundBank": "Diese Datei ist keine Soundbank.",
+    "midiSoundBank.couldNotSave":
+        "Die Soundbank konnte auf diesem Gerät nicht gespeichert werden (der Speicher ist eventuell voll).",
 
     // src/lib/components/ui/ModalDialog.fixture.svelte
     "modalDialog.fixture.fixtureDialog": "Testdialog",
@@ -2820,6 +2841,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviewMedia": "Medien in Linkvorschauen",
     "settingsSearch.pauseVideosOffScreen":
         "Videos außerhalb des Bildschirms pausieren",
+    "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",
     "settingsSearch.gifDefaultTab": "Standard-GIF-Tab",
