@@ -199,6 +199,7 @@ export const en = {
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "Redirecting…",
     "appShell.noRoomsYet": "No rooms yet",
+    "appShell.resizeRoomList": "Resize room list",
     "appShell.createARoomOrStartA":
         "Create a room or start a direct message to get going.",
     "appShell.nothingInHome": "Nothing in Home",
@@ -1300,6 +1301,7 @@ export const en = {
     "roomList.requestToJoin": "Request to join",
     "roomList.directMessages": "Direct Messages",
     "roomList.noRoomsYet": "No rooms yet",
+    "roomList.emptyCategory": "No rooms",
     "roomList.copyRoomLink": "Copy Room Link",
     "roomList.markAsRead": "Mark as Read",
     "roomList.addToSpace": "Add to Space",

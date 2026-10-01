@@ -154,6 +154,16 @@ import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
 import { resolveDisplayName } from "$lib/utils/displayName";
+import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
+import {
+    buildSnapshot,
+    deleteSnapshot,
+    loadSnapshot,
+    materializeSnapshot,
+    saveSnapshot,
+    snapshotKey,
+    type MaterializedCache,
+} from "./roomListCache";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
     markSyncStoreFallback,
@@ -503,6 +513,7 @@ async function createAuthenticatedClient(opts: {
     // Same reasoning as the media limit below: the outgoing client's memoized
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
+    resetRoomListCache();
     // Drop the previous server's cached media-config upload limit — this funnel
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
@@ -1146,12 +1157,19 @@ async function buildSlidingSync(
     // rooms the server reports for it (so no list has a hard cap).
     sliding.on(SlidingSyncEvent.Lifecycle, (state: SlidingSyncState) => {
         if (state !== SlidingSyncState.Complete) return;
+        let growing = false;
         for (const key of lists.keys()) {
             const total = sliding.getListData(key)?.joinedCount ?? 0;
             const end = sliding.getListParams(key)?.ranges[0]?.[1];
             const next = nextWindowEnd(end, total, SLIDING_GROW_STEP);
-            if (next !== null) sliding.setListRanges(key, [[0, next]]);
+            if (next !== null) {
+                growing = true;
+                sliding.setListRanges(key, [[0, next]]);
+            }
         }
+        // Every window already covered its list: the room list is whole.
+        if (!growing && activeSlidingSync === sliding)
+            markRoomListComplete(client);
     });
 
     if (slidingActiveRoomId) {
@@ -1181,6 +1199,11 @@ export async function startSync(
     initialSyncComplete = false;
 
     const onSync = guardOwnership(owner, readOwner, (state: string) => {
+        // Classic /sync delivers the whole room list in one (cached or live)
+        // pass; sliding sync reports completion from its list windows.
+        if (state === "PREPARED" && !isUsingSlidingSync())
+            markRoomListComplete(client);
+        if (state === "SYNCING") void saveRoomListSnapshot(client);
         if (state === "PREPARED") {
             initialSyncComplete = true;
             seedStatelessRooms();
@@ -1235,7 +1258,17 @@ export async function startSync(
         client.off("Room.myMembership" as never, onMyMembership as never);
         client.off(ClientEvent.Room as never, onRoom as never);
         if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
+        document.removeEventListener("visibilitychange", onHidden);
     };
+
+    // Paint the last known room list while sync catches up.
+    await hydrateRoomListCache(client);
+    // A hidden page may never come back (mobile kills it): save on the way out.
+    const onHidden = () => {
+        if (document.visibilityState === "hidden")
+            void saveRoomListSnapshot(client, true);
+    };
+    document.addEventListener("visibilitychange", onHidden);
 
     try {
         const slidingSync = await buildSlidingSync(
@@ -1474,6 +1507,10 @@ export async function logout(): Promise<void> {
         // handler only logs), and AppShell's 4s window then reloads the page
         // with the key material still on disk — writing the marker afterwards
         // would never run in exactly the case it exists for.
+        // The cached room list is account data too: wipe it with the rest.
+        if (userId && deviceId)
+            void deleteSnapshot(snapshotKey(userId, deviceId));
+        resetRoomListCache();
         if (userId && deviceId) {
             rememberPendingWipe({
                 userId,
@@ -1555,6 +1592,7 @@ export function stopClient(): void {
     // Room ids are globally unique so a surviving entry could not be *wrong*,
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();
+    resetRoomListCache();
 }
 
 const pendingLeaves = new Set<string>();
@@ -1606,13 +1644,108 @@ export function markRoomPendingArrival(roomId: string): void {
 }
 
 export function getRooms(): Room[] {
-    return (matrixClient?.getRooms() ?? []).filter(
+    return listRooms().filter(
         (r) => r.getMyMembership() === "join" && !pendingLeaves.has(r.roomId),
     );
 }
 
+/**
+ * A room by id, falling back to the cached room list while sync catches up.
+ * Display and lookup only — anything that must act on a live room (open its
+ * timeline, send) uses `getLiveRoom`.
+ */
 export function getRoom(roomId: string): Room | null {
+    return lookupRoom(roomId);
+}
+
+/** The SDK's own room, never a cached stand-in. */
+export function getLiveRoom(roomId: string): Room | null {
     return matrixClient?.getRoom(roomId) ?? null;
+}
+
+// ── Cached room list (see roomListCache.ts) ────────────────────────────────
+//
+// On boot the last saved room list is materialised into detached Room objects
+// and consulted as a fallback by the room-list helpers below, so the sidebar
+// renders at once instead of waiting for sync. Live rooms always win. Once the
+// real list is complete (classic: first PREPARED; sliding: every list window
+// covers its room count) the cache is dropped, which also prunes rooms left
+// while we were away, and a fresh snapshot is saved.
+
+let roomListCache: MaterializedCache | null = null;
+let roomListComplete = false;
+let lastSnapshotSaveAt = 0;
+const SNAPSHOT_SAVE_INTERVAL_MS = 2 * 60_000;
+
+function resetRoomListCache(): void {
+    roomListCache = null;
+    roomListComplete = false;
+    lastSnapshotSaveAt = 0;
+}
+
+function lookupRoom(roomId: string): Room | null {
+    return (
+        matrixClient?.getRoom(roomId) ??
+        roomListCache?.rooms.get(roomId) ??
+        null
+    );
+}
+
+function lookupAccountData(type: string): MatrixEvent | undefined {
+    return (
+        matrixClient?.getAccountData(type as never) ??
+        roomListCache?.accountData.get(type)
+    );
+}
+
+/** Every SDK room plus cached rooms the SDK doesn't have yet. */
+function listRooms(): Room[] {
+    const live = matrixClient?.getRooms() ?? [];
+    if (!roomListCache || !matrixClient) return live;
+    const client = matrixClient;
+    const extra = [...roomListCache.rooms.values()].filter(
+        (r) => !client.getRoom(r.roomId),
+    );
+    return extra.length ? [...live, ...extra] : live;
+}
+
+/** True while the sidebar may be showing cached rooms. */
+export function isRoomListFromCache(): boolean {
+    return roomListCache !== null;
+}
+
+async function hydrateRoomListCache(client: MatrixClient): Promise<void> {
+    resetRoomListCache();
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    if (!userId || !deviceId) return;
+    const snapshot = await loadSnapshot(snapshotKey(userId, deviceId));
+    if (!snapshot || matrixClient !== client || roomListComplete) return;
+    roomListCache = materializeSnapshot(client, snapshot);
+}
+
+function markRoomListComplete(client: MatrixClient): void {
+    if (matrixClient !== client || roomListComplete) return;
+    roomListComplete = true;
+    if (roomListCache) {
+        roomListCache = null;
+        for (const cb of roomUpdateSubscribers) cb();
+    }
+    void saveRoomListSnapshot(client, true);
+}
+
+async function saveRoomListSnapshot(
+    client: MatrixClient,
+    force = false,
+): Promise<void> {
+    if (matrixClient !== client || !roomListComplete) return;
+    const now = Date.now();
+    if (!force && now - lastSnapshotSaveAt < SNAPSHOT_SAVE_INTERVAL_MS) return;
+    lastSnapshotSaveAt = now;
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    if (!userId || !deviceId) return;
+    await saveSnapshot(snapshotKey(userId, deviceId), buildSnapshot(client));
 }
 
 /**
@@ -1697,7 +1830,7 @@ export function getSpaces(): Room[] {
 const spaceChildCache = new Map<string, { signature: string; ids: string[] }>();
 
 function spaceChildEvents(spaceId: string) {
-    const space = matrixClient?.getRoom(spaceId);
+    const space = lookupRoom(spaceId);
     if (!space) return null;
     const events = space
         .getLiveTimeline()
@@ -1767,13 +1900,24 @@ export function getSpaceChildIds(spaceId: string): string[] {
  * Used to select the right space when jumping to a room from elsewhere.
  */
 export function findSpaceForRoom(roomId: string): string | null {
-    for (const space of getSpaces()) {
-        if (space.getMyMembership() !== "join") continue;
-        if (getSpaceChildIds(space.roomId).includes(roomId)) {
-            return space.roomId;
-        }
+    // A room inside a sub-space opens under its top-level space, where the
+    // sub-space renders as a category; the sub-space itself is not on the rail.
+    const parents = getDirectParentSpaceIds(roomId);
+    if (!parents.length) return null;
+    const nested = getNestedSpaceIds();
+    for (const p of parents) {
+        const top = topLevelSpaceOf(p, getDirectParentSpaceIds, nested);
+        if (top) return top;
     }
-    return null;
+    return parents[0];
+}
+
+/** Joined spaces that live under another joined space (see utils/spaceTree). */
+export function getNestedSpaceIds(): Set<string> {
+    const joined = getSpaces()
+        .filter((s) => s.getMyMembership() === "join")
+        .map((s) => s.roomId);
+    return nestedSpaceIds(joined, getSpaceChildIds);
 }
 
 /** Joined spaces whose m.space.child list includes this room (DIRECT parents only). */
@@ -1791,7 +1935,7 @@ export function getDirectParentSpaceIds(roomId: string): string[] {
 export function getRoomsInSpace(spaceId: string): Room[] {
     const childIds = getSpaceChildIds(spaceId);
     return childIds
-        .map((id) => matrixClient?.getRoom(id))
+        .map((id) => lookupRoom(id))
         .filter(
             (r): r is Room =>
                 !!r &&
@@ -1802,7 +1946,7 @@ export function getRoomsInSpace(spaceId: string): Room[] {
 }
 
 export function getDirectRoomIds(): Set<string> {
-    const directEvent = matrixClient?.getAccountData(EventType.Direct);
+    const directEvent = lookupAccountData(EventType.Direct);
     if (!directEvent) return new Set();
     const content = directEvent.getContent() as Record<string, string[]>;
     return new Set(Object.values(content).flat());
@@ -1848,7 +1992,7 @@ export function getRoomClassification(
     // Deliberately the UNFILTERED SDK list: getInvitedRooms/getKnockedRooms
     // read it raw, and only the joined buckets go through the pendingLeaves
     // filter that the exported getRooms() applies.
-    const all = matrixClient?.getRooms() ?? [];
+    const all = listRooms();
     const rooms = all.map((r) => ({
         room: r,
         roomId: r.roomId,
@@ -1891,7 +2035,7 @@ const roomTagToggleInFlight = new Set<string>();
 
 /** Read a room's tags from local synced state (no HTTP round-trip). */
 export function getRoomTags(roomId: string): RoomTagMap {
-    return (matrixClient?.getRoom(roomId)?.tags ?? {}) as RoomTagMap;
+    return (lookupRoom(roomId)?.tags ?? {}) as RoomTagMap;
 }
 
 export async function setRoomTag(
@@ -4455,6 +4599,10 @@ function seedStatelessRooms(): void {
  */
 export async function clearCacheAndReload(): Promise<void> {
     try {
+        const userId = matrixClient?.getUserId();
+        const deviceId = matrixClient?.getDeviceId();
+        if (userId && deviceId)
+            await deleteSnapshot(snapshotKey(userId, deviceId));
         matrixClient?.stopClient();
         await matrixStore?.deleteAllData();
     } catch (err) {
@@ -5148,14 +5296,13 @@ export interface SpaceLayout {
 
 export function getSpaceLayout(): SpaceLayout {
     if (!matrixClient) return { order: [], folders: {} };
-    const layout = matrixClient
-        .getAccountData(SPACE_LAYOUT_KEY)
-        ?.getContent() as SpaceLayout | undefined;
+    const layout = lookupAccountData(SPACE_LAYOUT_KEY)?.getContent() as
+        SpaceLayout | undefined;
     if (layout?.order?.length) return layout;
     // Migrate from old space_order key
     const oldOrder =
-        (matrixClient.getAccountData(SPACE_ORDER_KEY)?.getContent()
-            ?.order as string[]) ?? [];
+        (lookupAccountData(SPACE_ORDER_KEY)?.getContent()?.order as string[]) ??
+        [];
     return { order: oldOrder, folders: {} };
 }
 

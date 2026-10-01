@@ -200,6 +200,7 @@ const messages: Record<MessageKey, string> = {
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "ܒܡܫܢܝܐ…",
     "appShell.noRoomsYet": "ܠܝܬ ܓܘܡ̈ܐ ܗܠ ܗܫܐ",
+    "appShell.resizeRoomList": "ܫܚܠܦ ܡܫܘܚܬܐ ܕܣܕܪܐ ܕܓܘܡ̈ܐ",
     "appShell.createARoomOrStartA": "ܒܪܝ ܓܘܡܐ ܝܢ ܫܪܝ ܐܓܪܬܐ ܫܪܝܪܬܐ ܩܐ ܫܘܪܝܐ.",
     "appShell.nothingInHome": "ܠܝܬ ܡܕܡ ܓܘ ܒܝܬܐ",
     "appShell.allOfYourRoomsLiveIn":
@@ -1243,6 +1244,7 @@ const messages: Record<MessageKey, string> = {
     "roomList.requestToJoin": "ܒܥܝ ܥܠܠܐ",
     "roomList.directMessages": "ܐܓܪ̈ܬܐ ܫܪܝܪ̈ܬܐ",
     "roomList.noRoomsYet": "ܠܝܬ ܓܘܡ̈ܐ ܗܠ ܗܫܐ",
+    "roomList.emptyCategory": "ܠܝܬ ܓܘܡ̈ܐ",
     "roomList.copyRoomLink": "ܢܣܘܚ ܐܣܘܪܐ ܕܓܘܡܐ",
     "roomList.markAsRead": "ܢܝܫ ܐܝܟ ܩܪܝܐ",
     "roomList.addToSpace": "ܐܘܣܦ ܠܚܘܕܪܐ",

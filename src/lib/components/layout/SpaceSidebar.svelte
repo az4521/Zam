@@ -16,6 +16,7 @@
         getRoomUnreadInfo,
         getRoomsInSpace,
         getSpaceChildIds,
+        getNestedSpaceIds,
         getRoom,
         getOrphanRooms,
         getDirectRooms,
@@ -242,6 +243,14 @@
         | { kind: "space"; id: string; space: Room }
         | { kind: "folder"; id: string; spaces: Room[] };
 
+    // Sub-spaces of a joined space render as categories in the room list, so
+    // only top-level spaces get a slot on the rail.
+    const railSpaces = $derived.by(() => {
+        void roomsState.roomsTick; // m.space.child state mutates in place
+        const nested = getNestedSpaceIds();
+        return roomsState.spaces.filter((s) => !nested.has(s.roomId));
+    });
+
     const rootItems = $derived.by((): RootItem[] => {
         void roomsState.roomsTick; // space names/avatars mutate in place
         const { order, folders } = roomsState.spaceLayout;
@@ -250,7 +259,7 @@
         );
 
         if (!order.length) {
-            return roomsState.spaces.map((s) => ({
+            return railSpaces.map((s) => ({
                 kind: "space",
                 id: s.roomId,
                 space: s,
@@ -261,17 +270,15 @@
         for (const id of order) {
             if (folders[id]) {
                 const folderSpaces = folders[id].spaceIds
-                    .map((sid) =>
-                        roomsState.spaces.find((s) => s.roomId === sid),
-                    )
+                    .map((sid) => railSpaces.find((s) => s.roomId === sid))
                     .filter((s): s is Room => !!s);
                 result.push({ kind: "folder", id, spaces: folderSpaces });
             } else {
-                const space = roomsState.spaces.find((s) => s.roomId === id);
+                const space = railSpaces.find((s) => s.roomId === id);
                 if (space) result.push({ kind: "space", id, space });
             }
         }
-        for (const space of roomsState.spaces) {
+        for (const space of railSpaces) {
             if (
                 !order.includes(space.roomId) &&
                 !spacesInFolders.has(space.roomId)
@@ -295,8 +302,14 @@
     });
 
     function getLayout(): SpaceLayout {
+        // Include root items that render but aren't persisted in `order` yet
+        // (e.g. newly joined spaces), so indexOf never returns -1
+        const order = [...roomsState.spaceLayout.order];
+        for (const item of rootItems) {
+            if (!order.includes(item.id)) order.push(item.id);
+        }
         return {
-            order: [...roomsState.spaceLayout.order],
+            order,
             folders: Object.fromEntries(
                 Object.entries(roomsState.spaceLayout.folders).map(([k, v]) => [
                     k,
@@ -376,6 +389,32 @@
         e.stopPropagation();
         if (!dragState || dragState.id === targetId) return;
         dropTarget = { id: targetId, position: calcPos(e, "two") };
+    }
+
+    let navEl = $state<HTMLElement>();
+
+    // Drop target for a pointer that isn't over an item (gaps between items,
+    // empty space below the last one): nearest root slot by vertical position
+    function rootTargetAt(clientY: number): typeof dropTarget {
+        if (!navEl || !dragState) return null;
+        const els = [
+            ...navEl.querySelectorAll<HTMLElement>("[data-root-id]"),
+        ].filter((el) => el.dataset.rootId !== dragState!.id);
+        if (!els.length) return null;
+        for (const el of els) {
+            const r = el.getBoundingClientRect();
+            if (clientY < r.top + r.height / 2)
+                return { id: el.dataset.rootId!, position: "before" };
+        }
+        return { id: els[els.length - 1].dataset.rootId!, position: "after" };
+    }
+
+    function onNavDragOver(e: DragEvent) {
+        e.preventDefault();
+        if (!dragState) return;
+        // Gaps inside an expanded folder keep the last folder-level target
+        if ((e.target as Element).closest?.("[data-folder-inner]")) return;
+        dropTarget = rootTargetAt(e.clientY);
     }
 
     function onDragEnd() {
@@ -868,6 +907,7 @@
                 let position: "before" | "after" | "into";
                 if (
                     isDraggingSpace() &&
+                    !spaceFolderMap.has(targetId) &&
                     (targetKind === "space" || targetKind === "folder")
                 ) {
                     position =
@@ -877,6 +917,9 @@
                 }
                 dropTarget = { id: targetId, position };
             }
+        } else if (el && navEl?.contains(el)) {
+            if (!el.closest("[data-folder-inner]"))
+                dropTarget = rootTargetAt(t.clientY);
         } else {
             dropTarget = null;
         }
@@ -901,7 +944,8 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav
     class="w-[4.5rem] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
-    ondragover={(e) => e.preventDefault()}
+    bind:this={navEl}
+    ondragover={onNavDragOver}
     ondrop={onDrop}
 >
     <!-- Home button -->
@@ -947,12 +991,6 @@
 
     <!-- Root items -->
     {#each rootItems as item (item.id)}
-        {#if dropTarget?.id === item.id && dropTarget.position === "before"}
-            <div
-                class="w-10 h-0.5 bg-discord-accent rounded-full flex-shrink-0 -my-0.5 pointer-events-none"
-            ></div>
-        {/if}
-
         {#if item.kind === "space"}
             {@const isActive =
                 roomsState.activeSpaceId === item.space.roomId ||
@@ -980,6 +1018,7 @@
                 ontouchend={onItemTouchEnd}
                 data-drag-id={item.space.roomId}
                 data-drag-kind="space"
+                data-root-id={item.id}
                 class="group relative w-12 h-12 flex items-center justify-center transition-all duration-200 flex-shrink-0"
                 class:opacity-40={dragState?.id === item.id}
                 class:ring-2={isMergeTarget}
@@ -1014,6 +1053,14 @@
                         class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-e-full opacity-0 group-hover:opacity-100 group-hover:h-5 transition-all duration-200"
                     ></div>
                 {/if}
+                {#if dropTarget?.id === item.id && dropTarget.position !== "into"}
+                    <div
+                        class="absolute left-1/2 -translate-x-1/2 w-10 h-0.5 bg-discord-accent rounded-full pointer-events-none {dropTarget.position ===
+                        'before'
+                            ? '-top-[5px]'
+                            : '-bottom-[5px]'}"
+                    ></div>
+                {/if}
             </button>
         {:else}
             {@const isExpanded = expandedFolders.has(item.id)}
@@ -1036,9 +1083,18 @@
                 { unread: false, highlight: false, loud: false },
             )}
             <div
-                class="flex flex-col items-center gap-1 flex-shrink-0"
+                class="relative flex flex-col items-center gap-1 flex-shrink-0"
                 class:opacity-40={dragState?.id === item.id}
+                data-root-id={item.id}
             >
+                {#if dropTarget?.id === item.id && dropTarget.position !== "into"}
+                    <div
+                        class="absolute left-1/2 -translate-x-1/2 w-10 h-0.5 bg-discord-accent rounded-full pointer-events-none {dropTarget.position ===
+                        'before'
+                            ? '-top-[5px]'
+                            : '-bottom-[5px]'}"
+                    ></div>
+                {/if}
                 <button
                     onclick={() => toggleFolder(item.id)}
                     oncontextmenu={(e) => openFolderContextMenu(e, item.id)}
@@ -1124,13 +1180,9 @@
                 {#if isExpanded}
                     <div
                         class="flex flex-col items-center gap-1 bg-discord-backgroundSecondary/50 rounded-xl px-1 py-1 w-12"
+                        data-folder-inner
                     >
                         {#each item.spaces as space (space.roomId)}
-                            {#if dropTarget?.id === space.roomId && dropTarget.position === "before"}
-                                <div
-                                    class="w-8 h-0.5 bg-discord-accent rounded-full pointer-events-none -my-0.5"
-                                ></div>
-                            {/if}
                             {@const isActive =
                                 roomsState.activeSpaceId === space.roomId}
                             {@const isn = getSpaceNotifs(space.roomId)}
@@ -1194,22 +1246,19 @@
                                         class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-2 bg-discord-textPrimary rounded-e-full opacity-0 group-hover:opacity-100 group-hover:h-4 transition-all duration-200"
                                     ></div>
                                 {/if}
+                                {#if dropTarget?.id === space.roomId && dropTarget.position !== "into"}
+                                    <div
+                                        class="absolute left-1/2 -translate-x-1/2 w-8 h-0.5 bg-discord-accent rounded-full pointer-events-none {dropTarget.position ===
+                                        'before'
+                                            ? '-top-[3px]'
+                                            : '-bottom-[3px]'}"
+                                    ></div>
+                                {/if}
                             </button>
-                            {#if dropTarget?.id === space.roomId && dropTarget.position === "after"}
-                                <div
-                                    class="w-8 h-0.5 bg-discord-accent rounded-full pointer-events-none -my-0.5"
-                                ></div>
-                            {/if}
                         {/each}
                     </div>
                 {/if}
             </div>
-        {/if}
-
-        {#if dropTarget?.id === item.id && dropTarget.position === "after"}
-            <div
-                class="w-10 h-0.5 bg-discord-accent rounded-full flex-shrink-0 -my-0.5 pointer-events-none"
-            ></div>
         {/if}
     {/each}
 

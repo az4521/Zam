@@ -142,6 +142,7 @@
         scheduleJoinedRoomsReconcile,
         setSlidingSyncActiveRoom,
         getRoom,
+        getLiveRoom,
         getRoomDisplayName,
         getMemberName,
         getDMPartnerId,
@@ -255,6 +256,62 @@
         // Claim first — a same-id handover runs the outgoing close, which nulls settingsRoom.
         openModal("room-settings", () => (settingsRoom = null));
         settingsRoom = r;
+    }
+
+    // Desktop room-list width (px), user-resizable from its right edge and
+    // persisted per browser. The space rail beside it stays a fixed 4.5rem.
+    const ROOM_LIST_WIDTH_KEY = "layout.roomListWidth";
+    const ROOM_LIST_MIN_W = 200;
+    const roomListMaxW = () =>
+        Math.max(ROOM_LIST_MIN_W, Math.min(640, window.innerWidth * 0.5));
+    const clampRoomListWidth = (w: number) =>
+        Math.round(Math.min(roomListMaxW(), Math.max(ROOM_LIST_MIN_W, w)));
+    let roomListWidth = $state(
+        (() => {
+            try {
+                const v = Number(localStorage.getItem(ROOM_LIST_WIDTH_KEY));
+                return v > 0 ? clampRoomListWidth(v) : 240;
+            } catch {
+                return 240;
+            }
+        })(),
+    );
+    function saveRoomListWidth() {
+        try {
+            localStorage.setItem(ROOM_LIST_WIDTH_KEY, String(roomListWidth));
+        } catch {
+            // Private-mode localStorage can throw; the width still applies.
+        }
+    }
+    function startRoomListResize(e: PointerEvent) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const grip = e.currentTarget as HTMLElement;
+        grip.setPointerCapture(e.pointerId);
+        const startX = e.clientX;
+        const startW = roomListWidth;
+        const move = (ev: PointerEvent) => {
+            roomListWidth = clampRoomListWidth(startW + ev.clientX - startX);
+        };
+        const up = () => {
+            grip.removeEventListener("pointermove", move);
+            grip.removeEventListener("pointerup", up);
+            grip.removeEventListener("pointercancel", up);
+            saveRoomListWidth();
+        };
+        grip.addEventListener("pointermove", move);
+        grip.addEventListener("pointerup", up);
+        grip.addEventListener("pointercancel", up);
+    }
+    function onRoomListResizeKey(e: KeyboardEvent) {
+        const step = e.shiftKey ? 96 : 24;
+        if (e.key === "ArrowLeft")
+            roomListWidth = clampRoomListWidth(roomListWidth - step);
+        else if (e.key === "ArrowRight")
+            roomListWidth = clampRoomListWidth(roomListWidth + step);
+        else return;
+        e.preventDefault();
+        saveRoomListWidth();
     }
 
     // Animated drawer drag (mobile)
@@ -2101,7 +2158,8 @@
     const activeRoom = $derived.by(() => {
         void roomsState.roomsTick; // re-derive when rooms refresh (e.g. after joining)
         return roomsState.activeRoomId
-            ? getRoom(roomsState.activeRoomId)
+            ? // Live only: a cached stand-in has no timeline to open.
+              getLiveRoom(roomsState.activeRoomId)
             : null;
     });
 
@@ -2185,7 +2243,10 @@
 
         {#if !interfaceState.isMobile}
             <!-- Desktop: permanent sidebars + full-width profile footer -->
-            <div class="flex flex-col w-[19.5rem] flex-shrink-0 min-h-0">
+            <div
+                class="relative flex flex-col flex-shrink-0 min-h-0"
+                style="width: calc(4.5rem + {roomListWidth}px);"
+            >
                 <div class="flex flex-1 min-h-0 overflow-hidden">
                     <SpaceSidebar
                         onHomeClick={() => setActiveSpace(null)}
@@ -2205,6 +2266,25 @@
                         onSettings={openAppSettings}
                     />
                 </div>
+                <!-- Room-list resize grip (right edge) -->
+                <!-- A focusable separator is the ARIA window-splitter pattern. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={t("appShell.resizeRoomList")}
+                    aria-valuenow={roomListWidth}
+                    aria-valuemin={ROOM_LIST_MIN_W}
+                    tabindex="0"
+                    title={t("appShell.resizeRoomList")}
+                    class="absolute inset-y-0 -right-1 w-2 z-20 cursor-col-resize touch-none hover:bg-discord-accent/40 focus-visible:bg-discord-accent/40 transition-colors"
+                    onpointerdown={startRoomListResize}
+                    ondblclick={() => {
+                        roomListWidth = clampRoomListWidth(240);
+                        saveRoomListWidth();
+                    }}
+                    onkeydown={onRoomListResizeKey}
+                ></div>
             </div>
         {:else}
             <!-- Mobile: animated drawer + backdrop -->

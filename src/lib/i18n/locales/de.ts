@@ -214,6 +214,7 @@ const messages: Record<MessageKey, string> = {
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "Weiterleitung…",
     "appShell.noRoomsYet": "Noch keine Räume",
+    "appShell.resizeRoomList": "Größe der Raumliste ändern",
     "appShell.createARoomOrStartA":
         "Erstelle einen Raum oder beginne eine Direktnachricht, um loszulegen.",
     "appShell.nothingInHome": "Nichts auf der Startseite",
@@ -1328,6 +1329,7 @@ const messages: Record<MessageKey, string> = {
     "roomList.requestToJoin": "Beitritt anfragen",
     "roomList.directMessages": "Direktnachrichten",
     "roomList.noRoomsYet": "Noch keine Räume",
+    "roomList.emptyCategory": "Keine Räume",
     "roomList.copyRoomLink": "Raumlink kopieren",
     "roomList.markAsRead": "Als gelesen markieren",
     "roomList.addToSpace": "Zu Space hinzufügen",
