@@ -10,8 +10,6 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.net.Uri;
-import android.media.AudioAttributes;
-import android.media.RingtoneManager;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -53,16 +51,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     private static final String CHANNEL_ID = "matrix_messages";
     private static final String CHANNEL_NAME = "Messages";
-    // Separate high-importance channel for incoming calls: a ring sound, DND
-    // bypass and vibration, so a call is unmistakable and unlike a message.
-    private static final String CALL_CHANNEL_ID = "matrix_calls";
-    private static final String CALL_CHANNEL_NAME = "Calls";
 
     // Matches the Capacitor Preferences store + the single session record
     // written by src/lib/utils/nativeSessionRecord.ts (via nativeSession.ts).
     // Both strings are hand-typed: KEY_SESSION must stay equal to
     // NATIVE_SESSION_KEY there (and SESSION_KEY in static/sw.js).
-    private static final String PREFS = "CapacitorStorage";
+    static final String PREFS = "CapacitorStorage";
     private static final String KEY_SESSION = "matrix_session_record";
     // Mirrors NATIVE_SESSION_VERSION. A record of any other version may mean
     // something else by the same field names, so it is refused, not guessed at.
@@ -79,11 +73,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // clamp is silent, so a lower value would quietly shorten the setting.
     private static final long MAX_GRACE_MS = 7200000L;
 
-    // Auto-dismiss an unanswered incoming-call ring after this long (ms), so a
-    // missed call does not linger forever. Mirrors CALL_RING_TIMEOUT_MS in
-    // src/lib/utils/callRingTimeout.ts and RING_AUTO_DISMISS_MS in static/sw.js.
-    private static final long CALL_RING_TIMEOUT_MS = 45000L;
     private static final String KEY_HIDE_BODY = "matrix_hide_notification_body";
+    // The account's "Ring for incoming DM calls" setting, mirrored by
+    // syncNativeRingEnabled() in src/lib/nativeSession.ts. Absent → ring
+    // (the setting's default).
+    private static final String KEY_RING_ENABLED = "matrix_ring_enabled";
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
@@ -160,6 +154,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // catch below would silently swallow ALL enrichment). Absent key →
             // "false" → bodies stay visible, today's behaviour.
             boolean hideBody = "true".equals(prefs.getString(KEY_HIDE_BODY, "false"));
+            boolean ringEnabled = !"false".equals(prefs.getString(KEY_RING_ENABLED, "true"));
 
             // Same gate as before, one notch stricter: a non-null record
             // guarantees BOTH hs and token are present and well-formed (and
@@ -172,6 +167,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
                 // The event itself → sender + body.
                 String sender = "";
+                // DM-ness, fetched at most once (the call gate and the avatar
+                // fallback below both need it). Null until asked.
+                Boolean direct = null;
                 JSONObject event = fetchEvent(hs, token, roomId, eventId);
                 if (event != null) {
                     sender = event.optString("sender", "");
@@ -193,9 +191,24 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                         ? content.optString("notify_type", "ring") : "ring";
                     boolean isCallType = type.equals("org.matrix.msc4075.call.notify")
                         || type.equals("m.call.notify");
-                    if (isCallType && notifyType.equals("ring")) {
-                        isCall = true;
-                        callerName = name;
+                    //
+                    // Only a DM rings like a phone call. A room or space call
+                    // is join-on-demand (same rule as the in-app ringer in
+                    // src/lib/stores/incomingCalls.svelte.ts), so it gets a
+                    // plain message-style notification even if the sender's
+                    // client asked for a ring.
+                    if (isCallType && notifyType.equals("ring")
+                            && (direct = isDirectRoom(hs, token, selfUserId, roomId))) {
+                        if (ringEnabled) {
+                            isCall = true;
+                            callerName = name;
+                        } else {
+                            // Ringing turned off in settings: still say so,
+                            // as a plain notification.
+                            text = name.isEmpty() ? "Incoming call" : name + " is calling";
+                        }
+                    } else if (isCallType) {
+                        text = name.isEmpty() ? "A call started" : name + " started a call";
                     } else {
                         // Same comparisons as notificationBody() in
                         // src/lib/utils/notificationPrivacy.ts (and
@@ -216,8 +229,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 // Large icon: room avatar, or — for a DM with no room avatar —
                 // the other member's (i.e. the sender's) avatar.
                 String avatarMxc = fetchRoomAvatar(hs, token, roomId);
-                if (avatarMxc == null && isDirectRoom(hs, token, roomId)
-                        && !sender.isEmpty()) {
+                if (avatarMxc == null && !sender.isEmpty()
+                        && (direct != null ? direct : isDirectRoom(hs, token, selfUserId, roomId))) {
                     avatarMxc = fetchUserAvatar(hs, token, roomId, sender);
                 }
                 if (avatarMxc != null) {
@@ -229,7 +242,27 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
 
         if (isCall) {
-            showCallNotification(callerName, roomId, largeIcon);
+            // App already in front: the in-app ringer shows the call (and
+            // rings) itself — a second, notification ringtone would double up.
+            if (MainActivity.isInForeground()) return;
+            // Account stamp: only attribute (deep-link + join) when we can
+            // name the poster, mirroring showNotification()'s PRIV-02 guard.
+            String postedBy = null;
+            try {
+                SessionRecord postedSession = readSessionRecord(
+                    getSharedPreferences(PREFS, Context.MODE_PRIVATE));
+                postedBy = postedSession != null ? postedSession.userId : null;
+            } catch (Throwable ignored) {}
+            // Report it to the system call stack so it rings like a phone
+            // call (Bluetooth / car / watch can answer, a cellular call can
+            // interrupt it properly). Telecom then asks MatrixConnection to
+            // post the ringing notification. Without Telecom, post it here.
+            boolean viaTelecom = roomId != null
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && TelecomCalls.reportIncoming(this, roomId, callerName, postedBy, largeIcon);
+            if (!viaTelecom) {
+                IncomingCallNotification.show(this, callerName, roomId, postedBy, largeIcon);
+            }
         } else {
             showNotification(title, text, roomId, eventId, largeIcon);
         }
@@ -253,7 +286,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * updating simply falls back to the generic notification until it does,
      * which is the safe direction.
      */
-    private static final class SessionRecord {
+    static final class SessionRecord {
         final String homeserverUrl;
         final String accessToken;
         final String userId;
@@ -347,7 +380,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * "this device has no credentials", which the caller must treat as "contact
      * no homeserver", never as "use what's there". Never throws.
      */
-    private static SessionRecord readSessionRecord(SharedPreferences prefs) {
+    static SessionRecord readSessionRecord(SharedPreferences prefs) {
         String raw;
         try {
             // getString throws ClassCastException if anything ever stored a
@@ -511,11 +544,33 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     /**
-     * Treat a room as a DM if it has at most two joined members. (Cheaper and
-     * more reliable from a background service than reading m.direct account
-     * data, which would need extra normalisation.)
+     * Whether a room is a DM — the same source the in-app ringer uses
+     * (getDirectRoomIds(): the account's m.direct data), so a call rings on
+     * this device exactly when it would ring in the app. Only when m.direct
+     * cannot be read at all does it fall back to "at most two joined
+     * members", so a lookup failure still lets a real DM ring.
      */
-    private boolean isDirectRoom(String hs, String token, String roomId) {
+    private boolean isDirectRoom(String hs, String token, String userId, String roomId) {
+        if (userId != null) {
+            String direct = httpGet(hs + "/_matrix/client/v3/user/" + enc(userId)
+                + "/account_data/m.direct", token);
+            if (direct != null) {
+                try {
+                    JSONObject byUser = new JSONObject(direct);
+                    java.util.Iterator<String> keys = byUser.keys();
+                    while (keys.hasNext()) {
+                        org.json.JSONArray rooms = byUser.optJSONArray(keys.next());
+                        if (rooms == null) continue;
+                        for (int n = 0; n < rooms.length(); n++) {
+                            if (roomId.equals(rooms.optString(n))) return true;
+                        }
+                    }
+                    return false;
+                } catch (Exception ignored) {
+                    // Malformed: fall through to the member count.
+                }
+            }
+        }
         String url = hs + "/_matrix/client/v3/rooms/" + enc(roomId) + "/joined_members";
         String json = httpGet(url, token);
         if (json == null) return false;
@@ -622,7 +677,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private static String enc(String s) {
+    static String enc(String s) {
         try {
             return URLEncoder.encode(s, "UTF-8").replace("+", "%20");
         } catch (Exception e) {
@@ -705,14 +760,20 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 replyFlags |= PendingIntent.FLAG_MUTABLE;
             }
 
-            Intent replyIntent = new Intent(this, MessageActionReceiver.class);
+            // Reply goes STRAIGHT to MainActivity: the send needs the web
+            // layer's Matrix SDK (E2EE), and Android 12+ blocks an activity
+            // launched from a notification via a broadcast receiver (the
+            // "trampoline" this used to be — Reply silently did nothing).
+            // MainActivity reads the RemoteInput text itself.
+            Intent replyIntent = new Intent(this, MainActivity.class);
             replyIntent.setAction(MessageActionReceiver.ACTION_REPLY);
+            replyIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             replyIntent.putExtra("room_id", roomId);
             replyIntent.putExtra("user_id", postedBy);
             if (eventId != null && !eventId.isEmpty()) {
                 replyIntent.putExtra("event_id", eventId);
             }
-            PendingIntent replyPending = PendingIntent.getBroadcast(
+            PendingIntent replyPending = PendingIntent.getActivity(
                 this, (roomId + ":reply").hashCode(), replyIntent, replyFlags);
 
             NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
@@ -721,6 +782,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 .setAllowGeneratedReplies(false)
                 .build();
 
+            // Mark-as-read needs no UI and no crypto: MessageActionReceiver
+            // sends the read marker itself, without opening the app.
             Intent markReadIntent = new Intent(this, MessageActionReceiver.class);
             markReadIntent.setAction(MessageActionReceiver.ACTION_MARK_READ);
             markReadIntent.putExtra("room_id", roomId);
@@ -755,127 +818,6 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     NotificationManager.IMPORTANCE_HIGH
                 );
                 channel.setDescription("New message notifications");
-                manager.createNotificationChannel(channel);
-            }
-        }
-    }
-
-    /**
-     * Full-screen ringing notification for an incoming DM call (m.call.notify).
-     * Category CALL + ongoing + a ring sound + a full-screen intent so it wakes
-     * the screen and shows over the lockscreen, with Accept/Decline actions.
-     *
-     * Full-screen intent + Android 14+ (API 34): USE_FULL_SCREEN_INTENT is
-     * declared in the manifest, but on API 34+ the OS grants it by default only
-     * to apps whose core function is calling/alarms; otherwise the system
-     * downgrades the full-screen intent to a heads-up notification (which still
-     * rings and shows the actions — the call is not lost, only not full-screen).
-     * The user can grant "Full screen intents" in Settings > Apps > Special app
-     * access. We cannot prompt from a background service, and canUseFullScreenIntent()
-     * only reports the state, so we always set it and let the OS decide.
-     */
-    private void showCallNotification(String callerName, String roomId, Bitmap largeIcon) {
-        createCallChannel();
-
-        String display = (callerName != null && !callerName.trim().isEmpty())
-            ? callerName.trim() : "Someone";
-
-        // Account stamp: only attribute (deep-link + join) when we can name the
-        // poster, mirroring showNotification()'s PRIV-02 guard.
-        String postedBy = null;
-        try {
-            SharedPreferences notifPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            SessionRecord postedSession = readSessionRecord(notifPrefs);
-            postedBy = postedSession != null ? postedSession.userId : null;
-        } catch (Throwable ignored) {}
-        boolean routable = roomId != null && postedBy != null && !postedBy.isEmpty();
-
-        int notificationId = roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
-
-        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            piFlags |= PendingIntent.FLAG_IMMUTABLE;
-        }
-
-        // Accept / full-screen: open the app to the room AND join the call.
-        Intent answerIntent = new Intent(this, MainActivity.class);
-        answerIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (routable) {
-            answerIntent.putExtra("room_id", roomId);
-            answerIntent.putExtra("user_id", postedBy);
-            answerIntent.putExtra("join_call", true);
-        }
-        PendingIntent answerPending = PendingIntent.getActivity(
-            this, notificationId, answerIntent, piFlags);
-
-        // Body tap (not a button): open the room; the in-app ringer offers Accept.
-        Intent openIntent = new Intent(this, MainActivity.class);
-        openIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (routable) {
-            openIntent.putExtra("room_id", roomId);
-            openIntent.putExtra("user_id", postedBy);
-        }
-        PendingIntent openPending = PendingIntent.getActivity(
-            this, notificationId + 1, openIntent, piFlags);
-
-        // Decline: cancel the notification without opening the app.
-        Intent declineIntent = new Intent(this, CallActionReceiver.class);
-        declineIntent.setAction(CallActionReceiver.ACTION_DECLINE);
-        declineIntent.putExtra(CallActionReceiver.EXTRA_NOTIFICATION_ID, notificationId);
-        PendingIntent declinePending = PendingIntent.getBroadcast(
-            this, notificationId + 2, declineIntent, piFlags);
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_notify)
-            .setContentTitle("Incoming call")
-            .setContentText(display)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setOngoing(true)
-            .setAutoCancel(false)
-            .setTimeoutAfter(CALL_RING_TIMEOUT_MS)
-            .setContentIntent(openPending)
-            .setFullScreenIntent(answerPending, true)
-            .addAction(0, "Accept", answerPending)
-            .addAction(0, "Decline", declinePending);
-
-        // Pre-O has no channels, so the ring sound + vibration ride on the
-        // builder. On O+ the channel owns both (these calls are ignored there).
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE));
-            builder.setVibrate(new long[] {0, 1000, 1000});
-        }
-
-        if (largeIcon != null) builder.setLargeIcon(largeIcon);
-
-        try {
-            NotificationManagerCompat.from(this).notify(notificationId, builder.build());
-        } catch (SecurityException ignored) {}
-    }
-
-    private void createCallChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager == null) return;
-            if (manager.getNotificationChannel(CALL_CHANNEL_ID) == null) {
-                NotificationChannel channel = new NotificationChannel(
-                    CALL_CHANNEL_ID,
-                    CALL_CHANNEL_NAME,
-                    NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setDescription("Incoming call notifications");
-                Uri ringtone = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-                AudioAttributes attrs = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build();
-                if (ringtone != null) channel.setSound(ringtone, attrs);
-                channel.enableVibration(true);
-                channel.setVibrationPattern(new long[] {0, 1000, 1000});
-                // A call should ring through Do Not Disturb.
-                try {
-                    channel.setBypassDnd(true);
-                } catch (Throwable ignored) {}
                 manager.createNotificationChannel(channel);
             }
         }

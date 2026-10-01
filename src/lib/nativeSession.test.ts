@@ -68,6 +68,9 @@ vi.mock("@capacitor/preferences", () => ({
 // Not exported from the module under test (it is a device-global setting, not
 // part of the credential tuple), so the test re-types it.
 const KEY_HIDE_BODY = "matrix_hide_notification_body";
+// Account settings mirrored for the native call / notification-action code.
+const KEY_RING_ENABLED = "matrix_ring_enabled";
+const KEY_RECEIPT_PRIVACY = "matrix_receipt_privacy";
 
 const COMPLETE = {
     homeserverUrl: "https://hs.example.org",
@@ -108,13 +111,15 @@ describe("clearNativeSession", () => {
         );
     });
 
-    it("removes exactly the record, the legacy keys and the privacy flag", async () => {
+    it("removes exactly the record, the legacy keys and the mirrored settings", async () => {
         await clearNativeSession();
 
         expect(mocks.calls).toEqual([
             `remove:${NATIVE_SESSION_KEY}`,
             ...LEGACY_NATIVE_SESSION_KEYS.map((k) => `remove:${k}`),
             `remove:${KEY_HIDE_BODY}`,
+            `remove:${KEY_RING_ENABLED}`,
+            `remove:${KEY_RECEIPT_PRIVACY}`,
         ]);
     });
 
@@ -130,6 +135,8 @@ describe("clearNativeSession", () => {
             `remove:${NATIVE_SESSION_KEY}`,
             ...LEGACY_NATIVE_SESSION_KEYS.map((k) => `remove:${k}`),
             `remove:${KEY_HIDE_BODY}`,
+            `remove:${KEY_RING_ENABLED}`,
+            `remove:${KEY_RECEIPT_PRIVACY}`,
         ]);
     });
 
@@ -142,6 +149,8 @@ describe("clearNativeSession", () => {
             `remove:${NATIVE_SESSION_KEY}`,
             ...LEGACY_NATIVE_SESSION_KEYS.map((k) => `remove:${k}`),
             `remove:${KEY_HIDE_BODY}`,
+            `remove:${KEY_RING_ENABLED}`,
+            `remove:${KEY_RECEIPT_PRIVACY}`,
         ]);
     });
 });

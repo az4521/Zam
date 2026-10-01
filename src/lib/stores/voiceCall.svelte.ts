@@ -17,6 +17,7 @@ import {
     setParticipantVideoHidden,
     primeParticipantAudio,
     getRoom,
+    getDirectRoomIds,
     getRoomCallMemberships,
     setScreenShareEnabled,
     setCameraEnabled,
@@ -69,6 +70,16 @@ import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { micErrorMessage } from "$lib/utils/micErrorMessage";
 import { isChunkLoadError } from "$lib/utils/chunkLoadError";
+import {
+    startNativeCall,
+    stopNativeCall,
+    onNativeCallEvent,
+    releaseNativeLockScreen,
+    resumeNativeCall,
+    setNativeAudioRoute,
+    getNativeAudioRoute,
+    type NativeAudioRoute,
+} from "$lib/nativeCall";
 
 /** LiveKit now arrives in its own chunk, so joining can fail on the chunk
  *  fetch rather than on anything Matrix-shaped. The browser caches a failed
@@ -117,6 +128,13 @@ class VoiceCallState {
     cameraOn = $state(false);
     /** The tile promoted to the spotlight, or null for the plain grid. */
     focusedTileKey = $state<string | null>(null);
+    /** Android: the system held the call (a cellular call was answered).
+     *  Mic and playback are muted underneath the user's own mute state. */
+    onHold = $state(false);
+    /** Android: current audio route and the routes on offer, as the system
+     *  call stack reports them. Null route = no route control here. */
+    audioRoute = $state<NativeAudioRoute | null>(null);
+    availableAudioRoutes = $state<NativeAudioRoute[]>([]);
 }
 
 export const voiceCallState = new VoiceCallState();
@@ -246,10 +264,32 @@ export function initVoiceCall(): () => void {
             }
             voiceCallState.lastLeftCall = null;
             clearRecentlyLeftTimer();
+            // The system may have reported the route before we were
+            // listening for it; later changes arrive as events.
+            void getNativeAudioRoute().then((info) => {
+                if (info?.route && voiceCallState.roomId) {
+                    voiceCallState.audioRoute = info.route;
+                    voiceCallState.availableAudioRoutes = info.available;
+                }
+            });
         }
+        // Android: run the call as a phone call — a foreground service so it
+        // survives backgrounding / screen-off, registered with the system
+        // call stack. Re-sent on every state change (idempotent natively) so
+        // a mic permission granted mid-join reaches the service on connect.
+        if (state !== null && roomId && state !== voiceCallState.connState)
+            startNativeCall(
+                roomId,
+                getRoom(roomId)?.name ?? "",
+                getDirectRoomIds().has(roomId),
+            );
         voiceCallState.connState = state;
         voiceCallState.roomId = state === null ? null : roomId;
         if (state === null) {
+            stopNativeCall();
+            voiceCallState.onHold = false;
+            voiceCallState.audioRoute = null;
+            voiceCallState.availableAudioRoutes = [];
             peerIds = null;
             voiceCallState.micMuted = false;
             voiceCallState.deafened = false;
@@ -294,6 +334,20 @@ export function initVoiceCall(): () => void {
         showErrorToast(msg);
     });
     const unsubNotice = onVoiceNotice((msg) => showErrorToast(msg));
+    // Android system call stack: hang-up / hold / mute from the notification,
+    // a headset, the car, or a cellular call taking over.
+    const unsubNative = [
+        onNativeCallEvent("hangUp", () => leaveCall()),
+        onNativeCallEvent("hold", ({ held }) => applySystemHold(held)),
+        onNativeCallEvent("systemMute", ({ muted }) => {
+            if (voiceCallState.roomId && muted !== voiceCallState.micMuted)
+                toggleCallMute();
+        }),
+        onNativeCallEvent("audioRoute", ({ route, available }) => {
+            voiceCallState.audioRoute = route ?? null;
+            voiceCallState.availableAudioRoutes = available ?? [];
+        }),
+    ];
     const unsubBlocked = onVoicePlaybackBlockedChanged((blocked) => {
         voiceCallState.playbackBlocked = blocked;
     });
@@ -334,6 +388,7 @@ export function initVoiceCall(): () => void {
         unsubMutes();
         unsubError();
         unsubNotice();
+        for (const unsub of unsubNative) unsub();
         unsubBlocked();
         unsubVideo();
     };
@@ -346,6 +401,9 @@ export async function joinCall(roomId: string): Promise<void> {
         await joinVoiceCall(roomId);
     } catch (err) {
         console.error("Failed to join voice call:", err);
+        // An Accept from the lock screen that never became a call must not
+        // leave the app showing over it.
+        releaseNativeLockScreen();
         showErrorToast(
             isChunkLoadError(err)
                 ? CHUNK_LOAD_MESSAGE
@@ -368,8 +426,10 @@ function applyMuteState(next: MuteState, prev: MuteState): void {
     voiceCallState.micMuted = next.micMuted;
     voiceCallState.deafened = next.deafened;
     voiceCallState.mutedByDeafen = next.mutedByDeafen;
-    setVoicePlaybackMuted(next.deafened);
-    void setMicMuted(next.micMuted).then((ok) => {
+    // A system hold keeps both muted underneath, whatever the user toggles.
+    const held = voiceCallState.onHold;
+    setVoicePlaybackMuted(next.deafened || held);
+    void setMicMuted(next.micMuted || held).then((ok) => {
         if (ok || voiceCallState.roomId === null) return;
         // The device refused — roll the UI back to the truth and say so.
         voiceCallState.micMuted = prev.micMuted;
@@ -438,7 +498,40 @@ export async function toggleScreenShare(): Promise<void> {
 }
 
 export async function toggleCamera(): Promise<void> {
-    await setCameraEnabled(!voiceCallState.cameraOn);
+    const turningOn = !voiceCallState.cameraOn;
+    await setCameraEnabled(turningOn);
+    // A video call is not held to the ear: move it off the earpiece.
+    if (turningOn && voiceCallState.audioRoute === "earpiece")
+        setNativeAudioRoute("speaker");
+}
+
+/** Mute both ways while the system holds the call, then restore whatever the
+ *  user's own mute / deafen state is. Their state is never touched. */
+function applySystemHold(held: boolean): void {
+    if (!voiceCallState.roomId) return;
+    voiceCallState.onHold = held;
+    setVoicePlaybackMuted(held || voiceCallState.deafened);
+    void setMicMuted(held || voiceCallState.micMuted);
+}
+
+/** Take the call off a system hold (the other call is over). */
+export function resumeHeldCall(): void {
+    resumeNativeCall();
+    applySystemHold(false);
+}
+
+/** Android: speaker on, or back to the private route (headset if one is
+ *  connected, else the earpiece). */
+export function toggleSpeaker(): void {
+    const available = voiceCallState.availableAudioRoutes;
+    if (voiceCallState.audioRoute !== "speaker") {
+        setNativeAudioRoute("speaker");
+        return;
+    }
+    const next = (["bluetooth", "wired", "earpiece"] as const).find((r) =>
+        available.includes(r),
+    );
+    if (next) setNativeAudioRoute(next);
 }
 
 /** Promote a tile to the spotlight; clicking the focused tile again clears it. */

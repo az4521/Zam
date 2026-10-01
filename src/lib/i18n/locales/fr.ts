@@ -266,6 +266,10 @@ const messages: Record<MessageKey, string> = {
     "callView.joinedFromMultipleDevices": "Connecté depuis plusieurs appareils",
     "callView.devices": "{value} appareils",
     "callView.enableAudio": "Activer l'audio",
+    "callView.onHold": "En attente pendant un autre appel",
+    "callView.resume": "Reprendre",
+    "callView.speakerOn": "Utiliser le haut-parleur",
+    "callView.speakerOff": "Désactiver le haut-parleur",
     "callView.unmute": "Réactiver le micro",
     "callView.undeafen": "Réactiver le son",
     "callView.deafen": "Couper le son",
@@ -1986,6 +1990,11 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Les messages directs sonnent. Les salons jamais - vous les rejoignez depuis le salon lui-même.",
     "voiceAudioSettings.ringtoneVolume": "Volume de la sonnerie",
+    "voiceAudioSettings.fullScreenCalls":
+        "Afficher les appels sur l'écran de verrouillage",
+    "voiceAudioSettings.fullScreenCallsHint":
+        "Permet à un appel privé entrant d'allumer l'écran et de sonner en plein écran, comme un appel téléphonique. Android le demande séparément.",
+    "voiceAudioSettings.fullScreenCallsAllow": "Autoriser",
     "voiceAudioSettings.microphoneUnavailableCheckBrowserPermissions":
         "Micro indisponible - vérifiez les autorisations du navigateur",
     "voiceAudioSettings.cameraUnavailableCheckBrowserPermissions":

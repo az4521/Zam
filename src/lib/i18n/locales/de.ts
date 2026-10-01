@@ -271,6 +271,10 @@ const messages: Record<MessageKey, string> = {
     "callView.joinedFromMultipleDevices": "Von mehreren Geräten beigetreten",
     "callView.devices": "{value} Geräte",
     "callView.enableAudio": "Audio aktivieren",
+    "callView.onHold": "Gehalten, während ein anderer Anruf aktiv ist",
+    "callView.resume": "Fortsetzen",
+    "callView.speakerOn": "Lautsprecher verwenden",
+    "callView.speakerOff": "Lautsprecher ausschalten",
     "callView.unmute": "Stummschaltung aufheben",
     "callView.undeafen": "Ton einschalten",
     "callView.deafen": "Ton ausschalten",
@@ -2006,6 +2010,11 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Direktnachrichten klingeln. Räume nie - denen trittst du im Raum selbst bei.",
     "voiceAudioSettings.ringtoneVolume": "Klingeltonlautstärke",
+    "voiceAudioSettings.fullScreenCalls":
+        "Anrufe auf dem Sperrbildschirm anzeigen",
+    "voiceAudioSettings.fullScreenCallsHint":
+        "Lässt einen eingehenden DM-Anruf den Bildschirm wecken und im Vollbild klingeln, wie ein Telefonanruf. Android fragt dafür separat.",
+    "voiceAudioSettings.fullScreenCallsAllow": "Erlauben",
     "voiceAudioSettings.microphoneUnavailableCheckBrowserPermissions":
         "Mikrofon nicht verfügbar - prüfe die Browserberechtigungen",
     "voiceAudioSettings.cameraUnavailableCheckBrowserPermissions":

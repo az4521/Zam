@@ -10,15 +10,18 @@ const CALL_NOTIFY_TYPES = new Set([
 ]);
 
 /** Decide how to render a fetched pushed event. An MSC4075 call-notify with a
- *  "ring" (or absent) notify_type is an incoming CALL; everything else renders
+ *  "ring" (or absent) notify_type IN A DM is an incoming CALL; everything else
+ *  — including a ring in a room or space, which is join-on-demand — renders
  *  as a message. Keep this identical to the inline copy in `static/sw.js` —
  *  the SW is a standalone static file that cannot import from `src/`, so this
  *  test guards the contract shared with the ported rule there. */
 export function pushNotificationKind(
     evtType: string | undefined,
     notifyType?: string,
+    isDm = true,
 ): PushKind {
     if (
+        isDm &&
         evtType !== undefined &&
         CALL_NOTIFY_TYPES.has(evtType) &&
         (notifyType === undefined || notifyType === "ring")

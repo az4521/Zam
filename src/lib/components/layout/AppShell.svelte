@@ -166,6 +166,7 @@
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
         updateServiceWorkerReceiptPrivacy,
+        updateServiceWorkerRingEnabled,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
         sendNotificationQuickReply,
@@ -234,7 +235,10 @@
         syncNativeSession,
         clearNativeSession,
         syncNativeNotificationPrivacy,
+        syncNativeRingEnabled,
+        syncNativeReceiptPrivacy,
     } from "$lib/nativeSession";
+    import { onNativeCallEvent } from "$lib/nativeCall";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -1475,7 +1479,14 @@
                 auth.userId,
                 settingsState.privateReadReceipts,
             );
+            syncNativeReceiptPrivacy(
+                auth.userId,
+                settingsState.privateReadReceipts,
+            ).catch(() => {});
         }
+        // The DM ring setting, for the native push service and the SW.
+        syncNativeRingEnabled(settingsState.ringEnabled).catch(() => {});
+        updateServiceWorkerRingEnabled(settingsState.ringEnabled);
 
         // Native Android notification taps (MainActivity) call this to deep-link
         // to a room. Pushers posted by MatrixMessagingService open via here.
@@ -1605,6 +1616,15 @@
         ) => {
             openRoomFromNotification(roomId, userId, joinCall, eventId);
         };
+
+        // Android: a ringing DM call answered from a headset, the car or a
+        // watch. Same path, and same account guard, as Accept on the
+        // notification.
+        const unsubNativeAnswer = onNativeCallEvent(
+            "answer",
+            ({ roomId, userId }) =>
+                openRoomFromNotification(roomId, userId, true),
+        );
 
         // Android share-sheet bridge (MainActivity forwards ACTION_SEND extras
         // here). The JSON is UNTRUSTED — receiveShare only STAGES it into the
@@ -2089,6 +2109,7 @@
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
+            unsubNativeAnswer();
             if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.removeEventListener(
                     "message",

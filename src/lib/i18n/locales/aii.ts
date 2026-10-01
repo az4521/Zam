@@ -255,6 +255,10 @@ const messages: Record<MessageKey, string> = {
     "callView.joinedFromMultipleDevices": "ܥܠܠܗ ܡܢ ܒܝܫ ܡܢ ܚܕ ܡܐܢܐ",
     "callView.devices": "{value} ܡܐܢ̈ܐ",
     "callView.enableAudio": "ܕܠܩ ܩܠܐ",
+    "callView.onHold": "ܡܛܘܪܐ ܟܕ ܩܪܝܬܐ ܐܚܪܬܐ ܦܥܝܠܬܐ",
+    "callView.resume": "ܐܡܫܟ",
+    "callView.speakerOn": "ܦܠܘܚ ܒܪܡܙܐ ܕܩܠܐ",
+    "callView.speakerOff": "ܫܒܘܩ ܪܡܙܐ ܕܩܠܐ",
     "callView.unmute": "ܫܪܝ ܫܬܩܐ",
     "callView.undeafen": "ܦܬܘܚ ܫܡܥܐ",
     "callView.deafen": "ܣܟܘܪ ܫܡܥܐ",
@@ -1859,6 +1863,10 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "ܐܓܪ̈ܬܐ ܫܪܝܪ̈ܬܐ ܩܪܝܐ ܝܢ. ܓܘܡ̈ܐ ܠܐ ܩܪܝ ܒܟܠ - ܥܐܠܬ ܠܐܢܝ̈ ܡܢ ܓܘܡܐ ܓܢܗ.",
     "voiceAudioSettings.ringtoneVolume": "ܪܡܘܬܐ ܕܩܠܐ ܕܩܪܝܬܐ",
+    "voiceAudioSettings.fullScreenCalls": "ܚܘܝ ܩܪܝܬܐ ܥܠ ܦܐܬܐ ܕܩܦܠܐ",
+    "voiceAudioSettings.fullScreenCallsHint":
+        "ܫܒܘܩ ܠܩܪܝܬܐ ܕܡܛܝܐ ܕܡܥܝܪܐ ܠܦܐܬܐ ܘܩܪܝܐ ܒܟܠܗ ܦܐܬܐ، ܐܝܟ ܩܪܝܬܐ ܕܬܠܦܘܢ. ܐܢܕܪܘܝܕ ܫܐܠ ܥܠܝܗ ܒܦܪܝܫܘܬܐ.",
+    "voiceAudioSettings.fullScreenCallsAllow": "ܫܒܘܩ",
     "voiceAudioSettings.microphoneUnavailableCheckBrowserPermissions":
         "ܡܝܩܪܘܦܘܢ ܠܐ ܡܫܟܚܐ - ܒܨܝ ܦܣ̈ܐ ܕܡܦܐܬܢܐ",
     "voiceAudioSettings.cameraUnavailableCheckBrowserPermissions":

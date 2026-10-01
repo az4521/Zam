@@ -4,7 +4,7 @@
  * "call ended" signal, so without this the ring notification never goes away.
  *
  * ⚠ MIRRORED inline in `static/sw.js` (RING_AUTO_DISMISS_MS) and
- * `MatrixMessagingService.java` (CALL_RING_TIMEOUT_MS) — those files are not
+ * `IncomingCallNotification.java` (CALL_RING_TIMEOUT_MS) — those files are not
  * bundled and cannot import this. Keep the three values in sync.
  */
 export const CALL_RING_TIMEOUT_MS = 45000;

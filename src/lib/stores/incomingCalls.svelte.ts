@@ -16,6 +16,14 @@ import {
 } from "$lib/audio/soundEffects";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
+import {
+    dismissNativeIncomingCall,
+    silenceNativeIncomingCall,
+    releaseNativeLockScreen,
+    reportNativeIncomingCall,
+    hasNativeCallService,
+    onNativeCallEvent,
+} from "$lib/nativeCall";
 
 // Incoming DM calls, derived from MatrixRTC membership — no MSC4075, no
 // server support needed. In a DM, "they joined and I haven't" IS the ring.
@@ -56,6 +64,18 @@ function stopRing(): void {
     ringStartedAt = null;
 }
 
+/** Android: the ring for `roomId` is over — end the system's ringing call and
+ *  its notification. Once nothing rings and no call is starting, also stop
+ *  showing over the lock screen (a full-screen incoming call put us there). */
+function releaseNativeRing(roomId: string, declined: boolean): void {
+    dismissNativeIncomingCall(roomId, declined);
+    if (
+        incomingCallsState.ringing.length === 0 &&
+        getActiveVoiceRoomId() === null
+    )
+        releaseNativeLockScreen();
+}
+
 /** Subscribe the store to call-membership changes. Call once from the app
  *  shell; returns an unsub. */
 export function initIncomingCalls(): () => void {
@@ -68,11 +88,13 @@ export function initIncomingCalls(): () => void {
 
     const sweep = () => {
         const dmRoomIds = new Set<string>();
+        const roomNames = new Map<string, string>();
         const next: CallSnapshot = new Map();
         for (const room of getDirectRooms()) {
             // An invited-but-unjoined DM must never ring.
             if (room.getMyMembership() !== "join") continue;
             dmRoomIds.add(room.roomId);
+            roomNames.set(room.roomId, room.name ?? "");
             next.set(
                 room.roomId,
                 getRoomCallMemberships(room).map(
@@ -90,8 +112,13 @@ export function initIncomingCalls(): () => void {
         });
         prev = next;
 
+        const prevRinging = incomingCallsState.ringing;
         incomingCallsState.declined = result.declined;
         incomingCallsState.ringing = result.ringing;
+        // Answered, declined or given up on: the native ring goes too.
+        for (const roomId of prevRinging)
+            if (!result.ringing.includes(roomId))
+                releaseNativeRing(roomId, false);
 
         // The caller gave up, or we answered — silence the ringer early.
         if (ringOwner && !result.ringing.includes(ringOwner)) stopRing();
@@ -104,7 +131,24 @@ export function initIncomingCalls(): () => void {
             stopRing();
             ringOwner = result.startRing;
             ringStartedAt = Date.now();
-            ringHandle = startRingtone();
+            const hidden = document.visibilityState !== "visible";
+            if (hidden && hasNativeCallService()) {
+                // Android, app in the background or screen off: a ringtone in
+                // a hidden WebView is a sound with no card to answer. Ring the
+                // OS way instead (a no-op when push already did).
+                if (settingsState.ringEnabled)
+                    reportNativeIncomingCall(
+                        result.startRing,
+                        roomNames.get(result.startRing) ?? "",
+                        auth.userId ?? "",
+                    );
+            } else {
+                ringHandle = startRingtone();
+                // Visible in-app card + ringtone: the native notification
+                // would only ring a second time over it. The system call keeps
+                // ringing, so a headset can still pick it up.
+                if (!hidden) silenceNativeIncomingCall(result.startRing);
+            }
         }
         if (result.blip) playRingBlip();
     };
@@ -116,6 +160,12 @@ export function initIncomingCalls(): () => void {
     // watches the calls already in progress by iterating getRooms() at
     // subscribe time: an empty list means a call that was already running
     // never notifies at all.
+    // Declined from the Android notification or the system (headset, car):
+    // hide the card and stop the in-app ringer as if declined here.
+    const unsubNativeDecline = onNativeCallEvent("decline", ({ roomId }) =>
+        declineIncomingCall(roomId),
+    );
+
     let unsubSessions: (() => void) | null = null;
     const start = () => {
         if (unsubSessions) return; // idempotent: PREPARED can re-fire
@@ -131,6 +181,7 @@ export function initIncomingCalls(): () => void {
     const unsubPrepared = onSyncPrepared(start);
     return () => {
         unsubPrepared();
+        unsubNativeDecline();
         unsubSessions?.();
         stopRing();
     };
@@ -142,6 +193,10 @@ export function initIncomingCalls(): () => void {
  *  notice — the ring must not sound through all of that. */
 export function silenceIncomingCall(roomId: string): void {
     if (ringOwner === roomId) stopRing();
+    // Only the notification: the system's ringing call is answered (not
+    // ended) when the join starts the native call for this room, and
+    // answering from the lock screen must stay over it meanwhile.
+    silenceNativeIncomingCall(roomId);
 }
 
 /** Decline locally: silence this call and hide its card. Nothing is sent —
@@ -157,4 +212,5 @@ export function declineIncomingCall(roomId: string): void {
     incomingCallsState.ringing = incomingCallsState.ringing.filter(
         (id) => id !== roomId,
     );
+    releaseNativeRing(roomId, true);
 }

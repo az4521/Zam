@@ -8,6 +8,8 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 
+import androidx.annotation.RequiresApi;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -63,6 +65,7 @@ public class MediaSaverPlugin extends Plugin {
         });
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private String saveMediaStore(byte[] bytes, String name, String mime) throws Exception {
         ContentResolver resolver = getContext().getContentResolver();
         Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);

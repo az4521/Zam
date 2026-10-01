@@ -26,6 +26,13 @@ import {
 } from "$lib/utils/nativeSessionRecord";
 
 const KEY_HIDE_BODY = "matrix_hide_notification_body";
+// Read by MatrixMessagingService.java (KEY_RING_ENABLED): "false" → a DM call
+// push shows a plain notification instead of ringing.
+const KEY_RING_ENABLED = "matrix_ring_enabled";
+// Read by MessageActionReceiver.java (KEY_RECEIPT_PRIVACY) for the native
+// Mark-as-read action: {"userId", "private"}. Absent / another account →
+// the receiver sends a private receipt (fail closed).
+const KEY_RECEIPT_PRIVACY = "matrix_receipt_privacy";
 
 /**
  * Remove one key without letting its failure strand the keys after it. The
@@ -114,6 +121,41 @@ export async function syncNativeNotificationPrivacy(
     }
 }
 
+/**
+ * Mirror the account's "Ring for incoming DM calls" setting so the native push
+ * service rings (or not) to match the in-app ringer.
+ */
+export async function syncNativeRingEnabled(enabled: boolean): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+        await Preferences.set({
+            key: KEY_RING_ENABLED,
+            value: String(enabled),
+        });
+    } catch (err) {
+        console.warn("[nativeSession] failed to sync ring setting", err);
+    }
+}
+
+/**
+ * Mirror the account's "private read receipts" setting for the native
+ * Mark-as-read notification action, stamped with the account it belongs to.
+ */
+export async function syncNativeReceiptPrivacy(
+    userId: string,
+    isPrivate: boolean,
+): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    try {
+        await Preferences.set({
+            key: KEY_RECEIPT_PRIVACY,
+            value: JSON.stringify({ userId, private: isPrivate }),
+        });
+    } catch (err) {
+        console.warn("[nativeSession] failed to sync receipt privacy", err);
+    }
+}
+
 export async function clearNativeSession(): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     // The record holds the token, so it goes FIRST and on its own: if anything
@@ -129,6 +171,9 @@ export async function clearNativeSession(): Promise<void> {
     // stale value on every boot. It is still removed here so logout doesn't
     // strand it for the next account.
     await removeQuietly(KEY_HIDE_BODY);
+    // Account settings: the next account re-mirrors its own on boot.
+    await removeQuietly(KEY_RING_ENABLED);
+    await removeQuietly(KEY_RECEIPT_PRIVACY);
 }
 
 export interface NativeSessionState {

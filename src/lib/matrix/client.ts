@@ -3149,6 +3149,19 @@ export function updateServiceWorkerNotificationPrivacy(hide: boolean): void {
 }
 
 /**
+ * Mirror the account's "Ring for incoming DM calls" setting into the service
+ * worker, so a pushed DM call rings (or shows quietly) to match the app.
+ */
+export function updateServiceWorkerRingEnabled(enabled: boolean): void {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.ready
+        .then((reg) =>
+            reg.active?.postMessage({ type: "SET_RING_ENABLED", enabled }),
+        )
+        .catch(() => {});
+}
+
+/**
  * Mirror the per-user "private read receipts" setting into the service worker.
  * The SW has no localStorage, so it keeps its own copy in IndexedDB; a quick
  * mark-read action from a notification reads that copy to decide which receipt

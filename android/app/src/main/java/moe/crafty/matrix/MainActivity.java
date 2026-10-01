@@ -1,11 +1,17 @@
 package moe.crafty.matrix;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.view.WindowManager;
+
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.RemoteInput;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -24,15 +30,74 @@ public class MainActivity extends BridgeActivity {
     // path is text/URL; large-file share is verified on-device).
     private static final long MAX_SHARE_FILE_BYTES = 25L * 1024L * 1024L;
 
+    // Whether the UI is in front. MatrixMessagingService reads it to leave an
+    // incoming call to the in-app ringer instead of ringing a second time.
+    private static volatile boolean inForeground = false;
+
+    static boolean isInForeground() {
+        return inForeground;
+    }
+
+    /**
+     * Show the app over the lock screen (and wake the screen) for an incoming
+     * call, like the phone app does. Scoped to the ring and the call it turns
+     * into: CallServicePlugin turns it off again when the ring ends unanswered
+     * or the call ends, so the app is never left reachable without unlocking.
+     */
+    static void setOverLockScreen(Activity activity, boolean show) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            activity.setShowWhenLocked(show);
+            activity.setTurnScreenOn(show);
+        } else {
+            int flags =
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
+            if (show) activity.getWindow().addFlags(flags);
+            else activity.getWindow().clearFlags(flags);
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Register custom plugins BEFORE the Capacitor bridge is created in
         // super.onCreate — plugins added afterwards are not picked up.
         registerPlugin(ApkUpdaterPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
+        registerPlugin(CallServicePlugin.class);
         super.onCreate(savedInstanceState);
-        handleRoomIntent(getIntent());
-        handleShareIntent(getIntent());
+        // Only a FRESH launch carries a fresh action. A recreated activity
+        // (savedInstanceState) gets its old intent back, and Recents relaunches
+        // with the task's original intent: acting on either again would re-send
+        // a quick reply, re-join a call or re-stage a share.
+        Intent intent = getIntent();
+        boolean fromHistory = intent != null
+            && (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0;
+        if (savedInstanceState == null && !fromHistory) {
+            handleRoomIntent(intent);
+            handleShareIntent(intent);
+        }
+        consumeIntent(intent);
+    }
+
+    /** Strip the one-shot action extras once handled, so nothing that hands
+     *  this intent back later (recreation, getIntent()) can replay them. */
+    private void consumeIntent(Intent intent) {
+        if (intent == null || intent.getExtras() == null) return;
+        Intent stripped = new Intent(intent);
+        stripped.replaceExtras(new Bundle());
+        setIntent(stripped);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        inForeground = true;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        inForeground = false;
     }
 
     @Override
@@ -41,6 +106,7 @@ public class MainActivity extends BridgeActivity {
         setIntent(intent);
         handleRoomIntent(intent);
         handleShareIntent(intent);
+        consumeIntent(intent);
     }
 
     /**
@@ -60,6 +126,13 @@ public class MainActivity extends BridgeActivity {
      */
     private void handleRoomIntent(Intent intent) {
         if (intent == null) return;
+        // Full-screen launch of a ringing DM call (screen off / locked): come
+        // up over the lock screen so the in-app Accept / Decline card is
+        // reachable. Checked before the room id, which an unattributed
+        // notification omits — waking for the ring must not depend on it.
+        if (intent.getBooleanExtra("incoming_call", false)) {
+            setOverLockScreen(this, true);
+        }
         final String roomId = intent.getStringExtra("room_id");
         if (roomId == null || roomId.isEmpty()) return;
         final String userId = intent.getStringExtra("user_id");
@@ -67,13 +140,40 @@ public class MainActivity extends BridgeActivity {
         // call. Passed as a third argument so a plain notification tap (no
         // extra) keeps the two-argument open-only behaviour.
         final boolean joinCall = intent.getBooleanExtra("join_call", false);
+        // Accept (or a body tap) on the ringing notification: the app is taking
+        // the call over, so stop the notification ringing. Its id scheme must
+        // match MatrixMessagingService.showCallNotification(). The full-screen
+        // launch deliberately does NOT cancel here — the web layer dismisses
+        // it once its own ringer is up (see src/lib/nativeCall.ts).
+        if (intent.getBooleanExtra("call_notification", false)) {
+            IncomingCallNotification.cancel(this, roomId);
+            // Accept: the system call (if the ring went through Telecom) is
+            // now answered; the web layer is told to join just below.
+            if (joinCall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                TelecomCalls.answeredFromUi(this, roomId);
+            }
+        }
         // The message this notification named, so the tap jumps to the exact
         // event, not just the room. Absent on a room-level or pre-stamp intent.
         final String eventId = intent.getStringExtra("event_id");
         // Quick-reply action: MessageActionReceiver extracted the RemoteInput
         // text and passed it here. The web bridge routes it through the Matrix
         // SDK (crypto-correct, no cleartext leak).
-        final String replyText = intent.getStringExtra("reply_text");
+        // Reply action: the notification's RemoteInput text arrives on this
+        // intent directly (no receiver hop — Android 12+ blocks that).
+        String typedReply = intent.getStringExtra("reply_text");
+        if (typedReply == null && MessageActionReceiver.ACTION_REPLY.equals(intent.getAction())) {
+            Bundle results = RemoteInput.getResultsFromIntent(intent);
+            CharSequence cs = results != null
+                ? results.getCharSequence(MessageActionReceiver.KEY_TEXT_REPLY) : null;
+            if (cs != null) typedReply = cs.toString();
+            // Acted on: take the message notification down (id = room hash,
+            // as MatrixMessagingService.showNotification() posts it).
+            try {
+                NotificationManagerCompat.from(this).cancel(roomId.hashCode());
+            } catch (Throwable ignored) {}
+        }
+        final String replyText = typedReply;
         // Mark-read action: silent receipt send, no window focus.
         final boolean markRead = intent.getBooleanExtra("mark_read", false);
         if (getBridge() == null || getBridge().getWebView() == null) return;

@@ -256,6 +256,10 @@ export const en = {
     "callView.joinedFromMultipleDevices": "Joined from multiple devices",
     "callView.devices": "{value} devices",
     "callView.enableAudio": "Enable audio",
+    "callView.onHold": "On hold while another call is active",
+    "callView.resume": "Resume",
+    "callView.speakerOn": "Use speaker",
+    "callView.speakerOff": "Stop using speaker",
     "callView.unmute": "Unmute",
     "callView.undeafen": "Undeafen",
     "callView.deafen": "Deafen",
@@ -1927,6 +1931,10 @@ export const en = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Direct messages ring. Rooms never do - you join those from the room itself.",
     "voiceAudioSettings.ringtoneVolume": "Ringtone volume",
+    "voiceAudioSettings.fullScreenCalls": "Show calls on the lock screen",
+    "voiceAudioSettings.fullScreenCallsHint":
+        "Lets an incoming DM call wake the screen and ring full screen, like a phone call. Android asks for this separately.",
+    "voiceAudioSettings.fullScreenCallsAllow": "Allow",
     "voiceAudioSettings.microphoneUnavailableCheckBrowserPermissions":
         "Microphone unavailable - check browser permissions",
     "voiceAudioSettings.cameraUnavailableCheckBrowserPermissions":

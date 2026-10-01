@@ -15,7 +15,10 @@
         updateServiceWorkerNotificationPrivacy,
         updateServiceWorkerReceiptPrivacy,
     } from "$lib/matrix/client";
-    import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
+    import {
+        syncNativeNotificationPrivacy,
+        syncNativeReceiptPrivacy,
+    } from "$lib/nativeSession";
     import { auth } from "$lib/stores/auth.svelte";
 
     const linkPreviewOptions: Array<{
@@ -52,9 +55,11 @@
 
     function onTogglePrivateReadReceipts(value: boolean) {
         setPrivateReadReceipts(value);
-        // The service worker keeps its own copy for quick mark-read actions.
+        // The service worker and the Android notification actions each keep
+        // their own copy for quick mark-read.
         if (auth.userId) {
             updateServiceWorkerReceiptPrivacy(auth.userId, value);
+            syncNativeReceiptPrivacy(auth.userId, value).catch(() => {});
         }
     }
 </script>

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Backup is OFF: the app's data dir holds the Matrix access token and the
          plaintext rust-crypto store, so a cloud backup or a device-to-device
@@ -94,6 +95,30 @@
         <receiver
             android:name=".MessageActionReceiver"
             android:exported="false" />
+
+        <!-- Held for the whole of an active call so it keeps working in the
+             background and with the screen off (see CallService). phoneCall
+             is the VoIP-app type; microphone / camera keep capture alive
+             while the app is not visible. -->
+        <service
+            android:name=".CallService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone|camera" />
+
+        <!-- Self-managed ConnectionService: registers our calls with the
+             system call stack (Telecom) so they behave like phone calls —
+             Bluetooth / car answer and hang-up, cellular calls hold them,
+             system audio routing (see TelecomCalls). Exported only to
+             Telecom, which alone holds BIND_TELECOM_CONNECTION_SERVICE. -->
+        <service
+            android:name=".MatrixConnectionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            tools:targetApi="26">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->
@@ -108,6 +133,17 @@
          MatrixMessagingService for the API-level behaviour. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Calls as real phone-style calls (CallService): MANAGE_OWN_CALLS is the
+         self-managed VoIP calling permission (normal, granted at install) that
+         API 34+ requires for a phoneCall foreground service; the typed
+         FOREGROUND_SERVICE_* permissions keep the mic / camera live in the
+         background; WAKE_LOCK keeps the CPU and Wi-Fi up with the screen off. -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

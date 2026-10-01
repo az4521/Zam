@@ -24,6 +24,23 @@ describe("pushNotificationKind", () => {
         ).toBe("message");
     });
 
+    it("does not ring for a call-notify outside a DM", () => {
+        expect(
+            pushNotificationKind(
+                "org.matrix.msc4075.call.notify",
+                "ring",
+                false,
+            ),
+        ).toBe("message");
+        expect(
+            pushNotificationKind(
+                "org.matrix.msc4075.call.notify",
+                "ring",
+                true,
+            ),
+        ).toBe("call");
+    });
+
     it("classifies a room message as a message", () => {
         expect(pushNotificationKind("m.room.message")).toBe("message");
     });

@@ -690,6 +690,9 @@ let authFromMessage = false;
 // from the page (SET_NOTIF_PRIVACY). Mirrors src/lib/utils/notificationPrivacy.ts
 // by hand — this file is not bundled and cannot import it. Change one, change both.
 let hideNotificationBody = false;
+// The account's "Ring for incoming DM calls" setting (SET_RING_ENABLED).
+// Default on, like the setting.
+let ringEnabled = true;
 // Per-user read receipt privacy: { userId: boolean } where true = private receipts.
 // Hydrated from IDB and kept in sync via SET_RECEIPT_PRIVACY.
 let receiptPrivacyByUser = {};
@@ -705,6 +708,7 @@ const authReady = (async () => {
 	// bodies visible when a SET_AUTH won the startup race. SET_NOTIF_PRIVACY
 	// still wins over this read: that handler awaits `authReady` first.
 	hideNotificationBody = (await dbGet("hideNotificationBody")) === true;
+	ringEnabled = (await dbGet("ringEnabled")) !== false;
 	// Hydrate receipt privacy map. Junk → empty object (fail closed to private).
 	// A failed read must not reject authReady (the credential hydration
 	// below depends on it); the map just stays empty, which fails closed.
@@ -942,6 +946,11 @@ self.addEventListener("message", (event) => {
 				hideNotificationBody = event.data.hideBody === true;
 				const hide = hideNotificationBody;
 				await queueWrite(() => dbSet("hideNotificationBody", hide));
+			} else if (event.data?.type === "SET_RING_ENABLED") {
+				await authReady.catch(() => {});
+				ringEnabled = event.data.enabled !== false;
+				const enabled = ringEnabled;
+				await queueWrite(() => dbSet("ringEnabled", enabled));
 			} else if (event.data?.type === "SET_RECEIPT_PRIVACY") {
 				// Per-user receipt privacy setting. Validate: userId must be a
 				// non-empty string, private must be boolean; ignore junk.
@@ -1115,6 +1124,30 @@ async function mxGet(path) {
 	}
 }
 
+/** Whether a room is a DM: the account's m.direct, as the in-app ringer
+ *  decides; only when that cannot be read, "at most two joined members". */
+async function isDirectRoom(roomId) {
+	if (userId) {
+		const direct = await mxGet(
+			`/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/m.direct`,
+		);
+		if (direct && typeof direct === "object") {
+			return Object.values(direct).some(
+				(rooms) => Array.isArray(rooms) && rooms.includes(roomId),
+			);
+		}
+	}
+	const joined = await mxGet(
+		`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`,
+	);
+	return !!(
+		joined &&
+		joined.joined &&
+		typeof joined.joined === "object" &&
+		Object.keys(joined.joined).length <= 2
+	);
+}
+
 async function mxPost(path, body) {
 	await authReady;
 	if (!accessToken || !homeserverUrl) return false;
@@ -1182,16 +1215,29 @@ async function buildNotification(data) {
 			// contract). event_id_only pushes carry no sound tweak, so the
 			// event TYPE is what decides the ring here. The unstable type is
 			// what is actually stored/pushed; the stable one is accepted too.
+			//
+			// Only a DM rings (same rule as the in-app ringer and
+			// MatrixMessagingService.java): a room or space call is
+			// join-on-demand, so it shows as a plain notification even when
+			// the caller's client asked for a ring.
 			const evtType = typeof event.type === "string" ? event.type : "";
 			const notifyType = event.content && event.content.notify_type;
-			isCall =
-				(evtType === "org.matrix.msc4075.call.notify" ||
-					evtType === "m.call.notify") &&
-				(notifyType === undefined || notifyType === "ring");
+			const isCallNotify =
+				evtType === "org.matrix.msc4075.call.notify" ||
+				evtType === "m.call.notify";
+			const wantsRing =
+				isCallNotify && (notifyType === undefined || notifyType === "ring");
+			const isDm = wantsRing ? await isDirectRoom(roomId) : false;
+			isCall = wantsRing && isDm && ringEnabled;
 
 			if (isCall) {
 				title = "Incoming call";
 				body = name ? name : "Someone is calling";
+			} else if (wantsRing && isDm) {
+				// Ringing turned off in settings: still say so, quietly.
+				body = name ? `${name} is calling` : "Incoming call";
+			} else if (isCallNotify) {
+				body = name ? `${name} started a call` : "A call started";
 			} else {
 				// Same comparisons as notificationBody() in
 				// src/lib/utils/notificationPrivacy.ts: trim both sides so a
@@ -1296,7 +1342,7 @@ async function shouldStayQuiet() {
 
 // Auto-dismiss delay for an unanswered incoming-call ring notification (ms).
 // Mirrors CALL_RING_TIMEOUT_MS in src/lib/utils/callRingTimeout.ts and
-// MatrixMessagingService.java — keep the three in sync. A closed-device call
+// IncomingCallNotification.java — keep the three in sync. A closed-device call
 // push has no "call ended" signal, so without this the ring lingers forever.
 const RING_AUTO_DISMISS_MS = 45000;
 

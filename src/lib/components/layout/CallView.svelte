@@ -20,6 +20,8 @@
         EllipsisVertical,
         Smartphone,
         Settings,
+        Ear,
+        Bluetooth,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -50,6 +52,8 @@
         focusTile,
         clearFocus,
         participantAudioFor,
+        toggleSpeaker,
+        resumeHeldCall,
     } from "$lib/stores/voiceCall.svelte";
     import {
         dedupeParticipants,
@@ -823,6 +827,19 @@
                 {t("callView.enableAudio")}
             </button>
         {/if}
+        {#if voiceCallState.onHold && inThisCall}
+            <div
+                class="flex items-center gap-2 px-3 py-1.5 rounded bg-discord-backgroundSecondary text-xs text-discord-textMuted"
+            >
+                <span>{t("callView.onHold")}</span>
+                <button
+                    onclick={resumeHeldCall}
+                    class="px-2 py-0.5 rounded bg-discord-accent text-white font-semibold"
+                >
+                    {t("callView.resume")}
+                </button>
+            </div>
+        {/if}
         {#if controlMode === "controls"}
             <div
                 class="flex items-center gap-2 px-2 py-2 rounded-full bg-discord-backgroundSecondary"
@@ -859,6 +876,32 @@
                             size={20}
                         />{:else}<Headphones size={20} />{/if}
                 </button>
+                {#if voiceCallState.audioRoute && voiceCallState.availableAudioRoutes.includes("speaker")}
+                    <!-- Android: speaker vs. the private route (earpiece or
+                         headset), through the system call stack. -->
+                    <button
+                        onclick={toggleSpeaker}
+                        class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.audioRoute ===
+                        'speaker'
+                            ? 'text-discord-accent'
+                            : 'text-discord-textPrimary'}"
+                        title={voiceCallState.audioRoute === "speaker"
+                            ? t("callView.speakerOff")
+                            : t("callView.speakerOn")}
+                        aria-label={voiceCallState.audioRoute === "speaker"
+                            ? t("callView.speakerOff")
+                            : t("callView.speakerOn")}
+                        aria-pressed={voiceCallState.audioRoute === "speaker"}
+                    >
+                        {#if voiceCallState.audioRoute === "speaker"}<Volume2
+                                size={20}
+                            />{:else if voiceCallState.audioRoute === "bluetooth"}<Bluetooth
+                                size={20}
+                            />{:else if voiceCallState.audioRoute === "wired"}<Headphones
+                                size={20}
+                            />{:else}<Ear size={20} />{/if}
+                    </button>
+                {/if}
                 <button
                     onclick={() => void toggleCamera()}
                     class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.cameraOn

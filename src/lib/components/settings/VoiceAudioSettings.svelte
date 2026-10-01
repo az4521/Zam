@@ -50,9 +50,16 @@
         setVoiceInputDevice,
         setVoiceOutputDevice,
         setVoiceOutputVolume,
+        updateServiceWorkerRingEnabled,
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
     } from "$lib/matrix/client";
+    import { syncNativeRingEnabled } from "$lib/nativeSession";
+    import {
+        hasNativeCallService,
+        canUseFullScreenCalls,
+        openFullScreenCallSettings,
+    } from "$lib/nativeCall";
     import {
         voiceCallState,
         setCallVideoInputDevice,
@@ -79,6 +86,15 @@
     let cameraError = $state<string | null>(null);
     // Why incoming-call OS alerts stay silent (blocked/unsupported), or null.
     let ringNotifyHint = $state<string | null>(null);
+    // Android 14+: whether an incoming DM call may ring full screen over the
+    // lock screen. Re-checked when the user comes back from system settings.
+    let fullScreenCallsGranted = $state(true);
+    const refreshFullScreenCalls = () => {
+        if (document.visibilityState !== "visible") return;
+        void canUseFullScreenCalls().then((granted) => {
+            if (!destroyed) fullScreenCallsGranted = granted;
+        });
+    };
     let videoEl: HTMLVideoElement | null = null;
     let cameraStream: MediaStream | null = null;
     let meter: MicMeterHandle | null = null;
@@ -269,6 +285,13 @@
     }
 
     onMount(() => {
+        if (hasNativeCallService()) {
+            refreshFullScreenCalls();
+            document.addEventListener(
+                "visibilitychange",
+                refreshFullScreenCalls,
+            );
+        }
         void refreshDevices().then(() => {
             if (!destroyed) void startMeter();
         });
@@ -303,6 +326,10 @@
 
     onDestroy(() => {
         destroyed = true;
+        document.removeEventListener(
+            "visibilitychange",
+            refreshFullScreenCalls,
+        );
         disposeCaptures(micCapture);
         disposeCaptures(cameraCapture);
         stopHandle(meter);
@@ -609,6 +636,9 @@
                 onChange={(v) => {
                     setRingEnabled(v);
                     configureRing({ enabled: v });
+                    // Background ringers keep their own copy.
+                    syncNativeRingEnabled(v).catch(() => {});
+                    updateServiceWorkerRingEnabled(v);
                     if (v) {
                         playRingBlip();
                         // Ringing wants an OS notification when the window is
@@ -627,6 +657,26 @@
         </div>
         {#if ringNotifyHint}
             <p class="text-xs text-discord-danger mt-2">{ringNotifyHint}</p>
+        {/if}
+        {#if settingsState.ringEnabled && !fullScreenCallsGranted}
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("voiceAudioSettings.fullScreenCalls")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted mt-0.5">
+                        {t("voiceAudioSettings.fullScreenCallsHint")}
+                    </p>
+                </div>
+                <button
+                    onclick={() => void openFullScreenCallSettings()}
+                    class="px-3 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary hover:bg-discord-messageHover flex-shrink-0"
+                >
+                    {t("voiceAudioSettings.fullScreenCallsAllow")}
+                </button>
+            </div>
         {/if}
         <div class="mt-3 flex items-center gap-3">
             <p class="text-sm text-discord-textPrimary flex-shrink-0">
