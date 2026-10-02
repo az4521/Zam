@@ -929,7 +929,11 @@ export const en = {
     "notificationSettings.desktopAlerts": "Desktop alerts",
     "notificationSettings.popUpAndTaskbarFlash": "Pop-up and taskbar flash",
     "notificationSettings.whichNotificationsShowASystemPop":
-        "Which notifications show a system pop-up and, in the desktop app, flash the taskbar icon while the window is in the background.",
+        "Which notifications show a system pop-up and flash the taskbar icon while the window is in the background.",
+    "notificationSettings.popUps": "Pop-ups",
+    "notificationSettings.popUpNotifications": "Pop-up notifications",
+    "notificationSettings.whichNotificationsShowASystemPopUp":
+        "Which notifications show a system pop-up while the app is in the background.",
     "notificationSettings.multipleDevices": "Multiple Devices",
     "notificationSettings.quietOnMyOtherDevices": "Quiet on my other devices",
     "notificationSettings.whileYouReActivelyUsingOne":
@@ -2733,6 +2737,7 @@ export const en = {
     "settingsSearch.notificationSound": "Notification sound",
     "settingsSearch.desktopAlertsPopUpAndTaskbar":
         "Desktop alerts (pop-up and taskbar flash)",
+    "settingsSearch.popUpNotifications": "Pop-up notifications",
     "settingsSearch.quietOnMyOtherDevices": "Quiet on my other devices",
     "settingsSearch.privateReadReceipts": "Private read receipts",
     "settingsSearch.hideMessageTextInNotifications":

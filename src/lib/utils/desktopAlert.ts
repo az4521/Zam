@@ -24,6 +24,11 @@ export function shouldAlertDesktop(
     return mode === "all" || (mode === "loud" && loud);
 }
 
+/** Whether this shell can flash the taskbar (the desktop app only). */
+export function canFlashTaskbar(): boolean {
+    return typeof window !== "undefined" && !!window.desktop?.notify?.flash;
+}
+
 /** Flash the taskbar button (bounce the dock icon on macOS). No-op off
  *  Electron; the main process skips it while the window is focused. */
 export function flashTaskbar(): void {

@@ -32,8 +32,22 @@
         setDesktopAlertMode,
         settingsState,
     } from "$lib/stores/settings.svelte";
-    import type { DesktopAlertMode } from "$lib/utils/desktopAlert";
+    import {
+        canFlashTaskbar,
+        type DesktopAlertMode,
+    } from "$lib/utils/desktopAlert";
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
+    import {
+        checkNativeNotificationPermission,
+        requestNativeNotificationPermission,
+    } from "$lib/push";
+    import { Capacitor } from "@capacitor/core";
+
+    // Android posts every notification from the native push service, so the
+    // in-app pop-up setting does nothing there, and its OS permission comes
+    // from the native plugin (the WebView has no Notification API).
+    const nativeApp = Capacitor.isNativePlatform();
+    const taskbarFlash = canFlashTaskbar();
 
     function currentPermission(): NotificationPermission | "unsupported" {
         return typeof Notification === "undefined"
@@ -41,8 +55,15 @@
             : Notification.permission;
     }
 
-    let permission = $state(currentPermission());
+    // Native starts as "granted" so the row doesn't flash in before the
+    // async check says otherwise.
+    let permission = $state<NotificationPermission | "unsupported">(
+        nativeApp ? "granted" : currentPermission(),
+    );
     let permissionLoading = $state(false);
+
+    if (nativeApp)
+        void checkNativeNotificationPermission().then((p) => (permission = p));
 
     let soundEnabled = $state(
         localStorage.getItem("notifSoundEnabled") !== "false",
@@ -51,6 +72,11 @@
 
     async function requestPermission() {
         permissionLoading = true;
+        if (nativeApp) {
+            permission = await requestNativeNotificationPermission(getClient());
+            permissionLoading = false;
+            return;
+        }
         permission = await requestWebPushPermission().catch(currentPermission);
         if (permission === "granted") {
             const client = getClient();
@@ -392,31 +418,45 @@
         </div>
     </section>
 
-    <section data-setting-anchor="notif-desktop">
-        <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-        >
-            {t("notificationSettings.desktopAlerts")}
-        </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("notificationSettings.popUpAndTaskbarFlash")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("notificationSettings.whichNotificationsShowASystemPop")}
-                </p>
+    {#if !nativeApp}
+        <section data-setting-anchor="notif-desktop">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                {taskbarFlash
+                    ? t("notificationSettings.desktopAlerts")
+                    : t("notificationSettings.popUps")}
+            </p>
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {taskbarFlash
+                            ? t("notificationSettings.popUpAndTaskbarFlash")
+                            : t("notificationSettings.popUpNotifications")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {taskbarFlash
+                            ? t(
+                                  "notificationSettings.whichNotificationsShowASystemPop",
+                              )
+                            : t(
+                                  "notificationSettings.whichNotificationsShowASystemPopUp",
+                              )}
+                    </p>
+                </div>
+                <OptionSelector
+                    value={settingsState.desktopAlertMode}
+                    options={alertModeOptions}
+                    onChange={setDesktopAlertMode}
+                    ariaLabel={taskbarFlash
+                        ? t("notificationSettings.desktopAlerts")
+                        : t("notificationSettings.popUps")}
+                />
             </div>
-            <OptionSelector
-                value={settingsState.desktopAlertMode}
-                options={alertModeOptions}
-                onChange={setDesktopAlertMode}
-                ariaLabel={t("notificationSettings.desktopAlerts")}
-            />
-        </div>
-    </section>
+        </section>
+    {/if}
 
     <section data-setting-anchor="notif-devices">
         <p

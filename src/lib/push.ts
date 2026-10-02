@@ -101,6 +101,8 @@ export async function initPush(
         }
         pushDebug.permission = permission.receive;
         if (permission.receive !== "granted") {
+            // Not latched: granting later from Settings re-runs this.
+            pushInitialised = false;
             pushDebug.lastError = "Notification permission not granted";
             console.warn("[push] Notification permission denied");
             return;
@@ -206,6 +208,38 @@ async function registerPusher(
         pushDebug.lastError = "Failed to register pusher: " + String(err);
         console.error("[push] Failed to register pusher:", err);
     }
+}
+
+// The Android WebView has no Notification API, so the Settings permission row
+// reads and requests the OS permission through the native plugin instead.
+function toNotificationPermission(receive: string): NotificationPermission {
+    if (receive === "granted" || receive === "denied") return receive;
+    return "default";
+}
+
+export async function checkNativeNotificationPermission(): Promise<NotificationPermission> {
+    try {
+        const p = await PushNotifications.checkPermissions();
+        return toNotificationPermission(p.receive);
+    } catch {
+        return "default";
+    }
+}
+
+/** Ask for the OS permission, then (if granted) finish push setup that
+ *  initPush skipped while it was missing. */
+export async function requestNativeNotificationPermission(
+    matrixClient: import("matrix-js-sdk").MatrixClient | null,
+): Promise<NotificationPermission> {
+    let receive: string;
+    try {
+        receive = (await PushNotifications.requestPermissions()).receive;
+    } catch {
+        return checkNativeNotificationPermission();
+    }
+    pushDebug.permission = receive;
+    if (receive === "granted" && matrixClient) await initPush(matrixClient);
+    return toNotificationPermission(receive);
 }
 
 export async function unregisterPush(

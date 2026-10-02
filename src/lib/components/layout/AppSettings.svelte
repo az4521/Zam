@@ -40,6 +40,7 @@
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
     import { isDesktopTray } from "$lib/desktopTray";
+    import { Capacitor } from "@capacitor/core";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
 
@@ -71,12 +72,18 @@
     }
 
     // Tabs with no content on this platform (General off packaged desktop)
-    // are hidden from the nav and from search (audit UX-12). The tray bridge
-    // is fixed for the page's lifetime, so a plain const is enough.
-    const platform = { desktopTray: isDesktopTray() };
+    // are hidden from the nav and from search (audit UX-12), as are search
+    // entries for single settings this platform doesn't show. Both facts are
+    // fixed for the page's lifetime, so a plain const is enough.
+    const platform = {
+        desktopTray: isDesktopTray(),
+        nativeApp: Capacitor.isNativePlatform(),
+    };
     const settingsGroups = visibleSettingsGroups(platform);
-    const searchIndex = SETTINGS_SEARCH_INDEX.filter((e) =>
-        isSettingsTabAvailable(e.tab, platform),
+    const searchIndex = SETTINGS_SEARCH_INDEX.filter(
+        (e) =>
+            isSettingsTabAvailable(e.tab, platform) &&
+            (e.available?.(platform) ?? true),
     );
 
     let searchQuery = $state("");

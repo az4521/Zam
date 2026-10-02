@@ -944,7 +944,11 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.popUpAndTaskbarFlash":
         "Pop-up und Blinken der Taskleiste",
     "notificationSettings.whichNotificationsShowASystemPop":
-        "Welche Benachrichtigungen ein System-Pop-up anzeigen und in der Desktop-App das Taskleistensymbol blinken lassen, während das Fenster im Hintergrund ist.",
+        "Welche Benachrichtigungen ein System-Pop-up anzeigen und das Taskleistensymbol blinken lassen, während das Fenster im Hintergrund ist.",
+    "notificationSettings.popUps": "Pop-ups",
+    "notificationSettings.popUpNotifications": "Pop-up-Benachrichtigungen",
+    "notificationSettings.whichNotificationsShowASystemPopUp":
+        "Welche Benachrichtigungen ein System-Pop-up anzeigen, während die App im Hintergrund ist.",
     "notificationSettings.multipleDevices": "Mehrere Geräte",
     "notificationSettings.quietOnMyOtherDevices":
         "Auf meinen anderen Geräten leise",
@@ -2869,6 +2873,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.notificationSound": "Benachrichtigungston",
     "settingsSearch.desktopAlertsPopUpAndTaskbar":
         "Desktop-Hinweise (Pop-up und Blinken der Taskleiste)",
+    "settingsSearch.popUpNotifications": "Pop-up-Benachrichtigungen",
     "settingsSearch.quietOnMyOtherDevices": "Auf meinen anderen Geräten leise",
     "settingsSearch.privateReadReceipts": "Private Lesebestätigungen",
     "settingsSearch.hideMessageTextInNotifications":

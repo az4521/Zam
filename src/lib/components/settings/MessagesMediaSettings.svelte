@@ -15,6 +15,7 @@
     import { type GifTab } from "$lib/utils/klipy";
     import type { MidiSoundBankChoice } from "$lib/utils/midiSoundBankChoice";
     import {
+        canUseSystemSoundBank,
         hasSystemSoundBank,
         resetSoundBank,
     } from "$lib/utils/midiSoundBank";
@@ -33,8 +34,12 @@
         { value: "favourites", label: t("messagesMediaSettings.favourites") },
     ];
 
-    // null until checked. Only the desktop app can read the OS's bank.
-    let systemBankAvailable = $state<boolean | null>(null);
+    // Only the desktop app can read the OS's bank; elsewhere the "System"
+    // option isn't offered at all. null until checked.
+    const systemBankSupported = canUseSystemSoundBank();
+    let systemBankAvailable = $state<boolean | null>(
+        systemBankSupported ? null : false,
+    );
     let customBank = $state<{ name: string; size: number } | null>(null);
     let customBankLoaded = $state(false);
     let bankFileInput = $state<HTMLInputElement | null>(null);
@@ -42,7 +47,10 @@
     let bankUploadError = $state<string | null>(null);
 
     $effect(() => {
-        void hasSystemSoundBank().then((has) => (systemBankAvailable = has));
+        if (systemBankSupported)
+            void hasSystemSoundBank().then(
+                (has) => (systemBankAvailable = has),
+            );
         void getStoredSoundBankInfo().then((info) => {
             customBank = info;
             customBankLoaded = true;
@@ -68,15 +76,19 @@
             disabled?: boolean;
         }>
     >([
-        {
-            value: "system",
-            label: t("midiSoundBank.system"),
-            title:
-                systemBankAvailable === false
-                    ? t("midiSoundBank.noSystemSoundBankFound")
-                    : undefined,
-            disabled: systemBankAvailable === false,
-        },
+        ...(systemBankSupported
+            ? [
+                  {
+                      value: "system" as const,
+                      label: t("midiSoundBank.system"),
+                      title:
+                          systemBankAvailable === false
+                              ? t("midiSoundBank.noSystemSoundBankFound")
+                              : undefined,
+                      disabled: systemBankAvailable === false,
+                  },
+              ]
+            : []),
         { value: "bundled", label: t("midiSoundBank.included") },
         { value: "custom", label: t("midiSoundBank.custom") },
     ]);
@@ -283,7 +295,7 @@
                 ariaLabel={t("midiSoundBank.soundBank")}
             />
         </div>
-        {#if systemBankAvailable === false}
+        {#if systemBankSupported && systemBankAvailable === false}
             <p class="text-xs text-discord-textMuted">
                 {t("midiSoundBank.noSystemSoundBankFound")}
             </p>

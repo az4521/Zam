@@ -114,6 +114,8 @@ export function settingsNavView(args: {
 export interface SettingsPlatform {
     /** Packaged Electron with the tray bridge (`isDesktopTray()`). */
     desktopTray: boolean;
+    /** The Capacitor Android app. */
+    nativeApp: boolean;
 }
 
 /**

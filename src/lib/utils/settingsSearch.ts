@@ -8,7 +8,7 @@
 // conditionally hidden) selecting the result simply lands on the tab.
 import { t } from "$lib/i18n";
 
-import type { SettingsTab } from "$lib/utils/settingsNav";
+import type { SettingsPlatform, SettingsTab } from "$lib/utils/settingsNav";
 
 export interface SettingsSearchEntry {
     /** The tab that owns this setting — navigation target. */
@@ -19,6 +19,9 @@ export interface SettingsSearchEntry {
     keywords?: readonly string[];
     /** Optional `data-setting-anchor` id to scroll to within the panel. */
     anchor?: string;
+    /** Omit for settings shown everywhere; false hides the entry on that
+     *  platform, matching the panel hiding the control. */
+    available?: (platform: SettingsPlatform) => boolean;
 }
 
 /**
@@ -269,6 +272,14 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "toast",
         ],
         anchor: "notif-desktop",
+        available: (p) => p.desktopTray,
+    },
+    {
+        tab: "notifications",
+        label: t("settingsSearch.popUpNotifications"),
+        keywords: ["popup", "desktop notification", "toast"],
+        anchor: "notif-desktop",
+        available: (p) => !p.desktopTray && !p.nativeApp,
     },
     {
         tab: "notifications",

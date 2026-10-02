@@ -880,7 +880,11 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.desktopAlerts": "ܙܘܗܪ̈ܐ ܕܡܚܫܒܐ",
     "notificationSettings.popUpAndTaskbarFlash": "ܟܘܬܐ ܕܫܘܪ ܘܒܪܩܐ ܕܣܪܓܐ ܕܥܒܕ̈ܐ",
     "notificationSettings.whichNotificationsShowASystemPop":
-        "ܐܝܢܝ ܡܘܕܥܢܘ̈ܬܐ ܡܚܘܝܢ ܟܘܬܐ ܕܣܝܣܛܡ ܘ، ܓܘ ܬܘܟܢܝܬܐ ܕܡܚܫܒܐ، ܡܒܪܩܝ ܨܘܪܬܐ ܕܣܪܓܐ ܕܥܒܕ̈ܐ ܐܡܬܝ ܕܟܘܬܐ ܝܠܗ̇ ܒܒܣܬܪ.",
+        "ܐܝܢܝ ܡܘܕܥܢܘ̈ܬܐ ܡܚܘܝܢ ܟܘܬܐ ܕܣܝܣܛܡ ܘܡܒܪܩܝ ܨܘܪܬܐ ܕܣܪܓܐ ܕܥܒܕ̈ܐ ܐܡܬܝ ܕܟܘܬܐ ܝܠܗ̇ ܒܒܣܬܪ.",
+    "notificationSettings.popUps": "ܟܘ̈ܬܐ ܕܫܘܪ",
+    "notificationSettings.popUpNotifications": "ܡܘܕܥܢܘ̈ܬܐ ܕܟܘܬܐ ܕܫܘܪ",
+    "notificationSettings.whichNotificationsShowASystemPopUp":
+        "ܐܝܢܝ ܡܘܕܥܢܘ̈ܬܐ ܡܚܘܝܢ ܟܘܬܐ ܕܣܝܣܛܡ ܐܡܬܝ ܕܬܘܟܢܝܬܐ ܝܠܗ̇ ܒܒܣܬܪ.",
     "notificationSettings.multipleDevices": "ܡܐܢ̈ܐ ܣܓܝ̈ܐܐ",
     "notificationSettings.quietOnMyOtherDevices": "ܫܬܝܩܐ ܥܠ ܡܐܢ̈ܐ ܐܚܪ̈ܢܐ ܕܝܝ",
     "notificationSettings.whileYouReActivelyUsingOne":
@@ -2643,6 +2647,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.notificationSound": "ܩܠܐ ܕܡܘܕܥܢܘܬܐ",
     "settingsSearch.desktopAlertsPopUpAndTaskbar":
         "ܙܘܗܪ̈ܐ ܕܡܚܫܒܐ (ܟܘܬܐ ܕܫܘܪ ܘܒܪܩܐ ܕܣܪܓܐ ܕܥܒܕ̈ܐ)",
+    "settingsSearch.popUpNotifications": "ܡܘܕܥܢܘ̈ܬܐ ܕܟܘܬܐ ܕܫܘܪ",
     "settingsSearch.quietOnMyOtherDevices": "ܫܬܝܩܐ ܥܠ ܡܐܢ̈ܐ ܐܚܪ̈ܢܐ ܕܝܝ",
     "settingsSearch.privateReadReceipts": "ܩܘܒܠ̈ܐ ܕܩܪܝܬܐ ܟܣܝ̈ܐ",
     "settingsSearch.hideMessageTextInNotifications":

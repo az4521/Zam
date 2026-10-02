@@ -930,7 +930,11 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.popUpAndTaskbarFlash":
         "Fenêtre contextuelle et clignotement de la barre des tâches",
     "notificationSettings.whichNotificationsShowASystemPop":
-        "Les notifications qui affichent une fenêtre système et, dans l'application de bureau, font clignoter l'icône de la barre des tâches quand la fenêtre est en arrière-plan.",
+        "Les notifications qui affichent une fenêtre système et font clignoter l'icône de la barre des tâches quand la fenêtre est en arrière-plan.",
+    "notificationSettings.popUps": "Fenêtres contextuelles",
+    "notificationSettings.popUpNotifications": "Notifications contextuelles",
+    "notificationSettings.whichNotificationsShowASystemPopUp":
+        "Les notifications qui affichent une fenêtre système quand l'application est en arrière-plan.",
     "notificationSettings.multipleDevices": "Plusieurs appareils",
     "notificationSettings.quietOnMyOtherDevices":
         "Silence sur mes autres appareils",
@@ -2840,6 +2844,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.notificationSound": "Son des notifications",
     "settingsSearch.desktopAlertsPopUpAndTaskbar":
         "Alertes du bureau (fenêtre et clignotement de la barre des tâches)",
+    "settingsSearch.popUpNotifications": "Notifications contextuelles",
     "settingsSearch.quietOnMyOtherDevices": "Silence sur mes autres appareils",
     "settingsSearch.privateReadReceipts": "Accusés de lecture privés",
     "settingsSearch.hideMessageTextInNotifications":

@@ -33,6 +33,13 @@ interface SoundBank {
 }
 
 /** Whether the OS has a bank to offer (desktop app only). */
+/** Whether this shell can look for an OS bank at all (the desktop app). */
+export function canUseSystemSoundBank(): boolean {
+    return (
+        typeof window !== "undefined" && !!window.desktop?.hasSystemSoundBank
+    );
+}
+
 export async function hasSystemSoundBank(): Promise<boolean> {
     try {
         return (await window.desktop?.hasSystemSoundBank?.()) === true;
