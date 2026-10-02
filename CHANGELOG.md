@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.3
+
+🐛 **Fixed**
+
+- **Can't edit the text on a sent image:** when you sent an image, video, or file with a message attached, the message text couldn't be edited afterwards. You can now edit it like any other message (and clearing it removes the text while keeping the attachment).
+
 ## v1.12.2
 
 🐛 **Fixed**
