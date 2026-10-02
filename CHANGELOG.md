@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.7
+
+🐛 **Fixed**
+
+- **New messages not showing up:** after a brief network drop, or when coming back to the app (for example from a notification), new messages could take up to two minutes to appear. Zam now reconnects right away.
+- **Messages out of order with sliding sync:** when several messages arrived in a room you weren't viewing, the ones in between could end up above older history instead of at the bottom.
+- **™ ® ©:** `:tm:`, `:registered:` and `:copyright:` (and picking them from the emoji picker) now insert the plain symbols instead of the emoji versions, and the emoji versions sent from other apps show as plain symbols.
+
 ## v1.12.6
 
 🐛 **Fixed**
