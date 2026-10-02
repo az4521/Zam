@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.8
+
+🐛 **Fixed**
+
+- **Drag-and-drop attachments in the Flatpak:** files dragged in from outside your Downloads folder now upload instead of silently failing.
+- **Settings that didn't apply:** the taskbar flash option no longer shows in the browser or on Android, the MIDI "System" sound bank is only offered in the desktop app, and on Android the notification permission row now actually asks for permission instead of saying notifications aren't supported.
+- **Classic blurple:** buttons, your own message bubbles and the light theme's accent use classic blurple again instead of Discord's newer, more purple shade.
+
 ## v1.12.7
 
 🐛 **Fixed**
