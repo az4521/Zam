@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.4
+
+🐛 **Fixed**
+
+- **Editing image text on desktop:** the text on a sent image, video, or file could only be edited from the phone menu. The Edit button now shows up on desktop too, and swipe or double-tap to edit works on these messages.
+
+✨ **Changed**
+
+- **Edit in the mobile message bar:** on your own messages, Edit now sits in the quick-actions bar in place of Thread. Thread is still in the ⋯ menu.
+
 ## v1.12.3
 
 🐛 **Fixed**
