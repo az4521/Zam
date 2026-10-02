@@ -2,7 +2,8 @@
 //
 // On a phone the floating action bar cannot hold ~8 buttons and still sit over
 // the message, so only the four everyday actions stay inline — react, reply,
-// forward, thread — and the rest move into a bottom sheet. Which rows the sheet
+// forward, and edit on your own editable messages or thread otherwise — and the
+// rest move into a bottom sheet. Which rows the sheet
 // shows, in what order, and how they label lives here so it can be tested
 // without a DOM; MessageItem supplies the gating flags and renders the result.
 //
@@ -12,11 +13,20 @@ import { t } from "$lib/i18n";
 
 /** The actions that move off the inline bar and into the overflow sheet. */
 export type MessageActionKey =
-    "edit" | "pin" | "copy-link" | "report" | "redact" | "delete";
+    "thread" | "edit" | "pin" | "copy-link" | "report" | "redact" | "delete";
 
 export interface MessageActionContext {
-    /** Own text message that can be edited in place. */
+    /**
+     * Own message that can be edited in place. Edit then takes the inline
+     * bar's fourth slot, so it never appears as a sheet row; the thread
+     * action is displaced into the sheet instead.
+     */
     canEdit: boolean;
+    /**
+     * The thread action this message offers: "reply" starts a thread on it,
+     * "open" opens the thread it belongs to, null when threads don't apply.
+     */
+    thread: "reply" | "open" | null;
     /** The viewer may pin/unpin in this room. */
     canPin: boolean;
     /** The message is currently pinned (flips the pin row's label). */
@@ -46,7 +56,7 @@ export interface MessageActionRow {
 
 /**
  * Build the overflow rows for one message. Order is fixed and mirrors the
- * desktop bar's left-to-right order (edit, pin, copy-link, report, redact,
+ * desktop bar's left-to-right order (thread, pin, copy-link, report, redact,
  * delete) so the two layouts stay learnable; the two destructive rows land at
  * the bottom. `delete` and `redact` never both appear — delete is own-message
  * only, redact is other-message only.
@@ -55,8 +65,16 @@ export function messageActionsMenu(
     ctx: MessageActionContext,
 ): MessageActionRow[] {
     const rows: MessageActionRow[] = [];
-    if (ctx.canEdit)
-        rows.push({ key: "edit", label: t("messageActionsMenu.edit") });
+    // Edit sits inline when allowed and bumps thread here; otherwise thread
+    // stays inline and there is no edit to offer.
+    if (ctx.canEdit && ctx.thread)
+        rows.push({
+            key: "thread",
+            label:
+                ctx.thread === "open"
+                    ? t("messageItem.openThread")
+                    : t("messageItem.replyInThread"),
+        });
     if (ctx.canPin)
         rows.push({
             key: "pin",

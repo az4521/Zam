@@ -213,7 +213,7 @@
                 !ev ||
                 ev.getSender() !== auth.userId ||
                 ev.getType() !== "m.room.message" ||
-                ev.getContent()?.msgtype !== "m.text"
+                !isEditableContent(ev.getContent())
             )
                 return;
             editRequestedEventId = ctx.eventId;

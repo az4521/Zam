@@ -922,21 +922,6 @@
     let reportComp = $state<{ show: () => void } | undefined>(undefined);
     let redactComp = $state<{ show: () => void } | undefined>(undefined);
 
-    // The overflow rows for THIS message, gated exactly like the desktop
-    // buttons. Drives the mobile ⋯ sheet only; desktop keeps every button
-    // inline.
-    const overflowRows = $derived(
-        messageActionsMenu({
-            canEdit: canEditMessage,
-            canPin,
-            isPinned,
-            hasLink: eventId.startsWith("$") && !isFailed,
-            canReport: !isOwnMessage && !isFailed,
-            canRedact: !isOwnMessage && !isFailed && canRedact,
-            canDelete: isOwnMessage,
-        }),
-    );
-
     // Plugin-contributed message actions for THIS message, filtered by each
     // action's `when` gate. Additive — never replaces a core action.
     const pluginActionViews = $derived.by(() => {
@@ -971,6 +956,9 @@
         // The sheet has already released the modal slot (it closes before
         // choosing), so report/redact are free to claim it via show().
         switch (key) {
+            case "thread":
+                onOpenThread?.(threadRootId);
+                break;
             case "edit":
                 startEdit();
                 break;
@@ -1606,6 +1594,30 @@
     // "Reply in thread" offer on such events (Element greys it out likewise).
     // Thread replies are exempt: for them the affordance reads "Open thread".
     const isRelatedEvent = $derived(!!originalRelatesTo?.rel_type);
+    // The thread action offered on this message (see the action bar's thread
+    // button): "open" for a thread reply, "reply" to start one, else none.
+    const threadAction = $derived<"open" | "reply" | null>(
+        onOpenThread && (isThreadReply || !isRelatedEvent)
+            ? isThreadReply
+                ? "open"
+                : "reply"
+            : null,
+    );
+    // The overflow rows for THIS message, gated exactly like the desktop
+    // buttons. Drives the mobile ⋯ sheet only; desktop keeps every button
+    // inline.
+    const overflowRows = $derived(
+        messageActionsMenu({
+            canEdit: canEditMessage,
+            thread: threadAction,
+            canPin,
+            isPinned,
+            hasLink: eventId.startsWith("$") && !isFailed,
+            canReport: !isOwnMessage && !isFailed,
+            canRedact: !isOwnMessage && !isFailed && canRedact,
+            canDelete: isOwnMessage,
+        }),
+    );
     // Root summary: this message is a thread ROOT iff other events reply to it.
     // Keyed off roomsTick so the chip refreshes on sync (a live Thread mutates
     // in place — a bare $derived would not re-run; CLAUDE.md reactivity landmine).
@@ -3096,7 +3108,7 @@
                           : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
                   }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
         >
-            {#if !interfaceState.isTouchscreen && isOwnMessage && eventType === "m.room.message" && msgtype === "m.text"}
+            {#if !interfaceState.isTouchscreen && canEditMessage}
                 <button
                     data-message-action
                     onclick={startEdit}
@@ -3256,7 +3268,28 @@
                     />
                 </svg>
             </button>
-            {#if onOpenThread && (isThreadReply || !isRelatedEvent)}
+            {#if interfaceState.isTouchscreen && canEditMessage}
+                <!-- Mobile: on your own editable message Edit takes the
+                 thread slot (thread moves into the ⋯ sheet). Desktop shows
+                 Edit at the start of the bar instead. -->
+                <button
+                    data-message-action
+                    onclick={startEdit}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={t("messageItem.editMessage")}
+                    aria-label={t("messageItem.editMessage")}
+                >
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                        />
+                    </svg>
+                </button>
+            {:else if onOpenThread && (isThreadReply || !isRelatedEvent)}
                 <button
                     data-message-action
                     onclick={() => onOpenThread(threadRootId)}
