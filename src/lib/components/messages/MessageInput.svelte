@@ -49,6 +49,7 @@
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
+    import { textSymbolPresentation } from "$lib/utils/twemoji";
     import {
         convertTrailingShortcode,
         replaceEmojiShortcodes,
@@ -637,8 +638,9 @@
         const before = text.slice(0, emojiStart);
         const after = text.slice(emojiStart + 1 + queryLen);
         if (candidate.kind === "unicode") {
-            text = before + candidate.emoji + " " + after.replace(/^\S*/, "");
-            const newPos = emojiStart + candidate.emoji.length + 1;
+            const emoji = textSymbolPresentation(candidate.emoji);
+            text = before + emoji + " " + after.replace(/^\S*/, "");
+            const newPos = emojiStart + emoji.length + 1;
             tick().then(() => {
                 renderComposer(newPos);
                 textareaEl?.focus();
@@ -1752,7 +1754,7 @@
     }
 
     function insertEmoji(emoji: string) {
-        setComposerText(text + emoji);
+        setComposerText(text + textSymbolPresentation(emoji));
         closeModal();
         textareaEl?.focus();
     }

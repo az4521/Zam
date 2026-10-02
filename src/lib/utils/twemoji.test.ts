@@ -185,6 +185,15 @@ describe("text-style symbols stay as text", () => {
         },
     );
 
+    it.each([
+        ["©️", "©"],
+        ["®️", "®"],
+        ["™️", "™"],
+    ])("renderHtml shows %j as the plain glyph", (sym, plain) => {
+        expect(renderHtml(`Zam${sym}`, "emoji")).toBe(`Zam${plain}`);
+        expect(renderEmoji(sym, "emoji")).toBe(plain);
+    });
+
     it("renderEmoji returns plain text, not an img", () => {
         expect(renderEmoji("™", "emoji")).not.toContain("<img");
     });

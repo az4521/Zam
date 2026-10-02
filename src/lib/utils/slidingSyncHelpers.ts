@@ -28,3 +28,65 @@ export function isSlidingSyncUnsupportedError(err: unknown): boolean {
     if (e.errcode === "M_UNRECOGNIZED") return true;
     return e.httpStatus === 404 || e.httpStatus === 405 || e.httpStatus === 501;
 }
+
+/**
+ * Whether a sliding-sync room update skipped over events we never received,
+ * so the room's live timeline must be reset before the update is applied.
+ *
+ * matrix-js-sdk's sliding-sync layer never does this itself (its reset code
+ * is a commented-out TODO): a `limited` update with no overlap is appended
+ * straight onto the old timeline with no gap marker, and when a later update
+ * DOES overlap, every unknown event before the known one is treated as
+ * scrollback and inserted at the START of the timeline. With a room-list
+ * timeline_limit of 1 that happens whenever two messages land in a room you
+ * aren't viewing, so opening it (say, from a notification) showed the newest
+ * message but put the ones in between above all the older history. Classic
+ * /sync resets the live timeline on a gap; this restores that behaviour.
+ *
+ * A gap is a `limited` update whose events share nothing with a non-empty
+ * live timeline. Any overlap means the update joins on and the SDK's own
+ * dedupe/scrollback split places it correctly.
+ */
+export function isSlidingTimelineGap(
+    update: { limited?: boolean; timelineEventIds: string[] },
+    liveEventIds: ReadonlySet<string>,
+): boolean {
+    if (!update.limited) return false;
+    if (update.timelineEventIds.length === 0 || liveEventIds.size === 0)
+        return false;
+    return !update.timelineEventIds.some((id) => liveEventIds.has(id));
+}
+
+/** Long-poll timeout both sync loops use (classic pollTimeout default and
+ *  SLIDING_TIMEOUT_MS): a healthy loop answers at least this often. */
+export const SYNC_POLL_MS = 30_000;
+
+/**
+ * Whether to abort the in-flight sync request and restart it now.
+ *
+ * After a network blip or an OS suspend (app backgrounded, notification tap
+ * back in) the long-poll can sit on a dead connection without erroring, and
+ * matrix-js-sdk only gives up on it after poll + 80s (110s), so new messages
+ * just don't arrive for up to two minutes. The SDK's own `online` handler
+ * only helps once a request has already FAILED. So restart when:
+ *   - the browser says we're back online,
+ *   - the app becomes visible after being hidden for a few seconds (timers
+ *     and sockets may have been frozen), or
+ *   - no sync response has landed for well over a poll interval (watchdog,
+ *     for blips that fire no event at all).
+ */
+export function shouldKickSync(
+    trigger: "online" | "visible" | "watchdog",
+    sinceLastSyncMs: number,
+    hiddenForMs = 0,
+): boolean {
+    const overdue = sinceLastSyncMs > SYNC_POLL_MS + 15_000;
+    switch (trigger) {
+        case "online":
+            return true;
+        case "visible":
+            return hiddenForMs >= 5_000 || overdue;
+        case "watchdog":
+            return overdue;
+    }
+}

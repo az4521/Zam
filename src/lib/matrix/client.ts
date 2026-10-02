@@ -49,10 +49,13 @@ import {
     MSC3575_STATE_KEY_ME,
     MSC3575_STATE_KEY_LAZY,
     type MSC3575List,
+    type MSC3575RoomData,
 } from "matrix-js-sdk/lib/sliding-sync";
 import {
     isSlidingSyncUnsupportedError,
+    isSlidingTimelineGap,
     nextWindowEnd,
+    shouldKickSync,
 } from "$lib/utils/slidingSyncHelpers";
 import {
     isSlidingSyncEnabled,
@@ -1021,6 +1024,44 @@ const SLIDING_ROOM_STATE: string[][] = [
 ];
 
 let activeSlidingSync: SlidingSync | null = null;
+
+// When the sync loop last got a response (any state). Drives the stuck-sync
+// watchdog in startSync; see shouldKickSync.
+let lastSyncResponseAt = Date.now();
+
+/**
+ * Abort the in-flight sync request and start a fresh one right away, for a
+ * long-poll that may be stuck on a dead connection (see shouldKickSync).
+ * Sliding sync has resend() for exactly this. Classic /sync has no public
+ * hook, so abort its request through SyncApi's controller (swapping in a new
+ * one so the loop's next requests aren't born aborted): the loop treats that
+ * as a dropped connection and starts its keep-alive, which retryImmediately
+ * then runs at once instead of after its 2-7s backoff.
+ */
+function kickSync(client: MatrixClient): void {
+    if (activeSlidingSync && isUsingSlidingSync()) {
+        activeSlidingSync.resend();
+        return;
+    }
+    const api = (
+        client as unknown as {
+            syncApi?: {
+                abortController?: AbortController;
+                currentSyncRequest?: Promise<unknown>;
+            };
+        }
+    ).syncApi;
+    if (!api?.currentSyncRequest || !api.abortController) {
+        // Not mid-request (already backing off): just skip the backoff.
+        client.retryImmediately();
+        return;
+    }
+    api.abortController.abort();
+    api.abortController = new AbortController();
+    // onSyncError runs on a later microtask and starts the keep-alive;
+    // retry after it so there is a keep-alive to hurry along.
+    setTimeout(() => client.retryImmediately(), 0);
+}
 let slidingActiveRoomId: string | null = null;
 
 // Live timelines whose missing backward token has already been probed. Keyed
@@ -1153,6 +1194,38 @@ async function buildSlidingSync(
         SLIDING_TIMEOUT_MS,
     );
 
+    // Reset a room's live timeline when an update skips events, like classic
+    // /sync does (see isSlidingTimelineGap for what the SDK gets wrong). This
+    // listener is registered before startClient() builds the SDK's own
+    // RoomData listener, and emitPromised calls listeners in order, so the
+    // reset lands before the SDK appends the update. The fresh timeline gets
+    // the update's prev_batch, so the missing messages page in behind it, and
+    // RoomEvent.TimelineReset makes an open MessageArea reload and refill.
+    sliding.on(
+        SlidingSyncEvent.RoomData,
+        (roomId: string, roomData: MSC3575RoomData) => {
+            const room = client.getRoom(roomId);
+            if (!room) return;
+            const liveIds = new Set(
+                room
+                    .getLiveTimeline()
+                    .getEvents()
+                    .map((e) => e.getId())
+                    .filter((id): id is string => !!id),
+            );
+            const gap = isSlidingTimelineGap(
+                {
+                    limited: roomData.limited,
+                    timelineEventIds: (roomData.timeline ?? [])
+                        .map((e) => e.event_id)
+                        .filter((id): id is string => !!id),
+                },
+                liveIds,
+            );
+            if (gap) room.resetLiveTimeline(roomData.prev_batch ?? null, null);
+        },
+    );
+
     // Grow every list one page per completed response until it covers all the
     // rooms the server reports for it (so no list has a hard cap).
     sliding.on(SlidingSyncEvent.Lifecycle, (state: SlidingSyncState) => {
@@ -1199,6 +1272,8 @@ export async function startSync(
     initialSyncComplete = false;
 
     const onSync = guardOwnership(owner, readOwner, (state: string) => {
+        if (state === "SYNCING" || state === "PREPARED" || state === "CATCHUP")
+            lastSyncResponseAt = Date.now();
         // Classic /sync delivers the whole room list in one (cached or live)
         // pass; sliding sync reports completion from its list windows.
         if (state === "PREPARED" && !isUsingSlidingSync())
@@ -1259,7 +1334,44 @@ export async function startSync(
         client.off(ClientEvent.Room as never, onRoom as never);
         if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
         document.removeEventListener("visibilitychange", onHidden);
+        document.removeEventListener("visibilitychange", onVisibleKick);
+        window.removeEventListener("online", onOnlineKick);
+        clearInterval(syncWatchdog);
     };
+
+    // Unstick a sync long-poll left hanging by a network blip or an OS
+    // suspend, so new messages show up now rather than after the SDK's ~110s
+    // request timeout. See shouldKickSync for when this fires.
+    let hiddenSince: number | null = null;
+    const kickIf = (
+        trigger: "online" | "visible" | "watchdog",
+        hiddenForMs = 0,
+    ) => {
+        if (!ownedClient(owner) || !initialSyncComplete) return;
+        const since = Date.now() - lastSyncResponseAt;
+        if (!shouldKickSync(trigger, since, hiddenForMs)) return;
+        // Count the restart as activity so the watchdog doesn't fire again
+        // before the new request has had a chance to answer.
+        lastSyncResponseAt = Date.now();
+        kickSync(client);
+    };
+    const onVisibleKick = () => {
+        if (document.visibilityState === "hidden") {
+            hiddenSince = Date.now();
+            return;
+        }
+        const hiddenFor = hiddenSince === null ? 0 : Date.now() - hiddenSince;
+        hiddenSince = null;
+        kickIf("visible", hiddenFor);
+    };
+    const onOnlineKick = () => kickIf("online");
+    document.addEventListener("visibilitychange", onVisibleKick);
+    window.addEventListener("online", onOnlineKick);
+    const syncWatchdog = setInterval(() => {
+        // A hidden tab's timers are throttled and its sockets may be frozen;
+        // the visible handler covers it on return.
+        if (document.visibilityState === "visible") kickIf("watchdog");
+    }, 10_000);
 
     // Paint the last known room list while sync catches up.
     await hydrateRoomListCache(client);

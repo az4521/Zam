@@ -8,7 +8,10 @@ import {
 
 describe("emoji shortcodes", () => {
     it("knows Discord's names, with emoji presentation", () => {
-        expect(emojiForShortcode("tm")).toBe("™️");
+        // (c) (R) TM stay plain text glyphs, without the emoji selector.
+        expect(emojiForShortcode("tm")).toBe("™");
+        expect(emojiForShortcode("registered")).toBe("®");
+        expect(emojiForShortcode("copyright")).toBe("©");
         expect(emojiForShortcode("thumbsup")).toBe("👍");
         expect(emojiForShortcode("+1")).toBe("👍");
         expect(emojiForShortcode("joy")).toBe("😂");
@@ -19,7 +22,7 @@ describe("emoji shortcodes", () => {
     });
 
     it("converts a shortcode as its closing colon is typed", () => {
-        expect(convertTrailingShortcode("Zam:tm:")).toBe("Zam™️");
+        expect(convertTrailingShortcode("Zam:tm:")).toBe("Zam™");
         expect(convertTrailingShortcode("nice :thumbsup:")).toBe("nice 👍");
         expect(convertTrailingShortcode("nice :thumbsup")).toBeNull();
         expect(convertTrailingShortcode("time 12:30:")).toBeNull();
@@ -30,11 +33,11 @@ describe("emoji shortcodes", () => {
     });
 
     it("replaces shortcodes at send, but not inside code", () => {
-        expect(replaceEmojiShortcodes("a :tm: b :fire:")).toBe("a ™️ b 🔥");
-        expect(replaceEmojiShortcodes("`:tm:` and :tm:")).toBe("`:tm:` and ™️");
+        expect(replaceEmojiShortcodes("a :tm: b :fire:")).toBe("a ™ b 🔥");
+        expect(replaceEmojiShortcodes("`:tm:` and :tm:")).toBe("`:tm:` and ™");
         expect(replaceEmojiShortcodes("```\n:tm:\n```")).toBe("```\n:tm:\n```");
         expect(replaceEmojiShortcodes(":blob: :tm:", (c) => c === "blob")).toBe(
-            ":blob: ™️",
+            ":blob: ™",
         );
     });
 });

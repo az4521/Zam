@@ -1,12 +1,13 @@
-// Discord-style `:shortcode:` names for unicode emoji (`:tm:` → ™️,
+// Discord-style `:shortcode:` names for unicode emoji (`:tm:` → ™,
 // `:thumbsup:` → 👍). Discord's names come from JoyPixels (formerly EmojiOne);
 // GitHub's gemoji names are folded in as aliases since most people know both.
-// The emoji itself is taken from ALL_EMOJIS (unicode-emoji-json) so it keeps
-// its emoji-presentation selector, e.g. "™️" rather than the plain "™" glyph.
+// The emoji itself is taken from ALL_EMOJIS (unicode-emoji-json), except that
+// (c) (R) TM come out as their plain text glyphs ("™", not "™️"), as in Discord.
 
 import joypixels from "emojibase-data/en/shortcodes/joypixels.json";
 import github from "emojibase-data/en/shortcodes/github.json";
 import { ALL_EMOJIS } from "./emojis";
+import { textSymbolPresentation } from "$lib/utils/twemoji";
 
 type ShortcodeData = Record<string, string | string[]>;
 
@@ -45,7 +46,8 @@ for (const { emoji } of ALL_EMOJIS) {
     shortcodesByEmoji.set(emoji, codes);
     // First emoji to claim a name keeps it (JoyPixels before GitHub).
     for (const code of codes)
-        if (!emojiByShortcode.has(code)) emojiByShortcode.set(code, emoji);
+        if (!emojiByShortcode.has(code))
+            emojiByShortcode.set(code, textSymbolPresentation(emoji));
 }
 
 /** The `:shortcode:` names of a unicode emoji (without colons), best first. */
