@@ -172,6 +172,11 @@
         type SwipeStage,
     } from "$lib/utils/swipeGesture";
     import {
+        hasMediaCaption,
+        isEditableContent,
+        mediaEditBase,
+    } from "$lib/utils/editableMessage";
+    import {
         shouldOpenMessageMenu,
         menuModeFromSetting,
         type MessageMenuMode,
@@ -779,9 +784,12 @@
 
     const msgtype = $derived(content?.msgtype ?? "");
 
-    // Gate for Edit action: only your own m.text messages can be edited inline.
+    // Gate for Edit action: your own m.text messages, plus the caption of your
+    // own captioned media (MSC2530), can be edited inline.
     const canEditMessage = $derived(
-        isOwnMessage && eventType === "m.room.message" && msgtype === "m.text",
+        isOwnMessage &&
+            eventType === "m.room.message" &&
+            isEditableContent(content),
     );
 
     // Swipe reveal icon: "none" | "reply" | "edit" (depends on canEditMessage).
@@ -1043,11 +1051,7 @@
     // A media caption exists when `filename` is present and differs from `body`
     // (i.e. `body` is real caption text, not just the file name). We render it as
     // a normal message above the media rather than as a label on the media.
-    const hasCaption = $derived(() => {
-        const fn = content?.filename as string | undefined;
-        const raw = content?.body as string | undefined;
-        return !!(fn && raw && fn !== raw);
-    });
+    const hasCaption = $derived(() => hasMediaCaption(content));
 
     // Strip a leading <mx-reply> fallback from formatted_body so we don't
     // double-render the quote (we render it from the referenced event). Uses the
@@ -1699,8 +1703,12 @@
         const trimmed = editText.trim();
         const realEventId = event.getId() ?? "";
         if (!realEventId || isSavingEdit) return;
+        // Captioned media: the edit restates the media content, and an empty
+        // caption just strips the caption (body falls back to the file name)
+        // rather than offering to delete the attachment.
+        const mediaBase = mediaEditBase(event.getContent());
 
-        if (!trimmed) {
+        if (!trimmed && !mediaBase) {
             // Empty edit — cancel without returning focus, then prompt to delete
             isEditing = false;
             editText = "";
@@ -1711,16 +1719,20 @@
         }
         isSavingEdit = true;
         try {
-            const { formattedBody, hasFormatting } = parseMarkdown(trimmed);
+            const newBody = trimmed || String(mediaBase?.filename ?? "");
+            const { formattedBody, hasFormatting } = trimmed
+                ? parseMarkdown(trimmed)
+                : { formattedBody: "", hasFormatting: false };
             // Latest resolved mentions live on the post-replacement content
             // (the SDK folds m.new_content in), so this carries them forward
             // through the edit per the v1.7 mentions module.
             await sendEdit(
                 room.roomId,
                 realEventId,
-                trimmed,
+                newBody,
                 hasFormatting ? formattedBody : undefined,
                 event.getContent()["m.mentions"],
+                mediaBase,
             );
             isEditing = false;
             editText = "";
@@ -2176,8 +2188,46 @@
             <!-- Media caption (MSC2530): rendered as a normal message above the
              media, so an image/video/etc. with a caption reads like a message
              followed by the attachment. -->
+            <!-- Inline edit box: replaces a text body, or a media caption (the
+             attachment itself stays rendered below it). -->
+            {#snippet editBox()}
+                <div class="mt-1">
+                    <textarea
+                        dir="auto"
+                        bind:this={editTextareaEl}
+                        bind:value={editText}
+                        onkeydown={onEditKeydown}
+                        rows="1"
+                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none resize-none focus:ring-1 focus:ring-discord-accent/50"
+                        style="field-sizing: content; max-height: 200px;"
+                    ></textarea>
+                    <p class="text-xs text-discord-textMuted mt-1">
+                        <kbd class="font-mono">Enter</kbd>
+                        {t("messageItem.toSave")}
+                        <kbd class="font-mono">Esc</kbd>
+                        {t("messageItem.toCancel")}
+                    </p>
+                    <div class="flex gap-2 mt-1">
+                        <button
+                            onclick={saveEdit}
+                            disabled={isSavingEdit ||
+                                (!editText.trim() && !hasCaption())}
+                            class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
+                            >{t("common.save")}</button
+                        >
+                        <button
+                            onclick={cancelEdit}
+                            class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
+                            >{t("common.cancel")}</button
+                        >
+                    </div>
+                </div>
+            {/snippet}
+
             {#snippet mediaCaption()}
-                {#if hasCaption()}
+                {#if isEditing}
+                    {@render editBox()}
+                {:else if hasCaption()}
                     <div
                         use:spoilers
                         use:matrixLinks
@@ -2763,36 +2813,7 @@
                     {/if}
                 </div>
             {:else if isEditing}
-                <div class="mt-1">
-                    <textarea
-                        dir="auto"
-                        bind:this={editTextareaEl}
-                        bind:value={editText}
-                        onkeydown={onEditKeydown}
-                        rows="1"
-                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none resize-none focus:ring-1 focus:ring-discord-accent/50"
-                        style="field-sizing: content; max-height: 200px;"
-                    ></textarea>
-                    <p class="text-xs text-discord-textMuted mt-1">
-                        <kbd class="font-mono">Enter</kbd>
-                        {t("messageItem.toSave")}
-                        <kbd class="font-mono">Esc</kbd>
-                        {t("messageItem.toCancel")}
-                    </p>
-                    <div class="flex gap-2 mt-1">
-                        <button
-                            onclick={saveEdit}
-                            disabled={isSavingEdit || !editText.trim()}
-                            class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
-                            >{t("common.save")}</button
-                        >
-                        <button
-                            onclick={cancelEdit}
-                            class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
-                            >{t("common.cancel")}</button
-                        >
-                    </div>
-                </div>
+                {@render editBox()}
             {:else}
                 <div class={bubble.bubble ? "own-bubble" : "contents"}>
                     <div

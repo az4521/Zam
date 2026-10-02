@@ -4399,6 +4399,9 @@ export async function sendEdit(
     newText: string,
     formattedBody?: string,
     originalMentions?: Mentions,
+    // Media fields (see mediaEditBase) when editing a media caption; the
+    // replacement must restate the whole media content, not just the text.
+    mediaBase?: Record<string, unknown>,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // v1.7 mentions module: split m.mentions across the replacement halves —
@@ -4414,7 +4417,7 @@ export async function sendEdit(
         newText,
     );
     const newContent: Record<string, unknown> = {
-        msgtype: "m.text",
+        ...(mediaBase ?? { msgtype: "m.text" }),
         body: newText,
         "m.mentions": resolved,
     };
@@ -4426,7 +4429,7 @@ export async function sendEdit(
         roomId,
         "m.room.message" as never,
         {
-            msgtype: "m.text",
+            ...(mediaBase ?? { msgtype: "m.text" }),
             body: `* ${newText}`,
             ...(formattedBody
                 ? {
