@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.5
+
+✨ **New**
+
+- **Flatpak:** Zam is now available as a Flatpak from its own repository. Install it from https://az4521.github.io/Zam/ (or with `flatpak install --user https://az4521.github.io/Zam/zam.flatpakref`), and it updates through `flatpak update`. A `.flatpak` file is also attached to each release.
+
 ## v1.12.4
 
 🐛 **Fixed**
