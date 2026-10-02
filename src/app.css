@@ -62,18 +62,22 @@ html,
 
 :root {
     color-scheme: dark;
-    /* ── Brand (blurple) ─────────────────────────────────
-       Only the two steps the accent tokens actually source are kept; the
-       other 23 steps of the old ramp had zero usages (2026-07-28).
-       NOTE: :root[data-theme="light"] bypasses this indirection with
-       literal hexes for --discord-accent*, so re-branding here changes the
-       dark theme only. Deliberately left as-is — repointing light at the
-       ramp would change the light accent colour, which is the user's call. */
+    /* ── Brand (classic blurple) ─────────────────────────
+       Only the steps the accent tokens actually source are kept (the rest
+       of the old 25-step ramp had zero usages; see git history for it).
+       Every blurple in both themes derives from these: 500 is the brand
+       accent, 560/600 are the darker steps white text can sit on (4.81 /
+       6.33), so filled buttons and own bubbles stay classic blurple
+       rather than Discord's 2021 "new blurple". */
     --brand-500: #7289da;
     --brand-530: #687dc6;
+    --brand-560: #5c6fb1;
+    --brand-600: #4e5d94;
 
     --brand-500-rgb: 114 137 218;
     --brand-530-rgb: 104 125 198;
+    --brand-560-rgb: 92 111 177;
+    --brand-600-rgb: 78 93 148;
 
     /* ── Backgrounds ─────────────────────────────────── */
     --discord-bg: #36393f;
@@ -130,11 +134,11 @@ html,
        accent-text is --discord-accent lightened in HSL (hue and saturation
        held: 226.7deg 58.4% 65.1% -> 227.0deg 58.9% 72.4%), giving
        4.61 / 5.18 / 6.35 on bg / bg-secondary / bg-tertiary. */
-    --discord-accent-fill: #5865f2;
-    --discord-accent-fill-hover: #4e5ad9;
+    --discord-accent-fill: var(--brand-560);
+    --discord-accent-fill-hover: var(--brand-600);
     --discord-accent-text: #8fa1e2;
-    --discord-accent-fill-rgb: 88 101 242;
-    --discord-accent-fill-hover-rgb: 78 90 217;
+    --discord-accent-fill-rgb: var(--brand-560-rgb);
+    --discord-accent-fill-hover-rgb: var(--brand-600-rgb);
     --discord-accent-text-rgb: 143 161 226;
     --discord-danger-fill: #d83c3f;
     --discord-danger-fill-hover: #c03537;
@@ -150,7 +154,7 @@ html,
     --discord-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
 
     /* ── Own message bubble ──────────────────────────── */
-    --discord-own-bubble: #5865f2;
+    --discord-own-bubble: var(--discord-accent-fill);
 
     /* ── Syntax highlighting ─────────────────────────── */
     --syntax-keyword: #ff7ab2;
@@ -188,11 +192,13 @@ html,
     /* was #6d6f78 — 4.0:1 on --discord-bg-tertiary, below AA. */
     --discord-text-muted: #5f6169;
 
-    --discord-accent: #5865c7;
-    --discord-accent-hover: #4752a8;
-    --discord-accent-rgb: 88 101 199;
-    --discord-accent-hover-rgb: 71 82 168;
-    --discord-mention-highlight-rgb: 88 101 199;
+    /* The brand 500 step is too light to read on light surfaces, so the
+       light theme's accent is the 560 step throughout. */
+    --discord-accent: var(--brand-560);
+    --discord-accent-hover: var(--brand-600);
+    --discord-accent-rgb: var(--brand-560-rgb);
+    --discord-accent-hover-rgb: var(--brand-600-rgb);
+    --discord-mention-highlight-rgb: var(--brand-560-rgb);
     --discord-divider: #d4d7dc;
 
     --discord-online: #248046;
@@ -212,28 +218,28 @@ html,
 
     /* Contrast-split semantic tokens (A11Y-10) — see the dark block. The
        light theme needs the opposite move for accent-as-text: --discord-accent
-       is 4.06 on --discord-bg-tertiary, so accent-text is the same blurple
-       DARKENED in HSL (233.0deg 49.8% 56.3% -> 232.8deg 48.3% 52.9%), giving
-       5.28 / 5.86 / 4.65 on bg / bg-secondary / bg-tertiary. */
-    --discord-accent-fill: #5865c7;
-    --discord-accent-fill-hover: #4752a8;
-    --discord-accent-text: #4d5bc1;
-    --discord-accent-fill-rgb: 88 101 199;
-    --discord-accent-fill-hover-rgb: 71 82 168;
-    --discord-accent-text-rgb: 77 91 193;
+       is 3.81 on --discord-bg-tertiary, so accent-text is the next step
+       darker (600), giving 5.70 / 6.33 / 5.02 on bg / bg-secondary /
+       bg-tertiary. */
+    --discord-accent-fill: var(--brand-560);
+    --discord-accent-fill-hover: var(--brand-600);
+    --discord-accent-text: var(--brand-600);
+    --discord-accent-fill-rgb: var(--brand-560-rgb);
+    --discord-accent-fill-hover-rgb: var(--brand-600-rgb);
+    --discord-accent-text-rgb: var(--brand-600-rgb);
     --discord-danger-fill: #d83c3e;
     --discord-danger-fill-hover: #b92d30;
     --discord-danger-text: #bc3436;
     --discord-danger-fill-rgb: 216 60 62;
     --discord-danger-fill-hover-rgb: 185 45 48;
     --discord-danger-text-rgb: 188 52 54;
-    --discord-link: #4d5bc1;
-    --discord-link-rgb: 77 91 193;
+    --discord-link: var(--brand-600);
+    --discord-link-rgb: var(--brand-600-rgb);
 
     --discord-spoiler-bg: #c9ccd1;
     --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
 
-    --discord-own-bubble: #5865c7;
+    --discord-own-bubble: var(--discord-accent-fill);
 
     --syntax-keyword: #a626a4;
     --syntax-string: #40781f;
@@ -264,7 +270,7 @@ html,
     /* Spoiler cover on true black */
     --discord-spoiler-bg: #000000;
 
-    --discord-own-bubble: #5865f2;
+    --discord-own-bubble: var(--discord-accent-fill);
 }
 
 * {
@@ -464,7 +470,7 @@ body {
     margin-inline-start: auto; /* end-align within the content column */
     padding: 0.5rem 0.75rem;
     border-radius: 1rem;
-    background: var(--discord-own-bubble, var(--discord-accent-fill, #5865f2));
+    background: var(--discord-own-bubble, var(--discord-accent-fill));
     color: #fff;
 }
 .own-bubble .message-body {
@@ -490,7 +496,7 @@ body {
     border-style: solid;
     border-width: 6px 0 0 8px;
     border-color: transparent transparent transparent
-        var(--discord-own-bubble, var(--discord-accent-fill, #5865f2));
+        var(--discord-own-bubble, var(--discord-accent-fill));
 }
 /* RTL: the bubble sits on the left, so the tail mirrors to the bottom-left. */
 .own-bubble:dir(rtl)::after {
@@ -498,8 +504,8 @@ body {
     left: -5px;
     border-width: 6px 8px 0 0;
     border-color: transparent
-        var(--discord-own-bubble, var(--discord-accent-fill, #5865f2))
-        transparent transparent;
+        var(--discord-own-bubble, var(--discord-accent-fill)) transparent
+        transparent;
 }
 
 /* Twemoji images inside room/space names (sidebar rows, invite cards, room

@@ -173,12 +173,12 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
  * the accent/danger editable token drives the filled-button vars, and white
  * text on the brand hues is only ~3.3:1. Do NOT change these to the brand
  * values — paletteContrastWarnings would then flag the default palette.
- * Verified white-on-fill: dark accent 4.61, dark danger 4.53, light accent
- * 5.12, light danger 4.53.
+ * Verified white-on-fill: accent 4.81 (classic blurple's 560 step, both
+ * themes), dark danger 4.53, light danger 4.53.
  */
 export const DEFAULT_THEME_COLORS = {
     dark: {
-        accent: "#5865f2",
+        accent: "#5c6fb1",
         background: "#36393f",
         backgroundSecondary: "#2f3136",
         backgroundTertiary: "#202225",
@@ -196,10 +196,10 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#747f8d",
         divider: "#41444e",
         spoilerBackground: "#1e1f22",
-        ownBubbleBackground: "#5865f2",
+        ownBubbleBackground: "#5c6fb1",
     },
     light: {
-        accent: "#5865c7",
+        accent: "#5c6fb1",
         background: "#f2f3f5",
         backgroundSecondary: "#ffffff",
         backgroundTertiary: "#e3e5e8",
@@ -208,8 +208,8 @@ export const DEFAULT_THEME_COLORS = {
         textMuted: "#5f6169",
         danger: "#d83c3e",
         positive: "#1f7a43",
-        mention: "#5865c7",
-        link: "#4d5bc1",
+        mention: "#5c6fb1",
+        link: "#4e5d94",
         warning: "#a86600",
         online: "#248046",
         idle: "#b87900",
@@ -217,10 +217,10 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#80848e",
         divider: "#d4d7dc",
         spoilerBackground: "#c9ccd1",
-        ownBubbleBackground: "#5865c7",
+        ownBubbleBackground: "#5c6fb1",
     },
     amoled: {
-        accent: "#5865f2",
+        accent: "#5c6fb1",
         background: "#000000",
         backgroundSecondary: "#000000",
         backgroundTertiary: "#000000",
@@ -238,7 +238,7 @@ export const DEFAULT_THEME_COLORS = {
         offline: "#747f8d",
         divider: "#23262c",
         spoilerBackground: "#000000",
-        ownBubbleBackground: "#5865f2",
+        ownBubbleBackground: "#5c6fb1",
     },
 } as const;
 

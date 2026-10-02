@@ -201,7 +201,7 @@ describe("18-token expansion", () => {
     it("DEFAULT_THEME_COLORS.light has all 19 tokens", () => {
         const keys = Object.keys(DEFAULT_THEME_COLORS.light);
         expect(keys).toHaveLength(19);
-        expect(DEFAULT_THEME_COLORS.light.link).toBe("#4d5bc1");
+        expect(DEFAULT_THEME_COLORS.light.link).toBe("#4e5d94");
         expect(DEFAULT_THEME_COLORS.light.warning).toBe("#a86600");
         expect(DEFAULT_THEME_COLORS.light.online).toBe("#248046");
         expect(DEFAULT_THEME_COLORS.light.idle).toBe("#b87900");
