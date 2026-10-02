@@ -187,8 +187,129 @@ jobs:
                       dist-electron/latest*.yml
                       dist-electron/*.blockmap
 
+    # Flatpak: our own signed repo (served from GitHub Pages by the `pages` job
+    # below), not Flathub. Built on every master push like the other desktop
+    # builds; the repo is only published when the version increased.
+    #
+    # Repository secret FLATPAK_GPG_PRIVATE_KEY = base64 of the armour-less
+    # secret key whose public half is flatpak/zam-repo.gpg. Unsigned builds are
+    # fine for a dev artifact, but a release refuses to publish without it.
+    flatpak:
+        needs: [check, verify]
+        runs-on: ubuntu-latest
+        env:
+            FLATPAK_GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+            VERSION: ${{ needs.check.outputs.version }}
+            RELEASE: ${{ needs.check.outputs.release }}
+            APP_ID: moe.crafty.matrix
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+              env:
+                  VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+                  VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            - name: Build unpacked Linux app
+              run: npx electron-builder --linux dir --publish never
+            - name: Install Flatpak tooling
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y flatpak flatpak-builder
+                  flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+            - name: Import signing key
+              if: env.FLATPAK_GPG_PRIVATE_KEY != ''
+              run: |
+                  set -euo pipefail
+                  export GNUPGHOME="$RUNNER_TEMP/gnupg"
+                  mkdir -m 700 "$GNUPGHOME"
+                  echo "$FLATPAK_GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+                  KEY=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+                  # The committed public key must match, or clients would reject
+                  # every update signed with this one.
+                  gpg --show-keys --with-colons flatpak/zam-repo.gpg | grep -q "$KEY" \
+                    || { echo "::error::FLATPAK_GPG_PRIVATE_KEY does not match flatpak/zam-repo.gpg"; exit 1; }
+                  echo "GPG_ARGS=--gpg-sign=$KEY --gpg-homedir=$GNUPGHOME" >> "$GITHUB_ENV"
+            - name: Require signing for releases
+              if: env.RELEASE == 'true' && env.FLATPAK_GPG_PRIVATE_KEY == ''
+              run: |
+                  echo "::error::Set the FLATPAK_GPG_PRIVATE_KEY secret to publish the Flatpak repo."
+                  exit 1
+            - name: Stamp version into metainfo
+              run: |
+                  sed -i "s/@VERSION@/$VERSION/g; s/@DATE@/$(date -u +%F)/g" \
+                    flatpak/$APP_ID.metainfo.xml
+            - name: Build Flatpak repo
+              run: |
+                  set -euo pipefail
+                  flatpak-builder --user --install-deps-from=flathub \
+                    --disable-rofiles-fuse --force-clean \
+                    --default-branch=stable --repo=repo ${GPG_ARGS:-} \
+                    build-dir flatpak/$APP_ID.yml
+                  flatpak build-update-repo --title=Zam --default-branch=stable \
+                    --generate-static-deltas --prune ${GPG_ARGS:-} repo
+            - name: Build Flatpak bundle
+              run: |
+                  set -euo pipefail
+                  # Owner/repo of the Pages site that hosts the repo; a bundle
+                  # carrying this URL + key keeps updating from it after install.
+                  BASE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+                  echo "PAGES_BASE=$BASE" >> "$GITHUB_ENV"
+                  REMOTE_ARGS=""
+                  if [ -n "${GPG_ARGS:-}" ]; then
+                    REMOTE_ARGS="--repo-url=$BASE/repo/ --gpg-keys=flatpak/zam-repo.gpg"
+                  fi
+                  mkdir -p release-files
+                  flatpak build-bundle $REMOTE_ARGS \
+                    --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+                    repo "release-files/zam-$VERSION.flatpak" $APP_ID stable
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: flatpak
+                  path: release-files/*.flatpak
+                  if-no-files-found: error
+            - name: Assemble Pages site
+              if: env.RELEASE == 'true'
+              run: |
+                  set -euo pipefail
+                  KEY_B64=$(base64 -w0 flatpak/zam-repo.gpg)
+                  mkdir site
+                  mv repo site/repo
+                  cp electron/icons/icon.png site/icon.png
+                  cat > site/zam.flatpakrepo <<EOF
+                  [Flatpak Repo]
+                  Title=Zam
+                  Url=$PAGES_BASE/repo/
+                  Homepage=https://github.com/$GITHUB_REPOSITORY
+                  Comment=Zam Matrix client
+                  Icon=$PAGES_BASE/icon.png
+                  GPGKey=$KEY_B64
+                  EOF
+                  cat > site/zam.flatpakref <<EOF
+                  [Flatpak Ref]
+                  Name=$APP_ID
+                  Branch=stable
+                  Title=Zam
+                  Url=$PAGES_BASE/repo/
+                  SuggestRemoteName=zam
+                  RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+                  IsRuntime=false
+                  Homepage=https://github.com/$GITHUB_REPOSITORY
+                  Icon=$PAGES_BASE/icon.png
+                  GPGKey=$KEY_B64
+                  EOF
+                  sed "s|@BASE@|$PAGES_BASE|g; s|@VERSION@|$VERSION|g" \
+                    flatpak/index.html > site/index.html
+            - uses: actions/upload-pages-artifact@v3
+              if: env.RELEASE == 'true'
+              with:
+                  path: site
+
     release:
-        needs: [check, android, desktop]
+        needs: [check, android, desktop, flatpak]
         if: needs.check.outputs.release == 'true'
         runs-on: ubuntu-latest
         steps:
@@ -209,6 +330,8 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   path: artifacts
+                  # Not the github-pages artifact (the Flatpak repo tarball).
+                  pattern: "{android,desktop-*,flatpak}"
             - name: Create GitHub release
               uses: softprops/action-gh-release@v2
               with:
@@ -218,3 +341,19 @@ jobs:
                   generate_release_notes: true
                   fail_on_unmatched_files: false
                   files: artifacts/**/*
+
+    # Publish the Flatpak repo to GitHub Pages, only once the release exists.
+    # Needs Settings -> Pages -> Source: "GitHub Actions".
+    pages:
+        needs: [check, flatpak, release]
+        if: needs.check.outputs.release == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deploy.outputs.page_url }}
+        steps:
+            - id: deploy
+              uses: actions/deploy-pages@v4

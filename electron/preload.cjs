@@ -15,18 +15,23 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => ipcRenderer.removeListener("sso:callback", h);
         },
     },
-    updates: {
-        check: () => ipcRenderer.send("updates:check"),
-        download: () => ipcRenderer.send("updates:download"),
-        restartToInstall: () => ipcRenderer.send("updates:quit-and-install"),
-        setAutoDownload: (enabled) =>
-            ipcRenderer.send("updates:set-auto", !!enabled),
-        onStatus: (cb) => {
-            const h = (_e, s) => cb(s);
-            ipcRenderer.on("updates:status", h);
-            return () => ipcRenderer.removeListener("updates:status", h);
-        },
-    },
+    // Flatpak builds are updated by `flatpak update`, not electron-updater,
+    // so they get no updater bridge (the renderer then treats them like web).
+    updates: process.env.FLATPAK_ID
+        ? undefined
+        : {
+              check: () => ipcRenderer.send("updates:check"),
+              download: () => ipcRenderer.send("updates:download"),
+              restartToInstall: () =>
+                  ipcRenderer.send("updates:quit-and-install"),
+              setAutoDownload: (enabled) =>
+                  ipcRenderer.send("updates:set-auto", !!enabled),
+              onStatus: (cb) => {
+                  const h = (_e, s) => cb(s);
+                  ipcRenderer.on("updates:status", h);
+                  return () => ipcRenderer.removeListener("updates:status", h);
+              },
+          },
     screenShare: {
         // Main pushes the enumerated source list when getDisplayMedia() fires.
         onRequest: (cb) => {

@@ -1,0 +1,119 @@
+<!doctype html>
+<!-- Landing page of the Flatpak repo site. @BASE@ and @VERSION@ are filled in
+     by CI (.github/workflows/release.yml, "Assemble Pages site"). -->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Zam Flatpak</title>
+        <link rel="icon" href="icon.png" />
+        <style>
+            :root {
+                --bg: #f6f7f9;
+                --fg: #1d1f23;
+                --muted: #5c6370;
+                --card: #ffffff;
+                --border: #dde1e6;
+                --accent: #5865f2;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg: #1e1f22;
+                    --fg: #e3e5e8;
+                    --muted: #a0a6b0;
+                    --card: #2b2d31;
+                    --border: #3a3c42;
+                    --accent: #8891f7;
+                }
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--fg);
+                font:
+                    16px/1.5 system-ui,
+                    sans-serif;
+            }
+            main {
+                max-width: 42rem;
+                margin: 0 auto;
+                padding: 2.5rem 1rem;
+            }
+            header {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+            header img {
+                width: 64px;
+                height: 64px;
+            }
+            h1 {
+                margin: 0;
+                font-size: 1.75rem;
+            }
+            p.sub {
+                margin: 0;
+                color: var(--muted);
+            }
+            h2 {
+                font-size: 1.1rem;
+                margin-top: 2rem;
+            }
+            pre {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 0.75rem 1rem;
+                overflow-x: auto;
+                font-size: 0.9rem;
+            }
+            a {
+                color: var(--accent);
+            }
+            .button {
+                display: inline-block;
+                background: var(--accent);
+                color: #fff;
+                text-decoration: none;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <header>
+                <img src="icon.png" alt="" />
+                <div>
+                    <h1>Zam</h1>
+                    <p class="sub">Matrix client &middot; Flatpak v@VERSION@</p>
+                </div>
+            </header>
+
+            <h2>Install</h2>
+            <p>
+                <a class="button" href="zam.flatpakref">Install Zam</a>
+                opens in your software centre, or from a terminal:
+            </p>
+            <pre>flatpak install --user @BASE@/zam.flatpakref</pre>
+
+            <h2>Add the repository</h2>
+            <p>To browse or update it as its own remote:</p>
+            <pre>
+flatpak remote-add --user --if-not-exists zam @BASE@/zam.flatpakrepo
+flatpak install --user zam moe.crafty.matrix</pre>
+
+            <h2>Update</h2>
+            <pre>flatpak update</pre>
+
+            <p class="sub">
+                The runtime comes from Flathub, which is added automatically if
+                you don't have it. Source and other builds:
+                <a href="https://github.com/az4521/Zam">github.com/az4521/Zam</a
+                >.
+            </p>
+        </main>
+    </body>
+</html>

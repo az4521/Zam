@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @VERSION@ and @DATE@ are stamped by CI from package.json at build time. -->
+<component type="desktop-application">
+  <id>moe.crafty.matrix</id>
+  <name>Zam</name>
+  <summary>Chat on Matrix</summary>
+  <developer id="moe.crafty">
+    <name>az4521</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>
+      Zam is a Matrix client with end-to-end encryption, threads, reactions,
+      custom emoji and sticker packs, polls, voice messages, and voice and
+      video calls.
+    </p>
+  </description>
+  <launchable type="desktop-id">moe.crafty.matrix.desktop</launchable>
+  <url type="homepage">https://github.com/az4521/Zam</url>
+  <url type="bugtracker">https://github.com/az4521/Zam/issues</url>
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">intense</content_attribute>
+    <content_attribute id="social-audio">intense</content_attribute>
+    <content_attribute id="social-contacts">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="@VERSION@" date="@DATE@">
+      <url type="details">https://github.com/az4521/Zam/releases/tag/v@VERSION@</url>
+    </release>
+  </releases>
+</component>

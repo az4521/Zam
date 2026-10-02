@@ -207,6 +207,12 @@ ipcMain.on("show-window", showWindow);
 // and only then asks for the download.
 let autoUpdatePref = false;
 
+// Inside Flatpak the app is updated by `flatpak update` from our repo, and
+// electron-updater has nothing it can replace (it only updates AppImages on
+// Linux). Every updater entry point is a no-op there, and the preload leaves
+// `desktop.updates` out so Settings doesn't offer the control at all.
+const IN_FLATPAK = !!process.env.FLATPAK_ID;
+
 // Post a status object to the current window (reassigned by createWindow).
 function sendUpdateStatus(payload) {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -233,7 +239,7 @@ function mapUpdateError(err) {
 // "available" so the renderer can offer a download choice. Only the background
 // launch check honours the persisted auto-update preference.
 function runUpdateCheck(manual) {
-    if (!app.isPackaged) return;
+    if (!app.isPackaged || IN_FLATPAK) return;
     autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();
@@ -248,7 +254,7 @@ function runUpdateCheck(manual) {
 // Wire the updater once, from whenReady (NOT createWindow, which re-runs on
 // `activate` and would double-register these listeners).
 function setupAutoUpdater() {
-    if (!app.isPackaged) return;
+    if (!app.isPackaged || IN_FLATPAK) return;
 
     autoUpdater.autoInstallOnAppQuit = true;
     // Fail-safe default: stay OFF until the renderer seeds the persisted preference at boot (see app shell onMount). Prevents a forced silent download when the user has turned auto-updates OFF but hasn't opened Settings before the launch check.
@@ -311,7 +317,7 @@ function setupAutoUpdater() {
 ipcMain.on("updates:check", () => runUpdateCheck(true));
 
 ipcMain.on("updates:download", () => {
-    if (!app.isPackaged) return;
+    if (!app.isPackaged || IN_FLATPAK) return;
     try {
         const p = autoUpdater.downloadUpdate();
         if (p && typeof p.catch === "function") {

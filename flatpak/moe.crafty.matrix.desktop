@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Zam
+GenericName=Matrix Client
+Comment=Chat on Matrix
+Exec=zam %U
+Icon=moe.crafty.matrix
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=matrix;chat;messaging;
+StartupWMClass=Zam

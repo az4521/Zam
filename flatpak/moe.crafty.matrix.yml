@@ -1,0 +1,53 @@
+# Flatpak manifest for the Zam desktop app, published to our own Flatpak repo
+# (GitHub Pages, see .github/workflows/release.yml), not Flathub.
+#
+# It repackages the electron-builder `linux-unpacked` output rather than
+# building from source inside flatpak-builder, so CI must run
+# `npx electron-builder --linux dir` first. The runtime and the Electron base
+# app still come from Flathub (pulled automatically via RuntimeRepo).
+id: moe.crafty.matrix
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+base: org.electronjs.Electron2.BaseApp
+base-version: "25.08"
+command: zam
+separate-locales: false
+finish-args:
+    - --share=ipc
+    - --share=network
+    - --socket=wayland
+    - --socket=fallback-x11
+    - --socket=pulseaudio
+    # GPU and camera (for video calls); there is no narrower webcam
+    # permission that Chromium's V4L2 capture works with.
+    - --device=all
+    - --filesystem=xdg-download
+    - --talk-name=org.freedesktop.Notifications
+    # Tray icon (StatusNotifierItem).
+    - --talk-name=org.kde.StatusNotifierWatcher
+    - --env=ELECTRON_TRASH=gio
+modules:
+    - name: zam
+      buildsystem: simple
+      sources:
+          - type: dir
+            path: ../dist-electron/linux-unpacked
+            dest: zam
+          - type: file
+            path: zam.sh
+          - type: file
+            path: moe.crafty.matrix.desktop
+          - type: file
+            path: moe.crafty.matrix.metainfo.xml
+          - type: file
+            path: ../electron/icons/icon.png
+      build-commands:
+          - cp -a zam /app/zam
+          # Chromium's setuid sandbox helper can't work in Flatpak; zypak
+          # (from the Electron base app) provides the sandbox instead.
+          - rm -f /app/zam/chrome-sandbox
+          - install -Dm755 zam.sh /app/bin/zam
+          - install -Dm644 moe.crafty.matrix.desktop /app/share/applications/moe.crafty.matrix.desktop
+          - install -Dm644 moe.crafty.matrix.metainfo.xml /app/share/metainfo/moe.crafty.matrix.metainfo.xml
+          - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/moe.crafty.matrix.png
