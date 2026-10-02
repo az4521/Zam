@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.2
+
+🐛 **Fixed**
+
+- **Videos not playing in Tor Browser:** videos in the timeline failed to load in Tor Browser (and briefly after a hard reload) because they depended on a background helper that isn't available there. They now load directly and start playing while they download.
+
 ## v1.12.1
 
 🐛 **Fixed**
