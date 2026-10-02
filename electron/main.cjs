@@ -20,12 +20,14 @@ const {
     desktopCapturer,
     clipboard,
     Notification,
+    screen,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
+const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -669,12 +671,58 @@ function openExternalSafely(rawUrl) {
     if (isSafeExternalUrl(rawUrl)) shell.openExternal(rawUrl);
 }
 
+// --- Window state --------------------------------------------------------
+//
+// Size, position and maximised state are saved to userData and restored on
+// the next launch. Position is best-effort: on Wayland the compositor places
+// windows itself and ignores it, but size and maximised still apply.
+
+function windowStatePath() {
+    return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function loadWindowState() {
+    let text = "";
+    try {
+        text = fs.readFileSync(windowStatePath(), "utf8");
+    } catch {
+        // First launch: no file yet, use the defaults.
+    }
+    return fitToDisplays(
+        parseWindowState(text),
+        screen.getAllDisplays().map((d) => d.workArea),
+    );
+}
+
+function saveWindowState(win) {
+    if (!win || win.isDestroyed()) return;
+    // Normal bounds = the un-maximised size/position, so un-maximising after
+    // a restart goes back to what the user had.
+    const b = win.getNormalBounds();
+    const state = {
+        x: b.x,
+        y: b.y,
+        width: b.width,
+        height: b.height,
+        maximized: win.isMaximized(),
+    };
+    try {
+        fs.writeFileSync(windowStatePath(), JSON.stringify(state));
+    } catch (err) {
+        console.error("Failed to save window state:", err);
+    }
+}
+
 async function createWindow() {
     const url = await startServer();
+    const savedState = loadWindowState();
 
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
+        width: savedState.width,
+        height: savedState.height,
+        ...(savedState.x !== undefined
+            ? { x: savedState.x, y: savedState.y }
+            : {}),
         minWidth: 940,
         minHeight: 600,
         icon: ICON_PATH,
@@ -700,6 +748,18 @@ async function createWindow() {
             backgroundThrottling: false,
         },
     });
+
+    if (savedState.maximized) mainWindow.maximize();
+
+    // Save on every size/position change (debounced: resize and move fire
+    // continuously while dragging), and once more on close below.
+    let saveStateTimer = null;
+    const scheduleStateSave = () => {
+        clearTimeout(saveStateTimer);
+        saveStateTimer = setTimeout(() => saveWindowState(mainWindow), 500);
+    };
+    for (const ev of ["resize", "move", "maximize", "unmaximize"])
+        mainWindow.on(ev, scheduleStateSave);
 
     // Belt and braces for the taskbar button: the constructor option is applied
     // lazily on some Windows setups, an explicit setIcon always sticks.
@@ -842,6 +902,7 @@ async function createWindow() {
     // (tray Quit / before-quit / quit-and-install sets isQuitting) always
     // closes. Mirrors resolveWindowCloseAction in src/lib/utils/trayClose.ts.
     mainWindow.on("close", (e) => {
+        saveWindowState(mainWindow);
         if (!isQuitting && minimizeToTrayOnClose) {
             e.preventDefault();
             mainWindow.hide();

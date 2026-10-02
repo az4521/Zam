@@ -1027,6 +1027,9 @@ export const en = {
     "pluginsSettings.pullFromAccount": "Pull from account",
     "pluginsSettings.thisPullWill": "This pull will:",
     "pluginsSettings.addRepos": "Add repos: {join}",
+    "pluginsSettings.installFromRepos": "Install from their repos: {join}",
+    "pluginsSettings.couldNotInstall":
+        "Applied, but these plugins could not be installed: {join}",
     "pluginsSettings.enable": "Enable: {join}",
     "pluginsSettings.disable": "Disable: {join}",
     "pluginsSettings.updateSettingsFor": "Update settings for: {join}",

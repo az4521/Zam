@@ -45,7 +45,7 @@
         removeSpaceChild,
         setSpaceChildSuggested,
         getRoomMembers,
-        getRoomAvatar,
+        getRoomStateAvatar,
         getRoomTopic,
         enableRoomEncryption,
         mxcToHttp,
@@ -387,7 +387,7 @@
     let idCopied = $state(false);
     let idCopiedTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    const currentAvatarUrl = $derived(getRoomAvatar(room));
+    const currentAvatarUrl = $derived(getRoomStateAvatar(room));
 
     async function copyRoomId() {
         try {

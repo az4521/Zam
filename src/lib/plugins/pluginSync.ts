@@ -101,6 +101,10 @@ export interface PullSummary {
     toEnable: string[];
     toDisable: string[];
     settingsChanges: string[];
+    /** Repo plugins installed on the other device but not here; applying the
+     *  pull installs them from their repo (at the synced commit). */
+    toInstall: { id: string; repoRef: string }[];
+    /** Plugins the pull can't bring here (no repo to install from). */
     notInstalledHere: {
         id: string;
         source: "builtin" | "repo";
@@ -125,13 +129,21 @@ export function summarizePull(
     const toEnable: string[] = [];
     const toDisable: string[] = [];
     const settingsChanges: string[] = [];
+    const toInstall: PullSummary["toInstall"] = [];
     const notInstalledHere: PullSummary["notInstalledHere"] = [];
     const autoUpdateOverrides: { id: string; value: boolean }[] = [];
 
     for (const [id, r] of Object.entries(remote.plugins)) {
         const l = local.plugins[id];
         if (!l) {
-            notInstalledHere.push({ id, source: r.source, repoRef: r.repoRef });
+            if (r.source === "repo" && r.repoRef)
+                toInstall.push({ id, repoRef: r.repoRef });
+            else
+                notInstalledHere.push({
+                    id,
+                    source: r.source,
+                    repoRef: r.repoRef,
+                });
             continue;
         }
         if (r.enabled && !l.enabled) toEnable.push(id);
@@ -150,6 +162,7 @@ export function summarizePull(
         toEnable,
         toDisable,
         settingsChanges,
+        toInstall,
         notInstalledHere,
         autoUpdateChange:
             remote.autoUpdate !== local.autoUpdate ? remote.autoUpdate : null,

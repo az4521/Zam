@@ -734,17 +734,50 @@ export async function getPullSummary(): Promise<{
     }
 }
 
-/** Apply a pulled payload: add repos, enable/disable + reset settings for
- *  plugins ALREADY installed here, and set the global auto-update flag. Repo
- *  plugins not installed locally are intentionally left alone (the consent
- *  summary lists them; the user installs them from Browse, then re-pulls) — a
- *  pull never silently fetches/runs third-party remote code. */
-export async function applyPull(payload: PluginSyncPayload): Promise<void> {
+/** Find a plugin's index entry in its repo, at `sha` when given (the synced
+ *  commit) or else at the branch head. */
+async function findRepoIndexEntry(
+    repoRef: string,
+    pluginId: string,
+    sha?: string,
+): Promise<PluginIndexEntry | null> {
+    const ref = normalizeRepoRef(repoRef);
+    const at = sha && isCommitSha(sha) ? sha : await resolveCommitSha(ref);
+    const res = await fetch(pinnedFileUrl(ref, at, "index.json"));
+    if (!res.ok) throw new Error(`index fetch ${res.status}`);
+    return parseIndex(await res.json()).find((e) => e.id === pluginId) ?? null;
+}
+
+/** Apply a pulled payload: add repos, install repo plugins that are on the
+ *  other device but not this one (pinned to the synced commit), then
+ *  enable/disable + reset settings, and set the global auto-update flag.
+ *  Only runs after the user confirmed the pull summary, which lists every
+ *  plugin it will install, so no third-party code is fetched unannounced.
+ *  Returns the ids that couldn't be installed. */
+export async function applyPull(
+    payload: PluginSyncPayload,
+): Promise<{ failed: { id: string; error: string }[] }> {
+    const failed: { id: string; error: string }[] = [];
     for (const ref of payload.repos) addRepo(ref);
     setGlobalAutoUpdate(payload.autoUpdate);
     for (const [id, entry] of Object.entries(payload.plugins)) {
+        if (!installedPlugins[id] && entry.source === "repo" && entry.repoRef) {
+            try {
+                const indexEntry = await findRepoIndexEntry(
+                    entry.repoRef,
+                    id,
+                    entry.sha,
+                );
+                if (!indexEntry) throw new Error("not found in repo index");
+                const res = await installRepoPlugin(entry.repoRef, indexEntry);
+                if (!res.ok) throw new Error(res.error ?? "install failed");
+            } catch (e) {
+                failed.push({ id, error: (e as Error).message });
+                continue;
+            }
+        }
         const record = installedPlugins[id];
-        if (!record) continue; // not installed here — skip (listed in summary)
+        if (!record) continue; // nothing to install it from (listed in summary)
         // Reset settings first so a plugin re-enabled below reads the pulled values.
         if (entry.settings && record.manifest.settings) {
             writePluginSettings(id, record.manifest.settings, entry.settings);
@@ -754,6 +787,7 @@ export async function applyPull(payload: PluginSyncPayload): Promise<void> {
         if (entry.enabled && !record.enabled) await enablePlugin(id);
         else if (!entry.enabled && record.enabled) await disablePlugin(id);
     }
+    return { failed };
 }
 
 /** Given the latest versions seen in Browse indexes (keyed by repoKey), publish

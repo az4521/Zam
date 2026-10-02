@@ -1049,6 +1049,9 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.pullFromAccount": "Vom Konto abrufen",
     "pluginsSettings.thisPullWill": "Dieser Abruf wird:",
     "pluginsSettings.addRepos": "Repos hinzufügen: {join}",
+    "pluginsSettings.installFromRepos": "Aus ihren Repos installieren: {join}",
+    "pluginsSettings.couldNotInstall":
+        "Angewendet, aber diese Plugins konnten nicht installiert werden: {join}",
     "pluginsSettings.enable": "Aktivieren: {join}",
     "pluginsSettings.disable": "Deaktivieren: {join}",
     "pluginsSettings.updateSettingsFor":

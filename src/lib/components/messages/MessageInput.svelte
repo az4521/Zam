@@ -49,6 +49,11 @@
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
     import { ALL_EMOJIS } from "$lib/data/emojis";
+    import {
+        convertTrailingShortcode,
+        replaceEmojiShortcodes,
+        shortcodesFor,
+    } from "$lib/data/emojiShortcodes";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
@@ -509,15 +514,42 @@
                 shortcode: e.shortcode,
                 url: e.url,
             }));
-        const unicode = ALL_EMOJIS.filter((e) =>
-            e.name.toLowerCase().includes(q),
-        )
+        // Discord-style ranking: an exact shortcode (":tm" → ™️) first, then
+        // shortcodes starting with the query, then any shortcode or name
+        // containing it. The row shows the shortcode that matched.
+        const ranked: { rank: number; candidate: EmojiCandidate }[] = [];
+        for (const e of ALL_EMOJIS) {
+            const codes = shortcodesFor(e.emoji);
+            const exact = codes.find((c) => c === q);
+            const prefix = codes.find((c) => c.startsWith(q));
+            const partial = codes.find((c) => c.includes(q));
+            const rank = exact
+                ? 0
+                : prefix
+                  ? 1
+                  : partial || e.name.toLowerCase().includes(q)
+                    ? 2
+                    : -1;
+            if (rank < 0) continue;
+            ranked.push({
+                rank,
+                candidate: {
+                    kind: "unicode",
+                    emoji: e.emoji,
+                    name:
+                        exact ??
+                        prefix ??
+                        partial ??
+                        codes[0] ??
+                        e.name.replace(/ /g, "_"),
+                },
+            });
+        }
+        // Array sort is stable, so equal ranks keep the emoji-picker order.
+        const unicode = ranked
+            .sort((a, b) => a.rank - b.rank)
             .slice(0, 8 - custom.length)
-            .map((e): EmojiCandidate => ({
-                kind: "unicode",
-                emoji: e.emoji,
-                name: e.name,
-            }));
+            .map((r) => r.candidate);
         return [...custom, ...unicode];
     });
 
@@ -1328,8 +1360,10 @@
         // to a LOCAL copy so the composer text and the draft-restore snapshot
         // (textAtSend) stay what the user typed; `trimmed` and the formatted body
         // built below both derive from the transformed text.
+        // Unicode `:shortcode:`s that weren't converted while typing (pasted,
+        // restored drafts) still go out as emoji.
         const outgoingText = applyTextTransforms(
-            text,
+            replaceEmojiShortcodes(text, isCustomShortcode),
             pluginRegistry.outgoingTextTransforms.map((e) => e.value),
             { roomId },
         );
@@ -1861,10 +1895,28 @@
         if (fileInputEl) fileInputEl.value = "";
     }
 
+    // Custom emotes keep their `:shortcode:` token (sent as an <img>), so a
+    // unicode shortcode with the same name must not replace them.
+    function isCustomShortcode(code: string): boolean {
+        return getCustomEmojis(room, roomsState.activeSpaceId).some(
+            (e) => e.shortcode === code,
+        );
+    }
+
     function onInput() {
         if (!textareaEl || renderingComposer) return;
-        const caret = getCaretOffset();
+        let caret = getCaretOffset();
         text = getComposerText();
+        // Typing the closing colon of a unicode shortcode converts it, like
+        // Discord (":tm:" → ™️).
+        const converted = convertTrailingShortcode(
+            text.slice(0, caret),
+            isCustomShortcode,
+        );
+        if (converted !== null) {
+            text = converted + text.slice(caret);
+            caret = converted.length;
+        }
         renderComposer(caret);
         detectMentionQuery();
         detectEmojiQuery();
@@ -2069,7 +2121,7 @@
                             >{candidate.emoji}</span
                         >
                         <span class="text-sm text-discord-textPrimary truncate"
-                            >:{candidate.name.replace(/ /g, "_")}:</span
+                            >:{candidate.name}:</span
                         >
                         <span class="text-xs text-discord-textMuted"
                             >{candidate.emoji}</span

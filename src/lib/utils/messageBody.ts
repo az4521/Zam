@@ -30,6 +30,31 @@ export interface FormattedBodyResult {
 }
 
 /**
+ * The custom emotes (`<img data-mx-emoticon>`) already in a message's
+ * formatted_body, as shortcode → mxc substitutions. An edit re-renders the
+ * plain `:shortcode:` text, so these let the emotes the message already had
+ * survive even when their pack isn't in the sender's current emoji list.
+ */
+export function emoticonsFromHtml(
+    html: string | undefined | null,
+): EmojiSubstitution[] {
+    if (!html) return [];
+    const out: EmojiSubstitution[] = [];
+    for (const [tag] of html.matchAll(/<img\b[^>]*>/gi)) {
+        if (!/\bdata-mx-emoticon\b/i.test(tag)) continue;
+        const src = /\bsrc\s*=\s*"(mxc:\/\/[^"]+)"/i.exec(tag)?.[1];
+        const name =
+            /\balt\s*=\s*"([^"]*)"/i.exec(tag)?.[1] ||
+            /\btitle\s*=\s*"([^"]*)"/i.exec(tag)?.[1];
+        // Senders differ on whether alt carries the colons (":blob:" vs "blob").
+        const shortcode = name?.replace(/^:|:$/g, "");
+        if (src && shortcode && /^\w+$/.test(shortcode))
+            out.push({ shortcode, mxcUrl: src });
+    }
+    return out;
+}
+
+/**
  * Build a message's outgoing rich body: markdown → HTML, custom-emoji shortcode
  * substitution, and @mention tokens → matrix.to links, collecting mentioned userIds.
  * Pure — no SDK, no DOM. Callers supply the mention map and emoji list.

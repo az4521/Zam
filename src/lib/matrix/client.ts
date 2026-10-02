@@ -3716,13 +3716,26 @@ export function getRoomTopic(room: Room): string | null {
     return topicEvent?.getContent()?.topic || null;
 }
 
-export function getRoomAvatar(room: Room): string | null {
+/** The room's own m.room.avatar, with no fallback. For places that show or
+ *  edit the room's actual avatar (room settings, pack editor). */
+export function getRoomStateAvatar(room: Room): string | null {
     const avatarEvent = room
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents("m.room.avatar", "");
     const mxc = avatarEvent?.getContent()?.url;
     return mxcToHttp(mxc);
+}
+
+/** The avatar to display for a room: its own avatar, or for a 1:1 room
+ *  (DM) without one, the other person's avatar, like Element and Discord. */
+export function getRoomAvatar(room: Room): string | null {
+    const own = getRoomStateAvatar(room);
+    if (own || room.isSpaceRoom()) return own;
+    // The SDK only returns a member when there's exactly one other person
+    // (bots/functional members excluded), so group rooms keep the fallback.
+    const other = room.getAvatarFallbackMember();
+    return mxcToHttp(other?.getMxcAvatarUrl());
 }
 
 export function getUnreadCount(room: Room): number {
@@ -6412,7 +6425,7 @@ function packAvatarUrl(
         const http = mxcToHttp(avatar, 64);
         if (http) return http;
     }
-    return getRoomAvatar(room) ?? undefined;
+    return getRoomStateAvatar(room) ?? undefined;
 }
 
 function packUsageList(content: RoomEmoteContent): ImageUsage[] | undefined {

@@ -47,6 +47,7 @@
         fetchSingleEvent,
         sendReaction,
         sendEdit,
+        getCustomEmojis,
         deleteMessage,
         getMyPowerLevel,
         getRoomPowerLevels,
@@ -65,7 +66,11 @@
         EventStatus,
     } from "$lib/matrix/client";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
-    import { parseMarkdown } from "$lib/utils/markdown";
+    import {
+        buildFormattedBody,
+        emoticonsFromHtml,
+    } from "$lib/utils/messageBody";
+    import { replaceEmojiShortcodes } from "$lib/data/emojiShortcodes";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
         parseMatrixLink,
@@ -1712,7 +1717,19 @@
     }
 
     async function saveEdit() {
-        const trimmed = editText.trim();
+        // Custom emotes for this edit: the message's existing ones first so
+        // they survive even if their pack is gone, then the current packs
+        // (which win on a shortcode clash: later entries overwrite).
+        const editEmotes = [
+            ...emoticonsFromHtml(
+                event.getContent().formatted_body as string | undefined,
+            ),
+            ...getCustomEmojis(room, roomsState.activeSpaceId),
+        ];
+        // Unicode `:shortcode:`s become emoji, as in the composer.
+        const trimmed = replaceEmojiShortcodes(editText.trim(), (code) =>
+            editEmotes.some((e) => e.shortcode === code),
+        );
         const realEventId = event.getId() ?? "";
         if (!realEventId || isSavingEdit) return;
         // Captioned media: the edit restates the media content, and an empty
@@ -1732,9 +1749,15 @@
         isSavingEdit = true;
         try {
             const newBody = trimmed || String(mediaBase?.filename ?? "");
-            const { formattedBody, hasFormatting } = trimmed
-                ? parseMarkdown(trimmed)
-                : { formattedBody: "", hasFormatting: false };
+            // Same rich-body pipeline as the composer, so a typed :shortcode:
+            // becomes the custom emote.
+            const formattedBody = trimmed
+                ? buildFormattedBody(trimmed, {
+                      mentions: new Map(),
+                      customEmojis: editEmotes,
+                  }).html
+                : null;
+            const hasFormatting = formattedBody != null;
             // Latest resolved mentions live on the post-replacement content
             // (the SDK folds m.new_content in), so this carries them forward
             // through the edit per the v1.7 mentions module.

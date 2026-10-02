@@ -14,7 +14,7 @@
         validateEmojiShortcode,
         uploadContent,
         mxcToHttp,
-        getRoomAvatar,
+        getRoomStateAvatar,
         type CustomImagePack,
         type CustomPackImage,
         type ImageUsage,
@@ -50,7 +50,7 @@
     let packBusy = $state<string | null>(null);
     let notice = $state("");
 
-    const currentAvatarUrl = $derived(getRoomAvatar(room));
+    const currentAvatarUrl = $derived(getRoomStateAvatar(room));
 
     function currentEmotePacks(): CustomImagePack[] {
         return emotePacks.filter((pack) => !pack.inherited);

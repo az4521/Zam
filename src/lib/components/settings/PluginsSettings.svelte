@@ -159,10 +159,14 @@
         if (!pullPayload) return;
         syncBusy = true;
         try {
-            await applyPull(pullPayload);
+            const { failed } = await applyPull(pullPayload);
             pullSummary = null;
             pullPayload = null;
             syncMessage = t("pluginsSettings.appliedTheSyncedPluginSet");
+            if (failed.length)
+                syncError = t("pluginsSettings.couldNotInstall", {
+                    join: failed.map((f) => `${f.id} (${f.error})`).join(", "),
+                });
         } finally {
             syncBusy = false;
         }
@@ -404,6 +408,15 @@
                         })}
                     </p>
                 {/if}
+                {#if pullSummary.toInstall.length}
+                    <p class="text-discord-textSecondary">
+                        {t("pluginsSettings.installFromRepos", {
+                            join: pullSummary.toInstall
+                                .map((p) => `${p.id} (${p.repoRef})`)
+                                .join(", "),
+                        })}
+                    </p>
+                {/if}
                 {#if pullSummary.toEnable.length}
                     <p class="text-discord-textSecondary">
                         {t("pluginsSettings.enable", {
@@ -450,7 +463,7 @@
                         })}
                     </p>
                 {/if}
-                {#if pullSummary.reposToAdd.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null && pullSummary.autoUpdateOverrides.length === 0}
+                {#if pullSummary.reposToAdd.length === 0 && pullSummary.toInstall.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null && pullSummary.autoUpdateOverrides.length === 0}
                     <p class="text-discord-textSecondary">
                         {t("pluginsSettings.nothingToChangeAlreadyInSync")}
                     </p>

@@ -1033,6 +1033,10 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.pullFromAccount": "Récupérer depuis le compte",
     "pluginsSettings.thisPullWill": "Cette récupération va :",
     "pluginsSettings.addRepos": "Ajouter les dépôts : {join}",
+    "pluginsSettings.installFromRepos":
+        "Installer depuis leurs dépôts : {join}",
+    "pluginsSettings.couldNotInstall":
+        "Appliqué, mais ces plugins n'ont pas pu être installés : {join}",
     "pluginsSettings.enable": "Activer : {join}",
     "pluginsSettings.disable": "Désactiver : {join}",
     "pluginsSettings.updateSettingsFor":

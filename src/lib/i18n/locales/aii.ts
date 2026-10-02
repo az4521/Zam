@@ -975,6 +975,8 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.pullFromAccount": "ܡܐܬܝ ܡܢ ܚܘܫܒܢܐ",
     "pluginsSettings.thisPullWill": "ܗܕܐ ܡܐܬܝܬܐ ܒܕ:",
     "pluginsSettings.addRepos": "ܐܘܣܦ ܓܙ̈ܐ: {join}",
+    "pluginsSettings.installFromRepos": "ܢܨܘܒ ܡܢ ܓܙ̈ܐ ܕܝܗܘܢ: {join}",
+    "pluginsSettings.couldNotInstall": "ܢܨܒܬܐ ܠܐ ܦܠܚܠܗ̇: {join}",
     "pluginsSettings.enable": "ܕܠܩ: {join}",
     "pluginsSettings.disable": "ܛܦܝ: {join}",
     "pluginsSettings.updateSettingsFor": "ܚܕܬ ܛܘܝܒ̈ܐ ܩܐ: {join}",

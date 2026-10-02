@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildFormattedBody } from "./messageBody";
+import { buildFormattedBody, emoticonsFromHtml } from "./messageBody";
 
 const empty = { mentions: new Map<string, string>(), customEmojis: [] };
 
@@ -157,5 +157,42 @@ describe("buildFormattedBody — typed @user:server mentions (memberIds)", () =>
         expect(new Set(r.mentionedUserIds)).toEqual(
             new Set(["@alice:hs", "@bob:hs"]),
         );
+    });
+});
+
+describe("emoticonsFromHtml", () => {
+    it("recovers emotes with or without colons in alt", () => {
+        expect(
+            emoticonsFromHtml(
+                'hi <img data-mx-emoticon src="mxc://hs/a" alt="blob" height="32" /> ' +
+                    '<img src="mxc://hs/b" alt=":cat:" data-mx-emoticon>',
+            ),
+        ).toEqual([
+            { shortcode: "blob", mxcUrl: "mxc://hs/a" },
+            { shortcode: "cat", mxcUrl: "mxc://hs/b" },
+        ]);
+    });
+
+    it("ignores ordinary images, non-mxc sources and empty input", () => {
+        expect(emoticonsFromHtml('<img src="mxc://hs/a" alt="pic">')).toEqual(
+            [],
+        );
+        expect(
+            emoticonsFromHtml(
+                '<img data-mx-emoticon src="https://x/a.png" alt="x">',
+            ),
+        ).toEqual([]);
+        expect(emoticonsFromHtml(undefined)).toEqual([]);
+    });
+
+    it("lets an edit keep an emote whose pack is no longer available", () => {
+        const original =
+            '<img data-mx-emoticon src="mxc://hs/a" alt=":blob:" height="32" />';
+        const { html } = buildFormattedBody("still :blob:", {
+            mentions: new Map(),
+            customEmojis: emoticonsFromHtml(original),
+        });
+        expect(html).toContain('src="mxc://hs/a"');
+        expect(html).not.toContain(":blob:");
     });
 });

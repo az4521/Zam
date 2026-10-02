@@ -175,12 +175,15 @@ describe("summarizePull", () => {
             "settingsDiffer",
         ]);
     });
-    it("lists remote-only plugins as notInstalledHere with source/repoRef", () => {
+    it("plans to install remote-only repo plugins from their repo", () => {
         const s = summarizePull(remote, local);
-        const ids = s.notInstalledHere.map((n) => n.id).sort();
-        expect(ids).toEqual(["onlyRemoteBuiltin", "onlyRemoteRepo"]);
-        const repo = s.notInstalledHere.find((n) => n.id === "onlyRemoteRepo");
-        expect(repo?.repoRef).toBe("c/d");
+        expect(s.toInstall).toEqual([{ id: "onlyRemoteRepo", repoRef: "c/d" }]);
+    });
+    it("lists remote-only plugins it can't install as notInstalledHere", () => {
+        const s = summarizePull(remote, local);
+        expect(s.notInstalledHere.map((n) => n.id)).toEqual([
+            "onlyRemoteBuiltin",
+        ]);
     });
     it("reports the global auto-update change", () => {
         expect(summarizePull(remote, local).autoUpdateChange).toBe(true);
