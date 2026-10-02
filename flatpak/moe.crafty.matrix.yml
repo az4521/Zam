@@ -23,6 +23,10 @@ finish-args:
     # permission that Chromium's V4L2 capture works with.
     - --device=all
     - --filesystem=xdg-download
+    # Drag-and-drop and pasted files arrive as plain host paths: Chromium
+    # doesn't use the document portal's FileTransfer for drops, so anything
+    # outside a granted directory is unreadable and the upload silently fails.
+    - --filesystem=home:ro
     - --talk-name=org.freedesktop.Notifications
     # Tray icon (StatusNotifierItem).
     - --talk-name=org.kde.StatusNotifierWatcher
