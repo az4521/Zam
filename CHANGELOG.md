@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.6
+
+🐛 **Fixed**
+
+- **Custom emoji when editing:** custom emoji typed into the edit box now show up as emoji instead of `:text:`, and emoji already in the message are kept.
+- **Plugin sync:** pulling your plugin setup now also installs and turns on plugins from repos that you had on your other device, instead of only syncing their settings.
+- **`:tm:` and other emoji names:** emoji names work like Discord. Typing `:tm:` turns into ™️ as soon as you type the closing colon, and autocomplete finds emoji by their short name.
+- **DM pictures:** direct messages without their own picture now show the other person's avatar.
+- **Window size and position:** the desktop app now remembers its size, position and whether it was maximised. On Wayland, the position is still chosen by your desktop.
+
 ## v1.12.5
 
 ✨ **New**
