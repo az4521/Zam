@@ -183,6 +183,8 @@
         focusLeavesRow,
     } from "$lib/utils/actionBarMount";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
+    import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { videoNeedsAuthedStream } from "$lib/matrix/videoStream";
     import { bodyImageGallery } from "$lib/actions/bodyImageGallery";
     import {
         galleryNav,
@@ -1198,8 +1200,9 @@
     // /_matrix/client/v1/media/, which is the same path every <img> in this
     // timeline already depends on, so a bare `src` is authenticated.
     //
-    // Buffering first was actively harmful: continuwuity sends neither
-    // Content-Length nor Accept-Ranges on a media download, so a blob fetch has
+    // Buffering first was actively harmful: continuwuity/tuwunel send no
+    // Content-Length and ignore Range on a media download (verified: a ranged
+    // request gets a plain 200 of the whole file), so a blob fetch has
     // no progress to report AND cannot start playback early — a 20 MB clip sat
     // on a bare spinner until every byte had landed, by which point the click's
     // user-activation window had expired, `autoplay` was refused, and the video
@@ -1217,8 +1220,35 @@
     let videoDecryptAttempt = $state(0);
     let videoPlayRequested = $state(false);
 
+    // Without a controlling service worker (Tor Browser has none; a hard
+    // reload starts uncontrolled) that bare `src` 401s, so the plain video is
+    // instead streamed with the token through MediaSource (videoStream.ts).
+    // Chosen up front when there's no worker, and as a one-shot retry when the
+    // bare `src` fails anyway (a worker that hasn't received the token yet).
+    let videoUseStream = $state(false);
+    const videoStreamUrl = $derived(
+        videoUseStream && videoSrc?.kind === "plain"
+            ? mxcToHttp(videoSrc.mxc)
+            : null,
+    );
+    const videoMimetype = $derived(
+        typeof (content?.info as Record<string, unknown> | undefined)
+            ?.mimetype === "string"
+            ? ((content?.info as Record<string, unknown>).mimetype as string)
+            : null,
+    );
+    function onVideoError() {
+        if (videoSrc?.kind === "plain" && !videoUseStream) {
+            videoUseStream = true;
+            videoAttempt += 1;
+            return;
+        }
+        videoFailed = true;
+    }
+
     function playVideo() {
         videoFailed = false;
+        if (videoNeedsAuthedStream()) videoUseStream = true;
         videoAttempt += 1;
         if (videoSrc?.kind === "encrypted") {
             videoPlayRequested = true;
@@ -2445,8 +2475,15 @@
                          min-content width push past the column and overflow. -->
                         <video
                             src={videoSrc?.kind === "plain"
-                                ? mxcToHttp(videoSrc.mxc)
+                                ? videoStreamUrl
+                                    ? undefined
+                                    : mxcToHttp(videoSrc.mxc)
                                 : encryptedVideoUrl}
+                            use:authedVideoSrc={{
+                                url: videoStreamUrl,
+                                mimetype: videoMimetype,
+                                onError: () => (videoFailed = true),
+                            }}
                             controls
                             autoplay
                             playsinline
@@ -2454,7 +2491,7 @@
                             class="max-w-lg w-full rounded-lg mt-1 block object-contain bg-black"
                             style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
                             onloadedmetadata={onVideoMetadata}
-                            onerror={() => (videoFailed = true)}
+                            onerror={onVideoError}
                             use:pauseOffscreen={{
                                 enabled: settingsState.pauseVideoOnScrollOff,
                             }}
