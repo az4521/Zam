@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.2
+
+🐛 **Fixed**
+
+- **Messages disappearing after a notification tap:** opening the app from a notification could show the newest messages for a moment, then lose them. They now stay.
+- **Stuck on "Reconnecting" on slow connections:** on a slow or weak connection, the app could keep reconnecting forever without catching up. It now gives slow responses more time to arrive, so it gets through and syncs.
+
 ## v1.13.1
 
 ✨ **New**
