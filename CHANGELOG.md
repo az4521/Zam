@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.9
+
+🐛 **Fixed**
+
+- **Stuck on "Reconnecting" (sliding sync):** an error while processing an update could stop syncing for good until the app was restarted. Zam now restarts syncing on its own.
+- **Messages vanishing after opening a notification:** opening a room from a notification could show the newest messages and then drop them when sync caught up.
+
+🔧 **Debug**
+
+- **Sync log:** Settings → Debug Info now keeps a short sync log you can copy, to help track down connection problems.
+
 ## v1.12.8
 
 🐛 **Fixed**
