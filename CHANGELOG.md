@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.0
+
+✨ **New**
+
+- **Calls between homeservers:** calls between people on different homeservers (say matrix.org and your own server) now work both ways. Before, whoever joined on the other server's call server could listen but not talk ("failed to publish track, insufficient permissions"). Each person now sends from their own homeserver's call server and listens on everyone else's. Everyone in the call needs this version or newer to hear each other.
+
+🐛 **Fixed**
+
+- **Incoming calls not ringing:** a call to you could stay invisible, with no ring, until you switched rooms and back, even in the room you had open. It now rings straight away.
+
 ## v1.12.11
 
 🐛 **Fixed**
