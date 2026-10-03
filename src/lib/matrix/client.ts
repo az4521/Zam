@@ -2566,10 +2566,35 @@ function pruneDeliveredEchoes(room: Room): void {
     }
 }
 
+/**
+ * The live timeline plus the older timelines the SDK has linked behind it,
+ * oldest first. A gappy (limited) sync — routine in busy rooms like
+ * #matrix:matrix.org — replaces the live timeline with a fresh short one and
+ * parks everything before it in a separate timeline. Back-paginating the new
+ * live timeline into an event that timeline already holds makes the SDK link
+ * the two and carry on filling the OLDER one, so reading the live timeline
+ * alone loses the whole pre-gap history and every page loaded after the join.
+ */
+function liveTimelineChain(room: Room): EventTimeline[] {
+    const chain: EventTimeline[] = [];
+    const seen = new Set<EventTimeline>();
+    let tl: EventTimeline | null = room.getLiveTimeline();
+    while (tl && !seen.has(tl)) {
+        seen.add(tl);
+        chain.unshift(tl);
+        tl = tl.getNeighbouringTimeline(EventTimeline.BACKWARDS);
+    }
+    return chain;
+}
+
+function liveChainEvents(room: Room): MatrixEvent[] {
+    return liveTimelineChain(room).flatMap((tl) => tl.getEvents());
+}
+
 export function getTimelineMessages(room: Room): MatrixEvent[] {
     pruneDeliveredEchoes(room);
     const timeline = collapseCallEvents(
-        room.getLiveTimeline().getEvents().filter(isRenderableTimelineEvent),
+        liveChainEvents(room).filter(isRenderableTimelineEvent),
     );
     const timelineIds = new Set(timeline.map((e) => e.getId()));
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
@@ -2592,10 +2617,7 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
  *  echoes) — i.e. the normal live view can show it without a context window. */
 export function isInLiveTimeline(room: Room, eventId: string): boolean {
     return (
-        room
-            .getLiveTimeline()
-            .getEvents()
-            .some((e) => e.getId() === eventId) ||
+        liveChainEvents(room).some((e) => e.getId() === eventId) ||
         room.getPendingEvents().some((e) => e.getId() === eventId)
     );
 }
@@ -5063,6 +5085,33 @@ export function onRoomUpdate(callback: () => void): () => void {
 const BACKFILL_BATCH = 15;
 
 /**
+ * Page one batch into the oldest timeline of the live chain. Resolves whether
+ * more history remains.
+ *
+ * Deliberately NOT client.scrollback(): that legacy API (a) always pages into
+ * the live timeline, so after a gap join its token keeps advancing while the
+ * events land in the older timeline the UI never read, and (b) treats ANY
+ * empty /messages chunk as the start of history. Synapse returns empty chunks
+ * with a valid `end` when a whole page is invisible to us (busy public rooms
+ * hit this constantly), which ended the timeline mid-history.
+ * paginateEventTimeline only stops when the server omits `end`.
+ */
+async function paginateLiveChain(
+    client: MatrixClient,
+    room: Room,
+    limit: number,
+): Promise<boolean> {
+    const oldest = liveTimelineChain(room)[0];
+    // No token means start of history. Never paginate without one: a token-
+    // less /messages returns the NEWEST events, which would be prepended.
+    if (oldest.getPaginationToken(Direction.Backward)) {
+        await client.paginateEventTimeline(oldest, { backwards: true, limit });
+    }
+    // The page may have joined a further-back timeline; its token decides.
+    return !!liveTimelineChain(room)[0].getPaginationToken(Direction.Backward);
+}
+
+/**
  * Page one batch of older history into the live timeline. Returns whether
  * more history remains.
  *
@@ -5077,7 +5126,12 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     if (!matrixClient) return false;
     const owner = captureOwnership(matrixClient, clientGeneration);
     const timeline = room.getLiveTimeline();
-    const hasBackwardToken = !!timeline.getPaginationToken(Direction.Backward);
+    // Once older timelines are linked behind the live one, the live
+    // timeline's own token is irrelevant: the chain's oldest end is where
+    // history continues, and no priming applies.
+    const linked = liveTimelineChain(room).length > 1;
+    const hasBackwardToken =
+        linked || !!timeline.getPaginationToken(Direction.Backward);
     // Sliding sync can hand over a room with a short (or all-hidden) timeline
     // and no prev_batch even though older history exists, which scrollback()
     // would read as "start of history" and the room would open as empty. Probe
@@ -5109,8 +5163,12 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
     // preserves it and MessageArea never remounts), killing scroll-up in the
     // room for good. The token below is the honest answer either way.
     const client = ownedClient(owner);
-    if (client) await client.scrollback(room, BACKFILL_BATCH);
-    return room.oldState.paginationToken !== null;
+    if (!client) {
+        return !!liveTimelineChain(room)[0].getPaginationToken(
+            Direction.Backward,
+        );
+    }
+    return paginateLiveChain(client, room, BACKFILL_BATCH);
 }
 
 // Reply previews reference events that are often outside the loaded
@@ -5159,22 +5217,13 @@ export async function loadMessagesUntilEvent(
 ): Promise<boolean> {
     if (!matrixClient) return false;
     for (let i = 0; i < maxBatches; i++) {
-        if (
-            room
-                .getLiveTimeline()
-                .getEvents()
-                .some((e) => e.getId() === eventId)
-        )
+        if (liveChainEvents(room).some((e) => e.getId() === eventId))
             return true;
-        await matrixClient.scrollback(room, 50);
         // All-duplicate batches happen after gappy-sync timeline resets and
         // must not abort the walk — only a null token means no more history.
-        if (room.oldState.paginationToken === null) break;
+        if (!(await paginateLiveChain(matrixClient, room, 50))) break;
     }
-    return room
-        .getLiveTimeline()
-        .getEvents()
-        .some((e) => e.getId() === eventId);
+    return liveChainEvents(room).some((e) => e.getId() === eventId);
 }
 
 /** Builds a paginating timeline window centred on `eventId`, WITHOUT disturbing
@@ -9073,7 +9122,7 @@ function callSummaryMap(
 export function getCallSummaries(room: Room): Map<string, CallSummary> {
     return callSummaryMap(
         room,
-        room.getLiveTimeline().getEvents().filter(isRenderableTimelineEvent),
+        liveChainEvents(room).filter(isRenderableTimelineEvent),
     );
 }
 
