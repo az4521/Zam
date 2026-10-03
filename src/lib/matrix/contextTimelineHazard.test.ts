@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { MatrixEvent, Room, type MatrixClient } from "matrix-js-sdk";
+import {
+    EventTimelineSet,
+    MatrixEvent,
+    Room,
+    type MatrixClient,
+} from "matrix-js-sdk";
 
-// Why a notification jump must not build a context window before sync catches
-// up (see waitForLiveEvent in client.ts): the SDK's addLiveEvent drops any
-// event already held by another timeline in the set.
+// Why createContextWindow builds its window in a private timeline set: the
+// SDK's addLiveEvent drops any event already held by another timeline in the
+// same set, so a window in the room's own set swallowed sync's newest messages.
 
 const ROOM = "!r:x";
 const msg = (id: string) =>
@@ -56,6 +61,31 @@ describe("context timeline vs live sync", () => {
             .getEvents()
             .map((e) => e.getId());
         expect(live).toEqual(["$old", "$newest"]);
+    });
+
+    it("a context window in its own timeline set never starves the live timeline", async () => {
+        // What createContextWindow does now: a private set, not the room's.
+        const room = makeRoom();
+        await room.addLiveEvents([msg("$old")], { addToState: false });
+        const detached = new EventTimelineSet(room, { timelineSupport: true });
+        const ctx = detached.addTimeline();
+        detached.addEventsToTimeline(
+            [msg("$notified"), msg("$after")],
+            false,
+            false,
+            ctx,
+        );
+
+        await room.addLiveEvents(
+            [msg("$notified"), msg("$after"), msg("$newest")],
+            { addToState: false },
+        );
+        expect(
+            room
+                .getLiveTimeline()
+                .getEvents()
+                .map((e) => e.getId()),
+        ).toEqual(["$old", "$notified", "$after", "$newest"]);
     });
 
     it("with sync caught up first, the live timeline keeps every message", async () => {

@@ -83,8 +83,9 @@ export function shouldKickSync(
     trigger: "online" | "visible" | "watchdog",
     sinceLastSyncMs: number,
     hiddenForMs = 0,
+    overdueAfterMs = SYNC_POLL_MS + 15_000,
 ): boolean {
-    const overdue = sinceLastSyncMs > SYNC_POLL_MS + 15_000;
+    const overdue = sinceLastSyncMs > overdueAfterMs;
     switch (trigger) {
         case "online":
             return true;
@@ -93,4 +94,22 @@ export function shouldKickSync(
         case "watchdog":
             return overdue;
     }
+}
+
+/**
+ * How long without a sync response before the watchdog restarts the request.
+ *
+ * A fixed threshold never let a slow connection finish: a catch-up response
+ * still downloading after 45s was aborted and re-requested, forever. Each
+ * watchdog restart that brings no response doubles the wait (`strikes`, reset
+ * by any response), capped at 5 minutes, and it never undercuts the time the
+ * in-flight request is itself allowed (`requestTimeoutMs`).
+ */
+export function watchdogOverdueMs(
+    strikes: number,
+    requestTimeoutMs = 0,
+): number {
+    const base = SYNC_POLL_MS + 15_000;
+    const backedOff = Math.min(base * 2 ** strikes, 5 * 60_000);
+    return Math.max(backedOff, requestTimeoutMs + 15_000);
 }

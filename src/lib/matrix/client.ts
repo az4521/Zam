@@ -28,6 +28,7 @@ import {
     M_BEACON_INFO,
     ContentHelpers,
     TimelineWindow,
+    EventTimelineSet,
     SSOAction,
     OAuth2,
 } from "matrix-js-sdk";
@@ -57,9 +58,11 @@ import {
     isSlidingTimelineGap,
     nextWindowEnd,
     shouldKickSync,
+    watchdogOverdueMs,
 } from "$lib/utils/slidingSyncHelpers";
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
+import { adaptSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
 import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
@@ -1038,6 +1041,10 @@ let activeSlidingSync: SlidingSync | null = null;
 // When the sync loop last got a response (any state). Drives the stuck-sync
 // watchdog in startSync; see shouldKickSync.
 let lastSyncResponseAt = Date.now();
+// Watchdog restarts since the last response; each one doubles the next wait.
+let watchdogStrikes = 0;
+// What the in-flight sliding-sync request is allowed (adaptSlidingSyncTimeout).
+let slidingRequestTimeoutMs: () => number = () => 0;
 
 // When sync last delivered a real (non-cached) response, the latest sync state,
 // and when the page last came back from hidden. kickIf back-dates
@@ -1073,11 +1080,8 @@ const SYNC_SETTLE_MS = 2000;
  * after this call and the event still isn't live (so it is genuinely older
  * than the live window); "timeout" if sync never answered.
  *
- * Callers must not build a context window (createContextWindow) while sync is
- * behind: the SDK's addLiveEvent silently drops any event already held in
- * another timeline of the set, so every message the /context fetch returned
- * would then never reach the live timeline. That was the notification-tap
- * "new messages never load" bug.
+ * Lets a notification jump land in the live view rather than a context
+ * window when sync is only briefly behind.
  */
 export function waitForLiveEvent(
     room: Room,
@@ -1287,6 +1291,13 @@ async function buildSlidingSync(
         ],
     ]);
 
+    slidingRequestTimeoutMs = adaptSlidingSyncTimeout(client, {
+        onTimeout: (nextMs) =>
+            logSync(
+                `request timed out, next allows ${Math.round(nextMs / 1000)}s`,
+            ),
+    });
+
     const sliding = new SlidingSync(
         client.getHomeserverUrl(),
         lists,
@@ -1416,6 +1427,7 @@ export async function startSync(
             lastSyncState = state;
             if (isHealthySyncState(state)) {
                 lastSyncResponseAt = Date.now();
+                watchdogStrikes = 0;
                 if (!data?.fromCache) lastRealSyncResponseAt = Date.now();
             }
             // Classic /sync delivers the whole room list in one (cached or live)
@@ -1499,7 +1511,12 @@ export async function startSync(
     ) => {
         if (!ownedClient(owner) || !initialSyncComplete) return;
         const since = Date.now() - lastSyncResponseAt;
-        if (!shouldKickSync(trigger, since, hiddenForMs)) return;
+        const overdueAfter = watchdogOverdueMs(
+            watchdogStrikes,
+            isUsingSlidingSync() ? slidingRequestTimeoutMs() : 0,
+        );
+        if (!shouldKickSync(trigger, since, hiddenForMs, overdueAfter)) return;
+        if (trigger === "watchdog") watchdogStrikes++;
         logSync(
             `kick: ${trigger}, ${Math.round(since / 1000)}s since last response` +
                 (hiddenForMs
@@ -5238,7 +5255,18 @@ export async function createContextWindow(
     windowSize = 50,
 ): Promise<TimelineWindow | null> {
     if (!matrixClient) return null;
-    const timelineSet = room.getUnfilteredTimelineSet();
+    // A private timeline set, NOT the room's unfiltered one. Sync appends via
+    // addLiveEvent, which silently drops any event another timeline in the
+    // same set already holds, so a window built in the room's set while sync
+    // was behind (every notification tap on a resumed app) swallowed the
+    // newest messages: they showed in the context view, then vanished when it
+    // handed back to the live timeline, which never received them. Nothing
+    // sync does can see or reset this set.
+    const timelineSet = new EventTimelineSet(
+        room,
+        { timelineSupport: true },
+        matrixClient,
+    );
     const window = new TimelineWindow(matrixClient, timelineSet);
     try {
         await window.load(eventId, windowSize);
@@ -5248,8 +5276,15 @@ export async function createContextWindow(
     // load() resolves even when the event's timeline could not be fetched; an
     // empty window means we have nothing to show, so treat it as unavailable.
     if (window.getEvents().length === 0) return null;
+    contextWindowRooms.set(window, room);
+    contextTimelineSets.set(room.roomId, timelineSet);
     return window;
 }
+
+const contextWindowRooms = new WeakMap<TimelineWindow, Room>();
+// Each room's most recent context window set, so findEventById still resolves
+// events that only a jump view holds (reply/edit targets in that view).
+const contextTimelineSets = new Map<string, EventTimelineSet>();
 
 /** The renderable message events currently held by a context window, filtered
  *  identically to the live timeline so the jump view matches normal rendering. */
@@ -5274,14 +5309,23 @@ export function paginateContextWindow(
 }
 
 /** Whether a context window can still extend in the given direction. A false
- *  result for forwards means the window has reached the live timeline's newest
- *  event — the caller can then hand back to the live timeline. */
+ *  result for forwards means the window has caught up with the live timeline
+ *  — the caller can then hand back to it. */
 export function contextWindowCanPaginate(
     window: TimelineWindow,
     forwards: boolean,
 ): boolean {
-    const dir = forwards ? EventTimeline.FORWARDS : EventTimeline.BACKWARDS;
-    return window.canPaginate(dir);
+    if (forwards) {
+        // The window lives in its own timeline set, so it never links up with
+        // the live timeline the way a window in the room's set did. It has
+        // caught up once its newest event is one the live view holds.
+        const room = contextWindowRooms.get(window);
+        const events = window.getEvents();
+        const newestId = events[events.length - 1]?.getId();
+        if (room && newestId && isInLiveTimeline(room, newestId)) return false;
+        return window.canPaginate(EventTimeline.FORWARDS);
+    }
+    return window.canPaginate(EventTimeline.BACKWARDS);
 }
 
 /** Server-side message search scoped to a single room (order: most recent
@@ -8838,8 +8882,11 @@ export function onTimelineReset(room: Room, callback: () => void): () => void {
 }
 
 export function findEventById(room: Room, eventId: string): MatrixEvent | null {
-    const timelineSet = room.getUnfilteredTimelineSet();
-    return timelineSet.findEventById(eventId) ?? null;
+    return (
+        room.getUnfilteredTimelineSet().findEventById(eventId) ??
+        contextTimelineSets.get(room.roomId)?.findEventById(eventId) ??
+        null
+    );
 }
 
 export async function fetchEventById(

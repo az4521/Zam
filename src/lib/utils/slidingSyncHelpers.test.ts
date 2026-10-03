@@ -4,7 +4,31 @@ import {
     isSlidingTimelineGap,
     shouldKickSync,
     nextWindowEnd,
+    watchdogOverdueMs,
 } from "./slidingSyncHelpers";
+
+describe("watchdogOverdueMs", () => {
+    it("starts at a poll interval plus slack", () => {
+        expect(watchdogOverdueMs(0)).toBe(45_000);
+    });
+
+    it("doubles with each restart that brought no response, up to 5 minutes", () => {
+        expect(watchdogOverdueMs(1)).toBe(90_000);
+        expect(watchdogOverdueMs(2)).toBe(180_000);
+        expect(watchdogOverdueMs(3)).toBe(300_000);
+        expect(watchdogOverdueMs(10)).toBe(300_000);
+    });
+
+    it("never fires inside the in-flight request's own allowance", () => {
+        expect(watchdogOverdueMs(0, 160_000)).toBe(175_000);
+    });
+
+    it("feeds shouldKickSync so a slow download is left alone", () => {
+        const overdue = watchdogOverdueMs(1);
+        expect(shouldKickSync("watchdog", 60_000, 0, overdue)).toBe(false);
+        expect(shouldKickSync("watchdog", 95_000, 0, overdue)).toBe(true);
+    });
+});
 
 describe("nextWindowEnd", () => {
     it("grows by one step", () => {

@@ -561,15 +561,14 @@
             if (room.roomId !== rid) return;
             // Woken from the background (a notification tap on Android), the
             // live timeline is behind and the message is usually still on its
-            // way. Let sync deliver it rather than fetching a context window
-            // now: the SDK drops sync events that a context timeline already
-            // holds, so the newest messages would never reach the live view.
+            // way. Let sync deliver it so the jump lands in the live view
+            // instead of a detached context window.
             if (!isInLiveTimeline(room, eventId) && isSyncStale()) {
                 const result = await waitForLiveEvent(room, eventId, 45_000);
                 logSync(`jump waited for sync: ${result}`);
                 if (room.roomId !== rid) return;
                 // Sync never caught up: stay on the live view, which fills in
-                // as soon as it does. A context window now would starve it.
+                // as soon as it does.
                 if (result === "timeout") return;
             }
             // In the live timeline but not rendered yet: this effect runs in
