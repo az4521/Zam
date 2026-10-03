@@ -1,5 +1,6 @@
 import { untrack } from "svelte";
 import { getActiveAccount } from "$lib/stores/accounts.svelte";
+import { jxlFallbackUrl, maybeDecodeJxl } from "$lib/utils/jxl";
 
 /**
  * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
@@ -39,7 +40,11 @@ export function isAuthedMediaUrl(src: string): boolean {
     }
 }
 
-/** Fetch authed media with the token → object URL, or null if unavailable. */
+/**
+ * Fetch authed media with the token → object URL, or null if unavailable.
+ * JXL bytes are transcoded to PNG where the engine can't decode them, since
+ * that is also why such an `<img>` errors in the first place.
+ */
 export async function authedMediaBlobUrl(src: string): Promise<string | null> {
     const c = mediaCreds();
     if (!c || !isAuthedMediaUrl(src)) return null;
@@ -48,10 +53,15 @@ export async function authedMediaBlobUrl(src: string): Promise<string | null> {
             headers: { Authorization: `Bearer ${c.token}` },
         });
         if (!res.ok) return null;
-        return URL.createObjectURL(await res.blob());
+        const blob = await res.blob();
+        return URL.createObjectURL((await maybeDecodeJxl(blob)) ?? blob);
     } catch {
         return null;
     }
+}
+
+function isLocalUrl(src: string): boolean {
+    return src.startsWith("blob:") || src.startsWith("data:");
 }
 
 export interface MediaRetry {
@@ -113,13 +123,18 @@ export function createMediaRetry(
         },
         async onError() {
             const s = getSrc();
-            if (tried || !s || !isAuthedMediaUrl(s)) {
+            // A local (decrypted) blob only fails to load if the engine can't
+            // decode it, so the one retry worth making there is JXL.
+            const local = !!s && isLocalUrl(s);
+            if (tried || !s || (!local && !isAuthedMediaUrl(s))) {
                 failed = true;
                 return;
             }
             tried = true;
             pending = true;
-            const url = await authedMediaBlobUrl(s);
+            const url = local
+                ? await jxlFallbackUrl(s)
+                : await authedMediaBlobUrl(s);
             pending = false;
             if (url) {
                 blobUrl = url;
@@ -152,7 +167,9 @@ function healedBlobUrl(src: string): Promise<string | null> {
         healCache.set(src, hit);
         return hit;
     }
-    const p = authedMediaBlobUrl(src).then((url) => {
+    const p = (
+        isLocalUrl(src) ? jxlFallbackUrl(src) : authedMediaBlobUrl(src)
+    ).then((url) => {
         if (!url) healCache.delete(src); // allow a later retry
         return url;
     });
@@ -178,7 +195,9 @@ export function installMediaHealer(): void {
             // Keyed on the src we healed, not a one-shot flag: a reused
             // element given a NEW authed src must be healable again.
             if (img.dataset.mediaHealed === src) return;
-            if (!isAuthedMediaUrl(src)) return; // not our authed media / no token
+            // Our authed media (no token / SW), or a local blob the engine
+            // couldn't decode (JXL, see utils/jxl).
+            if (!isAuthedMediaUrl(src) && !isLocalUrl(src)) return;
             img.dataset.mediaHealed = src;
             const failedSrc = img.src;
             healedBlobUrl(src).then((url) => {

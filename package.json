@@ -108,6 +108,7 @@
         "emojibase-data": "^17.0.0",
         "highlight.js": "^11.11.1",
         "jsqr": "^1.4.0",
+        "jxl-rs-polyfill": "^0.2.0",
         "leaflet": "^1.9.4",
         "livekit-client": "^2.20.1",
         "lucide-svelte": "^0.509.0",

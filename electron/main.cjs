@@ -967,6 +967,11 @@ function createTray() {
 }
 
 // Single-instance: focus the existing window instead of launching a second copy.
+// Chromium ships a JPEG XL decoder (jxl-rs) but keeps it behind a feature
+// flag; switch it on so `<img>` renders image/jxl natively. Must be set before
+// the app is ready. Other platforms fall back to src/lib/utils/jxl.ts.
+app.commandLine.appendSwitch("enable-features", "JXLImageFormat");
+
 if (!app.requestSingleInstanceLock()) {
     app.quit();
 } else {

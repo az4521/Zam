@@ -1184,6 +1184,14 @@
         // GIFs are served full-res in chat so they keep animating; the server
         // thumbnail would (depending on homeserver) drop the animation.
         if (isGif) return mxcToHttp(content?.url as string);
+        // Homeservers generally can't thumbnail JPEG XL, so ask for the
+        // original; utils/jxl transcodes it where the engine can't decode it.
+        if (
+            (content?.info as { mimetype?: string } | undefined)?.mimetype ===
+                "image/jxl" ||
+            mediaFilename.toLowerCase().endsWith(".jxl")
+        )
+            return mxcToHttp(content?.url as string);
         return (
             mxcToHttp(content?.url as string, 800, 600, "scale") ??
             mxcToHttp(content?.url as string)
