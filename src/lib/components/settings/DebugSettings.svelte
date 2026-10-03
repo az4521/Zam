@@ -35,6 +35,7 @@
         setShowAllEvents,
         settingsState,
     } from "$lib/stores/settings.svelte";
+    import { getSyncLog } from "$lib/matrix/syncLog";
 
     let loading = $state(false);
     let pushers = $state<RegisteredPusher[] | null>(null);
@@ -43,6 +44,25 @@
     let nativeSession = $state<NativeSessionState | null>(null);
     let webPush = $state<WebPushDebug | null>(null);
     let rules = $state(getPushRuleSummary());
+
+    // Snapshot when the panel opens; Refresh re-reads it.
+    let syncLog = $state(getSyncLog());
+    let syncLogCopied = $state(false);
+    async function copySyncLog() {
+        syncLog = getSyncLog();
+        const text = [
+            `state: ${auth.syncState}`,
+            `copied: ${new Date().toISOString()}`,
+            ...syncLog,
+        ].join("\n");
+        try {
+            await navigator.clipboard.writeText(text);
+            syncLogCopied = true;
+            setTimeout(() => (syncLogCopied = false), 2000);
+        } catch {
+            /* clipboard denied: the log is still on screen to select */
+        }
+    }
 
     // Flipping the mode needs a fresh client: sliding sync and /sync feed the
     // store differently (each has its own cache), so apply it with a reload.
@@ -253,6 +273,35 @@
                 >
             </div>
         {/each}
+        <div class="mt-3 flex items-center gap-2">
+            <p
+                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            >
+                {t("debugSettings.syncLog")}
+            </p>
+            <button
+                onclick={() => (syncLog = getSyncLog())}
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                >{t("debugSettings.refresh")}</button
+            >
+            <button
+                onclick={copySyncLog}
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                >{syncLogCopied
+                    ? t("debugSettings.copied")
+                    : t("common.copy")}</button
+            >
+        </div>
+        {#if syncLog.length === 0}
+            <p class="mt-1 text-xs text-discord-textMuted">
+                {t("debugSettings.syncLogEmpty")}
+            </p>
+        {:else}
+            <pre
+                class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{syncLog.join(
+                    "\n",
+                )}</pre>
+        {/if}
     </section>
 
     <ExtendedProfileDebug />

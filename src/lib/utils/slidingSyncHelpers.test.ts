@@ -46,9 +46,13 @@ describe("isSlidingSyncUnsupportedError", () => {
 });
 
 describe("isSlidingTimelineGap", () => {
-    const live = new Set(["$a", "$b", "$c"]);
+    const liveIds = new Set(["$a", "$b", "$c"]);
+    const live = {
+        liveIsEmpty: false,
+        isKnown: (id: string) => liveIds.has(id),
+    };
 
-    it("is a gap when a limited update shares nothing with the timeline", () => {
+    it("is a gap when a limited update shares nothing with the room", () => {
         // Room-list update (timeline_limit 1) after several new messages.
         expect(
             isSlidingTimelineGap(
@@ -58,8 +62,7 @@ describe("isSlidingTimelineGap", () => {
         ).toBe(true);
     });
 
-    it("is not a gap when the update overlaps what we have", () => {
-        // Opening the room: the subscription's window reaches back to $c.
+    it("is not a gap when the update overlaps the timeline", () => {
         expect(
             isSlidingTimelineGap(
                 { limited: true, timelineEventIds: ["$c", "$d", "$e"] },
@@ -68,7 +71,22 @@ describe("isSlidingTimelineGap", () => {
         ).toBe(false);
     });
 
-    it("is not a gap when the update isn't limited", () => {
+    it("is not a gap when the events are known outside the live timeline", () => {
+        // A notification tap loaded the newest messages into a context
+        // timeline (or they are thread replies) before sync delivered them.
+        const elsewhere = new Set(["$f", "$g"]);
+        expect(
+            isSlidingTimelineGap(
+                { limited: true, timelineEventIds: ["$f", "$g"] },
+                {
+                    liveIsEmpty: false,
+                    isKnown: (id) => liveIds.has(id) || elsewhere.has(id),
+                },
+            ),
+        ).toBe(false);
+    });
+
+    it("is never a gap when the update is not limited", () => {
         expect(
             isSlidingTimelineGap(
                 { limited: false, timelineEventIds: ["$d"] },
@@ -87,7 +105,7 @@ describe("isSlidingTimelineGap", () => {
         expect(
             isSlidingTimelineGap(
                 { limited: true, timelineEventIds: ["$d"] },
-                new Set(),
+                { liveIsEmpty: true, isKnown: () => false },
             ),
         ).toBe(false);
     });

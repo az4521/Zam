@@ -357,6 +357,11 @@ export const en = {
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Display every Matrix timeline event in the chat log.",
     "debugSettings.syncStatus": "Sync Status",
+    "debugSettings.syncLog": "Sync log",
+    "debugSettings.syncLogEmpty":
+        "Nothing logged yet. Restarts, failed requests and timeline resets show up here.",
+    "debugSettings.refresh": "Refresh",
+    "debugSettings.copied": "Copied",
     "debugSettings.useSlidingSync": "Use sliding sync",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimental. Loads rooms in a growing window. Reloads the app to apply.",

@@ -57,6 +57,8 @@ import {
     nextWindowEnd,
     shouldKickSync,
 } from "$lib/utils/slidingSyncHelpers";
+import { describeSyncError, logSync } from "$lib/matrix/syncLog";
+import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
 import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
@@ -1039,6 +1041,9 @@ let lastSyncResponseAt = Date.now();
  * then runs at once instead of after its 2-7s backoff.
  */
 function kickSync(client: MatrixClient): void {
+    logSync(
+        `restarting sync request (${activeSlidingSync ? "sliding" : "classic"})`,
+    );
     if (activeSlidingSync && isUsingSlidingSync()) {
         activeSlidingSync.resend();
         return;
@@ -1194,6 +1199,15 @@ async function buildSlidingSync(
         SLIDING_TIMEOUT_MS,
     );
 
+    // A listener that throws inside the loop kills sync for good; restart it
+    // instead (see keepSlidingSyncAlive).
+    keepSlidingSyncAlive(sliding, (err, retryInMs) => {
+        console.error("[sync] sliding sync loop crashed", err);
+        logSync(
+            `loop crashed, restarting in ${retryInMs}ms: ${describeSyncError(err)}`,
+        );
+    });
+
     // Reset a room's live timeline when an update skips events, like classic
     // /sync does (see isSlidingTimelineGap for what the SDK gets wrong). This
     // listener is registered before startClient() builds the SDK's own
@@ -1201,49 +1215,69 @@ async function buildSlidingSync(
     // reset lands before the SDK appends the update. The fresh timeline gets
     // the update's prev_batch, so the missing messages page in behind it, and
     // RoomEvent.TimelineReset makes an open MessageArea reload and refill.
+    // It runs inside the sync loop, so it must never throw.
     sliding.on(
         SlidingSyncEvent.RoomData,
         (roomId: string, roomData: MSC3575RoomData) => {
-            const room = client.getRoom(roomId);
-            if (!room) return;
-            const liveIds = new Set(
-                room
-                    .getLiveTimeline()
-                    .getEvents()
-                    .map((e) => e.getId())
-                    .filter((id): id is string => !!id),
-            );
-            const gap = isSlidingTimelineGap(
-                {
-                    limited: roomData.limited,
-                    timelineEventIds: (roomData.timeline ?? [])
-                        .map((e) => e.event_id)
-                        .filter((id): id is string => !!id),
-                },
-                liveIds,
-            );
-            if (gap) room.resetLiveTimeline(roomData.prev_batch ?? null, null);
+            try {
+                const room = client.getRoom(roomId);
+                if (!room) return;
+                const gap = isSlidingTimelineGap(
+                    {
+                        limited: roomData.limited,
+                        timelineEventIds: (roomData.timeline ?? [])
+                            .map((e) => e.event_id)
+                            .filter((id): id is string => !!id),
+                    },
+                    {
+                        liveIsEmpty:
+                            room.getLiveTimeline().getEvents().length === 0,
+                        isKnown: (id) => !!room.findEventById(id),
+                    },
+                );
+                if (!gap) return;
+                logSync(`timeline reset (gap) in ${roomId}`);
+                room.resetLiveTimeline(roomData.prev_batch ?? null, null);
+            } catch (err) {
+                console.error("[sync] gap check failed", roomId, err);
+                logSync(
+                    `gap check failed in ${roomId}: ${describeSyncError(err)}`,
+                );
+            }
         },
     );
 
     // Grow every list one page per completed response until it covers all the
     // rooms the server reports for it (so no list has a hard cap).
-    sliding.on(SlidingSyncEvent.Lifecycle, (state: SlidingSyncState) => {
-        if (state !== SlidingSyncState.Complete) return;
-        let growing = false;
-        for (const key of lists.keys()) {
-            const total = sliding.getListData(key)?.joinedCount ?? 0;
-            const end = sliding.getListParams(key)?.ranges[0]?.[1];
-            const next = nextWindowEnd(end, total, SLIDING_GROW_STEP);
-            if (next !== null) {
-                growing = true;
-                sliding.setListRanges(key, [[0, next]]);
+    // Also runs inside the sync loop, so it must never throw.
+    sliding.on(
+        SlidingSyncEvent.Lifecycle,
+        (state: SlidingSyncState, _resp: unknown, err?: unknown) => {
+            if (err) {
+                logSync(`request failed: ${describeSyncError(err)}`);
+                return;
             }
-        }
-        // Every window already covered its list: the room list is whole.
-        if (!growing && activeSlidingSync === sliding)
-            markRoomListComplete(client);
-    });
+            if (state !== SlidingSyncState.Complete) return;
+            try {
+                let growing = false;
+                for (const key of lists.keys()) {
+                    const total = sliding.getListData(key)?.joinedCount ?? 0;
+                    const end = sliding.getListParams(key)?.ranges[0]?.[1];
+                    const next = nextWindowEnd(end, total, SLIDING_GROW_STEP);
+                    if (next !== null) {
+                        growing = true;
+                        sliding.setListRanges(key, [[0, next]]);
+                    }
+                }
+                // Every window already covered its list: the room list is whole.
+                if (!growing && activeSlidingSync === sliding)
+                    markRoomListComplete(client);
+            } catch (e) {
+                console.error("[sync] list growth failed", e);
+                logSync(`list growth failed: ${describeSyncError(e)}`);
+            }
+        },
+    );
 
     if (slidingActiveRoomId) {
         sliding.modifyRoomSubscriptions(new Set([slidingActiveRoomId]));
@@ -1350,6 +1384,12 @@ export async function startSync(
         if (!ownedClient(owner) || !initialSyncComplete) return;
         const since = Date.now() - lastSyncResponseAt;
         if (!shouldKickSync(trigger, since, hiddenForMs)) return;
+        logSync(
+            `kick: ${trigger}, ${Math.round(since / 1000)}s since last response` +
+                (hiddenForMs
+                    ? `, hidden ${Math.round(hiddenForMs / 1000)}s`
+                    : ""),
+        );
         // Count the restart as activity so the watchdog doesn't fire again
         // before the new request has had a chance to answer.
         lastSyncResponseAt = Date.now();

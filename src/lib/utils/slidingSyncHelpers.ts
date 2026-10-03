@@ -43,18 +43,22 @@ export function isSlidingSyncUnsupportedError(err: unknown): boolean {
  * message but put the ones in between above all the older history. Classic
  * /sync resets the live timeline on a gap; this restores that behaviour.
  *
- * A gap is a `limited` update whose events share nothing with a non-empty
- * live timeline. Any overlap means the update joins on and the SDK's own
+ * A gap is a `limited` update, into a room whose live timeline already has
+ * events, where none of the update's events is known ANYWHERE in the room.
+ * Known means any timeline, not just the live one: a notification tap opens
+ * the notified message in a separate context timeline before sync catches
+ * up, and thread replies live in thread timelines. Treating those as unknown
+ * reset the room under an open context view, which discarded the timeline
+ * on screen. Any overlap means the update joins on and the SDK's own
  * dedupe/scrollback split places it correctly.
  */
 export function isSlidingTimelineGap(
     update: { limited?: boolean; timelineEventIds: string[] },
-    liveEventIds: ReadonlySet<string>,
+    room: { liveIsEmpty: boolean; isKnown: (eventId: string) => boolean },
 ): boolean {
     if (!update.limited) return false;
-    if (update.timelineEventIds.length === 0 || liveEventIds.size === 0)
-        return false;
-    return !update.timelineEventIds.some((id) => liveEventIds.has(id));
+    if (update.timelineEventIds.length === 0 || room.liveIsEmpty) return false;
+    return !update.timelineEventIds.some((id) => room.isKnown(id));
 }
 
 /** Long-poll timeout both sync loops use (classic pollTimeout default and

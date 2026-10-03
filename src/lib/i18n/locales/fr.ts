@@ -368,6 +368,11 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Afficher chaque événement Matrix du fil dans la discussion.",
     "debugSettings.syncStatus": "État de la synchronisation",
+    "debugSettings.syncLog": "Journal de synchronisation",
+    "debugSettings.syncLogEmpty":
+        "Rien n'est encore journalisé. Les redémarrages, les requêtes échouées et les réinitialisations de fil apparaissent ici.",
+    "debugSettings.refresh": "Actualiser",
+    "debugSettings.copied": "Copié",
     "debugSettings.useSlidingSync": "Utiliser la synchronisation glissante",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Expérimental. Charge les salons dans une fenêtre croissante. Recharge l'application pour s'appliquer.",

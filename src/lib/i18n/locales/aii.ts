@@ -355,6 +355,10 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "ܚܘܝ ܟܠ ܓܕܫܐ ܕ Matrix ܓܘ ܣܕܪܐ ܕܡܡܠܠܐ.",
     "debugSettings.syncStatus": "ܐܝܟܢܝܘܬܐ ܕܐܚܕܝܘܬܐ",
+    "debugSettings.syncLog": "ܟܬܒܐ ܕܐܚܕܝܘܬܐ",
+    "debugSettings.syncLogEmpty": "ܠܐ ܐܝܬ ܡܕܡ ܟܬܝܒܐ ܗܫܐ.",
+    "debugSettings.refresh": "ܚܘܕܬ",
+    "debugSettings.copied": "ܢܣܝܚܐ",
     "debugSettings.useSlidingSync": "ܦܠܚ ܒܐܚܕܝܘܬܐ ܓܠܝܫܬܐ",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "ܢܣܝܢܝܐ. ܛܥܢܐ ܠܓܘܡ̈ܐ ܓܘ ܟܘܬܐ ܕܪܒܝܐ. ܛܥܢܐ ܠܬܘܟܢܝܬܐ ܡܢ ܕܪܝܫ ܩܐ ܦܠܚܬܐ.",

@@ -375,6 +375,11 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Jedes Matrix-Ereignis des Verlaufs im Chat anzeigen.",
     "debugSettings.syncStatus": "Sync-Status",
+    "debugSettings.syncLog": "Sync-Protokoll",
+    "debugSettings.syncLogEmpty":
+        "Noch nichts protokolliert. Neustarts, fehlgeschlagene Anfragen und Zeitleisten-Resets erscheinen hier.",
+    "debugSettings.refresh": "Aktualisieren",
+    "debugSettings.copied": "Kopiert",
     "debugSettings.useSlidingSync": "Sliding Sync verwenden",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimentell. Lädt Räume in einem wachsenden Fenster. Zum Anwenden wird die App neu geladen.",
