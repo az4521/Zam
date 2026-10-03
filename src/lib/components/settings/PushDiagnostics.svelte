@@ -2,7 +2,11 @@
     import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { getClient } from "$lib/matrix/client";
-    import { verifyPushGateways, PUSH_GATEWAY_NOTIFY_URL } from "$lib/push";
+    import {
+        pushDebug,
+        verifyPushGateways,
+        PUSH_GATEWAY_NOTIFY_URL,
+    } from "$lib/push";
     import type { PusherGatewayStatus } from "$lib/utils/pusherVerification";
 
     // SEC-L4: after login, re-read the pushers the homeserver actually kept and
@@ -30,7 +34,9 @@
             {t("pushDiagnostics.pushNotificationsAreRelayedThroughThis")}
         </p>
         <p class="text-xs font-mono text-discord-textMuted break-all">
-            {PUSH_GATEWAY_NOTIFY_URL}
+            {pushDebug.provider === "unifiedpush" && pushDebug.upGateway
+                ? pushDebug.upGateway
+                : PUSH_GATEWAY_NOTIFY_URL}
         </p>
         {#if gatewayStatus?.status === "mismatch"}
             <p class="text-xs text-discord-danger mt-1">

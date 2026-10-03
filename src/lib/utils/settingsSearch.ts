@@ -257,6 +257,20 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "notifications",
+        label: t("settingsSearch.pushService"),
+        keywords: [
+            "unifiedpush",
+            "ntfy",
+            "fcm",
+            "firebase",
+            "google",
+            "distributor",
+        ],
+        anchor: "notif-push-service",
+        available: (p) => p.nativeApp,
+    },
+    {
+        tab: "notifications",
         label: t("settingsSearch.notificationSound"),
         keywords: ["sound", "audio", "mute"],
         anchor: "notif-sound",

@@ -4,11 +4,12 @@ Zam has **three** notification paths. Only two of them involve a push gateway;
 mixing them up is the usual source of confusion, so they are listed separately
 here.
 
-| path                            | when it fires                     | who displays it                                                                                          | needs Sygnal?                |
-| ------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| **Foreground**                  | the app is open and syncing       | `new Notification(...)` from the sync handler in `AppShell.svelte` — for messages and for incoming calls | no                           |
-| **Background web / PWA**        | the tab is closed or backgrounded | `static/sw.js` `push` handler                                                                            | **yes** (`webpush` app)      |
-| **Background / killed Android** | the app is not running            | `MatrixMessagingService.java`                                                                            | **yes** (`gcm`/`fcm_v1` app) |
+| path                                         | when it fires                     | who displays it                                                                                          | needs Sygnal?                                     |
+| -------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Foreground**                               | the app is open and syncing       | `new Notification(...)` from the sync handler in `AppShell.svelte` — for messages and for incoming calls | no                                                |
+| **Background web / PWA**                     | the tab is closed or backgrounded | `static/sw.js` `push` handler                                                                            | **yes** (`webpush` app)                           |
+| **Background / killed Android**              | the app is not running            | `MatrixMessagingService.java`                                                                            | **yes** (`gcm`/`fcm_v1` app)                      |
+| **Background / killed Android, UnifiedPush** | the app is not running            | `UnifiedPushService.java` → same display code as above                                                   | no (a Matrix gateway paired with the distributor) |
 
 The foreground path is guarded on `typeof Notification === "undefined"`, so it is
 the web/desktop path in practice — it only fires on Android if that WebView
@@ -187,6 +188,60 @@ without a dev console. It surfaces:
 `build.gradle` are committed native files. After pulling changes rebuild the
 APK (Android Studio or the release workflow). No `npx cap sync` is needed for
 edits under `android/`.
+
+---
+
+# Android / UnifiedPush (no FCM)
+
+Android can also receive push through **UnifiedPush**
+(<https://unifiedpush.org>), using a distributor app the user installs (ntfy,
+NextPush, Sunup, ...). It needs no Firebase, no Google Play services and no
+Sygnal, so it works on de-Googled devices and on builds without
+`google-services.json`.
+
+```
+App (UP endpoint) ─registers pusher─▶ Homeserver ─▶ Matrix gateway (e.g. ntfy) ─▶ distributor ─▶ UnifiedPushService
+```
+
+**Choosing the transport.** Settings → Notifications → **Push service**
+(Android only, stored per device):
+
+- **Automatic** (default): keeps a distributor used before; otherwise FCM if
+  this build has a Firebase config, a real gateway URL and the device has Play
+  services; otherwise the only installed distributor. With several
+  distributors and no FCM, nothing is picked until the user chooses.
+- **Google (Firebase)**: always FCM.
+- **UnifiedPush: <distributor>**: always that distributor.
+
+Switching removes this device's old pusher and registers a new one.
+
+**Pusher shape.** Same `app_id` (`moe.crafty.matrix`) and `event_id_only`
+format as FCM, but `pushkey` is the **endpoint URL** and `data.url` is the
+Matrix gateway paired with it. `UnifiedPushService.discoverGateway` finds that
+gateway as the UnifiedPush Matrix spec describes: it uses
+`<endpoint origin>/_matrix/push/v1/notify` if that answers
+`{"unifiedpush":{"gateway":"matrix"}}` (ntfy does). Otherwise it falls back to
+the public `https://matrix.gateway.unifiedpush.org/_matrix/push/v1/notify`.
+
+**Code.**
+
+- `UnifiedPushService.java` receives endpoints and messages. It unwraps the
+  Matrix notification body and hands it to
+  `MatrixMessagingService.handleMatrixPush`, so enrichment, active-session
+  suppression, call ringing and Reply/Mark-as-read behave exactly like FCM.
+- `UnifiedPushPlugin.java` / `src/lib/unifiedPush.ts` form the bridge: they
+  list distributors, register and report the endpoint. The latest endpoint is
+  persisted natively, so one handed over while the app was closed gets
+  registered on the next start.
+- `src/lib/push.ts` picks the transport (`resolvePushProvider`) and registers
+  the pusher. After registering, it deletes any other pusher with this
+  device's display name, which covers a rotated token/endpoint and a transport
+  switch.
+- Logout deletes the pusher but keeps the distributor registration. The
+  endpoint is not tied to an account.
+- Gateway verification (SEC-L4) checks this device's UnifiedPush pusher
+  against the gateway it registered. Other devices' UnifiedPush pushers are
+  skipped, because only they know their gateway.
 
 ---
 

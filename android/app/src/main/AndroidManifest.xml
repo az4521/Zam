@@ -82,6 +82,17 @@
             </intent-filter>
         </service>
 
+        <!-- UnifiedPush: receives endpoints and Matrix pushes from the user's
+             distributor (ntfy, NextPush, ...), the FCM-free push path. The
+             connector library binds to it in-process, so it is not exported. -->
+        <service
+            android:name=".UnifiedPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Decline action on an incoming-call notification: cancels it without
              opening the app. Not exported — only our own PendingIntent fires it. -->
         <receiver
@@ -148,6 +159,12 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- UnifiedPushPlugin.fcmAvailable() checks for Play services, which is
+         only visible to us under Android 11+ package visibility if declared. -->
+    <queries>
+        <package android:name="com.google.android.gms" />
+    </queries>
 
     <!-- Declaring CAMERA implicitly marks camera (and autofocus) as REQUIRED
          hardware for Google Play filtering. Video calling is optional here, so

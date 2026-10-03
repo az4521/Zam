@@ -413,6 +413,10 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.appId2": "ܗܝܝܘܬܐ ܕܬܘܟܢܝܬܐ",
     "debugSettings.notificationPermission": "ܦܣܐ ܕܡܘܕܥܢܘ̈ܬܐ",
     "debugSettings.fcmToken": "ܛܒܥܐ ܕ FCM",
+    "debugSettings.pushProvider": "ܡܩܪܒܢܐ ܕܡܘܕܥܢܘ̈ܬܐ",
+    "debugSettings.unifiedPushDistributor": "ܡܦܠܓܢܐ ܕ UnifiedPush",
+    "debugSettings.unifiedPushEndpoint": "ܢܘܩܙܐ ܕ UnifiedPush",
+    "debugSettings.unifiedPushGateway": "ܬܪܥܐ ܕ UnifiedPush",
     "debugSettings.pusherRegisteredThisSession": "ܕܚܘܦܐ ܪܫܝܡܐ ܒܗܢܐ ܓܠܣܐ",
     "debugSettings.failedToFetchPushersFromHomeserver":
         "ܡܝܬܝܬܐ ܕܕܚܘܦ̈ܐ ܡܢ ܣܝܪܒܪ ܕܒܝܬܐ ܠܐ ܦܠܚܠܗ̇.",
@@ -877,6 +881,25 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.blocked": "ܟܠܝܐ",
     "notificationSettings.unavailable": "ܠܐ ܡܫܟܚܐ",
     "notificationSettings.enable": "ܕܠܩ",
+    "notificationSettings.pushService": "ܬܫܡܫܬܐ ܕܡܘܕܥܢܘ̈ܬܐ",
+    "notificationSettings.pushServiceLabel": "ܡܫܬܕܪܢ ܒܝܕ",
+    "notificationSettings.pushServiceDescription":
+        "ܐܝܟܢܐ ܡܘܕܥܢܘ̈ܬܐ ܡܛܝܢ ܠܗܢܐ ܡܐܢܐ ܐܡܬܝ ܕܬܘܟܢܝܬܐ ܝܠܗ̇ ܩܛܝܪܬܐ. UnifiedPush ܦܠܚ ܒܠܥܕ ܬܫܡܫܝ̈ܬܐ ܕ Google, ܒܝܕ ܬܘܟܢܝܬܐ ܡܦܠܓܢܝܬܐ ܐܝܟ ntfy.",
+    "notificationSettings.pushServiceAutomatic": "ܐܘܛܘܡܛܝܩܝܐ",
+    "notificationSettings.pushServiceFcm": "Google (Firebase)",
+    "notificationSettings.pushServiceFcmUnavailable":
+        "Google (Firebase), ܠܐ ܡܫܟܚܐ ܗܪܟܐ",
+    "notificationSettings.pushServiceUnifiedPush": "UnifiedPush: {label}",
+    "notificationSettings.pushServiceNoDistributor":
+        "ܠܝܬ ܡܦܠܓܢܐ ܕ UnifiedPush. ܣܝܡ ܚܕ (ܐܝܟ ntfy) ܕܩܒܠܬ ܡܘܕܥܢܘ̈ܬܐ ܒܠܥܕ ܬܫܡܫܝ̈ܬܐ ܕ Google.",
+    "notificationSettings.pushServiceActiveFcm":
+        "ܗܫܐ ܒܦܠܚܢܐ ܝܠܗ Google (Firebase).",
+    "notificationSettings.pushServiceActiveUnifiedPush":
+        "ܗܫܐ ܒܦܠܚܢܐ ܝܠܗ UnifiedPush ({label}).",
+    "notificationSettings.pushServiceActiveNone":
+        "ܠܝܬ ܬܫܡܫܬܐ ܕܡܘܕܥܢܘ̈ܬܐ ܕܠܝܩܬܐ. ܡܘܕܥܢܘ̈ܬܐ ܡܛܝܢ ܒܠܚܘܕ ܐܡܬܝ ܕܬܘܟܢܝܬܐ ܝܠܗ̇ ܦܬܝܚܬܐ.",
+    "notificationSettings.pushServiceSwitchFailed":
+        "ܫܘܚܠܦܐ ܕܬܫܡܫܬܐ ܕܡܘܕܥܢܘ̈ܬܐ ܠܐ ܦܠܚܠܗ",
     "notificationSettings.sound": "ܩܠܐ",
     "notificationSettings.notificationSound": "ܩܠܐ ܕܡܘܕܥܢܘܬܐ",
     "notificationSettings.playASoundForLoudNotifications":
@@ -2680,6 +2703,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.clearCache": "ܫܘܦ ܓܙܐ",
     "settingsSearch.showAllEvents": "ܚܘܝ ܟܠ ܓܕܫ̈ܐ",
     "settingsSearch.pushDiagnostics": "ܒܘܚܢܐ ܕܡܘܕܥܢܘ̈ܬܐ",
+    "settingsSearch.pushService": "ܬܫܡܫܬܐ ܕܡܘܕܥܢܘ̈ܬܐ (UnifiedPush / Firebase)",
     "settingsSearch.language": "ܠܫܢܐ",
 
     // src/lib/utils/slashCommands.ts

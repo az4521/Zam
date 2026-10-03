@@ -416,6 +416,10 @@ export const en = {
     "debugSettings.appId2": "App ID",
     "debugSettings.notificationPermission": "Notification permission",
     "debugSettings.fcmToken": "FCM token",
+    "debugSettings.pushProvider": "Push provider",
+    "debugSettings.unifiedPushDistributor": "UnifiedPush distributor",
+    "debugSettings.unifiedPushEndpoint": "UnifiedPush endpoint",
+    "debugSettings.unifiedPushGateway": "UnifiedPush gateway",
     "debugSettings.pusherRegisteredThisSession":
         "Pusher registered this session",
     "debugSettings.failedToFetchPushersFromHomeserver":
@@ -927,6 +931,25 @@ export const en = {
     "notificationSettings.blocked": "Blocked",
     "notificationSettings.unavailable": "Unavailable",
     "notificationSettings.enable": "Enable",
+    "notificationSettings.pushService": "Push Service",
+    "notificationSettings.pushServiceLabel": "Delivered through",
+    "notificationSettings.pushServiceDescription":
+        "How notifications reach this device while the app is closed. UnifiedPush works without Google services, through a distributor app such as ntfy.",
+    "notificationSettings.pushServiceAutomatic": "Automatic",
+    "notificationSettings.pushServiceFcm": "Google (Firebase)",
+    "notificationSettings.pushServiceFcmUnavailable":
+        "Google (Firebase), unavailable here",
+    "notificationSettings.pushServiceUnifiedPush": "UnifiedPush: {label}",
+    "notificationSettings.pushServiceNoDistributor":
+        "No UnifiedPush distributor is installed. Install one (for example ntfy) to get notifications without Google services.",
+    "notificationSettings.pushServiceActiveFcm":
+        "Currently using Google (Firebase).",
+    "notificationSettings.pushServiceActiveUnifiedPush":
+        "Currently using UnifiedPush ({label}).",
+    "notificationSettings.pushServiceActiveNone":
+        "No push service is active, so notifications only arrive while the app is open.",
+    "notificationSettings.pushServiceSwitchFailed":
+        "Couldn't switch push service",
     "notificationSettings.sound": "Sound",
     "notificationSettings.notificationSound": "Notification sound",
     "notificationSettings.playASoundForLoudNotifications":
@@ -2770,6 +2793,7 @@ export const en = {
     "settingsSearch.clearCache": "Clear cache",
     "settingsSearch.showAllEvents": "Show all events",
     "settingsSearch.pushDiagnostics": "Push diagnostics",
+    "settingsSearch.pushService": "Push service (UnifiedPush / Firebase)",
     "settingsSearch.language": "Language",
 
     // src/lib/utils/slashCommands.ts

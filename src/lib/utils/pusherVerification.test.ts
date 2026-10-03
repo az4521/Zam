@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkPusherGateway } from "./pusherVerification";
+import { checkPusherGateway, mergeGatewayStatus } from "./pusherVerification";
 
 const EXPECTED = "https://sygnal.example.com/_matrix/push/v1/notify";
 const OURS = "moe.crafty.matrix";
@@ -110,5 +110,51 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
             [{ app_id: OURS, url: EXPECTED + "/" }],
         );
         expect(r.status).toBe("mismatch");
+    });
+});
+
+describe("mergeGatewayStatus", () => {
+    const UP = "https://ntfy.example/_matrix/push/v1/notify";
+
+    it("verifies when both halves verify, summing our pushers", () => {
+        const r = mergeGatewayStatus(
+            checkPusherGateway(
+                EXPECTED,
+                [OURS],
+                [{ app_id: OURS, url: EXPECTED }],
+            ),
+            checkPusherGateway(UP, [OURS], [{ app_id: OURS, url: UP }]),
+        );
+        expect(r).toEqual({
+            status: "verified",
+            ours: 2,
+            expectedUrl: EXPECTED,
+            mismatchedUrls: [],
+        });
+    });
+
+    it("a mismatch on either half wins", () => {
+        const r = mergeGatewayStatus(
+            checkPusherGateway(
+                EXPECTED,
+                [OURS],
+                [{ app_id: OURS, url: EXPECTED }],
+            ),
+            checkPusherGateway(
+                UP,
+                [OURS],
+                [{ app_id: OURS, url: "https://evil.example/notify" }],
+            ),
+        );
+        expect(r.status).toBe("mismatch");
+        expect(r.mismatchedUrls).toEqual(["https://evil.example/notify"]);
+    });
+
+    it("is none when neither half has pushers", () => {
+        const r = mergeGatewayStatus(
+            checkPusherGateway(EXPECTED, [OURS], []),
+            checkPusherGateway(UP, [OURS], []),
+        );
+        expect(r.status).toBe("none");
     });
 });

@@ -434,6 +434,10 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.appId2": "App-ID",
     "debugSettings.notificationPermission": "Benachrichtigungsberechtigung",
     "debugSettings.fcmToken": "FCM-Token",
+    "debugSettings.pushProvider": "Push-Anbieter",
+    "debugSettings.unifiedPushDistributor": "UnifiedPush-Verteiler",
+    "debugSettings.unifiedPushEndpoint": "UnifiedPush-Endpunkt",
+    "debugSettings.unifiedPushGateway": "UnifiedPush-Gateway",
     "debugSettings.pusherRegisteredThisSession":
         "Pusher in dieser Sitzung registriert",
     "debugSettings.failedToFetchPushersFromHomeserver":
@@ -941,6 +945,25 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.blocked": "Blockiert",
     "notificationSettings.unavailable": "Nicht verfügbar",
     "notificationSettings.enable": "Aktivieren",
+    "notificationSettings.pushService": "Push-Dienst",
+    "notificationSettings.pushServiceLabel": "Zugestellt über",
+    "notificationSettings.pushServiceDescription":
+        "Wie Benachrichtigungen dieses Gerät erreichen, während die App geschlossen ist. UnifiedPush funktioniert ohne Google-Dienste, über eine Verteiler-App wie ntfy.",
+    "notificationSettings.pushServiceAutomatic": "Automatisch",
+    "notificationSettings.pushServiceFcm": "Google (Firebase)",
+    "notificationSettings.pushServiceFcmUnavailable":
+        "Google (Firebase), hier nicht verfügbar",
+    "notificationSettings.pushServiceUnifiedPush": "UnifiedPush: {label}",
+    "notificationSettings.pushServiceNoDistributor":
+        "Es ist kein UnifiedPush-Verteiler installiert. Installiere einen (zum Beispiel ntfy), um Benachrichtigungen ohne Google-Dienste zu erhalten.",
+    "notificationSettings.pushServiceActiveFcm":
+        "Aktuell wird Google (Firebase) verwendet.",
+    "notificationSettings.pushServiceActiveUnifiedPush":
+        "Aktuell wird UnifiedPush ({label}) verwendet.",
+    "notificationSettings.pushServiceActiveNone":
+        "Kein Push-Dienst aktiv, Benachrichtigungen kommen nur an, während die App geöffnet ist.",
+    "notificationSettings.pushServiceSwitchFailed":
+        "Push-Dienst konnte nicht gewechselt werden",
     "notificationSettings.sound": "Ton",
     "notificationSettings.notificationSound": "Benachrichtigungston",
     "notificationSettings.playASoundForLoudNotifications":
@@ -2907,6 +2930,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.clearCache": "Cache leeren",
     "settingsSearch.showAllEvents": "Alle Ereignisse anzeigen",
     "settingsSearch.pushDiagnostics": "Push-Diagnose",
+    "settingsSearch.pushService": "Push-Dienst (UnifiedPush / Firebase)",
     "settingsSearch.language": "Sprache",
 
     // src/lib/utils/slashCommands.ts

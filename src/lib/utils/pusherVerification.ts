@@ -68,3 +68,23 @@ export function checkPusherGateway(
 
     return { status, ours: ours.length, expectedUrl, mismatchedUrls };
 }
+
+/**
+ * Combine verdicts for pushers checked against different gateways (Sygnal
+ * for FCM/webpush, a UnifiedPush device's own gateway). Any mismatch wins;
+ * `expectedUrl` is the first status's.
+ */
+export function mergeGatewayStatus(
+    a: PusherGatewayStatus,
+    b: PusherGatewayStatus,
+): PusherGatewayStatus {
+    const mismatchedUrls = [...a.mismatchedUrls];
+    for (const u of b.mismatchedUrls)
+        if (!mismatchedUrls.includes(u)) mismatchedUrls.push(u);
+    const ours = a.ours + b.ours;
+    let status: PusherGatewayVerdict;
+    if (ours === 0) status = "none";
+    else if (mismatchedUrls.length === 0) status = "verified";
+    else status = "mismatch";
+    return { status, ours, expectedUrl: a.expectedUrl, mismatchedUrls };
+}

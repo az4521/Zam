@@ -70,6 +70,9 @@ dependencies {
     // `implementation`, so it isn't on the app module's compile classpath).
     // androidx.core (NotificationCompat) comes transitively via appcompat.
     implementation "com.google.firebase:firebase-messaging:25.0.1"
+    // UnifiedPush: FCM-free push through the user's own distributor
+    // (UnifiedPushService / UnifiedPushPlugin).
+    implementation "org.unifiedpush.android:connector:3.3.5"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

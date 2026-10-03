@@ -100,10 +100,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (remoteMessage.getNotification() != null) return;
 
         Map<String, String> data = remoteMessage.getData();
-        String roomId = data.get("room_id");
-        String eventId = data.get("event_id");
-        String unreadStr = data.get("unread");
+        handleMatrixPush(this, data.get("room_id"), data.get("event_id"), data.get("unread"));
+    }
 
+    /**
+     * Turn one Matrix push (event_id_only: just ids and the unread count) into
+     * a notification, a cleared notification, or an incoming call. Shared by
+     * both transports: FCM (onMessageReceived above) and UnifiedPush
+     * (UnifiedPushService). Blocking: it makes several homeserver requests,
+     * so it must run off the main thread.
+     */
+    static void handleMatrixPush(Context ctx, String roomId, String eventId, String unreadStr) {
         // unread == 0 is a "clear" push: the room was read somewhere, so take
         // its notification DOWN rather than merely declining to post a new one.
         if (unreadStr != null) {
@@ -115,7 +122,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     // notification is stale.
                     if (roomId != null) {
                         try {
-                            NotificationManagerCompat.from(this)
+                            NotificationManagerCompat.from(ctx)
                                 .cancel(roomId.hashCode());
                         } catch (Throwable ignored) {}
                     }
@@ -133,7 +140,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         String callerName = null;
 
         try {
-            SharedPreferences prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             // ONE read for the whole credential tuple. It used to be four
             // independent reads, which was four chances to pick up a torn set
             // (see the record mirror below). Null → no usable credentials.
@@ -271,7 +278,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             String postedBy = null;
             try {
                 SessionRecord postedSession = readSessionRecord(
-                    getSharedPreferences(PREFS, Context.MODE_PRIVATE));
+                    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE));
                 postedBy = postedSession != null ? postedSession.userId : null;
             } catch (Throwable ignored) {}
             // Report it to the system call stack so it rings like a phone
@@ -280,12 +287,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // post the ringing notification. Without Telecom, post it here.
             boolean viaTelecom = roomId != null
                 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                && TelecomCalls.reportIncoming(this, roomId, callerName, postedBy, largeIcon);
+                && TelecomCalls.reportIncoming(ctx, roomId, callerName, postedBy, largeIcon);
             if (!viaTelecom) {
-                IncomingCallNotification.show(this, callerName, roomId, postedBy, largeIcon);
+                IncomingCallNotification.show(ctx, callerName, roomId, postedBy, largeIcon);
             }
         } else {
-            showNotification(title, text, roomId, eventId, largeIcon);
+            showNotification(ctx, title, text, roomId, eventId, largeIcon);
         }
     }
 
@@ -472,7 +479,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * already runs on a Firebase background thread, and httpGet is bounded by
      * the 5s connect/read timeouts.
      */
-    private boolean shouldStayQuiet(String hs, String token, String userId, String deviceId) {
+    private static boolean shouldStayQuiet(String hs, String token, String userId, String deviceId) {
         if (hs == null || token == null || userId == null || deviceId == null) return false;
         if (userId.isEmpty() || deviceId.isEmpty()) return false;
         try {
@@ -527,7 +534,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     // ── Homeserver queries ──────────────────────────────────────────────────
 
-    private JSONObject fetchEvent(String hs, String token, String roomId, String eventId) {
+    private static JSONObject fetchEvent(String hs, String token, String roomId, String eventId) {
         String url = hs + "/_matrix/client/v3/rooms/" + enc(roomId) + "/event/" + enc(eventId);
         String json = httpGet(url, token);
         if (json == null) return null;
@@ -538,7 +545,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private String fetchRoomName(String hs, String token, String roomId) {
+    private static String fetchRoomName(String hs, String token, String roomId) {
         String url = hs + "/_matrix/client/v3/rooms/" + enc(roomId)
             + "/state/m.room.name/";
         String json = httpGet(url, token);
@@ -551,7 +558,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private String fetchRoomAvatar(String hs, String token, String roomId) {
+    private static String fetchRoomAvatar(String hs, String token, String roomId) {
         String url = hs + "/_matrix/client/v3/rooms/" + enc(roomId)
             + "/state/m.room.avatar/";
         String json = httpGet(url, token);
@@ -571,7 +578,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * cannot be read at all does it fall back to "at most two joined
      * members", so a lookup failure still lets a real DM ring.
      */
-    private boolean isDirectRoom(String hs, String token, String userId, String roomId) {
+    private static boolean isDirectRoom(String hs, String token, String userId, String roomId) {
         if (userId != null) {
             String direct = httpGet(hs + "/_matrix/client/v3/user/" + enc(userId)
                 + "/account_data/m.direct", token);
@@ -604,7 +611,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     /** A user's avatar: per-room member state first, then global profile. */
-    private String fetchUserAvatar(String hs, String token, String roomId, String userId) {
+    private static String fetchUserAvatar(String hs, String token, String roomId, String userId) {
         String memberUrl = hs + "/_matrix/client/v3/rooms/" + enc(roomId)
             + "/state/m.room.member/" + enc(userId);
         String json = httpGet(memberUrl, token);
@@ -625,7 +632,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         return null;
     }
 
-    private String fetchSenderName(String hs, String token, String roomId, String userId) {
+    private static String fetchSenderName(String hs, String token, String roomId, String userId) {
         if (userId == null || userId.isEmpty()) return null;
         // Per-room display name (member state) first; fall back to global profile.
         String memberUrl = hs + "/_matrix/client/v3/rooms/" + enc(roomId)
@@ -649,7 +656,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     /** Download an mxc:// thumbnail as a Bitmap (authenticated media endpoint). */
-    private Bitmap fetchMxcThumbnail(String hs, String token, String mxc, int size) {
+    private static Bitmap fetchMxcThumbnail(String hs, String token, String mxc, int size) {
         // mxc://server/mediaId
         String rest = mxc.substring("mxc://".length());
         int slash = rest.indexOf('/');
@@ -675,7 +682,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private String httpGet(String urlStr, String token) {
+    private static String httpGet(String urlStr, String token) {
         HttpURLConnection conn = null;
         try {
             conn = (HttpURLConnection) new URL(urlStr).openConnection();
@@ -708,10 +715,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     // ── Notification ──────────────────────────────────────────────────────────
 
-    private void showNotification(String title, String body, String roomId, String eventId, Bitmap largeIcon) {
-        createChannel();
+    private static void showNotification(Context ctx, String title, String body, String roomId, String eventId, Bitmap largeIcon) {
+        createChannel(ctx);
 
-        Intent intent = new Intent(this, MainActivity.class);
+        Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         // Stamp the account this was posted under so the web layer can refuse
@@ -730,7 +737,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         // would cost the whole notification.
         String postedBy = null;
         try {
-            SharedPreferences notifPrefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SharedPreferences notifPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
             SessionRecord postedSession = readSessionRecord(notifPrefs);
             postedBy = postedSession != null ? postedSession.userId : null;
         } catch (Throwable ignored) {}
@@ -749,9 +756,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
         PendingIntent pending = PendingIntent.getActivity(
-            this, roomId != null ? roomId.hashCode() : 0, intent, flags);
+            ctx, roomId != null ? roomId.hashCode() : 0, intent, flags);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             // Small (status-bar) icon: Android renders it from the alpha channel
             // only, so it must be a transparent-background silhouette. The
             // adaptive foreground layer is a white-on-transparent logo, unlike
@@ -786,7 +793,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // launched from a notification via a broadcast receiver (the
             // "trampoline" this used to be — Reply silently did nothing).
             // MainActivity reads the RemoteInput text itself.
-            Intent replyIntent = new Intent(this, MainActivity.class);
+            Intent replyIntent = new Intent(ctx, MainActivity.class);
             replyIntent.setAction(MessageActionReceiver.ACTION_REPLY);
             replyIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             replyIntent.putExtra("room_id", roomId);
@@ -795,7 +802,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 replyIntent.putExtra("event_id", eventId);
             }
             PendingIntent replyPending = PendingIntent.getActivity(
-                this, (roomId + ":reply").hashCode(), replyIntent, replyFlags);
+                ctx, (roomId + ":reply").hashCode(), replyIntent, replyFlags);
 
             NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
                 0, "Reply", replyPending)
@@ -805,7 +812,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
             // Mark-as-read needs no UI and no crypto: MessageActionReceiver
             // sends the read marker itself, without opening the app.
-            Intent markReadIntent = new Intent(this, MessageActionReceiver.class);
+            Intent markReadIntent = new Intent(ctx, MessageActionReceiver.class);
             markReadIntent.setAction(MessageActionReceiver.ACTION_MARK_READ);
             markReadIntent.putExtra("room_id", roomId);
             markReadIntent.putExtra("user_id", postedBy);
@@ -813,7 +820,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 markReadIntent.putExtra("event_id", eventId);
             }
             PendingIntent markReadPending = PendingIntent.getBroadcast(
-                this, (roomId + ":markread").hashCode(), markReadIntent, flags);
+                ctx, (roomId + ":markread").hashCode(), markReadIntent, flags);
 
             builder.addAction(replyAction);
             builder.addAction(0, "Mark as read", markReadPending);
@@ -824,13 +831,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         int notificationId = roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
 
         try {
-            NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+            NotificationManagerCompat.from(ctx).notify(notificationId, builder.build());
         } catch (SecurityException ignored) {}
     }
 
-    private void createChannel() {
+    private static void createChannel(Context ctx) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager manager = getSystemService(NotificationManager.class);
+            NotificationManager manager = ctx.getSystemService(NotificationManager.class);
             if (manager == null) return;
             if (manager.getNotificationChannel(CHANNEL_ID) == null) {
                 NotificationChannel channel = new NotificationChannel(

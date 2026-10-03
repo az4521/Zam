@@ -64,6 +64,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ApkUpdaterPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
         registerPlugin(CallServicePlugin.class);
+        registerPlugin(UnifiedPushPlugin.class);
         super.onCreate(savedInstanceState);
         // Only a FRESH launch carries a fresh action. A recreated activity
         // (savedInstanceState) gets its old intent back, and Recents relaunches

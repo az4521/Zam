@@ -428,6 +428,10 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.appId2": "ID de l'application",
     "debugSettings.notificationPermission": "Autorisation des notifications",
     "debugSettings.fcmToken": "Jeton FCM",
+    "debugSettings.pushProvider": "Fournisseur push",
+    "debugSettings.unifiedPushDistributor": "Distributeur UnifiedPush",
+    "debugSettings.unifiedPushEndpoint": "Point de terminaison UnifiedPush",
+    "debugSettings.unifiedPushGateway": "Passerelle UnifiedPush",
     "debugSettings.pusherRegisteredThisSession":
         "Pusher enregistré dans cette session",
     "debugSettings.failedToFetchPushersFromHomeserver":
@@ -927,6 +931,25 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.blocked": "Bloqué",
     "notificationSettings.unavailable": "Indisponible",
     "notificationSettings.enable": "Activer",
+    "notificationSettings.pushService": "Service push",
+    "notificationSettings.pushServiceLabel": "Distribuées via",
+    "notificationSettings.pushServiceDescription":
+        "Comment les notifications parviennent à cet appareil quand l'app est fermée. UnifiedPush fonctionne sans les services Google, via une app distributrice comme ntfy.",
+    "notificationSettings.pushServiceAutomatic": "Automatique",
+    "notificationSettings.pushServiceFcm": "Google (Firebase)",
+    "notificationSettings.pushServiceFcmUnavailable":
+        "Google (Firebase), indisponible ici",
+    "notificationSettings.pushServiceUnifiedPush": "UnifiedPush : {label}",
+    "notificationSettings.pushServiceNoDistributor":
+        "Aucun distributeur UnifiedPush n'est installé. Installez-en un (par exemple ntfy) pour recevoir des notifications sans les services Google.",
+    "notificationSettings.pushServiceActiveFcm":
+        "Utilise actuellement Google (Firebase).",
+    "notificationSettings.pushServiceActiveUnifiedPush":
+        "Utilise actuellement UnifiedPush ({label}).",
+    "notificationSettings.pushServiceActiveNone":
+        "Aucun service push actif : les notifications n'arrivent que lorsque l'app est ouverte.",
+    "notificationSettings.pushServiceSwitchFailed":
+        "Impossible de changer de service push",
     "notificationSettings.sound": "Son",
     "notificationSettings.notificationSound": "Son des notifications",
     "notificationSettings.playASoundForLoudNotifications":
@@ -2878,6 +2901,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.clearCache": "Vider le cache",
     "settingsSearch.showAllEvents": "Afficher tous les événements",
     "settingsSearch.pushDiagnostics": "Diagnostic des notifications push",
+    "settingsSearch.pushService": "Service push (UnifiedPush / Firebase)",
     "settingsSearch.language": "Langue",
 
     // src/lib/utils/slashCommands.ts

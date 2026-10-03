@@ -1,22 +1,37 @@
 /**
- * Push notification integration for Android via Capacitor + FCM, delivered
- * through a Sygnal push gateway.
+ * Push notification integration for Android. Two transports:
+ *   - FCM via Capacitor, delivered through a Sygnal push gateway;
+ *   - UnifiedPush via a distributor app the user picks (ntfy, NextPush, ...),
+ *     delivered through a Matrix gateway paired with the distributor's
+ *     endpoint (see unifiedPush.ts). No Google services needed.
  *
  * On startup (after login), call initPush(). It will:
  *   1. Request notification permission
- *   2. Get the FCM device token
- *   3. Register a Matrix pusher with the homeserver pointing at Sygnal
- *   4. Listen for foreground push notifications (background ones are shown by the OS)
+ *   2. Pick the transport (Settings → Notifications → Push service)
+ *   3. Get the FCM token / UnifiedPush endpoint
+ *   4. Register a Matrix pusher with the homeserver pointing at the gateway
  */
 
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications, type Token } from "@capacitor/push-notifications";
 import {
     checkPusherGateway,
+    mergeGatewayStatus,
     type PusherGatewayStatus,
 } from "$lib/utils/pusherVerification";
 import { WEBPUSH_APP_ID } from "$lib/webPush";
 import { navigateToRoom } from "$lib/stores/rooms.svelte";
+import {
+    getPushProviderPref,
+    getUnifiedPushStatus,
+    onUnifiedPushEvents,
+    registerUnifiedPush,
+    resolvePushProvider,
+    setPushProviderPref,
+    unregisterUnifiedPush,
+    type PushProviderPref,
+    type UnifiedPushStatus,
+} from "$lib/unifiedPush";
 
 // URL of your Sygnal push gateway's notify endpoint, e.g.
 //   https://sygnal.example.com/_matrix/push/v1/notify
@@ -31,22 +46,32 @@ const PUSH_GATEWAY_URL =
         .VITE_PUSH_GATEWAY_URL ||
     "https://sygnal.crafty.moe/_matrix/push/v1/notify";
 
-// Must match the app_id configured for this app in Sygnal.
+// Must match the app_id configured for this app in Sygnal. UnifiedPush pushers
+// use it too: Matrix gateways for UnifiedPush ignore the app_id.
 const APP_ID = "moe.crafty.matrix";
 
-// Push is only attempted when a real gateway is configured. This is also our
-// guard against builds shipped WITHOUT a Firebase google-services.json: calling
-// into FCM (PushNotifications.register) with no Firebase config throws natively
-// ("Default FirebaseApp is not initialized"), so we simply don't touch it. The
-// app then runs normally, just without push.
+// FCM push is only attempted when a real gateway is configured. Builds shipped
+// WITHOUT a Firebase google-services.json are caught natively instead
+// (UnifiedPushPlugin.fcmAvailable): calling into FCM with no Firebase config
+// throws ("Default FirebaseApp is not initialized"). UnifiedPush needs neither
+// and is gated on neither.
 const PUSH_ENABLED = !PUSH_GATEWAY_URL.includes("sygnal.example.com");
 
 let pushInitialised = false;
 
-// The pushkey (FCM token) we actually registered this run. Kept so unregister
-// can delete the RIGHT pusher — deleting with an empty pushkey is a no-op (or,
-// worse, matches nothing) and leaves a stale pusher pointing at the gateway.
+// Which transport this session's pusher went through, so teardown undoes the
+// right one. null until initPush picked one.
+let activeProvider: "fcm" | "unifiedpush" | null = null;
+let stopUnifiedPushEvents: (() => Promise<void>) | null = null;
+
+// The pushkey (FCM token or UnifiedPush endpoint) we actually registered this
+// run. Kept so unregister can delete the RIGHT pusher — deleting with an empty
+// pushkey is a no-op (or, worse, matches nothing) and leaves a stale pusher
+// pointing at the gateway.
 let registeredPushkey: string | null = null;
+// The gateway that pushkey was registered against, so an endpoint event that
+// changes nothing doesn't re-register.
+let registeredGateway: string | null = null;
 
 // ── Diagnostics ────────────────────────────────────────────────────────────
 // Live snapshot of what push setup did this session, surfaced in Settings →
@@ -64,6 +89,12 @@ export interface PushDebugState {
     // than the one we asked for (SEC-L4). Not a registration failure, so kept
     // separate from lastError.
     gatewayWarning: string | null;
+    /** The transport initPush picked: "fcm" | "unifiedpush" | "none". */
+    provider: string | null;
+    upDistributor: string | null;
+    upEndpoint: string | null;
+    /** The Matrix gateway paired with upEndpoint. */
+    upGateway: string | null;
 }
 
 export const pushDebug: PushDebugState = {
@@ -75,26 +106,24 @@ export const pushDebug: PushDebugState = {
     pusherRegistered: false,
     lastError: null,
     gatewayWarning: null,
+    provider: null,
+    upDistributor: null,
+    upEndpoint: null,
+    upGateway: null,
 };
 
 export async function initPush(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
-    if (!PUSH_ENABLED) {
-        console.info(
-            "[push] No push gateway configured (VITE_PUSH_GATEWAY_URL) - push disabled.",
-        );
-        return;
-    }
     if (pushInitialised) return;
     pushInitialised = true;
 
-    // Everything below touches the native FCM stack; guard the whole thing so a
-    // missing/broken Firebase config can never crash the app — it just disables
-    // push.
+    // Everything below touches native push stacks; guard the whole thing so a
+    // missing/broken config can never crash the app — it just disables push.
     try {
-        // Request permission
+        // Request permission. These calls only touch POST_NOTIFICATIONS, not
+        // Firebase, so they are safe whichever transport ends up in use.
         let permission = await PushNotifications.checkPermissions();
         if (permission.receive === "prompt") {
             permission = await PushNotifications.requestPermissions();
@@ -108,65 +137,143 @@ export async function initPush(
             return;
         }
 
-        PushNotifications.addListener("registration", async (token: Token) => {
-            // Never log the token itself: it's a long-lived device-correlating
-            // credential, and anything on the console is reachable through adb,
-            // remote debugging and crash reporters. Settings → Debug Info shows
-            // a truncated form when a human actually needs to compare it.
-            console.log("[push] FCM registration received");
-            pushDebug.fcmToken = token.value;
-            await registerPusher(matrixClient, token.value);
-        });
-
-        PushNotifications.addListener("registrationError", (err) => {
-            pushDebug.lastError =
-                "FCM registration error: " + JSON.stringify(err);
-            console.error("[push] Registration error:", err);
-        });
-
-        // Foreground notifications: the OS won't show them automatically, so we
-        // could show an in-app toast here if desired. For now just note that one
-        // arrived — the payload carries room/sender/message metadata and must
-        // not reach the console.
-        PushNotifications.addListener("pushNotificationReceived", () => {
-            console.log("[push] Foreground notification received");
-        });
-
-        // User tapped a notification
-        PushNotifications.addListener(
-            "pushNotificationActionPerformed",
-            (action) => {
-                const roomId = action.notification.data?.room_id;
-                // event_id_only FCM data carries the event; thread it so the tap
-                // jumps to the exact message, not just the room.
-                const eventId = action.notification.data?.event_id;
-                if (roomId) {
-                    // Navigate to the room (switching space if needed).
-                    navigateToRoom(roomId, eventId);
-                }
-            },
+        const status = await getUnifiedPushStatus();
+        const provider = resolvePushProvider(
+            getPushProviderPref(),
+            status,
+            PUSH_ENABLED,
         );
-
-        // Register with FCM last — triggers the 'registration' event with the
-        // token. Throws if Firebase isn't configured (caught below).
-        await PushNotifications.register();
+        pushDebug.provider = provider.kind;
+        if (provider.kind === "unifiedpush") {
+            await initUnifiedPush(matrixClient, provider.distributor, status);
+        } else if (provider.kind === "fcm") {
+            await initFcm(matrixClient);
+        } else {
+            // Not latched either: after installing a distributor, picking it
+            // in Settings retries.
+            pushInitialised = false;
+            pushDebug.lastError =
+                "No push service available: FCM can't run on this device/build and no UnifiedPush distributor is selected";
+            console.info("[push] No push transport available - push disabled.");
+        }
     } catch (err) {
         pushInitialised = false;
-        pushDebug.lastError =
-            "Push init failed (Firebase not configured?): " + String(err);
-        console.warn(
-            "[push] Push init failed (Firebase not configured?) - continuing without push.",
-            err,
-        );
+        activeProvider = null;
+        pushDebug.lastError = "Push init failed: " + String(err);
+        console.warn("[push] Push init failed - continuing without push.", err);
     }
+}
+
+async function initFcm(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+): Promise<void> {
+    activeProvider = "fcm";
+
+    PushNotifications.addListener("registration", async (token: Token) => {
+        // Never log the token itself: it's a long-lived device-correlating
+        // credential, and anything on the console is reachable through adb,
+        // remote debugging and crash reporters. Settings → Debug Info shows
+        // a truncated form when a human actually needs to compare it.
+        console.log("[push] FCM registration received");
+        pushDebug.fcmToken = token.value;
+        await registerPusher(matrixClient, token.value, PUSH_GATEWAY_URL);
+    });
+
+    PushNotifications.addListener("registrationError", (err) => {
+        pushDebug.lastError = "FCM registration error: " + JSON.stringify(err);
+        console.error("[push] Registration error:", err);
+    });
+
+    // Foreground notifications: the OS won't show them automatically, so we
+    // could show an in-app toast here if desired. For now just note that one
+    // arrived — the payload carries room/sender/message metadata and must
+    // not reach the console.
+    PushNotifications.addListener("pushNotificationReceived", () => {
+        console.log("[push] Foreground notification received");
+    });
+
+    // User tapped a notification
+    PushNotifications.addListener(
+        "pushNotificationActionPerformed",
+        (action) => {
+            const roomId = action.notification.data?.room_id;
+            // event_id_only FCM data carries the event; thread it so the tap
+            // jumps to the exact message, not just the room.
+            const eventId = action.notification.data?.event_id;
+            if (roomId) {
+                // Navigate to the room (switching space if needed).
+                navigateToRoom(roomId, eventId);
+            }
+        },
+    );
+
+    // Register with FCM last — triggers the 'registration' event with the
+    // token. Throws if Firebase isn't configured (caught in initPush).
+    await PushNotifications.register();
+}
+
+/**
+ * UnifiedPush: the distributor hands us an endpoint URL, which becomes the
+ * pushkey, and the homeserver POSTs to the Matrix gateway paired with it
+ * (discovered natively, see UnifiedPushService.discoverGateway). The
+ * notifications are posted by the same native code as FCM ones, so taps,
+ * replies and mark-as-read go through MainActivity as before.
+ */
+async function initUnifiedPush(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+    distributor: string,
+    status: UnifiedPushStatus,
+): Promise<void> {
+    activeProvider = "unifiedpush";
+    pushDebug.upDistributor = distributor;
+
+    stopUnifiedPushEvents = await onUnifiedPushEvents({
+        onEndpoint: ({ endpoint, gateway }) => {
+            console.log("[push] UnifiedPush endpoint received");
+            pushDebug.upEndpoint = endpoint;
+            pushDebug.upGateway = gateway;
+            void registerPusher(matrixClient, endpoint, gateway);
+        },
+        onUnregistered: () => {
+            pushDebug.upEndpoint = null;
+            pushDebug.upGateway = null;
+            pushDebug.lastError =
+                "The UnifiedPush distributor dropped this app's registration";
+            void deleteRegisteredPusher(matrixClient);
+        },
+        onFailed: (reason) => {
+            pushDebug.lastError = "UnifiedPush registration failed: " + reason;
+            console.warn("[push] UnifiedPush registration failed:", reason);
+        },
+    });
+
+    // An endpoint we already hold (possibly delivered while the app was not
+    // running): register it now rather than waiting on the distributor.
+    if (
+        status.endpoint &&
+        status.gateway &&
+        status.savedDistributor === distributor
+    ) {
+        pushDebug.upEndpoint = status.endpoint;
+        pushDebug.upGateway = status.gateway;
+        await registerPusher(matrixClient, status.endpoint, status.gateway);
+    }
+
+    // Re-register on every start, as the UnifiedPush spec asks: it is how a
+    // distributor that lost its state gets us back. An unchanged endpoint
+    // makes registerPusher a no-op.
+    await registerUnifiedPush(distributor);
 }
 
 async function registerPusher(
     matrixClient: import("matrix-js-sdk").MatrixClient,
-    fcmToken: string,
+    pushkey: string,
+    gatewayUrl: string,
 ): Promise<void> {
     const deviceId = matrixClient.getDeviceId();
     if (!deviceId) return;
+    if (pushkey === registeredPushkey && gatewayUrl === registeredGateway)
+        return;
 
     try {
         await (matrixClient as any).setPusher({
@@ -174,18 +281,20 @@ async function registerPusher(
             app_id: APP_ID,
             app_display_name: "Zam",
             device_display_name: `Android (${deviceId})`,
-            pushkey: fcmToken,
+            pushkey,
             lang: navigator.language || "en",
             data: {
-                url: PUSH_GATEWAY_URL,
+                url: gatewayUrl,
                 format: "event_id_only",
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,
         });
-        registeredPushkey = fcmToken;
+        registeredPushkey = pushkey;
+        registeredGateway = gatewayUrl;
         pushDebug.pusherRegistered = true;
         console.log("[push] Pusher registered");
+        await removeStaleDevicePushers(matrixClient, deviceId, pushkey);
         // Re-read the pushers the homeserver actually kept and warn if it
         // routed us somewhere other than our gateway (SEC-L4). Best-effort:
         // a verification failure must never undo a successful registration.
@@ -194,7 +303,7 @@ async function registerPusher(
             if (status.status === "mismatch") {
                 const warning = `Push gateway mismatch: the homeserver routes this device's pushes to ${status.mismatchedUrls.join(
                     ", ",
-                )} instead of ${PUSH_GATEWAY_URL}`;
+                )} instead of ${gatewayUrl}`;
                 pushDebug.gatewayWarning = warning;
                 console.warn("[push] " + warning);
             } else {
@@ -208,6 +317,107 @@ async function registerPusher(
         pushDebug.lastError = "Failed to register pusher: " + String(err);
         console.error("[push] Failed to register pusher:", err);
     }
+}
+
+/**
+ * Delete this device's OTHER pushers: the one a rotated FCM token or
+ * UnifiedPush endpoint left behind, or the old transport's after a switch.
+ * They are recognisable by the display name registerPusher gives them, which
+ * carries the Matrix device id. Best-effort.
+ */
+async function removeStaleDevicePushers(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+    deviceId: string,
+    keep: string,
+): Promise<void> {
+    try {
+        const res = await (matrixClient as any).getPushers();
+        for (const p of (res?.pushers ?? []) as any[]) {
+            if (
+                p.app_id === APP_ID &&
+                p.device_display_name === `Android (${deviceId})` &&
+                typeof p.pushkey === "string" &&
+                p.pushkey &&
+                p.pushkey !== keep
+            ) {
+                await deletePusher(matrixClient, p.pushkey).catch(() => {});
+            }
+        }
+    } catch {
+        /* best-effort */
+    }
+}
+
+function deletePusher(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+    pushkey: string,
+): Promise<unknown> {
+    // Delete the pusher by setting kind to null. Must use the REAL pushkey we
+    // registered — an empty one deletes nothing.
+    return (matrixClient as any).setPusher({
+        kind: null,
+        app_id: APP_ID,
+        pushkey,
+        app_display_name: "",
+        device_display_name: "",
+        lang: "en",
+        data: {},
+    });
+}
+
+async function deleteRegisteredPusher(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+): Promise<void> {
+    if (!registeredPushkey) return;
+    try {
+        await deletePusher(matrixClient, registeredPushkey);
+        registeredPushkey = null;
+        registeredGateway = null;
+        pushDebug.pusherRegistered = false;
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Stop whichever transport is running; the homeserver is left alone. */
+async function stopTransport(): Promise<void> {
+    if (activeProvider === "fcm") {
+        await PushNotifications.removeAllListeners().catch(() => {});
+    }
+    if (stopUnifiedPushEvents) {
+        await stopUnifiedPushEvents().catch(() => {});
+        stopUnifiedPushEvents = null;
+    }
+    activeProvider = null;
+    pushInitialised = false;
+}
+
+/**
+ * Settings → Notifications → Push service. Removes this device's pusher,
+ * drops the old transport (including the UnifiedPush registration, unless the
+ * same distributor stays in use) and sets push up again with the new choice.
+ */
+export async function switchPushProvider(
+    matrixClient: import("matrix-js-sdk").MatrixClient | null,
+    pref: PushProviderPref,
+): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return;
+    const keepUnifiedPush =
+        activeProvider === "unifiedpush" &&
+        pref === `up:${pushDebug.upDistributor}`;
+    setPushProviderPref(pref);
+    if (matrixClient) await deleteRegisteredPusher(matrixClient);
+    await stopTransport();
+    if (!keepUnifiedPush) {
+        await unregisterUnifiedPush();
+        pushDebug.upDistributor = null;
+        pushDebug.upEndpoint = null;
+        pushDebug.upGateway = null;
+    }
+    pushDebug.provider = null;
+    pushDebug.lastError = null;
+    pushDebug.gatewayWarning = null;
+    if (matrixClient) await initPush(matrixClient);
 }
 
 // The Android WebView has no Notification API, so the Settings permission row
@@ -245,31 +455,14 @@ export async function requestNativeNotificationPermission(
 export async function unregisterPush(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<void> {
-    if (!Capacitor.isNativePlatform() || !PUSH_ENABLED) return;
+    if (!Capacitor.isNativePlatform()) return;
     const deviceId = matrixClient.getDeviceId();
     if (!deviceId) return;
 
-    if (registeredPushkey) {
-        try {
-            // Delete the pusher by setting kind to null. Must use the REAL
-            // pushkey we registered — an empty one deletes nothing.
-            await (matrixClient as any).setPusher({
-                kind: null,
-                app_id: APP_ID,
-                pushkey: registeredPushkey,
-                app_display_name: "",
-                device_display_name: "",
-                lang: "en",
-                data: {},
-            });
-            registeredPushkey = null;
-        } catch {
-            /* ignore */
-        }
-    }
-
-    pushInitialised = false;
-    await PushNotifications.removeAllListeners();
+    // The UnifiedPush registration itself is kept: its endpoint is not tied
+    // to an account, and the next login reuses it.
+    await deleteRegisteredPusher(matrixClient);
+    await stopTransport();
 }
 
 /**
@@ -282,8 +475,8 @@ export async function unregisterPush(
  * .cancelAll(), which covers exactly those.
  *
  * Deliberately separate from unregisterPush: that one returns early when the
- * push gateway is a placeholder or the device id is missing, and neither has
- * anything to do with whether there are notifications on screen.
+ * device id is missing, which has nothing to do with whether there are
+ * notifications on screen.
  *
  * Synchronous and fire-and-forget on purpose: this is registered as a
  * notification surface, and the registry's try/catch cannot catch a rejected
@@ -336,16 +529,37 @@ export async function fetchRegisteredPushers(
  * (SEC-L4). Used by Settings to show whether the homeserver honoured the
  * gateway URL we asked for. Never throws: a read failure yields a "none"
  * verdict so the caller can treat it as "nothing to report".
+ *
+ * UnifiedPush pushers (pushkey = the endpoint URL; an FCM token or webpush
+ * key never is one) each route to the gateway paired with THEIR device's
+ * distributor, which only that device knows. So this device's own is checked
+ * against the gateway it registered, and other devices' are left out rather
+ * than flagged as reroutes.
  */
 export async function verifyPushGateways(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<PusherGatewayStatus> {
     try {
-        const pushers = await fetchRegisteredPushers(matrixClient);
-        return checkPusherGateway(
+        const res = await (matrixClient as any).getPushers();
+        const pushers = ((res?.pushers ?? []) as any[]).map((p) => ({
+            app_id: p.app_id as string,
+            url: p.data?.url as string | undefined,
+            pushkey: typeof p.pushkey === "string" ? p.pushkey : "",
+        }));
+        const isUnifiedPush = (p: { app_id: string; pushkey: string }) =>
+            p.app_id === APP_ID && /^https?:\/\//.test(p.pushkey);
+        const sygnal = checkPusherGateway(
             PUSH_GATEWAY_URL,
             [APP_ID, WEBPUSH_APP_ID],
-            pushers.map((p) => ({ app_id: p.app_id, url: p.url })),
+            pushers.filter((p) => !isUnifiedPush(p)),
+        );
+        const ownUp = pushers.filter(
+            (p) => isUnifiedPush(p) && p.pushkey === pushDebug.upEndpoint,
+        );
+        if (!ownUp.length || !pushDebug.upGateway) return sygnal;
+        return mergeGatewayStatus(
+            sygnal,
+            checkPusherGateway(pushDebug.upGateway, [APP_ID], ownUp),
         );
     } catch {
         return {

@@ -39,9 +39,19 @@
     import { initWebPush, requestWebPushPermission } from "$lib/webPush";
     import {
         checkNativeNotificationPermission,
+        pushDebug,
         requestNativeNotificationPermission,
+        switchPushProvider,
     } from "$lib/push";
+    import {
+        getPushProviderPref,
+        getUnifiedPushStatus,
+        unifiedPushSupported,
+        type PushProviderPref,
+        type UnifiedPushStatus,
+    } from "$lib/unifiedPush";
     import { Capacitor } from "@capacitor/core";
+    import { onMount } from "svelte";
 
     // Android posts every notification from the native push service, so the
     // in-app pop-up setting does nothing there, and its OS permission comes
@@ -64,6 +74,73 @@
 
     if (nativeApp)
         void checkNativeNotificationPermission().then((p) => (permission = p));
+
+    // ── Push service (Android): FCM or a UnifiedPush distributor ──────────
+    const pushServiceSupported = unifiedPushSupported();
+    let upStatus = $state<UnifiedPushStatus | null>(null);
+    let pushPref = $state<PushProviderPref>(getPushProviderPref());
+    let pushSwitching = $state(false);
+    // pushDebug is a plain object; mirror the bit this panel shows.
+    let activeProvider = $state(pushDebug.provider);
+    let activeDistributor = $state(pushDebug.upDistributor);
+
+    async function refreshPushService() {
+        upStatus = await getUnifiedPushStatus();
+        activeProvider = pushDebug.provider;
+        activeDistributor = pushDebug.upDistributor;
+    }
+
+    // Re-read on return to the app: the usual way to get a distributor is to
+    // leave, install ntfy, and come back.
+    onMount(() => {
+        if (!pushServiceSupported) return;
+        void refreshPushService();
+        const onVisible = () => {
+            if (document.visibilityState === "visible")
+                void refreshPushService();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () =>
+            document.removeEventListener("visibilitychange", onVisible);
+    });
+
+    // A chosen distributor that has since been uninstalled has no option;
+    // push.ts then behaves as "auto", so show that.
+    const pushSelectValue = $derived(
+        pushPref.startsWith("up:") &&
+            !upStatus?.distributors.some(
+                (d) => `up:${d.packageName}` === pushPref,
+            )
+            ? "auto"
+            : pushPref,
+    );
+
+    function distributorLabel(pkg: string | null): string {
+        if (!pkg) return "";
+        return (
+            upStatus?.distributors.find((d) => d.packageName === pkg)?.label ??
+            pkg
+        );
+    }
+
+    async function pickPushService(raw: string) {
+        const pref = raw as PushProviderPref;
+        pushPref = pref;
+        pushSwitching = true;
+        try {
+            await switchPushProvider(getClient(), pref);
+        } catch (e) {
+            showErrorToast(
+                toastMessage(
+                    e,
+                    t("notificationSettings.pushServiceSwitchFailed"),
+                ),
+            );
+        } finally {
+            pushSwitching = false;
+            await refreshPushService();
+        }
+    }
 
     let soundEnabled = $state(
         localStorage.getItem("notifSoundEnabled") !== "false",
@@ -390,6 +467,71 @@
                             : t("notificationSettings.enable")}
                 </button>
             </div>
+        </section>
+    {/if}
+
+    {#if pushServiceSupported && upStatus}
+        <section data-setting-anchor="notif-push-service">
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                {t("notificationSettings.pushService")}
+            </p>
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("notificationSettings.pushServiceLabel")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("notificationSettings.pushServiceDescription")}
+                    </p>
+                </div>
+                <select
+                    class={selectClass}
+                    value={pushSelectValue}
+                    disabled={pushSwitching}
+                    onchange={(e) => pickPushService(e.currentTarget.value)}
+                    aria-label={t("notificationSettings.pushService")}
+                >
+                    <option value="auto"
+                        >{t(
+                            "notificationSettings.pushServiceAutomatic",
+                        )}</option
+                    >
+                    <option value="fcm"
+                        >{upStatus.fcmAvailable
+                            ? t("notificationSettings.pushServiceFcm")
+                            : t(
+                                  "notificationSettings.pushServiceFcmUnavailable",
+                              )}</option
+                    >
+                    {#each upStatus.distributors as d (d.packageName)}
+                        <option value={`up:${d.packageName}`}
+                            >{t("notificationSettings.pushServiceUnifiedPush", {
+                                label: d.label,
+                            })}</option
+                        >
+                    {/each}
+                </select>
+            </div>
+            <p class="text-xs text-discord-textMuted mt-2" aria-live="polite">
+                {#if activeProvider === "unifiedpush"}
+                    {t("notificationSettings.pushServiceActiveUnifiedPush", {
+                        label: distributorLabel(activeDistributor),
+                    })}
+                {:else if activeProvider === "fcm"}
+                    {t("notificationSettings.pushServiceActiveFcm")}
+                {:else if activeProvider === "none"}
+                    {t("notificationSettings.pushServiceActiveNone")}
+                {/if}
+            </p>
+            {#if upStatus.distributors.length === 0}
+                <p class="text-xs text-discord-textMuted mt-1">
+                    {t("notificationSettings.pushServiceNoDistributor")}
+                </p>
+            {/if}
         </section>
     {/if}
 

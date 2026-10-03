@@ -134,6 +134,25 @@
                 ? `${pushDebug.fcmToken.slice(0, 12)}…${pushDebug.fcmToken.slice(-6)}`
                 : "(none)",
         ],
+        [t("debugSettings.pushProvider"), pushDebug.provider ?? "(none)"],
+        ...(pushDebug.provider === "unifiedpush"
+            ? ([
+                  [
+                      t("debugSettings.unifiedPushDistributor"),
+                      pushDebug.upDistributor ?? "(none)",
+                  ],
+                  [
+                      t("debugSettings.unifiedPushEndpoint"),
+                      pushDebug.upEndpoint
+                          ? `${pushDebug.upEndpoint.slice(0, 24)}…${pushDebug.upEndpoint.slice(-6)}`
+                          : "(none)",
+                  ],
+                  [
+                      t("debugSettings.unifiedPushGateway"),
+                      pushDebug.upGateway ?? "(none)",
+                  ],
+              ] as [string, string][])
+            : []),
         [
             t("debugSettings.pusherRegisteredThisSession"),
             pushDebug.pusherRegistered
@@ -146,7 +165,9 @@
         pushers?.find(
             (pusher) =>
                 pusher.app_id === PUSH_APP_ID &&
-                pusher.url === PUSH_GATEWAY_NOTIFY_URL,
+                (pusher.url === PUSH_GATEWAY_NOTIFY_URL ||
+                    (!!pushDebug.upGateway &&
+                        pusher.url === pushDebug.upGateway)),
         ) ?? null,
     );
 
