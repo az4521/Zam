@@ -18,6 +18,7 @@ import {
     SetPresence,
     Direction,
     EventType,
+    RoomStateEvent,
     ThreadEvent,
     MatrixEventEvent,
     Method,
@@ -80,6 +81,10 @@ type TrackPublication = LivekitClient.TrackPublication;
 import {
     callEndedMembershipMessage,
     pickLivekitTransport,
+    pickOwnLivekitTransport,
+    remoteLivekitTargets,
+    livekitTargetKey,
+    type LivekitTarget,
     sfuJwtUrl,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
@@ -210,6 +215,7 @@ import {
 import {
     isCallEventType,
     isCallMemberEventType,
+    isMembershipLeave,
     summariseCallEvents,
     memberDeviceId,
     type CallEventInput,
@@ -1011,6 +1017,12 @@ const SLIDING_LIST_STATE: string[][] = [
     // room that owns them, so they must be loaded for the whole list.
     ["im.ponies.room_emotes", "*"],
     ["m.room.member", MSC3575_STATE_KEY_ME],
+    // Calls: who is in each room's call (room-list rosters, DM ringing) and
+    // the member events of whoever just sent something (the caller's join or
+    // ring). MatrixRTC ignores a call membership whose sender isn't a known
+    // room member, so a DM call couldn't ring until the room was opened.
+    ["org.matrix.msc3401.call.member", "*"],
+    ["m.room.member", MSC3575_STATE_KEY_LAZY],
 ];
 
 // The room being viewed gets everything (power levels, pins, members as the
@@ -1250,6 +1262,19 @@ async function buildSlidingSync(
             },
         ],
         [
+            // DMs ring on an incoming call, which needs the caller's member
+            // event (see SLIDING_LIST_STATE). A DM has two members, so load
+            // them all; the server merges this with the room's other lists.
+            "dms",
+            {
+                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                sort: ["by_recency"],
+                filters: { is_dm: true },
+                timeline_limit: SLIDING_LIST_TIMELINE,
+                required_state: [...SLIDING_LIST_STATE, ["m.room.member", "*"]],
+            },
+        ],
+        [
             // Pending invites must never wait behind the recency window.
             "invites",
             {
@@ -1442,6 +1467,10 @@ export async function startSync(
     client.on(ClientEvent.Sync, onSync as never);
     client.on("Room.myMembership" as never, onMyMembership as never);
     client.on(ClientEvent.Room as never, onRoom as never);
+    const onMemberState = guardOwnership(owner, readOwner, (e: MatrixEvent) =>
+        recalcCallOnMemberLoaded(e),
+    );
+    client.on(RoomStateEvent.Events, onMemberState);
     if (onLoggedOut) client.on(HttpApiEvent.SessionLoggedOut, onLoggedOut);
 
     let disposed = false;
@@ -1452,6 +1481,7 @@ export async function startSync(
         client.off(ClientEvent.Sync, onSync as never);
         client.off("Room.myMembership" as never, onMyMembership as never);
         client.off(ClientEvent.Room as never, onRoom as never);
+        client.off(RoomStateEvent.Events, onMemberState);
         if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
         document.removeEventListener("visibilitychange", onHidden);
         document.removeEventListener("visibilitychange", onVisibleKick);
@@ -8971,6 +9001,33 @@ function rtcSessionFor(
     return live ? matrixClient!.matrixRTC.getRoomSession(live) : null;
 }
 
+/**
+ * MatrixRTC drops a call membership whose sender isn't (yet) a known room
+ * member, and only recomputes on call-membership changes. With lazy-loaded
+ * members the caller's m.room.member often lands AFTER their call join, so
+ * the call stayed invisible (no ring) until something else changed. Recompute
+ * when a member event arrives for someone holding a live call membership.
+ */
+function recalcCallOnMemberLoaded(event: MatrixEvent): void {
+    if (event.getType() !== EventType.RoomMember || !matrixClient) return;
+    const room = matrixClient.getRoom(event.getRoomId());
+    const userId = event.getStateKey();
+    if (!room || !userId) return;
+    const callState = room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents(EventType.GroupCallMemberPrefix);
+    const inCall = callState?.some(
+        (e) =>
+            e.getSender() === userId &&
+            !isMembershipLeave(e.getContent() as Record<string, unknown>),
+    );
+    if (!inCall) return;
+    void rtcSessionFor(room)
+        ?.ensureRecalculateSessionMembers()
+        .catch(() => {});
+}
+
 export function getRoomCallMemberships(room: Room): VoiceMembership[] {
     const session = rtcSessionFor(room);
     if (!session) return [];
@@ -9109,7 +9166,23 @@ const livekit = lazyModule<LivekitModule>(() => import("livekit-client"));
 interface ActiveVoiceCall {
     roomId: string;
     session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
+    /** Where we publish: our own homeserver's SFU (multi-SFU), or the
+     *  shared one when our homeserver advertises none. */
     lkRoom: LivekitRoom;
+    publishKey: string;
+    /** Multi-SFU: listen-only connections to the SFUs other members publish
+     *  on, keyed by livekitTargetKey. lk-jwt-service only lets a homeserver's
+     *  own users publish on its SFU, so everyone publishes at home and
+     *  listens everywhere else. */
+    remotes: Map<string, LivekitRoom>;
+    /** Keys with a connect in flight, so a burst of membership changes
+     *  doesn't open the same SFU twice. */
+    remotesConnecting: Set<string>;
+    /** SFUs we already told the user we couldn't reach (once per call). */
+    remoteFailuresNotified: Set<string>;
+    /** Active speakers per connection; the UI gets their union. */
+    speakersByRoom: Map<LivekitRoom, string[]>;
+    onMembershipsChanged: () => void;
     /** The loaded livekit-client namespace. Held here rather than read from
      *  a module global so the synchronous helpers below cannot reach for a
      *  Track enum before the chunk exists — an ActiveVoiceCall can only be
@@ -9124,6 +9197,11 @@ interface ActiveVoiceCall {
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
+
+/** Every LiveKit connection of a call: the publishing one first. */
+function callLkRooms(call: ActiveVoiceCall): LivekitRoom[] {
+    return [call.lkRoom, ...call.remotes.values()];
+}
 // Monotonic token for joinVoiceCall: a newer join bumps it, and any older
 // in-flight invocation bails out at its next staleness check instead of
 // reconnecting a room it no longer owns.
@@ -9204,13 +9282,14 @@ export function setParticipantVideoHidden(
 function applyVideoHiddenForUser(userId: string, hidden: boolean): void {
     if (!activeVoice) return;
     const lk = activeVoice.lk;
-    const lkRoom = activeVoice.lkRoom;
-    for (const p of lkRoom.remoteParticipants.values()) {
-        if (userIdFromIdentity(p.identity) !== userId) continue;
-        for (const pub of p.videoTrackPublications.values()) {
-            if (pub.source === lk.Track.Source.Camera) pub.setEnabled(!hidden);
+    for (const lkRoom of callLkRooms(activeVoice))
+        for (const p of lkRoom.remoteParticipants.values()) {
+            if (userIdFromIdentity(p.identity) !== userId) continue;
+            for (const pub of p.videoTrackPublications.values()) {
+                if (pub.source === lk.Track.Source.Camera)
+                    pub.setEnabled(!hidden);
+            }
         }
-    }
 }
 
 function applyVoiceSink(el: HTMLAudioElement): void {
@@ -9347,12 +9426,11 @@ export function onVideoTracksChanged(
     return () => videoTracksSubscribers.delete(cb);
 }
 
-/** Walk a LiveKit room's participants and collect subscribed video tracks as
- *  normalized inputs for buildVideoTiles(). */
-function currentVideoInputs(
-    lk: LivekitModule,
-    lkRoom: LivekitRoom,
-): VideoPublicationInput[] {
+/** Walk every connection's participants and collect subscribed video tracks
+ *  as normalized inputs for buildVideoTiles(). Local tracks live on the
+ *  publishing connection only. */
+function currentVideoInputs(call: ActiveVoiceCall): VideoPublicationInput[] {
+    const lk = call.lk;
     const out: VideoPublicationInput[] = [];
     const addFrom = (
         p: RemoteParticipant | LocalParticipant,
@@ -9385,8 +9463,9 @@ function currentVideoInputs(
             });
         }
     };
-    for (const p of lkRoom.remoteParticipants.values()) addFrom(p, false);
-    addFrom(lkRoom.localParticipant, true);
+    for (const lkRoom of callLkRooms(call))
+        for (const p of lkRoom.remoteParticipants.values()) addFrom(p, false);
+    addFrom(call.lkRoom.localParticipant, true);
     return out;
 }
 
@@ -9432,7 +9511,9 @@ function setVoicePlaybackBlocked(blocked: boolean): void {
 
 export async function resumeVoicePlayback(): Promise<void> {
     if (!activeVoice) return;
-    await activeVoice.lkRoom.startAudio().catch(() => {});
+    await Promise.all(
+        callLkRooms(activeVoice).map((r) => r.startAudio().catch(() => {})),
+    );
 }
 
 export function getActiveVoiceRoomId(): string | null {
@@ -9455,6 +9536,231 @@ async function configuredRtcFoci(): Promise<unknown[]> {
     }
     const foci = wk?.["org.matrix.msc4143.rtc_foci"];
     return Array.isArray(foci) ? foci : [];
+}
+
+/** Ask an SFU's lk-jwt-service for a LiveKit token (legacy /sfu/get). On our
+ *  own SFU it may publish; on another homeserver's it is listen-only. */
+async function fetchSfuJwt(
+    target: LivekitTarget,
+): Promise<{ url: string; jwt: string }> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const openIdToken = await matrixClient.getOpenIdToken();
+    const res = await fetch(sfuJwtUrl(target.serviceUrl), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            room: target.alias,
+            openid_token: openIdToken,
+            device_id: matrixClient.getDeviceId(),
+        }),
+    });
+    if (!res.ok) {
+        throw new Error(
+            t("client.voiceServerRejectedTheJoin", { status: res.status }),
+        );
+    }
+    return (await res.json()) as { url: string; jwt: string };
+}
+
+/** Remote identities with a muted mic, across every connection. */
+function notifyCallMutes(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const muted = new Set<string>();
+    for (const lkRoom of callLkRooms(call))
+        for (const p of lkRoom.remoteParticipants.values())
+            for (const pub of p.audioTrackPublications.values())
+                if (pub.isMuted) {
+                    muted.add(p.identity);
+                    break;
+                }
+    for (const cb of participantMuteSubscribers) cb([...muted]);
+}
+
+function notifyCallVideo(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const tiles = buildVideoTiles(currentVideoInputs(call));
+    for (const cb of videoTracksSubscribers) cb(tiles);
+}
+
+function notifyCallSpeakers(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const ids = new Set<string>();
+    for (const list of call.speakersByRoom.values())
+        for (const id of list) ids.add(id);
+    for (const cb of activeSpeakerSubscribers) cb([...ids]);
+}
+
+/** Remote media for one connection of `call` (publishing or listen-only):
+ *  attach audio, honour per-user video hiding, and feed the merged speaker,
+ *  mute and video-tile views. */
+function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
+    const lk = call.lk;
+    lkRoom.on(
+        lk.RoomEvent.TrackSubscribed,
+        (
+            track: RemoteTrack,
+            pub: RemoteTrackPublication,
+            participant: RemoteParticipant,
+        ) => {
+            if (track.kind === lk.Track.Kind.Video) {
+                const uid = userIdFromIdentity(participant.identity);
+                if (
+                    participantAudio.get(uid)?.videoHidden &&
+                    pub.source === lk.Track.Source.Camera
+                ) {
+                    pub.setEnabled(false);
+                }
+                return;
+            }
+            if (track.kind !== lk.Track.Kind.Audio) return;
+            if (activeVoice !== call) {
+                // Call already superseded/left — don't attach at all.
+                track.detach().forEach((el) => el.remove());
+                return;
+            }
+            const el = track.attach() as HTMLAudioElement;
+            el.muted = voicePlaybackMuted;
+            applyVoiceSink(el);
+            applyElementVolume(el, participant.identity);
+            call.audioEls.add(el);
+            let els = call.elsByIdentity.get(participant.identity);
+            if (!els) {
+                els = new Set();
+                call.elsByIdentity.set(participant.identity, els);
+            }
+            els.add(el);
+            document.body.appendChild(el);
+        },
+    );
+    lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+        for (const el of track.detach()) {
+            const audioEl = el as HTMLAudioElement;
+            call.audioEls.delete(audioEl);
+            for (const [identity, els] of call.elsByIdentity) {
+                els.delete(audioEl);
+                if (els.size === 0) call.elsByIdentity.delete(identity);
+            }
+            el.remove();
+        }
+    });
+    lkRoom.on(lk.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        call.speakersByRoom.set(
+            lkRoom,
+            speakers.map((p) => p.identity),
+        );
+        notifyCallSpeakers(call);
+    });
+    const mutes = () => notifyCallMutes(call);
+    lkRoom.on(lk.RoomEvent.TrackMuted, mutes);
+    lkRoom.on(lk.RoomEvent.TrackUnmuted, mutes);
+    // A participant arriving already muted fires neither event.
+    lkRoom.on(lk.RoomEvent.TrackSubscribed, mutes);
+    lkRoom.on(lk.RoomEvent.ParticipantDisconnected, mutes);
+    const video = () => notifyCallVideo(call);
+    lkRoom.on(lk.RoomEvent.TrackSubscribed, video);
+    lkRoom.on(lk.RoomEvent.TrackUnsubscribed, video);
+    // Camera off = track.mute(), not unpublish — recompute on mute/unmute
+    // too, so the tile drops to the avatar (and returns) as it toggles.
+    lkRoom.on(lk.RoomEvent.TrackMuted, video);
+    lkRoom.on(lk.RoomEvent.TrackUnmuted, video);
+    // A remote stopping a share can surface as a bare TrackUnpublished
+    // (no TrackUnsubscribed, if the track was already detached) or as an
+    // SFU stream-state pause — recompute on both so their tile clears.
+    lkRoom.on(lk.RoomEvent.TrackUnpublished, video);
+    lkRoom.on(lk.RoomEvent.TrackStreamStateChanged, video);
+    lkRoom.on(lk.RoomEvent.ParticipantDisconnected, video);
+    lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => {
+        if (activeVoice !== call) return;
+        setVoicePlaybackBlocked(
+            callLkRooms(call).some((r) => !r.canPlaybackAudio),
+        );
+    });
+}
+
+// Retry an SFU we lost or couldn't reach, while the call still needs it.
+const REMOTE_SFU_RETRY_MS = 10_000;
+
+/** Bring `call`'s listen-only connections in line with where the other
+ *  members publish: connect to new SFUs, drop ones nobody uses any more. */
+async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
+    if (activeVoice !== call || !matrixClient) return;
+    const me = matrixClient.getUserId();
+    const myDevice = matrixClient.getDeviceId();
+    const oldest = call.session.getOldestMembership();
+    const transports = oldest
+        ? call.session.memberships
+              .filter((m) => !(m.userId === me && m.deviceId === myDevice))
+              .map((m) => m.getTransport(oldest))
+        : [];
+    const wanted = remoteLivekitTargets(
+        transports,
+        call.publishKey,
+        call.roomId,
+    );
+    for (const [key, lkRoom] of call.remotes) {
+        if (wanted.has(key)) continue;
+        call.remotes.delete(key);
+        call.speakersByRoom.delete(lkRoom);
+        void lkRoom.disconnect().catch(() => {});
+    }
+    for (const [key, target] of wanted)
+        if (!call.remotes.has(key) && !call.remotesConnecting.has(key))
+            void connectRemoteSfu(call, key, target);
+    notifyCallMutes(call);
+    notifyCallVideo(call);
+    notifyCallSpeakers(call);
+}
+
+async function connectRemoteSfu(
+    call: ActiveVoiceCall,
+    key: string,
+    target: LivekitTarget,
+): Promise<void> {
+    call.remotesConnecting.add(key);
+    const lkRoom = new call.lk.Room();
+    try {
+        const { url, jwt } = await fetchSfuJwt(target);
+        if (activeVoice !== call) return;
+        wireCallMedia(call, lkRoom);
+        lkRoom.on(call.lk.RoomEvent.Disconnected, () => {
+            // Dropped by the SFU or the network (our own disconnects remove
+            // the entry first): forget it and try again shortly.
+            if (call.remotes.get(key) !== lkRoom) return;
+            call.remotes.delete(key);
+            call.speakersByRoom.delete(lkRoom);
+            notifyCallMutes(call);
+            notifyCallVideo(call);
+            notifyCallSpeakers(call);
+            setTimeout(() => void syncRemoteSfus(call), REMOTE_SFU_RETRY_MS);
+        });
+        await lkRoom.connect(url, jwt);
+        if (activeVoice !== call) {
+            await lkRoom.disconnect().catch(() => {});
+            return;
+        }
+        call.remotes.set(key, lkRoom);
+        call.remoteFailuresNotified.delete(key);
+        // Settles anything that changed while connecting (incl. the SFU no
+        // longer being wanted) and refreshes the merged views.
+        void syncRemoteSfus(call);
+    } catch (err) {
+        await lkRoom.disconnect().catch(() => {});
+        if (activeVoice !== call) return;
+        console.warn("[voice] couldn't connect to", target.serviceUrl, err);
+        if (!call.remoteFailuresNotified.has(key)) {
+            call.remoteFailuresNotified.add(key);
+            let server = target.serviceUrl;
+            try {
+                server = new URL(target.serviceUrl).host;
+            } catch {
+                /* not a URL: show it as-is */
+            }
+            notifyVoiceNotice(t("client.couldNotReachCallServer", { server }));
+        }
+        setTimeout(() => void syncRemoteSfus(call), REMOTE_SFU_RETRY_MS);
+    } finally {
+        call.remotesConnecting.delete(key);
+    }
 }
 
 /**
@@ -9495,7 +9801,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         : [];
     const foci = await configuredRtcFoci();
     if (seq !== voiceJoinSeq) return;
-    const target = pickLivekitTransport(memberTransports, foci, roomId);
+    // Multi-SFU: publish on our own homeserver's SFU (the only one whose
+    // lk-jwt-service lets us publish) and listen on everyone else's. A
+    // homeserver without one falls back to the shared SFU of the oldest member.
+    const ownTarget = pickOwnLivekitTransport(foci, roomId);
+    const target =
+        ownTarget ?? pickLivekitTransport(memberTransports, foci, roomId);
     if (!target) throw new Error("No LiveKit focus available for this call");
 
     const userId = matrixClient.getUserId()!;
@@ -9554,6 +9865,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         roomId,
         session,
         lkRoom,
+        publishKey: livekitTargetKey(target),
+        remotes: new Map(),
+        remotesConnecting: new Set(),
+        remoteFailuresNotified: new Set(),
+        speakersByRoom: new Map(),
+        onMembershipsChanged: () => void syncRemoteSfus(call),
         lk,
         audioEls: new Set(),
         elsByIdentity: new Map(),
@@ -9579,16 +9896,17 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             getDirectRoomIds().has(roomId),
             callPeersBeforeJoin,
         );
+        const transport = {
+            type: "livekit",
+            livekit_service_url: target.serviceUrl,
+            livekit_alias: target.alias,
+        };
+        // multi_sfu advertises the SFU we publish on (the SDK lists it first
+        // in foci_preferred); oldest_membership joins the shared SFU instead.
         session.joinRTCSession(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
-            [
-                {
-                    type: "livekit",
-                    livekit_service_url: target.serviceUrl,
-                    livekit_alias: target.alias,
-                },
-            ],
-            undefined,
+            ownTarget ? [] : [transport],
+            ownTarget ? transport : undefined,
             {
                 membershipEventExpiryMs: 4 * 60 * 60 * 1000,
                 ...(ring
@@ -9597,122 +9915,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             },
         );
 
-        const openIdToken = await matrixClient.getOpenIdToken();
-        if (seq !== voiceJoinSeq) return;
-        const jwtRes = await fetch(sfuJwtUrl(target.serviceUrl), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                room: target.alias,
-                openid_token: openIdToken,
-                device_id: deviceId,
-            }),
-        });
-        if (seq !== voiceJoinSeq) return;
-        if (!jwtRes.ok) {
-            throw new Error(
-                t("client.voiceServerRejectedTheJoin", {
-                    status: jwtRes.status,
-                }),
-            );
-        }
-        const { url, jwt } = (await jwtRes.json()) as {
-            url: string;
-            jwt: string;
-        };
+        const { url, jwt } = await fetchSfuJwt(target);
         if (seq !== voiceJoinSeq) return;
 
-        lkRoom.on(
-            lk.RoomEvent.TrackSubscribed,
-            (
-                track: RemoteTrack,
-                pub: RemoteTrackPublication,
-                participant: RemoteParticipant,
-            ) => {
-                if (track.kind === lk.Track.Kind.Video) {
-                    const uid = userIdFromIdentity(participant.identity);
-                    if (
-                        participantAudio.get(uid)?.videoHidden &&
-                        pub.source === lk.Track.Source.Camera
-                    ) {
-                        pub.setEnabled(false);
-                    }
-                    return;
-                }
-                if (track.kind !== lk.Track.Kind.Audio) return;
-                if (activeVoice !== call) {
-                    // Call already superseded/left — don't attach at all.
-                    track.detach().forEach((el) => el.remove());
-                    return;
-                }
-                const el = track.attach() as HTMLAudioElement;
-                el.muted = voicePlaybackMuted;
-                applyVoiceSink(el);
-                applyElementVolume(el, participant.identity);
-                call.audioEls.add(el);
-                let els = call.elsByIdentity.get(participant.identity);
-                if (!els) {
-                    els = new Set();
-                    call.elsByIdentity.set(participant.identity, els);
-                }
-                els.add(el);
-                document.body.appendChild(el);
-            },
+        wireCallMedia(call, lkRoom);
+        // Our own camera/screenshare tiles: only the publishing connection
+        // has local tracks.
+        lkRoom.on(lk.RoomEvent.LocalTrackPublished, () =>
+            notifyCallVideo(call),
         );
-        lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-            for (const el of track.detach()) {
-                const audioEl = el as HTMLAudioElement;
-                call.audioEls.delete(audioEl);
-                for (const [identity, els] of call.elsByIdentity) {
-                    els.delete(audioEl);
-                    if (els.size === 0) call.elsByIdentity.delete(identity);
-                }
-                el.remove();
-            }
-        });
-        lkRoom.on(lk.RoomEvent.ActiveSpeakersChanged, (speakers) => {
-            if (activeVoice !== call) return;
-            const ids = speakers.map((p) => p.identity);
-            for (const cb of activeSpeakerSubscribers) cb(ids);
-        });
-        const notifyMutes = () => {
-            if (activeVoice !== call) return;
-            const muted: string[] = [];
-            for (const p of lkRoom.remoteParticipants.values()) {
-                for (const pub of p.audioTrackPublications.values()) {
-                    if (pub.isMuted) {
-                        muted.push(p.identity);
-                        break;
-                    }
-                }
-            }
-            for (const cb of participantMuteSubscribers) cb(muted);
-        };
-        lkRoom.on(lk.RoomEvent.TrackMuted, notifyMutes);
-        lkRoom.on(lk.RoomEvent.TrackUnmuted, notifyMutes);
-        // A participant arriving already muted fires neither event. Separate
-        // from the TrackSubscribed handler above so each stays focused.
-        lkRoom.on(lk.RoomEvent.TrackSubscribed, notifyMutes);
-        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, notifyMutes);
-        const notifyVideo = () => {
-            if (activeVoice !== call) return;
-            const tiles = buildVideoTiles(currentVideoInputs(lk, lkRoom));
-            for (const cb of videoTracksSubscribers) cb(tiles);
-        };
-        lkRoom.on(lk.RoomEvent.TrackSubscribed, notifyVideo);
-        lkRoom.on(lk.RoomEvent.TrackUnsubscribed, notifyVideo);
-        lkRoom.on(lk.RoomEvent.LocalTrackPublished, notifyVideo);
-        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, notifyVideo);
-        // Camera off = track.mute(), not unpublish — recompute on mute/unmute
-        // too, so the tile drops to the avatar (and returns) as it toggles.
-        lkRoom.on(lk.RoomEvent.TrackMuted, notifyVideo);
-        lkRoom.on(lk.RoomEvent.TrackUnmuted, notifyVideo);
-        // A remote stopping a share can surface as a bare TrackUnpublished
-        // (no TrackUnsubscribed, if the track was already detached) or as an
-        // SFU stream-state pause — recompute on both so their tile clears.
-        lkRoom.on(lk.RoomEvent.TrackUnpublished, notifyVideo);
-        lkRoom.on(lk.RoomEvent.TrackStreamStateChanged, notifyVideo);
-        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, notifyVideo);
+        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, () =>
+            notifyCallVideo(call),
+        );
         lkRoom.on(lk.RoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("reconnecting");
@@ -9733,10 +9947,6 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                     cb(t("client.voiceCallDisconnected"));
                 void leaveVoiceCall();
             }
-        });
-        lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => {
-            if (activeVoice !== call) return;
-            setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
         });
         let silenceNotified = false;
         lkRoom.on(lk.RoomEvent.LocalAudioSilenceDetected, () => {
@@ -9771,6 +9981,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         }
         notifyVoiceConnState("connected");
         setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
+        // Now listen on every other member's SFU, and keep that set in step
+        // with the call's membership.
+        session.on(
+            "memberships_changed" as never,
+            call.onMembershipsChanged as never,
+        );
+        void syncRemoteSfus(call);
     } catch (err) {
         if (activeVoice === call) {
             await leaveVoiceCall();
@@ -9784,7 +10001,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // superseded.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
-            await call.lkRoom.disconnect().catch(() => {});
+            await Promise.allSettled(
+                callLkRooms(call).map((r) => r.disconnect()),
+            );
             return;
         }
     }
@@ -9827,6 +10046,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
             "Room.myMembership" as never,
             call.onMyMembership as never,
         );
+        call.session.off(
+            "memberships_changed" as never,
+            call.onMembershipsChanged as never,
+        );
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
         // In parallel, not SFU-first: the membership leave is what other
@@ -9834,7 +10057,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // windows even when the LiveKit teardown is slow (audit IMP-1).
         // Both settle quietly: a rejected disconnect means already gone.
         await Promise.allSettled([
-            call.lkRoom.disconnect(),
+            ...callLkRooms(call).map((r) => r.disconnect()),
             call.session.leaveRoomSession(10_000),
         ]);
     })();

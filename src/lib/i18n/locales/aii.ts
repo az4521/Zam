@@ -2025,6 +2025,8 @@ const messages: Record<MessageKey, string> = {
     "client.callMembershipFailed": "ܗܕܡܘܬܐ ܓܘ ܩܪܝܬܐ ܠܐ ܦܠܚܠܗ̇: {detail}",
     "client.voiceServerRejectedTheJoin": "ܣܝܪܒܪ ܕܩܠܐ ܠܐ ܩܒܠܠܗ ܥܠܠܐ ({status})",
     "client.voiceCallDisconnected": "ܩܪܝܬܐ ܕܩܠܐ ܦܣܝܩܬܐ ܝܠܗ̇",
+    "client.couldNotReachCallServer":
+        "ܠܐ ܡܨܐ ܠܡܚܒܪܐ ܥܡ {server}، ܡܨܐ ܕܠܐ ܫܡܥܬ ܚܕܟܡܐ ܐܢܫ̈ܐ ܓܘ ܗܕܐ ܩܪܝܬܐ.",
     "client.yourMicrophoneAppearsSilentCheckYour":
         "ܡܝܩܪܘܦܘܢ ܕܝܘܟ ܚܙܝܐ ܝܠܗ ܫܬܝܩܐ - ܒܨܝ ܡܐܢܐ ܕܡܥܠܢܐ ܕܝܘܟ",
     "client.audioDeviceError": "ܦܘܕܐ ܕܡܐܢܐ ܕܩܠܐ: {message}",

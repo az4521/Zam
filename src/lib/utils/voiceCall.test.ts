@@ -6,6 +6,9 @@ import {
     toggleDeafen,
     sfuJwtUrl,
     pickLivekitTransport,
+    pickOwnLivekitTransport,
+    remoteLivekitTargets,
+    livekitTargetKey,
     screenShareCaptureResolution,
     callEndedMembershipMessage,
     identityToUserId,
@@ -430,5 +433,46 @@ describe("isRecentlyLeftHere", () => {
     });
     it("is false when nothing was left", () => {
         expect(isRecentlyLeftHere(null, "!a:s", 5000)).toBe(false);
+    });
+});
+
+describe("multi-SFU transport selection", () => {
+    const lk = (url: string, alias?: string) => ({
+        type: "livekit",
+        livekit_service_url: url,
+        ...(alias ? { livekit_alias: alias } : {}),
+    });
+
+    it("publishes to our own homeserver's first LiveKit focus", () => {
+        expect(
+            pickOwnLivekitTransport(
+                [{ type: "other" }, lk("https://own.example/")],
+                "!r:x",
+            ),
+        ).toEqual({ serviceUrl: "https://own.example/", alias: "!r:x" });
+        expect(pickOwnLivekitTransport([], "!r:x")).toBeNull();
+    });
+
+    it("listens on every other SFU once, skipping the one we publish to", () => {
+        const own = livekitTargetKey({
+            serviceUrl: "https://own.example",
+            alias: "!r:x",
+        });
+        const targets = remoteLivekitTargets(
+            [
+                lk("https://own.example/", "!r:x"),
+                lk("https://matrix.org.example", "!r:x"),
+                lk("https://matrix.org.example/", "!r:x"),
+                lk("https://third.example"),
+                { type: "not-livekit" },
+                undefined,
+            ],
+            own,
+            "!r:x",
+        );
+        expect([...targets.values()]).toEqual([
+            { serviceUrl: "https://matrix.org.example", alias: "!r:x" },
+            { serviceUrl: "https://third.example", alias: "!r:x" },
+        ]);
     });
 });

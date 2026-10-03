@@ -2191,6 +2191,8 @@ const messages: Record<MessageKey, string> = {
     "client.voiceServerRejectedTheJoin":
         "Der Sprachserver hat den Beitritt abgelehnt ({status})",
     "client.voiceCallDisconnected": "Sprachanruf getrennt",
+    "client.couldNotReachCallServer":
+        "Keine Verbindung zu {server}. Manche Personen in diesem Anruf sind eventuell nicht zu hören.",
     "client.yourMicrophoneAppearsSilentCheckYour":
         "Dein Mikrofon scheint stumm zu sein - prüfe dein Eingabegerät",
     "client.audioDeviceError": "Fehler des Audiogeräts: {message}",

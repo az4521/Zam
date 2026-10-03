@@ -216,6 +216,53 @@ export function pickLivekitTransport(
     return null;
 }
 
+/** Identifies one LiveKit room on one SFU: one connection per key. */
+export function livekitTargetKey(t: LivekitTarget): string {
+    return `${t.serviceUrl.replace(/\/+$/, "")}|${t.alias}`;
+}
+
+/**
+ * Multi-SFU: where WE publish. Our own homeserver's first LiveKit focus, the
+ * one SFU where lk-jwt-service grants us full access (publishing). Null when
+ * the homeserver advertises none; the caller then falls back to the shared
+ * `pickLivekitTransport` SFU.
+ */
+export function pickOwnLivekitTransport(
+    configuredFoci: unknown[],
+    roomId: string,
+): LivekitTarget | null {
+    for (const t of configuredFoci) {
+        const lk = asLivekit(t);
+        if (lk) return { serviceUrl: lk.livekit_service_url, alias: roomId };
+    }
+    return null;
+}
+
+/**
+ * Multi-SFU: the SFUs we must also connect to (listen-only) to hear everyone.
+ * `memberTransports` is each OTHER member's publishing transport (the SDK's
+ * `CallMembership.getTransport(oldest)`); entries that are not LiveKit, or
+ * that land on the SFU we publish to, are dropped. Deduplicated by key.
+ */
+export function remoteLivekitTargets(
+    memberTransports: unknown[],
+    publishKey: string,
+    roomId: string,
+): Map<string, LivekitTarget> {
+    const out = new Map<string, LivekitTarget>();
+    for (const t of memberTransports) {
+        const lk = asLivekit(t);
+        if (!lk) continue;
+        const target = {
+            serviceUrl: lk.livekit_service_url,
+            alias: lk.livekit_alias ?? roomId,
+        };
+        const key = livekitTargetKey(target);
+        if (key !== publishKey && !out.has(key)) out.set(key, target);
+    }
+    return out;
+}
+
 export interface ScreenResolutionOption {
     key: string;
     label: string;

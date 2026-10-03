@@ -2100,6 +2100,8 @@ export const en = {
     "client.voiceServerRejectedTheJoin":
         "Voice server rejected the join ({status})",
     "client.voiceCallDisconnected": "Voice call disconnected",
+    "client.couldNotReachCallServer":
+        "Couldn't connect to {server}, so you may not hear some people in this call.",
     "client.yourMicrophoneAppearsSilentCheckYour":
         "Your microphone appears silent - check your input device",
     "client.audioDeviceError": "Audio device error: {message}",

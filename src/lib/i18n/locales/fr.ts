@@ -2168,6 +2168,8 @@ const messages: Record<MessageKey, string> = {
     "client.voiceServerRejectedTheJoin":
         "Le serveur vocal a refusé la connexion ({status})",
     "client.voiceCallDisconnected": "Appel vocal déconnecté",
+    "client.couldNotReachCallServer":
+        "Impossible de se connecter à {server}, certaines personnes de cet appel risquent de ne pas être entendues.",
     "client.yourMicrophoneAppearsSilentCheckYour":
         "Votre micro semble muet - vérifiez votre périphérique d'entrée",
     "client.audioDeviceError": "Erreur du périphérique audio : {message}",
