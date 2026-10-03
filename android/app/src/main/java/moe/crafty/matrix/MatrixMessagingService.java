@@ -181,23 +181,44 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     String name = senderName.trim();
 
                     // Same rule as pushNotificationKind() (src/lib/utils) and
-                    // buildNotification() in static/sw.js: an MSC4075 call-notify
-                    // with a "ring" (or absent) notify_type is an incoming CALL.
+                    // buildNotification() in static/sw.js: an MSC4075 ring (the
+                    // SDK's rtc.notification with notification_type "ring", or an
+                    // older call-notify with a "ring"/absent notify_type) is an
+                    // incoming CALL.
                     // The event TYPE decides (event_id_only pushes carry no
                     // tweak). The unstable type is what is actually stored/pushed;
                     // the stable one is accepted too.
                     String type = event.optString("type", "");
-                    String notifyType = content != null
-                        ? content.optString("notify_type", "ring") : "ring";
-                    boolean isCallType = type.equals("org.matrix.msc4075.call.notify")
+                    boolean isRtcNotification =
+                        type.equals("org.matrix.msc4075.rtc.notification");
+                    boolean isCallType = isRtcNotification
+                        || type.equals("org.matrix.msc4075.call.notify")
                         || type.equals("m.call.notify");
+                    boolean wantsRing;
+                    if (isRtcNotification) {
+                        // matrix-js-sdk 43's ring: notification_type, and it
+                        // stops ringing at sender_ts + lifetime (capped at 2
+                        // minutes), so a late push doesn't ring for a call
+                        // that already gave up.
+                        wantsRing = content != null
+                            && "ring".equals(content.optString("notification_type", ""));
+                        if (wantsRing && content.has("sender_ts") && content.has("lifetime")) {
+                            long ends = content.optLong("sender_ts")
+                                + Math.min(content.optLong("lifetime"), 120000L);
+                            if (System.currentTimeMillis() > ends) wantsRing = false;
+                        }
+                    } else {
+                        // Older call-notify: an absent notify_type means ring.
+                        wantsRing = "ring".equals(content != null
+                            ? content.optString("notify_type", "ring") : "ring");
+                    }
                     //
                     // Only a DM rings like a phone call. A room or space call
                     // is join-on-demand (same rule as the in-app ringer in
                     // src/lib/stores/incomingCalls.svelte.ts), so it gets a
                     // plain message-style notification even if the sender's
                     // client asked for a ring.
-                    if (isCallType && notifyType.equals("ring")
+                    if (isCallType && wantsRing
                             && (direct = isDirectRoom(hs, token, selfUserId, roomId))) {
                         if (ringEnabled) {
                             isCall = true;

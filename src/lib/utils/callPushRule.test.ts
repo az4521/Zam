@@ -1,28 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { buildCallNotifyPushRule, CALL_NOTIFY_RULE_ID } from "./callPushRule";
+import {
+    buildCallNotifyPushRules,
+    CALL_NOTIFY_RULE_ID,
+    RTC_NOTIFICATION_RULE_ID,
+} from "./callPushRule";
 
-describe("buildCallNotifyPushRule", () => {
-    it("matches on the unstable MSC4075 type that is actually stored/pushed", () => {
-        // Regression guard: the rule must key on org.matrix.msc4075.call.notify,
+const ring = (ruleId: string, pattern: string) => ({
+    ruleId,
+    kind: "underride",
+    body: {
+        conditions: [{ kind: "event_match", key: "type", pattern }],
+        actions: ["notify", { set_tweak: "sound", value: "ring" }],
+    },
+});
+
+describe("buildCallNotifyPushRules", () => {
+    it("rings on the SDK's rtc.notification and the older unstable call-notify", () => {
+        // Regression guard: the old rule must key on org.matrix.msc4075.call.notify,
         // NOT the stable m.call.notify (which never appears on the wire).
-        expect(buildCallNotifyPushRule()).toEqual({
-            ruleId: "moe.crafty.rule.call_notify",
-            kind: "underride",
-            body: {
-                conditions: [
-                    {
-                        kind: "event_match",
-                        key: "type",
-                        pattern: "org.matrix.msc4075.call.notify",
-                    },
-                ],
-                actions: ["notify", { set_tweak: "sound", value: "ring" }],
-            },
-        });
+        expect(buildCallNotifyPushRules()).toEqual([
+            ring(
+                "moe.crafty.rule.rtc_notification",
+                "org.matrix.msc4075.rtc.notification",
+            ),
+            ring(
+                "moe.crafty.rule.call_notify",
+                "org.matrix.msc4075.call.notify",
+            ),
+        ]);
     });
 
-    it("exposes the rule id constant", () => {
+    it("exposes the rule id constants", () => {
         expect(CALL_NOTIFY_RULE_ID).toBe("moe.crafty.rule.call_notify");
-        expect(buildCallNotifyPushRule().ruleId).toBe(CALL_NOTIFY_RULE_ID);
+        expect(RTC_NOTIFICATION_RULE_ID).toBe(
+            "moe.crafty.rule.rtc_notification",
+        );
     });
 });

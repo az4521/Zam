@@ -1,37 +1,52 @@
 import { describe, it, expect } from "vitest";
-import { buildCallNotifyContent, shouldRingPeers } from "./callNotify";
+import { ringRequested, shouldRingPeers } from "./callNotify";
 
-describe("buildCallNotifyContent", () => {
-    it("rings the named callees by default with the room-scoped call id", () => {
-        expect(buildCallNotifyContent({ calleeUserIds: ["@dev:hs"] })).toEqual({
-            application: "m.call",
-            call_id: "",
-            "m.mentions": { user_ids: ["@dev:hs"], room: false },
-            notify_type: "ring",
-        });
-    });
-
-    it("passes through a non-empty call id and notify type", () => {
+describe("ringRequested", () => {
+    const RTC = "org.matrix.msc4075.rtc.notification";
+    it("rings for an SDK rtc.notification ring within its lifetime", () => {
         expect(
-            buildCallNotifyContent({
-                calleeUserIds: ["@a:hs", "@b:hs"],
-                callId: "c1",
-                notifyType: "notify",
-            }),
-        ).toEqual({
-            application: "m.call",
-            call_id: "c1",
-            "m.mentions": { user_ids: ["@a:hs", "@b:hs"], room: false },
-            notify_type: "notify",
-        });
+            ringRequested(
+                RTC,
+                {
+                    notification_type: "ring",
+                    sender_ts: 1000,
+                    lifetime: 30_000,
+                },
+                20_000,
+            ),
+        ).toBe(true);
     });
-
-    it("dedupes callee ids", () => {
+    it("stops ringing once the lifetime has passed", () => {
         expect(
-            buildCallNotifyContent({ calleeUserIds: ["@dev:hs", "@dev:hs"] })[
-                "m.mentions"
-            ].user_ids,
-        ).toEqual(["@dev:hs"]);
+            ringRequested(
+                RTC,
+                {
+                    notification_type: "ring",
+                    sender_ts: 1000,
+                    lifetime: 30_000,
+                },
+                40_000,
+            ),
+        ).toBe(false);
+    });
+    it("rings for an rtc.notification without timing fields", () => {
+        expect(ringRequested(RTC, { notification_type: "ring" })).toBe(true);
+    });
+    it("does not ring for a plain notification", () => {
+        expect(ringRequested(RTC, { notification_type: "notification" })).toBe(
+            false,
+        );
+    });
+    it("keeps the old call-notify rules", () => {
+        expect(ringRequested("org.matrix.msc4075.call.notify", {})).toBe(true);
+        expect(ringRequested("m.call.notify", { notify_type: "notify" })).toBe(
+            false,
+        );
+    });
+    it("ignores other event types", () => {
+        expect(
+            ringRequested("m.room.message", { notification_type: "ring" }),
+        ).toBe(false);
     });
 });
 

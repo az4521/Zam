@@ -306,3 +306,32 @@ describe("summariseCallEvents / callAnchorEventIds", () => {
         expect([...ids].sort()).toEqual(["$1", "$3"]);
     });
 });
+
+describe("SDK rtc.notification ring", () => {
+    it("folds into the same room call as the memberships it rang for", () => {
+        const join = {
+            eventId: "$join",
+            type: "org.matrix.msc3401.call.member",
+            sender: "@me:hs",
+            stateKey: "_@me:hs_DEV_m.call",
+            ts: 1000,
+            content: { application: "m.call", call_id: "", device_id: "DEV" },
+            live: true,
+        };
+        const ring = {
+            eventId: "$ring",
+            type: "org.matrix.msc4075.rtc.notification",
+            sender: "@me:hs",
+            ts: 1005,
+            content: { slot_id: "m.call#ROOM", notification_type: "ring" },
+        };
+        const summaries = summariseCallEvents([join, ring]);
+        expect(summaries).toHaveLength(1);
+        expect(summaries[0]).toMatchObject({
+            anchorEventId: "$join",
+            outcome: "ongoing",
+            notified: true,
+        });
+        expect(isCallNotifyEventType(ring.type)).toBe(true);
+    });
+});

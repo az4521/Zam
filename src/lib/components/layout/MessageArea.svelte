@@ -20,6 +20,8 @@
         onSyncPrepared,
         isInitialSyncComplete,
         isInLiveTimeline,
+        isSyncStale,
+        waitForLiveEvent,
         onReactionEvent,
         onPollEvent,
         onEditEvent,
@@ -49,6 +51,7 @@
         getContextCallSummaries,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
+    import { logSync } from "$lib/matrix/syncLog";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
         getMessages,
@@ -556,6 +559,19 @@
             const rid = room.roomId;
             await waitForInitialSync(10_000);
             if (room.roomId !== rid) return;
+            // Woken from the background (a notification tap on Android), the
+            // live timeline is behind and the message is usually still on its
+            // way. Let sync deliver it rather than fetching a context window
+            // now: the SDK drops sync events that a context timeline already
+            // holds, so the newest messages would never reach the live view.
+            if (!isInLiveTimeline(room, eventId) && isSyncStale()) {
+                const result = await waitForLiveEvent(room, eventId, 45_000);
+                logSync(`jump waited for sync: ${result}`);
+                if (room.roomId !== rid) return;
+                // Sync never caught up: stay on the live view, which fills in
+                // as soon as it does. A context window now would starve it.
+                if (result === "timeout") return;
+            }
             // In the live timeline but not rendered yet: this effect runs in
             // the same flush as the room-open effect that re-reads the list,
             // so wait for that render instead of building a context window.
@@ -929,9 +945,14 @@
     let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
+    // Liveness comes from the room's MatrixRTC memberships, which the SDK
+    // recomputes asynchronously AFTER the m.call.member event reaches the
+    // timeline; voiceTick re-folds once it lands, or a just-started call
+    // folded against the stale list stuck on "Call ended".
     const callSummaries = $derived(
         (void messagesState.timelineTick,
         void roomsState.roomsTick,
+        void voiceCallState.voiceTick,
         isContextView && contextWindow
             ? getContextCallSummaries(room, contextWindow)
             : getCallSummaries(room)),

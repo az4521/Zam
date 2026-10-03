@@ -33,9 +33,13 @@ const MEMBER_TYPES = new Set([
     "org.matrix.msc4143.rtc.member",
 ]);
 const NOTIFY_TYPES = new Set([
+    "org.matrix.msc4075.rtc.notification",
     "org.matrix.msc4075.call.notify",
     "m.call.notify",
 ]);
+
+/** The slot id of a room's main MatrixRTC call (`m.call` application, `ROOM`). */
+const ROOM_CALL_SLOT_ID = "m.call#ROOM";
 
 export function isCallMemberEventType(type: string): boolean {
     return MEMBER_TYPES.has(type);
@@ -74,7 +78,15 @@ export function memberDeviceId(
 export function callEventGroupKey(input: CallEventInput): string {
     const c = input.content;
     if (typeof c.call_id === "string" && c.call_id) return c.call_id;
-    if (typeof c.slot_id === "string" && c.slot_id) return c.slot_id;
+    // The room's own call is `call_id: ""` on legacy memberships but
+    // `slot_id: "m.call#ROOM"` on the SDK's rtc.notification ring; both are
+    // the same room-scoped call, or the ring would fold as a separate missed one.
+    if (
+        typeof c.slot_id === "string" &&
+        c.slot_id &&
+        c.slot_id !== ROOM_CALL_SLOT_ID
+    )
+        return c.slot_id;
     return "";
 }
 

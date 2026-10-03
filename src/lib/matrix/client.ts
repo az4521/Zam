@@ -281,12 +281,8 @@ import {
     affectsPollView,
 } from "$lib/utils/pollContent";
 import { buildForwardContent } from "$lib/utils/forwardContent";
-import {
-    buildCallNotifyContent,
-    shouldRingPeers,
-    CALL_NOTIFY_EVENT_TYPE,
-} from "$lib/utils/callNotify";
-import { buildCallNotifyPushRule } from "$lib/utils/callPushRule";
+import { shouldRingPeers } from "$lib/utils/callNotify";
+import { buildCallNotifyPushRules } from "$lib/utils/callPushRule";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
 import { isSyncRecovery } from "$lib/utils/liveShareStop";
@@ -1031,6 +1027,84 @@ let activeSlidingSync: SlidingSync | null = null;
 // watchdog in startSync; see shouldKickSync.
 let lastSyncResponseAt = Date.now();
 
+// When sync last delivered a real (non-cached) response, the latest sync state,
+// and when the page last came back from hidden. kickIf back-dates
+// lastSyncResponseAt to pace the watchdog, so it can't answer "has sync caught
+// up since the app resumed"; these can (see isSyncStale).
+let lastRealSyncResponseAt = 0;
+let lastSyncState: string | null = null;
+let resumedAt = 0;
+
+const isHealthySyncState = (state: string | null): boolean =>
+    state === "SYNCING" || state === "PREPARED" || state === "CATCHUP";
+
+/**
+ * Whether the live timelines may be behind the server: the page is hidden, it
+ * came back from the background and no sync response has landed since, or
+ * sync isn't running. A notification tap on Android typically lands in
+ * exactly this window, before the resumed sync has delivered the message.
+ */
+export function isSyncStale(): boolean {
+    if (document.visibilityState === "hidden") return true;
+    if (resumedAt >= lastRealSyncResponseAt) return true;
+    return !isHealthySyncState(lastSyncState);
+}
+
+// How long after a fresh sync response to keep waiting for its room events:
+// the SDK processes room data asynchronously (sliding sync's onRoomData awaits
+// before appending), so the response's state change can beat its events.
+const SYNC_SETTLE_MS = 2000;
+
+/**
+ * Wait for `eventId` to reach `room`'s live timeline, letting sync catch up
+ * first. Resolves "live" once it is there; "absent" if a sync response landed
+ * after this call and the event still isn't live (so it is genuinely older
+ * than the live window); "timeout" if sync never answered.
+ *
+ * Callers must not build a context window (createContextWindow) while sync is
+ * behind: the SDK's addLiveEvent silently drops any event already held in
+ * another timeline of the set, so every message the /context fetch returned
+ * would then never reach the live timeline. That was the notification-tap
+ * "new messages never load" bug.
+ */
+export function waitForLiveEvent(
+    room: Room,
+    eventId: string,
+    timeoutMs: number,
+): Promise<"live" | "absent" | "timeout"> {
+    if (isInLiveTimeline(room, eventId)) return Promise.resolve("live");
+    const client = matrixClient;
+    if (!client) return Promise.resolve("timeout");
+    return new Promise((resolve) => {
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        const finish = (result: "live" | "absent" | "timeout") => {
+            clearTimeout(timer);
+            clearTimeout(settle);
+            room.off(RoomEvent.Timeline as never, onTimeline as never);
+            client.off(ClientEvent.Sync, onSync as never);
+            resolve(result);
+        };
+        const onTimeline = () => {
+            if (isInLiveTimeline(room, eventId)) finish("live");
+        };
+        const onSync = (
+            state: string,
+            _prev: string | null,
+            data?: { fromCache?: boolean },
+        ) => {
+            if (!isHealthySyncState(state) || data?.fromCache) return;
+            settle ??= setTimeout(
+                () =>
+                    finish(isInLiveTimeline(room, eventId) ? "live" : "absent"),
+                SYNC_SETTLE_MS,
+            );
+        };
+        const timer = setTimeout(() => finish("timeout"), timeoutMs);
+        room.on(RoomEvent.Timeline as never, onTimeline as never);
+        client.on(ClientEvent.Sync, onSync as never);
+    });
+}
+
 /**
  * Abort the in-flight sync request and start a fresh one right away, for a
  * long-poll that may be stuck on a dead connection (see shouldKickSync).
@@ -1304,25 +1378,37 @@ export async function startSync(
     const client = owner.client;
 
     initialSyncComplete = false;
+    lastSyncState = null;
 
-    const onSync = guardOwnership(owner, readOwner, (state: string) => {
-        if (state === "SYNCING" || state === "PREPARED" || state === "CATCHUP")
-            lastSyncResponseAt = Date.now();
-        // Classic /sync delivers the whole room list in one (cached or live)
-        // pass; sliding sync reports completion from its list windows.
-        if (state === "PREPARED" && !isUsingSlidingSync())
-            markRoomListComplete(client);
-        if (state === "SYNCING") void saveRoomListSnapshot(client);
-        if (state === "PREPARED") {
-            initialSyncComplete = true;
-            seedStatelessRooms();
-            // Heal any joined room the initial sync dropped, in place where
-            // possible — a cache-wipe reload is the last resort, never for a
-            // room a prior reload already failed to fix (the boot double-flash).
-            void reconcileJoinedRoomsLive();
-        }
-        onStateChange(state);
-    });
+    const onSync = guardOwnership(
+        owner,
+        readOwner,
+        (
+            state: string,
+            _prev?: string | null,
+            data?: { fromCache?: boolean },
+        ) => {
+            lastSyncState = state;
+            if (isHealthySyncState(state)) {
+                lastSyncResponseAt = Date.now();
+                if (!data?.fromCache) lastRealSyncResponseAt = Date.now();
+            }
+            // Classic /sync delivers the whole room list in one (cached or live)
+            // pass; sliding sync reports completion from its list windows.
+            if (state === "PREPARED" && !isUsingSlidingSync())
+                markRoomListComplete(client);
+            if (state === "SYNCING") void saveRoomListSnapshot(client);
+            if (state === "PREPARED") {
+                initialSyncComplete = true;
+                seedStatelessRooms();
+                // Heal any joined room the initial sync dropped, in place where
+                // possible — a cache-wipe reload is the last resort, never for a
+                // room a prior reload already failed to fix (the boot double-flash).
+                void reconcileJoinedRoomsLive();
+            }
+            onStateChange(state);
+        },
+    );
     // Membership changes are how new joins surface — heal stubs right away
     // (covers joins from other devices too, not just this client's wrappers).
     const onMyMembership = guardOwnership(
@@ -1402,6 +1488,7 @@ export async function startSync(
         }
         const hiddenFor = hiddenSince === null ? 0 : Date.now() - hiddenSince;
         hiddenSince = null;
+        resumedAt = Date.now();
         kickIf("visible", hiddenFor);
     };
     const onOnlineKick = () => kickIf("online");
@@ -4377,29 +4464,31 @@ export async function setDefaultPushRuleLevel(
     });
 }
 
-/** Register (idempotent, best-effort) a client push rule that rings on an
- *  MSC4075 m.call.notify, so a device whose app is closed pushes an incoming
+/** Register (idempotent, best-effort) the client push rules that ring on an
+ *  MSC4075 ring (see buildCallNotifyPushRules), so a device whose app is closed pushes an incoming
  *  CALL notification. Never throws into startup: on continuwuity this is
  *  redundant (it pushes m.call.notify by default), and on servers that don't,
  *  a failure just means no closed-device ring — not a broken session. */
 export async function ensureCallNotifyPushRule(): Promise<void> {
     if (!matrixClient) return;
-    const r = buildCallNotifyPushRule();
-    try {
-        await matrixClient.addPushRule(
-            "global",
-            r.kind as never,
-            r.ruleId,
-            r.body as never,
-        );
-        await matrixClient.setPushRuleEnabled(
-            "global",
-            r.kind as never,
-            r.ruleId,
-            true,
-        );
-    } catch {
-        // Already present or a transient failure — the rule is best-effort.
+    const client = matrixClient;
+    for (const r of buildCallNotifyPushRules()) {
+        try {
+            await client.addPushRule(
+                "global",
+                r.kind as never,
+                r.ruleId,
+                r.body as never,
+            );
+            await client.setPushRuleEnabled(
+                "global",
+                r.kind as never,
+                r.ruleId,
+                true,
+            );
+        } catch {
+            // Already present or a transient failure — the rule is best-effort.
+        }
     }
 }
 
@@ -8867,9 +8956,24 @@ export function selfHasActiveCall(): boolean {
         );
 }
 
+/**
+ * The SDK's MatrixRTC session for `room`, bound to the LIVE Room. The manager
+ * creates a session on first request and caches it by room id for good, so
+ * handing it a cached room-list placeholder (a detached Room the sidebar shows
+ * before sync, see roomListCache) left that room's calls reading a dead,
+ * empty timeline for the rest of the run: nobody ever showed as in the call
+ * and every call card read "Call ended". Null until the SDK has the room.
+ */
+function rtcSessionFor(
+    room: Room,
+): ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]> | null {
+    const live = matrixClient?.getRoom(room.roomId);
+    return live ? matrixClient!.matrixRTC.getRoomSession(live) : null;
+}
+
 export function getRoomCallMemberships(room: Room): VoiceMembership[] {
-    if (!matrixClient) return [];
-    const session = matrixClient.matrixRTC.getRoomSession(room);
+    const session = rtcSessionFor(room);
+    if (!session) return [];
     return session.memberships
         .filter((m) => !m.isExpired())
         .map((m) => ({
@@ -8925,25 +9029,6 @@ export function getContextCallSummaries(
     return callSummaryMap(
         room,
         window.getEvents().filter(isRenderableTimelineEvent),
-    );
-}
-
-/** Send an MSC4075 m.call.notify so a callee whose app is closed gets pushed.
- *  Fire-and-forget from the call-start path; never block joining on it. The
- *  `as never` casts match the poll senders — the SDK's sendEvent overloads are
- *  narrow and the repo already casts custom event types this way. Do NOT use
- *  sendMessage, whose threadId overload mangles anything starting with `$`. */
-export async function sendCallNotify(
-    roomId: string,
-    calleeUserIds: string[],
-): Promise<void> {
-    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    if (calleeUserIds.length === 0) return;
-    const content = buildCallNotifyContent({ calleeUserIds });
-    await matrixClient.sendEvent(
-        roomId,
-        CALL_NOTIFY_EVENT_TYPE as never,
-        content as never,
     );
 }
 
@@ -9362,15 +9447,11 @@ async function configuredRtcFoci(): Promise<unknown[]> {
     if (!wk) {
         // startClient() doesn't pass clientWellKnownPollPeriod, so the SDK
         // never fetches .well-known on its own and getClientWellKnown()
-        // stays undefined — trigger a one-off fetch on demand. The method
-        // is protected in typings but callable at runtime, and it caches.
-        await (
-            matrixClient as unknown as {
-                fetchClientWellKnown(): Promise<unknown>;
-            }
-        ).fetchClientWellKnown();
-        wk = matrixClient.getClientWellKnown() as
-            Record<string, unknown> | undefined;
+        // stays undefined — fetch it once on demand (the SDK caches it). A
+        // failed fetch just means no advertised foci, not a failed call.
+        wk = (await matrixClient.waitForClientWellKnown().catch(() => {
+            return undefined;
+        })) as Record<string, unknown> | undefined;
     }
     const foci = wk?.["org.matrix.msc4143.rtc_foci"];
     return Array.isArray(foci) ? foci : [];
@@ -9489,6 +9570,15 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
     let connected = false;
     try {
+        // MSC4075 ring: if WE are the first into a DM call, the SDK sends an
+        // rtc.notification ring once our membership lands, so the peer's
+        // devices ring even with the app closed. It skips the ring itself if
+        // someone else is already in the call by then; answering (a peer
+        // already present at snapshot time) never asks for one.
+        const ring = shouldRingPeers(
+            getDirectRoomIds().has(roomId),
+            callPeersBeforeJoin,
+        );
         session.joinRTCSession(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
             [
@@ -9499,20 +9589,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 },
             ],
             undefined,
-            { membershipEventExpiryMs: 4 * 60 * 60 * 1000 },
+            {
+                membershipEventExpiryMs: 4 * 60 * 60 * 1000,
+                ...(ring
+                    ? { notificationType: "ring" as const, callIntent: "audio" }
+                    : {}),
+            },
         );
-
-        // MSC4075 ring: if WE are the first into a DM call, push the peer so a
-        // device whose app is closed rings. Fire-and-forget — never block or
-        // fail the join on it. The peer answering (a peer already present at
-        // snapshot time) sends nothing.
-        const isDm = getDirectRoomIds().has(roomId);
-        if (shouldRingPeers(isDm, callPeersBeforeJoin)) {
-            const dmPeerIds = getRoomMembers(room)
-                .map((m) => m.userId)
-                .filter((id) => id !== userId);
-            void sendCallNotify(roomId, dmPeerIds).catch(() => {});
-        }
 
         const openIdToken = await matrixClient.getOpenIdToken();
         if (seq !== voiceJoinSeq) return;

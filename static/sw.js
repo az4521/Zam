@@ -1209,7 +1209,8 @@ async function buildNotification(data) {
 				senderName = member.displayname;
 			const name = senderName.trim();
 
-			// MSC4075 call-notify → render an incoming CALL, not a message.
+			// MSC4075 ring (the SDK's rtc.notification, or an older
+			// call-notify) → render an incoming CALL, not a message.
 			// Keep this rule identical to pushNotificationKind() in
 			// src/lib/utils/pushNotificationKind.ts (a test guards the
 			// contract). event_id_only pushes carry no sound tweak, so the
@@ -1221,12 +1222,33 @@ async function buildNotification(data) {
 			// join-on-demand, so it shows as a plain notification even when
 			// the caller's client asked for a ring.
 			const evtType = typeof event.type === "string" ? event.type : "";
-			const notifyType = event.content && event.content.notify_type;
+			const content = event.content || {};
+			const isRtcNotification =
+				evtType === "org.matrix.msc4075.rtc.notification";
 			const isCallNotify =
+				isRtcNotification ||
 				evtType === "org.matrix.msc4075.call.notify" ||
 				evtType === "m.call.notify";
-			const wantsRing =
-				isCallNotify && (notifyType === undefined || notifyType === "ring");
+			let wantsRing = false;
+			if (isRtcNotification) {
+				// matrix-js-sdk 43's ring: notification_type, and it stops
+				// ringing at sender_ts + lifetime (capped at 2 minutes), so a
+				// late push doesn't ring for a call that already gave up.
+				wantsRing = content.notification_type === "ring";
+				if (
+					wantsRing &&
+					typeof content.sender_ts === "number" &&
+					typeof content.lifetime === "number" &&
+					Date.now() >
+						content.sender_ts + Math.min(content.lifetime, 120000)
+				)
+					wantsRing = false;
+			} else if (isCallNotify) {
+				// Older call-notify: an absent notify_type means ring.
+				wantsRing =
+					content.notify_type === undefined ||
+					content.notify_type === "ring";
+			}
 			const isDm = wantsRing ? await isDirectRoom(roomId) : false;
 			isCall = wantsRing && isDm && ringEnabled;
 
