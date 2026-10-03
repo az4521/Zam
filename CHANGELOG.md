@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.1
+
+✨ **New**
+
+- **Notifications without Google (Android):** Zam can now deliver notifications through UnifiedPush, using a distributor app such as ntfy, instead of Firebase. This works on phones without Google Play services. Choose it under Settings → Notifications → Push service. Automatic uses Firebase when it's available, and otherwise the UnifiedPush distributor you have installed.
+- **JPEG XL images:** JPEG XL images now display everywhere. The desktop app shows them natively, and elsewhere they're converted on the fly.
+
+🐛 **Fixed**
+
+- **Missing history in busy rooms:** in very active rooms, older messages could disappear after a sync gap, and scrolling up could stop early as if you'd reached the start of the room. History now stays intact and keeps loading.
+
 ## v1.13.0
 
 ✨ **New**
