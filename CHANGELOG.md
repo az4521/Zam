@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.12.11
+
+🐛 **Fixed**
+
+- **New messages missing after opening a notification (Android):** tapping a notification could show the room without the message you were notified about, or anything after it. Zam now waits for sync to catch up before jumping to the message.
+- **Voice calls failing to start:** starting a call could fail with "fetchClientWellKnown is not a function". Settings also wrongly reported that your server had no call server.
+- **Calls showing as "Call ended" right away:** a call you started could show as already ended in the chat and leave you looking like you weren't in it. Calls now show as ongoing until everyone leaves.
+
+🔧 **Changed**
+
+- **Ringing:** calls now ring using the newer call notification format, so calls from Element X and other current clients ring in Zam, including on Android with the app closed. Rings from older Zam versions still ring too, and a ring that arrives after the caller gave up no longer rings.
+
 ## v1.12.10
 
 🔧 **Changed**
