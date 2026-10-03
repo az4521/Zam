@@ -78,7 +78,7 @@
         "@vitejs/plugin-basic-ssl": "^2.3.0",
         "@vitejs/plugin-legacy": "^6.1.1",
         "autoprefixer": "^10.4.21",
-        "electron": "^42.3.0",
+        "electron": "^44.5.1",
         "electron-builder": "^26.8.1",
         "jsdom": "^29.1.1",
         "postcss": "^8.5.3",

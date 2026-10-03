@@ -855,7 +855,8 @@ async function createWindow() {
                     : []),
                 {
                     label: "Copy link",
-                    click: () => clipboard.writeText(params.linkURL),
+                    click: () =>
+                        clipboard.writeText(params.linkURL).catch(() => {}),
                 },
             ]);
         }
