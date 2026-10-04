@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.4
+
+✨ **New**
+
+- **Encryption setup on matrix.org:** setting up or resetting recovery on servers that sign you in through an account page, like matrix.org, now works. Instead of asking for a password, Zam sends you to your account page to approve the change, then carries on.
+- **Why a message can't be decrypted:** messages you can't read now say why, for example that the sender's device isn't verified, that their identity changed, or that the message was sent before this device signed in, instead of always saying the keys might be missing.
+
+🐛 **Fixed**
+
+- **"Content is not encrypted!" when setting up recovery:** accounts whose encryption had been reset before could never finish setting up recovery. They now can.
+- **Names and avatars stuck on placeholders:** with sliding sync on, people who joined a room or changed their name or avatar could keep showing a raw user ID and default avatar. They now update.
+- **Verification stalling on "Verifying…":** verifying someone while viewing a different room could lose a step and hang until it timed out. The verification's room now stays fully synced until it finishes.
+
 ## v1.13.3
 
 🐛 **Fixed**
