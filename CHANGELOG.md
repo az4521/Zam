@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.3
+
+🐛 **Fixed**
+
+- **Images failing to load on Android:** opening the app could make every image load two or three times over, and some stayed broken. Images now load once, with your login, from the start.
+- **Freezes on JPEG XL images:** showing a JPEG XL image where it has to be converted could freeze the app for a moment. The conversion now happens in the background.
+
 ## v1.13.2
 
 🐛 **Fixed**
