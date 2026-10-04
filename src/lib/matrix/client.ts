@@ -125,7 +125,11 @@ import {
     setAudioInputDeviceId,
     setVideoInputDeviceId,
 } from "$lib/stores/settings.svelte";
-import { installMediaHealer } from "$lib/stores/mediaAuth.svelte";
+import {
+    installMediaHealer,
+    markSwMediaReady,
+    swMediaAuth,
+} from "$lib/stores/mediaAuth.svelte";
 import {
     OWNERSHIP_LOST_MESSAGE,
     captureOwnership,
@@ -3335,7 +3339,48 @@ function attachSwMediaListeners(): void {
             navigator.serviceWorker.controller?.postMessage(
                 latestSwAuthMessage,
             );
+        probeSwMediaAuth();
     });
+    navigator.serviceWorker.addEventListener("message", (e) => {
+        const data = e.data as {
+            type?: string;
+            hasToken?: boolean;
+            activated?: boolean;
+        } | null;
+        if (data?.type === "MEDIA_AUTH_READY") {
+            if (!swMediaAuth.ready)
+                logSync("service worker: media auth ready (broadcast)");
+            markSwMediaReady();
+        } else if (data?.type === "MEDIA_AUTH_STATUS") {
+            clearTimeout(swStatusTimer);
+            logSync(
+                `service worker: controls page, token ${data.hasToken ? "present" : "MISSING"}, activated ${!!data.activated}`,
+            );
+            if (data.hasToken) markSwMediaReady();
+        }
+    });
+}
+
+let swStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Ask the controlling worker whether it can add the token to media requests,
+ * and record the answer in the debug log. Until it says yes, media is fetched
+ * directly (see swMediaAuth), so this also decides when <img>s may go through
+ * the worker again.
+ */
+function probeSwMediaAuth(): void {
+    const controller = navigator.serviceWorker.controller;
+    if (!controller) {
+        logSync("service worker: page NOT controlled, media fetched directly");
+        return;
+    }
+    clearTimeout(swStatusTimer);
+    swStatusTimer = setTimeout(
+        () => logSync("service worker: no reply to media status"),
+        5000,
+    );
+    controller.postMessage({ type: "GET_MEDIA_AUTH_STATUS" });
 }
 
 export async function initServiceWorker(): Promise<void> {
@@ -3385,6 +3430,9 @@ export async function initServiceWorker(): Promise<void> {
         const early = reg.installing || reg.waiting || reg.active;
         early?.postMessage(authMsg);
         early?.postMessage(notifMsg);
+        // A worker restored from an earlier launch already controls us and
+        // already has the token: ask now rather than after `ready`.
+        probeSwMediaAuth();
         // Deliver again once fully active in case a later worker became the
         // controller, and — if it already controls us — flag media as ready even
         // if the broadcast was missed.

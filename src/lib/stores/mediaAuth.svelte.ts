@@ -1,6 +1,7 @@
 import { untrack } from "svelte";
 import { getActiveAccount } from "$lib/stores/accounts.svelte";
 import { jxlFallbackUrl, maybeDecodeJxl } from "$lib/utils/jxl";
+import { logSync } from "$lib/matrix/syncLog";
 
 /**
  * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
@@ -64,6 +65,47 @@ function isLocalUrl(src: string): boolean {
     return src.startsWith("blob:") || src.startsWith("data:");
 }
 
+/**
+ * Whether the service worker is known to add the token to `<img>` media
+ * requests: it controls this page AND holds a token (it said so in reply to
+ * GET_MEDIA_AUTH_STATUS, or broadcast MEDIA_AUTH_READY). Until then, media
+ * rendered through createMediaRetry is fetched directly with the token rather
+ * than left to 401 first. On Android every launch used to send each image
+ * token-less, then re-fetch it: three requests apiece, and some never healed.
+ * `retryTick` bumps when the worker becomes ready, so media that gave up
+ * retries.
+ */
+export const swMediaAuth = $state({ ready: false, retryTick: 0 });
+
+/** The service worker can now authenticate media: retry what failed. */
+export function markSwMediaReady(): void {
+    swMediaAuth.ready = true;
+    swMediaAuth.retryTick++;
+    if (typeof document === "undefined") return;
+    for (const img of Array.from(document.images)) {
+        if (img.hasAttribute("data-own-retry")) continue;
+        if (!img.complete || img.naturalWidth > 0) continue;
+        const src = img.currentSrc || img.src;
+        if (!isAuthedMediaUrl(src)) continue;
+        delete img.dataset.mediaHealed;
+        img.src = src;
+    }
+}
+
+// How many <img>s the healer has had to rescue this session. Logged at a few
+// milestones (not per image) so the debug log shows whether media is still
+// going out token-less, without flooding it.
+let healCount = 0;
+function logHeal(): void {
+    healCount++;
+    if (healCount !== 1 && healCount !== 10 && healCount !== 100) return;
+    logSync(
+        `media: ${healCount} image(s) failed and were re-fetched with the token` +
+            ` (worker ready: ${swMediaAuth.ready}, page controlled:` +
+            ` ${!!globalThis.navigator?.serviceWorker?.controller})`,
+    );
+}
+
 export interface MediaRetry {
     /** The src to bind to the `<img>` — the original URL, or a healed blob URL. */
     readonly src: string | null | undefined;
@@ -104,6 +146,36 @@ export function createMediaRetry(
             failed = false;
             pending = false;
             tried = false;
+            // No worker adding the token yet: an <img> would only 401 and
+            // land in onError anyway, so go straight to the authed fetch.
+            if (s && !swMediaAuth.ready && isAuthedMediaUrl(s)) {
+                effective = undefined;
+                tried = true;
+                pending = true;
+                void authedMediaBlobUrl(s).then((url) => {
+                    if (getSrc() !== s) {
+                        if (url) URL.revokeObjectURL(url);
+                        return;
+                    }
+                    pending = false;
+                    if (url) {
+                        blobUrl = url;
+                        effective = url;
+                    } else {
+                        failed = true;
+                    }
+                });
+            }
+        });
+    });
+    // Media that gave up gets another go once the worker can authenticate it.
+    $effect(() => {
+        void swMediaAuth.retryTick;
+        untrack(() => {
+            if (!failed) return;
+            failed = false;
+            tried = false;
+            effective = getSrc();
         });
     });
     // Revoke on destroy.
@@ -199,6 +271,7 @@ export function installMediaHealer(): void {
             // couldn't decode (JXL, see utils/jxl).
             if (!isAuthedMediaUrl(src) && !isLocalUrl(src)) return;
             img.dataset.mediaHealed = src;
+            if (!isLocalUrl(src)) logHeal();
             const failedSrc = img.src;
             healedBlobUrl(src).then((url) => {
                 // Skip if the element moved on to another src meanwhile.

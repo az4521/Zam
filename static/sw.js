@@ -806,6 +806,14 @@ function notificationData(roomId, isCall, eventId) {
 // clients and its fetch handler will intercept their <img> media requests.
 let swActivated = false;
 
+// Whether this worker is the active one. `swActivated` alone is not enough: the
+// browser stops an idle worker and starts it again for the next event (Android
+// does this constantly), and a restarted worker never sees `activate` again, so
+// it never told the page media auth was ready.
+function isActivated() {
+	return swActivated || self.serviceWorker?.state === "activated";
+}
+
 // Tell controlled pages that authenticated media will now succeed: the worker is
 // both activated (controlling the page, so it sees the <img> request) AND holds a
 // token (so it can inject the Authorization header). Pages listen for this to
@@ -814,7 +822,7 @@ let swActivated = false;
 // Called from BOTH the activate handler and the SET_AUTH handler because either
 // can be the last of the pair to happen.
 function broadcastMediaAuthReady() {
-	if (!swActivated || !accessToken) return;
+	if (!isActivated() || !accessToken) return;
 	self.clients
 		.matchAll({ includeUncontrolled: false, type: "window" })
 		.then((clients) => {
@@ -905,6 +913,15 @@ self.addEventListener("message", (event) => {
 				// Token is now in memory — if we already control the page, its
 				// media requests will succeed; tell it to retry any that 401'd.
 				broadcastMediaAuthReady();
+			} else if (event.data?.type === "GET_MEDIA_AUTH_STATUS") {
+				// The page asks whether it can leave media auth to us. Answer
+				// after the stored token has been read, never with a guess.
+				await authReady.catch(() => {});
+				event.source?.postMessage({
+					type: "MEDIA_AUTH_STATUS",
+					hasToken: !!accessToken,
+					activated: isActivated(),
+				});
 			} else if (event.data?.type === "CLEAR_AUTH") {
 				// Logout / session expiry — forget the token so we stop injecting it,
 				// and the identity so a stale device id can't silence this worker.
