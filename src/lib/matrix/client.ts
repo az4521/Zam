@@ -63,6 +63,7 @@ import {
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
 import { adaptSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
+import { applyTimelineMemberEvent } from "$lib/matrix/slidingMemberState";
 import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
@@ -1487,6 +1488,28 @@ export async function startSync(
         recalcCallOnMemberLoaded(e),
     );
     client.on(RoomStateEvent.Events, onMemberState);
+    // Sliding sync leaves timeline member changes out of room state; see
+    // applyTimelineMemberEvent.
+    const onTimelineMember = guardOwnership(
+        owner,
+        readOwner,
+        (
+            event: MatrixEvent,
+            room: Room | undefined,
+            toStartOfTimeline: boolean | undefined,
+            _removed: boolean,
+            data: { timeline?: EventTimeline } | undefined,
+        ) => {
+            if (!room || !isUsingSlidingSync()) return;
+            applyTimelineMemberEvent(
+                room,
+                event,
+                data?.timeline,
+                toStartOfTimeline,
+            );
+        },
+    );
+    client.on(RoomEvent.Timeline as never, onTimelineMember as never);
     if (onLoggedOut) client.on(HttpApiEvent.SessionLoggedOut, onLoggedOut);
 
     let disposed = false;
@@ -1498,6 +1521,7 @@ export async function startSync(
         client.off("Room.myMembership" as never, onMyMembership as never);
         client.off(ClientEvent.Room as never, onRoom as never);
         client.off(RoomStateEvent.Events, onMemberState);
+        client.off(RoomEvent.Timeline as never, onTimelineMember as never);
         if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
         document.removeEventListener("visibilitychange", onHidden);
         document.removeEventListener("visibilitychange", onVisibleKick);
@@ -4060,8 +4084,28 @@ export function getRoomMembers(room: Room): RoomMember[] {
     return room.getMembers().filter((m) => m.membership === "join");
 }
 
+// One fresh member load per Room object (so per account and session).
+const freshMemberLoads = new WeakMap<Room, Promise<void>>();
+
 export async function loadRoomMembersIfNeeded(room: Room): Promise<void> {
-    await room.loadMembersIfNeeded();
+    let load = freshMemberLoads.get(room);
+    if (!load) {
+        load = (async () => {
+            // For an unencrypted room the SDK serves the member list it cached
+            // in an earlier session and never asks the server again, so anyone
+            // who joined or changed their name or avatar since kept a
+            // placeholder. Drop that cache first so this session's first load
+            // is fresh. Only clears the stored copy, never the live state.
+            await matrixClient?.store
+                .clearOutOfBandMembers(room.roomId)
+                .catch(() => {});
+            await room.loadMembersIfNeeded();
+        })();
+        freshMemberLoads.set(room, load);
+        // Let a failed load be retried by the next caller.
+        load.catch(() => freshMemberLoads.delete(room));
+    }
+    await load;
 }
 
 export function getRoomTopic(room: Room): string | null {
