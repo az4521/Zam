@@ -12,8 +12,10 @@
         type BackupStatus,
         type UnlockResult,
         type RecoverySetupResult,
+        type AccountApprovalPrompt,
     } from "$lib/matrix/crypto";
     import { securityState } from "$lib/stores/security.svelte";
+    import { isOAuthSession } from "$lib/stores/auth.svelte";
     import {
         verificationStatusState,
         refreshVerificationStatus,
@@ -78,9 +80,36 @@
             ? passphraseIssue(passphrase)
             : null,
     );
+    // An OAuth-delegated server (matrix.org via MAS) has no password to check:
+    // it asks for approval on its account page instead, so don't demand one.
+    const oauthSession = isOAuthSession();
     const setupBlocked = $derived(
-        !password || (usePassphrase && passphraseIssue(passphrase) !== null),
+        (!oauthSession && !password) ||
+            (usePassphrase && passphraseIssue(passphrase) !== null),
     );
+
+    // The account-page approval the signing-key upload is waiting on, if any.
+    // `resolve` hands the user's answer back to the UIA callback in crypto.ts.
+    let approval = $state<{
+        url: string;
+        retry: boolean;
+        resolve: (proceed: boolean) => void;
+    } | null>(null);
+
+    const approveOnAccountPage: AccountApprovalPrompt = (url, retry) =>
+        new Promise((resolve) => {
+            approval = { url, retry, resolve };
+        });
+
+    function answerApproval(proceed: boolean) {
+        const pending = approval;
+        approval = null;
+        pending?.resolve(proceed);
+    }
+
+    // Leaving the page mid-approval must not strand the setup promise: treat
+    // it as a cancel so the flow unwinds.
+    $effect(() => () => answerApproval(false));
 
     // Reset-recovery sub-flow, offered from the "Recovery is set up" panel for a
     // user who lost their key: confirm → password → destroying, then hands off
@@ -251,6 +280,7 @@
             const result = await setupRecovery(
                 password,
                 usePassphrase ? passphrase : undefined,
+                approveOnAccountPage,
             );
             keyHasPassphrase = result.hasPassphrase;
             recoveryKey = result.recoveryKey;
@@ -318,6 +348,7 @@
             result = await resetRecovery(
                 password,
                 usePassphrase ? passphrase : undefined,
+                approveOnAccountPage,
             );
         } catch (e) {
             error =
@@ -354,6 +385,7 @@
             result = await setupRecovery(
                 password,
                 usePassphrase ? passphrase : undefined,
+                approveOnAccountPage,
             );
         } catch (e) {
             error =
@@ -448,6 +480,50 @@
         unlockStep = "idle";
     }
 </script>
+
+{#snippet approvalPrompt()}
+    {#if approval}
+        <div
+            class="space-y-2 rounded border border-discord-divider p-3"
+            role="group"
+            aria-label={t("securitySettings.approveOnAccountPage")}
+        >
+            <p class="text-sm font-medium text-discord-textPrimary">
+                {t("securitySettings.approveOnAccountPage")}
+            </p>
+            <p
+                class="text-xs {approval.retry
+                    ? 'text-discord-warning'
+                    : 'text-discord-textMuted'}"
+            >
+                {approval.retry
+                    ? t("securitySettings.approveOnAccountPageRetry")
+                    : t("securitySettings.approveOnAccountPageBody")}
+            </p>
+            <div class="flex flex-wrap gap-2">
+                <!-- A real link, so it opens from the click itself: the system
+                     browser in Electron (window-open handler), a new tab on web. -->
+                <a
+                    href={approval.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm"
+                    >{t("securitySettings.openAccountPage")}</a
+                >
+                <button
+                    onclick={() => answerApproval(true)}
+                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    >{t("securitySettings.iVeApprovedIt")}</button
+                >
+                <button
+                    onclick={() => answerApproval(false)}
+                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    >{t("common.cancel")}</button
+                >
+            </div>
+        </div>
+    {/if}
+{/snippet}
 
 <!-- One wording, every place a retained reading is shown: anything rendered from
      `status`/`backup` after a read stopped landing is a past reading, not a
@@ -607,20 +683,26 @@
                 >
             {:else if step === "password" || step === "working"}
                 <div class="space-y-2">
-                    <p class="text-xs text-discord-textMuted">
-                        {t(
-                            "securitySettings.confirmYourAccountPasswordToCreate",
-                        )}
-                    </p>
-                    <input
-                        type="password"
-                        bind:value={password}
-                        placeholder={t("securitySettings.accountPassword")}
-                        disabled={step === "working"}
-                        onkeydown={(e) =>
-                            e.key === "Enter" && password && runSetup()}
-                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
-                    />
+                    {#if oauthSession}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("securitySettings.approveOnAccountPageHint")}
+                        </p>
+                    {:else}
+                        <p class="text-xs text-discord-textMuted">
+                            {t(
+                                "securitySettings.confirmYourAccountPasswordToCreate",
+                            )}
+                        </p>
+                        <input
+                            type="password"
+                            bind:value={password}
+                            placeholder={t("securitySettings.accountPassword")}
+                            disabled={step === "working"}
+                            onkeydown={(e) =>
+                                e.key === "Enter" && password && runSetup()}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                    {/if}
                     <label
                         class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
                     >
@@ -722,6 +804,8 @@
                 </div>
             {/if}
 
+            {@render approvalPrompt()}
+
             {#if error}
                 <p class="text-sm text-discord-danger">{error}</p>
             {/if}
@@ -810,15 +894,17 @@
                     <p class="text-xs text-discord-warning">
                         {t("securitySettings.yourOldRecoveryKeyAndBackup")}
                     </p>
-                    <input
-                        type="password"
-                        bind:value={password}
-                        placeholder={t("securitySettings.accountPassword")}
-                        disabled={resetView.busy}
-                        onkeydown={(e) =>
-                            e.key === "Enter" && password && runRepair()}
-                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
-                    />
+                    {#if !oauthSession}
+                        <input
+                            type="password"
+                            bind:value={password}
+                            placeholder={t("securitySettings.accountPassword")}
+                            disabled={resetView.busy}
+                            onkeydown={(e) =>
+                                e.key === "Enter" && password && runRepair()}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                    {/if}
                     <label
                         class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
                     >
@@ -867,20 +953,26 @@
                 </div>
             {:else if resetStep === "password" || resetStep === "destroying"}
                 <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-xs text-discord-textMuted">
-                        {t(
-                            "securitySettings.confirmYourAccountPasswordToReset",
-                        )}
-                    </p>
-                    <input
-                        type="password"
-                        bind:value={password}
-                        placeholder={t("securitySettings.accountPassword")}
-                        disabled={resetView.busy}
-                        onkeydown={(e) =>
-                            e.key === "Enter" && password && runReset()}
-                        class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
-                    />
+                    {#if oauthSession}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("securitySettings.approveOnAccountPageHint")}
+                        </p>
+                    {:else}
+                        <p class="text-xs text-discord-textMuted">
+                            {t(
+                                "securitySettings.confirmYourAccountPasswordToReset",
+                            )}
+                        </p>
+                        <input
+                            type="password"
+                            bind:value={password}
+                            placeholder={t("securitySettings.accountPassword")}
+                            disabled={resetView.busy}
+                            onkeydown={(e) =>
+                                e.key === "Enter" && password && runReset()}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                    {/if}
                     <label
                         class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
                     >
@@ -936,6 +1028,8 @@
                     </div>
                 </div>
             {/if}
+
+            {@render approvalPrompt()}
 
             {#if error}
                 <p class="text-sm text-discord-danger">{error}</p>

@@ -4,6 +4,7 @@ import {
     formatLastSeen,
     describeUserAgent,
     supportsPasswordUia,
+    accountApprovalStage,
     type DeviceInfo,
 } from "./deviceSessions";
 
@@ -174,5 +175,54 @@ describe("supportsPasswordUia — can we complete a UIA flow with just a passwor
     it("rejects missing or empty flow lists", () => {
         expect(supportsPasswordUia(undefined)).toBe(false);
         expect(supportsPasswordUia([])).toBe(false);
+    });
+});
+
+describe("accountApprovalStage — UIA the user completes on the account page", () => {
+    const url =
+        "https://account.matrix.org/account/?action=org.matrix.cross_signing_reset";
+
+    it("finds the unstable MAS stage and its URL", () => {
+        expect(
+            accountApprovalStage(
+                [{ stages: ["org.matrix.cross_signing_reset"] }],
+                { "org.matrix.cross_signing_reset": { url } },
+            ),
+        ).toEqual({ stage: "org.matrix.cross_signing_reset", url });
+    });
+
+    it("prefers stable m.oauth when both are offered", () => {
+        expect(
+            accountApprovalStage(
+                [
+                    { stages: ["org.matrix.cross_signing_reset"] },
+                    { stages: ["m.oauth"] },
+                ],
+                {
+                    "org.matrix.cross_signing_reset": { url },
+                    "m.oauth": { url: "https://auth.example.org/approve" },
+                },
+            ),
+        ).toEqual({
+            stage: "m.oauth",
+            url: "https://auth.example.org/approve",
+        });
+    });
+
+    it("is null without a usable URL or an approval flow", () => {
+        expect(
+            accountApprovalStage([{ stages: ["m.oauth"] }], undefined),
+        ).toBeNull();
+        expect(
+            accountApprovalStage([{ stages: ["m.oauth"] }], {
+                "m.oauth": { url: "javascript:alert(1)" },
+            }),
+        ).toBeNull();
+        expect(
+            accountApprovalStage([{ stages: ["m.login.password"] }], {
+                "m.oauth": { url },
+            }),
+        ).toBeNull();
+        expect(accountApprovalStage(undefined, undefined)).toBeNull();
     });
 });

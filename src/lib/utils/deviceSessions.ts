@@ -114,3 +114,37 @@ export function supportsPasswordUia(
         ) ?? false
     );
 }
+
+/** UIA stages a server completes on its own account page (MSC4312 / MAS). */
+const ACCOUNT_APPROVAL_STAGES = ["m.oauth", "org.matrix.cross_signing_reset"];
+
+/**
+ * The account-page approval a UIA challenge asks for, if any: a single-stage
+ * flow whose stage the user completes in the browser (an OAuth-delegated
+ * server such as matrix.org has no password to check), plus the page URL the
+ * server published for it in `params`. Stable `m.oauth` wins over the
+ * unstable name. Null when no such flow, or it came without a usable URL.
+ */
+export function accountApprovalStage(
+    flows: { stages: string[] }[] | undefined,
+    params: Record<string, unknown> | undefined,
+): { stage: string; url: string } | null {
+    for (const stage of ACCOUNT_APPROVAL_STAGES) {
+        const offered = flows?.some(
+            (f) => f.stages.length === 1 && f.stages[0] === stage,
+        );
+        if (!offered) continue;
+        const url = (params?.[stage] as { url?: unknown } | undefined)?.url;
+        if (typeof url !== "string") continue;
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+                continue;
+            }
+        } catch {
+            continue;
+        }
+        return { stage, url };
+    }
+    return null;
+}

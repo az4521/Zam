@@ -1486,6 +1486,15 @@ const messages: Record<MessageKey, string> = {
         "ܐܝܟܢܝܘܬܐ ܕܛܘܫܝܐ ܠܐ ܝܕܝܥܬܐ ܝܠܗ̇ ܒܗܢܐ ܓܠܣܐ.",
     "securitySettings.recoveryKeyId": "ܗܝܝܘܬܐ ܕܩܠܝܕܐ ܕܦܘܪܩܢܐ:",
     "securitySettings.setUpRecovery": "ܛܝܒ ܦܘܪܩܢܐ",
+    "securitySettings.approveOnAccountPageHint":
+        "Your server may ask you to approve this on its account page.",
+    "securitySettings.approveOnAccountPage": "Approve on your account page",
+    "securitySettings.approveOnAccountPageBody":
+        "Your server needs you to allow this change. Open your account page, approve resetting your cryptographic identity, then come back and continue.",
+    "securitySettings.approveOnAccountPageRetry":
+        "The server hasn't seen the approval yet. Approve it on your account page, then continue.",
+    "securitySettings.openAccountPage": "Open account page",
+    "securitySettings.iVeApprovedIt": "I've approved it",
     "securitySettings.weLlCreateA": "ܒܕ ܒܪܝܚ",
     "securitySettings.recoveryKey": "ܩܠܝܕܐ ܕܦܘܪܩܢܐ",
     "securitySettings.aOneTimeCodeThatUnlocks":
@@ -2078,6 +2087,10 @@ const messages: Record<MessageKey, string> = {
     "crypto.couldNotConfirmTheQrMatch": "ܫܘܪܪܐ ܕܙܘܘܓܐ ܕ QR ܠܐ ܦܠܚܠܗ",
     "crypto.couldNotCancelTheQrMatch": "ܒܘܛܠܐ ܕܙܘܘܓܐ ܕ QR ܠܐ ܦܠܚܠܗ",
     "crypto.encryptionIsNotReadyOnThis": "ܛܘܫܝܐ ܠܐ ܝܠܗ ܡܛܝܒܐ ܒܗܢܐ ܓܠܣܐ",
+    "crypto.accountApprovalCancelled":
+        "Approval on your account page was cancelled.",
+    "crypto.accountPasswordRequired":
+        "This server needs your account password to confirm this.",
     "crypto.thisServerCanTConfirmEncryption":
         "ܗܢܐ ܣܝܪܒܪ ܠܐ ܡܨܐ ܕܫܪܪ ܛܘܝܒܐ ܕܛܘܫܝܐ ܒܡܠܬܐ ܕܥܒܪܐ - ܦܠܚ ܒܦܐܬܐ ܕܚܘܫܒܢܐ ܕܝܗܝ ܒܕܘܟܬܗ̇.",
     "crypto.incorrectPassword": "ܡܠܬܐ ܕܥܒܪܐ ܠܐ ܬܪܝܨܬܐ",
@@ -2335,6 +2348,20 @@ const messages: Record<MessageKey, string> = {
         "ܫܕܪܢܐ ܓܒܝܠܗ ܕܠܐ ܫܘܬܦ ܩܠܝܕ̈ܐ ܕܗܕܐ ܐܓܪܬܐ.",
     "encryptionState.theSenderDidNotShareThe":
         "ܫܕܪܢܐ ܠܐ ܫܘܬܦܠܗ ܩܠܝܕ̈ܐ ܡܛܠ ܕܗܢܐ ܡܐܢܐ ܠܐ ܝܠܗ ܡܫܪܪܐ. ܫܪܪ ܗܢܐ ܡܐܢܐ ܩܐ ܩܪܝܬܐ ܕܐܓܪ̈ܬܐ ܐܝܟ ܗܕܐ.",
+    "encryptionState.senderDeviceNotCrossSigned":
+        "The sender's device isn't cross-signed by its owner, so this message is hidden. Ask them to verify that session.",
+    "encryptionState.senderDeviceUnknown":
+        "This message can't be linked to any known device of the sender, so it is hidden.",
+    "encryptionState.senderIdentityChanged":
+        "The sender's identity has changed since you verified them, so this message is hidden. Verify them again to read it.",
+    "encryptionState.historicalNoBackup":
+        "This message was sent before this device signed in, and there is no key backup to restore it from.",
+    "encryptionState.historicalBackupUnconfigured":
+        "This message was sent before this device signed in. Enter your recovery key to restore it from key backup.",
+    "encryptionState.historicalWorkingBackup":
+        "This message was sent before this device signed in and hasn't been found in your key backup.",
+    "encryptionState.historicalNotJoined":
+        "This message was sent while you weren't in the room.",
     "encryptionState.encryptedMessage": "🔒 ܐܓܪܬܐ ܡܛܫܝܬܐ",
 
     // src/lib/utils/eventShield.ts

@@ -1550,6 +1550,15 @@ export const en = {
         "Encryption status unknown on this session.",
     "securitySettings.recoveryKeyId": "Recovery key ID:",
     "securitySettings.setUpRecovery": "Set up recovery",
+    "securitySettings.approveOnAccountPageHint":
+        "Your server may ask you to approve this on its account page.",
+    "securitySettings.approveOnAccountPage": "Approve on your account page",
+    "securitySettings.approveOnAccountPageBody":
+        "Your server needs you to allow this change. Open your account page, approve resetting your cryptographic identity, then come back and continue.",
+    "securitySettings.approveOnAccountPageRetry":
+        "The server hasn't seen the approval yet. Approve it on your account page, then continue.",
+    "securitySettings.openAccountPage": "Open account page",
+    "securitySettings.iVeApprovedIt": "I've approved it",
     "securitySettings.weLlCreateA": "We'll create a",
     "securitySettings.recoveryKey": "recovery key",
     "securitySettings.aOneTimeCodeThatUnlocks":
@@ -2156,6 +2165,10 @@ export const en = {
     "crypto.couldNotCancelTheQrMatch": "Could not cancel the QR match",
     "crypto.encryptionIsNotReadyOnThis":
         "Encryption is not ready on this session",
+    "crypto.accountApprovalCancelled":
+        "Approval on your account page was cancelled.",
+    "crypto.accountPasswordRequired":
+        "This server needs your account password to confirm this.",
     "crypto.thisServerCanTConfirmEncryption":
         "This server can't confirm encryption setup with a password - use its account page instead.",
     "crypto.incorrectPassword": "Incorrect password",
@@ -2415,6 +2428,20 @@ export const en = {
         "The sender chose not to share the keys for this message.",
     "encryptionState.theSenderDidNotShareThe":
         "The sender did not share the keys because this device is unverified. Verify this device to read messages like this.",
+    "encryptionState.senderDeviceNotCrossSigned":
+        "The sender's device isn't cross-signed by its owner, so this message is hidden. Ask them to verify that session.",
+    "encryptionState.senderDeviceUnknown":
+        "This message can't be linked to any known device of the sender, so it is hidden.",
+    "encryptionState.senderIdentityChanged":
+        "The sender's identity has changed since you verified them, so this message is hidden. Verify them again to read it.",
+    "encryptionState.historicalNoBackup":
+        "This message was sent before this device signed in, and there is no key backup to restore it from.",
+    "encryptionState.historicalBackupUnconfigured":
+        "This message was sent before this device signed in. Enter your recovery key to restore it from key backup.",
+    "encryptionState.historicalWorkingBackup":
+        "This message was sent before this device signed in and hasn't been found in your key backup.",
+    "encryptionState.historicalNotJoined":
+        "This message was sent while you weren't in the room.",
     "encryptionState.encryptedMessage": "🔒 Encrypted message",
 
     // src/lib/utils/eventShield.ts

@@ -8,6 +8,7 @@ import {
     UTD_PLACEHOLDER_TEXT,
     UTD_WITHHELD_TEXT,
     UTD_WITHHELD_UNVERIFIED_TEXT,
+    UTD_UNSIGNED_SENDER_TEXT,
 } from "./encryptionState";
 
 describe("isUndecryptedEvent", () => {
@@ -96,6 +97,28 @@ describe("utdPlaceholderText — distinguish deliberate withhold from key-lag", 
         expect(text).toBe(UTD_WITHHELD_UNVERIFIED_TEXT);
         expect(text).not.toBe(UTD_WITHHELD_TEXT);
         expect(text.toLowerCase()).toContain("verif");
+    });
+
+    it("gives every non-transient SDK failure code its own copy", () => {
+        // Isolation refusals and historical gaps look like key-lag under the
+        // generic line, which sends the user hunting for the wrong problem.
+        const codes = [
+            "MEGOLM_KEY_WITHHELD",
+            "MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE",
+            "UNSIGNED_SENDER_DEVICE",
+            "UNKNOWN_SENDER_DEVICE",
+            "SENDER_IDENTITY_PREVIOUSLY_VERIFIED",
+            "HISTORICAL_MESSAGE_NO_KEY_BACKUP",
+            "HISTORICAL_MESSAGE_BACKUP_UNCONFIGURED",
+            "HISTORICAL_MESSAGE_WORKING_BACKUP",
+            "HISTORICAL_MESSAGE_USER_NOT_JOINED",
+        ];
+        const texts = codes.map(utdPlaceholderText);
+        expect(texts).not.toContain(UTD_PLACEHOLDER_TEXT);
+        expect(new Set(texts).size).toBe(codes.length);
+        expect(utdPlaceholderText("UNSIGNED_SENDER_DEVICE")).toBe(
+            UTD_UNSIGNED_SENDER_TEXT,
+        );
     });
 
     it("never emits an em dash in the user-facing withhold copy", () => {

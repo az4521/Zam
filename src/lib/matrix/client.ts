@@ -1163,6 +1163,40 @@ function kickSync(client: MatrixClient): void {
     setTimeout(() => client.retryImmediately(), 0);
 }
 let slidingActiveRoomId: string | null = null;
+/**
+ * Rooms held at full timeline depth regardless of what is on screen, with a
+ * count per room since several holders can overlap. See holdSlidingSyncRoom.
+ */
+const slidingHeldRooms = new Map<string, number>();
+
+/** The room subscription set: the viewed room plus every held one. */
+function slidingRoomSubscriptions(): Set<string> {
+    const rooms = new Set(slidingHeldRooms.keys());
+    if (slidingActiveRoomId) rooms.add(slidingActiveRoomId);
+    return rooms;
+}
+
+/**
+ * Keep a room subscribed at full timeline depth until the returned release is
+ * called, even while it isn't the room being viewed. Rooms outside the
+ * subscription only get the newest event per sliding-sync update, which drops
+ * the rest of a burst; an in-room verification can't survive losing a step, so
+ * it holds its DM for as long as it runs. Release is idempotent. No-op on
+ * classic /sync beyond the bookkeeping.
+ */
+export function holdSlidingSyncRoom(roomId: string): () => void {
+    slidingHeldRooms.set(roomId, (slidingHeldRooms.get(roomId) ?? 0) + 1);
+    activeSlidingSync?.modifyRoomSubscriptions(slidingRoomSubscriptions());
+    let released = false;
+    return () => {
+        if (released) return;
+        released = true;
+        const count = (slidingHeldRooms.get(roomId) ?? 1) - 1;
+        if (count > 0) slidingHeldRooms.set(roomId, count);
+        else slidingHeldRooms.delete(roomId);
+        activeSlidingSync?.modifyRoomSubscriptions(slidingRoomSubscriptions());
+    };
+}
 
 // Live timelines whose missing backward token has already been probed. Keyed
 // by the timeline object, not the room id: a gappy/limited sync replaces the
@@ -1205,7 +1239,7 @@ export function getSlidingSyncProgress(): {
  */
 export function setSlidingSyncActiveRoom(roomId: string | null): void {
     slidingActiveRoomId = roomId;
-    activeSlidingSync?.modifyRoomSubscriptions(new Set(roomId ? [roomId] : []));
+    activeSlidingSync?.modifyRoomSubscriptions(slidingRoomSubscriptions());
 }
 
 /**
@@ -1394,9 +1428,8 @@ async function buildSlidingSync(
         },
     );
 
-    if (slidingActiveRoomId) {
-        sliding.modifyRoomSubscriptions(new Set([slidingActiveRoomId]));
-    }
+    const subscriptions = slidingRoomSubscriptions();
+    if (subscriptions.size > 0) sliding.modifyRoomSubscriptions(subscriptions);
     activeSlidingSync = sliding;
     return sliding;
 }

@@ -33,6 +33,8 @@ import { getCryptoDbName } from "$lib/utils/cryptoStore";
 const h = vi.hoisted(() => ({
     getClient: vi.fn(),
     createDirectMessage: vi.fn(),
+    // Returns the release; one per hold so a test can check it ran.
+    holdSlidingSyncRoom: vi.fn((_roomId: string) => vi.fn()),
     onCryptoEvent: vi.fn<(room: unknown, event: unknown) => Promise<void>>(() =>
         Promise.resolve(),
     ),
@@ -46,6 +48,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("$lib/matrix/client", () => ({
     createDirectMessage: h.createDirectMessage,
+    holdSlidingSyncRoom: h.holdSlidingSyncRoom,
 }));
 vi.mock("$lib/matrix/runtime", () => ({
     getClient: h.getClient,
@@ -608,6 +611,7 @@ describe("resetRecovery reports which half failed", () => {
         const client = {
             getUserId: () => "@me:example.org",
             getDeviceId: () => "DEVICE1",
+            getAccountDataFromServer: vi.fn(() => Promise.resolve(null)),
             getCrypto: () => ({
                 resetEncryption: vi.fn(() => {
                     calls.push("resetEncryption");
@@ -716,6 +720,146 @@ describe("resetRecovery reports which half failed", () => {
         const error = await mod.resetRecovery("pw").catch((e) => e);
         expect(error.message).toBe("Encryption is not ready on this session");
         expect(mod.isRecoverySetupIncomplete(error)).toBe(false);
+    });
+
+    // matrix.org (MAS) has no password to check: the signing-key upload asks
+    // for approval on the account page, and is retried once the user says so.
+    describe("setupRecovery with account-page approval", () => {
+        const url = "https://account.example.org/reset";
+        function challenge() {
+            return Object.assign(new Error("401"), {
+                httpStatus: 401,
+                data: {
+                    session: "S1",
+                    flows: [{ stages: ["m.oauth"] }],
+                    params: { "m.oauth": { url } },
+                },
+            });
+        }
+        /** Upload that 401s until it has been retried `refusals` times. */
+        function uploadingClient(refusals: number) {
+            const sent: unknown[] = [];
+            const { client } = makeResetClient({
+                bootstrapCrossSigning: async (opts: {
+                    authUploadDeviceSigningKeys: (
+                        make: (auth: unknown) => Promise<void>,
+                    ) => Promise<void>;
+                }) =>
+                    opts.authUploadDeviceSigningKeys(async (auth) => {
+                        sent.push(auth);
+                        if (auth === null || sent.length <= refusals + 1) {
+                            throw challenge();
+                        }
+                    }),
+            });
+            return { client, sent };
+        }
+
+        it("retries with the stage's session once the user approves", async () => {
+            const mod = await import("./crypto");
+            const { client, sent } = uploadingClient(0);
+            h.getClient.mockReturnValue(client);
+            const approve = vi.fn(() => Promise.resolve(true));
+
+            await mod.setupRecovery("", undefined, approve);
+
+            expect(approve).toHaveBeenCalledWith(url, false);
+            expect(sent).toEqual([null, { type: "m.oauth", session: "S1" }]);
+        });
+
+        it("asks again, flagged as a retry, while the server still refuses", async () => {
+            const mod = await import("./crypto");
+            const { client } = uploadingClient(1);
+            h.getClient.mockReturnValue(client);
+            const approve = vi.fn(() => Promise.resolve(true));
+
+            await mod.setupRecovery("", undefined, approve);
+
+            expect(approve.mock.calls).toEqual([
+                [url, false],
+                [url, true],
+            ]);
+        });
+
+        it("stops when the user cancels", async () => {
+            const mod = await import("./crypto");
+            const { client, sent } = uploadingClient(0);
+            h.getClient.mockReturnValue(client);
+
+            const error = await mod
+                .setupRecovery("", undefined, () => Promise.resolve(false))
+                .catch((e) => e);
+
+            expect(error.message).toBe(
+                "Approval on your account page was cancelled.",
+            );
+            expect(sent).toEqual([null]);
+        });
+    });
+
+    // An earlier reset leaves the cross-signing secrets as `{}` tombstones, and
+    // the SDK's plain bootstrap throws "Content is not encrypted!" reading them.
+    describe("setupRecovery over deleted cross-signing secrets", () => {
+        function tombstoned(privateKeysCachedLocally: boolean) {
+            const bootstrapCrossSigning = vi.fn(() => Promise.resolve());
+            const { client } = makeResetClient({
+                bootstrapCrossSigning,
+                getCrossSigningStatus: () =>
+                    Promise.resolve({
+                        privateKeysCachedLocally: {
+                            masterKey: privateKeysCachedLocally,
+                            selfSigningKey: privateKeysCachedLocally,
+                            userSigningKey: privateKeysCachedLocally,
+                        },
+                    }),
+            });
+            client.getAccountDataFromServer.mockImplementation(((
+                type: string,
+            ) =>
+                Promise.resolve(
+                    type === "m.cross_signing.master" ? {} : null,
+                )) as never);
+            return { client, bootstrapCrossSigning };
+        }
+
+        it("mints a new identity instead of reading the tombstones", async () => {
+            const mod = await import("./crypto");
+            const { client, bootstrapCrossSigning } = tombstoned(false);
+            h.getClient.mockReturnValue(client);
+
+            await expect(mod.setupRecovery("pw")).resolves.toMatchObject({
+                recoveryKey: "EsTNEWKEY",
+            });
+            expect(bootstrapCrossSigning).toHaveBeenCalledTimes(1);
+            expect(bootstrapCrossSigning).toHaveBeenCalledWith(
+                expect.objectContaining({ setupNewCrossSigning: true }),
+            );
+        });
+
+        it("keeps a locally held identity rather than replacing it", async () => {
+            const mod = await import("./crypto");
+            const { client, bootstrapCrossSigning } = tombstoned(true);
+            h.getClient.mockReturnValue(client);
+
+            await mod.setupRecovery("pw");
+            // bootstrapSecretStorage exports the local keys into the new 4S.
+            expect(bootstrapCrossSigning).not.toHaveBeenCalled();
+        });
+
+        it("uses the plain bootstrap when the secrets are intact", async () => {
+            const mod = await import("./crypto");
+            const bootstrapCrossSigning = vi.fn(() => Promise.resolve());
+            const { client } = makeResetClient({ bootstrapCrossSigning });
+            client.getAccountDataFromServer.mockResolvedValue({
+                encrypted: {},
+            } as never);
+            h.getClient.mockReturnValue(client);
+
+            await mod.setupRecovery("pw");
+            expect(bootstrapCrossSigning).toHaveBeenCalledWith(
+                expect.not.objectContaining({ setupNewCrossSigning: true }),
+            );
+        });
     });
 });
 
@@ -1074,6 +1218,87 @@ describe("deleteCryptoStore", () => {
         await deleteCryptoStore("@a:example.org", "DEV1");
 
         expect(readPendingWipes()).toEqual([]);
+    });
+});
+
+// Sliding sync only gives an unviewed room its newest event per update, so an
+// in-room verification holds its DM at full depth until it settles.
+describe("verification room hold", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    function inRoomRequest(roomId: string | undefined) {
+        const listeners: Array<() => void> = [];
+        const request = {
+            transactionId: "txn-hold",
+            roomId,
+            phase: 3, // Ready
+            verifier: undefined,
+            on: (_event: string, cb: () => void) => listeners.push(cb),
+            off: vi.fn(),
+            otherPartySupportsMethod: () => true,
+            otherUserId: "@them:example.org",
+            otherDeviceId: null,
+            isSelfVerification: false,
+            initiatedByMe: true,
+        };
+        const change = (phase: number) => {
+            request.phase = phase;
+            for (const cb of listeners) cb();
+        };
+        return { request, change };
+    }
+
+    async function wrap(request: unknown) {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({
+                getVerificationRequestsToDeviceInProgress: () => [],
+            }),
+        });
+        return mod;
+    }
+
+    it("holds the DM while the check runs and releases it once done", async () => {
+        const { request, change } = inRoomRequest("!dm:example.org");
+        const mod = await wrap(request);
+        const requestVerificationDM = vi.fn(() => Promise.resolve(request));
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({ requestVerificationDM }),
+        });
+        h.createDirectMessage.mockResolvedValue({
+            roomId: "!dm:example.org",
+            followUp: { status: "ok" },
+        });
+
+        await mod.startUserVerification("@them:example.org");
+
+        expect(h.holdSlidingSyncRoom).toHaveBeenCalledWith("!dm:example.org");
+        const release = h.holdSlidingSyncRoom.mock.results[0]
+            .value as ReturnType<typeof vi.fn>;
+        change(4); // Started: still running
+        expect(release).not.toHaveBeenCalled();
+        change(5); // Cancelled
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it("holds nothing for a to-device flow", async () => {
+        const { request } = inRoomRequest(undefined);
+        const mod = await wrap(request);
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => ({
+                getUserDeviceInfo: () => Promise.resolve(new Map()),
+                requestDeviceVerification: () => Promise.resolve(request),
+            }),
+        });
+
+        const controller = await mod.startDeviceVerification("OTHER");
+        controller.dispose();
+
+        expect(h.holdSlidingSyncRoom).not.toHaveBeenCalled();
     });
 });
 

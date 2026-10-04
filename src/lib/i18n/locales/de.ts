@@ -1596,6 +1596,15 @@ const messages: Record<MessageKey, string> = {
         "Verschlüsselungsstatus in dieser Sitzung unbekannt.",
     "securitySettings.recoveryKeyId": "ID des Wiederherstellungsschlüssels:",
     "securitySettings.setUpRecovery": "Wiederherstellung einrichten",
+    "securitySettings.approveOnAccountPageHint":
+        "Dein Server bittet dich eventuell, dies auf seiner Kontoseite zu bestätigen.",
+    "securitySettings.approveOnAccountPage": "Auf deiner Kontoseite bestätigen",
+    "securitySettings.approveOnAccountPageBody":
+        "Dein Server muss diese Änderung erlauben. Öffne deine Kontoseite, bestätige das Zurücksetzen deiner kryptografischen Identität und fahre dann hier fort.",
+    "securitySettings.approveOnAccountPageRetry":
+        "Der Server hat die Bestätigung noch nicht erhalten. Bestätige sie auf deiner Kontoseite und fahre dann fort.",
+    "securitySettings.openAccountPage": "Kontoseite öffnen",
+    "securitySettings.iVeApprovedIt": "Ich habe bestätigt",
     "securitySettings.weLlCreateA": "Wir erstellen einen",
     "securitySettings.recoveryKey": "Wiederherstellungsschlüssel",
     "securitySettings.aOneTimeCodeThatUnlocks":
@@ -2252,6 +2261,10 @@ const messages: Record<MessageKey, string> = {
         "QR-Übereinstimmung konnte nicht abgebrochen werden",
     "crypto.encryptionIsNotReadyOnThis":
         "Die Verschlüsselung ist in dieser Sitzung nicht bereit",
+    "crypto.accountApprovalCancelled":
+        "Die Bestätigung auf deiner Kontoseite wurde abgebrochen.",
+    "crypto.accountPasswordRequired":
+        "Dieser Server benötigt dein Kontopasswort, um dies zu bestätigen.",
     "crypto.thisServerCanTConfirmEncryption":
         "Dieser Server kann die Einrichtung der Verschlüsselung nicht per Passwort bestätigen - verwende stattdessen seine Kontoseite.",
     "crypto.incorrectPassword": "Falsches Passwort",
@@ -2530,6 +2543,20 @@ const messages: Record<MessageKey, string> = {
         "Der Absender hat entschieden, die Schlüssel für diese Nachricht nicht zu teilen.",
     "encryptionState.theSenderDidNotShareThe":
         "Der Absender hat die Schlüssel nicht geteilt, weil dieses Gerät nicht verifiziert ist. Verifiziere dieses Gerät, um solche Nachrichten zu lesen.",
+    "encryptionState.senderDeviceNotCrossSigned":
+        "Das Gerät des Absenders ist von seinem Besitzer nicht quersigniert, daher wird diese Nachricht ausgeblendet. Bitte ihn, diese Sitzung zu verifizieren.",
+    "encryptionState.senderDeviceUnknown":
+        "Diese Nachricht lässt sich keinem bekannten Gerät des Absenders zuordnen und wird daher ausgeblendet.",
+    "encryptionState.senderIdentityChanged":
+        "Die Identität des Absenders hat sich geändert, seit du ihn verifiziert hast, daher wird diese Nachricht ausgeblendet. Verifiziere ihn erneut, um sie zu lesen.",
+    "encryptionState.historicalNoBackup":
+        "Diese Nachricht wurde gesendet, bevor sich dieses Gerät angemeldet hat, und es gibt kein Schlüssel-Backup, aus dem sie wiederhergestellt werden kann.",
+    "encryptionState.historicalBackupUnconfigured":
+        "Diese Nachricht wurde gesendet, bevor sich dieses Gerät angemeldet hat. Gib deinen Wiederherstellungsschlüssel ein, um sie aus dem Schlüssel-Backup wiederherzustellen.",
+    "encryptionState.historicalWorkingBackup":
+        "Diese Nachricht wurde gesendet, bevor sich dieses Gerät angemeldet hat, und wurde in deinem Schlüssel-Backup nicht gefunden.",
+    "encryptionState.historicalNotJoined":
+        "Diese Nachricht wurde gesendet, als du nicht im Raum warst.",
     "encryptionState.encryptedMessage": "🔒 Verschlüsselte Nachricht",
 
     // src/lib/utils/eventShield.ts

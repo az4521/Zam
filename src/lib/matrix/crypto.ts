@@ -42,7 +42,8 @@ import type {
     CryptoCallbacks,
     ImportRoomKeyProgressData,
 } from "matrix-js-sdk/lib/crypto-api";
-import { createDirectMessage } from "$lib/matrix/client";
+import { createDirectMessage, holdSlidingSyncRoom } from "$lib/matrix/client";
+import { VerificationPhaseValue } from "$lib/utils/verification";
 import { getClient } from "$lib/matrix/runtime";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -74,7 +75,10 @@ import type {
     SecuritySetupState,
 } from "$lib/utils/securityStatusView";
 import { securitySetupState } from "$lib/utils/securityStatusView";
-import { supportsPasswordUia } from "$lib/utils/deviceSessions";
+import {
+    accountApprovalStage,
+    supportsPasswordUia,
+} from "$lib/utils/deviceSessions";
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
 import { setSessionCryptoStatus } from "$lib/stores/sessionHealth.svelte";
@@ -806,6 +810,21 @@ function createVerificationController(
         for (const cb of subscribers) cb();
     };
 
+    // An in-room flow lives in the DM's timeline, so keep that room at full
+    // sliding-sync depth until it settles: as an unviewed room it would only get
+    // the newest event per update, and a lost step stalls the check on
+    // "Verifying…" until it times out. To-device flows have no room.
+    let releaseRoom: (() => void) | null = request.roomId
+        ? holdSlidingSyncRoom(request.roomId)
+        : null;
+    const releaseRoomHold = (): void => {
+        releaseRoom?.();
+        releaseRoom = null;
+    };
+    const settled = (): boolean =>
+        request.phase === VerificationPhaseValue.Done ||
+        request.phase === VerificationPhaseValue.Cancelled;
+
     // `otherPartySupportsMethod` reads state that only exists once the other
     // side's `.ready` has landed; treat any throw as "not supported" so a probe
     // in an early phase can never break the flow.
@@ -881,7 +900,12 @@ function createVerificationController(
         syncVerifierCallbacks();
         // verify() resolves when both sides confirm and rejects on cancel /
         // mismatch / timeout; either way the terminal state shows via `phase`.
-        verifier.verify().catch(() => emit());
+        // Log the rejection: a failed `.accept` send also lands here, and
+        // swallowing it leaves both sides on "Verifying…" with no trace of why.
+        verifier.verify().catch((e) => {
+            console.warn(`[matrix] verification ${id}: verify() ended`, e);
+            emit();
+        });
     };
 
     const startSas = async (): Promise<void> => {
@@ -921,7 +945,23 @@ function createVerificationController(
         }
     };
 
+    // Phase trail for debugging stalled flows: which phases this side saw, and
+    // the spec cancel code (m.timeout, m.user, m.unexpected_message, ...).
+    let loggedPhase = -1;
     const onRequestChange = () => {
+        if (request.phase !== loggedPhase) {
+            loggedPhase = request.phase;
+            console.info(
+                `[matrix] verification ${id}: phase ${request.phase}`,
+                request.phase === VerificationPhaseValue.Cancelled
+                    ? {
+                          code: request.cancellationCode,
+                          by: request.cancellingUserId,
+                      }
+                    : "",
+            );
+        }
+        if (settled()) releaseRoomHold();
         advance();
         // The verifier's own change callback re-emits Change onto the request,
         // so by the time we get here its callbacks are set even when the
@@ -1081,6 +1121,7 @@ function createVerificationController(
         },
         dispose: () => {
             request.off(VerificationRequestEvent.Change, onRequestChange);
+            releaseRoomHold();
             if (hookedVerifier) {
                 if (onShowSas)
                     hookedVerifier.off(VerifierEvent.ShowSas, onShowSas);
@@ -1354,17 +1395,34 @@ export function getCryptoCallbacks(): CryptoCallbacks {
 }
 
 /**
+ * Asks the user to approve the signing-key upload on the server's account page
+ * (`url`) and resolves once they say they have: true to retry the upload, false
+ * to give up. `retry` is set when an earlier "done" turned out not to be (the
+ * server still refused), so the prompt can say so.
+ */
+export type AccountApprovalPrompt = (
+    url: string,
+    retry: boolean,
+) => Promise<boolean>;
+
+/**
  * Build the `authUploadDeviceSigningKeys` callback that `bootstrapCrossSigning`
  * runs to upload the new signing keys. Servers guard that upload behind
  * User-Interactive Auth: probe once with no auth, expect the 401 challenge, then
- * complete the single `m.login.password` stage. Mirrors `deleteOwnDevice` /
- * `completeWithPasswordUia` in client.ts. Throws "Incorrect password" on a
- * rejected retry; a non-password-only flow (SSO, multi-stage) is surfaced as an
- * actionable error.
+ * complete it. Two shapes are driven:
+ *   - a single `m.login.password` stage, as `deleteOwnDevice` /
+ *     `completeWithPasswordUia` in client.ts do. Throws "Incorrect password" on
+ *     a rejected retry.
+ *   - an account-page approval (`m.oauth` / `org.matrix.cross_signing_reset`),
+ *     which an OAuth-delegated server like matrix.org uses because it has no
+ *     password to check: `approve` sends the user to the page, then the upload
+ *     is retried with that stage's session until it passes or they give up.
+ * Anything else (SSO, multi-stage) is surfaced as an actionable error.
  */
-function makeUiaPasswordCallback(
+function makeUiaCallback(
     userId: string,
     password: string,
+    approve?: AccountApprovalPrompt,
 ): UIAuthCallback<void> {
     return async (makeRequest) => {
         try {
@@ -1375,10 +1433,36 @@ function makeUiaPasswordCallback(
             const data = (uia.data ?? {}) as {
                 session?: string;
                 flows?: { stages: string[] }[];
+                params?: Record<string, unknown>;
             };
             if (uia.httpStatus !== 401 || !data.flows) throw e;
+            const approval = approve
+                ? accountApprovalStage(data.flows, data.params)
+                : null;
+            if (approve && approval) {
+                for (let retry = false; ; retry = true) {
+                    if (!(await approve(approval.url, retry))) {
+                        throw new Error(t("crypto.accountApprovalCancelled"));
+                    }
+                    try {
+                        return await makeRequest({
+                            type: approval.stage,
+                            session: data.session,
+                        });
+                    } catch (retryError) {
+                        // 401 again: not approved (yet). Ask again rather than
+                        // failing a flow the user can still finish.
+                        if ((retryError as MatrixError).httpStatus !== 401) {
+                            throw retryError;
+                        }
+                    }
+                }
+            }
             if (!supportsPasswordUia(data.flows)) {
                 throw new Error(t("crypto.thisServerCanTConfirmEncryption"));
+            }
+            if (!password) {
+                throw new Error(t("crypto.accountPasswordRequired"));
             }
             const auth: AuthDict = {
                 type: "m.login.password",
@@ -1398,6 +1482,27 @@ function makeUiaPasswordCallback(
     };
 }
 
+const CROSS_SIGNING_SECRETS = [
+    "m.cross_signing.master",
+    "m.cross_signing.self_signing",
+    "m.cross_signing.user_signing",
+] as const;
+
+/**
+ * True when any cross-signing secret in account data is a deletion tombstone:
+ * present, but with no `encrypted` map. Account data can't be removed, so the
+ * SDK's own `resetEncryption` leaves exactly this behind.
+ */
+async function hasDeletedCrossSigningSecrets(
+    client: MatrixClient,
+): Promise<boolean> {
+    for (const name of CROSS_SIGNING_SECRETS) {
+        const content = await client.getAccountDataFromServer(name);
+        if (content && !("encrypted" in content)) return true;
+    }
+    return false;
+}
+
 /** Result of a successful `setupRecovery` run. */
 export interface RecoverySetupResult {
     /** The encoded recovery key (`EsT…`), to display to the user exactly once. */
@@ -1409,8 +1514,9 @@ export interface RecoverySetupResult {
 /**
  * Set up recovery for this account: establish cross-signing, mint a random
  * recovery key, create secret storage (4S) with that key as the default, and
- * create a new key backup — all in one pass. Requires the account password for
- * the UIA-guarded signing-key upload.
+ * create a new key backup — all in one pass. The UIA-guarded signing-key
+ * upload needs the account password, or, on an OAuth-delegated server, the
+ * user's approval on its account page via `approve`.
  *
  * Returns the encoded recovery key so the UI can show it once (we never persist
  * it). Throws with an actionable message on UIA failure or if crypto isn't ready.
@@ -1418,19 +1524,45 @@ export interface RecoverySetupResult {
 export async function setupRecovery(
     password: string,
     passphrase?: string,
+    approve?: AccountApprovalPrompt,
 ): Promise<RecoverySetupResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
     const userId = client?.getUserId();
-    if (!crypto || !userId) {
+    if (!client || !crypto || !userId) {
         throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
 
     // 1. Establish (or confirm) the cross-signing identity. Uploading the new
     //    signing keys is UIA-guarded → drive the password dance.
-    await crypto.bootstrapCrossSigning({
-        authUploadDeviceSigningKeys: makeUiaPasswordCallback(userId, password),
-    });
+    const authUploadDeviceSigningKeys = makeUiaCallback(
+        userId,
+        password,
+        approve,
+    );
+    if (await hasDeletedCrossSigningSecrets(client)) {
+        // A past reset (ours or another client's) "deleted" the 4S copies by
+        // writing `{}`, and the SDK's plain bootstrap reads them back with a
+        // get() that throws "Content is not encrypted!" on exactly that. Take
+        // the branch it would have reached had the read returned nothing:
+        // keys held locally wait for step 3 to export them into the new 4S;
+        // otherwise mint a fresh identity (the setupNewCrossSigning path
+        // never reads 4S).
+        const status = await crypto.getCrossSigningStatus();
+        const local = status.privateKeysCachedLocally;
+        if (!(
+            local.masterKey &&
+            local.selfSigningKey &&
+            local.userSigningKey
+        )) {
+            await crypto.bootstrapCrossSigning({
+                setupNewCrossSigning: true,
+                authUploadDeviceSigningKeys,
+            });
+        }
+    } else {
+        await crypto.bootstrapCrossSigning({ authUploadDeviceSigningKeys });
+    }
 
     // 2. Mint the recovery key. With a passphrase the SDK derives the key via
     //    PBKDF2 and returns the derivation parameters in `keyInfo.passphrase`,
@@ -1486,13 +1618,15 @@ export function isRecoverySetupIncomplete(
  * default key, deletes backups, creates a fresh backup) then sets up recovery
  * again from the clean slate — minting a NEW recovery key to show once.
  *
- * Requires the account password (UIA-guarded signing-key upload). Returns the
+ * Requires the account password or account-page approval (UIA-guarded
+ * signing-key upload; see `setupRecovery`). Returns the
  * new encoded recovery key. Destructive: the previous recovery key and any
  * device verifications signed by the old cross-signing identity are invalidated.
  */
 export async function resetRecovery(
     password: string,
     passphrase?: string,
+    approve?: AccountApprovalPrompt,
 ): Promise<RecoverySetupResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -1505,7 +1639,7 @@ export async function resetRecovery(
     //    A failure HERE is reported as-is: from outside we cannot tell whether
     //    it destroyed anything, and re-running the reset is the only sane
     //    retry (it is idempotent on an already-reset account).
-    await crypto.resetEncryption(makeUiaPasswordCallback(userId, password));
+    await crypto.resetEncryption(makeUiaCallback(userId, password, approve));
 
     // 2. Set up fresh from the clean slate. bootstrapCrossSigning inside is a
     //    no-op now (resetEncryption just re-established it, so no re-upload/UIA),
@@ -1513,7 +1647,7 @@ export async function resetRecovery(
     //    Past this line the OLD recovery is gone, so a failure is not a plain
     //    retryable error — the caller must repair, not reset again (CRYPTO-01).
     try {
-        return await setupRecovery(password, passphrase);
+        return await setupRecovery(password, passphrase, approve);
     } catch (error) {
         throw new RecoverySetupIncompleteError(
             error instanceof Error && error.message.trim().length > 0

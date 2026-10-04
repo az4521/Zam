@@ -1577,6 +1577,16 @@ const messages: Record<MessageKey, string> = {
         "État du chiffrement inconnu dans cette session.",
     "securitySettings.recoveryKeyId": "ID de la clé de récupération :",
     "securitySettings.setUpRecovery": "Configurer la récupération",
+    "securitySettings.approveOnAccountPageHint":
+        "Votre serveur peut vous demander d'approuver cette action sur la page de votre compte.",
+    "securitySettings.approveOnAccountPage":
+        "Approuver sur la page de votre compte",
+    "securitySettings.approveOnAccountPageBody":
+        "Votre serveur doit autoriser ce changement. Ouvrez la page de votre compte, approuvez la réinitialisation de votre identité cryptographique, puis revenez continuer.",
+    "securitySettings.approveOnAccountPageRetry":
+        "Le serveur n'a pas encore reçu l'approbation. Approuvez-la sur la page de votre compte, puis continuez.",
+    "securitySettings.openAccountPage": "Ouvrir la page du compte",
+    "securitySettings.iVeApprovedIt": "J'ai approuvé",
     "securitySettings.weLlCreateA": "Nous allons créer une",
     "securitySettings.recoveryKey": "clé de récupération",
     "securitySettings.aOneTimeCodeThatUnlocks":
@@ -2229,6 +2239,10 @@ const messages: Record<MessageKey, string> = {
         "Impossible d'annuler la correspondance QR",
     "crypto.encryptionIsNotReadyOnThis":
         "Le chiffrement n'est pas prêt dans cette session",
+    "crypto.accountApprovalCancelled":
+        "L'approbation sur la page de votre compte a été annulée.",
+    "crypto.accountPasswordRequired":
+        "Ce serveur a besoin du mot de passe de votre compte pour confirmer cette action.",
     "crypto.thisServerCanTConfirmEncryption":
         "Ce serveur ne peut pas confirmer la configuration du chiffrement avec un mot de passe - utilisez plutôt sa page de compte.",
     "crypto.incorrectPassword": "Mot de passe incorrect",
@@ -2505,6 +2519,20 @@ const messages: Record<MessageKey, string> = {
         "L'expéditeur a choisi de ne pas partager les clés de ce message.",
     "encryptionState.theSenderDidNotShareThe":
         "L'expéditeur n'a pas partagé les clés car cet appareil n'est pas vérifié. Vérifiez cet appareil pour lire ce type de messages.",
+    "encryptionState.senderDeviceNotCrossSigned":
+        "L'appareil de l'expéditeur n'est pas signé de manière croisée par son propriétaire, ce message est donc masqué. Demandez-lui de vérifier cette session.",
+    "encryptionState.senderDeviceUnknown":
+        "Ce message ne peut être associé à aucun appareil connu de l'expéditeur, il est donc masqué.",
+    "encryptionState.senderIdentityChanged":
+        "L'identité de l'expéditeur a changé depuis que vous l'avez vérifié, ce message est donc masqué. Vérifiez-le à nouveau pour le lire.",
+    "encryptionState.historicalNoBackup":
+        "Ce message a été envoyé avant la connexion de cet appareil, et il n'existe aucune sauvegarde des clés pour le restaurer.",
+    "encryptionState.historicalBackupUnconfigured":
+        "Ce message a été envoyé avant la connexion de cet appareil. Saisissez votre clé de récupération pour le restaurer depuis la sauvegarde des clés.",
+    "encryptionState.historicalWorkingBackup":
+        "Ce message a été envoyé avant la connexion de cet appareil et n'a pas été trouvé dans votre sauvegarde des clés.",
+    "encryptionState.historicalNotJoined":
+        "Ce message a été envoyé alors que vous n'étiez pas dans le salon.",
     "encryptionState.encryptedMessage": "🔒 Message chiffré",
 
     // src/lib/utils/eventShield.ts
