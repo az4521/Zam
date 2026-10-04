@@ -11,6 +11,11 @@
  * then, lazy-loads the wasm decoder and transcodes to PNG.
  */
 
+import type {
+    JxlDecodeRequest,
+    JxlDecodeResponse,
+} from "$lib/workers/jxlDecode.worker";
+
 // Bare codestream: FF 0A. ISO BMFF container: 00 00 00 0C 'JXL ' 0D 0A 87 0A.
 const CODESTREAM_SIG = [0xff, 0x0a];
 const CONTAINER_SIG = [
@@ -47,25 +52,46 @@ export function hasNativeJxl(): Promise<boolean> {
     return nativeSupport;
 }
 
-let decoder: Promise<(data: Uint8Array) => Promise<Uint8Array>> | null = null;
+let worker: Worker | null = null;
+let nextId = 0;
+const waiting = new Map<
+    number,
+    { resolve: (png: ArrayBuffer) => void; reject: (err: Error) => void }
+>();
 
-function loadDecoder(): Promise<(data: Uint8Array) => Promise<Uint8Array>> {
-    if (decoder) return decoder;
-    decoder = (async () => {
-        const [lib, wasm] = await Promise.all([
-            import("jxl-rs-polyfill"),
-            // Bundle the wasm ourselves; without an explicit URL the package
-            // falls back to fetching it from jsDelivr.
-            import("jxl-rs-polyfill/jxl_wasm_bg.wasm?url"),
-        ]);
-        await lib.initWasm(wasm.default);
-        return lib.decodeJxlToPng;
-    })();
-    // A failed load (offline, etc.) shouldn't poison every later attempt.
-    decoder.catch(() => {
-        decoder = null;
+// The decode is seconds of synchronous wasm for a multi-MB photo, so it runs
+// in a worker (see $lib/workers/jxlDecode.worker.ts) to keep the UI live.
+function getWorker(): Worker {
+    if (worker) return worker;
+    worker = new Worker(
+        new URL("../workers/jxlDecode.worker.ts", import.meta.url),
+        { type: "module" },
+    );
+    worker.onmessage = (e: MessageEvent<JxlDecodeResponse>) => {
+        const job = waiting.get(e.data.id);
+        if (!job) return;
+        waiting.delete(e.data.id);
+        if ("png" in e.data) job.resolve(e.data.png);
+        else job.reject(new Error(e.data.error));
+    };
+    worker.onerror = () => {
+        // A failed load (offline, etc.) shouldn't poison every later attempt.
+        for (const job of waiting.values()) {
+            job.reject(new Error("JXL decode worker failed"));
+        }
+        waiting.clear();
+        worker?.terminate();
+        worker = null;
+    };
+    return worker;
+}
+
+function decodeInWorker(jxl: ArrayBuffer): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+        const id = nextId++;
+        waiting.set(id, { resolve, reject });
+        getWorker().postMessage({ id, jxl } satisfies JxlDecodeRequest, [jxl]);
     });
-    return decoder;
 }
 
 /**
@@ -77,9 +103,8 @@ export async function maybeDecodeJxl(blob: Blob): Promise<Blob | null> {
         const head = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
         if (!isJxlBytes(head)) return null;
         if (await hasNativeJxl()) return null;
-        const decode = await loadDecoder();
-        const png = await decode(new Uint8Array(await blob.arrayBuffer()));
-        return new Blob([png as BlobPart], { type: "image/png" });
+        const png = await decodeInWorker(await blob.arrayBuffer());
+        return new Blob([png], { type: "image/png" });
     } catch (err) {
         console.warn("JXL decode failed", err);
         return null;
