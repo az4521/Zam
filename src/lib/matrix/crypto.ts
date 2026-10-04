@@ -50,7 +50,7 @@ import {
     shouldEncryptNewDm,
 } from "$lib/utils/roomEncryption";
 import { settingsState } from "$lib/stores/settings.svelte";
-import { getCryptoDbName } from "$lib/utils/cryptoStore";
+import { getCryptoDbName, getCryptoLockName } from "$lib/utils/cryptoStore";
 import {
     cryptoDbNames,
     readPendingWipes,
@@ -137,6 +137,41 @@ export function applyDeviceIsolation(excludeInsecure: boolean): void {
     bumpTimelineTick();
 }
 
+// Store locks this page holds; see holdCryptoStoreLock.
+const heldCryptoStoreLocks = new Set<string>();
+// How long to wait for a push-notification decrypt to let go of the store.
+// It has its own, shorter, timeouts; this only stops a wedged one from keeping
+// crypto off for good.
+const CRYPTO_LOCK_WAIT_MS = 15000;
+
+/**
+ * Take the crypto store's Web Lock in shared mode and keep it for the life of
+ * the page. The push-notification decryptor (pushDecryptHeadless.ts) needs it
+ * exclusively, so it never opens the store while a page has it open; shared,
+ * so several tabs of the same account do not lock each other out. Resolves
+ * once granted, or straight away where Web Locks are unavailable.
+ */
+async function holdCryptoStoreLock(name: string): Promise<void> {
+    if (heldCryptoStoreLocks.has(name)) return;
+    const locks =
+        typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (!locks) return;
+    heldCryptoStoreLocks.add(name);
+    await new Promise<void>((granted) => {
+        const timer = setTimeout(granted, CRYPTO_LOCK_WAIT_MS);
+        locks
+            .request(name, { mode: "shared" }, () => {
+                clearTimeout(timer);
+                granted();
+                return new Promise<never>(() => {});
+            })
+            .catch(() => {
+                clearTimeout(timer);
+                granted();
+            });
+    });
+}
+
 /**
  * Initialise rust-crypto for a freshly-authenticated client. Call at the end of
  * `createAuthenticatedClient`, before `startClient`, so the crypto layer is
@@ -164,6 +199,7 @@ export async function initCrypto(
     clearEventShieldCache();
     backupSessionsRemaining = null;
     try {
+        await holdCryptoStoreLock(getCryptoLockName(userId, deviceId));
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });

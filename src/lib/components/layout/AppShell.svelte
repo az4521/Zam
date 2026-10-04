@@ -239,6 +239,7 @@
         syncNativeReceiptPrivacy,
     } from "$lib/nativeSession";
     import { onNativeCallEvent } from "$lib/nativeCall";
+    import { startPushDecryptResponder } from "$lib/pushDecrypt";
     import { Capacitor } from "@capacitor/core";
     import { App } from "@capacitor/app";
 
@@ -1704,6 +1705,9 @@
         const unregisterSwSurface = registerNotificationSurface(
             clearServiceWorkerNotifications,
         );
+        // Let the service worker / Android push service ask this page to
+        // decrypt an encrypted message for its notification.
+        const stopPushDecrypt = startPushDecryptResponder();
         // Android's notifications are posted by native Java, so nothing the
         // page closes can reach them — this is the only path that can.
         const unregisterNativeSurface = registerNotificationSurface(
@@ -2082,6 +2086,7 @@
             unregisterPageSurface();
             unregisterSwSurface();
             unregisterNativeSurface();
+            stopPushDecrypt();
             unsubRooms();
             unsubTimeline();
             unsubDecryptedNotify();

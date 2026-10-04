@@ -81,6 +81,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
+    // How long to wait for the web layer to decrypt an encrypted message.
+    private static final long DECRYPT_TIMEOUT = 4000L;
+    // ...and for the hidden WebView to start, load the crypto WASM and decrypt
+    // it when the app is not running.
+    private static final long HEADLESS_DECRYPT_TIMEOUT = 8000L;
 
     @Override
     public void onNewToken(@NonNull String token) {
@@ -180,6 +185,25 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 JSONObject event = fetchEvent(hs, token, roomId, eventId);
                 if (event != null) {
                     sender = event.optString("sender", "");
+                    // This service holds no E2EE keys, so an encrypted
+                    // message is still m.room.encrypted here. Ask the web
+                    // layer to decrypt it when the app is running (see
+                    // PushDecryptPlugin), otherwise decrypt it in a hidden
+                    // WebView (HeadlessDecryptor). Failing both, keep the
+                    // generic text.
+                    if ("m.room.encrypted".equals(event.optString("type", ""))) {
+                        PushDecryptPlugin.Result clear =
+                            PushDecryptPlugin.request(roomId, eventId, DECRYPT_TIMEOUT);
+                        if (clear == null) {
+                            clear = HeadlessDecryptor.decrypt(ctx, hs, token,
+                                selfUserId, selfDeviceId, roomId, event,
+                                HEADLESS_DECRYPT_TIMEOUT);
+                        }
+                        if (clear != null) {
+                            event.put("type", clear.type);
+                            event.put("content", clear.content);
+                        }
+                    }
                     JSONObject content = event.optJSONObject("content");
                     String body = content != null ? content.optString("body", "") : "";
                     String senderName = fetchSenderName(hs, token, roomId, sender);

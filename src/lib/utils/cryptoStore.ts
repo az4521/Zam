@@ -11,3 +11,12 @@
 export function getCryptoDbName(userId: string, deviceId: string): string {
     return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:crypto`;
 }
+
+/**
+ * The Web Lock guarding that store. A page running crypto on it holds it
+ * shared; the push-notification decryptor (pushDecryptHeadless.ts) takes it
+ * exclusively, so the two never open the store at the same time.
+ */
+export function getCryptoLockName(userId: string, deviceId: string): string {
+    return `${getCryptoDbName(userId, deviceId)}:lock`;
+}

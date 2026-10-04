@@ -1186,6 +1186,90 @@ async function mxPost(path, body) {
 	}
 }
 
+/**
+ * Ask the open pages to decrypt one event for a notification. Resolves with
+ * the first `{ type, content }` answer, or null when no page answers in time.
+ */
+const DECRYPT_VIA_PAGE_TIMEOUT_MS = 3000;
+async function decryptViaPage(roomId, eventId) {
+	let clients = [];
+	try {
+		clients = await self.clients.matchAll({
+			type: "window",
+			includeUncontrolled: true,
+		});
+	} catch {
+		return null;
+	}
+	if (!clients.length) return null;
+	return new Promise((resolve) => {
+		let pending = clients.length;
+		const done = (value) => {
+			clearTimeout(timer);
+			resolve(value);
+		};
+		const timer = setTimeout(() => resolve(null), DECRYPT_VIA_PAGE_TIMEOUT_MS);
+		for (const client of clients) {
+			const channel = new MessageChannel();
+			channel.port1.onmessage = (e) => {
+				const r = e.data;
+				if (
+					r &&
+					typeof r.type === "string" &&
+					r.type !== "m.room.encrypted" &&
+					r.content &&
+					typeof r.content === "object"
+				) {
+					done(r);
+				} else if (--pending === 0) {
+					done(null);
+				}
+			};
+			try {
+				client.postMessage(
+					{ type: "DECRYPT_FOR_PUSH", roomId, eventId },
+					[channel.port2],
+				);
+			} catch {
+				if (--pending === 0) done(null);
+			}
+		}
+	});
+}
+
+// The no-app-running decryptor (src/lib/pushDecryptHeadless.ts, bundled by
+// scripts/build-push-decrypt.mjs). importScripts only works while the worker
+// script is evaluated, hence top level; absent in dev builds, which is fine.
+try {
+	importScripts("/push-decrypt/decrypt.js");
+} catch {
+	// No bundle: encrypted pushes need an open page to decrypt.
+}
+
+/**
+ * Decrypt in this worker when no page could: opens the crypto store itself,
+ * and only while no page has it open (the decryptor checks the store lock).
+ */
+async function decryptInWorker(roomId, event) {
+	const headless = self.pushDecryptHeadless;
+	if (!headless || !accessToken || !homeserverUrl || !userId || !deviceId)
+		return null;
+	try {
+		return await headless.decryptHeadless({
+			homeserverUrl,
+			accessToken,
+			userId,
+			deviceId,
+			roomId,
+			event,
+			wasmUrl: new URL("/push-decrypt/crypto.wasm", self.location.href)
+				.href,
+		});
+	} catch {
+		return null;
+	}
+}
+
 async function buildNotification(data) {
 	// Never compose a body before the privacy flag has been hydrated from
 	// IndexedDB — reading it early would default to "show bodies".
@@ -1205,9 +1289,18 @@ async function buildNotification(data) {
 		);
 		if (nameRes && nameRes.name) title = nameRes.name;
 
-		const event = await mxGet(
+		let event = await mxGet(
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
 		);
+		// This worker holds no E2EE keys, so an encrypted message is still
+		// m.room.encrypted here. Ask an open page to decrypt it (see
+		// src/lib/pushDecrypt.ts); with none open, keep the generic text.
+		if (event && event.type === "m.room.encrypted") {
+			const clear =
+				(await decryptViaPage(roomId, eventId)) ||
+				(await decryptInWorker(roomId, event));
+			if (clear) event = { ...event, type: clear.type, content: clear.content };
+		}
 		if (event) {
 			// Homeserver-supplied and untrusted: coerce to strings so a
 			// malformed event can't blow up on .trim() below.
