@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.5
+
+🐛 **Fixed**
+
+- **Encrypted messages in notifications:** notifications for encrypted messages only said who sent something. They now show the message, on Android and in the browser, even when the app isn't running.
+
 ## v1.13.4
 
 ✨ **New**
