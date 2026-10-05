@@ -1246,6 +1246,9 @@ try {
 	// No bundle: encrypted pushes need an open page to decrypt.
 }
 
+// Matches HEADLESS_DECRYPT_TIMEOUT on Android (MatrixMessagingService.java).
+const HEADLESS_DECRYPT_TIMEOUT_MS = 8000;
+
 /**
  * Decrypt in this worker when no page could: opens the crypto store itself,
  * and only while no page has it open (the decryptor checks the store lock).
@@ -1255,16 +1258,25 @@ async function decryptInWorker(roomId, event) {
 	if (!headless || !accessToken || !homeserverUrl || !userId || !deviceId)
 		return null;
 	try {
-		return await headless.decryptHeadless({
-			homeserverUrl,
-			accessToken,
-			userId,
-			deviceId,
-			roomId,
-			event,
-			wasmUrl: new URL("/push-decrypt/crypto.wasm", self.location.href)
-				.href,
-		});
+		// Bounded so a stuck decrypt can't hold the push event (and with it
+		// this worker) open: the notification shows with the generic text,
+		// the worker goes idle, and the browser's idle shutdown frees the
+		// crypto store lock the stuck decrypt still holds.
+		return await Promise.race([
+			headless.decryptHeadless({
+				homeserverUrl,
+				accessToken,
+				userId,
+				deviceId,
+				roomId,
+				event,
+				wasmUrl: new URL("/push-decrypt/crypto.wasm", self.location.href)
+					.href,
+			}),
+			new Promise((resolve) =>
+				setTimeout(() => resolve(null), HEADLESS_DECRYPT_TIMEOUT_MS),
+			),
+		]);
 	} catch {
 		return null;
 	}
