@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.7
+
+🐛 **Fixed**
+
+- **Pinned messages in encrypted rooms:** pinned messages that weren't already loaded in the timeline showed as encrypted. They're now decrypted.
+- **"Show all events" stuck on encrypted:** with the debug option on, messages that decrypted after loading kept showing as `m.room.encrypted` until you left the room.
+
+✨ **New**
+
+- **Why a message couldn't be decrypted:** with "Show all events" on, messages that fail to decrypt now show the reason, to help track down missing keys.
+
 ## v1.13.6
 
 🐛 **Fixed**
