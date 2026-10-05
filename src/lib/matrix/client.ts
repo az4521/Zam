@@ -1534,6 +1534,10 @@ export async function startSync(
             data: { timeline?: EventTimeline } | undefined,
         ) => {
             if (!room || !isUsingSlidingSync()) return;
+            // Sliding sync adds timeline events undecrypted (see
+            // decryptForDisplay); decrypt each on arrival as classic sync does.
+            if (event.shouldAttemptDecryption())
+                void client.decryptEventIfNeeded(event);
             applyTimelineMemberEvent(
                 room,
                 event,
@@ -2669,10 +2673,29 @@ function liveChainEvents(room: Room): MatrixEvent[] {
     return liveTimelineChain(room).flatMap((tl) => tl.getEvents());
 }
 
+/**
+ * Sliding sync maps room timelines with decryption OFF and only decrypts each
+ * room's latest event and those past the read receipt (decryptCriticalEvents),
+ * leaving the rest for the client to decrypt as they are shown. Without this
+ * they stay m.room.encrypted with no failure reason, forever, while classic
+ * sync (which decrypts on arrival) shows the same room fine. A no-op for an
+ * event already decrypted, failed or in flight; the result lands through
+ * MatrixEventEvent.Decrypted like any other late decryption.
+ */
+function decryptForDisplay(events: MatrixEvent[]): void {
+    if (!matrixClient) return;
+    for (const e of events) {
+        if (e.shouldAttemptDecryption())
+            void matrixClient.decryptEventIfNeeded(e);
+    }
+}
+
 export function getTimelineMessages(room: Room): MatrixEvent[] {
     pruneDeliveredEchoes(room);
+    const chain = liveChainEvents(room);
+    decryptForDisplay(chain);
     const timeline = collapseCallEvents(
-        liveChainEvents(room).filter(isRenderableTimelineEvent),
+        chain.filter(isRenderableTimelineEvent),
     );
     const timelineIds = new Set(timeline.map((e) => e.getId()));
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
