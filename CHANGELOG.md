@@ -4,10 +4,11 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
-## v1.13.7
+## v1.13.8
 
 🐛 **Fixed**
 
+- **Encrypted messages unreadable with sliding sync:** with sliding sync on, most messages in encrypted rooms showed "Unable to decrypt" even though the keys were there, and reloading didn't help. They now decrypt like they do with sliding sync off.
 - **Pinned messages in encrypted rooms:** pinned messages that weren't already loaded in the timeline showed as encrypted. They're now decrypted.
 - **"Show all events" stuck on encrypted:** with the debug option on, messages that decrypted after loading kept showing as `m.room.encrypted` until you left the room.
 
