@@ -9014,17 +9014,13 @@ export function findEventById(room: Room, eventId: string): MatrixEvent | null {
     );
 }
 
-export async function fetchEventById(
+/** A bare `new MatrixEvent(raw)` is never decrypted, so a pin in an encrypted
+ *  room would render as ciphertext; go through the decrypting fetch instead. */
+export function fetchEventById(
     roomId: string,
     eventId: string,
 ): Promise<MatrixEvent | null> {
-    if (!matrixClient) return null;
-    try {
-        const raw = await matrixClient.fetchRoomEvent(roomId, eventId);
-        return new MatrixEvent(raw);
-    } catch {
-        return null;
-    }
+    return fetchSingleEvent(roomId, eventId);
 }
 
 export async function sendReply(
