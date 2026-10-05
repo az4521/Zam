@@ -13,9 +13,7 @@
     // The event mutates in place on decryption and timelineTick is bumped then,
     // so re-read through it or the row keeps showing the m.room.encrypted
     // envelope.
-    const type = $derived(
-        (void messagesState.timelineTick, event.getType()),
-    );
+    const type = $derived((void messagesState.timelineTick, event.getType()));
     const sender = $derived(event.getSender() ?? "-");
     const stateKey = $derived(event.getStateKey());
     const eventId = $derived(event.getId() ?? "-");
