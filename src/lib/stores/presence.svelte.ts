@@ -1,6 +1,7 @@
 import {
     fetchOwnExtendedProfile,
     getUserPresence,
+    isUsingSlidingSync,
     onPresenceEvent,
     setOwnPresence,
 } from "$lib/matrix/client";
@@ -75,6 +76,8 @@ async function reconcileStatusMessage(): Promise<void> {
     if (desired !== local) await changeOwnStatusMessage(desired);
 }
 
+const SLIDING_PRESENCE_HEARTBEAT_MS = 25_000;
+
 /** Call once on app mount (after login). Returns a cleanup function. */
 export function initPresence(): () => void {
     // Re-apply the persisted choice — the sync loop advertises "online" by
@@ -92,7 +95,23 @@ export function initPresence(): () => void {
         console.warn("[presence] could not reconcile status message", err);
     });
 
-    return onPresenceEvent(() => {
+    // Sliding sync never marks us as syncing, so the server times an online or
+    // away presence out to offline about 30s after the last PUT (Synapse's
+    // sync_online_timeout). Keep re-asserting it while sliding sync is on.
+    const heartbeat = setInterval(() => {
+        if (!isUsingSlidingSync() || settingsState.ownPresence === "offline")
+            return;
+        setOwnPresence(
+            settingsState.ownPresence,
+            settingsState.ownStatusMessage || undefined,
+        ).catch(() => {});
+    }, SLIDING_PRESENCE_HEARTBEAT_MS);
+
+    const unsubPresence = onPresenceEvent(() => {
         presenceState.presenceTick++;
     });
+    return () => {
+        clearInterval(heartbeat);
+        unsubPresence();
+    };
 }

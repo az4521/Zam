@@ -31,6 +31,7 @@ import {
     EventTimelineSet,
     SSOAction,
     OAuth2,
+    User,
 } from "matrix-js-sdk";
 import type {
     AuthDict,
@@ -40,7 +41,6 @@ import type {
     MatrixError,
     Room,
     RoomMember,
-    User,
     ReceiptType,
     Beacon,
 } from "matrix-js-sdk";
@@ -1944,6 +1944,7 @@ export function stopClient(): void {
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();
     resetRoomListCache();
+    slidingPresenceFetchedAt.clear();
 }
 
 const pendingLeaves = new Set<string>();
@@ -5935,6 +5936,14 @@ export async function leaveRoom(roomId: string): Promise<void> {
         pendingLeaves.delete(roomId);
         throw e;
     }
+    // Sliding sync may never stream our leave back (the server just stops
+    // listing the room), and without it the room reappeared as joined once
+    // the backstop below expired. Settle the membership ourselves.
+    if (isUsingSlidingSync()) {
+        const room = matrixClient.getRoom(roomId);
+        if (room?.getMyMembership() === "join")
+            room.updateMyMembership("leave");
+    }
     // Remove from pendingLeaves once the SDK reflects the leave locally
     const check = setInterval(() => {
         const room = matrixClient?.getRoom(roomId);
@@ -9185,12 +9194,53 @@ export interface PresenceInfo {
     statusMsg?: string;
 }
 
+// Sliding sync (MSC4186) has no presence at all: the response carries none and
+// the endpoint never marks us as syncing (checked against Synapse). So under
+// it, presence is polled per user instead: each user asked about is fetched at
+// most once a minute and fed into the SDK's User like a /sync presence event,
+// which fires the usual UserEvent.Presence listeners.
+const SLIDING_PRESENCE_TTL_MS = 60_000;
+// Presence disabled or not shared answers with an error; don't keep asking.
+const SLIDING_PRESENCE_ERROR_TTL_MS = 10 * 60_000;
+const slidingPresenceFetchedAt = new Map<string, number>();
+
+function refreshPresenceOverSlidingSync(userId: string): void {
+    const client = matrixClient;
+    if (!client || !isUsingSlidingSync()) return;
+    const now = Date.now();
+    if ((slidingPresenceFetchedAt.get(userId) ?? 0) > now) return;
+    slidingPresenceFetchedAt.set(userId, now + SLIDING_PRESENCE_TTL_MS);
+    client
+        .getPresence(userId)
+        .then((status) => {
+            if (matrixClient !== client) return;
+            const event = new MatrixEvent({
+                type: "m.presence",
+                sender: userId,
+                content: { ...status },
+            });
+            let user = client.store.getUser(userId);
+            if (!user) {
+                user = User.createUser(userId, client);
+                client.store.storeUser(user);
+            }
+            user.setPresenceEvent(event);
+        })
+        .catch(() => {
+            slidingPresenceFetchedAt.set(
+                userId,
+                Date.now() + SLIDING_PRESENCE_ERROR_TTL_MS,
+            );
+        });
+}
+
 /**
  * Locally-synced presence for a user, or null when the server has never sent
  * us presence for them (unknown ≠ offline — some servers disable presence;
  * callers decide how to render the gap).
  */
 export function getUserPresence(userId: string): PresenceInfo | null {
+    refreshPresenceOverSlidingSync(userId);
     const user = matrixClient?.getUser(userId);
     if (!user?.events.presence) return null;
     return {
