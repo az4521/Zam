@@ -356,6 +356,23 @@ async function reachRepair(message = "secret storage upload rejected") {
     await until(() => expect(flat()).toContain(REPAIR_COPY));
 }
 
+// "Set up recovery" mints a NEW 4S key and a NEW backup (deleting the old
+// one). On an account that already has a default 4S key it must never be
+// offered, even when that store is only partly populated.
+describe("SecuritySettings partial recovery", () => {
+    it("does not offer setup over an existing recovery key", async () => {
+        h.getSecurityStatus.mockResolvedValue({
+            ...okStatus,
+            secretStorageReady: false,
+        });
+        h.getBackupStatus.mockResolvedValue(okBackup);
+        render();
+
+        await until(() => expect(flat()).toContain("Recovery is set up"));
+        expect(buttonByText("Set up recovery")).toBeUndefined();
+    });
+});
+
 describe("SecuritySettings reset-recovery phases", () => {
     it("says the reset half-completed instead of looking like a plain retry", async () => {
         await reachRepair();

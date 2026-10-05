@@ -123,7 +123,14 @@
         resetStep = nextResetPhase(resetStep, event);
     }
 
-    const recoveryDone = $derived(status?.secretStorageReady ?? false);
+    // Any default 4S key counts, not just a fully-populated store: "Set up
+    // recovery" on top of an existing key would delete the account's key
+    // backup and replace a recovery key the user may still hold. A partial
+    // setup is fixed by unlocking (or, deliberately, by Reset), never by this.
+    const recoveryDone = $derived(
+        (status?.secretStorageReady ?? false) ||
+            (status?.defaultKeyId ?? null) !== null,
+    );
 
     // ── Layer 3: enter-recovery-key → verify this session & restore history ──
     //   idle → entry (paste key) → working (restoring, with progress) → done.

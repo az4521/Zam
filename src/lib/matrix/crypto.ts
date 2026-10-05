@@ -126,13 +126,26 @@ export function applyVerifiedOnlySending(enabled: boolean): void {
  * in-memory only, so it is re-applied on every `initCrypto`.
  */
 export function applyDeviceIsolation(excludeInsecure: boolean): void {
-    getClient()
-        ?.getCrypto()
-        ?.setDeviceIsolationMode(
-            excludeInsecure
-                ? new OnlySignedDevicesIsolationMode()
-                : new AllDevicesIsolationMode(false),
-        );
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    crypto?.setDeviceIsolationMode(
+        excludeInsecure
+            ? new OnlySignedDevicesIsolationMode()
+            : new AllDevicesIsolationMode(false),
+    );
+    // The SDK only retries a failed decryption when a new room key arrives, so
+    // messages refused under the strict mode would stay locked until reload
+    // after the user relaxes it. Retry the loaded ones now.
+    if (client && crypto && !excludeInsecure) {
+        for (const room of client.getRooms()) {
+            for (const ev of room.getLiveTimeline().getEvents()) {
+                if (!ev.isDecryptionFailure()) continue;
+                ev.attemptDecryption(crypto as never, { isRetry: true }).catch(
+                    () => {},
+                );
+            }
+        }
+    }
     clearEventShieldCache();
     bumpTimelineTick();
 }
@@ -198,6 +211,9 @@ export async function initCrypto(
     // old session would be served for the same event ids and under-warn.
     clearEventShieldCache();
     backupSessionsRemaining = null;
+    // The 4S key cache backs the cryptoCallbacks of whichever client is live;
+    // a previous account's recovery key must not outlive its session.
+    secretStorageKeys.clear();
     try {
         await holdCryptoStoreLock(getCryptoLockName(userId, deviceId));
         await client.initRustCrypto({
@@ -246,7 +262,11 @@ export async function initCrypto(
 function attachDecryptionListener(client: MatrixClient): void {
     if (decryptionListenerClient === client) return;
     detachDecryptionListener();
-    const handler = (_event: MatrixEvent): void => {
+    const handler = (event: MatrixEvent): void => {
+        // A re-decryption can change the verdict (e.g. a backup-restored key
+        // later superseded by the sender's own), so forget the memoised one.
+        const id = event.getId();
+        if (id) eventShieldCache.delete(id);
         bumpTimelineTick();
     };
     client.on(MatrixEventEvent.Decrypted as never, handler as never);
@@ -1618,8 +1638,12 @@ export async function setupRecovery(
     //    backup in the same pass. bootstrapSecretStorage calls back into our
     //    cacheSecretStorageKey (via cryptoCallbacks) so the follow-up secret
     //    writes resolve without prompting.
+    //    `setupNewSecretStorage` is required: without it the SDK keeps any
+    //    existing default 4S key and never calls `createSecretStorageKey`, so
+    //    the key returned below would be one that unlocks nothing.
     await crypto.bootstrapSecretStorage({
         createSecretStorageKey: async () => generated,
+        setupNewSecretStorage: true,
         setupNewKeyBackup: true,
     });
 
@@ -1932,6 +1956,24 @@ async function completeUnlock(
     // reads (backup key, cross-signing keys) without re-prompting.
     secretStorageKeys.set(keyId, decoded);
 
+    // Publish this device's cross-signature first so the session becomes
+    // trusted even if the restore below fails or is abandoned part way: the
+    // 4S key is already validated, and a large backup can take minutes. The
+    // cross-signing private keys are now readable from 4S, so this doesn't
+    // create new keys and never hits the UIA-guarded upload. Best-effort: a
+    // failure here shouldn't stop history from restoring.
+    let sessionVerified = false;
+    try {
+        await crypto.bootstrapCrossSigning({});
+        sessionVerified = true;
+    } catch (e) {
+        console.warn(
+            "[matrix] cross-signing this session after unlock failed",
+            e,
+        );
+    }
+    bumpSecurityTick();
+
     // Restore message-history keys, but only if the server actually holds a
     // backup — an account may have cross-signing/4S without a message backup.
     let total = 0;
@@ -1956,22 +1998,6 @@ async function completeUnlock(
         );
         total = result.total;
         imported = result.imported;
-    }
-
-    // Publish this device's cross-signature so the session becomes trusted.
-    // The cross-signing private keys are now readable from 4S, so this doesn't
-    // create new keys and never hits the UIA-guarded upload. Best-effort: a
-    // restore that succeeded shouldn't be reported as failed just because the
-    // cross-signature couldn't publish.
-    let sessionVerified = false;
-    try {
-        await crypto.bootstrapCrossSigning({});
-        sessionVerified = true;
-    } catch (e) {
-        console.warn(
-            "[matrix] cross-signing this session after unlock failed",
-            e,
-        );
     }
 
     bumpSecurityTick();

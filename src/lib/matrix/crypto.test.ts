@@ -861,6 +861,85 @@ describe("resetRecovery reports which half failed", () => {
             );
         });
     });
+
+    // Without `setupNewSecretStorage` the SDK keeps an existing default 4S key
+    // and never calls `createSecretStorageKey`, so the key we hand the user to
+    // save would unlock nothing.
+    it("always installs the recovery key it returns", async () => {
+        const mod = await import("./crypto");
+        const bootstrapSecretStorage = vi.fn(() => Promise.resolve());
+        const { client } = makeResetClient({ bootstrapSecretStorage });
+        h.getClient.mockReturnValue(client);
+
+        await mod.setupRecovery("pw");
+        expect(bootstrapSecretStorage).toHaveBeenCalledWith(
+            expect.objectContaining({ setupNewSecretStorage: true }),
+        );
+    });
+});
+
+describe("unlockWithRecoveryKey", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    async function makeUnlockClient(restoreKeyBackup: () => Promise<unknown>) {
+        const { encodeRecoveryKey } =
+            await import("matrix-js-sdk/lib/crypto-api");
+        const calls: string[] = [];
+        const crypto = {
+            getKeyBackupInfo: vi.fn(() => Promise.resolve({ version: "1" })),
+            loadSessionBackupPrivateKeyFromSecretStorage: vi.fn(() =>
+                Promise.resolve(),
+            ),
+            restoreKeyBackup: vi.fn(() => {
+                calls.push("restoreKeyBackup");
+                return restoreKeyBackup();
+            }),
+            bootstrapCrossSigning: vi.fn(() => {
+                calls.push("bootstrapCrossSigning");
+                return Promise.resolve();
+            }),
+        };
+        const client = {
+            getCrypto: () => crypto,
+            secretStorage: {
+                getKey: () => Promise.resolve(["KEYID", {}]),
+                checkKey: () => Promise.resolve(true),
+            },
+        };
+        const key = encodeRecoveryKey(new Uint8Array(32)) as string;
+        return { client, calls, key };
+    }
+
+    // A large backup can take minutes or fail part way; the session must not
+    // stay unverified because of it.
+    it("cross-signs this session before restoring history", async () => {
+        const mod = await import("./crypto");
+        const { client, calls, key } = await makeUnlockClient(() =>
+            Promise.resolve({ total: 3, imported: 3 }),
+        );
+        h.getClient.mockReturnValue(client);
+
+        await expect(mod.unlockWithRecoveryKey(key)).resolves.toEqual({
+            total: 3,
+            imported: 3,
+            sessionVerified: true,
+        });
+        expect(calls).toEqual(["bootstrapCrossSigning", "restoreKeyBackup"]);
+    });
+
+    it("still verifies the session when the restore fails", async () => {
+        const mod = await import("./crypto");
+        const { client, calls, key } = await makeUnlockClient(() =>
+            Promise.reject(new Error("network")),
+        );
+        h.getClient.mockReturnValue(client);
+
+        await expect(mod.unlockWithRecoveryKey(key)).rejects.toThrow("network");
+        expect(calls[0]).toBe("bootstrapCrossSigning");
+    });
 });
 
 describe("SECURITY_EVENTS trust wiring", () => {
