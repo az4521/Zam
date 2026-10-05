@@ -1033,6 +1033,10 @@
     // timeline only contains renderable messages/stickers).
     function isRawDebugEvent(event: MatrixEvent): boolean {
         if (!settingsState.showAllEvents) return false;
+        // An encrypted event mutates in place when it decrypts (same object),
+        // so depend on timelineTick or the row stays a raw m.room.encrypted
+        // debug row after it has become a renderable message.
+        void messagesState.timelineTick;
         if (event.isRedacted()) return true;
         const type = event.getType();
         if (

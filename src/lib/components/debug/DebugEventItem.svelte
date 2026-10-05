@@ -2,6 +2,7 @@
     import { t } from "$lib/i18n";
     import type { MatrixEvent } from "matrix-js-sdk";
     import { format } from "date-fns";
+    import { messagesState } from "$lib/stores/messages.svelte";
 
     interface Props {
         event: MatrixEvent;
@@ -9,15 +10,25 @@
 
     let { event }: Props = $props();
 
-    const type = $derived(event.getType());
+    // The event mutates in place on decryption and timelineTick is bumped then,
+    // so re-read through it or the row keeps showing the m.room.encrypted
+    // envelope.
+    const type = $derived(
+        (void messagesState.timelineTick, event.getType()),
+    );
     const sender = $derived(event.getSender() ?? "-");
     const stateKey = $derived(event.getStateKey());
     const eventId = $derived(event.getId() ?? "-");
-    const redacted = $derived(event.isRedacted());
+    const redacted = $derived(
+        (void messagesState.timelineTick, event.isRedacted()),
+    );
     const time = $derived(
         event.getTs() ? format(new Date(event.getTs()), "HH:mm:ss") : "-",
     );
-    const contentJson = $derived(JSON.stringify(event.getContent(), null, 2));
+    const contentJson = $derived(
+        (void messagesState.timelineTick,
+        JSON.stringify(event.getContent(), null, 2)),
+    );
 </script>
 
 <details
