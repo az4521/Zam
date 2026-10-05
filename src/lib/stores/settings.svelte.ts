@@ -335,8 +335,9 @@ export const settingsState = $state({
      *  device the user hasn't verified. */
     sendToVerifiedOnly: readAccountBool("sendToVerifiedOnly", false),
     /** MSC4153: only share keys with / decrypt from cross-signed devices.
-     *  Default ON; the off switch exists for development and testing. */
-    excludeInsecureDevices: readAccountBool("excludeInsecureDevices", true),
+     *  Default OFF (as in Element): many senders still have devices that
+     *  aren't cross-signed, and ON makes their messages undecryptable. */
+    excludeInsecureDevices: readAccountBool("excludeInsecureDevices", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
     /** The presence status_msg we last mirrored our profile status into. A
@@ -625,7 +626,7 @@ export function reloadAccountSettings(): void {
     );
     settingsState.excludeInsecureDevices = readAccountBool(
         "excludeInsecureDevices",
-        true,
+        false,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.ownStatusMessage =

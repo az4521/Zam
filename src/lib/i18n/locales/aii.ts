@@ -1615,7 +1615,7 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.excludeInsecureDevices":
         "Exclude non-cross-signed devices",
     "sessionSettings.excludeInsecureDevicesHelp":
-        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Recommended. Turn off only for development or testing.",
+        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Messages from devices that are not cross-signed will show as unable to decrypt.",
     "sessionSettings.onlySendToVerifiedDevices": "ܫܕܪ ܒܣ ܠܡܐܢ̈ܐ ܡܫܪܪ̈ܐ",
     "sessionSettings.refuseToEncryptMessagesForSessions":
         "ܠܐ ܛܫܝ ܐܓܪ̈ܬܐ ܩܐ ܓܠܣ̈ܐ ܕܠܐ ܫܪܪܠܘܟ. ܐܢܝ̈ ܠܐ ܒܕ ܩܒܠܝ ܐܓܪ̈ܬܐ ܕܝܘܟ ܒܟܠ - ܐܦ ܓܠܣ̈ܐ ܕܝܘܟ ܕܠܐ ܡܫܪܪ̈ܐ. ܥܕܝܠܐܝܬ ܛܦܝܐ ܝܠܗ.",

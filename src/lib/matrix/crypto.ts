@@ -153,34 +153,46 @@ export function applyDeviceIsolation(excludeInsecure: boolean): void {
 // Store locks this page holds; see holdCryptoStoreLock.
 const heldCryptoStoreLocks = new Set<string>();
 // How long to wait for a push-notification decrypt to let go of the store.
-// It has its own, shorter, timeouts; this only stops a wedged one from keeping
-// crypto off for good.
-const CRYPTO_LOCK_WAIT_MS = 15000;
+// Its work under the lock is bounded well below this (pushDecryptHeadless.ts);
+// this only stops a wedged one from hanging boot forever.
+const CRYPTO_LOCK_WAIT_MS = 30000;
 
 /**
  * Take the crypto store's Web Lock in shared mode and keep it for the life of
  * the page. The push-notification decryptor (pushDecryptHeadless.ts) needs it
  * exclusively, so it never opens the store while a page has it open; shared,
- * so several tabs of the same account do not lock each other out. Resolves
- * once granted, or straight away where Web Locks are unavailable.
+ * so several tabs of the same account do not lock each other out.
+ *
+ * Resolves true once granted (or where Web Locks are unusable, in which case
+ * the decryptor refuses to run at all). Resolves false if the decryptor still
+ * holds it after the wait: the caller must then NOT open the store, since two
+ * OlmMachines on one store corrupt it. The queued request is withdrawn so a
+ * later grant can't be mistaken for one this session holds.
  */
-async function holdCryptoStoreLock(name: string): Promise<void> {
-    if (heldCryptoStoreLocks.has(name)) return;
+async function holdCryptoStoreLock(name: string): Promise<boolean> {
+    if (heldCryptoStoreLocks.has(name)) return true;
     const locks =
         typeof navigator !== "undefined" ? navigator.locks : undefined;
-    if (!locks) return;
-    heldCryptoStoreLocks.add(name);
-    await new Promise<void>((granted) => {
-        const timer = setTimeout(granted, CRYPTO_LOCK_WAIT_MS);
+    if (!locks) return true;
+    const abort = new AbortController();
+    return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+            abort.abort();
+            resolve(false);
+        }, CRYPTO_LOCK_WAIT_MS);
         locks
-            .request(name, { mode: "shared" }, () => {
+            .request(name, { mode: "shared", signal: abort.signal }, () => {
                 clearTimeout(timer);
-                granted();
+                heldCryptoStoreLocks.add(name);
+                resolve(true);
                 return new Promise<never>(() => {});
             })
-            .catch(() => {
+            .catch((e: unknown) => {
                 clearTimeout(timer);
-                granted();
+                // Our own abort: not granted. Anything else means locks don't
+                // work in this context, and the decryptor can't take them
+                // either, so there is nobody to collide with.
+                resolve((e as { name?: string })?.name !== "AbortError");
             });
     });
 }
@@ -215,7 +227,11 @@ export async function initCrypto(
     // a previous account's recovery key must not outlive its session.
     secretStorageKeys.clear();
     try {
-        await holdCryptoStoreLock(getCryptoLockName(userId, deviceId));
+        if (!(await holdCryptoStoreLock(getCryptoLockName(userId, deviceId)))) {
+            throw new Error(
+                "crypto store is still held by a push-notification decrypt",
+            );
+        }
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });
@@ -233,12 +249,11 @@ export async function initCrypto(
         if (cryptoApi) {
             cryptoApi.globalBlacklistUnverifiedDevices =
                 readScoped("settings:sendToVerifiedOnly", userId) === "true";
-            // MSC4153 default is ON: only an explicit "false" opts out.
+            // MSC4153 isolation is opt-in: only an explicit "true" enables it.
             cryptoApi.setDeviceIsolationMode(
-                readScoped("settings:excludeInsecureDevices", userId) ===
-                    "false"
-                    ? new AllDevicesIsolationMode(false)
-                    : new OnlySignedDevicesIsolationMode(),
+                readScoped("settings:excludeInsecureDevices", userId) === "true"
+                    ? new OnlySignedDevicesIsolationMode()
+                    : new AllDevicesIsolationMode(false),
             );
         }
         attachDecryptionListener(client);

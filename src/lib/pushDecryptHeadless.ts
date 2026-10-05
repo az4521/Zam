@@ -45,6 +45,13 @@ export interface HeadlessDecryptResult {
     content: Record<string, unknown>;
 }
 
+/**
+ * Bound on the to-device fetch made while holding the store lock. A page that
+ * opens meanwhile waits for the lock (crypto.ts, 30s), so everything done
+ * under it has to finish well inside that.
+ */
+const TO_DEVICE_FETCH_TIMEOUT_MS = 8000;
+
 /** A sync that carries only to-device messages and key counts. */
 const TO_DEVICE_ONLY_FILTER = JSON.stringify({
     room: { rooms: [] },
@@ -63,6 +70,10 @@ export async function decryptHeadless(
         const locks = (globalThis.navigator as Navigator | undefined)?.locks;
         // Without locks there is no way to stay out of a running page's way.
         if (!locks) return null;
+        // Load the WASM BEFORE taking the lock: it is the slow part (download
+        // and compile on a cold worker), and a page opening meanwhile has to
+        // wait for us.
+        await initAsync(params.wasmUrl);
         return await locks.request(
             getCryptoLockName(params.userId, params.deviceId),
             { mode: "exclusive", ifAvailable: true },
@@ -76,7 +87,6 @@ export async function decryptHeadless(
 async function decryptWithStore(
     params: HeadlessDecryptParams,
 ): Promise<HeadlessDecryptResult | null> {
-    await initAsync(params.wasmUrl);
     const store = await StoreHandle.open(
         getCryptoDbName(params.userId, params.deviceId),
         undefined,
@@ -152,6 +162,7 @@ async function receivePendingToDevice(
         `&filter=${encodeURIComponent(TO_DEVICE_ONLY_FILTER)}`;
     const res = await fetch(url, {
         headers: { Authorization: `Bearer ${params.accessToken}` },
+        signal: AbortSignal.timeout(TO_DEVICE_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return false;
     const sync = (await res.json()) as {

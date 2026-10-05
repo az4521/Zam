@@ -259,9 +259,10 @@ describe("getEventShield", () => {
         });
     });
 
-    // MSC4153: excluding non-cross-signed devices is the default; the mode is
-    // in-memory only in the SDK so initCrypto must apply it every session.
-    it("applies OnlySignedDevicesIsolationMode at init by default", async () => {
+    // MSC4153 isolation is opt-in (it makes messages from non-cross-signed
+    // devices undecryptable); the mode is in-memory only in the SDK so
+    // initCrypto must apply it every session.
+    async function isolationKindAtInit(): Promise<number | undefined> {
         const mod = await import("./crypto");
         const client = makeShieldClient(vi.fn());
         const cryptoApi = client.getCrypto();
@@ -271,7 +272,25 @@ describe("getEventShield", () => {
         const arg = cryptoApi.setDeviceIsolationMode.mock.calls[0]?.[0] as {
             kind: number;
         };
-        expect(arg?.kind).toBe(1); // DeviceIsolationModeKind.OnlySigned
+        return arg?.kind;
+    }
+
+    it("applies AllDevicesIsolationMode at init by default", async () => {
+        expect(await isolationKindAtInit()).toBe(0); // AllDevices
+    });
+
+    it("applies OnlySignedDevicesIsolationMode when opted in", async () => {
+        const { scopedKey } = await import("$lib/utils/scopedStorage");
+        const key = scopedKey(
+            "settings:excludeInsecureDevices",
+            "@me:example.org",
+        );
+        localStorage.setItem(key, "true");
+        try {
+            expect(await isolationKindAtInit()).toBe(1); // OnlySigned
+        } finally {
+            localStorage.removeItem(key);
+        }
     });
 
     it("returns null when the event is unencrypted or not yet decrypted", async () => {
@@ -939,6 +958,83 @@ describe("unlockWithRecoveryKey", () => {
 
         await expect(mod.unlockWithRecoveryKey(key)).rejects.toThrow("network");
         expect(calls[0]).toBe("bootstrapCrossSigning");
+    });
+});
+
+// Two OlmMachines on one store corrupt it, so the page must never open the
+// store while the push-notification decryptor holds its lock exclusively.
+describe("crypto store lock", () => {
+    let realLocks: PropertyDescriptor | undefined;
+
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+        realLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        if (realLocks) Object.defineProperty(navigator, "locks", realLocks);
+        else delete (navigator as { locks?: unknown }).locks;
+    });
+
+    /** A lock manager whose lock is held elsewhere and never released. */
+    function heldElsewhere() {
+        const request = vi.fn(
+            (_n: string, opts: { signal?: AbortSignal }) =>
+                new Promise((_resolve, reject) => {
+                    opts.signal?.addEventListener("abort", () =>
+                        reject(
+                            Object.assign(new Error("aborted"), {
+                                name: "AbortError",
+                            }),
+                        ),
+                    );
+                }),
+        );
+        Object.defineProperty(navigator, "locks", {
+            value: { request },
+            configurable: true,
+        });
+        return request;
+    }
+
+    it("does not open the store if the lock is never granted", async () => {
+        vi.useFakeTimers();
+        const mod = await import("./crypto");
+        heldElsewhere();
+        const client = makeClient();
+        h.getClient.mockReturnValue(client);
+
+        const init = mod.initCrypto(client as never, "@me:x.org", "DEV");
+        await vi.advanceTimersByTimeAsync(31000);
+        await init;
+
+        expect(h.initRustCrypto).not.toHaveBeenCalled();
+        expect(mod.isCryptoAvailable()).toBe(false);
+    });
+
+    it("waits for the lock instead of a timeout before opening the store", async () => {
+        vi.useFakeTimers();
+        const mod = await import("./crypto");
+        let grant: () => void = () => {};
+        Object.defineProperty(navigator, "locks", {
+            value: {
+                request: (_n: string, _o: unknown, cb: () => Promise<never>) =>
+                    new Promise((resolve) => {
+                        grant = () => resolve(cb());
+                    }),
+            },
+            configurable: true,
+        });
+        const client = makeClient();
+        h.getClient.mockReturnValue(client);
+
+        const init = mod.initCrypto(client as never, "@me:x.org", "DEV");
+        await vi.advanceTimersByTimeAsync(20000);
+        expect(h.initRustCrypto).not.toHaveBeenCalled();
+        grant();
+        await init;
+        expect(h.initRustCrypto).toHaveBeenCalledTimes(1);
     });
 });
 
