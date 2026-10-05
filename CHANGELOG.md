@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.9
+
+🐛 **Fixed**
+
+- **Invites you couldn't ignore with sliding sync:** clicking Ignore on an invite left it in the inbox forever. It now goes away, and stays gone after a reload.
+- **DM invites named "Empty room" with sliding sync:** an invite to a DM showed as "Empty room (was ...)". It's now named after the person who invited you.
+- **Left rooms coming back with sliding sync:** a room you left could reappear in the sidebar about 30 seconds later. It now stays gone.
+- **Presence with sliding sync:** you showed as offline to others shortly after opening the app, and nobody else's online status showed up. Both now work like they do with sliding sync off.
+
 ## v1.13.8
 
 🐛 **Fixed**
