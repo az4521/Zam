@@ -2350,13 +2350,20 @@ export function getRoomClassification(
     // read it raw, and only the joined buckets go through the pendingLeaves
     // filter that the exported getRooms() applies.
     const all = listRooms();
-    const rooms = all.map((r) => ({
-        room: r,
-        roomId: r.roomId,
-        isSpace: r.isSpaceRoom(),
-        membership: r.getMyMembership(),
-        pendingLeave: pendingLeaves.has(r.roomId),
-    }));
+    const rooms = all.map((r) => {
+        const membership = r.getMyMembership();
+        return {
+            room: r,
+            roomId: r.roomId,
+            isSpace: r.isSpaceRoom(),
+            // A rejected invite the server never cleared reads as left.
+            membership:
+                membership === "invite" && isDismissedInvite(r)
+                    ? "leave"
+                    : membership,
+            pendingLeave: pendingLeaves.has(r.roomId),
+        };
+    });
 
     // getOrphanRooms derives its child set from getSpaces(), which runs through
     // the join + pendingLeaves filter — mirror that here or a leaving space
@@ -6559,7 +6566,9 @@ export function getInvitedRooms(): Room[] {
     if (!matrixClient) return [];
     return matrixClient
         .getRooms()
-        .filter((r) => r.getMyMembership() === "invite");
+        .filter(
+            (r) => r.getMyMembership() === "invite" && !isDismissedInvite(r),
+        );
 }
 
 export async function acceptInvite(roomId: string): Promise<void> {
@@ -6606,9 +6615,80 @@ export async function acceptInvite(roomId: string): Promise<void> {
     scheduleJoinedRoomsReconcile();
 }
 
+// Invites the user rejected, hidden locally by the invite's event id. A reject
+// can "succeed" on our side and still never come back over sync: a dead room
+// (every member gone, e.g. "Empty room (was …)") makes the homeserver's remote
+// reject fail, and some servers then keep the invite forever instead of
+// rejecting it locally. Keyed by event id so a fresh invite to the same room
+// still shows. Persisted per account so the ghost does not return on reload.
+const DISMISSED_INVITES_MAX = 100;
+
+function dismissedInvitesKey(): string | null {
+    const me = matrixClient?.getUserId();
+    return me ? `dismissedInvites:${me}` : null;
+}
+
+let dismissedInvitesCache: { key: string; map: Record<string, string> } | null =
+    null;
+
+function loadDismissedInvites(): Record<string, string> {
+    const key = dismissedInvitesKey();
+    if (!key) return {};
+    if (dismissedInvitesCache?.key === key) return dismissedInvitesCache.map;
+    let map: Record<string, string> = {};
+    try {
+        const parsed = JSON.parse(localStorage.getItem(key) ?? "{}");
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            for (const [k, v] of Object.entries(parsed)) {
+                if (typeof v === "string") map[k] = v;
+            }
+        }
+    } catch {
+        map = {};
+    }
+    dismissedInvitesCache = { key, map };
+    return map;
+}
+
+function inviteEventId(room: Room): string {
+    const me = matrixClient?.getUserId();
+    return (me && room.getMember(me)?.events.member?.getId()) || "";
+}
+
+function dismissInvite(roomId: string): void {
+    const key = dismissedInvitesKey();
+    const room = matrixClient?.getRoom(roomId);
+    if (!key || !room) return;
+    const map = { ...loadDismissedInvites(), [roomId]: inviteEventId(room) };
+    const ids = Object.keys(map);
+    for (const id of ids.slice(0, -DISMISSED_INVITES_MAX)) delete map[id];
+    dismissedInvitesCache = { key, map };
+    try {
+        localStorage.setItem(key, JSON.stringify(map));
+    } catch {
+        // Private-mode localStorage can throw; the in-memory hide still holds.
+    }
+    for (const cb of roomUpdateSubscribers) cb();
+}
+
+/** A pending invite the user already rejected (see dismissInvite). */
+function isDismissedInvite(room: Room): boolean {
+    const dismissed = loadDismissedInvites()[room.roomId];
+    return dismissed !== undefined && dismissed === inviteEventId(room);
+}
+
 export async function rejectInvite(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    await matrixClient.leave(roomId);
+    try {
+        await matrixClient.leave(roomId);
+    } catch (e) {
+        // No HTTP status means we never reached the server (offline): surface
+        // it. Any server answer (403 / 404 / 5xx from a failed remote reject)
+        // means the invite is unactionable, so hide it rather than strand it.
+        if (!(e as MatrixError)?.httpStatus) throw e;
+        console.warn("Server could not reject invite, hiding locally", e);
+    }
+    dismissInvite(roomId);
 }
 
 /**
