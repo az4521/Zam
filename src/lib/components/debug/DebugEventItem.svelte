@@ -22,6 +22,12 @@
     const redacted = $derived(
         (void messagesState.timelineTick, event.isRedacted()),
     );
+    // Raw SDK DecryptionFailureCode. The timeline's UTD copy collapses most
+    // codes into one generic line, so this is the only place the real reason
+    // is visible.
+    const failureReason = $derived(
+        (void messagesState.timelineTick, event.decryptionFailureReason),
+    );
     const time = $derived(
         event.getTs() ? format(new Date(event.getTs()), "HH:mm:ss") : "-",
     );
@@ -49,6 +55,9 @@
         <span class="text-discord-textSecondary break-all">{sender}</span>
         {#if redacted}<span class="text-discord-danger"
                 >{t("debugEventItem.redacted")}</span
+            >{/if}
+        {#if failureReason}<span class="text-discord-danger"
+                >{failureReason}</span
             >{/if}
     </summary>
     <div class="px-2 pb-2 pt-1 border-t border-discord-divider space-y-1">
