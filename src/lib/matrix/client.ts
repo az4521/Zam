@@ -4112,6 +4112,28 @@ export async function getOwnThreePids(): Promise<ThreePid[]> {
 }
 
 export function getRoomDisplayName(room: Room): string {
+    // Sliding sync sends no joined/invited counts for an invite, so the SDK's
+    // generated name sees zero members and reads "Empty room (was X)" for a
+    // perfectly live DM. An unnamed invite is named after who else is in it.
+    if (
+        room.getMyMembership() === "invite" &&
+        !room.currentState.getStateEvents(EventType.RoomName, "")?.getContent()
+            .name &&
+        !room.getCanonicalAlias()
+    ) {
+        const me = matrixClient?.getUserId();
+        const others = room
+            .getMembers()
+            .filter(
+                (m) =>
+                    m.userId !== me &&
+                    (m.membership === "join" || m.membership === "invite"),
+            )
+            .map((m) => m.name);
+        if (others.length) return others.join(", ");
+        const inviter = getInviteSender(room);
+        if (inviter) return room.getMember(inviter)?.name ?? inviter;
+    }
     return room.name || room.roomId;
 }
 
@@ -6616,11 +6638,13 @@ export async function acceptInvite(roomId: string): Promise<void> {
 }
 
 // Invites the user rejected, hidden locally by the invite's event id. A reject
-// can "succeed" on our side and still never come back over sync: a dead room
-// (every member gone, e.g. "Empty room (was …)") makes the homeserver's remote
-// reject fail, and some servers then keep the invite forever instead of
-// rejecting it locally. Keyed by event id so a fresh invite to the same room
-// still shows. Persisted per account so the ghost does not return on reload.
+// can succeed on the server and still never reach the local Room: under
+// sliding sync (MSC4186) the server simply drops the room from the list, and
+// the SDK's sliding-sync path never moves an invite to "leave", so it sat in
+// the inbox forever. A dead room's remote reject can also fail outright with
+// the server keeping the invite. Keyed by event id so a fresh invite to the
+// same room still shows. Persisted per account so the ghost cannot return
+// from the sync cache on reload.
 const DISMISSED_INVITES_MAX = 100;
 
 function dismissedInvitesKey(): string | null {
@@ -6681,11 +6705,17 @@ export async function rejectInvite(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     try {
         await matrixClient.leave(roomId);
+        // Sliding sync never streams the leave back for an invite; settle the
+        // local membership ourselves (fires Room.myMembership for the list).
+        const room = matrixClient.getRoom(roomId);
+        if (room?.getMyMembership() === "invite")
+            room.updateMyMembership("leave");
     } catch (e) {
-        // No HTTP status means we never reached the server (offline): surface
-        // it. Any server answer (403 / 404 / 5xx from a failed remote reject)
-        // means the invite is unactionable, so hide it rather than strand it.
-        if (!(e as MatrixError)?.httpStatus) throw e;
+        // 403 / 404: the server refuses or no longer knows the invite (e.g. a
+        // dead room's failed remote reject), so it is unactionable: hide it
+        // rather than strand it. Offline and 5xx stay errors worth retrying.
+        const status = (e as MatrixError)?.httpStatus;
+        if (status !== 403 && status !== 404) throw e;
         console.warn("Server could not reject invite, hiding locally", e);
     }
     dismissInvite(roomId);
