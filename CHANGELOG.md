@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.6
+
+🐛 **Fixed**
+
+- **"Set up recovery" could replace your existing recovery:** on accounts that already had a recovery key but weren't fully set up, the button could delete your key backup and show a new key that didn't actually work. It now only appears on accounts with no recovery at all.
+- **Restoring history could leave a session unverified:** entering your recovery key restored message history before verifying the session, so a slow or failed restore left it unverified. The session is now verified first.
+- **Messages from devices that aren't cross-signed couldn't be read:** "Exclude non-cross-signed devices" is now off by default, and turning it off unlocks messages it had already blocked without a reload.
+- **Notifications could damage encryption keys:** decrypting a notification in the background while the app was opening could, rarely, leave both using the key store at once. They now never overlap, and a stuck background decrypt no longer holds the notification back.
+
 ## v1.13.5
 
 🐛 **Fixed**
