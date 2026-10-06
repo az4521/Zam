@@ -51,11 +51,13 @@ things left to do:
 Rooms
 
 - Server admin tools (Synapse admin API)
-- Approving/denying knock requests (you can knock from join-by-address, though not from the room directory, and there's no admin UI for handling one)
+- Jump to date (`/timestamp_to_event`)
+- Marking a room as unread (`m.marked_unread`)
 
 User
 
 - Sign-in methods: password, legacy SSO and native OAuth 2.0 / OIDC (Matrix Authentication Service) all work. Not done: QR-code login from another device, the OAuth device-code grant, and signing other sessions out from inside the app on an OAuth account (it links to the provider's account page instead)
+- Manual key export/import to a file (key backup and recovery cover the same ground, but there's no file you can carry to another client)
 - Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to telling you your homeserver hasn't got one
 
 Media
@@ -66,7 +68,6 @@ UI / Polish
 
 - Empty-state illustrations (a couple of the empty states are designed; most are a line of muted text)
 - First-run / onboarding flow
-- `prefers-reduced-motion` — animations are unconditional today
 - Roving-tabindex arrow navigation in the menus that declare `role="menu"`
 
 for devs, same install process as every other js app
