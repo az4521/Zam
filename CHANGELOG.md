@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.14.1
+
+✨ **New**
+
+- **See when an account's notifications are switched off:** another app (such as Element's "Enable notifications for this account") can turn off every notification for an account, and Zam never showed it, so that account just went quiet. Settings → Notifications now warns when this is on, with a button to turn notifications back on, and Debug Info shows it too.
+
 ## v1.14.0
 
 ✨ **New**
