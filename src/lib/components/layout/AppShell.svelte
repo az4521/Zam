@@ -199,7 +199,10 @@
     } from "$lib/utils/hierarchyRefresh";
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
-    import { previewForEvent } from "$lib/utils/encryptionState";
+    import {
+        isUndecryptedEvent,
+        previewForEvent,
+    } from "$lib/utils/encryptionState";
     import { notificationBody } from "$lib/utils/notificationPrivacy";
     import { playPing } from "$lib/audio/soundEffects";
     import {
@@ -1762,13 +1765,15 @@
             if (!isLiveAppend) return;
             if (event.getSender() === getOwnUserId()) return;
 
+            // Still encrypted: the decrypted path below notifies once it has
+            // the text. Only "Show all events" lets ciphertext this far, and
+            // notifying it here would pop "🔒 Encrypted message" and, sharing
+            // the event id, suppress the decrypted notification for good.
+            if (isUndecryptedEvent(event.getType())) return;
+
             // Thread replies are participant/mention-gated elsewhere: plaintext
             // ones by onThreadReplyEvent below, encrypted ones by the decrypted
-            // path. Skip them here so we don't double-notify. KNOWN debug-only
-            // hole: this reads getOriginalContent, which is the WIRE content
-            // while undecrypted, so a ciphertext-only relation slips past — and
-            // with showAllEvents on the ciphertext then notifies ungated as
-            // "🔒 Encrypted message", its id suppressing the gated one.
+            // path. Skip them here so we don't double-notify.
             if (getEventThreadRootId(event)) return;
 
             const actions = getClient()?.getPushActionsForEvent(event);

@@ -8866,10 +8866,9 @@ export function onDecryptedTimelineEvent(
         if (!room) return;
         pending.delete(eventId);
 
-        // Same content filter as onTimelineEvent (minus its showAllEvents
-        // bypass — with that debug setting on, the ciphertext already went
-        // through the normal path and the caller's already-notified check
-        // suppresses this one).
+        // Same content filter as onTimelineEvent, minus its showAllEvents
+        // bypass. With that debug setting on the ciphertext also reaches the
+        // plain path, which leaves still-encrypted events to this one.
         // An encrypted event's relation can sit in either half, depending on
         // the sender. Some clients leave `m.relates_to` in the wire content —
         // that is what getRelation() reads, and why the SDK's isRelation()
