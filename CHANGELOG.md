@@ -4,6 +4,24 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.0
+
+✨ **New**
+
+- **Thread names:** the person who started a thread, or a moderator, can name it from the pencil button in the thread's header. The name shows in the thread header, the thread list and the "replies" chip under the first message. Other Matrix apps don't show thread names.
+- **My threads:** the thread list has an All threads / My threads switch. My threads shows the threads you started or replied in.
+- **Reply inside a thread:** Reply now works on messages in a thread, and tapping a quoted message scrolls to it.
+- **Export and import room keys:** Settings → Security & Encryption can save your encryption keys to a passphrase-protected file and load one back. It's the same format Element uses, so key files move between the two.
+- **Request to join from Explore rooms:** rooms that need an invite request now have a Request to join button instead of a greyed-out "Knock only".
+- **Source code link:** Settings → About links to Zam on GitHub.
+
+🐛 **Fixed**
+
+- **Encrypted notifications while the app is in the background (Android):** after Zam had been in the background for more than about half a minute, notifications for encrypted messages only said who sent something. Zam now pauses syncing shortly after leaving the screen so it can answer notifications straight away. On a phone where that still isn't fast enough, Zam steps aside in the background instead, and reloads when you come back to it (your drafts are kept).
+- **Thread scrolling:** "Load older replies" no longer jumps you back to the bottom, and new activity elsewhere no longer scrolls a thread you're reading.
+- **Missing thread replies:** replies that couldn't be decrypted, and polls started in a thread, were left out of the thread. They now show, with the usual "unable to decrypt" placeholder where needed.
+- **The first message of a thread:** the thread panel showed it as three lines of plain text. It now shows in full, with images, formatting and reactions.
+
 ## v1.14.2
 
 ✨ **New**
