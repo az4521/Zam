@@ -1323,9 +1323,9 @@ const messages: Record<MessageKey, string> = {
     "roomDirectory.noRoomsFound": "Aucun salon trouvé.",
     "roomDirectory.space": "Espace",
     "roomDirectory.open": "Ouvrir",
-    "roomDirectory.thisRoomRequiresAKnockNot":
-        "Ce salon nécessite de frapper - pas encore pris en charge",
     "roomDirectory.knockOnly": "Sur demande uniquement",
+    "roomDirectory.requestToJoin": "Demander à rejoindre",
+    "roomDirectory.requested": "Demandé",
     "roomDirectory.somethingWentWrong": "Une erreur s'est produite",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte

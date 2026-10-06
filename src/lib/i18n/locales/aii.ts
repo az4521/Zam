@@ -1252,9 +1252,9 @@ const messages: Record<MessageKey, string> = {
     "roomDirectory.noRoomsFound": "ܠܐ ܦܝܫܝ ܡܫܟܚܐ ܓܘܡ̈ܐ.",
     "roomDirectory.space": "ܚܘܕܪܐ",
     "roomDirectory.open": "ܦܬܘܚ",
-    "roomDirectory.thisRoomRequiresAKnockNot":
-        "ܗܢܐ ܓܘܡܐ ܣܢܝܩܐ ܝܠܗ ܠܢܩܫܐ ܥܠ ܬܪܥܐ - ܗܠ ܗܫܐ ܠܐ ܝܠܗ ܡܣܘܥܝܐ",
     "roomDirectory.knockOnly": "ܒܣ ܒܢܩܫܐ",
+    "roomDirectory.requestToJoin": "ܒܥܝ ܥܠܠܐ",
+    "roomDirectory.requested": "ܒܥܝܐ",
     "roomDirectory.somethingWentWrong": "ܡܕܡ ܠܐ ܦܠܚܠܗ",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte

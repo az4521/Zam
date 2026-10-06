@@ -5,6 +5,7 @@
     import {
         getPublicRooms,
         joinRoom,
+        knockRoom,
         getRoom,
         mxcToHttp,
     } from "$lib/matrix/client";
@@ -88,6 +89,11 @@
         return getRoom(roomId)?.getMyMembership() === "join";
     }
 
+    function isKnocked(roomId: string): boolean {
+        void roomsState.roomsTick;
+        return getRoom(roomId)?.getMyMembership() === "knock";
+    }
+
     function openJoined(entry: DirectoryRoom) {
         closeModal();
         if (entry.isSpace) setActiveSpace(entry.roomId);
@@ -101,6 +107,19 @@
             const via = normalizeServerInput(serverInput);
             await joinRoom(entry.roomId, via ? [via] : undefined);
             openJoined(entry);
+        } catch (e) {
+            joinError = { roomId: entry.roomId, message: errorMessage(e) };
+        } finally {
+            joiningId = null;
+        }
+    }
+
+    async function knock(entry: DirectoryRoom) {
+        joiningId = entry.roomId;
+        joinError = null;
+        try {
+            const via = normalizeServerInput(serverInput);
+            await knockRoom(entry.roomId, undefined, via ? [via] : undefined);
         } catch (e) {
             joinError = { roomId: entry.roomId, message: errorMessage(e) };
         } finally {
@@ -247,12 +266,19 @@
                             class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors flex-shrink-0"
                             >{t("roomDirectory.open")}</button
                         >
-                    {:else if entry.joinRule === "knock"}
+                    {:else if entry.joinRule === "knock" && isKnocked(entry.roomId)}
                         <button
                             disabled
-                            title={t("roomDirectory.thisRoomRequiresAKnockNot")}
                             class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary text-discord-textMuted opacity-60 cursor-not-allowed flex-shrink-0"
-                            >{t("roomDirectory.knockOnly")}</button
+                            >{t("roomDirectory.requested")}</button
+                        >
+                    {:else if entry.joinRule === "knock"}
+                        <button
+                            onclick={() => knock(entry)}
+                            disabled={joiningId !== null}
+                            title={t("roomDirectory.knockOnly")}
+                            class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex-shrink-0"
+                            >{t("roomDirectory.requestToJoin")}</button
                         >
                     {:else}
                         <button

@@ -1312,9 +1312,9 @@ export const en = {
     "roomDirectory.noRoomsFound": "No rooms found.",
     "roomDirectory.space": "Space",
     "roomDirectory.open": "Open",
-    "roomDirectory.thisRoomRequiresAKnockNot":
-        "This room requires a knock - not supported yet",
     "roomDirectory.knockOnly": "Knock only",
+    "roomDirectory.requestToJoin": "Request to join",
+    "roomDirectory.requested": "Requested",
     "roomDirectory.somethingWentWrong": "Something went wrong",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
