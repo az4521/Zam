@@ -82,6 +82,7 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.downloadFailed": "ܐܚܬܬܐ ܠܐ ܦܠܚܠܗ̇",
     "aboutSettings.installFailed": "ܢܨܒܬܐ ܠܐ ܦܠܚܠܗ̇",
     "aboutSettings.failedToCheckForUpdates": "ܒܘܨܝܐ ܕܚܘܕ̈ܬܐ ܠܐ ܦܠܚܠܗ.",
+    "aboutSettings.sourceCodeOnGitHub": "ܟܘܕ ܡܒܘܥܐ ܓܘ GitHub",
 
     // src/lib/components/settings/AccountSettings.svelte
     "accountSettings.profile": "ܦܪܨܘܦܐ",

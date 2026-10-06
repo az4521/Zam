@@ -333,6 +333,13 @@
                 <p class="text-xs text-discord-textMuted">
                     {t("aboutSettings.currentVersionV", { APP_VERSION })}
                 </p>
+                <a
+                    href="https://github.com/az4521/Zam"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-xs text-discord-accent hover:underline"
+                    >{t("aboutSettings.sourceCodeOnGitHub")}</a
+                >
             </div>
             {#if isDesktopUpdater()}
                 {@render actionButton(view, runDesktopAction)}

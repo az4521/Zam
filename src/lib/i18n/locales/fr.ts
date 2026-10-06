@@ -84,6 +84,7 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.installFailed": "Échec de l'installation",
     "aboutSettings.failedToCheckForUpdates":
         "Impossible de rechercher des mises à jour.",
+    "aboutSettings.sourceCodeOnGitHub": "Code source sur GitHub",
 
     // src/lib/components/settings/AccountSettings.svelte
     "accountSettings.profile": "Profil",
