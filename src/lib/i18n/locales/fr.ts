@@ -2332,6 +2332,10 @@ const messages: Record<MessageKey, string> = {
     "textReplacer.replaceWith": "Remplacer par",
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Ignorer la casse",
+    "previewRewriter.name": "Réécriture des aperçus de liens",
+    "previewRewriter.description": "Charger les aperçus de liens depuis une autre adresse, par ex. un miroir d’un site que votre serveur d’accueil ne peut pas joindre.",
+    "previewRewriter.rules": "Règles de réécriture",
+    "previewRewriter.rulesDescription": "Appliquées dans l’ordre à l’adresse depuis laquelle un aperçu est chargé. Le lien lui-même n’est pas modifié.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

@@ -16,6 +16,10 @@ import {
     manifest as textReplacerManifest,
     plugin as textReplacerPlugin,
 } from "./text-replacer/index";
+import {
+    manifest as previewRewriterManifest,
+    plugin as previewRewriterPlugin,
+} from "./preview-rewriter/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -37,6 +41,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: textReplacerManifest,
         module: textReplacerPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: previewRewriterManifest,
+        module: previewRewriterPlugin,
         defaultEnabled: true,
     },
 ];

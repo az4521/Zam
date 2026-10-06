@@ -120,6 +120,10 @@ export interface PanelRegistration {
     render(el: HTMLElement): void | (() => void);
 }
 
+/** Rewrites the URL a link preview is fetched from (the link itself, as
+ *  shown and opened, is unchanged). Return the URL to request instead. */
+export type PreviewUrlTransform = (url: string) => string;
+
 export type OutgoingTextTransform = (
     text: string,
     ctx: { roomId: string },
@@ -226,6 +230,9 @@ export interface ZamPluginApi {
     messages: {
         transformOutgoing(fn: OutgoingTextTransform): Disposable;
         transformOutgoingContent(fn: OutgoingContentTransform): Disposable;
+        /** Rewrite the URL a link preview is requested for, e.g. to route a
+         *  site the homeserver cannot reach through a mirror. */
+        transformPreviewUrl(fn: PreviewUrlTransform): Disposable;
         onDoubleTap(handler: DoubleTapHandler): Disposable;
         /** Fired when a message row is swiped left past a threshold (item 6).
          *  short = reply intent, far = edit intent (gated on canEdit: your own

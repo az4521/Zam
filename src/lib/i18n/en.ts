@@ -2254,6 +2254,10 @@ export const en = {
     "textReplacer.replaceWith": "Replace with",
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Ignore case",
+    "previewRewriter.name": "Link preview rewriter",
+    "previewRewriter.description": "Fetch link previews from a different address, e.g. a mirror of a site your homeserver cannot reach.",
+    "previewRewriter.rules": "Rewrite rules",
+    "previewRewriter.rulesDescription": "Applied in order to the address a preview is fetched from. The link itself is not changed.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

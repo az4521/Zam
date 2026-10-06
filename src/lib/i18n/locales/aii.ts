@@ -2176,6 +2176,10 @@ const messages: Record<MessageKey, string> = {
     "textReplacer.replaceWith": "ܫܚܠܦ ܒ",
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "ܠܐ ܦܪܘܫ ܐܬ̈ܘܬܐ ܪܒ̈ܬܐ ܘܙܥܘܪ̈ܬܐ",
+    "previewRewriter.name": "ܫܚܠܦܢܐ ܕܚܙܝܬܐ ܕܐܣܘܪܐ",
+    "previewRewriter.description": "ܐܝܬܐ ܚܙܝܬܐ ܕܐܣܘܪܐ ܡܢ ܡܘܢܥܐ ܐܚܪܢܐ.",
+    "previewRewriter.rules": "ܢܡܘܣܐ ܕܫܘܚܠܦܐ",
+    "previewRewriter.rulesDescription": "ܡܬܦܠܚܝܢ ܒܛܟܣܐ ܥܠ ܡܘܢܥܐ ܕܚܙܝܬܐ. ܐܣܘܪܐ ܠܐ ܡܫܬܚܠܦ.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

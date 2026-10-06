@@ -6,7 +6,11 @@
  * (keep the prior value) so one bad plugin never breaks the send path. Types
  * only — no SDK/DOM imports.
  */
-import type { OutgoingTextTransform, OutgoingContentTransform } from "./types";
+import type {
+    OutgoingTextTransform,
+    OutgoingContentTransform,
+    PreviewUrlTransform,
+} from "./types";
 
 export function applyTextTransforms(
     text: string,
@@ -39,6 +43,27 @@ export function applyContentTransforms(
             }
         } catch (e) {
             console.error("[zam] outgoing content transform threw", e);
+        }
+    }
+    return out;
+}
+
+/**
+ * Fold of the link-preview URL rewrites. A result that is not an http(s) URL
+ * is skipped like a throw: the homeserver is only ever asked about web pages.
+ */
+export function applyPreviewUrlTransforms(
+    url: string,
+    transforms: PreviewUrlTransform[],
+): string {
+    let out = url;
+    for (const fn of transforms) {
+        try {
+            const next = fn(out);
+            if (typeof next === "string" && /^https?:\/\/[^/\s]/i.test(next))
+                out = next;
+        } catch (e) {
+            console.error("[zam] preview URL transform threw", e);
         }
     }
     return out;

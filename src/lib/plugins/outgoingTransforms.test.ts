@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
     applyTextTransforms,
     applyContentTransforms,
+    applyPreviewUrlTransforms,
 } from "./outgoingTransforms";
 
 const ctx = { roomId: "!r:server" };
@@ -76,5 +77,35 @@ describe("applyContentTransforms", () => {
             body: "hi",
             b: 2,
         });
+    });
+});
+
+describe("applyPreviewUrlTransforms", () => {
+    it("is the identity with no transforms", () => {
+        expect(applyPreviewUrlTransforms("https://a.example/x", [])).toBe(
+            "https://a.example/x",
+        );
+    });
+
+    it("folds transforms in order", () => {
+        expect(
+            applyPreviewUrlTransforms("https://oginstagram.com/p/1", [
+                (u) => u.replace("oginstagram.com", "instagram.crafty.moe"),
+                (u) => u + "?x=1",
+            ]),
+        ).toBe("https://instagram.crafty.moe/p/1?x=1");
+    });
+
+    it("skips throws and anything that is not an http(s) URL", () => {
+        expect(
+            applyPreviewUrlTransforms("https://a.example/", [
+                () => {
+                    throw new Error("boom");
+                },
+                () => "javascript:alert(1)",
+                () => "",
+                () => 5 as unknown as string,
+            ]),
+        ).toBe("https://a.example/");
     });
 });

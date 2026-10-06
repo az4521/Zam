@@ -2355,6 +2355,10 @@ const messages: Record<MessageKey, string> = {
     "textReplacer.replaceWith": "Ersetzen durch",
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Groß-/Kleinschreibung ignorieren",
+    "previewRewriter.name": "Linkvorschau-Umleitung",
+    "previewRewriter.description": "Linkvorschauen von einer anderen Adresse laden, z. B. von einem Spiegel einer Seite, die dein Homeserver nicht erreicht.",
+    "previewRewriter.rules": "Umleitungsregeln",
+    "previewRewriter.rulesDescription": "Der Reihe nach auf die Adresse angewendet, von der eine Vorschau geladen wird. Der Link selbst bleibt unverändert.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

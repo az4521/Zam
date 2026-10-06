@@ -23,6 +23,7 @@
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
+    import { applyPreviewUrlTransforms } from "$lib/plugins/outgoingTransforms";
 
     interface Props {
         url: string;
@@ -202,7 +203,14 @@
 
         // The homeserver's own preview endpoint — no third party is contacted,
         // so this runs under every policy. Only its MEDIA is gated, below.
-        getUrlPreview(currentUrl)
+        // Plugins may point the request elsewhere (a mirror the homeserver can
+        // reach); the link shown and opened stays the original.
+        getUrlPreview(
+            applyPreviewUrlTransforms(
+                currentUrl,
+                pluginRegistry.previewUrlTransforms.map((e) => e.value),
+            ),
+        )
             .then((data) => {
                 if (cancelled) return;
                 if (data && (data.title || data.imageUrl || data.videoUrl)) {

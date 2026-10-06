@@ -224,6 +224,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                         fn,
                     ),
                 ),
+            transformPreviewUrl: (fn) =>
+                track(addEntry(registry, "previewUrlTransforms", pluginId, fn)),
             onDoubleTap: (h) =>
                 track(addEntry(registry, "doubleTapHandlers", pluginId, h)),
             onSwipe: (h) =>

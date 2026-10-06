@@ -20,6 +20,7 @@ import type {
     PanelRegistration,
     OutgoingTextTransform,
     OutgoingContentTransform,
+    PreviewUrlTransform,
     DoubleTapHandler,
     SwipeHandler,
     EventSubscription,
@@ -43,6 +44,7 @@ export interface PluginRegistryData {
     panels: RegistryEntry<PanelRegistration>[];
     outgoingTextTransforms: RegistryEntry<OutgoingTextTransform>[];
     outgoingContentTransforms: RegistryEntry<OutgoingContentTransform>[];
+    previewUrlTransforms: RegistryEntry<PreviewUrlTransform>[];
     doubleTapHandlers: RegistryEntry<DoubleTapHandler>[];
     swipeHandlers: RegistryEntry<SwipeHandler>[];
     eventSubs: RegistryEntry<EventSubscription>[];
@@ -67,6 +69,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "panels",
     "outgoingTextTransforms",
     "outgoingContentTransforms",
+    "previewUrlTransforms",
     "doubleTapHandlers",
     "swipeHandlers",
     "eventSubs",
@@ -85,6 +88,7 @@ export function createRegistryData(): PluginRegistryData {
         panels: [],
         outgoingTextTransforms: [],
         outgoingContentTransforms: [],
+        previewUrlTransforms: [],
         doubleTapHandlers: [],
         swipeHandlers: [],
         eventSubs: [],
