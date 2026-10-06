@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.14.2
+
+✨ **New**
+
+- **Notifications for all your accounts in the browser:** with web push on, notifications for the accounts you aren't using now show the sender and message, decrypted, like the active account's, and tapping one switches to that account. Open each account once after updating to turn this on for it.
+- **Notifications for all your accounts on desktop:** while the app is open, your other accounts now notify too, within about 30 seconds. Tapping one switches to that account. This also covers browsers without web push.
+
 ## v1.14.1
 
 ✨ **New**
