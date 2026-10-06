@@ -82,6 +82,7 @@
         setDraft,
         clearDraft,
         registerLiveComposer,
+        registerDraftFlusher,
     } from "$lib/stores/composerDrafts.svelte";
     import {
         getFileQueue,
@@ -211,6 +212,15 @@
         const key = effComposerKey;
         return registerLiveComposer(key, (t) =>
             setComposerText(composerInsertText(text, t)),
+        );
+    });
+
+    // Lets a reload the app triggers itself keep what's typed here
+    // (backgroundRelease.ts). `text` is read when flushed, not now.
+    $effect(() => {
+        const key = effComposerKey;
+        return registerDraftFlusher(key, () =>
+            setDraft(key, text, pendingMentions),
         );
     });
 

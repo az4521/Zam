@@ -87,6 +87,7 @@
     import { initPresence } from "$lib/stores/presence.svelte";
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
+    import { initBackgroundRelease } from "$lib/backgroundRelease";
     import { initPlugins } from "$lib/plugins/pluginBoot";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import {
@@ -2163,6 +2164,9 @@
         const unsubIncoming = initIncomingCalls();
         const unsubLiveLocation = initLiveLocation();
         const unsubOutbox = initOutbox();
+        // Android: free the crypto store for push decryption while the app
+        // sits in the background (reloads on return).
+        const unsubBackgroundRelease = initBackgroundRelease();
         const unsubVerification = initVerification();
         const unsubPlugins = initPlugins();
         // Thread names are room state; anything showing one reads roomsTick.
@@ -2265,6 +2269,7 @@
             unsubIncoming();
             unsubLiveLocation();
             unsubOutbox();
+            unsubBackgroundRelease();
             unsubVerification();
             unsubPlugins();
             unsubAccountData();

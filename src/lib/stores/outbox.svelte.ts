@@ -77,6 +77,11 @@ export function getOutboxItems(roomId: string): OutboxItem[] {
     return itemsForRoom(state.s, roomId);
 }
 
+/** Whether any room has a message waiting (memory only: lost on reload). */
+export function hasOutboxItems(): boolean {
+    return state.s.items.length > 0;
+}
+
 /** Reactivity counter — bumped on every outbox transition. */
 export function outboxTick(): number {
     return state.tick;

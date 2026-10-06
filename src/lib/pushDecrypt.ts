@@ -59,6 +59,7 @@ export async function decryptForPush(
 }
 
 interface PushDecryptPlugin {
+    setActive(options: { active: boolean }): Promise<void>;
     respond(options: {
         requestId: string;
         type?: string;
@@ -75,6 +76,28 @@ interface PushDecryptPlugin {
 }
 
 const PushDecrypt = registerPlugin<PushDecryptPlugin>("PushDecrypt");
+
+function isAndroidWithPlugin(): boolean {
+    return (
+        Capacitor.isNativePlatform() &&
+        Capacitor.getPlatform() === "android" &&
+        Capacitor.isPluginAvailable("PushDecrypt")
+    );
+}
+
+/**
+ * Tell the native push service whether to ask this page at all. False once the
+ * page let go of its crypto store in the background (backgroundRelease.ts):
+ * waiting on it then only delays the hidden decryptor.
+ */
+export async function setPushDecryptPageActive(active: boolean): Promise<void> {
+    if (!isAndroidWithPlugin()) return;
+    try {
+        await PushDecrypt.setActive({ active });
+    } catch {
+        /* an older native shell without setActive: it always asks */
+    }
+}
 
 /**
  * Answer decrypt requests from the service worker (a MessagePort reply to a
@@ -108,11 +131,10 @@ export function startPushDecryptResponder(): () => void {
         );
     }
 
-    if (
-        Capacitor.isNativePlatform() &&
-        Capacitor.getPlatform() === "android" &&
-        Capacitor.isPluginAvailable("PushDecrypt")
-    ) {
+    if (isAndroidWithPlugin()) {
+        // A fresh page (the reload after a background release included)
+        // answers again; the flag lives in the native process, not here.
+        void setPushDecryptPageActive(true);
         let handle: PluginListenerHandle | null = null;
         let stopped = false;
         void PushDecrypt.addListener("decryptRequest", (req) => {

@@ -154,8 +154,9 @@ export function applyDeviceIsolation(excludeInsecure: boolean): void {
     bumpTimelineTick();
 }
 
-// Store locks this page holds; see holdCryptoStoreLock.
-const heldCryptoStoreLocks = new Set<string>();
+// Store locks this page holds, each with the call that lets it go; see
+// holdCryptoStoreLock and releaseCryptoStoreLocks.
+const heldCryptoStoreLocks = new Map<string, () => void>();
 // How long to wait for a push-notification decrypt to let go of the store.
 // Its work under the lock is bounded well below this (pushDecryptHeadless.ts);
 // this only stops a wedged one from hanging boot forever.
@@ -187,9 +188,11 @@ async function holdCryptoStoreLock(name: string): Promise<boolean> {
         locks
             .request(name, { mode: "shared", signal: abort.signal }, () => {
                 clearTimeout(timer);
-                heldCryptoStoreLocks.add(name);
                 resolve(true);
-                return new Promise<never>(() => {});
+                // Held until releaseCryptoStoreLocks resolves this.
+                return new Promise<void>((release) => {
+                    heldCryptoStoreLocks.set(name, release);
+                });
             })
             .catch((e: unknown) => {
                 clearTimeout(timer);
@@ -199,6 +202,17 @@ async function holdCryptoStoreLock(name: string): Promise<boolean> {
                 resolve((e as { name?: string })?.name !== "AbortError");
             });
     });
+}
+
+/**
+ * Let go of every crypto store lock this page holds, so the push decryptor
+ * can open the store. ONLY once this page's OlmMachine is closed for good
+ * (the client stopped, and the page reloads before it uses crypto again):
+ * two OlmMachines on one store corrupt it. See backgroundRelease.ts.
+ */
+export function releaseCryptoStoreLocks(): void {
+    for (const release of heldCryptoStoreLocks.values()) release();
+    heldCryptoStoreLocks.clear();
 }
 
 /**

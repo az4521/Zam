@@ -8,6 +8,7 @@
     } from "$lib/utils/voiceMessage";
     import { formatCallDuration } from "$lib/utils/callDuration";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { holdPageAlive } from "$lib/stores/pageKeepAlive";
     import {
         newCaptureLifecycle,
         beginCapture,
@@ -218,6 +219,9 @@
         chunks = [];
     }
 
+    // An open recorder (recording, previewing or sending) must not be cut
+    // off by a background release's reload (backgroundRelease.ts).
+    onDestroy(holdPageAlive());
     onDestroy(cleanup);
     start();
 </script>

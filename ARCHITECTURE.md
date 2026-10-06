@@ -329,6 +329,15 @@ Three paths — foreground (in-app Notification API), background web/PWA (VAPID 
 paths need a Sygnal gateway, and **both have live fallbacks compiled in**. See
 `ANDROID_PUSH_SETUP.md`, which carries the wire shapes and the effective defaults.
 
+Decrypting an Android push: the running page is asked first (`PushDecryptPlugin` →
+`pushDecrypt.ts`), else a hidden WebView opens the crypto store itself
+(`HeadlessDecryptor.java` → `pushDecryptHeadless.ts`), but only while no page holds the store's
+Web Lock. Android freezes a backgrounded app's WebView renderer within seconds, after which the page
+neither answers nor lets go of the lock. So `backgroundRelease.ts` stops the client and releases
+the lock after 10s hidden (unless a call, upload, outbox send, live location share or voice
+recording is running), and the app reloads when shown again, with drafts carried across in
+sessionStorage.
+
 ### Service worker (`static/sw.js`)
 
 `initServiceWorker()` lives in `client.ts` but is called from the route on login/restore. The

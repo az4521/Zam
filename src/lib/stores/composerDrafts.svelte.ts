@@ -7,7 +7,16 @@
 // of one shared composer that bleeds text between rooms.
 //
 // Session-scoped by design: an account switch does a full page reload, so
-// there's no cross-account keying, serialization, or stale-draft cleanup.
+// there's no cross-account keying, serialization, or stale-draft cleanup. The
+// one exception is the reload after the Android app let go of its crypto store
+// in the background (backgroundRelease.ts): drafts are carried across that in
+// sessionStorage, written just before and read back once here.
+
+import {
+    DRAFT_SNAPSHOT_KEY,
+    parseDraftSnapshot,
+    serializeDraftSnapshot,
+} from "$lib/utils/backgroundRelease";
 
 export type ComposerDraft = {
     text: string;
@@ -17,8 +26,19 @@ export type ComposerDraft = {
     mentions: [string, string][];
 };
 
+function takeDraftSnapshot(): Record<string, ComposerDraft> {
+    try {
+        const raw = sessionStorage.getItem(DRAFT_SNAPSHOT_KEY);
+        if (raw === null) return {};
+        sessionStorage.removeItem(DRAFT_SNAPSHOT_KEY);
+        return parseDraftSnapshot(raw, Date.now()) ?? {};
+    } catch {
+        return {};
+    }
+}
+
 const draftsState = $state<{ drafts: Record<string, ComposerDraft> }>({
-    drafts: {},
+    drafts: takeDraftSnapshot(),
 });
 
 export function getDraft(roomId: string): ComposerDraft | null {
@@ -71,4 +91,45 @@ export function deliverToLiveComposer(key: string, text: string): boolean {
     if (!insert) return false;
     insert(text);
     return true;
+}
+
+// Open composers' write-back, by draft key. A composer only stores its text
+// when it leaves its key, so a reload would lose what is still in an open one;
+// flushing first puts it in the store.
+const draftFlushers = new Map<string, () => void>();
+
+/** Register how the composer open for `key` stores its current text. */
+export function registerDraftFlusher(
+    key: string,
+    flush: () => void,
+): () => void {
+    draftFlushers.set(key, flush);
+    return () => {
+        if (draftFlushers.get(key) === flush) draftFlushers.delete(key);
+    };
+}
+
+/**
+ * Store every draft, open composers included, where the next page load in
+ * this tab reads it back. For a reload this page triggers itself.
+ */
+export function saveDraftsForReload(): void {
+    for (const flush of draftFlushers.values()) {
+        try {
+            flush();
+        } catch {
+            /* a torn-down composer: its last stored text stands */
+        }
+    }
+    try {
+        sessionStorage.setItem(
+            DRAFT_SNAPSHOT_KEY,
+            serializeDraftSnapshot(
+                $state.snapshot(draftsState.drafts),
+                Date.now(),
+            ),
+        );
+    } catch {
+        /* storage unavailable: the drafts are lost with the reload */
+    }
 }

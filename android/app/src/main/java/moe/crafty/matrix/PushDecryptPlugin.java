@@ -28,6 +28,11 @@ public class PushDecryptPlugin extends Plugin {
     private static final String EVENT = "decryptRequest";
 
     private static volatile PushDecryptPlugin instance;
+    // False while the web layer has let go of its crypto store in the
+    // background (src/lib/backgroundRelease.ts): it can't decrypt then, and
+    // Android may have frozen it, so don't wait on it. The hidden decryptor
+    // (HeadlessDecryptor) can take the store instead.
+    private static volatile boolean pageActive = true;
     private static final Map<String, Pending> pending = new ConcurrentHashMap<>();
 
     /** The decrypted event: its cleartext type and content. */
@@ -64,7 +69,7 @@ public class PushDecryptPlugin extends Plugin {
      */
     static Result request(String roomId, String eventId, long timeoutMs) {
         PushDecryptPlugin p = instance;
-        if (p == null || !p.hasListeners(EVENT)) return null;
+        if (p == null || !pageActive || !p.hasListeners(EVENT)) return null;
         String requestId = UUID.randomUUID().toString();
         Pending req = new Pending();
         pending.put(requestId, req);
@@ -84,6 +89,13 @@ public class PushDecryptPlugin extends Plugin {
         } finally {
             pending.remove(requestId);
         }
+    }
+
+    /** The web layer saying whether it can answer: { active }. */
+    @PluginMethod
+    public void setActive(PluginCall call) {
+        pageActive = call.getBoolean("active", true);
+        call.resolve();
     }
 
     /** The web layer's answer: { requestId, type?, content? }. */

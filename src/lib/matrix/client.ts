@@ -332,6 +332,7 @@ import {
     initCrypto,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
+    releaseCryptoStoreLocks,
 } from "$lib/matrix/crypto";
 import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
@@ -1145,6 +1146,49 @@ export function waitForLiveEvent(
  * as a dropped connection and starts its keep-alive, which retryImmediately
  * then runs at once instead of after its 2-7s backoff.
  */
+// Set once the client was stopped to free the crypto store in the background
+// (releaseClientForBackground). Nothing may restart sync after that: the page
+// reloads when it is shown again.
+let backgroundReleased = false;
+
+/** Whether an upload, or a send the server hasn't confirmed, is in flight. */
+export function hasSendsInFlight(): boolean {
+    if (!matrixClient) return false;
+    if (matrixClient.getCurrentUploads().length > 0) return true;
+    return matrixClient
+        .getRooms()
+        .some((room) =>
+            room
+                .getPendingEvents()
+                .some(
+                    (e) =>
+                        e.status === EventStatus.ENCRYPTING ||
+                        e.status === EventStatus.SENDING ||
+                        e.status === EventStatus.QUEUED,
+                ),
+        );
+}
+
+/**
+ * Stop the client for good and let go of the crypto store, so the hidden push
+ * decryptor can open it while Android has this page frozen in the background
+ * (backgroundRelease.ts). The page must reload before it is used again.
+ */
+export async function releaseClientForBackground(): Promise<void> {
+    if (backgroundReleased) return;
+    backgroundReleased = true;
+    const client = matrixClient;
+    if (client) {
+        logSync("released in the background");
+        // Also closes the OlmMachine (RustCrypto.stop).
+        client.stopClient();
+        // Let store writes the machine started finish before another
+        // OlmMachine may open the same store.
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    releaseCryptoStoreLocks();
+}
+
 function kickSync(client: MatrixClient): void {
     logSync(
         `restarting sync request (${activeSlidingSync ? "sliding" : "classic"})`,
@@ -1592,6 +1636,8 @@ export async function startSync(
         hiddenForMs = 0,
     ) => {
         if (!ownedClient(owner) || !initialSyncComplete) return;
+        // Stopped for good in the background; the page reloads on return.
+        if (backgroundReleased) return;
         const since = Date.now() - lastSyncResponseAt;
         const overdueAfter = watchdogOverdueMs(
             watchdogStrikes,
