@@ -166,7 +166,12 @@ async function registerWebPusher(
                 // the p256dh key from the Matrix pusher pushkey.
                 endpoint,
                 auth,
-                default_payload: {},
+                // Names the account in every push: each account signed in in
+                // this browser shares the subscription, and static/sw.js picks
+                // the matching session by this (see push.ts for Android).
+                default_payload: {
+                    zam_account: matrixClient.getUserId() ?? "",
+                },
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,

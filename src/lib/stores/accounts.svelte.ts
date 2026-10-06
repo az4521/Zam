@@ -16,6 +16,7 @@ import {
 } from "$lib/utils/accounts";
 
 import { syncNativeAccounts } from "$lib/nativeSession";
+import { syncServiceWorkerAccounts } from "$lib/swAccounts";
 
 const REGISTRY_KEY = "matrix_accounts";
 const LEGACY_KEY = "matrix_session";
@@ -47,9 +48,10 @@ function persist(): void {
     } catch {
         // ignore (private mode / storage full)
     }
-    // Every account's credentials, for pushes to non-active accounts
-    // (no-op off-native).
+    // Every account's credentials, for pushes to non-active accounts: the
+    // Android push service and the web service worker.
     void syncNativeAccounts(accountsState.registry.accounts);
+    syncServiceWorkerAccounts(accountsState.registry.accounts);
 }
 
 export function upsertAndActivate(account: StoredAccount): void {

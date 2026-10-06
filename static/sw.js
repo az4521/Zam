@@ -684,7 +684,7 @@ let deviceId = null;
 // Cached active-session heartbeat, read by shouldStayQuiet() below and reset
 // here whenever the identity changes. Declared with the rest of the module
 // state so the `message` listener never references it before its `let`.
-let activeSessionCache = { fetchedAt: 0, value: null };
+let activeSessionCache = {};
 // Set once the page has told us who we are (SET_AUTH) or that we are logged
 // out (CLEAR_AUTH). The IndexedDB restore below checks it so it can never
 // overwrite a fresher identity that arrived while its reads were in flight.
@@ -701,6 +701,44 @@ let ringEnabled = true;
 // Per-user read receipt privacy: { userId: boolean } where true = private receipts.
 // Hydrated from IDB and kept in sync via SET_RECEIPT_PRIVACY.
 let receiptPrivacyByUser = {};
+// Every account signed in on this origin, user id → session, mirrored from the
+// page (SET_ACCOUNTS) and kept in IndexedDB. A push names its account (the
+// pusher's default_payload `zam_account`) and is handled with THAT account's
+// session, so pushes for accounts other than the active one still notify.
+// Same IndexedDB-held credentials as SESSION_KEY, one per account.
+let accountSessions = {};
+// Like authFromMessage, for the account map.
+let accountsFromMessage = false;
+const ACCOUNTS_KEY = "matrix_session_accounts";
+
+// The stored map ({ userId: record string }, from serializeNativeAccounts in
+// src/lib/utils/nativeSessionRecord.ts) parsed with the same strict reader as
+// the single record; an entry filed under another user id is dropped.
+function parseAccountSessions(raw) {
+	const out = {};
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+	for (const key of Object.keys(raw)) {
+		const session = parseSessionRecord(raw[key]);
+		if (session && session.userId === key) out[key] = session;
+	}
+	return out;
+}
+
+// The active account's session, or null.
+function activeSessionRecord() {
+	if (!accessToken || !homeserverUrl || !userId) return null;
+	return { accessToken, homeserverUrl, userId, deviceId };
+}
+
+// The session for the account a push names: the active one when it names
+// that account or none (a pusher not yet tagged), else that account's entry.
+// Null for an account no longer signed in here: generic text, unattributed.
+function sessionForAccount(account) {
+	const active = activeSessionRecord();
+	if (!account) return active;
+	if (active && active.userId === account) return active;
+	return accountSessions[account] || null;
+}
 
 const authReady = (async () => {
 	// ONE read for the whole credential tuple. It used to be four, which was
@@ -742,6 +780,10 @@ const authReady = (async () => {
 	// fails to match the blob's — and the worker would suppress a push meant
 	// for the device that is actually running it (or resurrect an identity a
 	// logout just cleared).
+	// The other accounts' sessions. A SET_ACCOUNTS that landed meanwhile is
+	// fresher, so it wins.
+	const storedAccounts = await dbGet(ACCOUNTS_KEY).catch(() => null);
+	if (!accountsFromMessage) accountSessions = parseAccountSessions(storedAccounts);
 	if (authFromMessage) return;
 	// All four fields or none of them: a record that does not validate means
 	// "no credentials", never "use the parts that survived".
@@ -793,11 +835,11 @@ function closeAllNotifications() {
  * without reopening PRIV-02: nothing this build posts is both routable and
  * unattributable.
  */
-function notificationData(roomId, isCall, eventId) {
-	if (!userId) return {};
+function notificationData(roomId, isCall, eventId, postedBy) {
+	if (!postedBy) return {};
 	const d = roomId
-		? { roomId: roomId, userId: userId }
-		: { userId: userId };
+		? { roomId: roomId, userId: postedBy }
+		: { userId: postedBy };
 	// The event the push named, so a tap jumps to the exact message instead of
 	// merely opening the room. Only meaningful alongside a room id.
 	if (roomId && eventId) d.eventId = eventId;
@@ -890,7 +932,7 @@ self.addEventListener("message", (event) => {
 				userId = session ? session.userId : null;
 				deviceId = session ? session.deviceId : null;
 				// A new identity invalidates any cached heartbeat decision.
-				activeSessionCache = { fetchedAt: 0, value: null };
+				activeSessionCache = {};
 				await queueWrite(async () => {
 					if (!record) {
 						// Nothing complete to store — and a PREVIOUS account's
@@ -918,6 +960,20 @@ self.addEventListener("message", (event) => {
 				// Token is now in memory — if we already control the page, its
 				// media requests will succeed; tell it to retry any that 401'd.
 				broadcastMediaAuthReady();
+			} else if (event.data?.type === "SET_ACCOUNTS") {
+				// Every account signed in on this origin (see accountSessions).
+				// Sent whenever the page's account registry changes, so an
+				// account signed out drops out here too.
+				const records = event.data.records;
+				accountsFromMessage = true;
+				accountSessions = parseAccountSessions(records);
+				activeSessionCache = {};
+				await queueWrite(() =>
+					dbSet(
+						ACCOUNTS_KEY,
+						records && typeof records === "object" ? records : null,
+					),
+				);
 			} else if (event.data?.type === "GET_MEDIA_AUTH_STATUS") {
 				// The page asks whether it can leave media auth to us. Answer
 				// after the stored token has been read, never with a guess.
@@ -935,7 +991,7 @@ self.addEventListener("message", (event) => {
 				homeserverUrl = null;
 				userId = null;
 				deviceId = null;
-				activeSessionCache = { fetchedAt: 0, value: null };
+				activeSessionCache = {};
 				await queueWrite(async () => {
 					// The record holds the token, so it goes FIRST and alone:
 					// if anything below throws, the credential is already gone.
@@ -1129,15 +1185,17 @@ self.addEventListener("fetch", (event) => {
 // event/room/sender from the homeserver (using the stored auth) to show a
 // useful notification, then fall back to a generic one.
 
-async function mxGet(path) {
+// `session` is the account to ask as; omitted, the active account.
+async function mxGet(path, session) {
 	await authReady;
-	if (!accessToken || !homeserverUrl) return null;
-	const base = homeserverUrl.endsWith("/")
-		? homeserverUrl.slice(0, -1)
-		: homeserverUrl;
+	const s = session === undefined ? activeSessionRecord() : session;
+	if (!s) return null;
+	const base = s.homeserverUrl.endsWith("/")
+		? s.homeserverUrl.slice(0, -1)
+		: s.homeserverUrl;
 	try {
 		const res = await fetch(base + path, {
-			headers: { Authorization: `Bearer ${accessToken}` },
+			headers: { Authorization: `Bearer ${s.accessToken}` },
 		});
 		if (!res.ok) return null;
 		return await res.json();
@@ -1148,10 +1206,11 @@ async function mxGet(path) {
 
 /** Whether a room is a DM: the account's m.direct, as the in-app ringer
  *  decides; only when that cannot be read, "at most two joined members". */
-async function isDirectRoom(roomId) {
-	if (userId) {
+async function isDirectRoom(roomId, session) {
+	if (session && session.userId) {
 		const direct = await mxGet(
-			`/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/m.direct`,
+			`/_matrix/client/v3/user/${encodeURIComponent(session.userId)}/account_data/m.direct`,
+			session,
 		);
 		if (direct && typeof direct === "object") {
 			return Object.values(direct).some(
@@ -1161,6 +1220,7 @@ async function isDirectRoom(roomId) {
 	}
 	const joined = await mxGet(
 		`/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/joined_members`,
+		session,
 	);
 	return !!(
 		joined &&
@@ -1170,17 +1230,19 @@ async function isDirectRoom(roomId) {
 	);
 }
 
-async function mxPost(path, body) {
+// `session` as for mxGet.
+async function mxPost(path, body, session) {
 	await authReady;
-	if (!accessToken || !homeserverUrl) return false;
-	const base = homeserverUrl.endsWith("/")
-		? homeserverUrl.slice(0, -1)
-		: homeserverUrl;
+	const s = session === undefined ? activeSessionRecord() : session;
+	if (!s) return false;
+	const base = s.homeserverUrl.endsWith("/")
+		? s.homeserverUrl.slice(0, -1)
+		: s.homeserverUrl;
 	try {
 		const res = await fetch(base + path, {
 			method: "POST",
 			headers: {
-				Authorization: `Bearer ${accessToken}`,
+				Authorization: `Bearer ${s.accessToken}`,
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify(body),
@@ -1258,10 +1320,9 @@ const HEADLESS_DECRYPT_TIMEOUT_MS = 8000;
  * Decrypt in this worker when no page could: opens the crypto store itself,
  * and only while no page has it open (the decryptor checks the store lock).
  */
-async function decryptInWorker(roomId, event) {
+async function decryptInWorker(roomId, event, session) {
 	const headless = self.pushDecryptHeadless;
-	if (!headless || !accessToken || !homeserverUrl || !userId || !deviceId)
-		return null;
+	if (!headless || !session || !session.deviceId) return null;
 	try {
 		// Bounded so a stuck decrypt can't hold the push event (and with it
 		// this worker) open: the notification shows with the generic text,
@@ -1269,10 +1330,10 @@ async function decryptInWorker(roomId, event) {
 		// crypto store lock the stuck decrypt still holds.
 		return await Promise.race([
 			headless.decryptHeadless({
-				homeserverUrl,
-				accessToken,
-				userId,
-				deviceId,
+				homeserverUrl: session.homeserverUrl,
+				accessToken: session.accessToken,
+				userId: session.userId,
+				deviceId: session.deviceId,
 				roomId,
 				event,
 				wasmUrl: new URL("/push-decrypt/crypto.wasm", self.location.href)
@@ -1287,7 +1348,8 @@ async function decryptInWorker(roomId, event) {
 	}
 }
 
-async function buildNotification(data) {
+// `session` is the account the push is for; null → the generic text.
+async function buildNotification(data, session) {
 	// Never compose a body before the privacy flag has been hydrated from
 	// IndexedDB — reading it early would default to "show bodies".
 	await authReady;
@@ -1298,24 +1360,30 @@ async function buildNotification(data) {
 	let icon = "/favicon.png";
 	let isCall = false;
 
-	if (roomId && eventId) {
+	if (roomId && eventId && session) {
 		const rid = encodeURIComponent(roomId);
 
 		const nameRes = await mxGet(
 			`/_matrix/client/v3/rooms/${rid}/state/m.room.name/`,
+			session,
 		);
 		if (nameRes && nameRes.name) title = nameRes.name;
 
 		let event = await mxGet(
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
+			session,
 		);
 		// This worker holds no E2EE keys, so an encrypted message is still
 		// m.room.encrypted here. Ask an open page to decrypt it (see
 		// src/lib/pushDecrypt.ts); with none open, keep the generic text.
+		// An open page only runs the ACTIVE account, so only that account's
+		// pushes are worth asking it about; any other account's store is free
+		// for the worker's own decryptor.
 		if (event && event.type === "m.room.encrypted") {
 			const clear =
-				(await decryptViaPage(roomId, eventId)) ||
-				(await decryptInWorker(roomId, event));
+				(session.userId === userId
+					? await decryptViaPage(roomId, eventId)
+					: null) || (await decryptInWorker(roomId, event, session));
 			if (clear) event = { ...event, type: clear.type, content: clear.content };
 		}
 		if (event) {
@@ -1327,6 +1395,7 @@ async function buildNotification(data) {
 			let senderName = sender;
 			const member = await mxGet(
 				`/_matrix/client/v3/rooms/${rid}/state/m.room.member/${encodeURIComponent(sender)}`,
+				session,
 			);
 			if (
 				member &&
@@ -1376,7 +1445,7 @@ async function buildNotification(data) {
 					content.notify_type === undefined ||
 					content.notify_type === "ring";
 			}
-			const isDm = wantsRing ? await isDirectRoom(roomId) : false;
+			const isDm = wantsRing ? await isDirectRoom(roomId, session) : false;
 			isCall = wantsRing && isDm && ringEnabled;
 
 			if (isCall) {
@@ -1400,17 +1469,18 @@ async function buildNotification(data) {
 
 		const avatarRes = await mxGet(
 			`/_matrix/client/v3/rooms/${rid}/state/m.room.avatar/`,
+			session,
 		);
 		const mxc = avatarRes && avatarRes.url;
-		if (mxc && mxc.startsWith("mxc://") && homeserverUrl) {
+		if (mxc && mxc.startsWith("mxc://")) {
 			const rest = mxc.slice("mxc://".length);
 			const slash = rest.indexOf("/");
 			if (slash > 0) {
 				const server = rest.slice(0, slash);
 				const mediaId = rest.slice(slash + 1);
-				const base = homeserverUrl.endsWith("/")
-					? homeserverUrl.slice(0, -1)
-					: homeserverUrl;
+				const base = session.homeserverUrl.endsWith("/")
+					? session.homeserverUrl.slice(0, -1)
+					: session.homeserverUrl;
 				// authenticated thumbnail — the SW fetch handler injects auth too,
 				// but build the URL explicitly so the OS-side fetch carries it.
 				icon =
@@ -1439,7 +1509,7 @@ const ACTIVE_SESSION_CACHE_MS = 10000;
 // `activeSessionCache` is declared with the module auth state near the top of
 // this file, next to the `userId`/`deviceId` it is keyed to.
 
-async function shouldStayQuiet() {
+async function shouldStayQuiet(session) {
 	try {
 		// A push can wake a stopped worker while the IndexedDB restore is still
 		// in flight; without this the identity would read as null on every cold
@@ -1456,18 +1526,25 @@ async function shouldStayQuiet() {
 			authReady,
 			new Promise((resolve) => setTimeout(resolve, 3000)),
 		]);
-		if (!userId || !deviceId) return false; // don't know who we are → notify
+		// don't know who we are → notify
+		if (!session || !session.userId || !session.deviceId) return false;
 		const now = Date.now();
-		let blob = activeSessionCache.value;
+		// Per account: each one's heartbeat lives in its own account data.
+		const cached = activeSessionCache[session.userId] || {
+			fetchedAt: 0,
+			value: null,
+		};
+		let blob = cached.value;
 		// Short cache: several pushes can land in one burst; one GET covers
 		// them. A negative age means the clock jumped back — refetch rather
 		// than trust an entry stamped in the future.
-		const age = now - activeSessionCache.fetchedAt;
+		const age = now - cached.fetchedAt;
 		if (age > ACTIVE_SESSION_CACHE_MS || age < 0) {
 			blob = await mxGet(
-				`/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/${ACTIVE_SESSION_KEY}`,
+				`/_matrix/client/v3/user/${encodeURIComponent(session.userId)}/account_data/${ACTIVE_SESSION_KEY}`,
+				session,
 			);
-			activeSessionCache = { fetchedAt: now, value: blob };
+			activeSessionCache[session.userId] = { fetchedAt: now, value: blob };
 		}
 		if (!blob || typeof blob !== "object") return false;
 		const otherDevice = blob.deviceId;
@@ -1481,7 +1558,7 @@ async function shouldStayQuiet() {
 			graceMs <= 0
 		)
 			return false;
-		if (otherDevice === deviceId) return false; // it's us
+		if (otherDevice === session.deviceId) return false; // it's us
 		if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
 		return now - ts < Math.min(graceMs, MAX_GRACE_MS);
 	} catch {
@@ -1593,12 +1670,24 @@ self.addEventListener("push", (event) => {
 	// even if enrichment fails.
 	event.waitUntil(
 		(async () => {
+			// The account this push is for, resolved once: enrichment, the
+			// quiet check, decryption and the account stamp all use it. Bounded
+			// like shouldStayQuiet's wait, so a hung restore still notifies.
+			await Promise.race([
+				authReady,
+				new Promise((resolve) => setTimeout(resolve, 3000)),
+			]).catch(() => {});
+			const session = sessionForAccount(
+				typeof data.zam_account === "string" && data.zam_account
+					? data.zam_account
+					: null,
+			);
 			// Another device is demonstrably in use → stay quiet. Checked first
 			// so none of the enrichment fetches below run when we won't show
 			// anything. Never throws; returns false on any doubt.
-			if (await shouldStayQuiet()) return;
+			if (await shouldStayQuiet(session)) return;
 
-			const n = await buildNotification(data).catch(() => ({
+			const n = await buildNotification(data, session).catch(() => ({
 				title: "New message",
 				body: "You have a new message",
 				icon: "/favicon.png",
@@ -1612,7 +1701,12 @@ self.addEventListener("push", (event) => {
 					? (n.roomId ? ringNotificationTag(n.roomId) : undefined)
 					: (n.roomId ? messageNotificationTag(n.roomId) : undefined),
 				renotify: true,
-				data: notificationData(n.roomId, n.isCall, n.eventId),
+				data: notificationData(
+					n.roomId,
+					n.isCall,
+					n.eventId,
+					session ? session.userId : null,
+				),
 				// A call persists until answered/dismissed and offers
 				// Accept/Decline; a message is a normal transient popup with
 				// Reply/Mark-as-read actions (when routable).
@@ -1653,6 +1747,17 @@ self.addEventListener("push", (event) => {
 // Hand-mirrors the messageNotificationActions() contract from
 // src/lib/utils/notifActions.ts — the SW cannot import TypeScript.
 // Produces postMessage shapes consumed by Task 3 (page-side handlers).
+// The cold-start deep link (parseDeepLinkHash in src/lib/utils/deepLinkHash.ts):
+// the room, the event, and the account it belongs to, so the app can switch
+// to that account first.
+function deepLinkUrl(roomId, eventId, postedBy) {
+	if (!roomId) return "/";
+	let url = `/#room=${encodeURIComponent(roomId)}`;
+	if (eventId) url += `&event=${encodeURIComponent(eventId)}`;
+	if (postedBy) url += `&user=${encodeURIComponent(postedBy)}`;
+	return url;
+}
+
 async function handleQuickReply(roomId, replyText, eventId, postedBy) {
 	try {
 		const clients = await self.clients.matchAll({
@@ -1699,11 +1804,7 @@ async function handleQuickReply(roomId, replyText, eventId, postedBy) {
 				return;
 			}
 			// No open page: openWindow to the room (with event when present).
-			let url = roomId ? `/#room=${encodeURIComponent(roomId)}` : "/";
-			if (eventId) {
-				url += `&event=${encodeURIComponent(eventId)}`;
-			}
-			self.clients.openWindow(url);
+			self.clients.openWindow(deepLinkUrl(roomId, eventId, postedBy));
 			return;
 		}
 		// No inline text (blank or whitespace): open the room to compose.
@@ -1716,11 +1817,7 @@ async function handleQuickReply(roomId, replyText, eventId, postedBy) {
 				eventId: eventId,
 			});
 		} else {
-			let url = roomId ? `/#room=${encodeURIComponent(roomId)}` : "/";
-			if (eventId) {
-				url += `&event=${encodeURIComponent(eventId)}`;
-			}
-			self.clients.openWindow(url);
+			self.clients.openWindow(deepLinkUrl(roomId, eventId, postedBy));
 		}
 	} catch {
 		// Swallow — waitUntil must never reject.
@@ -1752,8 +1849,18 @@ async function handleQuickMarkRead(roomId, eventId, postedBy) {
 				authReady,
 				new Promise((resolve) => setTimeout(resolve, 3000)),
 			]).catch(() => {});
-			const receiptType = swReceiptTypeFor(receiptPrivacyByUser, userId);
-			await mxPost(buildReadReceiptPath(roomId, eventId, receiptType), {});
+			// As the account the notification was posted under.
+			const session = sessionForAccount(postedBy || null);
+			if (!session) return;
+			const receiptType = swReceiptTypeFor(
+				receiptPrivacyByUser,
+				session.userId,
+			);
+			await mxPost(
+				buildReadReceiptPath(roomId, eventId, receiptType),
+				{},
+				session,
+			);
 		}
 	} catch {
 		// Swallow — waitUntil must never reject.
@@ -1805,9 +1912,7 @@ self.addEventListener("notificationclick", (event) => {
 					}
 				}
 				return self.clients.openWindow(
-					roomId
-						? `/#room=${encodeURIComponent(roomId)}${data.eventId ? `&event=${encodeURIComponent(data.eventId)}` : ""}`
-						: "/",
+					deepLinkUrl(roomId, data.eventId, postedBy),
 				);
 			}),
 	);

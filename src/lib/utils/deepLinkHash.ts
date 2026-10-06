@@ -15,10 +15,12 @@
  * - `event` is optional and only kept when it is a valid event id (starts with
  *   `$`). A missing or malformed event id yields `{ roomId }` — open the room,
  *   do not jump. Extra params are ignored; order does not matter.
+ * - `user` is optional: the account the notification was posted under (starts
+ *   with `@`), so the app can switch to it first. Malformed → left out.
  */
 export function parseDeepLinkHash(
     hash: string | null | undefined,
-): { roomId: string; eventId?: string } | null {
+): { roomId: string; eventId?: string; userId?: string } | null {
     if (!hash) return null;
     const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
     if (!fragment) return null;
@@ -26,7 +28,10 @@ export function parseDeepLinkHash(
     const roomId = params.get("room");
     if (!roomId || !roomId.startsWith("!")) return null;
     const eventId = params.get("event");
-    return eventId && eventId.startsWith("$")
-        ? { roomId, eventId }
-        : { roomId };
+    const userId = params.get("user");
+    return {
+        roomId,
+        ...(eventId && eventId.startsWith("$") ? { eventId } : {}),
+        ...(userId && userId.startsWith("@") ? { userId } : {}),
+    };
 }

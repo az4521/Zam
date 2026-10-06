@@ -75,11 +75,13 @@ describe("static/sw.js notification contract", () => {
         // them.
         expect(fnEnd).toBeGreaterThan(0);
         const body = fn.slice(0, fnEnd);
-        expect(body).toMatch(/if\s*\(\s*!userId\s*\)\s*return\s*\{\s*\}/);
+        // The identity is the account the push was resolved to (`postedBy`),
+        // which is not always the active one.
+        expect(body).toMatch(/if\s*\(\s*!postedBy\s*\)\s*return\s*\{\s*\}/);
         // …and when it DOES have an identity, that identity is what gets
         // stamped. Without this, dropping `userId` from the returned object
         // would unstamp every notification and every tap would fail open.
-        expect(body).toMatch(/userId:\s*userId/);
+        expect(body).toMatch(/userId:\s*postedBy/);
     });
 
     it("forwards the posting account on the notification click", () => {

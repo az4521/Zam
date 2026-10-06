@@ -65,4 +65,13 @@ describe("parseDeepLinkHash", () => {
         expect(parseDeepLinkHash(null)).toBeNull();
         expect(parseDeepLinkHash(undefined)).toBeNull();
     });
+
+    it("keeps the posting account when it is a user id", () => {
+        expect(
+            parseDeepLinkHash("#room=!a:h&event=$e:h&user=%40bob%3Ah"),
+        ).toEqual({ roomId: "!a:h", eventId: "$e:h", userId: "@bob:h" });
+        expect(parseDeepLinkHash("#room=!a:h&user=bob")).toEqual({
+            roomId: "!a:h",
+        });
+    });
 });
