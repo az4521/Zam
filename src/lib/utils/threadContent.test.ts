@@ -48,6 +48,15 @@ describe("isThreadReplyContent — thread-membership predicate", () => {
     it("accepts stickers in a thread", () => {
         expect(forRoot({ type: "m.sticker" })).toBe(true);
     });
+
+    it("keeps still-encrypted replies so they render as UTD placeholders", () => {
+        expect(forRoot({ type: "m.room.encrypted" })).toBe(true);
+    });
+
+    it("accepts polls started in a thread (stable and unstable types)", () => {
+        expect(forRoot({ type: "m.poll.start" })).toBe(true);
+        expect(forRoot({ type: "org.matrix.msc3381.poll.start" })).toBe(true);
+    });
 });
 
 describe("buildThreadReplyContent — spec-compliant m.thread relation", () => {
@@ -95,6 +104,21 @@ describe("buildThreadReplyContent — spec-compliant m.thread relation", () => {
             mentions: { user_ids: ["@bob:hs"] },
         });
         expect(c["m.mentions"]).toEqual({ user_ids: ["@bob:hs"] });
+    });
+
+    it("quotes a specific thread message for real when replyToEventId is given", () => {
+        const c = buildThreadReplyContent({
+            rootEventId: "$root",
+            latestEventId: "$latest",
+            replyToEventId: "$quoted",
+            text: "hi",
+        });
+        expect(c["m.relates_to"]).toEqual({
+            rel_type: "m.thread",
+            event_id: "$root",
+            is_falling_back: false,
+            "m.in_reply_to": { event_id: "$quoted" },
+        });
     });
 
     it("always emits an m.mentions key, defaulting to empty when none given", () => {

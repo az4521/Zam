@@ -1,8 +1,14 @@
+import { isPollStartEventType } from "$lib/utils/pollContent";
+
 /**
  * Whether an event (described by its type, redaction status, and relation)
  * is a renderable reply belonging to the thread rooted at `rootEventId`.
  * The relation should be read from the event's original (unedited) content,
  * since an edit moves the top-level relation to `m.replace`.
+ *
+ * Still-encrypted events are kept so an undecryptable reply renders as a UTD
+ * placeholder (as in the main timeline) instead of silently vanishing; their
+ * `m.relates_to` sits in the clear, so the thread check still applies.
  */
 export function isThreadReplyContent(params: {
     type: string;
@@ -11,7 +17,12 @@ export function isThreadReplyContent(params: {
     rootEventId: string;
 }): boolean {
     if (params.isRedacted) return false;
-    if (params.type !== "m.room.message" && params.type !== "m.sticker") {
+    if (
+        params.type !== "m.room.message" &&
+        params.type !== "m.sticker" &&
+        params.type !== "m.room.encrypted" &&
+        !isPollStartEventType(params.type)
+    ) {
         return false;
     }
     const rel = params.relatesTo;
@@ -36,6 +47,9 @@ export interface ThreadReplyParams {
     rootEventId: string;
     /** Most recent event in the thread, for the reply-fallback ordering. */
     latestEventId?: string;
+    /** A specific message in the thread being replied to (a real reply,
+     *  not the fallback pointer). */
+    replyToEventId?: string;
     /** Plain text of the reply. */
     text: string;
     /** Markdown-rendered HTML of the reply, if any. */
@@ -51,7 +65,7 @@ export interface ThreadReplyContent {
     "m.relates_to": {
         rel_type: "m.thread";
         event_id: string;
-        is_falling_back: true;
+        is_falling_back: boolean;
         "m.in_reply_to": { event_id: string };
     };
     "m.mentions"?: { user_ids?: string[]; room?: boolean };
@@ -64,17 +78,32 @@ export interface ThreadReplyContent {
  * with an `is_falling_back` reply pointer — so these replies aggregate
  * correctly whether or not the SDK's `threadSupport` is enabled, and remain
  * forward-compatible if the client later switches to full thread support.
+ *
+ * With `replyToEventId`, the reply quotes that thread message for real:
+ * `is_falling_back: false` and `m.in_reply_to` naming it.
  */
 export function buildThreadReplyContent(
     params: ThreadReplyParams,
 ): ThreadReplyContent {
-    const { rootEventId, latestEventId, text, formattedText, mentions } =
-        params;
+    const {
+        rootEventId,
+        latestEventId,
+        replyToEventId,
+        text,
+        formattedText,
+        mentions,
+    } = params;
 
     const content = withThreadRelation(
         { msgtype: "m.text" as const, body: text },
         { rootEventId, latestEventId },
     ) as ThreadReplyContent;
+    if (replyToEventId !== undefined) {
+        content["m.relates_to"].is_falling_back = false;
+        content["m.relates_to"]["m.in_reply_to"] = {
+            event_id: replyToEventId,
+        };
+    }
     if (formattedText !== undefined) {
         content.format = "org.matrix.custom.html";
         content.formatted_body = formattedText;

@@ -44,6 +44,11 @@
     let threadTick = $state(0);
     let loadingOlder = $state(false);
     let noMoreOlder = $state(false);
+    let replyToEvent = $state<MatrixEvent | null>(null);
+    let messageInputEl: { focus: () => void } | undefined = $state();
+    // Plain (non-reactive) scroll bookkeeping for the auto-scroll effect below.
+    let atBottom = true;
+    let lastLatestId: string | null = null;
 
     function bump() {
         threadTick++;
@@ -61,7 +66,15 @@
             const more = await paginateThreadBack(room, rootEventId);
             if (rootEventId !== rid) return;
             if (!more) noMoreOlder = true;
+            // Keep the reader where they were: older replies land above, so
+            // hold the distance from the bottom across the re-render.
+            const fromBottom = scrollEl
+                ? scrollEl.scrollHeight - scrollEl.scrollTop
+                : 0;
             bump();
+            await tick();
+            if (scrollEl && rootEventId === rid)
+                scrollEl.scrollTop = scrollEl.scrollHeight - fromBottom;
         } catch (err) {
             console.error("Failed to paginate thread:", err);
         } finally {
@@ -153,15 +166,46 @@
         void rootEventId;
         noMoreOlder = false;
         loadingOlder = false;
+        replyToEvent = null;
+        atBottom = true;
+        lastLatestId = null;
     });
 
-    // Scroll to bottom when messages change
+    // Follow the newest reply, but only when a new one actually arrives and
+    // the reader is already at the bottom (or sent it). `messages` is re-read
+    // on every thread/edit/redaction event in ANY room and when older replies
+    // load, and none of those may yank someone reading further up.
     $effect(() => {
-        messages; // track
+        const latest = messages[messages.length - 1];
+        const latestId = latest?.getId() ?? null;
+        if (latestId === lastLatestId) return;
+        const first = lastLatestId === null;
+        lastLatestId = latestId;
+        const mine = !!latest && latest.getSender() === auth.userId;
+        if (!first && !atBottom && !mine) return;
         tick().then(() => {
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
         });
     });
+
+    function onScroll() {
+        if (!scrollEl) return;
+        atBottom =
+            scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight <
+            80;
+    }
+
+    function jumpToReply(eventId: string) {
+        const el = scrollEl?.querySelector<HTMLElement>(
+            `[data-event-id="${CSS.escape(eventId)}"]`,
+        );
+        if (!el) return;
+        el.scrollIntoView({ block: "center" });
+        el.classList.remove("message-highlight");
+        void el.offsetWidth;
+        el.classList.add("message-highlight");
+        setTimeout(() => el.classList.remove("message-highlight"), 2000);
+    }
 
     function shouldShowHeader(events: MatrixEvent[], index: number): boolean {
         if (index === 0) return true;
@@ -258,7 +302,11 @@
     {/if}
 
     <!-- Replies -->
-    <div bind:this={scrollEl} class="flex-1 overflow-y-auto py-2">
+    <div
+        bind:this={scrollEl}
+        onscroll={onScroll}
+        class="flex-1 overflow-y-auto py-2"
+    >
         {#if messages.length === 0}
             <p class="text-xs text-discord-textMuted text-center mt-4 px-4">
                 {t("threadPanel.noRepliesYetStartTheThread")}
@@ -284,8 +332,11 @@
                 showHeader={shouldShowHeader(messages, i)}
                 timelineEvents={messages}
                 timelineIndex={i}
-                onReply={() => {}}
-                jumpToReply={() => {}}
+                onReply={(e) => {
+                    replyToEvent = e;
+                    messageInputEl?.focus();
+                }}
+                {jumpToReply}
             />
         {/each}
     </div>
@@ -293,10 +344,15 @@
     <!-- Reply input -->
     <div class="flex-shrink-0">
         <MessageInput
+            bind:this={messageInputEl}
             roomId={room.roomId}
             roomName={room.name ?? ""}
             {room}
             threadRootId={rootEventId}
+            {replyToEvent}
+            onCancelReply={() => {
+                replyToEvent = null;
+            }}
             composerKey={composerThreadKey(room.roomId, rootEventId)}
             onSedEdit={(cmd) =>
                 sedEditLastMessage(room, messages, auth.userId, cmd)}

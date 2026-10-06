@@ -2776,6 +2776,9 @@ export function getThreadMessages(
     // with redacted/non-message events, so the shape matches the old walk
     // (replies only; the root is rendered separately in ThreadPanel's header).
     const thread = room.getThread(rootEventId);
+    // Same as the main timeline: sliding sync leaves thread events encrypted
+    // until something asks for them, so decrypt the ones being shown.
+    decryptForDisplay(thread?.events ?? []);
     const threadEvents = (thread?.events ?? []).filter(belongs);
     const seen = new Set(threadEvents.map((e) => e.getId()));
     // Local echoes may live on room.getPendingEvents() rather than Thread.events
@@ -2828,6 +2831,8 @@ export async function sendThreadReply(
     transformContent?: (
         content: Record<string, unknown>,
     ) => Record<string, unknown>,
+    // A specific thread message this reply quotes (is_falling_back: false).
+    replyToEventId?: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
@@ -2842,6 +2847,7 @@ export async function sendThreadReply(
     const content = buildThreadReplyContent({
         rootEventId,
         latestEventId,
+        replyToEventId,
         text,
         formattedText: resolvedFormatted,
         mentions,

@@ -1546,8 +1546,8 @@
                         : undefined;
                 let sentEventId: string;
                 if (isThread) {
-                    // Thread replies always route via sendThreadReply (no reply-to-
-                    // within-thread in v1 — replyToEvent is not passed in thread mode).
+                    // Thread replies always route via sendThreadReply; a reply to
+                    // a specific thread message rides along as its quote target.
                     await sendThreadReply(
                         targetRoomId,
                         threadRootId!,
@@ -1555,7 +1555,9 @@
                         mentions,
                         html ?? undefined,
                         transformOutgoingContent,
+                        replyToEvent?.getId() ?? undefined,
                     );
+                    if (replyToEvent) onCancelReply?.();
                 } else {
                     // Build the content in-component (byte-identical to the
                     // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
