@@ -1928,6 +1928,11 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Threads für diesen Raum konnten nicht geladen werden.",
     "threadsListPanel.unknownSender": "Unbekannt",
+    "threadsListPanel.allThreads": "Alle Threads",
+    "threadsListPanel.myThreads": "Meine Threads",
+    "threadsListPanel.filterThreads": "Threads filtern",
+    "threadsListPanel.noThreadsYouParticipatedIn":
+        "Du hast hier noch keinen Thread gestartet oder beantwortet.",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Update-Hinweis schließen",

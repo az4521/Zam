@@ -2939,7 +2939,9 @@ export function getRoomThreads(room: Room): ThreadInfo[] {
             replyCount: thread.length,
             latestTs: latest?.getTs() ?? root?.getTs() ?? 0,
             latestPreview: eventBodyText(latest),
-            participated: thread.hasCurrentUserParticipated,
+            // Not thread.hasCurrentUserParticipated alone: servers without
+            // bundled thread relations never set it (see isThreadParticipant).
+            participated: isThreadParticipant(room, thread.id),
             unreadTotal:
                 room.getThreadUnreadNotificationCount(
                     thread.id,

@@ -1,6 +1,10 @@
 // src/lib/utils/threadList.test.ts
 import { describe, it, expect } from "vitest";
-import { buildThreadListItems, type ThreadInfo } from "./threadList";
+import {
+    buildThreadListItems,
+    filterThreadListItems,
+    type ThreadInfo,
+} from "./threadList";
 
 function info(over: Partial<ThreadInfo> = {}): ThreadInfo {
     return {
@@ -112,5 +116,23 @@ describe("buildThreadListItems", () => {
         ]);
         expect(items[0].unreadTotal).toBe(5);
         expect(items[0].unreadHighlight).toBe(2);
+    });
+});
+
+describe("filterThreadListItems", () => {
+    const items = buildThreadListItems([
+        info({ rootId: "$a", latestTs: 3, participated: true }),
+        info({ rootId: "$b", latestTs: 2, participated: false }),
+        info({ rootId: "$c", latestTs: 1, participated: true }),
+    ]);
+
+    it("keeps every thread for 'all'", () => {
+        expect(filterThreadListItems(items, "all")).toBe(items);
+    });
+
+    it("keeps only participated threads for 'mine', in order", () => {
+        expect(
+            filterThreadListItems(items, "mine").map((i) => i.rootId),
+        ).toEqual(["$a", "$c"]);
     });
 });

@@ -68,3 +68,16 @@ export function buildThreadListItems(threads: ThreadInfo[]): ThreadListItem[] {
             return a.rootId < b.rootId ? -1 : a.rootId > b.rootId ? 1 : 0;
         });
 }
+
+export type ThreadListFilter = "all" | "mine";
+
+/**
+ * The threads-list filter: "all" keeps every thread, "mine" only those the
+ * current user started or replied in (Element's "My threads").
+ */
+export function filterThreadListItems(
+    items: ThreadListItem[],
+    filter: ThreadListFilter,
+): ThreadListItem[] {
+    return filter === "mine" ? items.filter((i) => i.participated) : items;
+}

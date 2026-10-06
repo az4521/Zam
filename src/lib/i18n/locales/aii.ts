@@ -1789,6 +1789,11 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.couldnTLoadThreadsForThis":
         "ܛܥܢܐ ܕܚܘ̈ܛܐ ܕܗܢܐ ܓܘܡܐ ܠܐ ܦܠܚܠܗ.",
     "threadsListPanel.unknownSender": "ܠܐ ܝܕܝܥܐ",
+    "threadsListPanel.allThreads": "ܟܠ ܚܘ̈ܛܐ",
+    "threadsListPanel.myThreads": "ܚܘ̈ܛܐ ܕܝܠܝ",
+    "threadsListPanel.filterThreads": "ܨܦܝ ܚܘ̈ܛܐ",
+    "threadsListPanel.noThreadsYouParticipatedIn":
+        "ܠܐ ܫܘܬܦܠܘܟ ܓܘ ܚܘ̈ܛܐ ܗܪܟܐ ܗܠ ܗܫܐ.",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "ܫܩܘܠ ܡܘܕܥܢܘܬܐ ܕܚܘܕܬܐ",

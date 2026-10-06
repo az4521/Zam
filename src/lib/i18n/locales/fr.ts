@@ -1908,6 +1908,11 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Impossible de charger les fils de ce salon.",
     "threadsListPanel.unknownSender": "Inconnu",
+    "threadsListPanel.allThreads": "Tous les fils",
+    "threadsListPanel.myThreads": "Mes fils",
+    "threadsListPanel.filterThreads": "Filtrer les fils",
+    "threadsListPanel.noThreadsYouParticipatedIn":
+        "Vous n'avez lancé ni répondu à aucun fil ici.",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":

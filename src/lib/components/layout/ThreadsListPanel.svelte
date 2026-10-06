@@ -8,7 +8,11 @@
         getMemberName,
         getMemberAvatar,
     } from "$lib/matrix/client";
-    import { buildThreadListItems } from "$lib/utils/threadList";
+    import {
+        buildThreadListItems,
+        filterThreadListItems,
+        type ThreadListFilter,
+    } from "$lib/utils/threadList";
     import { threadBadgeState } from "$lib/utils/threadUnread";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
@@ -28,6 +32,7 @@
     let threadsTick = $state(0);
     let loading = $state(true);
     let retryTick = $state(0);
+    let filter = $state<ThreadListFilter>("all");
 
     // Load server-backed thread timeline sets (feature-detected) on room change.
     // On failure, surface a toast with a Retry (F6) rather than leaving the list
@@ -59,11 +64,12 @@
         return unsub;
     });
 
-    const items = $derived.by(() => {
+    const allItems = $derived.by(() => {
         threadsTick;
         void roomsState.unreadTick;
         return buildThreadListItems(getRoomThreads(room));
     });
+    const items = $derived(filterThreadListItems(allItems, filter));
 </script>
 
 <div
@@ -93,8 +99,26 @@
         </button>
     </div>
 
+    <div
+        class="flex gap-1 px-2 py-2 border-b border-discord-divider flex-shrink-0"
+        role="group"
+        aria-label={t("threadsListPanel.filterThreads")}
+    >
+        {#each [{ value: "all", label: t("threadsListPanel.allThreads") }, { value: "mine", label: t("threadsListPanel.myThreads") }] as opt (opt.value)}
+            <button
+                onclick={() => (filter = opt.value as ThreadListFilter)}
+                aria-pressed={filter === opt.value}
+                class="flex-1 px-2 py-1 rounded text-xs font-medium transition-colors {filter ===
+                opt.value
+                    ? 'bg-discord-messageHover text-discord-textPrimary'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                >{opt.label}</button
+            >
+        {/each}
+    </div>
+
     <div class="flex-1 overflow-y-auto">
-        {#if loading && items.length === 0}
+        {#if loading && allItems.length === 0}
             <div class="flex justify-center mt-8">
                 <div
                     class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
@@ -102,7 +126,9 @@
             </div>
         {:else if items.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
-                {t("threadsListPanel.noThreadsInThisRoomYet")}
+                {filter === "mine" && allItems.length > 0
+                    ? t("threadsListPanel.noThreadsYouParticipatedIn")
+                    : t("threadsListPanel.noThreadsInThisRoomYet")}
             </p>
         {:else}
             <div class="p-2 space-y-1">

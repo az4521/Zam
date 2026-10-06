@@ -1857,6 +1857,11 @@ export const en = {
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Couldn't load threads for this room.",
     "threadsListPanel.unknownSender": "Unknown",
+    "threadsListPanel.allThreads": "All threads",
+    "threadsListPanel.myThreads": "My threads",
+    "threadsListPanel.filterThreads": "Filter threads",
+    "threadsListPanel.noThreadsYouParticipatedIn":
+        "You haven't started or replied to any threads here.",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Dismiss update notification",
