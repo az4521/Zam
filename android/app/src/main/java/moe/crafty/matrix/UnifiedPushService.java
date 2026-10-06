@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 
 import com.getcapacitor.JSObject;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.unifiedpush.android.connector.FailedReason;
 import org.unifiedpush.android.connector.PushService;
@@ -134,7 +135,25 @@ public class UnifiedPushService extends PushService {
         if (counts != null && counts.has("unread")) {
             unread = String.valueOf(counts.optInt("unread"));
         }
-        MatrixMessagingService.handleMatrixPush(ctx, roomId, eventId, unread);
+        MatrixMessagingService.handleMatrixPush(ctx, roomId, eventId, unread, accountOf(n));
+    }
+
+    /**
+     * The account the push is for: the pusher's default_payload, which the
+     * gateway forwards inside the device entry (FCM gets it as a data field).
+     */
+    private static String accountOf(JSONObject n) {
+        JSONArray devices = n.optJSONArray("devices");
+        if (devices == null) return null;
+        for (int i = 0; i < devices.length(); i++) {
+            JSONObject device = devices.optJSONObject(i);
+            JSONObject data = device != null ? device.optJSONObject("data") : null;
+            JSONObject payload = data != null ? data.optJSONObject("default_payload") : null;
+            String account = payload != null
+                ? optNonEmpty(payload, MatrixMessagingService.ACCOUNT_KEY) : null;
+            if (account != null) return account;
+        }
+        return null;
     }
 
     private static String optNonEmpty(JSONObject o, String key) {

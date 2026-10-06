@@ -271,7 +271,8 @@ async function registerPusher(
     gatewayUrl: string,
 ): Promise<void> {
     const deviceId = matrixClient.getDeviceId();
-    if (!deviceId) return;
+    const userId = matrixClient.getUserId();
+    if (!deviceId || !userId) return;
     if (pushkey === registeredPushkey && gatewayUrl === registeredGateway)
         return;
 
@@ -286,6 +287,10 @@ async function registerPusher(
             data: {
                 url: gatewayUrl,
                 format: "event_id_only",
+                // Names the account in every push: several accounts on this
+                // device share the pushkey, and the native service picks the
+                // matching session by this (MatrixMessagingService.ACCOUNT_KEY).
+                default_payload: { zam_account: userId },
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,

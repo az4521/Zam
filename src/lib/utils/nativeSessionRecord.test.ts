@@ -3,7 +3,9 @@ import {
     NATIVE_SESSION_KEY,
     NATIVE_SESSION_VERSION,
     LEGACY_NATIVE_SESSION_KEYS,
+    parseNativeAccount,
     parseNativeSession,
+    serializeNativeAccounts,
     serializeNativeSession,
 } from "./nativeSessionRecord";
 
@@ -388,5 +390,45 @@ describe("OAuth metadata in the native record", () => {
             });
             expect(parseNativeSession(raw)?.oauth).toBeUndefined();
         }
+    });
+});
+
+describe("native account map", () => {
+    const BOB = {
+        homeserverUrl: "https://hs.example.net",
+        accessToken: "syt_token_bbb",
+        userId: "@bob:example.net",
+        deviceId: "DEVICEBBB",
+    };
+
+    it("stores each account's record under its user id", () => {
+        const raw = serializeNativeAccounts([GOOD, BOB]);
+        expect(parseNativeAccount(raw, GOOD.userId)).toMatchObject(GOOD);
+        expect(parseNativeAccount(raw, BOB.userId)).toMatchObject(BOB);
+        // Each entry is the exact single-record string.
+        expect(JSON.parse(raw)[BOB.userId]).toBe(serializeNativeSession(BOB));
+    });
+
+    it("leaves out accounts without a whole credential tuple", () => {
+        const raw = serializeNativeAccounts([
+            GOOD,
+            { ...BOB, accessToken: "" },
+        ]);
+        expect(Object.keys(JSON.parse(raw))).toEqual([GOOD.userId]);
+    });
+
+    it("returns null for a missing account or a malformed map", () => {
+        const raw = serializeNativeAccounts([GOOD]);
+        expect(parseNativeAccount(raw, BOB.userId)).toBeNull();
+        expect(parseNativeAccount("not json", GOOD.userId)).toBeNull();
+        expect(parseNativeAccount("[]", GOOD.userId)).toBeNull();
+        expect(parseNativeAccount(null, GOOD.userId)).toBeNull();
+    });
+
+    it("refuses a record filed under another user id", () => {
+        const raw = JSON.stringify({
+            [BOB.userId]: serializeNativeSession(GOOD),
+        });
+        expect(parseNativeAccount(raw, BOB.userId)).toBeNull();
     });
 });

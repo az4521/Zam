@@ -206,3 +206,57 @@ export function parseNativeSession(raw: unknown): NativeSessionRecord | null {
         ...oauthFields(record.oauth, record.accessTokenExpiresAt),
     };
 }
+
+/**
+ * Preferences key holding a record for EVERY account signed in on this device,
+ * so a push for an account that is not the active one can still be fetched,
+ * decrypted and attributed (the push names its account, see push.ts).
+ * `MatrixMessagingService.java` hand-mirrors this name.
+ *
+ * Shape: a JSON object mapping user id → that account's record, each stored as
+ * the exact string `serializeNativeSession` produces, so the native side
+ * parses every entry with the same strict reader as the single record.
+ */
+export const NATIVE_ACCOUNTS_KEY = "matrix_session_accounts";
+
+/**
+ * The value to store under `NATIVE_ACCOUNTS_KEY`. Accounts whose credentials
+ * do not form a whole tuple are left out rather than half-written.
+ */
+export function serializeNativeAccounts(
+    accounts: readonly {
+        homeserverUrl: string;
+        accessToken: string;
+        userId: string;
+        deviceId?: string | null;
+        oauth?: { clientId: string; issuer: string } | null;
+        accessTokenExpiresAt?: number | null;
+    }[],
+): string {
+    const map: Record<string, string> = {};
+    for (const account of accounts) {
+        const record = serializeNativeSession(account);
+        if (record) map[account.userId] = record;
+    }
+    return JSON.stringify(map);
+}
+
+/**
+ * One account's record out of the stored map, or null when it is missing,
+ * malformed, or filed under a different user id than it names.
+ */
+export function parseNativeAccount(
+    raw: unknown,
+    userId: string,
+): NativeSessionRecord | null {
+    if (typeof raw !== "string") return null;
+    let map: unknown;
+    try {
+        map = JSON.parse(raw);
+    } catch {
+        return null;
+    }
+    if (!map || typeof map !== "object" || Array.isArray(map)) return null;
+    const record = parseNativeSession((map as Record<string, unknown>)[userId]);
+    return record && record.userId === userId ? record : null;
+}

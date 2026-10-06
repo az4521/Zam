@@ -72,10 +72,12 @@ public class MessageActionReceiver extends BroadcastReceiver {
             throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(
             MatrixMessagingService.PREFS, Context.MODE_PRIVATE);
-        MatrixMessagingService.SessionRecord session = MatrixMessagingService.readSessionRecord(prefs);
-        // Only for the account the notification was posted under (PRIV-02):
-        // never send one account's receipt with another's credentials.
-        if (session == null || userId == null || !userId.equals(session.userId)) return;
+        // The account the notification was posted under (PRIV-02), whichever
+        // signed-in account that is: never another account's credentials.
+        if (userId == null) return;
+        MatrixMessagingService.SessionRecord session = MatrixMessagingService.resolveSession(
+            prefs, MatrixMessagingService.readSessionRecord(prefs), userId);
+        if (session == null || !userId.equals(session.userId)) return;
 
         String base = session.homeserverUrl + "/_matrix/client/v3/rooms/"
             + MatrixMessagingService.enc(roomId);

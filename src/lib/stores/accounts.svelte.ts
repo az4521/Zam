@@ -15,6 +15,8 @@ import {
     type StoredAccount,
 } from "$lib/utils/accounts";
 
+import { syncNativeAccounts } from "$lib/nativeSession";
+
 const REGISTRY_KEY = "matrix_accounts";
 const LEGACY_KEY = "matrix_session";
 
@@ -45,6 +47,9 @@ function persist(): void {
     } catch {
         // ignore (private mode / storage full)
     }
+    // Every account's credentials, for pushes to non-active accounts
+    // (no-op off-native).
+    void syncNativeAccounts(accountsState.registry.accounts);
 }
 
 export function upsertAndActivate(account: StoredAccount): void {

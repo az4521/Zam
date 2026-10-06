@@ -20,10 +20,13 @@ import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import {
     LEGACY_NATIVE_SESSION_KEYS,
+    NATIVE_ACCOUNTS_KEY,
     NATIVE_SESSION_KEY,
     parseNativeSession,
+    serializeNativeAccounts,
     serializeNativeSession,
 } from "$lib/utils/nativeSessionRecord";
+import type { StoredAccount } from "$lib/utils/accounts";
 
 const KEY_HIDE_BODY = "matrix_hide_notification_body";
 // Read by MatrixMessagingService.java (KEY_RING_ENABLED): "false" → a DM call
@@ -100,6 +103,36 @@ export async function syncNativeSession(session: {
     // values at rest, and they are never read again. Swept only AFTER the
     // record lands, so a crash in between leaves a working session, not none.
     for (const key of LEGACY_NATIVE_SESSION_KEYS) await removeQuietly(key);
+}
+
+// Account-map writes, serialized so an older snapshot can never land after a
+// newer one: each write stores the newest snapshot requested so far, and a
+// burst of changes collapses into the writes still needed.
+let accountsWrite: Promise<void> = Promise.resolve();
+let pendingAccounts: string | null = null;
+
+/**
+ * Mirror every account signed in on this device (not just the active one) so
+ * the native push service can fetch, decrypt and attribute a push for any of
+ * them. Called whenever the account registry changes; an account removed from
+ * the registry drops out of the mirror with it.
+ */
+export function syncNativeAccounts(
+    accounts: readonly StoredAccount[],
+): Promise<void> {
+    if (!Capacitor.isNativePlatform()) return Promise.resolve();
+    pendingAccounts = serializeNativeAccounts(accounts);
+    accountsWrite = accountsWrite.then(async () => {
+        const value = pendingAccounts;
+        if (value === null) return;
+        pendingAccounts = null;
+        try {
+            await Preferences.set({ key: NATIVE_ACCOUNTS_KEY, value });
+        } catch (err) {
+            console.warn("[nativeSession] failed to sync accounts", err);
+        }
+    });
+    return accountsWrite;
 }
 
 /**

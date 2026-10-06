@@ -15,7 +15,6 @@
     import Portal from "$lib/components/ui/Portal.svelte";
     import {
         accountsState,
-        switchActive,
         removeAccountById,
     } from "$lib/stores/accounts.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -27,7 +26,6 @@
     import {
         getOwnAvatarUrl,
         getOwnDisplayName,
-        leaveVoiceCall,
         mxcToHttp,
         signOutStoredAccount,
     } from "$lib/matrix/client";
@@ -53,7 +51,7 @@
         pronounsToText,
         readFieldWithLegacy,
     } from "$lib/utils/extendedProfile";
-    import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
+    import { switchToAccount } from "$lib/stores/accountSwitch";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
         OWN_PRESENCE_OPTIONS,
@@ -144,29 +142,7 @@
             onClose();
             return;
         }
-        // The account we are leaving must not keep notifications on screen —
-        // after the reload they would be sitting above a different account's
-        // session with a deep link to a room it may not even be in. Before the
-        // bounded leave below, so a hung leave cannot leave them up for three
-        // seconds and then across the reload.
-        clearAllNotificationSurfaces();
-        // A hard reload would strand our MatrixRTC membership as a ghost
-        // participant (up to 4h — no MSC4140 on continuwuity). Leave first,
-        // bounded so a hung leave can't block the switch.
-        await Promise.race([
-            // Swallowed deliberately: leaveVoiceCall fans out to component
-            // subscriber callbacks and can re-throw a previous leave's
-            // rejection. A rejection here would skip switchActive() and the
-            // reload, stranding the switch — with the notification latch above
-            // already set, so the session continues with popups dead and no
-            // error anywhere. A failed leave is worth a ghost participant.
-            leaveVoiceCall().catch(() => {}),
-            new Promise((resolve) => setTimeout(resolve, 3000)),
-        ]);
-        switchActive(userId);
-        // Full reload: the session-restore path boots the account with
-        // clean stores (no cross-account state survives).
-        window.location.assign("/");
+        await switchToAccount(userId);
     }
 
     function addAccount(): void {

@@ -66,6 +66,11 @@
     } from "$lib/utils/notifReplyStash";
     import { composerInsertText } from "$lib/utils/composerInsert";
     import {
+        savePendingRoute,
+        takePendingRoute,
+    } from "$lib/utils/pendingNotificationRoute";
+    import { switchToAccount } from "$lib/stores/accountSwitch";
+    import {
         getDraft,
         setDraft,
         deliverToLiveComposer,
@@ -235,6 +240,7 @@
     } from "$lib/push";
     import { initWebPush, teardownWebPush } from "$lib/webPush";
     import {
+        syncNativeAccounts,
         syncNativeSession,
         clearNativeSession,
         syncNativeNotificationPrivacy,
@@ -761,10 +767,34 @@
             { roomId, userId: postedBy, eventId },
             { userId: auth.userId },
         );
-        if (decision.action !== "navigate") return;
+        if (decision.action !== "navigate") {
+            if (decision.reason === "other-account" && postedBy)
+                switchAccountForNotification(postedBy, roomId, eventId);
+            return;
+        }
         // decision.eventId is only present once the poster/session gates passed,
         // so we never jump into a room the route check just refused.
         navigateToRoom(decision.roomId, decision.eventId);
+    }
+
+    /**
+     * A notification for another account signed in on this device: switch to
+     * it, and open the room once it has booted (see the pending route consumed
+     * on mount). An account no longer on the device stays a dropped tap.
+     */
+    function switchAccountForNotification(
+        userId: string,
+        roomId: string,
+        eventId?: string | null,
+    ) {
+        if (!accountsState.registry.accounts.some((a) => a.userId === userId))
+            return;
+        savePendingRoute(localStorage, {
+            userId,
+            roomId,
+            ...(eventId ? { eventId } : {}),
+        });
+        void switchToAccount(userId);
     }
 
     // Show an OS desktop notification via the Web Notification API. Works in the
@@ -1412,6 +1442,9 @@
         // no-op). The device id is passed but NOT part of the guard: without it
         // the native service simply never suppresses, whereas dropping the
         // whole mirror would also break notification enrichment.
+        // Every signed-in account, so a push for one that isn't active can
+        // still be read; kept current by the registry from here on.
+        syncNativeAccounts(accountsState.registry.accounts).catch(() => {});
         if (auth.homeserverUrl && auth.accessToken && auth.userId) {
             syncNativeSession({
                 homeserverUrl: auth.homeserverUrl,
@@ -1517,6 +1550,10 @@
                 );
                 if (decision.action === "navigate")
                     acceptIncomingCall(decision.roomId);
+                // Another account's call: switch to it and open the room. The
+                // call has to be joined from there; it may be over by then.
+                else if (decision.reason === "other-account" && userId)
+                    switchAccountForNotification(userId, roomId, eventId);
             } else {
                 // A plain tap opens the room AND jumps to the notified message.
                 routeNotificationTap(roomId, userId, eventId);
@@ -1956,6 +1993,12 @@
         // Quick-reply stashes (notification actions when the page was closed):
         // consume all stashes for this account and restore them as drafts.
         // Never auto-send. Fire-and-forget.
+        // A notification tapped for this account while another was active:
+        // the switch reloaded into this account, so open the room now.
+        const pendingRoute = takePendingRoute(localStorage, auth.userId);
+        if (pendingRoute)
+            navigateToRoom(pendingRoute.roomId, pendingRoute.eventId);
+
         if (auth.userId) {
             (async () => {
                 try {

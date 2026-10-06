@@ -58,6 +58,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // NATIVE_SESSION_KEY there (and SESSION_KEY in static/sw.js).
     static final String PREFS = "CapacitorStorage";
     private static final String KEY_SESSION = "matrix_session_record";
+    // Every signed-in account's record, keyed by user id: NATIVE_ACCOUNTS_KEY
+    // in nativeSessionRecord.ts. Each value is a record string as above.
+    private static final String KEY_SESSION_ACCOUNTS = "matrix_session_accounts";
+    // The push data field naming the account a push is for: the pusher's
+    // default_payload, set in src/lib/push.ts.
+    static final String ACCOUNT_KEY = "zam_account";
     // Mirrors NATIVE_SESSION_VERSION. A record of any other version may mean
     // something else by the same field names, so it is refused, not guessed at.
     private static final int SESSION_VERSION = 1;
@@ -105,7 +111,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (remoteMessage.getNotification() != null) return;
 
         Map<String, String> data = remoteMessage.getData();
-        handleMatrixPush(this, data.get("room_id"), data.get("event_id"), data.get("unread"));
+        handleMatrixPush(this, data.get("room_id"), data.get("event_id"), data.get("unread"),
+            data.get(ACCOUNT_KEY));
     }
 
     /**
@@ -114,8 +121,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * both transports: FCM (onMessageReceived above) and UnifiedPush
      * (UnifiedPushService). Blocking: it makes several homeserver requests,
      * so it must run off the main thread.
+     *
+     * `accountId` is the account the push names (null from a pusher that has
+     * not re-registered since pushes were tagged: the active account then).
      */
-    static void handleMatrixPush(Context ctx, String roomId, String eventId, String unreadStr) {
+    static void handleMatrixPush(Context ctx, String roomId, String eventId, String unreadStr,
+            String accountId) {
         // unread == 0 is a "clear" push: the room was read somewhere, so take
         // its notification DOWN rather than merely declining to post a new one.
         if (unreadStr != null) {
@@ -136,6 +147,20 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             } catch (NumberFormatException ignored) {}
         }
 
+        // The account this push is for, resolved ONCE: every request, the
+        // decryption and the notification's account stamp use this record.
+        // Null for an account no longer on this device: the generic text,
+        // unattributed.
+        SessionRecord session = null;
+        boolean sessionIsActive = false;
+        try {
+            SharedPreferences sessionPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SessionRecord active = readSessionRecord(sessionPrefs);
+            session = resolveSession(sessionPrefs, active, accountId);
+            sessionIsActive = session != null && session == active;
+        } catch (Throwable ignored) {}
+        final String postedBy = session != null ? session.userId : null;
+
         // Defaults (used if enrichment fails).
         String title = "New message";
         String text = "You have a new message";
@@ -146,10 +171,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         try {
             SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            // ONE read for the whole credential tuple. It used to be four
-            // independent reads, which was four chances to pick up a torn set
-            // (see the record mirror below). Null → no usable credentials.
-            SessionRecord session = readSessionRecord(prefs);
+            // The whole credential tuple comes from the ONE record resolved
+            // above. It used to be four independent reads, which was four
+            // chances to pick up a torn set (see the record mirror below).
+            // Null → no usable credentials.
             String hs = session != null ? session.homeserverUrl : null;
             String token = session != null ? session.accessToken : null;
             String selfUserId = session != null ? session.userId : null;
@@ -192,8 +217,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     // WebView (HeadlessDecryptor). Failing both, keep the
                     // generic text.
                     if ("m.room.encrypted".equals(event.optString("type", ""))) {
-                        PushDecryptPlugin.Result clear =
-                            PushDecryptPlugin.request(roomId, eventId, DECRYPT_TIMEOUT);
+                        // The running app only holds the ACTIVE account's
+                        // keys; another account's store is free for the
+                        // hidden decryptor even while the app is open.
+                        PushDecryptPlugin.Result clear = sessionIsActive
+                            ? PushDecryptPlugin.request(roomId, eventId, DECRYPT_TIMEOUT)
+                            : null;
                         if (clear == null) {
                             clear = HeadlessDecryptor.decrypt(ctx, hs, token,
                                 selfUserId, selfDeviceId, roomId, event,
@@ -299,12 +328,6 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             if (MainActivity.isInForeground()) return;
             // Account stamp: only attribute (deep-link + join) when we can
             // name the poster, mirroring showNotification()'s PRIV-02 guard.
-            String postedBy = null;
-            try {
-                SessionRecord postedSession = readSessionRecord(
-                    ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE));
-                postedBy = postedSession != null ? postedSession.userId : null;
-            } catch (Throwable ignored) {}
             // Report it to the system call stack so it rings like a phone
             // call (Bluetooth / car / watch can answer, a cellular call can
             // interrupt it properly). Telecom then asks MatrixConnection to
@@ -316,7 +339,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 IncomingCallNotification.show(ctx, callerName, roomId, postedBy, largeIcon);
             }
         } else {
-            showNotification(ctx, title, text, roomId, eventId, largeIcon);
+            showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy);
         }
     }
 
@@ -442,6 +465,34 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         } catch (Exception e) {
             return null;
         }
+        return parseSessionRecord(raw);
+    }
+
+    /**
+     * The session for the account a push names: the active record when the
+     * push names it (or names nothing), else that account's entry in the
+     * all-accounts map. Null when the account is not on this device.
+     * Mirror of parseNativeAccount() in nativeSessionRecord.ts. Never throws.
+     */
+    static SessionRecord resolveSession(SharedPreferences prefs, SessionRecord active,
+            String accountId) {
+        if (accountId == null || accountId.isEmpty()) return active;
+        if (active != null && accountId.equals(active.userId)) return active;
+        try {
+            String raw = prefs.getString(KEY_SESSION_ACCOUNTS, null);
+            if (raw == null) return null;
+            Object entry = new JSONObject(raw).opt(accountId);
+            if (!(entry instanceof String)) return null;
+            SessionRecord record = parseSessionRecord((String) entry);
+            // Filed under the wrong user id means a corrupt map, not a match.
+            return record != null && accountId.equals(record.userId) ? record : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Strict parse of one stored record string; see readSessionRecord. */
+    static SessionRecord parseSessionRecord(String raw) {
         if (raw == null || raw.trim().isEmpty()) return null;
         try {
             // Throws unless the whole string is one JSON OBJECT — an array or
@@ -739,32 +790,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
     // ── Notification ──────────────────────────────────────────────────────────
 
-    private static void showNotification(Context ctx, String title, String body, String roomId, String eventId, Bitmap largeIcon) {
+    private static void showNotification(Context ctx, String title, String body, String roomId,
+            String eventId, Bitmap largeIcon, String postedBy) {
         createChannel(ctx);
 
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         // Stamp the account this was posted under so the web layer can refuse
-        // to open it in a different session (audit PRIV-02). With no stored
-        // identity we cannot attribute the notification, so we deliberately do
-        // NOT attach a room id: it still shows, but tapping it only opens the
-        // app instead of deep-linking whoever is signed in now into a room
-        // from a session we cannot name.
-        //
-        // Read here rather than threaded in from onMessageReceived: the read
-        // there lives inside the enrichment try/catch, so a failure before it
-        // would drop the stamp for a session we can still name. Reads the single
-        // session record (readSessionRecord) — the same source every other read
-        // in this file uses — not the deprecated per-field legacy keys; guarded
-        // because showNotification() is called OUTSIDE that try and a throw here
-        // would cost the whole notification.
-        String postedBy = null;
-        try {
-            SharedPreferences notifPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            SessionRecord postedSession = readSessionRecord(notifPrefs);
-            postedBy = postedSession != null ? postedSession.userId : null;
-        } catch (Throwable ignored) {}
+        // to open it in a different session (audit PRIV-02), or switch to it.
+        // With no identity (an account no longer on this device) we cannot
+        // attribute the notification, so we deliberately do NOT attach a room
+        // id: it still shows, but tapping it only opens the app instead of
+        // deep-linking whoever is signed in now into a room from a session we
+        // cannot name. `postedBy` is the account handleMatrixPush resolved
+        // before enrichment, so an enrichment failure cannot drop the stamp.
         if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
             intent.putExtra("room_id", roomId);
             intent.putExtra("user_id", postedBy);
