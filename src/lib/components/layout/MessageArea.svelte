@@ -76,7 +76,10 @@
     import { getLoudNotificationCount } from "$lib/stores/notifications.svelte";
     import { ignoredUsersState } from "$lib/stores/ignoredUsers.svelte";
     import { shouldHideMessage } from "$lib/utils/ignoredUsers";
-    import { isEditableContent } from "$lib/utils/editableMessage";
+    import {
+        isEditableContent,
+        lastEditableOwnMessage,
+    } from "$lib/utils/editableMessage";
     import { sedEditLastMessage } from "$lib/matrix/editMessage";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
@@ -334,15 +337,9 @@
     }
 
     async function requestEditLastMessage() {
-        const editable = messages.filter(
-            (e) =>
-                e.getSender() === auth.userId &&
-                e.getType() === "m.room.message" &&
-                isEditableContent(e.getContent()) &&
-                e.getId(),
-        );
-        if (editable.length === 0) return;
-        editRequestedEventId = editable[editable.length - 1].getId()!;
+        const last = lastEditableOwnMessage(messages, auth.userId);
+        if (!last) return;
+        editRequestedEventId = last.getId()!;
         await tick();
         editRequestedEventId = null;
     }

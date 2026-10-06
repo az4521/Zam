@@ -6,7 +6,10 @@ import type { MatrixEvent, Room } from "matrix-js-sdk";
 import { getCustomEmojis, sendEdit } from "$lib/matrix/client";
 import { buildFormattedBody, emoticonsFromHtml } from "$lib/utils/messageBody";
 import { replaceEmojiShortcodes } from "$lib/data/emojiShortcodes";
-import { isEditableContent, mediaEditBase } from "$lib/utils/editableMessage";
+import {
+    lastEditableOwnMessage,
+    mediaEditBase,
+} from "$lib/utils/editableMessage";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
 import { applySedCommand, type SedCommand } from "$lib/utils/sedEdit";
 import { roomsState } from "$lib/stores/rooms.svelte";
@@ -18,24 +21,6 @@ export function editableBody(event: MatrixEvent): string {
     const isReply =
         !!event.getOriginalContent()?.["m.relates_to"]?.["m.in_reply_to"];
     return isReply ? stripBodyFallback(raw) : raw;
-}
-
-/** Your newest message in `events` that can be edited inline, if any. */
-export function lastEditableOwnMessage(
-    events: MatrixEvent[],
-    userId: string | null,
-): MatrixEvent | undefined {
-    for (let i = events.length - 1; i >= 0; i--) {
-        const e = events[i];
-        if (
-            e.getId() &&
-            e.getSender() === userId &&
-            e.getType() === "m.room.message" &&
-            isEditableContent(e.getContent())
-        )
-            return e;
-    }
-    return undefined;
 }
 
 /**

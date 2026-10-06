@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     hasMediaCaption,
     isEditableContent,
+    lastEditableOwnMessage,
     mediaEditBase,
 } from "./editableMessage";
 
@@ -57,5 +58,58 @@ describe("editableMessage", () => {
         expect(
             mediaEditBase({ msgtype: "m.text", body: "hi" }),
         ).toBeUndefined();
+    });
+});
+
+describe("lastEditableOwnMessage", () => {
+    const ME = "@me:hs";
+    const ev = (
+        id: string,
+        over: {
+            sender?: string;
+            type?: string;
+            content?: Record<string, unknown>;
+            replaces?: boolean;
+        } = {},
+    ) => ({
+        id,
+        getId: () => id,
+        getSender: () => over.sender ?? ME,
+        getType: () => over.type ?? "m.room.message",
+        getContent: () => over.content ?? { msgtype: "m.text", body: id },
+        isRelation: (rel?: string) => !!over.replaces && rel === "m.replace",
+    });
+
+    it("finds your newest editable message", () => {
+        const events = [ev("$a"), ev("$b"), ev("$c", { sender: "@you:hs" })];
+        expect(lastEditableOwnMessage(events, ME)?.id).toBe("$b");
+    });
+
+    it("skips edit events, so a second edit targets the message", () => {
+        const events = [
+            ev("$msg"),
+            ev("$edit", {
+                content: { msgtype: "m.text", body: "* fixed" },
+                replaces: true,
+            }),
+        ];
+        expect(lastEditableOwnMessage(events, ME)?.id).toBe("$msg");
+    });
+
+    it("skips non-messages and uneditable content", () => {
+        const events = [
+            ev("$msg"),
+            ev("$reaction", { type: "m.reaction" }),
+            ev("$notice", { content: { msgtype: "m.image", body: "x.png" } }),
+            ev("$redacted", { content: {} }),
+        ];
+        expect(lastEditableOwnMessage(events, ME)?.id).toBe("$msg");
+    });
+
+    it("returns undefined when there is nothing of yours", () => {
+        expect(
+            lastEditableOwnMessage([ev("$a", { sender: "@you:hs" })], ME),
+        ).toBeUndefined();
+        expect(lastEditableOwnMessage([], ME)).toBeUndefined();
     });
 });

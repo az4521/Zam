@@ -60,3 +60,36 @@ export function mediaEditBase(
     } = content;
     return rest;
 }
+
+/** The parts of a timeline event `lastEditableOwnMessage` reads. */
+interface TimelineEventLike {
+    getId(): string | undefined | null;
+    getSender(): string | undefined | null;
+    getType(): string;
+    getContent(): Content;
+    isRelation(relType?: string): boolean;
+}
+
+/**
+ * Your newest message in `events` that can be edited inline, if any. Edit
+ * events themselves are skipped: the timeline keeps them (hidden), and an
+ * edit of an edit would replace the "* new text" fallback body instead of the
+ * message.
+ */
+export function lastEditableOwnMessage<E extends TimelineEventLike>(
+    events: readonly E[],
+    userId: string | null | undefined,
+): E | undefined {
+    for (let i = events.length - 1; i >= 0; i--) {
+        const e = events[i];
+        if (
+            e.getId() &&
+            e.getSender() === userId &&
+            e.getType() === "m.room.message" &&
+            !e.isRelation("m.replace") &&
+            isEditableContent(e.getContent())
+        )
+            return e;
+    }
+    return undefined;
+}
