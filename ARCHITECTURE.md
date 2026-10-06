@@ -296,10 +296,14 @@ latter silently ignores it and threads then look completely dead. The rules live
 `threadUnread.ts`, `threadNotify.ts`, `threadContent.ts`. UI is `ThreadPanel.svelte` plus the
 `threads` sidebar slot (`ThreadsListPanel.svelte`).
 
-Thread names are not in the spec, so they are our own room state (`utils/threadName.ts`): type
-`moe.crafty.matrix.thread_name`, state key the root event id, content `{ name }`. Who may name a
-thread is the room's power level for that event type (`state_default` unless set). Other clients
-ignore it.
+Thread names are not in the spec, so they are our own event (`utils/threadName.ts`): type
+`moe.crafty.matrix.thread_name`, content `{ name }` with an `m.relates_to` of the same rel_type
+pointing at the root. The newest one wins, but only from the root's sender or a moderator (power
+level at least the room's `redact` level); an empty name clears it. `client.ts` caches the
+resolved name per root, filled from `/relations` on first read and kept current from live sync.
+**Naming events are sent unencrypted**, even in encrypted rooms: an encrypted one would match the
+server's `.m.rule.encrypted` and notify every member's push devices for a rename. Other clients
+ignore them.
 
 ### Notifications
 

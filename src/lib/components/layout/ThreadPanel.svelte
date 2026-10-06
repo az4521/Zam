@@ -13,7 +13,7 @@
         findEventById,
         markThreadRead,
         getThreadName,
-        canNameThreads,
+        canNameThread,
         setThreadName,
     } from "$lib/matrix/client";
     import RenameThreadDialog from "$lib/components/layout/RenameThreadDialog.svelte";
@@ -109,7 +109,7 @@
     });
     const mayName = $derived.by(() => {
         void roomsState.roomsTick;
-        return canNameThreads(room);
+        return canNameThread(room, rootEventId);
     });
     // The thread being renamed: pinned when the dialog opens, so a retarget
     // of the panel underneath can't redirect the save.

@@ -233,8 +233,12 @@ import type { ThreadSummary } from "$lib/utils/threadModel";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
 import {
     THREAD_NAME_EVENT_TYPE,
+    THREAD_NAME_REL_TYPE,
     buildThreadNameContent,
+    latestThreadName,
+    mayNameThread,
     parseThreadName,
+    threadNameTarget,
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
@@ -3028,50 +3032,199 @@ export function isThreadParticipant(room: Room, rootEventId: string): boolean {
     return (thread.events ?? []).some((e) => e.getSender() === me);
 }
 
-/** A thread's name (see utils/threadName), or null when it has none. */
-export function getThreadName(room: Room, rootEventId: string): string | null {
-    const ev = room
-        .getLiveTimeline()
-        .getState(EventTimeline.FORWARDS)
-        ?.getStateEvents(THREAD_NAME_EVENT_TYPE, rootEventId);
-    return parseThreadName(ev?.getContent());
+// ── Thread names (utils/threadName) ──
+// A name is a naming event related to the thread's root, so it isn't room
+// state the SDK keeps for us: the newest allowed one per root is cached here,
+// filled from /relations on first read and kept current from live sync.
+
+interface CachedThreadName {
+    name: string | null;
+    /** The naming event the name came from (null: none found). */
+    eventId: string | null;
+    ts: number;
 }
 
-/** Whether the current user's power level lets them name threads here. */
-export function canNameThreads(room: Room): boolean {
-    const me = matrixClient?.getUserId();
-    if (!me) return false;
+const threadNames = new Map<string, CachedThreadName>();
+const threadNameLoads = new Set<string>();
+const threadNameListeners = new Set<() => void>();
+
+const threadNameKey = (roomId: string, rootEventId: string) =>
+    `${roomId}\u0000${rootEventId}`;
+
+function notifyThreadNames(): void {
+    for (const cb of threadNameListeners) cb();
+}
+
+/** Store a resolved name unless the cache already holds a newer one. */
+function cacheThreadName(key: string, entry: CachedThreadName): void {
+    const current = threadNames.get(key);
+    if (current && current.ts > entry.ts) return;
+    threadNames.set(key, entry);
+}
+
+function threadRootSender(room: Room, rootEventId: string): string | null {
     return (
-        room
-            .getLiveTimeline()
-            .getState(EventTimeline.FORWARDS)
-            ?.maySendStateEvent(THREAD_NAME_EVENT_TYPE, me) ?? false
+        room.findEventById(rootEventId)?.getSender() ??
+        room.getThread(rootEventId)?.rootEvent?.getSender() ??
+        null
     );
 }
 
-/** Name a thread, or clear its name with an empty string. */
+function threadNamerAllowed(
+    room: Room,
+    rootEventId: string,
+): (senderId: string) => boolean {
+    const rootSenderId = threadRootSender(room, rootEventId);
+    const moderatorLevel = getRoomPowerLevels(room).redact;
+    return (senderId) =>
+        mayNameThread({
+            senderId,
+            rootSenderId,
+            senderPowerLevel: getUserPowerLevel(room, senderId),
+            moderatorLevel,
+        });
+}
+
+function loadThreadName(room: Room, rootEventId: string): void {
+    const key = threadNameKey(room.roomId, rootEventId);
+    if (!matrixClient || threadNameLoads.has(key)) return;
+    const client = matrixClient;
+    threadNameLoads.add(key);
+    void (async () => {
+        try {
+            // The event type is passed as-is (not the encrypted-if-needed
+            // type): naming events are sent unencrypted, see setThreadName.
+            const res = await client.fetchRelations(
+                room.roomId,
+                rootEventId,
+                THREAD_NAME_REL_TYPE,
+                THREAD_NAME_EVENT_TYPE,
+                { dir: Direction.Backward, limit: 20 },
+            );
+            const best = latestThreadName(
+                rootEventId,
+                res.chunk.map((raw) => ({
+                    eventId: raw.event_id ?? "",
+                    senderId: raw.sender ?? "",
+                    ts: raw.origin_server_ts ?? 0,
+                    content: raw.content,
+                })),
+                threadNamerAllowed(room, rootEventId),
+            );
+            cacheThreadName(key, best ?? { name: null, eventId: null, ts: 0 });
+        } catch (err) {
+            // Cache the miss so a failing server isn't asked again on every
+            // render; a live naming event still fills it in.
+            console.warn("Failed to load thread name:", err);
+            cacheThreadName(key, { name: null, eventId: null, ts: 0 });
+        } finally {
+            threadNameLoads.delete(key);
+            notifyThreadNames();
+        }
+    })();
+}
+
+/**
+ * A thread's name, or null when it has none. The first read for a thread
+ * fetches its naming events and returns null meanwhile; subscribers of
+ * `onThreadNameChange` hear when it lands.
+ */
+export function getThreadName(room: Room, rootEventId: string): string | null {
+    const cached = threadNames.get(threadNameKey(room.roomId, rootEventId));
+    if (cached) return cached.name;
+    loadThreadName(room, rootEventId);
+    return null;
+}
+
+/** Whether the current user may name this thread (root sender or moderator). */
+export function canNameThread(room: Room, rootEventId: string): boolean {
+    const me = matrixClient?.getUserId();
+    if (!me) return false;
+    return threadNamerAllowed(room, rootEventId)(me);
+}
+
+/**
+ * Name a thread, or clear its name with an empty string.
+ *
+ * Sent UNENCRYPTED even in an encrypted room, on purpose: the server's push
+ * rules only see `m.room.encrypted` for an encrypted event and notify for it,
+ * and push paths that can't evaluate the decrypted type (the web service
+ * worker must show something for every push) would turn each rename into a
+ * "new message" on every member's devices. A cleartext custom type matches no
+ * push rule. Thread names are therefore visible to the server, like room names
+ * and topics.
+ */
 export async function setThreadName(
     room: Room,
     rootEventId: string,
     name: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    await (matrixClient as any).sendStateEvent(
-        room.roomId,
-        THREAD_NAME_EVENT_TYPE,
-        buildThreadNameContent(name),
-        rootEventId,
+    const content = buildThreadNameContent(rootEventId, name);
+    const path =
+        `/rooms/${encodeURIComponent(room.roomId)}` +
+        `/send/${encodeURIComponent(THREAD_NAME_EVENT_TYPE)}` +
+        `/${encodeURIComponent(matrixClient.makeTxnId())}`;
+    const res = await matrixClient.http.authedRequest<{ event_id: string }>(
+        Method.Put,
+        path,
+        undefined,
+        content,
     );
+    cacheThreadName(threadNameKey(room.roomId, rootEventId), {
+        name: parseThreadName(content),
+        eventId: res.event_id,
+        ts: Date.now(),
+    });
+    notifyThreadNames();
 }
 
-/** Fires when any room's thread names change (ours or another member's). */
+/**
+ * Fires when a thread's name changes in any room (ours, another member's, or
+ * a first load landing). Live naming events from senders who may not name the
+ * thread are ignored; redacting the naming event behind a name drops it.
+ */
 export function onThreadNameChange(callback: () => void): () => void {
-    if (!matrixClient) return () => {};
-    const handler = (event: MatrixEvent) => {
-        if (event.getType() === THREAD_NAME_EVENT_TYPE) callback();
+    threadNameListeners.add(callback);
+    const client = matrixClient;
+    const handler = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline: boolean | undefined,
+        removed: boolean,
+    ) => {
+        // Back-paginated history is older than what /relations gave us.
+        if (!room || toStartOfTimeline || removed) return;
+        if (event.getType() === "m.room.redaction") {
+            const redacts =
+                event.event.redacts ?? event.getContent()?.redacts ?? null;
+            if (!redacts) return;
+            for (const [key, entry] of threadNames) {
+                if (entry.eventId === redacts) {
+                    // Refetch: the next-newest naming event takes over.
+                    threadNames.delete(key);
+                    callback();
+                }
+            }
+            return;
+        }
+        if (event.getType() !== THREAD_NAME_EVENT_TYPE) return;
+        const rootEventId = threadNameTarget(event.getContent());
+        if (!rootEventId) return;
+        if (!threadNamerAllowed(room, rootEventId)(event.getSender() ?? ""))
+            return;
+        cacheThreadName(threadNameKey(room.roomId, rootEventId), {
+            name: parseThreadName(event.getContent()),
+            eventId: event.getId() ?? null,
+            ts: event.getTs(),
+        });
+        callback();
     };
-    matrixClient.on(RoomStateEvent.Events, handler as never);
-    return () => matrixClient?.off(RoomStateEvent.Events, handler as never);
+    client?.on(RoomEvent.Timeline, handler as never);
+    return () => {
+        threadNameListeners.delete(callback);
+        client?.off(RoomEvent.Timeline, handler as never);
+    };
 }
 
 /**
