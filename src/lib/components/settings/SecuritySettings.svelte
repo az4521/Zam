@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import KeyExportSettings from "$lib/components/settings/KeyExportSettings.svelte";
     import {
         getSecurityStatus,
         setupRecovery,
@@ -1222,4 +1223,6 @@
             {/if}
         </section>
     {/if}
+
+    <KeyExportSettings />
 </div>

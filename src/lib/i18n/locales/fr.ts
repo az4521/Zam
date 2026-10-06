@@ -2650,6 +2650,31 @@ const messages: Record<MessageKey, string> = {
     "keyBackup.everythingOnThisSessionIsBacked":
         "Tout ce qui se trouve dans cette session est sauvegardé",
     "keyBackup.notSet": "Non défini",
+    "keyExportSettings.exportOrImportRoomKeys":
+        "Exporter ou importer les clés de salon",
+    "keyExportSettings.aKeyFileLetsAnotherApp":
+        "Un fichier de clés permet à une autre appli Matrix, ou à une nouvelle session, de lire votre historique de messages chiffré. Conservez le fichier et sa phrase secrète en lieu sûr : quiconque possède les deux peut lire vos messages.",
+    "keyExportSettings.export": "Exporter",
+    "keyExportSettings.import": "Importer",
+    "keyExportSettings.passphrase": "Phrase secrète",
+    "keyExportSettings.confirmPassphrase": "Confirmer la phrase secrète",
+    "keyExportSettings.passphrasesDontMatch":
+        "Les phrases secrètes ne correspondent pas",
+    "keyExportSettings.exportKeys": "Exporter les clés",
+    "keyExportSettings.exporting": "Exportation…",
+    "keyExportSettings.exported":
+        "{count, plural, one {# clé exportée} other {# clés exportées}}",
+    "keyExportSettings.couldNotExportYourKeys":
+        "Impossible d'exporter vos clés",
+    "keyExportSettings.keyFile": "Fichier de clés",
+    "keyExportSettings.importKeys": "Importer les clés",
+    "keyExportSettings.wrongPassphrase":
+        "Phrase secrète incorrecte, ou le fichier a été modifié",
+    "keyExportSettings.notAKeyFile":
+        "Ce n'est pas un fichier de clés, ou il est endommagé",
+    "keyExportSettings.newerFormat":
+        "Ce fichier de clés a été créé par une appli plus récente et ne peut pas être lu ici",
+    "keyExportSettings.couldNotImportTheKeys": "Impossible d'importer les clés",
 
     // src/lib/utils/keywordRules.ts
     "keywordRules.keywordCannotBeEmpty": "Le mot-clé ne peut pas être vide",

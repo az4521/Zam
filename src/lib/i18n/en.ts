@@ -2555,6 +2555,27 @@ export const en = {
     "keyBackup.everythingOnThisSessionIsBacked":
         "Everything on this session is backed up",
     "keyBackup.notSet": "Not set",
+    "keyExportSettings.exportOrImportRoomKeys": "Export or import room keys",
+    "keyExportSettings.aKeyFileLetsAnotherApp":
+        "A key file lets another Matrix app, or a new session, read your encrypted message history. Keep the file and its passphrase somewhere safe: anyone with both can read your messages.",
+    "keyExportSettings.export": "Export",
+    "keyExportSettings.import": "Import",
+    "keyExportSettings.passphrase": "Passphrase",
+    "keyExportSettings.confirmPassphrase": "Confirm passphrase",
+    "keyExportSettings.passphrasesDontMatch": "The passphrases don't match",
+    "keyExportSettings.exportKeys": "Export keys",
+    "keyExportSettings.exporting": "Exporting…",
+    "keyExportSettings.exported":
+        "{count, plural, one {Exported # key} other {Exported # keys}}",
+    "keyExportSettings.couldNotExportYourKeys": "Couldn't export your keys",
+    "keyExportSettings.keyFile": "Key file",
+    "keyExportSettings.importKeys": "Import keys",
+    "keyExportSettings.wrongPassphrase":
+        "Wrong passphrase, or the file has been changed",
+    "keyExportSettings.notAKeyFile": "That isn't a key file, or it's damaged",
+    "keyExportSettings.newerFormat":
+        "This key file was made by a newer app and can't be read here",
+    "keyExportSettings.couldNotImportTheKeys": "Couldn't import the keys",
 
     // src/lib/utils/keywordRules.ts
     "keywordRules.keywordCannotBeEmpty": "Keyword cannot be empty",

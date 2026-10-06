@@ -69,6 +69,10 @@ import {
     type QrMethodOptions,
 } from "$lib/utils/qrVerification";
 import type { RestoreProgress } from "$lib/utils/keyBackup";
+import {
+    decryptKeyExportFile,
+    encryptKeyExportFile,
+} from "$lib/utils/keyExportFile";
 import type {
     SecurityRead,
     SecurityPosture,
@@ -2128,6 +2132,41 @@ export async function unlockWithPassphrase(
     }
 
     return completeUnlock(crypto, keyId, decoded, onProgress);
+}
+
+/**
+ * Export every room key this device holds as a passphrase-encrypted key export
+ * file (utils/keyExportFile), the format Element and other clients import.
+ * Returns the file's text and how many keys it holds.
+ */
+export async function exportRoomKeysToFile(
+    passphrase: string,
+): Promise<{ file: string; count: number }> {
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    const json = await crypto.exportRoomKeysAsJson();
+    const count = (JSON.parse(json) as unknown[]).length;
+    return { file: await encryptKeyExportFile(json, passphrase), count };
+}
+
+/**
+ * Import a key export file's room keys. Throws KeyExportFileError for a bad
+ * file or wrong passphrase, before anything is imported.
+ */
+export async function importRoomKeysFromFile(
+    text: string,
+    passphrase: string,
+    onProgress?: (progress: RestoreProgress) => void,
+): Promise<void> {
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    const json = await decryptKeyExportFile(text, passphrase);
+    await crypto.importRoomKeysAsJson(
+        json,
+        onProgress
+            ? { progressCallback: (p) => onProgress(toRestoreProgress(p)) }
+            : undefined,
+    );
 }
 
 /** Map the SDK's room-key import progress onto the SDK-free `RestoreProgress`. */

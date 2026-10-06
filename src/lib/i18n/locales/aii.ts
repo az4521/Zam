@@ -2467,6 +2467,27 @@ const messages: Record<MessageKey, string> = {
         "{count, plural, one {# ܩܠܝܕܐ ܦܝܫܐ ܩܐ ܐܣܩܬܐ} other {# ܩܠܝܕ̈ܐ ܦܝܫ̈ܐ ܩܐ ܐܣܩܬܐ}}",
     "keyBackup.everythingOnThisSessionIsBacked": "ܟܠ ܡܕܡ ܥܠ ܗܢܐ ܓܠܣܐ ܢܛܝܪܐ ܝܠܗ",
     "keyBackup.notSet": "ܠܐ ܡܛܘܝܒܐ",
+    "keyExportSettings.exportOrImportRoomKeys": "ܦܠܛ ܐܘ ܥܠܠ ܩܠܝܕ̈ܐ ܕܓܘܡ̈ܐ",
+    "keyExportSettings.aKeyFileLetsAnotherApp":
+        "ܦܐܝܠ ܕܩܠܝܕ̈ܐ ܡܫܒܩ ܠܬܘܟܢܝܬܐ ܐܚܪܬܐ ܕ Matrix ܐܘ ܠܣܝܥܬܐ ܚܕܬܐ ܕܩܪܝܐ ܬܫܥܝܬܐ ܡܛܫܝܬܐ ܕܐܓܪ̈ܬܐ ܕܝܘܟ. ܢܛܘܪ ܦܐܝܠ ܘܦܬܓܡܐ ܕܥܒܪܐ ܕܝܗ̇ ܓܘ ܕܘܟܬܐ ܫܠܝܡܬܐ: ܟܠ ܡܢ ܕܐܝܬ ܠܗ ܬܪܘܝܗܘܢ ܡܨܐ ܩܪܐ ܐܓܪ̈ܬܐ ܕܝܘܟ.",
+    "keyExportSettings.export": "ܦܠܛ",
+    "keyExportSettings.import": "ܥܠܠ",
+    "keyExportSettings.passphrase": "ܦܬܓܡܐ ܕܥܒܪܐ",
+    "keyExportSettings.confirmPassphrase": "ܫܪܪ ܦܬܓܡܐ ܕܥܒܪܐ",
+    "keyExportSettings.passphrasesDontMatch": "ܦܬܓܡ̈ܐ ܕܥܒܪܐ ܠܐ ܦܐܫܝ ܠܚܕܕ̈ܐ",
+    "keyExportSettings.exportKeys": "ܦܠܛ ܩܠܝܕ̈ܐ",
+    "keyExportSettings.exporting": "ܒܦܠܛܐ…",
+    "keyExportSettings.exported":
+        "{count, plural, one {# ܩܠܝܕܐ ܦܠܝܛܐ} other {# ܩܠܝܕ̈ܐ ܦܠܝܛ̈ܐ}}",
+    "keyExportSettings.couldNotExportYourKeys": "ܦܠܛܐ ܕܩܠܝܕ̈ܐ ܠܐ ܦܠܚܠܗ",
+    "keyExportSettings.keyFile": "ܦܐܝܠ ܕܩܠܝܕ̈ܐ",
+    "keyExportSettings.importKeys": "ܥܠܠ ܩܠܝܕ̈ܐ",
+    "keyExportSettings.wrongPassphrase":
+        "ܦܬܓܡܐ ܕܥܒܪܐ ܠܐ ܬܪܝܨܐ ܝܠܗ، ܐܘ ܦܐܝܠ ܫܚܠܦܠܗ",
+    "keyExportSettings.notAKeyFile": "ܗܢܐ ܠܐ ܝܠܗ ܦܐܝܠ ܕܩܠܝܕ̈ܐ، ܐܘ ܚܒܝܠܐ ܝܠܗ",
+    "keyExportSettings.newerFormat":
+        "ܗܢܐ ܦܐܝܠ ܕܩܠܝܕ̈ܐ ܥܒܝܕܐ ܝܠܗ ܡܢ ܬܘܟܢܝܬܐ ܚܕܬܐ ܘܠܐ ܡܨܐ ܡܬܩܪܝܐ ܗܪܟܐ",
+    "keyExportSettings.couldNotImportTheKeys": "ܥܠܠܐ ܕܩܠܝܕ̈ܐ ܠܐ ܦܠܚܠܗ",
 
     // src/lib/utils/keywordRules.ts
     "keywordRules.keywordCannotBeEmpty": "ܡܠܬܐ ܪܫܝܬܐ ܠܐ ܡܨܝܐ ܕܗܘܝܐ ܣܦܝܩܬܐ",

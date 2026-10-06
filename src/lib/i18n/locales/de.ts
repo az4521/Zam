@@ -2679,6 +2679,32 @@ const messages: Record<MessageKey, string> = {
     "keyBackup.everythingOnThisSessionIsBacked":
         "Alles in dieser Sitzung ist gesichert",
     "keyBackup.notSet": "Nicht festgelegt",
+    "keyExportSettings.exportOrImportRoomKeys":
+        "Raumschlüssel exportieren oder importieren",
+    "keyExportSettings.aKeyFileLetsAnotherApp":
+        "Mit einer Schlüsseldatei kann eine andere Matrix-App oder eine neue Sitzung deinen verschlüsselten Nachrichtenverlauf lesen. Bewahre die Datei und ihre Passphrase sicher auf: Wer beides hat, kann deine Nachrichten lesen.",
+    "keyExportSettings.export": "Exportieren",
+    "keyExportSettings.import": "Importieren",
+    "keyExportSettings.passphrase": "Passphrase",
+    "keyExportSettings.confirmPassphrase": "Passphrase bestätigen",
+    "keyExportSettings.passphrasesDontMatch":
+        "Die Passphrasen stimmen nicht überein",
+    "keyExportSettings.exportKeys": "Schlüssel exportieren",
+    "keyExportSettings.exporting": "Wird exportiert…",
+    "keyExportSettings.exported":
+        "{count, plural, one {# Schlüssel exportiert} other {# Schlüssel exportiert}}",
+    "keyExportSettings.couldNotExportYourKeys":
+        "Deine Schlüssel konnten nicht exportiert werden",
+    "keyExportSettings.keyFile": "Schlüsseldatei",
+    "keyExportSettings.importKeys": "Schlüssel importieren",
+    "keyExportSettings.wrongPassphrase":
+        "Falsche Passphrase, oder die Datei wurde verändert",
+    "keyExportSettings.notAKeyFile":
+        "Das ist keine Schlüsseldatei, oder sie ist beschädigt",
+    "keyExportSettings.newerFormat":
+        "Diese Schlüsseldatei stammt von einer neueren App und kann hier nicht gelesen werden",
+    "keyExportSettings.couldNotImportTheKeys":
+        "Die Schlüssel konnten nicht importiert werden",
 
     // src/lib/utils/keywordRules.ts
     "keywordRules.keywordCannotBeEmpty":

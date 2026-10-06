@@ -34,7 +34,7 @@ Calls
 
 Encryption
 
-- E2EE via rust-crypto: encrypted rooms and DMs, SAS (emoji) and QR device verification, cross-signing, secret storage (4S), key backup and recovery
+- E2EE via rust-crypto: encrypted rooms and DMs, SAS (emoji) and QR device verification, cross-signing, secret storage (4S), key backup and recovery, and key export/import to a passphrase-protected file (the same format Element uses)
 - encrypted attachments decrypt and display (in the timeline and the media/files browser), with the ciphertext hash verified before anything is shown; files, images, videos and voice messages you send into an encrypted room are encrypted, and encrypted videos play in-timeline
 
 App
@@ -57,7 +57,6 @@ Rooms
 User
 
 - Sign-in methods: password, legacy SSO and native OAuth 2.0 / OIDC (Matrix Authentication Service) all work. Not done: QR-code login from another device, the OAuth device-code grant, and signing other sessions out from inside the app on an OAuth account (it links to the provider's account page instead)
-- Manual key export/import to a file (key backup and recovery cover the same ground, but there's no file you can carry to another client)
 - Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to telling you your homeserver hasn't got one
 
 Media
