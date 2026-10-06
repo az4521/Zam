@@ -208,6 +208,31 @@
         );
     });
 
+    // Images committed by the Android keyboard (Gboard stickers, Emoji
+    // Kitchen) arrive through AppShell's __matrixKeyboardContent bridge. Only
+    // the composer that has focus takes them.
+    $effect(() => {
+        const onKeyboardContent = (e: Event) => {
+            if (!textareaEl || document.activeElement !== textareaEl) return;
+            enqueueFile((e as CustomEvent<File>).detail);
+        };
+        window.addEventListener("matrix-keyboard-content", onKeyboardContent);
+        return () => {
+            window.removeEventListener(
+                "matrix-keyboard-content",
+                onKeyboardContent,
+            );
+            if (textareaEl && document.activeElement === textareaEl)
+                setKeyboardImageTarget(false);
+        };
+    });
+
+    // Tell ComposerWebView (Android) whether the keyboard may insert images:
+    // only while a composer has focus.
+    function setKeyboardImageTarget(focused: boolean) {
+        (window as any).MatrixKeyboard?.setComposerFocused(focused);
+    }
+
     // Plugin composer.insertText → append to THIS (main) composer's text.
     // Only the main composer claims the global slot (mirrors focusComposer).
     // roomId-guarded so a stale handler from a previous room drops silently.
@@ -2332,6 +2357,8 @@
                 oninput={onInput}
                 onbeforeinput={onBeforeInput}
                 onpaste={onPaste}
+                onfocus={() => setKeyboardImageTarget(true)}
+                onblur={() => setKeyboardImageTarget(false)}
                 onclick={() => {
                     detectMentionQuery();
                     detectEmojiQuery();

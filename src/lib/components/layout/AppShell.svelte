@@ -1655,6 +1655,24 @@
             }
         };
 
+        // Android keyboard image insertion (Gboard stickers / Emoji Kitchen,
+        // via ComposerWebView). The focused composer picks it up and queues it
+        // as an attachment, like a pasted image.
+        (window as any).__matrixKeyboardContent = (json: string) => {
+            try {
+                const file = base64ToFile(JSON.parse(json));
+                if (file) {
+                    window.dispatchEvent(
+                        new CustomEvent("matrix-keyboard-content", {
+                            detail: file,
+                        }),
+                    );
+                }
+            } catch {
+                /* malformed bridge payload — ignore */
+            }
+        };
+
         // Android notification-action bridges: must forward the poster userId from
         // the intent so the guard can verify it matches the active account — the
         // guard fails closed when userId is missing (audit SEC-M4 / PRIV-02).
@@ -2114,6 +2132,7 @@
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
+            delete (window as any).__matrixKeyboardContent;
             unsubNativeAnswer();
             if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.removeEventListener(
