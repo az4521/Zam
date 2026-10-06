@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.14.0
+
+✨ **New**
+
+- **Notifications for all your accounts (Android):** with several accounts signed in, notifications for the ones you aren't using now show the sender and message, decrypted, like the active account's. Tapping one switches to that account and opens the room, and Mark as read works from any account. Open each account once after updating to turn this on for it.
+
+🐛 **Fixed**
+
+- **Encrypted notifications on desktop:** with "Show all events" on, notifications for encrypted messages only said "🔒 Encrypted message". They now show the message.
+- **Editing the same message twice:** a second `s/old/new/` on a message added a "* " to the start of it, and pressing ↑ to edit your last message did nothing after you had edited it once. Both now edit the message itself.
+
 ## v1.13.10
 
 🐛 **Fixed**
