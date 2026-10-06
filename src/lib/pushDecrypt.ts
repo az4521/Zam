@@ -25,11 +25,13 @@ export interface DecryptedForPush {
 /**
  * The cleartext of one event, or null when this page cannot provide it: no
  * client, a room this account is not in, or an event that will not decrypt.
- * Never throws.
+ * Never throws. `mark`, when given, is told each stage as it completes (for
+ * the Android timing log).
  */
 export async function decryptForPush(
     roomId: unknown,
     eventId: unknown,
+    mark: (stage: string) => void = () => {},
 ): Promise<DecryptedForPush | null> {
     if (typeof roomId !== "string" || typeof eventId !== "string") return null;
     try {
@@ -37,16 +39,27 @@ export async function decryptForPush(
         const room = client?.getRoom(roomId);
         // Not in this room → the push belongs to some other session; say
         // nothing rather than decrypting on its behalf.
-        if (!client || !room) return null;
+        if (!client || !room) {
+            mark("no-room");
+            return null;
+        }
         let ev = room.findEventById(eventId) ?? null;
-        if (ev) await client.decryptEventIfNeeded(ev);
+        if (ev) {
+            await client.decryptEventIfNeeded(ev);
+            mark("local");
+        }
         if (
             !ev ||
             ev.isDecryptionFailure() ||
             ev.getType() === "m.room.encrypted"
-        )
+        ) {
             ev = await fetchSingleEvent(roomId, eventId);
-        if (!ev || ev.isDecryptionFailure()) return null;
+            mark("fetched");
+        }
+        if (!ev || ev.isDecryptionFailure()) {
+            mark("undecryptable");
+            return null;
+        }
         const type = ev.getType();
         if (type === "m.room.encrypted") return null;
         return {
@@ -60,8 +73,10 @@ export async function decryptForPush(
 
 interface PushDecryptPlugin {
     setActive(options: { active: boolean }): Promise<void>;
+    getStatus(): Promise<{ missedAt: number | null }>;
     respond(options: {
         requestId: string;
+        timings?: string;
         type?: string;
         content?: Record<string, unknown>;
     }): Promise<void>;
@@ -83,6 +98,20 @@ function isAndroidWithPlugin(): boolean {
         Capacitor.getPlatform() === "android" &&
         Capacitor.isPluginAvailable("PushDecrypt")
     );
+}
+
+/**
+ * When the page last failed to answer a push's decrypt request in time on this
+ * phone (epoch ms), or null if it never has or this isn't the Android app.
+ */
+export async function getPushDecryptMissedAt(): Promise<number | null> {
+    if (!isAndroidWithPlugin()) return null;
+    try {
+        const { missedAt } = await PushDecrypt.getStatus();
+        return typeof missedAt === "number" ? missedAt : null;
+    } catch {
+        return null; // an older native shell without getStatus
+    }
 }
 
 /**
@@ -138,9 +167,17 @@ export function startPushDecryptResponder(): () => void {
         let handle: PluginListenerHandle | null = null;
         let stopped = false;
         void PushDecrypt.addListener("decryptRequest", (req) => {
-            void decryptForPush(req.roomId, req.eventId).then((result) =>
+            // Stage names and offsets only (logged to logcat): never content.
+            const start = performance.now();
+            const marks: string[] = [];
+            const mark = (stage: string) =>
+                marks.push(
+                    `${stage}=${Math.round(performance.now() - start)}ms`,
+                );
+            void decryptForPush(req.roomId, req.eventId, mark).then((result) =>
                 PushDecrypt.respond({
                     requestId: req.requestId,
+                    timings: marks.join(" "),
                     ...(result ?? {}),
                 }).catch(() => {}),
             );

@@ -231,6 +231,7 @@ import {
 } from "$lib/utils/callSummary";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
+import { createSyncGate } from "$lib/utils/syncGate";
 import {
     THREAD_NAME_EVENT_TYPE,
     THREAD_NAME_REL_TYPE,
@@ -594,6 +595,9 @@ async function createAuthenticatedClient(opts: {
                   }) => handleTokenRefresh(opts.userId, tokens),
               }
             : {}),
+        // Lets sync be paused in the background without stopping crypto
+        // (pauseSyncInBackground). Every other request passes straight on.
+        fetchFn: syncGate.fetch,
         timelineSupport: true,
         verificationMethods: [
             VerificationMethod.Sas,
@@ -1146,6 +1150,30 @@ export function waitForLiveEvent(
  * as a dropped connection and starts its keep-alive, which retryImmediately
  * then runs at once instead of after its 2-7s backoff.
  */
+// Holds the client's sync requests while the app is paused in the background;
+// see pauseSyncInBackground. One gate for the page: only one client syncs.
+const syncGate = createSyncGate((...args) => fetch(...args));
+
+/**
+ * Stop syncing, keeping crypto open, until resumeSync. The request in flight
+ * is cancelled and its retry waits at the gate, so a page Android freezes
+ * and later thaws for a push has no sync backlog to work through before it
+ * can answer the push (backgroundRelease.ts).
+ */
+export function pauseSyncInBackground(): void {
+    if (syncGate.isPaused()) return;
+    syncGate.pause();
+    logSync("sync paused in the background");
+    if (matrixClient) kickSync(matrixClient);
+}
+
+/** Let sync run again after pauseSyncInBackground. */
+export function resumeSync(): void {
+    if (!syncGate.isPaused()) return;
+    syncGate.resume();
+    logSync("sync resumed");
+}
+
 // Set once the client was stopped to free the crypto store in the background
 // (releaseClientForBackground). Nothing may restart sync after that: the page
 // reloads when it is shown again.

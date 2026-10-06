@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
     DRAFT_SNAPSHOT_MAX_AGE_MS,
+    RELEASE_AFTER_MISS_FOR_MS,
     parseDraftSnapshot,
     releaseBlocker,
+    releaseNeeded,
     serializeDraftSnapshot,
     type ReleaseInput,
 } from "./backgroundRelease";
@@ -73,5 +75,26 @@ describe("draft snapshot", () => {
         expect(parseDraftSnapshot(raw, now)).toEqual({
             "!ok:x": { text: "hi", mentions: [["@a", "@a:x"]] },
         });
+    });
+});
+
+describe("releaseNeeded", () => {
+    const now = 2_000_000_000_000;
+
+    it("is off on a phone where the page never missed a deadline", () => {
+        expect(releaseNeeded(null, now)).toBe(false);
+    });
+
+    it("is on for a while after a miss, then tried without again", () => {
+        expect(releaseNeeded(now - 1000, now)).toBe(true);
+        expect(releaseNeeded(now - RELEASE_AFTER_MISS_FOR_MS + 1, now)).toBe(
+            true,
+        );
+        expect(releaseNeeded(now - RELEASE_AFTER_MISS_FOR_MS, now)).toBe(false);
+    });
+
+    it("ignores a timestamp from the future or a junk value", () => {
+        expect(releaseNeeded(now + 60_000, now)).toBe(false);
+        expect(releaseNeeded(Number.NaN, now)).toBe(false);
     });
 });

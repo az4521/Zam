@@ -88,7 +88,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static final int CONNECT_TIMEOUT = 5000;
     private static final int READ_TIMEOUT = 5000;
     // How long to wait for the web layer to decrypt an encrypted message.
-    private static final long DECRYPT_TIMEOUT = 4000L;
+    private static final long DECRYPT_TIMEOUT = 6000L;
     // ...and for the hidden WebView to start, load the crypto WASM and decrypt
     // it when the app is not running.
     private static final long HEADLESS_DECRYPT_TIMEOUT = 8000L;
