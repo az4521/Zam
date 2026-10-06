@@ -109,6 +109,8 @@
         pluginCommandToSlash,
         type SlashCommand,
     } from "$lib/utils/slashCommands";
+    import { parseSedCommand, type SedCommand } from "$lib/utils/sedEdit";
+    import type { SedEditResult } from "$lib/matrix/editMessage";
     import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
@@ -132,6 +134,9 @@
         replyToEvent?: MatrixEvent | null;
         onCancelReply?: () => void;
         onRequestEditLast?: () => void;
+        /** `s/old/new/`: apply it to the user's last message here (the
+         *  caller knows which messages that means). */
+        onSedEdit?: (cmd: SedCommand) => Promise<SedEditResult>;
         /** "Create thread" (+ menu): the next sent message becomes a thread
          *  root and this fires with its event id so the caller can open it. */
         onThreadCreated?: (rootEventId: string) => void;
@@ -152,6 +157,7 @@
         replyToEvent = null,
         onCancelReply,
         onRequestEditLast,
+        onSedEdit,
         onThreadCreated,
         scrollEl,
         threadRootId = null,
@@ -1327,6 +1333,28 @@
      *  draft nor the visible buffer is ours to wipe once the user has moved on
      *  from the text we sent. See shouldClearStoredDraft and
      *  shouldClearComposerAfterSend. */
+    async function sendSedEdit(sed: SedCommand) {
+        const forKey = effComposerKey;
+        const textAtSend = text;
+        isSending = true;
+        try {
+            const result = await onSedEdit!(sed);
+            if (result === "edited") clearComposerAfterSend(forKey, textAtSend);
+            else if (result === "no-message")
+                showErrorToast(t("messageInput.sedNoMessage"));
+            else if (result === "no-match")
+                showErrorToast(
+                    t("messageInput.sedNoMatch", { pattern: sed.pattern }),
+                );
+            else showErrorToast(t("messageInput.sedEmpty"));
+        } catch (err) {
+            console.error("Failed to edit message:", err);
+            showErrorToast(t("messageInput.sedFailed"));
+        } finally {
+            isSending = false;
+        }
+    }
+
     function clearComposerAfterSend(forKey: string, textAtSend: string) {
         // `forKey` is the composer INSTANCE key (roomId for the main composer,
         // the thread key for a thread composer): drafts are stored per instance,
@@ -1357,6 +1385,16 @@
     }
 
     async function send() {
+        // `s/old/new/` edits the last message instead of sending one. Not with
+        // files queued: then the text is a caption.
+        if (!isSending && !disabled && fileQueue.length === 0 && onSedEdit) {
+            const sed = parseSedCommand(text);
+            if (sed) {
+                await sendSedEdit(sed);
+                return;
+            }
+        }
+
         // Slash-command dispatch — only when no files are queued (with files the
         // text is a caption, not a command).
         if (!isSending && !disabled && fileQueue.length === 0) {

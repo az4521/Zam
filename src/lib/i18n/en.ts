@@ -783,6 +783,10 @@ export const en = {
     "messageInput.commandFailed": "Command failed",
     "messageInput.failedToSend": "Failed to send",
     "messageInput.unknownCommand": "Unknown command: /{unknown}",
+    "messageInput.sedNoMessage": "You have no message here to edit",
+    "messageInput.sedNoMatch": "\"{pattern}\" is not in your last message",
+    "messageInput.sedEmpty": "That would leave your last message empty",
+    "messageInput.sedFailed": "Could not edit your last message",
     "messageInput.sendingAttachments":
         "{count, plural, one {Sending # attachment…} other {Sending # attachments…}}",
 

@@ -46,8 +46,6 @@
         findEventById,
         fetchSingleEvent,
         sendReaction,
-        sendEdit,
-        getCustomEmojis,
         deleteMessage,
         getMyPowerLevel,
         getRoomPowerLevels,
@@ -67,10 +65,10 @@
     } from "$lib/matrix/client";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import {
-        buildFormattedBody,
-        emoticonsFromHtml,
-    } from "$lib/utils/messageBody";
-    import { replaceEmojiShortcodes } from "$lib/data/emojiShortcodes";
+        editableBody,
+        isEmptyEdit,
+        sendMessageEdit,
+    } from "$lib/matrix/editMessage";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
         parseMatrixLink,
@@ -88,10 +86,7 @@
     import { isCallEventType, type CallSummary } from "$lib/utils/callSummary";
     import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
-    import {
-        stripBodyFallback,
-        stripFormattedFallback,
-    } from "$lib/utils/replyFallback";
+    import { stripFormattedFallback } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import { isMidiAttachment, midiUrlToWavUrl } from "$lib/utils/midi";
     import {
@@ -132,10 +127,7 @@
     } from "$lib/utils/pluginMessageActions";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
 
-    import {
-        messagesState,
-        bumpReactionTick,
-    } from "$lib/stores/messages.svelte";
+    import { messagesState } from "$lib/stores/messages.svelte";
     import {
         roomsState,
         navigateToRoom,
@@ -179,7 +171,6 @@
     import {
         hasMediaCaption,
         isEditableContent,
-        mediaEditBase,
     } from "$lib/utils/editableMessage";
     import {
         shouldOpenMessageMenu,
@@ -1028,9 +1019,8 @@
     // senders may still include it. We render the quote from the referenced
     // event, so the fallback is always redundant here.
     const body = $derived(() => {
-        const raw: string = content?.body ?? "";
-        if (!isReply) return raw;
-        return stripBodyFallback(raw);
+        void content;
+        return editableBody(event);
     });
 
     // The original file name of an uploaded media event. Per MSC2530, when a
@@ -1725,27 +1715,10 @@
     }
 
     async function saveEdit() {
-        // Custom emotes for this edit: the message's existing ones first so
-        // they survive even if their pack is gone, then the current packs
-        // (which win on a shortcode clash: later entries overwrite).
-        const editEmotes = [
-            ...emoticonsFromHtml(
-                event.getContent().formatted_body as string | undefined,
-            ),
-            ...getCustomEmojis(room, roomsState.activeSpaceId),
-        ];
-        // Unicode `:shortcode:`s become emoji, as in the composer.
-        const trimmed = replaceEmojiShortcodes(editText.trim(), (code) =>
-            editEmotes.some((e) => e.shortcode === code),
-        );
-        const realEventId = event.getId() ?? "";
-        if (!realEventId || isSavingEdit) return;
-        // Captioned media: the edit restates the media content, and an empty
-        // caption just strips the caption (body falls back to the file name)
-        // rather than offering to delete the attachment.
-        const mediaBase = mediaEditBase(event.getContent());
-
-        if (!trimmed && !mediaBase) {
+        if (!event.getId() || isSavingEdit) return;
+        // Captioned media: an empty caption just strips the caption rather
+        // than offering to delete the attachment.
+        if (isEmptyEdit(event, editText)) {
             // Empty edit — cancel without returning focus, then prompt to delete
             isEditing = false;
             editText = "";
@@ -1756,30 +1729,9 @@
         }
         isSavingEdit = true;
         try {
-            const newBody = trimmed || String(mediaBase?.filename ?? "");
-            // Same rich-body pipeline as the composer, so a typed :shortcode:
-            // becomes the custom emote.
-            const formattedBody = trimmed
-                ? buildFormattedBody(trimmed, {
-                      mentions: new Map(),
-                      customEmojis: editEmotes,
-                  }).html
-                : null;
-            const hasFormatting = formattedBody != null;
-            // Latest resolved mentions live on the post-replacement content
-            // (the SDK folds m.new_content in), so this carries them forward
-            // through the edit per the v1.7 mentions module.
-            await sendEdit(
-                room.roomId,
-                realEventId,
-                newBody,
-                hasFormatting ? formattedBody : undefined,
-                event.getContent()["m.mentions"],
-                mediaBase,
-            );
+            await sendMessageEdit(room, event, editText);
             isEditing = false;
             editText = "";
-            bumpReactionTick();
             if (editFromKeyboard) {
                 editFromKeyboard = false;
                 onEditDone?.();

@@ -784,6 +784,10 @@ const messages: Record<MessageKey, string> = {
     "messageInput.commandFailed": "Befehl fehlgeschlagen",
     "messageInput.failedToSend": "Senden fehlgeschlagen",
     "messageInput.unknownCommand": "Unbekannter Befehl: /{unknown}",
+    "messageInput.sedNoMessage": "Du hast hier keine Nachricht zum Bearbeiten",
+    "messageInput.sedNoMatch": "„{pattern}“ kommt in deiner letzten Nachricht nicht vor",
+    "messageInput.sedEmpty": "Deine letzte Nachricht wäre dann leer",
+    "messageInput.sedFailed": "Deine letzte Nachricht konnte nicht bearbeitet werden",
     "messageInput.sendingAttachments":
         "{count, plural, one {# Anhang wird gesendet…} other {# Anhänge werden gesendet…}}",
 

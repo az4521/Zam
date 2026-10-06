@@ -77,6 +77,7 @@
     import { ignoredUsersState } from "$lib/stores/ignoredUsers.svelte";
     import { shouldHideMessage } from "$lib/utils/ignoredUsers";
     import { isEditableContent } from "$lib/utils/editableMessage";
+    import { sedEditLastMessage } from "$lib/matrix/editMessage";
     import PinnedMessagesPanel from "$lib/components/layout/PinnedMessagesPanel.svelte";
     import NotificationsPanel from "$lib/components/layout/NotificationsPanel.svelte";
     import ThreadPanel from "$lib/components/layout/ThreadPanel.svelte";
@@ -2436,6 +2437,8 @@
                     replyToEvent = null;
                 }}
                 onRequestEditLast={requestEditLastMessage}
+                onSedEdit={(cmd) =>
+                    sedEditLastMessage(room, messages, auth.userId, cmd)}
                 onThreadCreated={openThread}
             />
         </div>

@@ -3,6 +3,8 @@
     import { tick, untrack } from "svelte";
     import type { Room, MatrixEvent } from "matrix-js-sdk";
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
+    import { sedEditLastMessage } from "$lib/matrix/editMessage";
     import {
         getThreadMessages,
         paginateThreadBack,
@@ -296,6 +298,8 @@
             {room}
             threadRootId={rootEventId}
             composerKey={composerThreadKey(room.roomId, rootEventId)}
+            onSedEdit={(cmd) =>
+                sedEditLastMessage(room, messages, auth.userId, cmd)}
         />
     </div>
 </div>
