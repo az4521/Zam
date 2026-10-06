@@ -422,6 +422,7 @@ const messages: Record<MessageKey, string> = {
         "ܡܝܬܝܬܐ ܕܕܚܘܦ̈ܐ ܡܢ ܣܝܪܒܪ ܕܒܝܬܐ ܠܐ ܦܠܚܠܗ̇.",
     "debugSettings.set": "ܡܛܘܝܒܐ",
     "debugSettings.active": "ܦܥܝܠܐ",
+    "debugSettings.allNotificationsMasterRule": "ܟܠ ܡܘܕܥܢܘܬܐ (ܢܡܘܣܐ ܪܫܝܐ)",
 
     // src/lib/components/ui/EmojiPicker.svelte
     "emojiPicker.searchEmoji": "ܒܨܝ ܐܝܡܘܓܝ…",
@@ -962,6 +963,13 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.notifyWithoutAHighlight": "ܡܘܕܥ ܕܠܐ ܢܘܗܪܐ",
     "notificationSettings.failedToAddKeyword": "ܐܘܣܦܬܐ ܕܡܠܬܐ ܪܫܝܬܐ ܠܐ ܦܠܚܠܗ̇",
     "notificationSettings.failedToUpdateKeyword": "ܚܘܕܬܐ ܕܡܠܬܐ ܪܫܝܬܐ ܠܐ ܦܠܚܠܗ̇",
+    "notificationSettings.accountNotificationsOff":
+        "ܡܘܕܥܢܘܬܐ ܡܛܦܝܢ ܠܐܗܐ ܚܘܫܒܢܐ",
+    "notificationSettings.accountNotificationsOffDetail":
+        "ܟܠ ܡܘܕܥܢܘܬܐ ܕܐܗܐ ܚܘܫܒܢܐ ܡܛܦܝܢ ܥܠ ܣܪܒܪ. ܠܐ ܡܘܕܥ ܚܕ ܡܐܢܐ.",
+    "notificationSettings.turnOn": "ܐܕܠܩ",
+    "notificationSettings.couldNotTurnOnNotifications":
+        "ܠܐ ܡܨܐ ܠܐܕܠܩܐ ܡܘܕܥܢܘܬܐ",
     "notificationSettings.failedToDeleteKeyword": "ܫܝܦܬܐ ܕܡܠܬܐ ܪܫܝܬܐ ܠܐ ܦܠܚܠܗ̇",
 
     // src/lib/components/layout/NotificationsPanel.svelte

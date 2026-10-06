@@ -426,6 +426,8 @@ export const en = {
         "Failed to fetch pushers from homeserver.",
     "debugSettings.set": "set",
     "debugSettings.active": "active",
+    "debugSettings.allNotificationsMasterRule":
+        "All notifications (master rule)",
 
     // src/lib/components/ui/EmojiPicker.svelte
     "emojiPicker.searchEmoji": "Search emoji…",
@@ -1015,6 +1017,13 @@ export const en = {
     "notificationSettings.failedToAddKeyword": "Failed to add keyword",
     "notificationSettings.failedToUpdateKeyword": "Failed to update keyword",
     "notificationSettings.failedToDeleteKeyword": "Failed to delete keyword",
+    "notificationSettings.accountNotificationsOff":
+        "Notifications are turned off for this account",
+    "notificationSettings.accountNotificationsOffDetail":
+        "Every notification for this account is switched off on the server, probably from another app, so nothing notifies on any device whatever the settings below say.",
+    "notificationSettings.turnOn": "Turn on",
+    "notificationSettings.couldNotTurnOnNotifications":
+        "Couldn't turn notifications on",
 
     // src/lib/components/layout/NotificationsPanel.svelte
     "notificationsPanel.clearAll": "Clear all",

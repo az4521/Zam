@@ -4,7 +4,9 @@
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         DEFAULT_PUSH_RULES,
+        enableAccountNotifications,
         getClient,
+        isAccountNotificationsDisabled,
         getDefaultPushRuleLevel,
         publishActiveSession,
         setDefaultPushRuleLevel,
@@ -57,6 +59,25 @@
     // in-app pop-up setting does nothing there, and its OS permission comes
     // from the native plugin (the WebView has no Notification API).
     const nativeApp = Capacitor.isNativePlatform();
+
+    // Every notification for this account switched off server-side (often
+    // from another client): nothing below can notify while it is.
+    const accountNotificationsOff = $derived(
+        isAccountNotificationsDisabled() === true,
+    );
+    let enablingAccountNotifications = $state(false);
+    async function turnOnAccountNotifications() {
+        enablingAccountNotifications = true;
+        try {
+            await enableAccountNotifications();
+        } catch {
+            showErrorToast(
+                t("notificationSettings.couldNotTurnOnNotifications"),
+            );
+        } finally {
+            enablingAccountNotifications = false;
+        }
+    }
     const taskbarFlash = canFlashTaskbar();
 
     function currentPermission(): NotificationPermission | "unsupported" {
@@ -415,6 +436,29 @@
 </script>
 
 <div class="space-y-6">
+    {#if accountNotificationsOff}
+        <section
+            data-setting-anchor="notif-account-off"
+            class="flex items-center gap-3 rounded-md p-3 bg-discord-warning/20"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-discord-warning">
+                    {t("notificationSettings.accountNotificationsOff")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("notificationSettings.accountNotificationsOffDetail")}
+                </p>
+            </div>
+            <button
+                onclick={turnOnAccountNotifications}
+                disabled={enablingAccountNotifications}
+                class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            >
+                {t("notificationSettings.turnOn")}
+            </button>
+        </section>
+    {/if}
+
     <h3
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
     >

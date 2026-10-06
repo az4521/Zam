@@ -1516,6 +1516,12 @@ export async function startSync(
 
     client.on(ClientEvent.Sync, onSync as never);
     client.on("Room.myMembership" as never, onMyMembership as never);
+    // Push rules changed (here or on another client): the SDK has already
+    // swapped its cached copy, so re-derive whatever reads it.
+    const onPushRules = guardOwnership(owner, readOwner, (e: MatrixEvent) => {
+        if (e.getType() === EventType.PushRules) pushRulesState.revision++;
+    });
+    client.on(ClientEvent.AccountData, onPushRules as never);
     client.on(ClientEvent.Room as never, onRoom as never);
     const onMemberState = guardOwnership(owner, readOwner, (e: MatrixEvent) =>
         recalcCallOnMemberLoaded(e),
@@ -1556,6 +1562,7 @@ export async function startSync(
         disposed = true;
         client.off(ClientEvent.Sync, onSync as never);
         client.off("Room.myMembership" as never, onMyMembership as never);
+        client.off(ClientEvent.AccountData, onPushRules as never);
         client.off(ClientEvent.Room as never, onRoom as never);
         client.off(RoomStateEvent.Events, onMemberState);
         client.off(RoomEvent.Timeline as never, onTimelineMember as never);
@@ -4705,6 +4712,41 @@ export async function setDefaultPushRuleLevel(
                     if (level !== "off") rule.actions = actions;
                 },
             });
+        } finally {
+            pushRulesState.revision++;
+        }
+    });
+}
+
+/**
+ * Whether every notification for this account is switched off server-side:
+ * the `.m.rule.master` override is enabled. Other clients (Element's "Enable
+ * notifications for this account") toggle it, and while it is on the server
+ * pushes nothing but badge updates. Null until the rules have loaded.
+ */
+export function isAccountNotificationsDisabled(): boolean | null {
+    void pushRulesState.revision;
+    const global = getGlobalPushRules();
+    if (!global) return null;
+    const master = (global.override ?? []).find(
+        (r: any) => r.rule_id === ".m.rule.master",
+    );
+    return !!master && master.enabled !== false;
+}
+
+/** Turn notifications for this account back on (disable `.m.rule.master`). */
+export async function enableAccountNotifications(): Promise<void> {
+    if (!matrixClient) return;
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            await client.setPushRuleEnabled(
+                "global",
+                PushRuleKind.Override,
+                ".m.rule.master",
+                false,
+            );
+            await refreshCachedPushRules(client);
         } finally {
             pushRulesState.revision++;
         }

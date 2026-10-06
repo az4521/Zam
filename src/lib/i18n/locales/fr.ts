@@ -438,6 +438,8 @@ const messages: Record<MessageKey, string> = {
         "Impossible de récupérer les pushers du serveur d'accueil.",
     "debugSettings.set": "défini",
     "debugSettings.active": "actif",
+    "debugSettings.allNotificationsMasterRule":
+        "Toutes les notifications (règle principale)",
 
     // src/lib/components/ui/EmojiPicker.svelte
     "emojiPicker.searchEmoji": "Rechercher un émoji…",
@@ -1022,6 +1024,13 @@ const messages: Record<MessageKey, string> = {
         "Impossible de mettre à jour le mot-clé",
     "notificationSettings.failedToDeleteKeyword":
         "Impossible de supprimer le mot-clé",
+    "notificationSettings.accountNotificationsOff":
+        "Les notifications sont désactivées pour ce compte",
+    "notificationSettings.accountNotificationsOffDetail":
+        "Toutes les notifications de ce compte sont désactivées sur le serveur, sans doute depuis une autre application : aucun appareil n’est notifié, quels que soient les réglages ci-dessous.",
+    "notificationSettings.turnOn": "Activer",
+    "notificationSettings.couldNotTurnOnNotifications":
+        "Impossible d’activer les notifications",
 
     // src/lib/components/layout/NotificationsPanel.svelte
     "notificationsPanel.clearAll": "Tout effacer",

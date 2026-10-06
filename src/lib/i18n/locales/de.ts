@@ -444,6 +444,8 @@ const messages: Record<MessageKey, string> = {
         "Pusher konnten nicht vom Heimserver abgerufen werden.",
     "debugSettings.set": "gesetzt",
     "debugSettings.active": "aktiv",
+    "debugSettings.allNotificationsMasterRule":
+        "Alle Benachrichtigungen (Master-Regel)",
 
     // src/lib/components/ui/EmojiPicker.svelte
     "emojiPicker.searchEmoji": "Emoji suchen…",
@@ -1036,6 +1038,13 @@ const messages: Record<MessageKey, string> = {
         "Schlüsselwort konnte nicht hinzugefügt werden",
     "notificationSettings.failedToUpdateKeyword":
         "Schlüsselwort konnte nicht aktualisiert werden",
+    "notificationSettings.accountNotificationsOff":
+        "Benachrichtigungen sind für dieses Konto ausgeschaltet",
+    "notificationSettings.accountNotificationsOffDetail":
+        "Alle Benachrichtigungen für dieses Konto sind auf dem Server ausgeschaltet, vermutlich über eine andere App. Unabhängig von den Einstellungen unten benachrichtigt kein Gerät.",
+    "notificationSettings.turnOn": "Einschalten",
+    "notificationSettings.couldNotTurnOnNotifications":
+        "Benachrichtigungen konnten nicht eingeschaltet werden",
     "notificationSettings.failedToDeleteKeyword":
         "Schlüsselwort konnte nicht gelöscht werden",
 

@@ -10,6 +10,7 @@
     import {
         getClient,
         getPushRuleSummary,
+        isAccountNotificationsDisabled,
         getSlidingSyncProgress,
         getSlidingSyncFallbackReason,
     } from "$lib/matrix/client";
@@ -44,6 +45,7 @@
     let nativeSession = $state<NativeSessionState | null>(null);
     let webPush = $state<WebPushDebug | null>(null);
     let rules = $state(getPushRuleSummary());
+    const accountNotificationsOff = $derived(isAccountNotificationsDisabled());
 
     // Snapshot when the panel opens; Refresh re-reads it.
     let syncLog = $state(getSyncLog());
@@ -529,6 +531,19 @@
             >
                 {t("debugSettings.notificationRulesServer")}
             </p>
+            <div class="flex justify-between gap-3 text-xs font-mono">
+                <span>{t("debugSettings.allNotificationsMasterRule")}</span
+                ><span
+                    class={accountNotificationsOff
+                        ? "text-discord-warning"
+                        : ""}
+                    >{accountNotificationsOff === null
+                        ? "?"
+                        : accountNotificationsOff
+                          ? "off"
+                          : "on"}</span
+                >
+            </div>
             {#each rules as rule}
                 <div class="flex justify-between gap-3 text-xs font-mono">
                     <span>{rule.label}</span><span>{rule.level}</span>
