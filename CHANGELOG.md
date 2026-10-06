@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.13.10
+
+🐛 **Fixed**
+
+- **Encrypted notifications when the app was closed (Android):** with the app swiped away, notifications for encrypted messages still only said who sent something. They now show the message whether or not the app is running.
+
+✨ **New**
+
+- **Gboard stickers and images (Android):** stickers, Emoji Kitchen combos and GIFs from the keyboard can now be sent from the message box. They're added as attachments, like a pasted image.
+- **Edit your last message with `s/old/new/`:** sending `s/teh/the/` fixes your last message instead of sending a new one. Add `g` to replace every match or `i` to ignore case, e.g. `s/teh/the/gi`. Works in threads too.
+- **Link preview rewriter:** a new built-in plugin that fetches link previews from a different address, e.g. a mirror of a site your homeserver can't reach. The link itself isn't changed. Add rules in its plugin settings.
+
 ## v1.13.9
 
 🐛 **Fixed**
