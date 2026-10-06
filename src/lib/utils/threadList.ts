@@ -9,6 +9,8 @@
 import { t } from "$lib/i18n";
 export interface ThreadInfo {
     rootId: string;
+    /** The thread's name (utils/threadName), or null when unnamed. */
+    name: string | null;
     rootSenderId: string | null;
     rootPreview: string;
     replyCount: number;
@@ -22,6 +24,7 @@ export interface ThreadInfo {
 /** Display-ready list item (previews shaped/truncated/fallback-filled). */
 export interface ThreadListItem {
     rootId: string;
+    name: string | null;
     rootSenderId: string | null;
     rootPreview: string;
     replyCount: number;
@@ -54,6 +57,7 @@ export function buildThreadListItems(threads: ThreadInfo[]): ThreadListItem[] {
     return threads
         .map((t): ThreadListItem => ({
             rootId: t.rootId,
+            name: t.name,
             rootSenderId: t.rootSenderId,
             rootPreview: shapePreview(t.rootPreview),
             replyCount: t.replyCount,

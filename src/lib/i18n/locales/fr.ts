@@ -1311,6 +1311,13 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Modifier la pièce jointe",
     "renameAttachmentDialog.filename": "Nom du fichier",
+    "renameThreadDialog.nameThread": "Nommer le fil",
+    "renameThreadDialog.renameThread": "Renommer le fil",
+    "renameThreadDialog.threadName": "Nom du fil",
+    "renameThreadDialog.everyoneInTheRoomSeesIt":
+        "Tous les membres du salon voient ce nom dans Zam. Les autres applis Matrix ne l'affichent pas.",
+    "renameThreadDialog.removeName": "Supprimer le nom",
+    "renameThreadDialog.couldNotSaveTheName": "Impossible d'enregistrer le nom",
 
     // src/lib/components/layout/RoomDirectory.svelte
     "roomDirectory.exploreRooms": "Explorer les salons",

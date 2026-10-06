@@ -159,6 +159,7 @@
         logout,
         onRoomUpdate,
         onAccountData,
+        onThreadNameChange,
         onTimelineEvent,
         onAnyReceiptEvent,
         getClient,
@@ -2164,6 +2165,10 @@
         const unsubOutbox = initOutbox();
         const unsubVerification = initVerification();
         const unsubPlugins = initPlugins();
+        // Thread names are room state; anything showing one reads roomsTick.
+        const unsubThreadNames = onThreadNameChange(
+            () => roomsState.roomsTick++,
+        );
         const unsubAccountData = onAccountData((type) => {
             // Pack changes made on another device (or by us) reach pickers.
             if (
@@ -2263,6 +2268,7 @@
             unsubVerification();
             unsubPlugins();
             unsubAccountData();
+            unsubThreadNames();
             unsubUpdateWatch();
             mq.removeEventListener("change", onMqChange);
             pq.removeEventListener("change", onPqHqChange);

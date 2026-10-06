@@ -296,6 +296,11 @@ latter silently ignores it and threads then look completely dead. The rules live
 `threadUnread.ts`, `threadNotify.ts`, `threadContent.ts`. UI is `ThreadPanel.svelte` plus the
 `threads` sidebar slot (`ThreadsListPanel.svelte`).
 
+Thread names are not in the spec, so they are our own room state (`utils/threadName.ts`): type
+`moe.crafty.matrix.thread_name`, state key the root event id, content `{ name }`. Who may name a
+thread is the room's power level for that event type (`state_default` unless set). Other clients
+ignore it.
+
 ### Notifications
 
 A message whose push actions carry the `sound` tweak is "loud".

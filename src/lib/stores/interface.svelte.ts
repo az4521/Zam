@@ -48,6 +48,8 @@ export type ModalId =
     | "composer-actions"
     // Rename a queued attachment before sending (MessageInput file drawer).
     | "rename-attachment"
+    // Name or rename a thread (ThreadPanel header).
+    | "rename-thread"
     // A plugin's custom-UI popover (zam.ui.openPopover) — a plugin renders
     // arbitrary DOM into an anchored floating element via PluginPopoverHost.
     // Shares the single modal slot so Escape/backdrop dismiss it through

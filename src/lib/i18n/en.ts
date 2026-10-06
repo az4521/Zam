@@ -1300,6 +1300,13 @@ export const en = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Edit attachment",
     "renameAttachmentDialog.filename": "Filename",
+    "renameThreadDialog.nameThread": "Name thread",
+    "renameThreadDialog.renameThread": "Rename thread",
+    "renameThreadDialog.threadName": "Thread name",
+    "renameThreadDialog.everyoneInTheRoomSeesIt":
+        "Everyone in the room sees this name in Zam. Other Matrix apps don't show it.",
+    "renameThreadDialog.removeName": "Remove name",
+    "renameThreadDialog.couldNotSaveTheName": "Could not save the name",
 
     // src/lib/components/layout/RoomDirectory.svelte
     "roomDirectory.exploreRooms": "Explore rooms",

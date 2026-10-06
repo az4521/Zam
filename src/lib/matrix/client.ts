@@ -231,6 +231,11 @@ import {
 } from "$lib/utils/callSummary";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
+import {
+    THREAD_NAME_EVENT_TYPE,
+    buildThreadNameContent,
+    parseThreadName,
+} from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
     tagUpdatesForToggle,
@@ -2928,6 +2933,7 @@ export function getRoomThreads(room: Room): ThreadInfo[] {
         const latest = thread.replyToEvent;
         return {
             rootId: thread.id,
+            name: getThreadName(room, thread.id),
             rootSenderId: root?.getSender() ?? null,
             // A root that is itself a reply leads with its quote fallback;
             // drop it so the preview shows what the root actually says.
@@ -3020,6 +3026,52 @@ export function isThreadParticipant(room: Room, rootEventId: string): boolean {
     if (thread.hasCurrentUserParticipated) return true;
     if (thread.rootEvent?.getSender() === me) return true;
     return (thread.events ?? []).some((e) => e.getSender() === me);
+}
+
+/** A thread's name (see utils/threadName), or null when it has none. */
+export function getThreadName(room: Room, rootEventId: string): string | null {
+    const ev = room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents(THREAD_NAME_EVENT_TYPE, rootEventId);
+    return parseThreadName(ev?.getContent());
+}
+
+/** Whether the current user's power level lets them name threads here. */
+export function canNameThreads(room: Room): boolean {
+    const me = matrixClient?.getUserId();
+    if (!me) return false;
+    return (
+        room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.maySendStateEvent(THREAD_NAME_EVENT_TYPE, me) ?? false
+    );
+}
+
+/** Name a thread, or clear its name with an empty string. */
+export async function setThreadName(
+    room: Room,
+    rootEventId: string,
+    name: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await (matrixClient as any).sendStateEvent(
+        room.roomId,
+        THREAD_NAME_EVENT_TYPE,
+        buildThreadNameContent(name),
+        rootEventId,
+    );
+}
+
+/** Fires when any room's thread names change (ours or another member's). */
+export function onThreadNameChange(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (event: MatrixEvent) => {
+        if (event.getType() === THREAD_NAME_EVENT_TYPE) callback();
+    };
+    matrixClient.on(RoomStateEvent.Events, handler as never);
+    return () => matrixClient?.off(RoomStateEvent.Events, handler as never);
 }
 
 /**

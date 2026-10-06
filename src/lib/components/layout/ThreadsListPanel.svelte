@@ -197,8 +197,17 @@
                                 >{pinnedDate(item.latestTs)}</span
                             >
                         </div>
+                        {#if item.name}
+                            <p
+                                class="text-sm font-semibold text-discord-textPrimary truncate"
+                            >
+                                {item.name}
+                            </p>
+                        {/if}
                         <p
-                            class="text-xs text-discord-textMuted line-clamp-2 break-words"
+                            class="text-xs text-discord-textMuted break-words {item.name
+                                ? 'line-clamp-1'
+                                : 'line-clamp-2'}"
                         >
                             {item.rootPreview}
                         </p>

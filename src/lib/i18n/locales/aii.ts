@@ -1240,6 +1240,13 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "ܬܩܢ ܐܣܝܪܬܐ",
     "renameAttachmentDialog.filename": "ܫܡܐ ܕܦܐܝܠ",
+    "renameThreadDialog.nameThread": "ܫܡܝ ܚܘܛܐ",
+    "renameThreadDialog.renameThread": "ܫܚܠܦ ܫܡܐ ܕܚܘܛܐ",
+    "renameThreadDialog.threadName": "ܫܡܐ ܕܚܘܛܐ",
+    "renameThreadDialog.everyoneInTheRoomSeesIt":
+        "ܟܠ ܐܢܫܐ ܓܘ ܓܘܡܐ ܚܙܝܠܗ ܠܗܢܐ ܫܡܐ ܓܘ Zam. ܬܘܟܢܝܬ̈ܐ ܐܚܪ̈ܢܐ ܕ Matrix ܠܐ ܡܚܘܝܠܗ.",
+    "renameThreadDialog.removeName": "ܫܩܘܠ ܫܡܐ",
+    "renameThreadDialog.couldNotSaveTheName": "ܢܛܪܐ ܕܫܡܐ ܠܐ ܦܠܚܠܗ",
 
     // src/lib/components/layout/RoomDirectory.svelte
     "roomDirectory.exploreRooms": "ܒܨܝ ܓܘܡ̈ܐ",

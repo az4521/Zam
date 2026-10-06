@@ -60,6 +60,7 @@
         seedRoomStateIfMissing,
         getRoomIdForAlias,
         getThreadSummary,
+        getThreadName,
         getHomeserverBaseUrl,
         EventStatus,
     } from "$lib/matrix/client";
@@ -1640,6 +1641,11 @@
         return next;
     });
     const isThreadRoot = $derived(!isThreadReply && threadSummary.count > 0);
+    const threadName = $derived.by(() => {
+        if (!isThreadRoot) return null;
+        void roomsState.roomsTick;
+        return getThreadName(room, eventId);
+    });
 
     // Extract http/https URLs from the plain body for link previews
     const linkedUrls = $derived.by(() => {
@@ -2904,6 +2910,13 @@
                             d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
                         />
                     </svg>
+                    {#if threadName}
+                        <span
+                            class="font-semibold text-discord-textPrimary truncate max-w-48"
+                            >{threadName}</span
+                        >
+                        <span>&middot;</span>
+                    {/if}
                     {t("common.replyCount", { count: threadSummary.count })}
                     {#if threadSummary.latestTs > 0}
                         <span class="text-discord-textMuted"

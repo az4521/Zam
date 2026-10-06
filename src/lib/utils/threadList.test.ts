@@ -9,6 +9,7 @@ import {
 function info(over: Partial<ThreadInfo> = {}): ThreadInfo {
     return {
         rootId: "$root",
+        name: null,
         rootSenderId: "@a:x",
         rootPreview: "hello",
         replyCount: 1,
@@ -96,6 +97,13 @@ describe("buildThreadListItems", () => {
         });
     });
 
+    it("passes the thread name through untouched", () => {
+        expect(
+            buildThreadListItems([info({ name: "Release plan" })])[0].name,
+        ).toBe("Release plan");
+        expect(buildThreadListItems([info()])[0].name).toBeNull();
+    });
+
     it("returns an empty array for no threads", () => {
         expect(buildThreadListItems([])).toEqual([]);
     });
@@ -104,6 +112,7 @@ describe("buildThreadListItems", () => {
         const items = buildThreadListItems([
             {
                 rootId: "$a",
+                name: null,
                 rootSenderId: "@u:s",
                 rootPreview: "root",
                 replyCount: 2,
