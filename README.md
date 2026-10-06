@@ -13,7 +13,7 @@ you can find other packaged versions on the [releases page](https://github.com/a
 Messaging
 
 - markdown (Discord flavoured — `**bold**`, `__underline__`, `~~strike~~`, `||spoilers||`, code blocks), replies, edits, deletes, forwarding, reporting
-- threads, with a per-room thread list and threaded read receipts
+- threads, with a per-room thread list (all or just yours), thread names, and threaded read receipts
 - reactions, custom emoji + sticker packs (MSC2545 `im.ponies`, room-level and personal), GIF picker (KLIPY, no API key needed)
 - polls (create, vote, close), voice messages with a real waveform, location + live location sharing on a Leaflet map
 - pinned messages, per-room message search, media/files browser (both have limits — see "things left to do"), link previews, read receipts (public or private) and typing indicators
