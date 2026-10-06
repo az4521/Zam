@@ -109,7 +109,7 @@
                 {#each items as item (item.rootId)}
                     {@const senderName = item.rootSenderId
                         ? getMemberName(room, item.rootSenderId)
-                        : "Unknown"}
+                        : t("threadsListPanel.unknownSender")}
                     {@const avatarUrl = item.rootSenderId
                         ? getMemberAvatar(room, item.rootSenderId)
                         : null}

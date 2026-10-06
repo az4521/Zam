@@ -1927,6 +1927,7 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.unreadReplies": "Ungelesene Antworten",
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Threads für diesen Raum konnten nicht geladen werden.",
+    "threadsListPanel.unknownSender": "Unbekannt",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Update-Hinweis schließen",

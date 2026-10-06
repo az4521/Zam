@@ -1907,6 +1907,7 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.unreadReplies": "Réponses non lues",
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Impossible de charger les fils de ce salon.",
+    "threadsListPanel.unknownSender": "Inconnu",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":

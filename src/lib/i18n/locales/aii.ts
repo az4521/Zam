@@ -1788,6 +1788,7 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.unreadReplies": "ܦܢܝ̈ܬܐ ܕܠܐ ܩܪܝ̈ܐ",
     "threadsListPanel.couldnTLoadThreadsForThis":
         "ܛܥܢܐ ܕܚܘ̈ܛܐ ܕܗܢܐ ܓܘܡܐ ܠܐ ܦܠܚܠܗ.",
+    "threadsListPanel.unknownSender": "ܠܐ ܝܕܝܥܐ",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "ܫܩܘܠ ܡܘܕܥܢܘܬܐ ܕܚܘܕܬܐ",

@@ -230,6 +230,7 @@ import {
     type CallSummary,
 } from "$lib/utils/callSummary";
 import type { ThreadSummary } from "$lib/utils/threadModel";
+import { stripBodyFallback } from "$lib/utils/replyFallback";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import {
     tagUpdatesForToggle,
@@ -2928,7 +2929,13 @@ export function getRoomThreads(room: Room): ThreadInfo[] {
         return {
             rootId: thread.id,
             rootSenderId: root?.getSender() ?? null,
-            rootPreview: eventBodyText(root),
+            // A root that is itself a reply leads with its quote fallback;
+            // drop it so the preview shows what the root actually says.
+            rootPreview: root?.getOriginalContent()?.["m.relates_to"]?.[
+                "m.in_reply_to"
+            ]
+                ? stripBodyFallback(eventBodyText(root))
+                : eventBodyText(root),
             replyCount: thread.length,
             latestTs: latest?.getTs() ?? root?.getTs() ?? 0,
             latestPreview: eventBodyText(latest),

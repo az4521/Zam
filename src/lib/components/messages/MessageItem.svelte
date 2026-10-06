@@ -2886,8 +2886,10 @@
                 {/if}
             {/if}
 
-            <!-- Thread summary chip (root only, once replies are diverted) -->
-            {#if isThreadRoot}
+            <!-- Thread summary chip (root only, once replies are diverted).
+                 Only where opening the thread is possible: the thread panel's
+                 own header renders the root without a handler. -->
+            {#if isThreadRoot && onOpenThread}
                 <button
                     onclick={() => onOpenThread?.(eventId)}
                     class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"

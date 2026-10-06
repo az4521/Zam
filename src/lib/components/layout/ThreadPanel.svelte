@@ -10,14 +10,9 @@
         paginateThreadBack,
         onThreadEvent,
         onLocalEchoUpdated,
-        getMemberName,
-        getMemberAvatar,
         findEventById,
         markThreadRead,
     } from "$lib/matrix/client";
-    import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { timeOnly } from "$lib/utils/timeFormat";
-    import { stripBodyFallback } from "$lib/utils/replyFallback";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { canSendReceipt } from "$lib/utils/receiptGate";
@@ -97,27 +92,6 @@
         threadTick;
         return findEventById(room, rootEventId);
     });
-    const rootSender = $derived(
-        rootEvent ? getMemberName(room, rootEvent.getSender() ?? "") : "",
-    );
-    const rootSenderId = $derived(rootEvent?.getSender() ?? null);
-    const rootAvatar = $derived(
-        rootEvent ? getMemberAvatar(room, rootEvent.getSender() ?? "") : null,
-    );
-    const rootBody = $derived.by(() => {
-        if (!rootEvent) return "";
-        const c = rootEvent.getContent();
-        const raw: string = c?.body ?? "";
-        // Strip the legacy rich-reply fallback ("> quoted…\n\n") when the root
-        // is itself a reply — otherwise the header preview leads with the quote.
-        const isReply =
-            !!rootEvent.getOriginalContent()?.["m.relates_to"]?.[
-                "m.in_reply_to"
-            ];
-        return isReply ? stripBodyFallback(raw) : raw;
-    });
-    const rootTs = $derived(rootEvent?.getTs() ?? 0);
-
     // Subscribe to thread events
     $effect(() => {
         const unsub = onThreadEvent(bump);
@@ -274,30 +248,23 @@
         </div>
     </div>
 
-    <!-- Thread root message -->
+    <!-- Thread root message, rendered like any other message (media,
+         formatting, reactions) but capped so a long root can't push the
+         replies off screen. -->
     {#if rootEvent}
         <div
-            class="px-4 py-3 border-b border-discord-divider flex-shrink-0 bg-discord-backgroundSecondary"
+            class="py-1 border-b border-discord-divider flex-shrink-0 bg-discord-backgroundSecondary max-h-60 overflow-y-auto"
         >
-            <div class="flex items-center gap-2 mb-1">
-                <Avatar
-                    src={rootAvatar}
-                    name={rootSender}
-                    id={rootSenderId}
-                    size={20}
-                />
-                <span class="text-xs font-semibold text-discord-textPrimary"
-                    >{rootSender}</span
-                >
-                <span class="text-xs text-discord-textMuted"
-                    >{timeOnly(rootTs)}</span
-                >
-            </div>
-            <p
-                class="text-xs text-discord-textSecondary leading-relaxed line-clamp-3"
-            >
-                {rootBody}
-            </p>
+            <MessageItem
+                event={rootEvent}
+                {room}
+                showHeader={true}
+                onReply={(e) => {
+                    replyToEvent = e;
+                    messageInputEl?.focus();
+                }}
+                {jumpToReply}
+            />
         </div>
     {/if}
 

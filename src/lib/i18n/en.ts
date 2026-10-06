@@ -1856,6 +1856,7 @@ export const en = {
     "threadsListPanel.unreadReplies": "Unread replies",
     "threadsListPanel.couldnTLoadThreadsForThis":
         "Couldn't load threads for this room.",
+    "threadsListPanel.unknownSender": "Unknown",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Dismiss update notification",
