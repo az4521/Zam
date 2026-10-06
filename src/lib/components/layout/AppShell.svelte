@@ -70,6 +70,11 @@
         takePendingRoute,
     } from "$lib/utils/pendingNotificationRoute";
     import { switchToAccount } from "$lib/stores/accountSwitch";
+    import { syncServiceWorkerAccounts } from "$lib/swAccounts";
+    import {
+        startInactiveAccountNotifier,
+        type AccountNotice,
+    } from "$lib/inactiveAccountNotifier";
     import {
         getDraft,
         setDraft,
@@ -238,7 +243,11 @@
         unregisterPush,
         clearDeliveredNativeNotifications,
     } from "$lib/push";
-    import { initWebPush, teardownWebPush } from "$lib/webPush";
+    import {
+        initWebPush,
+        readWebPushState,
+        teardownWebPush,
+    } from "$lib/webPush";
     import {
         syncNativeAccounts,
         syncNativeSession,
@@ -891,6 +900,81 @@
         }
     }
 
+    // Other accounts' notifications while the app is open. Not on Android
+    // (native push covers every account) and not in a browser with web push
+    // (the service worker does, and both would double up).
+    let stopAccountPoller: (() => void) | null = null;
+    async function startAccountPollerIfNeeded() {
+        if (stopAccountPoller || Capacitor.isNativePlatform()) return;
+        if (!window.desktop?.notify) {
+            const push = await Promise.race([
+                readWebPushState().catch(() => null),
+                new Promise<null>((resolve) => setTimeout(resolve, 3000, null)),
+            ]);
+            if (push?.subscribed) return;
+        }
+        if (stopAccountPoller) return;
+        stopAccountPoller = startInactiveAccountNotifier({
+            accounts: () => accountsState.registry.accounts,
+            activeUserId: () => auth.userId,
+            post: postAccountNotification,
+        });
+    }
+
+    /**
+     * A notification for another account signed in here, from the
+     * inactive-account poller: same posting path and desktop alert rules as
+     * showDesktopNotification, stamped with that account so a tap switches
+     * to it. Not tracked for read-closing, which only sees the active account.
+     */
+    function postAccountNotification(notice: AccountNotice) {
+        if (notificationsShutDown) return;
+        if (!shouldAlertDesktop(settingsState.desktopAlertMode, notice.loud))
+            return;
+        flashTaskbar();
+        const text = notificationBody({
+            sender: notice.sender,
+            body: notice.body,
+            hideBody: settingsState.hideNotificationBody,
+        });
+        try {
+            const native = showNativeNotification({
+                title: notice.title,
+                body: text,
+                tag: `room:${notice.roomId}`,
+                silent: !notice.loud,
+            });
+            if (
+                !native &&
+                (typeof Notification === "undefined" ||
+                    Notification.permission !== "granted")
+            )
+                return;
+            const n: NativeNotificationHandle =
+                native ??
+                (new Notification(notice.title, {
+                    body: text,
+                    icon: "/favicon.png",
+                    badge: "/favicon_foreground.png",
+                    tag: `room:${notice.roomId}`,
+                    renotify: true,
+                    silent: !notice.loud,
+                } as NotificationOptions & {
+                    renotify?: boolean;
+                }) as unknown as NativeNotificationHandle);
+            n.onclick = () => {
+                restoreAppWindow();
+                switchAccountForNotification(
+                    notice.userId,
+                    notice.roomId,
+                    notice.eventId,
+                );
+            };
+        } catch {
+            /* notifications unsupported / blocked — ignore */
+        }
+    }
+
     // Event ids this shell has already put through the notification path.
     // Encrypted messages notify from a second subscription (on decryption), and
     // this is what stops one message notifying twice when both paths see it —
@@ -1445,6 +1529,8 @@
         // Every signed-in account, so a push for one that isn't active can
         // still be read; kept current by the registry from here on.
         syncNativeAccounts(accountsState.registry.accounts).catch(() => {});
+        syncServiceWorkerAccounts(accountsState.registry.accounts);
+        void startAccountPollerIfNeeded();
         if (auth.homeserverUrl && auth.accessToken && auth.userId) {
             syncNativeSession({
                 homeserverUrl: auth.homeserverUrl,
@@ -1955,7 +2041,15 @@
         // in-session remount (session expiry → re-auth) can't re-fire the jump.
         const deepLink = parseDeepLinkHash(window.location.hash);
         if (deepLink) {
-            navigateToRoom(deepLink.roomId, deepLink.eventId);
+            // Posted under another account signed in here: switch to it,
+            // and the room opens once it has booted.
+            if (deepLink.userId && deepLink.userId !== auth.userId)
+                switchAccountForNotification(
+                    deepLink.userId,
+                    deepLink.roomId,
+                    deepLink.eventId,
+                );
+            else navigateToRoom(deepLink.roomId, deepLink.eventId);
             history.replaceState(
                 history.state,
                 "",
@@ -2181,6 +2275,8 @@
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
             delete (window as any).__matrixKeyboardContent;
+            stopAccountPoller?.();
+            stopAccountPoller = null;
             unsubNativeAnswer();
             if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.removeEventListener(
