@@ -38,6 +38,14 @@ public class MainActivity extends BridgeActivity {
         return inForeground;
     }
 
+    // Whether this process has created the Capacitor bridge, which installs
+    // the service worker client HeadlessDecryptor must then leave alone.
+    private static volatile boolean bridgeStarted = false;
+
+    static boolean bridgeStarted() {
+        return bridgeStarted;
+    }
+
     /**
      * Show the app over the lock screen (and wake the screen) for an incoming
      * call, like the phone app does. Scoped to the ring and the call it turns
@@ -66,6 +74,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallServicePlugin.class);
         registerPlugin(UnifiedPushPlugin.class);
         registerPlugin(PushDecryptPlugin.class);
+        bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // Only a FRESH launch carries a fresh action. A recreated activity
         // (savedInstanceState) gets its old intent back, and Recents relaunches

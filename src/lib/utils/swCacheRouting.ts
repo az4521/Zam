@@ -59,6 +59,11 @@ export function classifyRequest(input: ClassifyInput): FetchKind {
     // `/_matrix/` is ever ours, whatever shape the request arrives in.
     if (parsed.pathname.includes("/_matrix/")) return "bypass";
 
+    // The no-app push decryptor's page (HeadlessDecryptor.java) has to load as
+    // itself. Claimed as a navigation, an unreachable network would answer it
+    // with the cached app shell, and the whole app would boot in its place.
+    if (parsed.pathname.startsWith("/push-decrypt/")) return "bypass";
+
     // `mode` is the reliable signal; `destination` covers the browsers that
     // report a document fetch without navigate mode.
     if (input.mode === "navigate" || input.destination === "document")

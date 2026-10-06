@@ -86,6 +86,15 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        name: "the push decryptor page is never answered with the shell",
+        input: req({
+            url: `${ORIGIN}/push-decrypt/index.html`,
+            mode: "navigate",
+            destination: "document",
+        }),
+        expected: "bypass",
+    },
+    {
         name: "same-origin homeserver API is never cached",
         input: req({
             url: `${ORIGIN}/_matrix/client/v3/sync`,

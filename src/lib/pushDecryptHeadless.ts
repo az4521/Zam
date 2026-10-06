@@ -52,6 +52,18 @@ export interface HeadlessDecryptResult {
  */
 const TO_DEVICE_FETCH_TIMEOUT_MS = 8000;
 
+/**
+ * Progress for logcat (HeadlessDecryptor forwards the console) and the worker
+ * console. Stage names and error messages only: never keys, tokens or text.
+ */
+function trace(stage: string, err?: unknown): void {
+    const detail =
+        err === undefined
+            ? ""
+            : `: ${(err as { name?: string })?.name ?? "Error"} ${(err as { message?: string })?.message ?? String(err)}`;
+    console.info(`[push-decrypt] ${stage}${detail}`);
+}
+
 /** A sync that carries only to-device messages and key counts. */
 const TO_DEVICE_ONLY_FILTER = JSON.stringify({
     room: { rooms: [] },
@@ -69,17 +81,26 @@ export async function decryptHeadless(
     try {
         const locks = (globalThis.navigator as Navigator | undefined)?.locks;
         // Without locks there is no way to stay out of a running page's way.
-        if (!locks) return null;
+        if (!locks) {
+            trace("no Web Locks, giving up");
+            return null;
+        }
         // Load the WASM BEFORE taking the lock: it is the slow part (download
         // and compile on a cold worker), and a page opening meanwhile has to
         // wait for us.
         await initAsync(params.wasmUrl);
+        trace("wasm ready");
         return await locks.request(
             getCryptoLockName(params.userId, params.deviceId),
             { mode: "exclusive", ifAvailable: true },
-            (lock) => (lock ? decryptWithStore(params) : null),
+            (lock) => {
+                if (lock) return decryptWithStore(params);
+                trace("store in use by a running page");
+                return null;
+            },
         );
-    } catch {
+    } catch (e) {
+        trace("failed", e);
         return null;
     }
 }
@@ -98,6 +119,7 @@ async function decryptWithStore(
             new DeviceId(params.deviceId),
             store,
         );
+        trace("store open");
         const first = await tryDecrypt(machine, params);
         if (first) return first;
         // Usually the room key is already in the store. It is not when this
@@ -105,8 +127,13 @@ async function decryptWithStore(
         // message in a sync no client has run yet. Fetch the pending ones and
         // try again. Nothing is acknowledged (no `since`), so the app's own
         // next sync still receives every one of them.
-        if (!(await receivePendingToDevice(machine, params))) return null;
-        return await tryDecrypt(machine, params);
+        if (!(await receivePendingToDevice(machine, params))) {
+            trace("no room key, and no pending to-device messages");
+            return null;
+        }
+        const second = await tryDecrypt(machine, params);
+        if (!second) trace("no room key after to-device messages");
+        return second;
     } finally {
         try {
             machine?.close();
@@ -142,11 +169,13 @@ async function tryDecrypt(
             typeof clear.content !== "object"
         )
             return null;
+        trace("decrypted");
         return {
             type: clear.type,
             content: clear.content as Record<string, unknown>,
         };
-    } catch {
+    } catch (e) {
+        trace("decrypt", e);
         return null;
     }
 }
@@ -164,13 +193,17 @@ async function receivePendingToDevice(
         headers: { Authorization: `Bearer ${params.accessToken}` },
         signal: AbortSignal.timeout(TO_DEVICE_FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+        trace(`to-device fetch: HTTP ${res.status}`);
+        return false;
+    }
     const sync = (await res.json()) as {
         to_device?: { events?: unknown[] };
         device_one_time_keys_count?: Record<string, number>;
         device_unused_fallback_key_types?: string[];
     };
     const events = sync.to_device?.events ?? [];
+    trace(`to-device fetch: ${events.length} events`);
     if (!events.length) return false;
     await machine.receiveSyncChanges(
         JSON.stringify(events),

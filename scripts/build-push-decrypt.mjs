@@ -58,7 +58,9 @@ writeFileSync(
         const params = JSON.parse(PushDecryptHost.params());
         params.wasmUrl = new URL("crypto.wasm", location.href).href;
         result = await pushDecryptHeadless.decryptHeadless(params);
-    } catch {}
+    } catch (e) {
+        console.info("[push-decrypt] page: " + e);
+    }
     PushDecryptHost.done(result ? JSON.stringify(result) : "");
 })();
 </script>

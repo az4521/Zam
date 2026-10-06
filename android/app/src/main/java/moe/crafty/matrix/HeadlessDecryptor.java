@@ -5,8 +5,14 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
+import android.webkit.ServiceWorkerClient;
+import android.webkit.ServiceWorkerController;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -28,12 +34,18 @@ import java.util.concurrent.atomic.AtomicReference;
  * from, hence the same IndexedDB), loads the small decryptor page built by
  * scripts/build-push-decrypt.mjs, and waits for its answer.
  *
+ * The app's service worker (static/sw.js) controls this origin, this page
+ * included, and its requests bypass the WebViewClient below. Capacitor answers
+ * them while the app UI runs; in a process the app UI never started in nobody
+ * does, so installServiceWorkerClient() steps in.
+ *
  * The page only touches the store while holding its Web Lock exclusively;
  * the app holds the same lock while it runs, so if the UI starts meanwhile
  * the two never open the store together.
  */
 final class HeadlessDecryptor {
 
+    private static final String TAG = "PushDecrypt";
     private static final String ORIGIN = "https://localhost";
     private static final String PAGE = ORIGIN + "/push-decrypt/index.html";
     // Capacitor copies the built web app here (webDir → assets/public).
@@ -49,7 +61,11 @@ final class HeadlessDecryptor {
             String userId, String deviceId, String roomId, JSONObject event,
             long timeoutMs) {
         if (Looper.myLooper() == Looper.getMainLooper()) return null;
-        if (deviceId == null || deviceId.isEmpty()) return null;
+        if (deviceId == null || deviceId.isEmpty()) {
+            Log.i(TAG, "no device id in the session record");
+            return null;
+        }
+        final long started = SystemClock.elapsedRealtime();
         final String params;
         try {
             JSONObject p = new JSONObject();
@@ -72,15 +88,21 @@ final class HeadlessDecryptor {
 
         main.post(() -> {
             try {
+                installServiceWorkerClient(app);
                 view.set(createWebView(app, params, answer, done));
                 view.get().loadUrl(PAGE);
             } catch (Throwable t) {
+                Log.w(TAG, "could not start the WebView", t);
                 done.countDown();
             }
         });
 
         try {
-            done.await(timeoutMs, TimeUnit.MILLISECONDS);
+            if (!done.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                Log.i(TAG, "timed out after " + timeoutMs + "ms");
+            } else {
+                Log.i(TAG, "answered in " + (SystemClock.elapsedRealtime() - started) + "ms");
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -133,6 +155,15 @@ final class HeadlessDecryptor {
                 done.countDown();
             }
         }, "PushDecryptHost");
+        // The page's console carries its progress (stage names only, see
+        // trace() in pushDecryptHeadless.ts): the one window into a failure.
+        w.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.i(TAG, m.message());
+                return true;
+            }
+        });
         w.setWebViewClient(new WebViewClient() {
             // The page holds the access token: never let it leave our assets.
             @Override
@@ -142,25 +173,47 @@ final class HeadlessDecryptor {
 
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest req) {
-                Uri url = req.getUrl();
-                if (!"https".equals(url.getScheme()) || !"localhost".equals(url.getHost())) {
-                    return null; // homeserver requests go to the network
-                }
-                String path = url.getPath();
-                if (path == null || !path.startsWith("/push-decrypt/") || path.contains("..")) {
-                    return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
-                        null, null);
-                }
-                try {
-                    InputStream in = app.getAssets().open(ASSET_ROOT + path);
-                    return new WebResourceResponse(mimeFor(path), null, in);
-                } catch (Throwable t) {
-                    return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
-                        null, null);
-                }
+                return serveLocal(app, req);
             }
         });
         return w;
+    }
+
+    /**
+     * Answer the service worker's requests when the app UI has not started
+     * in this process. Capacitor's own client (installed by the Bridge, which
+     * the activity creates) serves the whole app; it replaces this one if the
+     * app opens afterwards, and this never replaces it.
+     */
+    private static void installServiceWorkerClient(Context app) {
+        if (MainActivity.bridgeStarted()) return;
+        ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebResourceRequest req) {
+                return serveLocal(app, req);
+            }
+        });
+    }
+
+    /** The decryptor's own files; null (the network) for any other origin. */
+    private static WebResourceResponse serveLocal(Context app, WebResourceRequest req) {
+        Uri url = req.getUrl();
+        if (!"https".equals(url.getScheme()) || !"localhost".equals(url.getHost())) {
+            return null; // homeserver requests go to the network
+        }
+        String path = url.getPath();
+        if (path == null || !path.startsWith("/push-decrypt/") || path.contains("..")) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
+                null, null);
+        }
+        try {
+            InputStream in = app.getAssets().open(ASSET_ROOT + path);
+            return new WebResourceResponse(mimeFor(path), null, in);
+        } catch (Throwable t) {
+            Log.w(TAG, "missing asset " + path);
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
+                null, null);
+        }
     }
 
     private static String mimeFor(String path) {
