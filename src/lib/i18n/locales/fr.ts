@@ -777,7 +777,8 @@ const messages: Record<MessageKey, string> = {
     "messageInput.failedToSend": "Échec de l'envoi",
     "messageInput.unknownCommand": "Commande inconnue : /{unknown}",
     "messageInput.sedNoMessage": "Vous n’avez aucun message à modifier ici",
-    "messageInput.sedNoMatch": "« {pattern} » ne figure pas dans votre dernier message",
+    "messageInput.sedNoMatch":
+        "« {pattern} » ne figure pas dans votre dernier message",
     "messageInput.sedEmpty": "Votre dernier message serait vide",
     "messageInput.sedFailed": "Impossible de modifier votre dernier message",
     "messageInput.sendingAttachments":
@@ -2333,9 +2334,11 @@ const messages: Record<MessageKey, string> = {
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Ignorer la casse",
     "previewRewriter.name": "Réécriture des aperçus de liens",
-    "previewRewriter.description": "Charger les aperçus de liens depuis une autre adresse, par ex. un miroir d’un site que votre serveur d’accueil ne peut pas joindre.",
+    "previewRewriter.description":
+        "Charger les aperçus de liens depuis une autre adresse, par ex. un miroir d’un site que votre serveur d’accueil ne peut pas joindre.",
     "previewRewriter.rules": "Règles de réécriture",
-    "previewRewriter.rulesDescription": "Appliquées dans l’ordre à l’adresse depuis laquelle un aperçu est chargé. Le lien lui-même n’est pas modifié.",
+    "previewRewriter.rulesDescription":
+        "Appliquées dans l’ordre à l’adresse depuis laquelle un aperçu est chargé. Le lien lui-même n’est pas modifié.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

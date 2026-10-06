@@ -717,7 +717,7 @@ const messages: Record<MessageKey, string> = {
     "messageInput.thread": "ܚܘܛܐ",
     "messageInput.cancelThreadCreation": "ܒܛܠ ܒܪܝܐ ܕܚܘܛܐ",
     "messageInput.sedNoMessage": "ܠܝܬ ܠܘܟ ܐܓܪܬܐ ܗܪܟܐ ܠܬܩܢܐ",
-    "messageInput.sedNoMatch": "\"{pattern}\" ܠܝܬ ܒܐܓܪܬܐ ܐܚܪܝܬܐ ܕܝܘܟ",
+    "messageInput.sedNoMatch": '"{pattern}" ܠܝܬ ܒܐܓܪܬܐ ܐܚܪܝܬܐ ܕܝܘܟ',
     "messageInput.sedEmpty": "ܐܓܪܬܐ ܐܚܪܝܬܐ ܕܝܘܟ ܒܕ ܗܘܝܐ ܣܦܝܩܬܐ",
     "messageInput.sedFailed": "ܠܐ ܡܨܐ ܠܬܩܢܐ ܐܓܪܬܐ ܐܚܪܝܬܐ ܕܝܘܟ",
     "messageInput.favouriteGifs": "GIF ܚܒܝ̈ܒܐ",
@@ -2179,7 +2179,8 @@ const messages: Record<MessageKey, string> = {
     "previewRewriter.name": "ܫܚܠܦܢܐ ܕܚܙܝܬܐ ܕܐܣܘܪܐ",
     "previewRewriter.description": "ܐܝܬܐ ܚܙܝܬܐ ܕܐܣܘܪܐ ܡܢ ܡܘܢܥܐ ܐܚܪܢܐ.",
     "previewRewriter.rules": "ܢܡܘܣܐ ܕܫܘܚܠܦܐ",
-    "previewRewriter.rulesDescription": "ܡܬܦܠܚܝܢ ܒܛܟܣܐ ܥܠ ܡܘܢܥܐ ܕܚܙܝܬܐ. ܐܣܘܪܐ ܠܐ ܡܫܬܚܠܦ.",
+    "previewRewriter.rulesDescription":
+        "ܡܬܦܠܚܝܢ ܒܛܟܣܐ ܥܠ ܡܘܢܥܐ ܕܚܙܝܬܐ. ܐܣܘܪܐ ܠܐ ܡܫܬܚܠܦ.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

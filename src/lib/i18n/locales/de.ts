@@ -785,9 +785,11 @@ const messages: Record<MessageKey, string> = {
     "messageInput.failedToSend": "Senden fehlgeschlagen",
     "messageInput.unknownCommand": "Unbekannter Befehl: /{unknown}",
     "messageInput.sedNoMessage": "Du hast hier keine Nachricht zum Bearbeiten",
-    "messageInput.sedNoMatch": "„{pattern}“ kommt in deiner letzten Nachricht nicht vor",
+    "messageInput.sedNoMatch":
+        "„{pattern}“ kommt in deiner letzten Nachricht nicht vor",
     "messageInput.sedEmpty": "Deine letzte Nachricht wäre dann leer",
-    "messageInput.sedFailed": "Deine letzte Nachricht konnte nicht bearbeitet werden",
+    "messageInput.sedFailed":
+        "Deine letzte Nachricht konnte nicht bearbeitet werden",
     "messageInput.sendingAttachments":
         "{count, plural, one {# Anhang wird gesendet…} other {# Anhänge werden gesendet…}}",
 
@@ -2356,9 +2358,11 @@ const messages: Record<MessageKey, string> = {
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Groß-/Kleinschreibung ignorieren",
     "previewRewriter.name": "Linkvorschau-Umleitung",
-    "previewRewriter.description": "Linkvorschauen von einer anderen Adresse laden, z. B. von einem Spiegel einer Seite, die dein Homeserver nicht erreicht.",
+    "previewRewriter.description":
+        "Linkvorschauen von einer anderen Adresse laden, z. B. von einem Spiegel einer Seite, die dein Homeserver nicht erreicht.",
     "previewRewriter.rules": "Umleitungsregeln",
-    "previewRewriter.rulesDescription": "Der Reihe nach auf die Adresse angewendet, von der eine Vorschau geladen wird. Der Link selbst bleibt unverändert.",
+    "previewRewriter.rulesDescription":
+        "Der Reihe nach auf die Adresse angewendet, von der eine Vorschau geladen wird. Der Link selbst bleibt unverändert.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":

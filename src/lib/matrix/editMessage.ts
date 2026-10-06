@@ -6,10 +6,7 @@ import type { MatrixEvent, Room } from "matrix-js-sdk";
 import { getCustomEmojis, sendEdit } from "$lib/matrix/client";
 import { buildFormattedBody, emoticonsFromHtml } from "$lib/utils/messageBody";
 import { replaceEmojiShortcodes } from "$lib/data/emojiShortcodes";
-import {
-    isEditableContent,
-    mediaEditBase,
-} from "$lib/utils/editableMessage";
+import { isEditableContent, mediaEditBase } from "$lib/utils/editableMessage";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
 import { applySedCommand, type SedCommand } from "$lib/utils/sedEdit";
 import { roomsState } from "$lib/stores/rooms.svelte";

@@ -784,7 +784,7 @@ export const en = {
     "messageInput.failedToSend": "Failed to send",
     "messageInput.unknownCommand": "Unknown command: /{unknown}",
     "messageInput.sedNoMessage": "You have no message here to edit",
-    "messageInput.sedNoMatch": "\"{pattern}\" is not in your last message",
+    "messageInput.sedNoMatch": '"{pattern}" is not in your last message',
     "messageInput.sedEmpty": "That would leave your last message empty",
     "messageInput.sedFailed": "Could not edit your last message",
     "messageInput.sendingAttachments":
@@ -2255,9 +2255,11 @@ export const en = {
     "textReplacer.regex": "Regex",
     "textReplacer.ignoreCase": "Ignore case",
     "previewRewriter.name": "Link preview rewriter",
-    "previewRewriter.description": "Fetch link previews from a different address, e.g. a mirror of a site your homeserver cannot reach.",
+    "previewRewriter.description":
+        "Fetch link previews from a different address, e.g. a mirror of a site your homeserver cannot reach.",
     "previewRewriter.rules": "Rewrite rules",
-    "previewRewriter.rulesDescription": "Applied in order to the address a preview is fetched from. The link itself is not changed.",
+    "previewRewriter.rulesDescription":
+        "Applied in order to the address a preview is fetched from. The link itself is not changed.",
 
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
