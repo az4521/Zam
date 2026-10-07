@@ -348,11 +348,20 @@
         );
     });
 
-    const unjoinedRooms = $derived(
-        roomsState.activeSpaceId !== null
-            ? roomsState.spaceHierarchy.filter((r) => !r.isJoined && !r.isSpace)
-            : [],
-    );
+    // `isJoined` is baked in when /hierarchy is fetched, so a fetch that raced
+    // a join can hand back a stale `false` after the room is already in the
+    // list. Check live membership too (as spaceChildren does); roomsTick
+    // re-derives when the room lands.
+    const unjoinedRooms = $derived.by(() => {
+        if (roomsState.activeSpaceId === null) return [];
+        void roomsState.roomsTick;
+        return roomsState.spaceHierarchy.filter(
+            (r) =>
+                !r.isJoined &&
+                !r.isSpace &&
+                getRoom(r.roomId)?.getMyMembership() !== "join",
+        );
+    });
 
     // ── Sub-spaces as tree categories ────────────────────────────────────
     type SubSpace = { id: string; name: string };

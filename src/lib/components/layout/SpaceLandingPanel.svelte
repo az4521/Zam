@@ -2,7 +2,7 @@
     import { t } from "$lib/i18n";
     import { Hash, Menu } from "lucide-svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
-    import { joinRoom, type SpaceChildInfo } from "$lib/matrix/client";
+    import { getRoom, joinRoom, type SpaceChildInfo } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     let {
@@ -22,9 +22,17 @@
             t("spaceLandingPanel.thisSpace"),
     );
 
-    const joinable = $derived(
-        roomsState.spaceHierarchy.filter((r) => !r.isJoined && !r.isSpace),
-    );
+    // Live membership too: `isJoined` is baked in at /hierarchy fetch time
+    // and can be stale after a join (see RoomList's unjoinedRooms).
+    const joinable = $derived.by(() => {
+        void roomsState.roomsTick;
+        return roomsState.spaceHierarchy.filter(
+            (r) =>
+                !r.isJoined &&
+                !r.isSpace &&
+                getRoom(r.roomId)?.getMyMembership() !== "join",
+        );
+    });
     const childSpaces = $derived(
         roomsState.spaceHierarchy.filter((r) => r.isSpace),
     );
