@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.7
+
+🐛 **Fixed**
+
+- **Space and room permissions show their real values:** on servers using sliding sync, a space's (or an unopened room's) Permissions tab showed every level as 0. It now loads the real levels first.
+- **Saving permissions can no longer wipe everyone's levels:** saving from that screen while the levels hadn't loaded could reset every user's power level, admins included. Changes are now always applied on top of the room's current permissions.
+
 ## v1.15.6
 
 🐛 **Fixed**
