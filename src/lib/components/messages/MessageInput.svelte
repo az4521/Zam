@@ -1850,12 +1850,15 @@
     async function sendStickerMessage(sticker: CustomSticker) {
         if (isSending || disabled) return;
         isSending = true;
+        const replyTarget = replyToEvent;
         try {
             await sendSticker(
                 roomId,
                 sticker,
                 isThread ? { rootEventId: threadRootId! } : undefined,
+                replyTarget?.getId() ?? undefined,
             );
+            if (replyTarget) onCancelReply?.();
         } catch (err) {
             console.error("Failed to send sticker:", err);
         } finally {

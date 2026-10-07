@@ -9071,6 +9071,7 @@ export async function sendSticker(
     roomId: string,
     sticker: CustomSticker,
     thread?: { rootEventId: string },
+    replyToEventId?: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notConnected"));
     const content: Record<string, unknown> = {
@@ -9081,12 +9082,30 @@ export async function sendSticker(
         // body-scan push rules; a sticker never carries intentional mentions.
         "m.mentions": {},
     };
-    const finalContent = thread
-        ? withThreadRelation(
-              content,
-              threadRelationParams(roomId, thread.rootEventId),
-          )
-        : content;
+    let finalContent: Record<string, unknown> = content;
+    if (thread) {
+        const threaded = withThreadRelation(
+            content,
+            threadRelationParams(roomId, thread.rootEventId),
+        );
+        // A reply to a specific thread message quotes it for real, same as
+        // buildThreadReplyContent.
+        finalContent = replyToEventId
+            ? {
+                  ...threaded,
+                  "m.relates_to": {
+                      ...threaded["m.relates_to"],
+                      is_falling_back: false,
+                      "m.in_reply_to": { event_id: replyToEventId },
+                  },
+              }
+            : threaded;
+    } else if (replyToEventId) {
+        finalContent = {
+            ...content,
+            "m.relates_to": { "m.in_reply_to": { event_id: replyToEventId } },
+        };
+    }
     await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
 }
 
