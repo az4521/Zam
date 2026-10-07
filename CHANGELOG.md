@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.10
+
+🐛 **Fixed**
+
+- **Joined rooms no longer show up under Browse:** after 1.15.9, a room you'd just joined could appear both in your list and in the space's Browse rooms list. Browse now only shows rooms you're not in.
+
 ## v1.15.9
 
 🐛 **Fixed**
