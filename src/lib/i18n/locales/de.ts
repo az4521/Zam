@@ -805,6 +805,12 @@ const messages: Record<MessageKey, string> = {
     "messageItem.originalMessageDeleted": "Ursprüngliche Nachricht gelöscht",
     "messageItem.originalMessageUnavailable":
         "Ursprüngliche Nachricht nicht verfügbar",
+    "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.replyPreviewPoll": "Umfrage",
+    "messageItem.replyPreviewImage": "Bild",
+    "messageItem.replyPreviewVideo": "Video",
+    "messageItem.replyPreviewAudio": "Audio",
+    "messageItem.replyPreviewFile": "Datei",
     "messageItem.edited": "(bearbeitet)",
     "messageItem.decryptingImage": "Bild wird entschlüsselt...",
     "messageItem.couldnTDecryptImage": "Bild konnte nicht entschlüsselt werden",

@@ -1138,12 +1138,29 @@
         void messagesState.timelineTick;
         if (!replyTarget) return null;
         const c = replyTarget.getContent();
-        if (replyTarget.getType() === "m.room.message") {
+        const type = replyTarget.getType();
+        // Parents with no text of their own get a type placeholder instead of
+        // falling through to "Original message unavailable".
+        if (type === "m.sticker") return t("messageItem.replyPreviewSticker");
+        if (isPollStartEventType(type))
+            return t("messageItem.replyPreviewPoll");
+        if (type === "m.room.message") {
             const b: string = c?.body ?? "";
             // Strip nested reply prefix from the quoted message's own body
             const parts = b.split("\n\n");
             if (parts.length >= 2 && parts[0].startsWith(">"))
                 return parts.slice(1).join("\n\n");
+            if (b) return b;
+            switch (c?.msgtype) {
+                case "m.image":
+                    return t("messageItem.replyPreviewImage");
+                case "m.video":
+                    return t("messageItem.replyPreviewVideo");
+                case "m.audio":
+                    return t("messageItem.replyPreviewAudio");
+                case "m.file":
+                    return t("messageItem.replyPreviewFile");
+            }
             return b;
         }
         return null;
