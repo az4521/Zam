@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.9
+
+🐛 **Fixed**
+
+- **Joined rooms and spaces show up right away:** on servers using sliding sync, a room or space you joined vanished from Browse but didn't appear in your list until a minute later or an app restart. It now appears immediately. The same applies to accepted invites and newly created rooms.
+
 ## v1.15.8
 
 🐛 **Fixed**
