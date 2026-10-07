@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.1
+
+🐛 **Fixed**
+
+- **Encrypted notifications while the app is in the background (Android), properly this time:** 1.15.0's fix didn't work, because Zam's page can't run at all while the app is in the background. Now, about 10 seconds after you leave Zam, it hands its encryption keys over to the part that decrypts notifications, so they show the message. Coming back picks up where you left off, without reloading the app.
+
 ## v1.15.0
 
 ✨ **New**
