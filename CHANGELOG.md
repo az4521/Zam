@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.8
+
+🐛 **Fixed**
+
+- **Room and space settings load again:** 1.15.7's Permissions tab could get stuck on "Loading…" forever. Settings now fetch what they need directly, wherever you open them from, and show an error with a Retry button if that fails.
+- **Saving access settings no longer changes things you didn't touch:** on servers using sliding sync, history visibility and guest access could show defaults before loading, and saving the tab could write those defaults back. The Access tab now waits for the real values.
+- **Space menus only show admin options to admins:** "Space settings" and "Add room" showed for everyone in a space.
+
 ## v1.15.7
 
 🐛 **Fixed**
