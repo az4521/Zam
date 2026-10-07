@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.6
+
+🐛 **Fixed**
+
+- **Replies to stickers say what they're replying to:** a reply to a sticker, poll or untitled photo/video/file now shows "Sticker", "Poll", "Image" and so on in its quote, instead of "Original message unavailable".
+
 ## v1.15.5
 
 🐛 **Fixed**
