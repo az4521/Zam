@@ -14,6 +14,7 @@
         setTokenRefreshListener,
         updateServiceWorkerAuth,
         getLatestTokens,
+        setSyncRestarter,
     } from "$lib/matrix/client";
     import { isPendingOAuthCallback } from "$lib/matrix/oauth";
     import { unregisterPush } from "$lib/push";
@@ -149,6 +150,32 @@
             return;
         }
         disposeSync = dispose;
+        // Coming back from a background release (backgroundRelease.ts)
+        // starts sync again, for this same session.
+        setSyncRestarter(() => restartSync(attempt));
+    }
+
+    /**
+     * Start sync again for the running session after its client was stopped
+     * in the background. Unlike beginSync, `attempt` has committed by now
+     * (phase "active"); listeners are kept only while it still is the live
+     * session, so an expiry or a new sign-in meanwhile wins.
+     */
+    async function restartSync(attempt: number): Promise<void> {
+        disposeSync?.();
+        disposeSync = null;
+        const dispose = await startSync(
+            (state) => {
+                auth.syncState = state;
+            },
+            handleSessionExpired,
+            (reason) => showToast(reason, { tone: "accent" }),
+        );
+        if (startup.phase !== "active" || startup.attempt !== attempt) {
+            dispose();
+            return;
+        }
+        disposeSync = dispose;
     }
 
     /**
@@ -164,6 +191,7 @@
             error: message,
         });
         if (startup === previous) return false;
+        setSyncRestarter(null);
         disposeSync?.();
         disposeSync = null;
         // The client this attempt created never became the app's client.
@@ -233,6 +261,7 @@
             // is mounted — i.e. before the flip below (audit LIFE-01).
             leaveCall: () => leaveVoiceCall(),
             disposeSync: () => {
+                setSyncRestarter(null);
                 disposeSync?.();
                 disposeSync = null;
             },

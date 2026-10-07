@@ -1667,3 +1667,94 @@ describe("refreshIdentityAlert", () => {
         expect(await run("@bob:example.org", status({}))).toEqual([]);
     });
 });
+
+describe("restartCrypto", () => {
+    // Mirrors what matrix-js-sdk's initRustCrypto does to the client: refuses
+    // while an engine exists, else installs one and binds three client events
+    // to it. Each engine records whether it was called after being replaced.
+    function makeRestartableClient() {
+        const listeners = new Map<string, ((...a: unknown[]) => void)[]>();
+        const engines: { id: number; calls: number }[] = [];
+        const client = {
+            cryptoBackend: undefined as unknown,
+            listeners: (e: string) => [...(listeners.get(e) ?? [])],
+            on: (e: string, l: (...a: unknown[]) => void) => {
+                listeners.set(e, [...(listeners.get(e) ?? []), l]);
+            },
+            off: (e: string, l: (...a: unknown[]) => void) => {
+                listeners.set(
+                    e,
+                    (listeners.get(e) ?? []).filter((x) => x !== l),
+                );
+            },
+            emit: (e: string) => {
+                for (const l of listeners.get(e) ?? []) l();
+            },
+            getCrypto: () =>
+                client.cryptoBackend
+                    ? { setDeviceIsolationMode: vi.fn() }
+                    : undefined,
+            initRustCrypto: vi.fn(async () => {
+                if (client.cryptoBackend) return; // the SDK just warns
+                const engine = { id: engines.length, calls: 0 };
+                engines.push(engine);
+                client.cryptoBackend = engine;
+                for (const e of [
+                    "RoomMember.membership",
+                    "RoomState.events",
+                    "event",
+                ])
+                    client.on(e, () => engine.calls++);
+            }),
+        };
+        return { client, engines };
+    }
+
+    let mod: typeof import("./crypto");
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        vi.resetModules();
+        mod = await import("./crypto");
+    });
+
+    it("swaps the engine and its client handlers, leaving none on the old one", async () => {
+        const { client, engines } = makeRestartableClient();
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        expect(engines).toHaveLength(1);
+
+        const ok = await mod.restartCrypto(
+            client as never,
+            "@me:example.org",
+            "DEVICE1",
+        );
+
+        expect(ok).toBe(true);
+        expect(engines).toHaveLength(2);
+        for (const e of [
+            "RoomMember.membership",
+            "RoomState.events",
+            "event",
+        ]) {
+            expect(client.listeners(e)).toHaveLength(1);
+            client.emit(e);
+        }
+        expect(engines[0].calls).toBe(0); // the closed engine is never called
+        expect(engines[1].calls).toBe(3);
+    });
+
+    it("reports failure when the new engine won't start", async () => {
+        const { client } = makeRestartableClient();
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        client.initRustCrypto.mockRejectedValueOnce(new Error("no WASM"));
+
+        expect(
+            await mod.restartCrypto(
+                client as never,
+                "@me:example.org",
+                "DEVICE1",
+            ),
+        ).toBe(false);
+    });
+});

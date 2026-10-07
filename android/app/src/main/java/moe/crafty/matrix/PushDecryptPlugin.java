@@ -1,7 +1,5 @@
 package moe.crafty.matrix;
 
-import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -33,13 +31,6 @@ public class PushDecryptPlugin extends Plugin {
     private static final String EVENT = "decryptRequest";
     // Same tag as HeadlessDecryptor: one logcat filter shows the whole path.
     private static final String TAG = "PushDecrypt";
-    // When the page last missed a decrypt deadline (epoch ms), in the app's
-    // Capacitor preferences. The page reads it (getStatus) and only then
-    // starts letting go of the crypto store in the background
-    // (src/lib/backgroundRelease.ts), so phones where it always answers never
-    // pay for that.
-    private static final String PREFS = "CapacitorStorage";
-    private static final String KEY_MISSED_AT = "push_decrypt_page_missed_at";
 
     private static volatile PushDecryptPlugin instance;
     // False while the web layer has let go of its crypto store in the
@@ -102,7 +93,6 @@ public class PushDecryptPlugin extends Plugin {
                 Log.i(TAG, "page missed the " + timeoutMs + "ms deadline");
                 if (timedOut.size() > 32) timedOut.clear();
                 timedOut.put(requestId, req.askedAt);
-                recordMissed(p.getContext());
                 return null;
             }
             return req.result;
@@ -121,29 +111,6 @@ public class PushDecryptPlugin extends Plugin {
     public void setActive(PluginCall call) {
         pageActive = call.getBoolean("active", true);
         call.resolve();
-    }
-
-    private static void recordMissed(Context ctx) {
-        try {
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-                .putString(KEY_MISSED_AT, Long.toString(System.currentTimeMillis()))
-                .apply();
-        } catch (Throwable ignored) {}
-    }
-
-    /** { missedAt: epoch ms the page last missed a deadline, or null }. */
-    @PluginMethod
-    public void getStatus(PluginCall call) {
-        JSObject ret = new JSObject();
-        try {
-            SharedPreferences prefs =
-                getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            String raw = prefs.getString(KEY_MISSED_AT, null);
-            ret.put("missedAt", raw != null ? Long.parseLong(raw) : JSONObject.NULL);
-        } catch (Throwable t) {
-            ret.put("missedAt", JSONObject.NULL);
-        }
-        call.resolve(ret);
     }
 
     /**

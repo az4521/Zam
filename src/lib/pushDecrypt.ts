@@ -73,7 +73,6 @@ export async function decryptForPush(
 
 interface PushDecryptPlugin {
     setActive(options: { active: boolean }): Promise<void>;
-    getStatus(): Promise<{ missedAt: number | null }>;
     respond(options: {
         requestId: string;
         timings?: string;
@@ -98,20 +97,6 @@ function isAndroidWithPlugin(): boolean {
         Capacitor.getPlatform() === "android" &&
         Capacitor.isPluginAvailable("PushDecrypt")
     );
-}
-
-/**
- * When the page last failed to answer a push's decrypt request in time on this
- * phone (epoch ms), or null if it never has or this isn't the Android app.
- */
-export async function getPushDecryptMissedAt(): Promise<number | null> {
-    if (!isAndroidWithPlugin()) return null;
-    try {
-        const { missedAt } = await PushDecrypt.getStatus();
-        return typeof missedAt === "number" ? missedAt : null;
-    } catch {
-        return null; // an older native shell without getStatus
-    }
 }
 
 /**

@@ -13,7 +13,13 @@
  */
 
 import { t } from "$lib/i18n";
-import { EventTimeline, MatrixEventEvent } from "matrix-js-sdk";
+import {
+    ClientEvent,
+    EventTimeline,
+    MatrixEventEvent,
+    RoomMemberEvent,
+    RoomStateEvent,
+} from "matrix-js-sdk";
 import type {
     AuthDict,
     MatrixClient,
@@ -95,6 +101,19 @@ import {
 // (e.g. WASM can't load): the app keeps working for unencrypted rooms and
 // encrypted rooms render UTD placeholders instead of crashing.
 let cryptoAvailable = false;
+
+// The client events initRustCrypto subscribes the crypto engine it creates to
+// (matrix-js-sdk client.js). A restart (restartCrypto) has to take the old
+// engine's handlers off first: they are bound to an engine that is closed by
+// then, and would throw in the middle of sync processing.
+const RUST_CRYPTO_CLIENT_EVENTS = [
+    RoomMemberEvent.Membership,
+    RoomStateEvent.Events,
+    ClientEvent.Event,
+] as const;
+// Those handlers, as added by the last initRustCrypto on `engineClient`.
+let engineHandlers: [string, (...args: unknown[]) => void][] = [];
+let engineClient: MatrixClient | null = null;
 
 // Remembers the last client we attached the decryption listener to so a
 // re-init (account switch) doesn't stack duplicate listeners.
@@ -216,6 +235,32 @@ export function releaseCryptoStoreLocks(): void {
 }
 
 /**
+ * Start a fresh crypto engine on a client whose engine was stopped (by
+ * stopClient) to free the store in the background (backgroundRelease.ts).
+ * matrix-js-sdk refuses a second initRustCrypto while it still has the old
+ * engine, so that is cleared first, along with the client event handlers it
+ * bound to the closed engine. Waits for the store lock, which a push
+ * decrypt may hold. True when crypto is running again.
+ */
+export async function restartCrypto(
+    client: MatrixClient,
+    userId: string,
+    deviceId: string,
+): Promise<boolean> {
+    if (engineClient === client) {
+        for (const [event, handler] of engineHandlers)
+            client.off(event as never, handler as never);
+    }
+    engineHandlers = [];
+    engineClient = null;
+    // Private in the typings; the only thing initRustCrypto checks.
+    (client as unknown as { cryptoBackend?: unknown }).cryptoBackend =
+        undefined;
+    await initCrypto(client, userId, deviceId);
+    return cryptoAvailable && !!client.getCrypto();
+}
+
+/**
  * Initialise rust-crypto for a freshly-authenticated client. Call at the end of
  * `createAuthenticatedClient`, before `startClient`, so the crypto layer is
  * ready before sync processes to-device / encrypted events.
@@ -250,9 +295,22 @@ export async function initCrypto(
                 "crypto store is still held by a push-notification decrypt",
             );
         }
+        const emitter = client as unknown as {
+            listeners?(event: string): ((...args: unknown[]) => void)[];
+        };
+        const handlersOf = (e: string) => emitter.listeners?.(e) ?? [];
+        const before = new Map(
+            RUST_CRYPTO_CLIENT_EVENTS.map((e) => [e, handlersOf(e)]),
+        );
         await client.initRustCrypto({
             cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
         });
+        engineClient = client;
+        engineHandlers = RUST_CRYPTO_CLIENT_EVENTS.flatMap((e) =>
+            handlersOf(e)
+                .filter((l) => !before.get(e)!.includes(l))
+                .map((l): [string, (...args: unknown[]) => void] => [e, l]),
+        );
         cryptoAvailable = true;
         setSessionCryptoStatus(true);
         // `globalBlacklistUnverifiedDevices` is in-memory only on the crypto

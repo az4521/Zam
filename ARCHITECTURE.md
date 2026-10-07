@@ -332,14 +332,15 @@ paths need a Sygnal gateway, and **both have live fallbacks compiled in**. See
 Decrypting an Android push: the running page is asked first (`PushDecryptPlugin` →
 `pushDecrypt.ts`), else a hidden WebView opens the crypto store itself
 (`HeadlessDecryptor.java` → `pushDecryptHeadless.ts`), but only while no page holds the store's
-Web Lock. Android freezes a backgrounded app's WebView renderer within seconds and thaws it briefly
-for a push. So `backgroundRelease.ts` pauses sync 3s after the app is hidden (crypto stays open;
-`utils/syncGate.ts` holds `/sync` at the client's fetch), leaving a thawed page nothing to catch up
-on before it answers. Fallback, only on a phone where the push service has recorded the page
-missing its deadline (`PushDecryptPlugin.getStatus`): after 10s hidden the page stops the client
-and releases the lock (unless a call, upload, outbox send, live location share or voice recording
-is running), and the app reloads when shown again, with drafts carried across in sessionStorage.
-Logcat tag `PushDecrypt` shows each push's path and the page's stage timings.
+Web Lock. **The page's JavaScript does not run while the app is in the background**: the WebView
+holds a push's request until the activity resumes, even when Android thaws the renderer for the
+push. So `backgroundRelease.ts` has the page let go after 10s hidden (unless a call, upload, outbox
+send, live location share or voice recording is running): it stops the client and releases the
+lock, and the hidden decryptor handles every push. Coming back restarts crypto in place
+(`restartCrypto` clears the SDK's stopped engine and the client handlers bound to it, then
+`initCrypto` again, waiting for the lock) and sync through the root page's `restartSync`. If that
+fails the app reloads, with drafts carried across in sessionStorage. Logcat tag `PushDecrypt`
+shows each push's path and the page's stage timings.
 
 ### Service worker (`static/sw.js`)
 

@@ -231,7 +231,6 @@ import {
 } from "$lib/utils/callSummary";
 import type { ThreadSummary } from "$lib/utils/threadModel";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
-import { createSyncGate } from "$lib/utils/syncGate";
 import {
     THREAD_NAME_EVENT_TYPE,
     THREAD_NAME_REL_TYPE,
@@ -334,6 +333,7 @@ import {
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     releaseCryptoStoreLocks,
+    restartCrypto,
 } from "$lib/matrix/crypto";
 import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
@@ -595,9 +595,6 @@ async function createAuthenticatedClient(opts: {
                   }) => handleTokenRefresh(opts.userId, tokens),
               }
             : {}),
-        // Lets sync be paused in the background without stopping crypto
-        // (pauseSyncInBackground). Every other request passes straight on.
-        fetchFn: syncGate.fetch,
         timelineSupport: true,
         verificationMethods: [
             VerificationMethod.Sas,
@@ -1150,34 +1147,38 @@ export function waitForLiveEvent(
  * as a dropped connection and starts its keep-alive, which retryImmediately
  * then runs at once instead of after its 2-7s backoff.
  */
-// Holds the client's sync requests while the app is paused in the background;
-// see pauseSyncInBackground. One gate for the page: only one client syncs.
-const syncGate = createSyncGate((...args) => fetch(...args));
+// Set once the client was stopped to free the crypto store in the background
+// (releaseClientForBackground). Nothing may restart sync until
+// restartAfterBackgroundRelease has brought crypto back.
+let backgroundReleased = false;
+
+// Starts sync again through the app's own startup path (the root page's
+// beginSync, so its listeners and callbacks are the usual ones). Registered
+// while a session is running; see setSyncRestarter.
+let syncRestarter: (() => Promise<void>) | null = null;
+
+/** Register (or, with null, clear) how to start sync again. */
+export function setSyncRestarter(restart: (() => Promise<void>) | null): void {
+    syncRestarter = restart;
+}
 
 /**
- * Stop syncing, keeping crypto open, until resumeSync. The request in flight
- * is cancelled and its retry waits at the gate, so a page Android freezes
- * and later thaws for a push has no sync backlog to work through before it
- * can answer the push (backgroundRelease.ts).
+ * Bring the client back after releaseClientForBackground, without a reload:
+ * a fresh crypto engine (once the push decryptor has let go of the store),
+ * then sync. False when that couldn't be done; the caller then reloads.
  */
-export function pauseSyncInBackground(): void {
-    if (syncGate.isPaused()) return;
-    syncGate.pause();
-    logSync("sync paused in the background");
-    if (matrixClient) kickSync(matrixClient);
+export async function restartAfterBackgroundRelease(): Promise<boolean> {
+    const client = matrixClient;
+    if (!client || !backgroundReleased || !syncRestarter) return false;
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    if (!userId || !deviceId) return false;
+    if (!(await restartCrypto(client, userId, deviceId))) return false;
+    backgroundReleased = false;
+    await syncRestarter();
+    logSync("restarted after the background release");
+    return true;
 }
-
-/** Let sync run again after pauseSyncInBackground. */
-export function resumeSync(): void {
-    if (!syncGate.isPaused()) return;
-    syncGate.resume();
-    logSync("sync resumed");
-}
-
-// Set once the client was stopped to free the crypto store in the background
-// (releaseClientForBackground). Nothing may restart sync after that: the page
-// reloads when it is shown again.
-let backgroundReleased = false;
 
 /** Whether an upload, or a send the server hasn't confirmed, is in flight. */
 export function hasSendsInFlight(): boolean {

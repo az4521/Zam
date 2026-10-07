@@ -3,38 +3,20 @@
  * Rules for the Android app in the background (the wiring is
  * src/lib/backgroundRelease.ts).
  *
- * Android freezes the WebView renderer soon after the app leaves the screen,
- * and thaws it briefly when a push arrives so the page can decrypt it. First
- * line: pause sync shortly after the app is hidden, so a thawed page has no
- * backlog to work through and answers at once. Fallback, only on a phone
- * where the page has been seen missing a push's deadline: stop the client and
- * release the crypto store's lock so the hidden decryptor can take over;
- * coming back then reloads the app, with drafts carried across in
- * sessionStorage.
+ * The page's JavaScript doesn't run while the app is in the background (the
+ * WebView holds it until the activity resumes), so it can't decrypt a push,
+ * yet it keeps the crypto store's lock, which shuts the hidden decryptor out.
+ * So after a short while hidden the page stops its client and releases the
+ * lock; coming back restarts crypto and sync in place, or, if that fails,
+ * reloads the app with drafts carried across in sessionStorage.
  */
 
 import type { ComposerDraft } from "$lib/stores/composerDrafts.svelte";
 
-/** How long the app stays hidden before sync is paused. */
-export const PAUSE_SYNC_AFTER_HIDDEN_MS = 3_000;
-
 /**
- * How long after the page last missed a push's deadline the release fallback
- * stays on. While it is on the page is never asked, so it can't miss again;
- * after this it is tried again, in case a WebView or OS update fixed things.
- */
-export const RELEASE_AFTER_MISS_FOR_MS = 14 * 24 * 60 * 60 * 1000;
-
-/** Whether this phone needs the release fallback, from the last missed deadline. */
-export function releaseNeeded(missedAt: number | null, now: number): boolean {
-    if (missedAt === null || !Number.isFinite(missedAt)) return false;
-    return missedAt <= now && now - missedAt < RELEASE_AFTER_MISS_FOR_MS;
-}
-
-/**
- * How long the app stays hidden before letting go, when it needs to. Android
- * froze the renderer about 16s after the app left the screen on a Galaxy S24,
- * so this must land well before that; a frozen page can't release anything.
+ * How long the app stays hidden before letting go. The page has to still be
+ * running to do it: Android froze the renderer about 16s after the app left
+ * the screen on a Galaxy S24, so this lands well before that.
  */
 export const RELEASE_AFTER_HIDDEN_MS = 10_000;
 
