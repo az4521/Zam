@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.3
+
+🐛 **Fixed**
+
+- **Stickers as replies:** sending a sticker while you're replying to a message now sends it as a reply to that message, in threads too.
+
 ## v1.15.2
 
 🐛 **Fixed**
