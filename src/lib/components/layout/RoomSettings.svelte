@@ -12,8 +12,8 @@
         getRoomPowerLevels,
         setRoomPowerLevels,
         setUserPowerLevel,
-        hasPowerLevelsEvent,
         holdSlidingSyncRoom,
+        ensureRoomFullState,
         isUsingSlidingSync,
         inviteUser,
         kickUser,
@@ -316,14 +316,36 @@
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
     // Sliding sync only gives the viewed room full state; the room list (and
     // so a space, which is never "viewed") lacks power levels and members.
-    // Hold the room while its settings are open so they arrive.
+    // Hold the room while its settings are open (members, live updates), and
+    // fetch the missing state directly: some servers never send state that a
+    // widened subscription newly asks for.
     $effect(() => holdSlidingSyncRoom(room.roomId));
-    // Until they do, `pl` is the all-zero no-event fallback: show loading
-    // rather than zeros. Classic /sync has full state, so absent = none.
-    const plLoaded = $derived(
-        (void roomsState.roomsTick,
-        !isUsingSlidingSync() || hasPowerLevelsEvent(room)),
-    );
+    let stateFetched = $state(false);
+    let stateLoadError = $state("");
+    function loadFullState() {
+        stateLoadError = "";
+        ensureRoomFullState(room)
+            .then(() => {
+                stateFetched = true;
+                // setStateEvents mutates the Room in place; re-derive readers.
+                roomsState.roomsTick++;
+            })
+            .catch((e) => {
+                stateLoadError = e?.message ?? t("roomSettings.failed");
+            });
+    }
+    $effect(() => {
+        void room.roomId;
+        untrack(() => {
+            stateFetched = false;
+            loadFullState();
+        });
+    });
+    // Until the state is in, `pl` is the all-zero no-event fallback and
+    // history visibility / guest access / server ACL read as their defaults:
+    // show loading rather than wrong values that a save would then write.
+    // Classic /sync has full state, so it is always loaded.
+    const stateLoaded = $derived(!isUsingSlidingSync() || stateFetched);
     const canEditState = $derived(myPowerLevel >= pl.state_default);
     const canEditEmojis = $derived(
         myPowerLevel >=
@@ -527,6 +549,29 @@
     let guestAccessAllowed = $state(
         untrack(() => getGuestAccess(room) === "can_join"),
     );
+    // Same re-seed as the Permissions tab (see stateLoaded): saveAccess writes
+    // any field that differs from live state, so a default seeded before the
+    // real value arrived would be written back on an unrelated save.
+    let accessSeed = untrack(() => ({
+        historyVisibility: getHistoryVisibility(room),
+        guestAccessAllowed: getGuestAccess(room) === "can_join",
+    }));
+    $effect(() => {
+        if (!stateLoaded) return;
+        untrack(() => {
+            if (
+                historyVisibility !== accessSeed.historyVisibility ||
+                guestAccessAllowed !== accessSeed.guestAccessAllowed
+            )
+                return;
+            accessSeed = {
+                historyVisibility: getHistoryVisibility(room),
+                guestAccessAllowed: getGuestAccess(room) === "can_join",
+            };
+            historyVisibility = accessSeed.historyVisibility;
+            guestAccessAllowed = accessSeed.guestAccessAllowed;
+        });
+    });
     let accessSaving = $state(false);
     let accessError = $state("");
     let accessSuccess = $state(false);
@@ -861,10 +906,10 @@
             state_default: pl.state_default,
         }),
     }));
-    // Re-seed once the real levels arrive (see plLoaded), unless the user has
+    // Re-seed once the real levels arrive (see stateLoaded), unless the user has
     // already started editing.
     $effect(() => {
-        if (!plLoaded) return;
+        if (!stateLoaded) return;
         untrack(() => {
             const fresh = {
                 ban: pl.ban,
@@ -1200,6 +1245,23 @@
 
     const tabs = $derived(roomSettingsTabs({ isSpace }));
 </script>
+
+{#snippet stateLoading()}
+    {#if stateLoadError}
+        <p class="text-sm text-discord-danger">
+            {stateLoadError}
+        </p>
+        <button
+            onclick={loadFullState}
+            class="mt-2 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
+            >{t("common.retry")}</button
+        >
+    {:else}
+        <p class="text-sm text-discord-textMuted">
+            {t("common.loading")}
+        </p>
+    {/if}
+{/snippet}
 
 <div class="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4">
     <button
@@ -1538,468 +1600,496 @@
 
                         <!-- ── Access ──────────────────────────────────────────── -->
                     {:else if activeTab === "access"}
-                        <div class="space-y-5">
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.whoCanJoin")}
-                                </p>
-                                <div class="space-y-1.5">
-                                    {#each [["invite", "Invite only - members must be invited"], ["knock", "Knock - users can request to join"], ["public", "Public - anyone can join"]] as [value, label]}
+                        {#if !stateLoaded}
+                            {@render stateLoading()}
+                        {:else}
+                            <div class="space-y-5">
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.whoCanJoin")}
+                                    </p>
+                                    <div class="space-y-1.5">
+                                        {#each [["invite", "Invite only - members must be invited"], ["knock", "Knock - users can request to join"], ["public", "Public - anyone can join"]] as [value, label]}
+                                            <label
+                                                class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                                    ? 'opacity-50 pointer-events-none'
+                                                    : ''}"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    bind:group={joinRule}
+                                                    {value}
+                                                    class="accent-discord-accent"
+                                                />
+                                                <span
+                                                    class="text-sm text-discord-textPrimary"
+                                                    >{label}</span
+                                                >
+                                            </label>
+                                        {/each}
                                         <label
-                                            class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                            class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
                                                 ? 'opacity-50 pointer-events-none'
                                                 : ''}"
                                         >
                                             <input
                                                 type="radio"
                                                 bind:group={joinRule}
-                                                {value}
+                                                value={RESTRICTED_JOIN_RULE}
+                                                disabled={!restrictedJoin.available}
                                                 class="accent-discord-accent"
                                             />
                                             <span
                                                 class="text-sm text-discord-textPrimary"
-                                                >{label}</span
+                                                >{parentSpaceNames
+                                                    ? t(
+                                                          "roomSettings.spaceMembersAnyoneInCanJoin",
+                                                          { parentSpaceNames },
+                                                      )
+                                                    : t(
+                                                          "roomSettings.spaceMembersAnyoneInTheParent",
+                                                      )}</span
                                             >
                                         </label>
-                                    {/each}
+                                        {#if restrictedJoin.reason}
+                                            <p
+                                                class="text-xs text-discord-textMuted ms-6"
+                                            >
+                                                {restrictedJoin.reason}
+                                            </p>
+                                        {/if}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.messageHistory")}
+                                    </p>
+                                    <div class="space-y-1.5">
+                                        {#each [["world_readable", "Anyone (including guests)"], ["shared", "Anyone once joined"], ["invited", "Members since invited"], ["joined", "Members since joining"]] as [value, label]}
+                                            <label
+                                                class="flex items-center gap-2.5 cursor-pointer {!canEditState
+                                                    ? 'opacity-50 pointer-events-none'
+                                                    : ''}"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    bind:group={
+                                                        historyVisibility
+                                                    }
+                                                    {value}
+                                                    class="accent-discord-accent"
+                                                />
+                                                <span
+                                                    class="text-sm text-discord-textPrimary"
+                                                    >{label}</span
+                                                >
+                                            </label>
+                                        {/each}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.guestAccess")}
+                                    </p>
                                     <label
-                                        class="flex items-center gap-2.5 cursor-pointer {!restrictedJoin.available
+                                        class="flex items-center gap-2.5 cursor-pointer {!canEditState
                                             ? 'opacity-50 pointer-events-none'
                                             : ''}"
                                     >
                                         <input
-                                            type="radio"
-                                            bind:group={joinRule}
-                                            value={RESTRICTED_JOIN_RULE}
-                                            disabled={!restrictedJoin.available}
+                                            type="checkbox"
+                                            bind:checked={guestAccessAllowed}
+                                            disabled={!canEditState}
                                             class="accent-discord-accent"
                                         />
                                         <span
                                             class="text-sm text-discord-textPrimary"
-                                            >{parentSpaceNames
+                                            >{t(
+                                                "roomSettings.allowGuestsToJoinWithoutAn",
+                                            )}</span
+                                        >
+                                    </label>
+                                    <p
+                                        class="text-xs text-discord-textMuted mt-1"
+                                    >
+                                        {t(
+                                            "roomSettings.guestsAreAnonymousAccountsTheHomeserver",
+                                        )}
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.discoverability")}
+                                    </p>
+                                    <label
+                                        class="flex items-center gap-2.5 cursor-pointer {!canEditState ||
+                                        dirSaving
+                                            ? 'opacity-50 pointer-events-none'
+                                            : ''}"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={dirVisibility === "public"}
+                                            onchange={(e) =>
+                                                toggleDirVisibility(
+                                                    e.currentTarget.checked
+                                                        ? "public"
+                                                        : "private",
+                                                )}
+                                            disabled={!canEditState ||
+                                                dirSaving ||
+                                                !dirLoaded}
+                                            class="accent-discord-accent"
+                                        />
+                                        <span
+                                            class="text-sm text-discord-textPrimary"
+                                            >{isSpace
                                                 ? t(
-                                                      "roomSettings.spaceMembersAnyoneInCanJoin",
-                                                      { parentSpaceNames },
+                                                      "roomSettings.listThisSpaceInTheServerDirectory",
                                                   )
                                                 : t(
-                                                      "roomSettings.spaceMembersAnyoneInTheParent",
+                                                      "roomSettings.listThisRoomInTheServerDirectory",
                                                   )}</span
                                         >
                                     </label>
-                                    {#if restrictedJoin.reason}
-                                        <p
-                                            class="text-xs text-discord-textMuted ms-6"
-                                        >
-                                            {restrictedJoin.reason}
-                                        </p>
-                                    {/if}
-                                </div>
-                            </div>
-
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.messageHistory")}
-                                </p>
-                                <div class="space-y-1.5">
-                                    {#each [["world_readable", "Anyone (including guests)"], ["shared", "Anyone once joined"], ["invited", "Members since invited"], ["joined", "Members since joining"]] as [value, label]}
-                                        <label
-                                            class="flex items-center gap-2.5 cursor-pointer {!canEditState
-                                                ? 'opacity-50 pointer-events-none'
-                                                : ''}"
-                                        >
-                                            <input
-                                                type="radio"
-                                                bind:group={historyVisibility}
-                                                {value}
-                                                class="accent-discord-accent"
-                                            />
-                                            <span
-                                                class="text-sm text-discord-textPrimary"
-                                                >{label}</span
-                                            >
-                                        </label>
-                                    {/each}
-                                </div>
-                            </div>
-
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.guestAccess")}
-                                </p>
-                                <label
-                                    class="flex items-center gap-2.5 cursor-pointer {!canEditState
-                                        ? 'opacity-50 pointer-events-none'
-                                        : ''}"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        bind:checked={guestAccessAllowed}
-                                        disabled={!canEditState}
-                                        class="accent-discord-accent"
-                                    />
-                                    <span
-                                        class="text-sm text-discord-textPrimary"
-                                        >{t(
-                                            "roomSettings.allowGuestsToJoinWithoutAn",
-                                        )}</span
+                                    <p
+                                        class="text-xs text-discord-textMuted mt-1"
                                     >
-                                </label>
-                                <p class="text-xs text-discord-textMuted mt-1">
-                                    {t(
-                                        "roomSettings.guestsAreAnonymousAccountsTheHomeserver",
-                                    )}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.discoverability")}
-                                </p>
-                                <label
-                                    class="flex items-center gap-2.5 cursor-pointer {!canEditState ||
-                                    dirSaving
-                                        ? 'opacity-50 pointer-events-none'
-                                        : ''}"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={dirVisibility === "public"}
-                                        onchange={(e) =>
-                                            toggleDirVisibility(
-                                                e.currentTarget.checked
-                                                    ? "public"
-                                                    : "private",
-                                            )}
-                                        disabled={!canEditState ||
-                                            dirSaving ||
-                                            !dirLoaded}
-                                        class="accent-discord-accent"
-                                    />
-                                    <span
-                                        class="text-sm text-discord-textPrimary"
-                                        >{isSpace
+                                        {isSpace
                                             ? t(
-                                                  "roomSettings.listThisSpaceInTheServerDirectory",
+                                                  "roomSettings.listsTheSpaceByIdBeingFound",
                                               )
                                             : t(
-                                                  "roomSettings.listThisRoomInTheServerDirectory",
-                                              )}</span
-                                    >
-                                </label>
-                                <p class="text-xs text-discord-textMuted mt-1">
-                                    {isSpace
-                                        ? t(
-                                              "roomSettings.listsTheSpaceByIdBeingFound",
-                                          )
-                                        : t(
-                                              "roomSettings.listsTheRoomByIdBeingFound",
-                                          )}
-                                </p>
-                                {#if dirError}<p
-                                        class="text-sm text-discord-danger mt-1"
-                                    >
-                                        {dirError}
-                                    </p>{/if}
-                            </div>
-
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.addresses")}
-                                </p>
-                                <p class="text-xs text-discord-textMuted mb-2">
-                                    {isSpace
-                                        ? t(
-                                              "roomSettings.aPublishedAddressLetsPeopleFindSpace",
-                                          )
-                                        : t(
-                                              "roomSettings.aPublishedAddressLetsPeopleFindRoom",
-                                          )}
-                                </p>
-                                {#if !aliasesLoaded}
-                                    <p class="text-xs text-discord-textMuted">
-                                        {t("roomSettings.loadingAddresses")}
+                                                  "roomSettings.listsTheRoomByIdBeingFound",
+                                              )}
                                     </p>
-                                {:else}
-                                    {#if sortedAliases.length === 0}
-                                        {#if !aliasError}
-                                            <p
-                                                class="text-xs text-discord-textMuted"
-                                            >
-                                                {t(
-                                                    "roomSettings.noAddressesYet",
-                                                )}
-                                            </p>
-                                        {/if}
-                                    {:else}
-                                        <ul class="space-y-1">
-                                            {#each sortedAliases as alias (alias)}
-                                                <li
-                                                    class="flex items-center gap-2 min-w-0"
-                                                >
-                                                    <span
-                                                        class="text-sm text-discord-textPrimary font-mono truncate"
-                                                        title={alias}
-                                                        >{alias}</span
-                                                    >
-                                                    {#if alias === canonicalAlias}
-                                                        <span
-                                                            class="shrink-0 text-[10px] uppercase tracking-wide bg-discord-accent text-white rounded px-1.5 py-0.5"
-                                                            >{t(
-                                                                "roomSettings.main",
-                                                            )}</span
-                                                        >
-                                                    {/if}
-                                                    <button
-                                                        onclick={() =>
-                                                            removeAlias(alias)}
-                                                        disabled={aliasBusy}
-                                                        aria-label={t(
-                                                            "roomSettings.remove",
-                                                            { alias },
-                                                        )}
-                                                        class="ms-auto shrink-0 text-xs text-discord-danger hover:underline disabled:opacity-50"
-                                                        >{t(
-                                                            "common.remove",
-                                                        )}</button
-                                                    >
-                                                </li>
-                                            {/each}
-                                        </ul>
-                                    {/if}
-
-                                    {#if canSetCanonicalAlias && mainAliasOptions.length > 0}
-                                        <div
-                                            class="flex items-end gap-1.5 mt-3 min-w-0"
+                                    {#if dirError}<p
+                                            class="text-sm text-discord-danger mt-1"
                                         >
-                                            <label class="flex-1 min-w-0">
-                                                <span
-                                                    class="block text-xs text-discord-textMuted mb-1"
-                                                    >{t(
-                                                        "roomSettings.mainAddress",
-                                                    )}</span
+                                            {dirError}
+                                        </p>{/if}
+                                </div>
+
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.addresses")}
+                                    </p>
+                                    <p
+                                        class="text-xs text-discord-textMuted mb-2"
+                                    >
+                                        {isSpace
+                                            ? t(
+                                                  "roomSettings.aPublishedAddressLetsPeopleFindSpace",
+                                              )
+                                            : t(
+                                                  "roomSettings.aPublishedAddressLetsPeopleFindRoom",
+                                              )}
+                                    </p>
+                                    {#if !aliasesLoaded}
+                                        <p
+                                            class="text-xs text-discord-textMuted"
+                                        >
+                                            {t("roomSettings.loadingAddresses")}
+                                        </p>
+                                    {:else}
+                                        {#if sortedAliases.length === 0}
+                                            {#if !aliasError}
+                                                <p
+                                                    class="text-xs text-discord-textMuted"
                                                 >
-                                                <select
-                                                    bind:value={mainAliasChoice}
-                                                    disabled={aliasBusy}
-                                                    class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
-                                                >
-                                                    <option value=""
-                                                        >{t(
-                                                            "roomSettings.noMainAddress",
-                                                        )}</option
+                                                    {t(
+                                                        "roomSettings.noAddressesYet",
+                                                    )}
+                                                </p>
+                                            {/if}
+                                        {:else}
+                                            <ul class="space-y-1">
+                                                {#each sortedAliases as alias (alias)}
+                                                    <li
+                                                        class="flex items-center gap-2 min-w-0"
                                                     >
-                                                    {#each mainAliasOptions as alias (alias)}
-                                                        <option value={alias}
-                                                            >{alias}</option
+                                                        <span
+                                                            class="text-sm text-discord-textPrimary font-mono truncate"
+                                                            title={alias}
+                                                            >{alias}</span
                                                         >
-                                                    {/each}
-                                                </select>
-                                            </label>
+                                                        {#if alias === canonicalAlias}
+                                                            <span
+                                                                class="shrink-0 text-[10px] uppercase tracking-wide bg-discord-accent text-white rounded px-1.5 py-0.5"
+                                                                >{t(
+                                                                    "roomSettings.main",
+                                                                )}</span
+                                                            >
+                                                        {/if}
+                                                        <button
+                                                            onclick={() =>
+                                                                removeAlias(
+                                                                    alias,
+                                                                )}
+                                                            disabled={aliasBusy}
+                                                            aria-label={t(
+                                                                "roomSettings.remove",
+                                                                { alias },
+                                                            )}
+                                                            class="ms-auto shrink-0 text-xs text-discord-danger hover:underline disabled:opacity-50"
+                                                            >{t(
+                                                                "common.remove",
+                                                            )}</button
+                                                        >
+                                                    </li>
+                                                {/each}
+                                            </ul>
+                                        {/if}
+
+                                        {#if canSetCanonicalAlias && mainAliasOptions.length > 0}
+                                            <div
+                                                class="flex items-end gap-1.5 mt-3 min-w-0"
+                                            >
+                                                <label class="flex-1 min-w-0">
+                                                    <span
+                                                        class="block text-xs text-discord-textMuted mb-1"
+                                                        >{t(
+                                                            "roomSettings.mainAddress",
+                                                        )}</span
+                                                    >
+                                                    <select
+                                                        bind:value={
+                                                            mainAliasChoice
+                                                        }
+                                                        disabled={aliasBusy}
+                                                        class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                                    >
+                                                        <option value=""
+                                                            >{t(
+                                                                "roomSettings.noMainAddress",
+                                                            )}</option
+                                                        >
+                                                        {#each mainAliasOptions as alias (alias)}
+                                                            <option
+                                                                value={alias}
+                                                                >{alias}</option
+                                                            >
+                                                        {/each}
+                                                    </select>
+                                                </label>
+                                                <button
+                                                    onclick={saveMainAlias}
+                                                    disabled={aliasBusy ||
+                                                        !mainAliasDirty}
+                                                    class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                                    >{t(
+                                                        "roomSettings.set",
+                                                    )}</button
+                                                >
+                                            </div>
+                                        {/if}
+
+                                        <div
+                                            class="flex items-center gap-1.5 mt-3"
+                                        >
+                                            <span
+                                                class="text-sm text-discord-textMuted shrink-0"
+                                                >#</span
+                                            >
+                                            <input
+                                                type="text"
+                                                bind:value={newAliasLocalpart}
+                                                placeholder={t(
+                                                    "roomSettings.myRoom",
+                                                )}
+                                                disabled={addAliasBusy}
+                                                onkeydown={(e) => {
+                                                    if (
+                                                        e.key === "Enter" &&
+                                                        !e.shiftKey &&
+                                                        !e.ctrlKey &&
+                                                        !e.altKey &&
+                                                        !e.metaKey
+                                                    ) {
+                                                        e.preventDefault();
+                                                        addAlias();
+                                                    }
+                                                }}
+                                                class="flex-1 min-w-0 px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                            />
+                                            <span
+                                                class="text-sm text-discord-textMuted shrink-0 max-w-[40%] truncate"
+                                                title={ownServer}
+                                                >:{ownServer}</span
+                                            >
                                             <button
-                                                onclick={saveMainAlias}
-                                                disabled={aliasBusy ||
-                                                    !mainAliasDirty}
+                                                onclick={addAlias}
+                                                disabled={addAliasBusy ||
+                                                    !ownServer ||
+                                                    !newAliasCheck.valid}
                                                 class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                                                >{t("roomSettings.set")}</button
+                                                >{t("common.add")}</button
                                             >
                                         </div>
+                                        {#if newAliasLocalpart.trim() && newAliasCheck.reason}
+                                            <p
+                                                class="text-xs text-discord-danger mt-1"
+                                            >
+                                                {newAliasCheck.reason}
+                                            </p>
+                                        {/if}
                                     {/if}
+                                    {#if aliasError}<p
+                                            class="text-sm text-discord-danger mt-1"
+                                        >
+                                            {aliasError}
+                                        </p>{/if}
+                                </div>
 
-                                    <div class="flex items-center gap-1.5 mt-3">
-                                        <span
-                                            class="text-sm text-discord-textMuted shrink-0"
-                                            >#</span
-                                        >
-                                        <input
-                                            type="text"
-                                            bind:value={newAliasLocalpart}
-                                            placeholder={t(
-                                                "roomSettings.myRoom",
-                                            )}
-                                            disabled={addAliasBusy}
-                                            onkeydown={(e) => {
-                                                if (
-                                                    e.key === "Enter" &&
-                                                    !e.shiftKey &&
-                                                    !e.ctrlKey &&
-                                                    !e.altKey &&
-                                                    !e.metaKey
-                                                ) {
-                                                    e.preventDefault();
-                                                    addAlias();
-                                                }
-                                            }}
-                                            class="flex-1 min-w-0 px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
-                                        />
-                                        <span
-                                            class="text-sm text-discord-textMuted shrink-0 max-w-[40%] truncate"
-                                            title={ownServer}>:{ownServer}</span
-                                        >
-                                        <button
-                                            onclick={addAlias}
-                                            disabled={addAliasBusy ||
-                                                !ownServer ||
-                                                !newAliasCheck.valid}
-                                            class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
-                                            >{t("common.add")}</button
-                                        >
-                                    </div>
-                                    {#if newAliasLocalpart.trim() && newAliasCheck.reason}
-                                        <p
-                                            class="text-xs text-discord-danger mt-1"
-                                        >
-                                            {newAliasCheck.reason}
-                                        </p>
-                                    {/if}
-                                {/if}
-                                {#if aliasError}<p
-                                        class="text-sm text-discord-danger mt-1"
+                                {#if accessError}<p
+                                        class="text-sm text-discord-danger"
                                     >
-                                        {aliasError}
+                                        {accessError}
                                     </p>{/if}
-                            </div>
+                                {#if canEditState}
+                                    <button
+                                        onclick={saveAccess}
+                                        disabled={accessSaving}
+                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >{accessSaving
+                                            ? t("common.saving")
+                                            : accessSuccess
+                                              ? t("roomSettings.saved")
+                                              : t(
+                                                    "roomSettings.saveChanges",
+                                                )}</button
+                                    >
+                                {/if}
 
-                            {#if accessError}<p
-                                    class="text-sm text-discord-danger"
-                                >
-                                    {accessError}
-                                </p>{/if}
-                            {#if canEditState}
-                                <button
-                                    onclick={saveAccess}
-                                    disabled={accessSaving}
-                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                    >{accessSaving
-                                        ? t("common.saving")
-                                        : accessSuccess
-                                          ? t("roomSettings.saved")
-                                          : t(
-                                                "roomSettings.saveChanges",
-                                            )}</button
-                                >
-                            {/if}
-
-                            <div>
-                                <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
-                                >
-                                    {t("roomSettings.serverAccessControl")}
-                                </p>
-                                <p class="text-xs text-discord-textMuted mb-3">
-                                    {t(
-                                        "roomSettings.controlWhichHomeserversMayParticipateIn",
-                                    )} <code>*</code>
-                                    {t("roomSettings.matchesAnyCharacters")}
-                                    <code>?</code>
-                                    {t(
-                                        "roomSettings.matchesOneDeniedServersAreRemoved",
-                                    )}
-                                </p>
-
-                                {#if !aclPresent}
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.serverAccessControl")}
+                                    </p>
                                     <p
                                         class="text-xs text-discord-textMuted mb-3"
                                     >
-                                        {t("roomSettings.noServerAclIsSetAll")}
-                                    </p>
-                                {/if}
-
-                                <label
-                                    for="acl-allow"
-                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
-                                    >{t(
-                                        "roomSettings.allowedServersOnePerLine",
-                                    )}</label
-                                >
-                                <textarea
-                                    id="acl-allow"
-                                    bind:value={aclAllowText}
-                                    rows="3"
-                                    disabled={!canEditServerAcl}
-                                    placeholder="*"
-                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
-                                ></textarea>
-
-                                <label
-                                    for="acl-deny"
-                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 mt-3"
-                                    >{t(
-                                        "roomSettings.deniedServersOnePerLine",
-                                    )}</label
-                                >
-                                <textarea
-                                    id="acl-deny"
-                                    bind:value={aclDenyText}
-                                    rows="3"
-                                    disabled={!canEditServerAcl}
-                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
-                                ></textarea>
-
-                                <label
-                                    class="flex items-center gap-2 mt-3 text-sm text-discord-textPrimary"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        bind:checked={aclAllowIp}
-                                        disabled={!canEditServerAcl}
-                                        class="accent-discord-accent"
-                                    />
-                                    {t(
-                                        "roomSettings.allowServersIdentifiedByARaw",
-                                    )}
-                                </label>
-
-                                {#if aclWarnings.length > 0}
-                                    <div class="mt-3 space-y-1">
-                                        {#each aclWarnings as w}
-                                            <p
-                                                class="text-sm text-discord-danger"
-                                            >
-                                                ⚠ {w}
-                                            </p>
-                                        {/each}
-                                    </div>
-                                {/if}
-                                {#if aclError}<p
-                                        class="text-sm text-discord-danger mt-2"
-                                    >
-                                        {aclError}
-                                    </p>{/if}
-
-                                {#if canEditServerAcl}
-                                    <button
-                                        onclick={saveServerAcl}
-                                        disabled={aclSaving}
-                                        class="mt-3 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                        >{aclSaving
-                                            ? t("common.saving")
-                                            : aclSuccess
-                                              ? t("roomSettings.saved")
-                                              : t(
-                                                    "roomSettings.saveServerAcl",
-                                                )}</button
-                                    >
-                                {:else}
-                                    <p
-                                        class="text-xs text-discord-textMuted mt-2"
-                                    >
                                         {t(
-                                            "roomSettings.youDoNotHavePermissionTo",
+                                            "roomSettings.controlWhichHomeserversMayParticipateIn",
+                                        )} <code>*</code>
+                                        {t("roomSettings.matchesAnyCharacters")}
+                                        <code>?</code>
+                                        {t(
+                                            "roomSettings.matchesOneDeniedServersAreRemoved",
                                         )}
                                     </p>
-                                {/if}
+
+                                    {#if !aclPresent}
+                                        <p
+                                            class="text-xs text-discord-textMuted mb-3"
+                                        >
+                                            {t(
+                                                "roomSettings.noServerAclIsSetAll",
+                                            )}
+                                        </p>
+                                    {/if}
+
+                                    <label
+                                        for="acl-allow"
+                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                                        >{t(
+                                            "roomSettings.allowedServersOnePerLine",
+                                        )}</label
+                                    >
+                                    <textarea
+                                        id="acl-allow"
+                                        bind:value={aclAllowText}
+                                        rows="3"
+                                        disabled={!canEditServerAcl}
+                                        placeholder="*"
+                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                    ></textarea>
+
+                                    <label
+                                        for="acl-deny"
+                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 mt-3"
+                                        >{t(
+                                            "roomSettings.deniedServersOnePerLine",
+                                        )}</label
+                                    >
+                                    <textarea
+                                        id="acl-deny"
+                                        bind:value={aclDenyText}
+                                        rows="3"
+                                        disabled={!canEditServerAcl}
+                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                    ></textarea>
+
+                                    <label
+                                        class="flex items-center gap-2 mt-3 text-sm text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            bind:checked={aclAllowIp}
+                                            disabled={!canEditServerAcl}
+                                            class="accent-discord-accent"
+                                        />
+                                        {t(
+                                            "roomSettings.allowServersIdentifiedByARaw",
+                                        )}
+                                    </label>
+
+                                    {#if aclWarnings.length > 0}
+                                        <div class="mt-3 space-y-1">
+                                            {#each aclWarnings as w}
+                                                <p
+                                                    class="text-sm text-discord-danger"
+                                                >
+                                                    ⚠ {w}
+                                                </p>
+                                            {/each}
+                                        </div>
+                                    {/if}
+                                    {#if aclError}<p
+                                            class="text-sm text-discord-danger mt-2"
+                                        >
+                                            {aclError}
+                                        </p>{/if}
+
+                                    {#if canEditServerAcl}
+                                        <button
+                                            onclick={saveServerAcl}
+                                            disabled={aclSaving}
+                                            class="mt-3 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                            >{aclSaving
+                                                ? t("common.saving")
+                                                : aclSuccess
+                                                  ? t("roomSettings.saved")
+                                                  : t(
+                                                        "roomSettings.saveServerAcl",
+                                                    )}</button
+                                        >
+                                    {:else}
+                                        <p
+                                            class="text-xs text-discord-textMuted mt-2"
+                                        >
+                                            {t(
+                                                "roomSettings.youDoNotHavePermissionTo",
+                                            )}
+                                        </p>
+                                    {/if}
+                                </div>
                             </div>
-                        </div>
+                        {/if}
 
                         <!-- ── Notifications ───────────────────────────────── -->
                     {:else if activeTab === "notifications"}
@@ -2173,10 +2263,8 @@
                                     "roomSettings.powerLevelRequiredForEachAction",
                                 )}
                             </p>
-                            {#if !plLoaded}
-                                <p class="text-sm text-discord-textMuted">
-                                    {t("common.loading")}
-                                </p>
+                            {#if !stateLoaded}
+                                {@render stateLoading()}
                             {:else}
                                 {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
                                     {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}

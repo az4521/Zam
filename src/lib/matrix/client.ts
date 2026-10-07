@@ -1396,7 +1396,14 @@ async function buildSlidingSync(
                 sort: ["by_name"],
                 filters: { room_types: ["m.space"] },
                 timeline_limit: 0,
-                required_state: [...SLIDING_LIST_STATE, ["m.space.child", "*"]],
+                // Power levels too: a space is never the viewed room, so it
+                // would otherwise never get them, and the space header's
+                // settings / add-room gates read them.
+                required_state: [
+                    ...SLIDING_LIST_STATE,
+                    ["m.space.child", "*"],
+                    ["m.room.power_levels", ""],
+                ],
             },
         ],
         [
@@ -8680,6 +8687,54 @@ export async function unpinMessage(room: Room, eventId: string): Promise<void> {
 export function hasPowerLevelsEvent(room: Room): boolean {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     return !!state?.getStateEvents("m.room.power_levels", "");
+}
+
+const roomStateFetches = new Map<string, Promise<void>>();
+// Rooms whose /state has been merged in this session (see ensureRoomFullState).
+const roomStateFetched = new Set<string>();
+
+/**
+ * Make sure a room's full state (power levels, history visibility, ACL...) is
+ * in local state, for screens like room settings that read it. Classic /sync
+ * already has it. Under sliding sync only the viewed room's subscription asks
+ * for it, and some servers (continuwuity) never send state a room was missing
+ * when the subscription widens later, so a held subscription alone left room
+ * settings on Loading forever. Fetches /state once and adds only the events
+ * missing locally, so nothing newer from sync is rolled back. Once per room
+ * per session: after that the held subscription keeps the state current.
+ * Not keyed on any one event being present: spaces get power levels from
+ * their list but still lack history visibility, guest access and the ACL.
+ * Rejects on a failed fetch so the caller can say so.
+ */
+export function ensureRoomFullState(room: Room): Promise<void> {
+    if (
+        !matrixClient ||
+        !activeSlidingSync ||
+        roomStateFetched.has(room.roomId)
+    )
+        return Promise.resolve();
+    const pending = roomStateFetches.get(room.roomId);
+    if (pending) return pending;
+    const client = matrixClient;
+    const fetch = (async () => {
+        const raw = await client.roomState(room.roomId);
+        const mapper = client.getEventMapper();
+        const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+        const missing = raw
+            .filter(
+                (e) =>
+                    e.type !== "m.room.member" &&
+                    !state?.getStateEvents(e.type, e.state_key ?? ""),
+            )
+            .map((e) => mapper(e as never));
+        if (missing.length > 0) {
+            room.oldState.setStateEvents(missing);
+            room.currentState.setStateEvents(missing);
+        }
+        roomStateFetched.add(room.roomId);
+    })().finally(() => roomStateFetches.delete(room.roomId));
+    roomStateFetches.set(room.roomId, fetch);
+    return fetch;
 }
 
 /**
