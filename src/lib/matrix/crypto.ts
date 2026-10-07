@@ -57,6 +57,7 @@ import {
 } from "$lib/utils/roomEncryption";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { getCryptoDbName, getCryptoLockName } from "$lib/utils/cryptoStore";
+import { createAsyncWorkTracker } from "$lib/utils/asyncWorkTracker";
 import {
     cryptoDbNames,
     readPendingWipes,
@@ -111,6 +112,41 @@ const RUST_CRYPTO_CLIENT_EVENTS = [
     RoomStateEvent.Events,
     ClientEvent.Event,
 ] as const;
+// Every call into the crypto engine (OlmMachine) still running, whoever made
+// it: the SDK hands the machine to several internal helpers, so its class is
+// wrapped rather than one reference. Closing the machine stops new calls but
+// not ones already inside it, and those still write to the store; letting go
+// of the store's lock before they finish would let the push decryptor write
+// underneath them (see waitForCryptoEngineIdle).
+const engineWork = createAsyncWorkTracker();
+let engineWorkTracked = false;
+
+async function trackEngineWork(): Promise<void> {
+    if (engineWorkTracked) return;
+    try {
+        // The same module instance matrix-js-sdk loads (it's deduplicated),
+        // fetched lazily as the SDK does, so it stays out of the main bundle.
+        const { OlmMachine } =
+            await import("@matrix-org/matrix-sdk-crypto-wasm");
+        engineWork.track(OlmMachine.prototype, ["free", "close"]);
+        engineWorkTracked = true;
+    } catch (err) {
+        console.warn("[matrix] can't track crypto engine work", err);
+    }
+}
+
+/**
+ * Wait until every call already running inside the crypto engine has
+ * finished. True once idle; false if that took longer than `timeoutMs`, or
+ * the engine's work can't be tracked here (then nothing can be promised).
+ */
+export async function waitForCryptoEngineIdle(
+    timeoutMs: number,
+): Promise<boolean> {
+    if (!engineWorkTracked) return false;
+    return engineWork.waitForIdle(timeoutMs);
+}
+
 // Those handlers, as added by the last initRustCrypto on `engineClient`.
 let engineHandlers: [string, (...args: unknown[]) => void][] = [];
 let engineClient: MatrixClient | null = null;
@@ -234,6 +270,9 @@ export function releaseCryptoStoreLocks(): void {
     heldCryptoStoreLocks.clear();
 }
 
+/** How long a release or restart waits for the crypto engine to go idle. */
+export const ENGINE_IDLE_TIMEOUT_MS = 15_000;
+
 /**
  * Start a fresh crypto engine on a client whose engine was stopped (by
  * stopClient) to free the store in the background (backgroundRelease.ts).
@@ -247,6 +286,11 @@ export async function restartCrypto(
     userId: string,
     deviceId: string,
 ): Promise<boolean> {
+    // The old engine may still be finishing calls it took before it closed
+    // (if it was never released, nobody waited for them). A new engine must
+    // not open the store underneath them; the caller reloads instead, which
+    // ends them for certain.
+    if (!(await waitForCryptoEngineIdle(ENGINE_IDLE_TIMEOUT_MS))) return false;
     if (engineClient === client) {
         for (const [event, handler] of engineHandlers)
             client.off(event as never, handler as never);
@@ -295,6 +339,7 @@ export async function initCrypto(
                 "crypto store is still held by a push-notification decrypt",
             );
         }
+        await trackEngineWork();
         const emitter = client as unknown as {
             listeners?(event: string): ((...args: unknown[]) => void)[];
         };

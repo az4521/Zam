@@ -335,8 +335,10 @@ Decrypting an Android push: the running page is asked first (`PushDecryptPlugin`
 Web Lock. **The page's JavaScript does not run while the app is in the background**: the WebView
 holds a push's request until the activity resumes, even when Android thaws the renderer for the
 push. So `backgroundRelease.ts` has the page let go after 10s hidden (unless a call, upload, outbox
-send, live location share or voice recording is running): it stops the client and releases the
-lock, and the hidden decryptor handles every push. Coming back restarts crypto in place
+send, live location share or voice recording is running): it stops the client and, once every
+call already running inside the crypto engine has finished (`waitForCryptoEngineIdle`, which counts
+them by wrapping `OlmMachine`'s methods), releases the lock, and the hidden decryptor handles every
+push. Coming back restarts crypto in place
 (`restartCrypto` clears the SDK's stopped engine and the client handlers bound to it, then
 `initCrypto` again, waiting for the lock) and sync through the root page's `restartSync`. If that
 fails the app reloads, with drafts carried across in sessionStorage. Logcat tag `PushDecrypt`

@@ -334,6 +334,8 @@ import {
     ensureRoomCryptoConfigured,
     releaseCryptoStoreLocks,
     restartCrypto,
+    waitForCryptoEngineIdle,
+    ENGINE_IDLE_TIMEOUT_MS,
 } from "$lib/matrix/crypto";
 import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
@@ -1199,23 +1201,33 @@ export function hasSendsInFlight(): boolean {
 }
 
 /**
- * Stop the client for good and let go of the crypto store, so the hidden push
- * decryptor can open it while Android has this page frozen in the background
- * (backgroundRelease.ts). The page must reload before it is used again.
+ * Stop the client and let go of the crypto store, so the hidden push
+ * decryptor can open it while this page can't run in the background
+ * (backgroundRelease.ts). restartAfterBackgroundRelease brings it back.
+ *
+ * The lock is only released once every call the engine had already taken
+ * has finished: they keep writing to the store after the engine is closed.
+ * False when that didn't happen in time; the store is then kept (pushes fall
+ * back to generic text) rather than shared.
  */
-export async function releaseClientForBackground(): Promise<void> {
-    if (backgroundReleased) return;
+export async function releaseClientForBackground(): Promise<boolean> {
+    if (backgroundReleased) return false;
     backgroundReleased = true;
     const client = matrixClient;
     if (client) {
-        logSync("released in the background");
-        // Also closes the OlmMachine (RustCrypto.stop).
+        // Stops sync and closes the OlmMachine (RustCrypto.stop): no new
+        // engine work from here on.
         client.stopClient();
-        // Let store writes the machine started finish before another
-        // OlmMachine may open the same store.
-        await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!(await waitForCryptoEngineIdle(ENGINE_IDLE_TIMEOUT_MS))) {
+        logSync(
+            "background release: crypto engine still busy, keeping the store",
+        );
+        return false;
     }
     releaseCryptoStoreLocks();
+    logSync("released in the background");
+    return true;
 }
 
 function kickSync(client: MatrixClient): void {

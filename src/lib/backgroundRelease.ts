@@ -11,8 +11,8 @@
 //
 // So once the app has been hidden for RELEASE_AFTER_HIDDEN_MS, the page tells
 // the push service not to ask it, stops its client (closing its OlmMachine)
-// and releases the store's lock: every push is then decrypted by the hidden
-// decryptor. Coming back restarts crypto and sync in place (the lock is
+// and, once the engine has finished the calls it had already taken, releases
+// the store's lock: every push is then decrypted by the hidden decryptor. Coming back restarts crypto and sync in place (the lock is
 // waited for if a push decrypt holds it). If that fails the app reloads, as
 // an account switch does, with drafts carried across. Skipped while anything
 // a reload would cut off is running (see releaseBlocker).
