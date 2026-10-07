@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.5
+
+🐛 **Fixed**
+
+- **Thread unread dot clears once you've read it:** on servers using sliding sync, the threads button kept showing unread messages after you'd read them, until you reloaded. Opening the thread (or reading it on another device) now clears it.
+
 ## v1.15.4
 
 🐛 **Fixed**
