@@ -12,6 +12,9 @@
         getRoomPowerLevels,
         setRoomPowerLevels,
         setUserPowerLevel,
+        hasPowerLevelsEvent,
+        holdSlidingSyncRoom,
+        isUsingSlidingSync,
         inviteUser,
         kickUser,
         banUser,
@@ -311,6 +314,16 @@
         (void roomsState.roomsTick, getMyPowerLevel(room)),
     );
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
+    // Sliding sync only gives the viewed room full state; the room list (and
+    // so a space, which is never "viewed") lacks power levels and members.
+    // Hold the room while its settings are open so they arrive.
+    $effect(() => holdSlidingSyncRoom(room.roomId));
+    // Until they do, `pl` is the all-zero no-event fallback: show loading
+    // rather than zeros. Classic /sync has full state, so absent = none.
+    const plLoaded = $derived(
+        (void roomsState.roomsTick,
+        !isUsingSlidingSync() || hasPowerLevelsEvent(room)),
+    );
     const canEditState = $derived(myPowerLevel >= pl.state_default);
     const canEditEmojis = $derived(
         myPowerLevel >=
@@ -835,7 +848,7 @@
     // tell whether the user actually changed anything. Without this guard,
     // saving in a room that has NO m.room.power_levels event would materialize a
     // full PL event out of the defaults even on a no-op save.
-    const permInitial = untrack(() => ({
+    let permInitial = untrack(() => ({
         ban: pl.ban,
         kick: pl.kick,
         redact: pl.redact,
@@ -848,6 +861,45 @@
             state_default: pl.state_default,
         }),
     }));
+    // Re-seed once the real levels arrive (see plLoaded), unless the user has
+    // already started editing.
+    $effect(() => {
+        if (!plLoaded) return;
+        untrack(() => {
+            const fresh = {
+                ban: pl.ban,
+                kick: pl.kick,
+                redact: pl.redact,
+                invite: pl.invite,
+                events_default: pl.events_default,
+                state_default: pl.state_default,
+                users_default: pl.users_default,
+                callJoin: effectiveCallJoinLevel({
+                    events: pl.events,
+                    state_default: pl.state_default,
+                }),
+            };
+            const untouched =
+                plBan === permInitial.ban &&
+                plKick === permInitial.kick &&
+                plRedact === permInitial.redact &&
+                plInvite === permInitial.invite &&
+                plEventsDefault === permInitial.events_default &&
+                plStateDefault === permInitial.state_default &&
+                plUsersDefault === permInitial.users_default &&
+                plCallJoin === permInitial.callJoin;
+            if (!untouched) return;
+            permInitial = fresh;
+            plBan = fresh.ban;
+            plKick = fresh.kick;
+            plRedact = fresh.redact;
+            plInvite = fresh.invite;
+            plEventsDefault = fresh.events_default;
+            plStateDefault = fresh.state_default;
+            plUsersDefault = fresh.users_default;
+            plCallJoin = fresh.callJoin;
+        });
+    });
     let permSaving = $state(false);
     let permError = $state("");
     let permSuccess = $state(false);
@@ -2121,9 +2173,14 @@
                                     "roomSettings.powerLevelRequiredForEachAction",
                                 )}
                             </p>
-                            {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
-                                {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}
-                                {@const setters: Record<string, (v: number) => void> = {
+                            {#if !plLoaded}
+                                <p class="text-sm text-discord-textMuted">
+                                    {t("common.loading")}
+                                </p>
+                            {:else}
+                                {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
+                                    {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}
+                                    {@const setters: Record<string, (v: number) => void> = {
 								plEventsDefault: (v) => plEventsDefault = v,
 								plStateDefault: (v) => plStateDefault = v,
 								plUsersDefault: (v) => plUsersDefault = v,
@@ -2132,88 +2189,91 @@
 								plBan: (v) => plBan = v,
 								plRedact: (v) => plRedact = v,
 							}}
+                                    <div
+                                        class="flex items-center justify-between gap-4"
+                                    >
+                                        <span
+                                            class="text-sm text-discord-textPrimary"
+                                            >{label}</span
+                                        >
+                                        <div class="flex items-center gap-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={bindings[key]}
+                                                oninput={(e) =>
+                                                    setters[key](
+                                                        Number(
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value,
+                                                        ),
+                                                    )}
+                                                disabled={!canEditState}
+                                                class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
+                                            />
+                                            <span
+                                                class="text-xs text-discord-textMuted w-16"
+                                                >{plLabel(bindings[key])}</span
+                                            >
+                                        </div>
+                                    </div>
+                                {/each}
+
+                                <!-- Call-join lives in the events map (3 call-member
+                            types), not a top-level PL field, so it sits outside
+                            the scalar loop above and binds to plCallJoin. -->
                                 <div
                                     class="flex items-center justify-between gap-4"
                                 >
                                     <span
                                         class="text-sm text-discord-textPrimary"
-                                        >{label}</span
+                                        >{t(
+                                            "roomSettings.joinCallsVoiceVideo",
+                                        )}</span
                                     >
                                     <div class="flex items-center gap-2">
                                         <input
                                             type="number"
                                             min="0"
                                             max="100"
-                                            value={bindings[key]}
+                                            value={plCallJoin}
                                             oninput={(e) =>
-                                                setters[key](
-                                                    Number(
-                                                        (
-                                                            e.target as HTMLInputElement
-                                                        ).value,
-                                                    ),
-                                                )}
+                                                (plCallJoin = Number(
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).value,
+                                                ))}
                                             disabled={!canEditState}
                                             class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
                                         />
                                         <span
                                             class="text-xs text-discord-textMuted w-16"
-                                            >{plLabel(bindings[key])}</span
+                                            >{plLabel(plCallJoin)}</span
                                         >
                                     </div>
                                 </div>
-                            {/each}
 
-                            <!-- Call-join lives in the events map (3 call-member
-                            types), not a top-level PL field, so it sits outside
-                            the scalar loop above and binds to plCallJoin. -->
-                            <div
-                                class="flex items-center justify-between gap-4"
-                            >
-                                <span class="text-sm text-discord-textPrimary"
-                                    >{t(
-                                        "roomSettings.joinCallsVoiceVideo",
-                                    )}</span
-                                >
-                                <div class="flex items-center gap-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={plCallJoin}
-                                        oninput={(e) =>
-                                            (plCallJoin = Number(
-                                                (e.target as HTMLInputElement)
-                                                    .value,
-                                            ))}
-                                        disabled={!canEditState}
-                                        class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
-                                    />
-                                    <span
-                                        class="text-xs text-discord-textMuted w-16"
-                                        >{plLabel(plCallJoin)}</span
+                                {#if permError}<p
+                                        class="text-sm text-discord-danger"
                                     >
-                                </div>
-                            </div>
-
-                            {#if permError}<p
-                                    class="text-sm text-discord-danger"
-                                >
-                                    {permError}
-                                </p>{/if}
-                            {#if canEditState}
-                                <button
-                                    onclick={savePermissions}
-                                    disabled={permSaving}
-                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
-                                    >{permSaving
-                                        ? t("common.saving")
-                                        : permSuccess
-                                          ? t("roomSettings.saved")
-                                          : t(
-                                                "roomSettings.saveChanges",
-                                            )}</button
-                                >
+                                        {permError}
+                                    </p>{/if}
+                                {#if canEditState}
+                                    <button
+                                        onclick={savePermissions}
+                                        disabled={permSaving}
+                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >{permSaving
+                                            ? t("common.saving")
+                                            : permSuccess
+                                              ? t("roomSettings.saved")
+                                              : t(
+                                                    "roomSettings.saveChanges",
+                                                )}</button
+                                    >
+                                {/if}
                             {/if}
                         </div>
 

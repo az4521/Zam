@@ -8674,14 +8674,46 @@ export async function unpinMessage(room: Room, eventId: string): Promise<void> {
     );
 }
 
+/** Whether the room's m.room.power_levels event is in local state. Under
+ *  sliding sync it often isn't: the room-list state leaves it out, and only
+ *  the viewed (or held) room gets full state. */
+export function hasPowerLevelsEvent(room: Room): boolean {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    return !!state?.getStateEvents("m.room.power_levels", "");
+}
+
+/**
+ * The current m.room.power_levels content to read-modify-write. Local state
+ * when present; otherwise fetched from the server, because a write merged
+ * onto a missing event drops the whole `users` map (everyone back to the
+ * default level). Only a 404 means the room genuinely has none.
+ */
+async function currentPowerLevelsContent(
+    room: Room,
+): Promise<Record<string, any>> {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    const local = state?.getStateEvents("m.room.power_levels", "");
+    if (local) return local.getContent();
+    try {
+        return (
+            ((await matrixClient!.getStateEvent(
+                room.roomId,
+                "m.room.power_levels",
+                "",
+            )) as Record<string, any>) ?? {}
+        );
+    } catch (e: any) {
+        if (e?.errcode === "M_NOT_FOUND" || e?.httpStatus === 404) return {};
+        throw e;
+    }
+}
+
 export async function setRoomPowerLevels(
     room: Room,
     updated: Partial<PowerLevels>,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-    const current =
-        state?.getStateEvents("m.room.power_levels", "")?.getContent() ?? {};
+    const current = await currentPowerLevelsContent(room);
     const content = { ...current, ...updated };
     // Shape-check before writing so a malformed level surfaces as a clear error
     // instead of a cryptic server 400 (audit SEC-L12).
@@ -8734,8 +8766,11 @@ export async function setUserPowerLevel(
     ) {
         throw new Error(t("client.roomCreatorsPowerLevelCannotBe"));
     }
-    const pl = getRoomPowerLevels(room);
-    await setRoomPowerLevels(room, { users: { ...pl.users, [userId]: level } });
+    // The users map from the same source setRoomPowerLevels merges onto, not
+    // getRoomPowerLevels: with no local event that is just the creator.
+    const current = await currentPowerLevelsContent(room);
+    const users = (current.users ?? {}) as Record<string, number>;
+    await setRoomPowerLevels(room, { users: { ...users, [userId]: level } });
 }
 
 export async function kickUser(
