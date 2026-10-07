@@ -1257,6 +1257,26 @@ function kickSync(client: MatrixClient): void {
     // retry after it so there is a keep-alive to hurry along.
     setTimeout(() => client.retryImmediately(), 0);
 }
+/**
+ * The SDK ignores data for a room it doesn't have yet unless the server marks
+ * it `initial`, and tuwunel can send a brand-new room without that flag: any
+ * subscription or range change aborts the in-flight request (SlidingSync.
+ * resend), and when that response already carried the room, the retry from
+ * the old pos rolls the room back to that pos rather than to "never sent", so
+ * it comes again as a plain update and was dropped. That is what kept a room
+ * you just joined (opening it right away changes the subscriptions) out of
+ * the sidebar until a later sync or a restart. Treat it as initial so the SDK
+ * creates it. Leaves and bans are skipped: the SDK would mark them joined.
+ * Mutates `roomData` in place; this listener runs before the SDK's.
+ */
+function adoptUnknownRoom(roomId: string, roomData: MSC3575RoomData): void {
+    if (roomData.initial) return;
+    const membership = (roomData as { membership?: string }).membership;
+    if (membership === "leave" || membership === "ban") return;
+    roomData.initial = true;
+    logSync(`adopted ${roomId}: sent without initial for a room we lacked`);
+}
+
 let slidingActiveRoomId: string | null = null;
 /**
  * Rooms held at full timeline depth regardless of what is on screen, with a
@@ -1472,7 +1492,10 @@ async function buildSlidingSync(
         (roomId: string, roomData: MSC3575RoomData) => {
             try {
                 const room = client.getRoom(roomId);
-                if (!room) return;
+                if (!room) {
+                    adoptUnknownRoom(roomId, roomData);
+                    return;
+                }
                 const gap = isSlidingTimelineGap(
                     {
                         limited: roomData.limited,
@@ -8696,10 +8719,11 @@ const roomStateFetched = new Set<string>();
 /**
  * Make sure a room's full state (power levels, history visibility, ACL...) is
  * in local state, for screens like room settings that read it. Classic /sync
- * already has it. Under sliding sync only the viewed room's subscription asks
- * for it, and some servers (continuwuity) never send state a room was missing
- * when the subscription widens later, so a held subscription alone left room
- * settings on Loading forever. Fetches /state once and adds only the events
+ * already has it. Under sliding sync only a subscribed room gets it, and a
+ * held subscription alone left room settings on Loading forever in 1.15.7
+ * (cause not pinned down: tuwunel's v5 code resends a room in full when its
+ * subscription config changes). A direct fetch doesn't depend on any of that.
+ * Fetches /state once and adds only the events
  * missing locally, so nothing newer from sync is rolled back. Once per room
  * per session: after that the held subscription keeps the state current.
  * Not keyed on any one event being present: spaces get power levels from
