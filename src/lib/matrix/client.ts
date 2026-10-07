@@ -3088,6 +3088,50 @@ export function onThreadsUpdated(room: Room, callback: () => void): () => void {
     };
 }
 
+/**
+ * Fires when any room's thread summaries may have moved, so timeline "N
+ * replies" chips (read off roomsTick) can re-derive. A new Thread settles its
+ * reply count asynchronously (Thread.updateThreadMetadata) and signals only
+ * ThreadEvent.Update, AFTER the sync that delivered the reply has already
+ * bumped roomsTick; without this the chip stayed at zero until the next sync.
+ * ThreadEvent.* is re-emitted on the Room but not the client (see
+ * onThreadEvent), so bind every room, plus rooms that appear later.
+ * Coalesced to one callback per microtask: Update fires on every echo.
+ */
+export function onThreadSummaryChange(callback: () => void): () => void {
+    const client = matrixClient;
+    if (!client) return () => {};
+    let queued = false;
+    const handler = () => {
+        if (queued) return;
+        queued = true;
+        queueMicrotask(() => {
+            queued = false;
+            callback();
+        });
+    };
+    const events = [
+        ThreadEvent.New,
+        ThreadEvent.Update,
+        ThreadEvent.NewReply,
+        ThreadEvent.Delete,
+    ] as const;
+    const bound = new Set<Room>();
+    const bind = (room: Room) => {
+        if (bound.has(room)) return;
+        bound.add(room);
+        for (const ev of events) room.on(ev, handler);
+    };
+    client.getRooms().forEach(bind);
+    client.on(ClientEvent.Room, bind);
+    return () => {
+        client.off(ClientEvent.Room, bind);
+        for (const room of bound)
+            for (const ev of events) room.off(ev, handler);
+        bound.clear();
+    };
+}
+
 /** Per-thread unread notification count (default: total, use Highlight for mentions). */
 export function getThreadUnread(
     room: Room,

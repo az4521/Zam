@@ -161,6 +161,7 @@
         onRoomUpdate,
         onAccountData,
         onThreadNameChange,
+        onThreadSummaryChange,
         onTimelineEvent,
         onAnyReceiptEvent,
         getClient,
@@ -2169,6 +2170,10 @@
         const unsubBackgroundRelease = initBackgroundRelease();
         const unsubVerification = initVerification();
         const unsubPlugins = initPlugins();
+        // Reply-count chips: a new thread settles its count after the sync.
+        const unsubThreadSummaries = onThreadSummaryChange(
+            () => roomsState.roomsTick++,
+        );
         // Thread names are room state; anything showing one reads roomsTick.
         const unsubThreadNames = onThreadNameChange(
             () => roomsState.roomsTick++,
@@ -2274,6 +2279,7 @@
             unsubPlugins();
             unsubAccountData();
             unsubThreadNames();
+            unsubThreadSummaries();
             unsubUpdateWatch();
             mq.removeEventListener("change", onMqChange);
             pq.removeEventListener("change", onPqHqChange);
