@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.2
+
+🐛 **Fixed**
+
+- **Safer handover of encryption keys in the background (Android):** when Zam hands its keys over to the notification decryptor, it now waits until it has completely finished with them first, instead of a fixed half second. This closes a rare case where the two could both be writing at once.
+
 ## v1.15.1
 
 🐛 **Fixed**
