@@ -162,6 +162,7 @@
         onAccountData,
         onThreadNameChange,
         onThreadSummaryChange,
+        clearReadThreadCounts,
         onTimelineEvent,
         onAnyReceiptEvent,
         getClient,
@@ -2000,9 +2001,13 @@
             },
         );
         const unsubReceipts = onAnyReceiptEvent(() => {
-            bumpUnreadTick();
             const userId = getOwnUserId();
             const client = getClient();
+            // Before the bump: thread counts a receipt now covers drop to zero
+            // (sliding sync never sends fresh per-thread counts).
+            for (const room of client?.getRooms() ?? [])
+                clearReadThreadCounts(room);
+            bumpUnreadTick();
             if (!userId || !client) return;
             for (const room of client.getRooms()) {
                 clearReadNotifications(room, userId);

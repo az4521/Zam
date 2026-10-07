@@ -22,7 +22,7 @@
         openModal,
         closeModal,
     } from "$lib/stores/interface.svelte";
-    import { roomsState } from "$lib/stores/rooms.svelte";
+    import { roomsState, bumpUnreadTick } from "$lib/stores/rooms.svelte";
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { canSendReceipt } from "$lib/utils/receiptGate";
@@ -154,7 +154,11 @@
                     visible: document.visibilityState === "visible",
                 })
             ) {
-                markThreadRead(room, rootEventId).catch(() => {});
+                markThreadRead(room, rootEventId)
+                    .then((cleared) => {
+                        if (cleared) bumpUnreadTick();
+                    })
+                    .catch(() => {});
             }
         });
     });

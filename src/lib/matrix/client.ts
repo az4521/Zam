@@ -3363,16 +3363,18 @@ export function onThreadNameChange(callback: () => void): () => void {
  * (⚑6). The SDK reads the thread id from the event and scopes the receipt to it
  * (unthreaded defaults false; threadSupport is on). Deliberately does NOT call
  * setRoomReadMarkers — main-timeline unread stays independent of thread unread.
+ * Resolves true when it cleared stale local counts without sending (see
+ * clearReadThreadCounts), so the caller can bump unreadTick.
  */
 export async function markThreadRead(
     room: Room,
     threadId: string,
-): Promise<void> {
-    if (!matrixClient) return;
+): Promise<boolean> {
+    if (!matrixClient) return false;
     const thread = room.getThread(threadId);
-    if (!thread) return;
+    if (!thread) return false;
     const latest = thread.replyToEvent ?? thread.rootEvent;
-    if (!latest) return;
+    if (!latest) return false;
     // Idempotence guard: sendReadReceipt SYNCHRONOUSLY synthesizes a local
     // receipt and fires every receipt listener (bumpUnreadTick + notification
     // clearing) before the HTTP call. Re-sending for an already-read latest
@@ -3382,11 +3384,55 @@ export async function markThreadRead(
     // after the first send.
     const ownUserId = matrixClient.getUserId();
     if (ownUserId && thread.getEventReadUpTo(ownUserId) === latest.getId())
-        return;
+        return clearReadThreadCounts(room);
     const receiptType = receiptTypeForSetting(
         settingsState.privateReadReceipts,
     ) as ReceiptType;
     await matrixClient.sendReadReceipt(latest, receiptType);
+    return false;
+}
+
+/**
+ * Zero the local unread counts of every thread whose latest reply our own
+ * receipt already covers. Returns whether any count changed, so the caller
+ * can bump unreadTick (the SDK's UnreadNotifications emit is not observed).
+ *
+ * The SDK never lowers a thread's Total count on a receipt: with classic sync
+ * the next response carries fresh server counts, but sliding sync sends no
+ * per-thread counts at all, so the only source is the client-side bump on
+ * decryption (fixNotificationCountOnDecryption) and the dot stayed until a
+ * reload. Harmless under classic sync: the server agrees on the next sync.
+ */
+export function clearReadThreadCounts(room: Room): boolean {
+    const userId = matrixClient?.getUserId();
+    if (!userId) return false;
+    let changed = false;
+    for (const thread of room.getThreads()) {
+        const total = room.getThreadUnreadNotificationCount(
+            thread.id,
+            NotificationCountType.Total,
+        );
+        const highlight = room.getThreadUnreadNotificationCount(
+            thread.id,
+            NotificationCountType.Highlight,
+        );
+        if (!total && !highlight) continue;
+        const latest = thread.replyToEvent ?? thread.rootEvent;
+        const latestId = latest?.getId();
+        if (!latestId || !thread.hasUserReadEvent(userId, latestId)) continue;
+        room.setThreadUnreadNotificationCount(
+            thread.id,
+            NotificationCountType.Total,
+            0,
+        );
+        room.setThreadUnreadNotificationCount(
+            thread.id,
+            NotificationCountType.Highlight,
+            0,
+        );
+        changed = true;
+    }
+    return changed;
 }
 
 /** Share a static location as an m.location event (MSC3488). */
