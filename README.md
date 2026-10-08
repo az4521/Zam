@@ -6,30 +6,33 @@ it's pretty good
 
 feel free to try it out :) a copy is hosted at https://matrix.crafty.moe/ which you can install as a progressive webapp (the recommended way to install this client on iOS)
 
-you can find other packaged versions on the [releases page](https://github.com/az4521/Zam/releases/latest)
+you can find other packaged versions on the [releases page](https://github.com/az4521/Zam/releases/latest), and there's a Flatpak repo at https://az4521.github.io/Zam/
 
 ## what's in it
 
 Messaging
 
-- markdown (Discord flavoured — `**bold**`, `__underline__`, `~~strike~~`, `||spoilers||`, code blocks), replies, edits, deletes, forwarding, reporting
-- threads, with a per-room thread list (all or just yours), thread names, and threaded read receipts
+- markdown (Discord flavoured — `**bold**`, `__underline__`, `~~strike~~`, `||spoilers||`, code blocks), replies, edits (including `s/old/new/` on your last message), deletes, forwarding, reporting
+- threads, with a per-room thread list (all or just yours), replies inside threads, threaded read receipts, and thread names (our own event, proposed as [MSC4558](https://github.com/matrix-org/matrix-spec-proposals/pull/4558))
 - reactions, custom emoji + sticker packs (MSC2545 `im.ponies`, room-level and personal), GIF picker (KLIPY, no API key needed)
 - polls (create, vote, close), voice messages with a real waveform, location + live location sharing on a Leaflet map
-- pinned messages, per-room message search, media/files browser (both have limits — see "things left to do"), link previews, read receipts (public or private) and typing indicators
-- per-room drafts that survive a room switch (in memory only — a reload drops them)
+- pinned messages, per-room message search (has limits — see "things left to do"), media/files browser, link previews, read receipts (public or private) and typing indicators
+- per-room drafts that survive a room switch (in memory only — a reload drops them, though the reload Android does after a while in the background keeps them)
+- JPEG XL images (converted on the fly where the browser can't show them), and MIDI attachments that play with a sound bank of your choice
 - an offline outbox — messages you send while disconnected queue up and go out when you reconnect, instead of just failing
 
 Rooms & spaces
 
 - spaces with drag-and-drop folders (each folder takes a custom colour), and ordering that syncs across devices via account data
-- room directory, join by address, knocking, invites (incl. an invite panel with email invites — see "things left to do" below)
+- sub-spaces shown as collapsible categories in the room list, with Join buttons for rooms you're not in yet
+- room directory, join by address, knocking (request to join from the directory too), invites (incl. an invite panel with email invites — see "things left to do" below)
 - room admin: name/topic/avatar, join rules, history visibility, aliases, power levels, kick/ban/unban, room upgrades (rooms only, not spaces)
 - favourites / low-priority tags and manual room ordering
 
 Calls
 
-- voice + video group calls over MatrixRTC (MSC4143) with LiveKit, screen sharing on web and desktop, incoming-call cards, per-participant volume
+- voice + video group calls over MatrixRTC (MSC4143) with LiveKit, screen sharing on web and desktop, incoming-call cards, per-participant volume, and calls between homeservers
+- on Android, calls work like phone calls: they keep going in the background, ring over the lock screen, and work with Bluetooth headsets, cars and watches
 - **needs server-side infrastructure** — see "serving it" below
 
 Encryption
@@ -39,11 +42,13 @@ Encryption
 
 App
 
-- multi-account (switching reloads the app; one account syncs at a time)
-- push notifications with a full push-rules UI, including keyword highlight rules and per-room overrides
+- multi-account (switching reloads the app and one account is open at a time, but every signed-in account still gets notifications)
+- push notifications with a full push-rules UI, including keyword highlight rules and per-room overrides. encrypted messages are decrypted for the notification, even with the app closed. on Android, push goes through Firebase or UnifiedPush (e.g. ntfy) for phones without Google services
+- sliding sync (optional, in Debug settings) alongside classic sync
+- translations: English, French, German and Assyrian Neo-Aramaic
 - theming — light, dark, and true-black AMOLED, plus fully custom colours you save as your own presets and share by a copy-paste code; timestamp formats and double-tap actions too, all synced across devices via account data
 - auto-update on Electron and Android; the web build checks on request and offers a reload
-- installable PWA, Electron desktop build, Android APK
+- installable PWA, Electron desktop build (also as a Flatpak), Android APK
 - plugins, installed from GitHub plugin repos. a plugin runs with full access to the app and your account (there is no sandbox), so only install ones you trust. with auto-update off, an installed plugin stays frozen at the exact commit you installed or last updated it at
 
 things left to do:
