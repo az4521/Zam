@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.11
+
+🐛 **Fixed**
+
+- **New threads show up right away:** the first reply in a thread you just started could vanish from the thread panel, and the thread's reply count and its entry in the Threads list didn't appear until you reloaded or someone else replied. Your first reply now shows immediately.
+
 ## v1.15.10
 
 🐛 **Fixed**
