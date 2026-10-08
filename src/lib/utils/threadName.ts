@@ -1,7 +1,8 @@
 // src/lib/utils/threadName.ts
 /**
- * Thread names. The Matrix spec has no way to name a thread, so a name is an
- * event of our own that relates to the thread's root:
+ * Thread names, proposed as MSC4558. The Matrix spec has no way to name a
+ * thread yet, so a name is an event of our own that relates to the thread's
+ * root:
  *
  *   type THREAD_NAME_EVENT_TYPE
  *   content { name, "m.relates_to": { rel_type: THREAD_NAME_REL_TYPE,
@@ -18,13 +19,12 @@ export const THREAD_NAME_REL_TYPE = "moe.crafty.matrix.thread_name";
 /** Longest name kept; longer input is cut (names show in one-line headers). */
 export const MAX_THREAD_NAME_LENGTH = 100;
 
-/** Collapse whitespace, trim and cap the length of a name as typed. */
+/**
+ * Trim and cap the length of a name as typed. Whitespace inside the name is
+ * kept as sent (MSC4558).
+ */
 export function normalizeThreadName(input: string): string {
-    return input
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, MAX_THREAD_NAME_LENGTH)
-        .trim();
+    return input.trim().slice(0, MAX_THREAD_NAME_LENGTH).trimEnd();
 }
 
 /** The name in a naming event's content, or null when it clears the name. */

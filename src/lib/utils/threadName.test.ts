@@ -11,9 +11,16 @@ import {
 } from "./threadName";
 
 describe("normalizeThreadName", () => {
-    it("collapses whitespace and trims", () => {
+    it("trims the ends but keeps inner whitespace", () => {
         expect(normalizeThreadName("  release \n  plan\t")).toBe(
-            "release plan",
+            "release \n  plan",
+        );
+    });
+
+    it("trims whitespace the cap leaves at the end", () => {
+        const name = "a".repeat(MAX_THREAD_NAME_LENGTH - 1) + "  b";
+        expect(normalizeThreadName(name)).toBe(
+            "a".repeat(MAX_THREAD_NAME_LENGTH - 1),
         );
     });
 
@@ -38,14 +45,14 @@ describe("parseThreadName", () => {
     });
 
     it("normalises what another client wrote", () => {
-        expect(parseThreadName({ name: " a\n b " })).toBe("a b");
+        expect(parseThreadName({ name: " a  b " })).toBe("a  b");
     });
 });
 
 describe("buildThreadNameContent / threadNameTarget", () => {
     it("relates the cleaned name to the root", () => {
         expect(buildThreadNameContent("$root", "  Release  plan ")).toEqual({
-            name: "Release plan",
+            name: "Release  plan",
             "m.relates_to": {
                 rel_type: THREAD_NAME_REL_TYPE,
                 event_id: "$root",
