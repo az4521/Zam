@@ -2947,6 +2947,25 @@ export function getThreadSummary(
     });
 }
 
+/**
+ * Make sure the SDK has a Thread for `rootEventId` before we send into it.
+ * The SDK only builds a Thread from a thread event that arrives through sync,
+ * but the remote echo of our OWN send takes the handleRemoteEcho shortcut,
+ * which updates an existing Thread and otherwise drops the event. So the first
+ * reply in a brand-new thread left the pending list and landed nowhere: the
+ * panel lost it, and no chip or thread-list entry appeared until a reload or
+ * someone else replied. Element creates the Thread up front for the same
+ * reason. The root may still be a sent-but-unechoed local event (Create
+ * thread), or unknown (the Thread fetches it).
+ */
+function ensureThread(room: Room, rootEventId: string): void {
+    if (!matrixClient?.supportsThreads() || room.getThread(rootEventId)) return;
+    const root =
+        room.findEventById(rootEventId) ??
+        room.getPendingEvents().find((e) => e.getId() === rootEventId);
+    room.createThread(rootEventId, root, [], true);
+}
+
 export async function sendThreadReply(
     roomId: string,
     rootEventId: string,
@@ -2963,6 +2982,7 @@ export async function sendThreadReply(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const room = matrixClient.getRoom(roomId);
+    if (room) ensureThread(room, rootEventId);
     const latestEventId =
         (room && getThreadSummary(room, rootEventId).latestEventId) ||
         rootEventId;
@@ -2996,6 +3016,7 @@ export function threadRelationParams(
     rootEventId: string,
 ): { rootEventId: string; latestEventId?: string } {
     const room = matrixClient?.getRoom(roomId) ?? undefined;
+    if (room) ensureThread(room, rootEventId);
     const latestEventId =
         (room && getThreadSummary(room, rootEventId).latestEventId) ||
         rootEventId;
