@@ -7,6 +7,7 @@
         sendFormattedMessage,
         sendSticker,
         sendFile,
+        getMediaUploadSizeLimit,
         getMemberName,
         getMemberAvatar,
         getRoomMembers,
@@ -1895,6 +1896,9 @@
             ? URL.createObjectURL(file)
             : null;
         addQueuedFile(effComposerKey, file, name, previewUrl);
+        // Look up the upload size limit now, while the user is still writing,
+        // so its round trip isn't added to the send (slow links: Tor).
+        void getMediaUploadSizeLimit();
         textareaEl?.focus();
     }
 
