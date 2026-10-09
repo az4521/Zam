@@ -29,7 +29,6 @@
         onTimelineReset,
         onRoomHealed,
         loadPreviousMessages,
-        BACKFILL_BATCH_SPARSE,
         loadMessagesUntilEvent,
         createContextWindow,
         getContextWindowEvents,
@@ -107,6 +106,13 @@
     import { daySeparator } from "$lib/utils/timeFormat";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
+    import {
+        BACKFILL_BUFFER_ROWS,
+        INITIAL_VISIBLE_RATIO,
+        countRowsAbove,
+        nextBackfillLimit,
+        updateVisibleRatio,
+    } from "$lib/utils/backfillSizing";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { hostBridge } from "$lib/plugins/hostBridge";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
@@ -969,7 +975,7 @@
         // blocked by a load still in flight for the previous room (F2). The
         // finally in loadOlderMessages only clears the lock for its own room.
         loadingOlder = false;
-        sparseHistory = false;
+        visibleRatio = INITIAL_VISIBLE_RATIO;
     });
 
     // Load messages when room changes — always reload from SDK state (fast, in-memory)
@@ -1562,7 +1568,7 @@
         // fill that ended while the sentinel stayed in view (a failed load, a
         // latch cleared later) never restarts on its own. Any scroll near the
         // top re-asks; the gate makes a redundant call a no-op.
-        if (!loadingOlder && hasOlderToLoad() && isTopSentinelNearViewport())
+        if (!loadingOlder && hasOlderToLoad() && needsOlderMessages())
             void backfillFromTop();
         // Loading newer messages (and rejoining live) is driven here: while in a
         // jumped-to context view, approaching the bottom pages the window forward.
@@ -1612,9 +1618,9 @@
         return () => document.removeEventListener("pointerdown", onPointerDown);
     });
 
-    // The last history page showed (almost) nothing: a run of joins, leaves or
-    // reactions. Those cost no rendering, so the next page asks for more.
-    let sparseHistory = false;
+    // This room's recent share of history events that render as a message
+    // (low in rooms full of joins); sizes the next page (utils/backfillSizing).
+    let visibleRatio = INITIAL_VISIBLE_RATIO;
 
     async function loadOlderMessages() {
         if (loadingOlder) return;
@@ -1662,15 +1668,20 @@
                 prevTop = refEl?.getBoundingClientRect().top;
                 contextMessages = getContextWindowEvents(contextWindow);
             } else {
-                const hasMore = await loadPreviousMessages(
-                    room,
-                    sparseHistory ? BACKFILL_BATCH_SPARSE : undefined,
+                const limit = nextBackfillLimit(
+                    BACKFILL_BUFFER_ROWS - rowsAboveViewport(),
+                    visibleRatio,
                 );
+                const hasMore = await loadPreviousMessages(room, limit);
                 if (room.roomId !== rid) return;
                 if (!hasMore) setCanLoadMore(rid, false);
                 const events = getTimelineMessages(room);
                 const current = getMessages(rid);
-                sparseHistory = events.length - current.length < 5;
+                visibleRatio = updateVisibleRatio(
+                    visibleRatio,
+                    events.length - current.length,
+                    limit,
+                );
                 // A page of only hidden events changes nothing on screen:
                 // skip the write, which would re-derive every mounted row.
                 if (
@@ -1764,6 +1775,26 @@
             : canLoadMore(roomId);
     }
 
+    // Messages loaded above the viewport, i.e. what the user can scroll up
+    // into without waiting.
+    function rowsAboveViewport(): number {
+        if (!scrollEl) return 0;
+        return countRowsAbove(
+            scrollEl.querySelectorAll("[data-event-id]"),
+            scrollEl.getBoundingClientRect().top,
+        );
+    }
+
+    // Scrollback keeps going until a buffer of messages sits above the
+    // viewport, not just until the top is off screen: in a room full of
+    // joins the old rule stopped after a single visible message.
+    function needsOlderMessages(): boolean {
+        return (
+            isTopSentinelNearViewport() ||
+            rowsAboveViewport() < BACKFILL_BUFFER_ROWS
+        );
+    }
+
     // Returns whether the top sentinel is on/near screen — i.e. the user has
     // scrolled (almost) to the top, OR there aren't enough messages to make the
     // list scrollable so the top is permanently in view. Reads live geometry so
@@ -1794,11 +1825,7 @@
         try {
             await tick();
             let guard = 0;
-            while (
-                hasOlderToLoad() &&
-                isTopSentinelNearViewport() &&
-                guard++ < 50
-            ) {
+            while (hasOlderToLoad() && needsOlderMessages() && guard++ < 50) {
                 await loadOlderMessages();
                 await tick();
             }

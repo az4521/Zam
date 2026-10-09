@@ -5791,9 +5791,6 @@ export function onRoomUpdate(callback: () => void): () => void {
  * stutters less; the trade is more frequent, lighter loads.
  */
 const BACKFILL_BATCH = 15;
-/** Page size after a page that showed (almost) nothing: joins, reactions and
- *  other hidden events cost no rendering, so ask for more per round trip. */
-export const BACKFILL_BATCH_SPARSE = 50;
 
 /**
  * Page one batch into the oldest timeline of the live chain. Resolves whether
