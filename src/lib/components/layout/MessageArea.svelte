@@ -29,6 +29,7 @@
         onTimelineReset,
         onRoomHealed,
         loadPreviousMessages,
+        BACKFILL_BATCH_SPARSE,
         loadMessagesUntilEvent,
         createContextWindow,
         getContextWindowEvents,
@@ -968,6 +969,7 @@
         // blocked by a load still in flight for the previous room (F2). The
         // finally in loadOlderMessages only clears the lock for its own room.
         loadingOlder = false;
+        sparseHistory = false;
     });
 
     // Load messages when room changes — always reload from SDK state (fast, in-memory)
@@ -1610,6 +1612,10 @@
         return () => document.removeEventListener("pointerdown", onPointerDown);
     });
 
+    // The last history page showed (almost) nothing: a run of joins, leaves or
+    // reactions. Those cost no rendering, so the next page asks for more.
+    let sparseHistory = false;
+
     async function loadOlderMessages() {
         if (loadingOlder) return;
         // Context view paginates the jumped-to window; the live view paginates
@@ -1656,10 +1662,22 @@
                 prevTop = refEl?.getBoundingClientRect().top;
                 contextMessages = getContextWindowEvents(contextWindow);
             } else {
-                const hasMore = await loadPreviousMessages(room);
+                const hasMore = await loadPreviousMessages(
+                    room,
+                    sparseHistory ? BACKFILL_BATCH_SPARSE : undefined,
+                );
                 if (room.roomId !== rid) return;
                 if (!hasMore) setCanLoadMore(rid, false);
                 const events = getTimelineMessages(room);
+                const current = getMessages(rid);
+                sparseHistory = events.length - current.length < 5;
+                // A page of only hidden events changes nothing on screen:
+                // skip the write, which would re-derive every mounted row.
+                if (
+                    events.length === current.length &&
+                    events[0] === current[0]
+                )
+                    return;
                 const refEl = scrollEl?.querySelector("[data-event-id]");
                 refId = (refEl as HTMLElement | null)?.dataset.eventId;
                 prevTop = refEl?.getBoundingClientRect().top;

@@ -42,24 +42,28 @@
         return getRoomMembers(room);
     });
 
-    const admins = $derived(
-        members
-            .filter((m) => getUserPowerLevel(room, m.userId) >= 100)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-    );
-    const moderators = $derived(
-        members
-            .filter((m) => {
-                const l = getUserPowerLevel(room, m.userId);
-                return l >= 50 && l < 100;
-            })
-            .sort((a, b) => a.name.localeCompare(b.name)),
-    );
-    const regularMembers = $derived(
-        members
-            .filter((m) => getUserPowerLevel(room, m.userId) < 50)
-            .sort((a, b) => a.name.localeCompare(b.name)),
-    );
+    // One pass and a shared collator: this re-runs on every sync response,
+    // and in a big room three filters (each looking up every member's power
+    // level) plus three localeCompare sorts were tens of ms per run.
+    const collator = new Intl.Collator();
+    const groups = $derived.by(() => {
+        const admins: RoomMember[] = [];
+        const moderators: RoomMember[] = [];
+        const regular: RoomMember[] = [];
+        for (const m of members) {
+            const l = getUserPowerLevel(room, m.userId);
+            (l >= 100 ? admins : l >= 50 ? moderators : regular).push(m);
+        }
+        const byName = (a: RoomMember, b: RoomMember) =>
+            collator.compare(a.name, b.name);
+        admins.sort(byName);
+        moderators.sort(byName);
+        regular.sort(byName);
+        return { admins, moderators, regular };
+    });
+    const admins = $derived(groups.admins);
+    const moderators = $derived(groups.moderators);
+    const regularMembers = $derived(groups.regular);
 
     function getAvatarSrc(member: RoomMember): string | null {
         const mxc = member.getMxcAvatarUrl();

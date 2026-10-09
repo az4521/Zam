@@ -5791,6 +5791,9 @@ export function onRoomUpdate(callback: () => void): () => void {
  * stutters less; the trade is more frequent, lighter loads.
  */
 const BACKFILL_BATCH = 15;
+/** Page size after a page that showed (almost) nothing: joins, reactions and
+ *  other hidden events cost no rendering, so ask for more per round trip. */
+export const BACKFILL_BATCH_SPARSE = 50;
 
 /**
  * Page one batch into the oldest timeline of the live chain. Resolves whether
@@ -5830,7 +5833,10 @@ async function paginateLiveChain(
  * pagination permanently in busy rooms. The reliable signal is the SDK
  * nulling the backward token, which it only does on an empty server page.
  */
-export async function loadPreviousMessages(room: Room): Promise<boolean> {
+export async function loadPreviousMessages(
+    room: Room,
+    limit = BACKFILL_BATCH,
+): Promise<boolean> {
     if (!matrixClient) return false;
     const owner = captureOwnership(matrixClient, clientGeneration);
     const timeline = room.getLiveTimeline();
@@ -5876,7 +5882,7 @@ export async function loadPreviousMessages(room: Room): Promise<boolean> {
             Direction.Backward,
         );
     }
-    return paginateLiveChain(client, room, BACKFILL_BATCH);
+    return paginateLiveChain(client, room, limit);
 }
 
 // Reply previews reference events that are often outside the loaded

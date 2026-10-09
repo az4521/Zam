@@ -25,8 +25,21 @@ export function bumpReactionTick(): void {
 
 // Bumped when an encrypted event decrypts late (keys arrived after render), so
 // derived timelines re-run and swap the UTD placeholder for real content.
+// Coalesced to one bump per frame: every mounted message row re-derives on
+// this tick, and decryptions arrive one at a time (a page of 15 encrypted
+// events was 15 full passes over every row).
+let timelineTickQueued = false;
 export function bumpTimelineTick(): void {
-    messagesState.timelineTick++;
+    if (timelineTickQueued) return;
+    timelineTickQueued = true;
+    const run = () => {
+        timelineTickQueued = false;
+        messagesState.timelineTick++;
+    };
+    // requestAnimationFrame doesn't run in a hidden tab.
+    if (typeof requestAnimationFrame === "function" && !document.hidden)
+        requestAnimationFrame(run);
+    else setTimeout(run, 16);
 }
 
 export function getMessages(roomId: string): MatrixEvent[] {
