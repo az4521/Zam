@@ -432,11 +432,6 @@ export async function getContentType(url: string): Promise<string | null> {
 export interface RoomMediaPage {
     items: RoomMediaItem[];
     nextToken: string | null;
-    /** Whether the source room is encrypted. Surfaced so the UI can say why a
-     *  visibly media-full room lists nothing (E2EE attachments are
-     *  `content.file`, which the mapper cannot turn into a listable item) and
-     *  can stop paging instead of decrypting hundreds of events for nothing. */
-    encrypted: boolean;
 }
 
 /**
@@ -450,10 +445,13 @@ export interface RoomMediaPage {
 export async function fetchRoomMediaPage(
     roomId: string,
     fromToken: string | null,
-    limit = 40,
+    limit?: number,
 ): Promise<RoomMediaPage> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
+    // An encrypted room can't be filtered server-side, so a page is every
+    // message and only a few are media: ask for more per round trip.
+    limit ??= encrypted ? 100 : 50;
 
     const filter = new Filter(matrixClient.getUserId());
     filter.setDefinition(mediaFilterDefinition(encrypted, limit));
@@ -497,7 +495,7 @@ export async function fetchRoomMediaPage(
     // the server has nothing further to give.
     const end = res.end ?? null;
     const nextToken = end !== null && end !== fromToken ? end : null;
-    return { items, nextToken, encrypted };
+    return { items, nextToken };
 }
 export async function uploadContent(file: File): Promise<string> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));

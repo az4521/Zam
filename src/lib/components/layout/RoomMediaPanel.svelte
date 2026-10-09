@@ -42,11 +42,6 @@
     // which re-fetches from scratch). Shown as an inline strip instead.
     let loadMoreError = $state<string | null>(null);
     let exhausted = $state(false);
-    // E2EE attachments are `content.file`, never `content.url`, and nothing here
-    // decrypts them — so an encrypted room lists nothing however far we page.
-    // Reported by the wrapper (RoomMediaPage.encrypted) rather than read from
-    // crypto.ts, which components do not import.
-    let isEncrypted = $state(false);
     let tab = $state<"media" | "files">("media");
     let viewerIndex = $state<number | null>(null);
     // Event ids whose tile thumbnail 404'd or otherwise failed to decode. Most
@@ -81,10 +76,13 @@
     // image/video set in the order the grid shows them.
     const gallery = $derived(split.visual);
 
-    // A page can legitimately contain no media at all (a run of text
-    // messages), so keep pulling until something lands or history runs out.
-    // Capped so a media-less room cannot spin forever on one click.
-    const MAX_PAGES_PER_CLICK = 5;
+    // Each load keeps paging until the open tab gained about a screenful (a
+    // 3-wide grid, 8 rows) or history runs out. Stopping at the first page
+    // with anything in it showed one or two tiles per click: in an encrypted
+    // room a page is 100 messages of any kind, and media is a few of them.
+    // Capped so a media-less room cannot spin forever on one load.
+    const FILL_TARGET = 24;
+    const MAX_PAGES_PER_LOAD = 10;
 
     // Identifies the pull that currently owns the panel's state. A plain `let`,
     // deliberately NOT $state: pull() both reads and increments it, and pull()
@@ -99,7 +97,6 @@
             items = [];
             nextToken = null;
             exhausted = false;
-            isEncrypted = false;
             error = null;
             // A viewer left open over the old room's images would otherwise
             // re-mount on whatever lands at that index next.
@@ -112,8 +109,8 @@
         }
         const roomId = room.roomId;
         try {
-            let added = 0;
-            for (let page = 0; page < MAX_PAGES_PER_CLICK; page++) {
+            const startCount = tabCount();
+            for (let page = 0; page < MAX_PAGES_PER_LOAD; page++) {
                 const res: RoomMediaPage = await fetchRoomMediaPage(
                     roomId,
                     reset && page === 0 ? null : nextToken,
@@ -124,24 +121,15 @@
                 // the generation counter reliably says "someone else owns the
                 // state now"; bail without touching any of it.
                 if (gen !== pullGen || room.roomId !== roomId) return;
-                // Count what actually landed in the list, not what came back:
-                // a page of already-merged duplicates adds nothing visible and
-                // must not end the loop.
-                const before = items.length;
                 items = mergeMediaPages(items, res.items);
-                added += items.length - before;
                 nextToken = res.nextToken;
-                if (page === 0) isEncrypted = res.encrypted;
                 if (res.nextToken === null) {
                     exhausted = true;
                     break;
                 }
-                // Encrypted room: every attachment is `content.file`, so the
-                // mapper rejects all of them and `added` stays 0 forever —
-                // walking all five pages would decrypt ~200 events and discard
-                // the lot on EVERY click. One request, then stop.
-                if (res.encrypted) break;
-                if (added > 0) break;
+                // Count what landed in the tab being looked at: duplicates and
+                // the other tab's items don't fill the screen.
+                if (tabCount() - startCount >= FILL_TARGET) break;
             }
         } catch (e) {
             // SDK errors read like `MatrixError: [403] …` — log the real one,
@@ -161,6 +149,24 @@
             }
         }
     }
+
+    function tabCount(): number {
+        const s = splitMediaItems(items);
+        return (tab === "media" ? s.visual : s.files).length;
+    }
+
+    // Load more on its own when the end of the list scrolls into view.
+    let loadMoreEl = $state<HTMLElement | null>(null);
+    $effect(() => {
+        const el = loadMoreEl;
+        if (!el) return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting) && !loadingMore)
+                void pull(false);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    });
 
     // Reload from scratch whenever the panel is pointed at a different room.
     // `room.roomId` is read OUTSIDE untrack so the prop is the effect's one and
@@ -482,7 +488,7 @@
         {/if}
 
         {#if !loading && !error && hasMore}
-            <div class="px-2 pb-2">
+            <div class="px-2 pb-2" bind:this={loadMoreEl}>
                 <button
                     onclick={() => pull(false)}
                     disabled={loadingMore}
