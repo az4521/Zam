@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.15.12
+
+🐛 **Fixed**
+
+- **Room permissions with sliding sync:** with sliding sync on, rooms could show the wrong permissions (for example, everyone treated as able to post or moderate) because the room's power levels were never loaded. They now load for every room, so permissions match classic sync.
+- **Read-only rooms lock the message box:** in rooms where you're not allowed to post, like announcement channels, the message box is now disabled and says you don't have permission, instead of letting you type a message that would fail.
+- **Uploads no longer stall before starting:** on slow connections (like Tor), an attachment could sit for a long time before any data was sent while the app waited on the server's upload size limit. That check now gives up after a few seconds, and the sending indicator shows upload progress.
+- **Thread names keep their spacing:** extra spaces inside a thread name are no longer squashed into one.
+
 ## v1.15.11
 
 🐛 **Fixed**
