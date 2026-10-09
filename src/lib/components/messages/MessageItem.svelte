@@ -3516,7 +3516,11 @@
         max-width: 100%;
         height: auto;
     }
+    /* Wrap long lines like Discord does, breaking inside a run with no
+       spaces too (escape-code soup, URLs, hashes) rather than scrolling. */
     :global(.message-body pre) {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
         overflow-x: auto;
         max-width: 100%;
         margin: 0.35rem 0;
