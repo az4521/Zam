@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.16.0
+
+✨ **New**
+
+- **Search and media in encrypted rooms:** the server can't read encrypted messages, so search used to find nothing in encrypted rooms. Zam now keeps a compressed index of your encrypted rooms on this device, filled as messages arrive and by slowly fetching older history in the background. Search finds partial words and ignores accents, and rooms that turned on encryption later still find their older messages. The media list shows indexed attachments instantly. You can turn this off under Privacy & Safety, which deletes the index; it's also deleted when you sign out.
+
+🐛 **Fixed**
+
+- **Media list loads a screenful at a time:** opening a room's media list showed only one or two items per click, and sometimes none. It now fills the list and loads more as you scroll.
+- **Faster first upload:** the server's upload size limit is now checked while you're still writing, instead of after you press send.
+
 ## v1.15.12
 
 🐛 **Fixed**
