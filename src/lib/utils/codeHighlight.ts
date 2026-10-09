@@ -1,3 +1,5 @@
+import { ansiToHtml } from "./ansi";
+
 /** The slice of highlight.js this module uses. Structural on purpose: the
  *  real `hljs` satisfies it, and a test can pass a fake — which is what
  *  keeps this file free of a static `highlight.js` import. */
@@ -20,12 +22,15 @@ export function containsCodeBlock(html: string): boolean {
 
 /** Highlight sanitized Matrix HTML. highlight.js escapes source tokens.
  *  `engine` is null until the highlighter chunk has loaded — the html is
- *  then returned untouched and the caller re-renders once it arrives. */
+ *  then returned untouched and the caller re-renders once it arrives.
+ *  ```ansi blocks are coloured from their escape codes (utils/ansi) and
+ *  need no engine. */
 export function highlightCodeBlocks(
     html: string,
     engine: HighlightEngine | null,
 ): string {
-    if (!html || !engine || typeof document === "undefined") return html;
+    if (!html || typeof document === "undefined") return html;
+    if (!engine && !html.includes("language-ansi")) return html;
     const template = document.createElement("template");
     template.innerHTML = html;
     for (const code of template.content.querySelectorAll<HTMLElement>(
@@ -36,6 +41,11 @@ export function highlightCodeBlocks(
         );
         const requested = languageClass?.slice("language-".length);
         const source = code.textContent ?? "";
+        if (requested?.toLowerCase() === "ansi") {
+            code.innerHTML = ansiToHtml(source);
+            continue;
+        }
+        if (!engine) continue;
         const result =
             requested && engine.getLanguage(requested)
                 ? engine.highlight(source, { language: requested })
