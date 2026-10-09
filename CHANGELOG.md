@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.16.1
+
+🐛 **Fixed**
+
+- **Scrolling up in rooms full of joins:** loading older messages fetched a fixed 15 events at a time and stopped as soon as the screen was full, so in rooms where most events are joins or leaves you could get one message per load and wait at the top every time. Zam now keeps about 30 messages loaded above where you're reading, and asks for more events at once in rooms where few of them are visible.
+- **Less stutter in big rooms:** loading history that contains only joins or other hidden events no longer redraws the whole message list, messages decrypting one by one now refresh the screen at most once per frame, and the member list sorts much faster.
+
 ## v1.16.0
 
 ✨ **New**
