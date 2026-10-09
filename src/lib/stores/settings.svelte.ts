@@ -237,6 +237,10 @@ export const settingsState = $state({
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
     showReadReceiptAvatars: readBool("showReadReceiptAvatars", true),
+    /** Device-global: keep a local index of encrypted rooms' messages so
+     *  search and the media drawer work there (the server can't read them).
+     *  Default ON. Turning it off deletes the index. Local-only. */
+    indexEncryptedRooms: readBool("indexEncryptedRooms", true),
     /** Device-global: pause a playing inline/embed video when it scrolls out
      *  of the viewport (saves CPU/battery). Resume stays user-driven — we never
      *  auto-play a video. Default ON (least surprising). Local-only, like
@@ -749,6 +753,11 @@ export function setLastSeenVersion(version: string): void {
 export function setShowReadReceiptAvatars(value: boolean): void {
     settingsState.showReadReceiptAvatars = value;
     writeBool("showReadReceiptAvatars", value);
+}
+
+export function setIndexEncryptedRooms(value: boolean): void {
+    settingsState.indexEncryptedRooms = value;
+    writeBool("indexEncryptedRooms", value);
 }
 
 export function setPauseVideoOnScrollOff(value: boolean): void {

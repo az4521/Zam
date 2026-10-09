@@ -8,12 +8,15 @@
         setSendTypingIndicators,
         setHideNotificationBody,
         setLinkPreviewMedia,
+        setIndexEncryptedRooms,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
     import {
         updateServiceWorkerNotificationPrivacy,
         updateServiceWorkerReceiptPrivacy,
+        startEventIndex,
+        deleteEventIndex,
     } from "$lib/matrix/client";
     import {
         syncNativeNotificationPrivacy,
@@ -51,6 +54,13 @@
         // copy of this flag — they cannot read localStorage.
         updateServiceWorkerNotificationPrivacy(value);
         syncNativeNotificationPrivacy(value).catch(() => {});
+    }
+
+    function onToggleIndexEncryptedRooms(value: boolean) {
+        setIndexEncryptedRooms(value);
+        if (value) startEventIndex();
+        else if (auth.userId && auth.deviceId)
+            void deleteEventIndex(auth.userId, auth.deviceId);
     }
 
     function onTogglePrivateReadReceipts(value: boolean) {
@@ -103,6 +113,23 @@
                 checked={settingsState.sendTypingIndicators}
                 onChange={setSendTypingIndicators}
                 label={t("privacySafetySettings.sendTypingIndicators")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("privacySafetySettings.indexEncryptedRooms")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("privacySafetySettings.indexEncryptedRoomsHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.indexEncryptedRooms}
+                onChange={onToggleIndexEncryptedRooms}
+                label={t("privacySafetySettings.indexEncryptedRooms")}
             />
         </div>
         <div

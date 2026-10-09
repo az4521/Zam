@@ -186,6 +186,7 @@
         sendNotificationQuickReply,
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
+        startEventIndex,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
     import {
@@ -2170,6 +2171,9 @@
         const unsubIncoming = initIncomingCalls();
         const unsubLiveLocation = initLiveLocation();
         const unsubOutbox = initOutbox();
+        const unsubEventIndex = settingsState.indexEncryptedRooms
+            ? startEventIndex()
+            : () => {};
         // Android: free the crypto store for push decryption while the app
         // sits in the background (reloads on return).
         const unsubBackgroundRelease = initBackgroundRelease();
@@ -2279,6 +2283,7 @@
             unsubIncoming();
             unsubLiveLocation();
             unsubOutbox();
+            unsubEventIndex();
             unsubBackgroundRelease();
             unsubVerification();
             unsubPlugins();

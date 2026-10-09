@@ -4,6 +4,8 @@
     import type { Room } from "matrix-js-sdk";
     import {
         fetchRoomMediaPage,
+        getIndexedMedia,
+        isEventIndexActive,
         fetchAttachmentBlob,
         fetchDecryptedAttachmentBlob,
         mxcToHttp,
@@ -109,6 +111,26 @@
         }
         const roomId = room.roomId;
         try {
+            // Encrypted room with the on-device index: show what it holds at
+            // once, then page the server only from where its crawler stopped.
+            if (
+                reset &&
+                isEventIndexActive() &&
+                room.hasEncryptionStateEvent()
+            ) {
+                const indexed = await getIndexedMedia(roomId);
+                if (gen !== pullGen || room.roomId !== roomId) return;
+                items = mergeMediaPages(items, indexed.items);
+                if (indexed.complete) {
+                    exhausted = true;
+                    return;
+                }
+                if (indexed.resumeFrom !== null) {
+                    nextToken = indexed.resumeFrom;
+                    if (tabCount() >= FILL_TARGET) return;
+                    reset = false;
+                }
+            }
             const startCount = tabCount();
             for (let page = 0; page < MAX_PAGES_PER_LOAD; page++) {
                 const res: RoomMediaPage = await fetchRoomMediaPage(

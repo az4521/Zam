@@ -3188,6 +3188,10 @@ const messages: Record<MessageKey, string> = {
     // MSC2545 sharing, typing indicators, layout heading
     "appearanceSettings.layout": "Layout",
     "privacySafetySettings.sendTypingIndicators": "Schreibanzeige senden",
+    "privacySafetySettings.indexEncryptedRooms":
+        "Verschlüsselte Räume auf diesem Gerät indexieren",
+    "privacySafetySettings.indexEncryptedRoomsHint":
+        "Speichert eine komprimierte Kopie der Nachrichten deiner verschlüsselten Räume auf diesem Gerät, damit Suche und Medienliste dort funktionieren. Der Verlauf wird langsam im Hintergrund geladen. Beim Deaktivieren wird die Kopie gelöscht.",
     "privacySafetySettings.letOthersInARoomSee":
         "Andere Personen in einem Raum sehen, wenn du gerade schreibst. Deaktivieren, um zu schreiben, ohne dass es jemand erfährt.",
     "imagePackEditor.failedToUpdatePack":

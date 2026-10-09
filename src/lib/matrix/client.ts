@@ -437,6 +437,18 @@ export {
 } from "./media";
 export type { MediaCaption, RoomMediaPage } from "./media";
 
+// Local index of encrypted rooms (search + media drawer); see eventIndex.ts.
+import { deleteEventIndex } from "./eventIndex";
+export {
+    startEventIndex,
+    stopEventIndex,
+    deleteEventIndex,
+    isEventIndexActive,
+    searchLocalIndex,
+    getIndexedMedia,
+} from "./eventIndex";
+export type { LocalSearchResult } from "./eventIndex";
+
 function getIndexedDBFactory(): IDBFactory | null {
     try {
         return globalThis.indexedDB ?? null;
@@ -2001,8 +2013,11 @@ export async function logout(): Promise<void> {
         // with the key material still on disk — writing the marker afterwards
         // would never run in exactly the case it exists for.
         // The cached room list is account data too: wipe it with the rest.
-        if (userId && deviceId)
+        if (userId && deviceId) {
             void deleteSnapshot(snapshotKey(userId, deviceId));
+            // Decrypted message text: must not outlive the session.
+            void deleteEventIndex(userId, deviceId);
+        }
         resetRoomListCache();
         if (userId && deviceId) {
             rememberPendingWipe({

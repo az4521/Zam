@@ -2939,6 +2939,10 @@ const messages: Record<MessageKey, string> = {
     // MSC2545 sharing, typing indicators, layout heading
     "appearanceSettings.layout": "Layout",
     "privacySafetySettings.sendTypingIndicators": "Send typing indicators",
+    "privacySafetySettings.indexEncryptedRooms":
+        "Index encrypted rooms on this device",
+    "privacySafetySettings.indexEncryptedRoomsHint":
+        "Keeps a compressed copy of your encrypted rooms' messages on this device so search and the media list work in them. History is fetched slowly in the background. Turning this off deletes the copy.",
     "privacySafetySettings.letOthersInARoomSee":
         "Let other people in a room see when you are typing. Turn off to type without anyone being told.",
     "imagePackEditor.failedToUpdatePack": "Failed to update pack",

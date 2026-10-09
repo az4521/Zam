@@ -30,6 +30,7 @@
         signOutStoredAccount,
     } from "$lib/matrix/client";
     import { deleteCryptoStore } from "$lib/matrix/crypto";
+    import { deleteEventIndex } from "$lib/matrix/eventIndex";
     import {
         changeOwnPresence,
         presenceFor,
@@ -174,6 +175,7 @@
         // has no live client, so we delete the IndexedDB directly (keyed to
         // this account, so it can't touch the active session's keys).
         await deleteCryptoStore(account.userId, account.deviceId);
+        await deleteEventIndex(account.userId, account.deviceId);
         removeAccountById(userId);
     }
 

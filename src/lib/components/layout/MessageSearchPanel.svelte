@@ -1,9 +1,11 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
-    import type { Room, ISearchResults } from "matrix-js-sdk";
+    import type { Room, ISearchResults, MatrixEvent } from "matrix-js-sdk";
     import {
         searchRoomMessages,
         searchRoomMessagesMore,
+        searchLocalIndex,
+        isEventIndexActive,
         getMemberName,
         getMemberAvatar,
         getRoomMembers,
@@ -53,6 +55,15 @@
     let inputEl: HTMLInputElement | undefined = $state();
     let searchedQuery = $state.raw<ParsedSearchQuery | null>(null);
     let activeToken = $state<ActiveSearchToken | null>(null);
+    // Encrypted rooms: matches from the on-device index (the server can't
+    // read those messages). The server search still runs alongside, for the
+    // plaintext history from before the room was encrypted that the index
+    // hasn't reached yet; the two are merged.
+    let localEvents = $state.raw<MatrixEvent[]>([]);
+    let usedLocal = $state(false);
+    // Bumped per search and per room switch: only the latest local search
+    // may write its results.
+    let localGen = 0;
     let selectedIdx = $state(0);
 
     // The panel is NOT keyed by room (MessageArea passes `room` as a plain
@@ -76,6 +87,9 @@
         loadingMore = false;
         searchedQuery = null;
         activeToken = null;
+        localEvents = [];
+        usedLocal = false;
+        localGen++;
     });
 
     // Focus the input when the panel opens. preventScroll matters: on mobile
@@ -108,6 +122,24 @@
         // results it belonged to, or the "Load more" button comes back
         // permanently stuck on "Loading…".
         loadingMore = false;
+        localEvents = [];
+        const gen = ++localGen;
+        usedLocal = isEventIndexActive() && room.hasEncryptionStateEvent();
+        // Local hits can paint before the server answers.
+        if (usedLocal) {
+            searched = query;
+            searchedQuery = parsed;
+        }
+        const local = usedLocal
+            ? searchLocalIndex(room.roomId, parsed, (partial) => {
+                  if (gen === localGen) localEvents = partial;
+              }).then(
+                  (r) => {
+                      if (gen === localGen) localEvents = r.events;
+                  },
+                  (e) => console.warn("Local search failed", e),
+              )
+            : Promise.resolve();
         const outcome = await requests.run(() =>
             searchRoomMessages(
                 room.roomId,
@@ -115,6 +147,7 @@
                 buildServerSearchFilter(room.roomId, parsed),
             ),
         );
+        await local;
         // Superseded by a room switch or a newer request — the run that
         // replaced us owns `searching`, `results` and `error` now.
         if (outcome.status === "stale") return;
@@ -127,6 +160,15 @@
             return;
         }
         const e = outcome.error;
+        // The index answered: a server that can't search (or failed) only
+        // costs the pre-encryption history, so show what we have.
+        if (usedLocal) {
+            console.warn("Server search failed; showing local results", e);
+            searched = query;
+            searchedQuery = parsed;
+            resultsTick++;
+            return;
+        }
         if (isSearchUnsupportedError(e)) {
             console.warn(
                 "Message search: homeserver does not support /search - hiding the feature",
@@ -173,40 +215,44 @@
 
     const rows = $derived.by(() => {
         void resultsTick;
-        if (!results) return [];
+        if (!results && localEvents.length === 0) return [];
         const seen = new Set<string>();
-        return results.results
-            .map((r) => r.context.getEvent())
-            .filter((e) => {
-                const id = e.getId();
-                if (
-                    !id ||
-                    seen.has(id) ||
-                    typeof e.getContent()?.body !== "string" ||
-                    e.isRedacted()
-                )
-                    return false;
-                seen.add(id);
-                // Client-side refinement when the server can't fully honor the query.
-                if (
-                    searchedQuery &&
-                    parsedQueryNeedsClientRefine(searchedQuery)
-                ) {
-                    if (!matchesParsedQuery(metaOf(e), searchedQuery))
-                        return false;
-                }
-                return true;
-            });
+        const server = (results?.results ?? []).map((r) =>
+            r.context.getEvent(),
+        );
+        const merged = usedLocal
+            ? [...server, ...localEvents].sort((a, b) => b.getTs() - a.getTs())
+            : server;
+        return merged.filter((e) => {
+            const id = e.getId();
+            if (
+                !id ||
+                seen.has(id) ||
+                typeof e.getContent()?.body !== "string" ||
+                e.isRedacted()
+            )
+                return false;
+            seen.add(id);
+            // Client-side refinement when the server can't fully honor the query.
+            if (searchedQuery && parsedQueryNeedsClientRefine(searchedQuery)) {
+                if (!matchesParsedQuery(metaOf(e), searchedQuery)) return false;
+            }
+            return true;
+        });
     });
-    const highlights = $derived(
-        (void resultsTick, results ? results.highlights : []),
-    );
+    const highlights = $derived.by(() => {
+        void resultsTick;
+        const server = results ? results.highlights : [];
+        if (!usedLocal || !searchedQuery) return server;
+        return [...server, ...searchedQuery.term.split(/\s+/).filter(Boolean)];
+    });
     const hasMore = $derived(
         (void resultsTick, results?.next_batch !== undefined),
     );
     const resultCount = $derived(
         (void resultsTick,
-        searchedQuery && parsedQueryNeedsClientRefine(searchedQuery)
+        usedLocal ||
+        (searchedQuery && parsedQueryNeedsClientRefine(searchedQuery))
             ? rows.length
             : (results?.count ?? rows.length)),
     );
@@ -371,7 +417,7 @@
     </form>
 
     <div class="flex-1 overflow-y-auto">
-        {#if searching}
+        {#if searching && rows.length === 0}
             <div class="flex justify-center mt-8">
                 <div
                     class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"

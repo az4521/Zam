@@ -1167,6 +1167,10 @@ export const en = {
     "privacySafetySettings.privacy": "Privacy",
     "privacySafetySettings.privateReadReceipts": "Private read receipts",
     "privacySafetySettings.sendTypingIndicators": "Send typing indicators",
+    "privacySafetySettings.indexEncryptedRooms":
+        "Index encrypted rooms on this device",
+    "privacySafetySettings.indexEncryptedRoomsHint":
+        "Keeps a compressed copy of your encrypted rooms' messages on this device so search and the media list work in them. History is fetched slowly in the background. Turning this off deletes the copy.",
     "privacySafetySettings.letOthersInARoomSee":
         "Let other people in a room see when you are typing. Turn off to type without anyone being told.",
     "privacySafetySettings.hideYourReadReceiptsFromOther":

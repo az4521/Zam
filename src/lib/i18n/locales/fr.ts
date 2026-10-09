@@ -3162,6 +3162,10 @@ const messages: Record<MessageKey, string> = {
     "appearanceSettings.layout": "Mise en page",
     "privacySafetySettings.sendTypingIndicators":
         "Envoyer les indicateurs de saisie",
+    "privacySafetySettings.indexEncryptedRooms":
+        "Indexer les salons chiffrés sur cet appareil",
+    "privacySafetySettings.indexEncryptedRoomsHint":
+        "Conserve sur cet appareil une copie compressée des messages de vos salons chiffrés pour que la recherche et la liste des médias y fonctionnent. L'historique est récupéré lentement en arrière-plan. Désactiver supprime cette copie.",
     "privacySafetySettings.letOthersInARoomSee":
         "Permet aux autres membres d'un salon de voir quand vous écrivez. Désactivez pour écrire sans que personne ne soit prévenu.",
     "imagePackEditor.failedToUpdatePack": "Impossible de mettre à jour le pack",
