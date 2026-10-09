@@ -1034,6 +1034,10 @@ const SLIDING_LIST_STATE: string[][] = [
     ["m.room.encryption", ""],
     ["m.room.tombstone", ""],
     ["m.room.join_rules", ""],
+    // Who may send, redact or pin. Read for every room, not just the open
+    // one: the composer lock, message actions and the room list menus gate
+    // on it, and a missing event reads as "everyone is 0, everything is 0".
+    ["m.room.power_levels", ""],
     ["m.space.parent", "*"],
     // Space/room emoji packs are offered in every room's picker, not just the
     // room that owns them, so they must be loaded for the whole list.
@@ -1048,9 +1052,20 @@ const SLIDING_LIST_STATE: string[][] = [
 ];
 
 // The room being viewed gets everything (power levels, pins, members as the
-// timeline references them) plus a deeper timeline.
+// timeline references them) plus a deeper timeline. tuwunel matches the event
+// type literally, so `["*", "*"]` returns nothing there; every type the app
+// reads is also named explicitly so it arrives on servers that skip the
+// wildcard type.
 const SLIDING_ROOM_STATE: string[][] = [
     ["*", "*"],
+    ...SLIDING_LIST_STATE,
+    ["m.room.pinned_events", ""],
+    ["m.room.history_visibility", ""],
+    ["m.room.guest_access", ""],
+    ["m.room.server_acl", ""],
+    ["m.space.child", "*"],
+    ["m.call.member", "*"],
+    ["m.rtc.member", "*"],
     ["m.room.member", MSC3575_STATE_KEY_ME],
     ["m.room.member", MSC3575_STATE_KEY_LAZY],
 ];
@@ -1416,14 +1431,7 @@ async function buildSlidingSync(
                 sort: ["by_name"],
                 filters: { room_types: ["m.space"] },
                 timeline_limit: 0,
-                // Power levels too: a space is never the viewed room, so it
-                // would otherwise never get them, and the space header's
-                // settings / add-room gates read them.
-                required_state: [
-                    ...SLIDING_LIST_STATE,
-                    ["m.space.child", "*"],
-                    ["m.room.power_levels", ""],
-                ],
+                required_state: [...SLIDING_LIST_STATE, ["m.space.child", "*"]],
             },
         ],
         [
@@ -8731,6 +8739,20 @@ export async function unpinMessage(room: Room, eventId: string): Promise<void> {
 export function hasPowerLevelsEvent(room: Room): boolean {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     return !!state?.getStateEvents("m.room.power_levels", "");
+}
+
+/** Whether the user may post messages in the room: their effective level
+ *  against the level for the event type the composer actually sends
+ *  (`m.room.encrypted` in an encrypted room), falling back to
+ *  `events_default`. With no power-levels event loaded yet this says yes, so
+ *  a room whose state is still arriving never locks the composer. */
+export function canSendMessages(room: Room): boolean {
+    if (!hasPowerLevelsEvent(room)) return true;
+    const pl = getRoomPowerLevels(room);
+    const type = room.hasEncryptionStateEvent()
+        ? "m.room.encrypted"
+        : "m.room.message";
+    return getMyPowerLevel(room) >= (pl.events[type] ?? pl.events_default);
 }
 
 const roomStateFetches = new Map<string, Promise<void>>();

@@ -772,6 +772,8 @@ export const en = {
     "messageInput.andAreTyping": "{value} and {value2} are typing…",
     "messageInput.andAreTyping2": "{value}, {value2}, and {value3} are typing…",
     "messageInput.severalPeopleAreTyping": "Several people are typing…",
+    "messageInput.noPermissionToSend":
+        "You do not have permission to send messages here",
     "messageInput.selectARoomToStartChatting":
         "Select a room to start chatting",
     "messageInput.replyInThread": "Reply in thread...",

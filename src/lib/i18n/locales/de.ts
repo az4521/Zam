@@ -773,6 +773,8 @@ const messages: Record<MessageKey, string> = {
     "messageInput.andAreTyping": "{value} und {value2} schreiben…",
     "messageInput.andAreTyping2": "{value}, {value2} und {value3} schreiben…",
     "messageInput.severalPeopleAreTyping": "Mehrere Personen schreiben…",
+    "messageInput.noPermissionToSend":
+        "Du hast keine Berechtigung, hier Nachrichten zu senden",
     "messageInput.selectARoomToStartChatting":
         "Wähle einen Raum, um zu chatten",
     "messageInput.replyInThread": "Im Thread antworten...",

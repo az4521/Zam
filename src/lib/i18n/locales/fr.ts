@@ -764,6 +764,8 @@ const messages: Record<MessageKey, string> = {
         "{value}, {value2} et {value3} sont en train d'écrire…",
     "messageInput.severalPeopleAreTyping":
         "Plusieurs personnes sont en train d'écrire…",
+    "messageInput.noPermissionToSend":
+        "Vous n'avez pas la permission d'envoyer des messages ici",
     "messageInput.selectARoomToStartChatting":
         "Choisissez un salon pour commencer à discuter",
     "messageInput.replyInThread": "Répondre dans le fil...",

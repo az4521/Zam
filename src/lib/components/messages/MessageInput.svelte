@@ -26,6 +26,7 @@
         setOwnDisplayName,
         setUserPowerLevel,
         getOwnServerName,
+        canSendMessages,
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
@@ -154,7 +155,7 @@
         roomId,
         roomName,
         room,
-        disabled = false,
+        disabled: disabledProp = false,
         replyToEvent = null,
         onCancelReply,
         onRequestEditLast,
@@ -174,6 +175,12 @@
     // In-flight attachment send, scoped to the room the send targeted so a
     // room switch mid-upload doesn't show room A's "sending" note in room B.
     let sendingFileCount = $state(0);
+    // Percent of the current file's bytes sent; null before its first
+    // progress event. Shows whether a slow send is the upload or what follows.
+    let uploadPercent = $state<number | null>(null);
+    const onUploadProgress = (loaded: number, total: number) => {
+        if (total > 0) uploadPercent = Math.floor((loaded / total) * 100);
+    };
     let sendingRoomId = $state<string | null>(null);
     // Queued attachments live in a per-room store, not here: this component
     // stays mounted across room switches, so a local queue followed the user
@@ -752,6 +759,7 @@
     }
 
     export function addFiles(files: File[]) {
+        if (disabled) return;
         for (const file of files) enqueueFile(file);
     }
     // Composer pickers share the single interfaceState.modal "composer-picker"
@@ -785,6 +793,13 @@
             interfaceState.composerPicker === "gif" &&
             interfaceState.composerPickerOwner === effComposerKey,
     );
+    // Read-only room: the user's power level is below what posting needs
+    // (announcement channels). Locks the composer like `disabled` does.
+    const noSendPermission = $derived(
+        !!room && (void roomsState.roomsTick, !canSendMessages(room)),
+    );
+    const disabled = $derived(disabledProp || noSendPermission);
+
     // Mirrors the send button's own disabled condition so the button can go
     // accent-coloured the moment the message becomes sendable.
     const canSend = $derived(
@@ -847,13 +862,15 @@
         return room ? getMemberName(room, sender) : sender;
     });
     const composerPlaceholder = $derived(
-        disabled
-            ? t("messageInput.selectARoomToStartChatting")
-            : isThread
-              ? t("messageInput.replyInThread")
-              : replyToEvent
-                ? t("messageInput.replyTo", { replyTargetName })
-                : t("messageInput.message", { roomName }),
+        noSendPermission
+            ? t("messageInput.noPermissionToSend")
+            : disabled
+              ? t("messageInput.selectARoomToStartChatting")
+              : isThread
+                ? t("messageInput.replyInThread")
+                : replyToEvent
+                  ? t("messageInput.replyTo", { replyTargetName })
+                  : t("messageInput.message", { roomName }),
     );
 
     // Focus textarea when reply is set
@@ -1598,6 +1615,7 @@
             await sendQueuedFilesInOrder(
                 filesToSend,
                 (item, i) => {
+                    uploadPercent = null;
                     if (useCaption && i === 0 && formatted) {
                         const { html, mentionedUserIds } = formatted;
                         return sendFile(
@@ -1615,6 +1633,7 @@
                                 ? { rootEventId: threadRootId! }
                                 : undefined,
                             transformOutgoingContent,
+                            onUploadProgress,
                         );
                     }
                     return sendFile(
@@ -1622,6 +1641,8 @@
                         item.file,
                         undefined,
                         isThread ? { rootEventId: threadRootId! } : undefined,
+                        undefined,
+                        onUploadProgress,
                     );
                 },
                 (item, i) => {
@@ -1663,6 +1684,7 @@
         } finally {
             isSending = false;
             sendingFileCount = 0;
+            uploadPercent = null;
             sendingRoomId = null;
             textareaEl?.focus();
         }
@@ -2103,6 +2125,9 @@
                     count: sendingFileCount,
                 })}</span
             >
+            {#if uploadPercent !== null}
+                <span class="tabular-nums">{uploadPercent}%</span>
+            {/if}
         </div>
     {/if}
     <!-- Outbox strip -->

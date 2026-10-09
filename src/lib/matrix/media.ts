@@ -86,6 +86,12 @@ export interface MediaCaption {
 // request failed) — in which case we skip the precheck rather than block uploads.
 let mediaUploadSizePromise: Promise<number | null> | null = null;
 
+// How long an upload waits on the limit lookup. Requests have no client
+// timeout, so on a slow link (Tor) a stalled /media/config held every upload
+// before a single byte went out. Past this the precheck is skipped; the
+// server still enforces its limit with a 413.
+const MEDIA_CONFIG_WAIT_MS = 5000;
+
 export async function getMediaUploadSizeLimit(): Promise<number | null> {
     if (!matrixClient) return null;
     if (!mediaUploadSizePromise) {
@@ -101,7 +107,13 @@ export async function getMediaUploadSizeLimit(): Promise<number | null> {
             }
         })();
     }
-    return mediaUploadSizePromise;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return Promise.race([
+        mediaUploadSizePromise,
+        new Promise<null>((resolve) => {
+            timer = setTimeout(() => resolve(null), MEDIA_CONFIG_WAIT_MS);
+        }),
+    ]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -113,8 +125,18 @@ export async function uploadAttachment(
     owner: ClientOwnership<MatrixClient>,
     roomId: string,
     blob: Blob,
-    opts: { name: string; type?: string; msgtype: string },
+    opts: {
+        name: string;
+        type?: string;
+        msgtype: string;
+        /** Bytes sent so far, from the upload's progress events. */
+        onProgress?: (loaded: number, total: number) => void;
+    },
 ): Promise<UploadedAttachment> {
+    const progressHandler = opts.onProgress
+        ? ({ loaded, total }: { loaded: number; total: number }) =>
+              opts.onProgress!(loaded, total)
+        : undefined;
     const encrypt = shouldEncryptUpload(await isRoomEncryptedForSend(roomId));
     ownedClientOrThrow(owner);
 
@@ -129,7 +151,11 @@ export async function uploadAttachment(
         });
         const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
             encryptedBlob,
-            { type: "application/octet-stream", includeFilename: false },
+            {
+                type: "application/octet-stream",
+                includeFilename: false,
+                progressHandler,
+            },
         );
         return { file: { ...info, url: content_uri } };
     } else {
@@ -139,8 +165,8 @@ export async function uploadAttachment(
         const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
             blob,
             opts.type
-                ? { name: opts.name, type: opts.type }
-                : { name: opts.name },
+                ? { name: opts.name, type: opts.type, progressHandler }
+                : { name: opts.name, progressHandler },
         );
         return { url: content_uri };
     }
@@ -156,6 +182,8 @@ export async function sendFile(
     transformContent?: (
         content: Record<string, unknown>,
     ) => Record<string, unknown>,
+    // Upload progress of the main file (the video thumbnail is not counted).
+    onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
@@ -189,6 +217,7 @@ export async function sendFile(
     const uploadResult = await uploadAttachment(owner, roomId, file, {
         name: file.name,
         msgtype,
+        onProgress,
     });
 
     const info: Record<string, unknown> = {

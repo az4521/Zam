@@ -728,6 +728,7 @@ const messages: Record<MessageKey, string> = {
     "messageInput.andAreTyping": "{value} ܘ{value2} ܒܟܬܒܐ ܝܢ…",
     "messageInput.andAreTyping2": "{value}، {value2} ܘ{value3} ܒܟܬܒܐ ܝܢ…",
     "messageInput.severalPeopleAreTyping": "ܟܡܐ ܢܫ̈ܐ ܒܟܬܒܐ ܝܢ…",
+    "messageInput.noPermissionToSend": "ܠܝܬ ܠܘܟ ܦܣܐ ܠܫܕܪܬܐ ܕܐܓܪ̈ܬܐ ܓܘ ܗܢܐ ܓܘܡܐ",
     "messageInput.selectARoomToStartChatting": "ܓܒܝ ܓܘܡܐ ܩܐ ܫܘܪܝܐ ܕܡܡܠܠܐ",
     "messageInput.replyInThread": "ܦܢܝ ܓܘ ܚܘܛܐ...",
     "messageInput.replyTo": "ܦܢܝ ܠ {replyTargetName}...",
