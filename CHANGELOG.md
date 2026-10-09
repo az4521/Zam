@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.17.0
+
+✨ **New**
+
+- **Coloured text blocks:** code blocks marked `ansi` (Discord's coloured text) now show their colours, backgrounds, bold, italic, underline and strikethrough instead of raw escape codes. Blocks pasted without the hidden escape character work too.
+
+🐛 **Fixed**
+
+- **Code blocks wrap:** long lines in code blocks now wrap instead of scrolling sideways, including long runs without spaces like links and hashes.
+
 ## v1.16.1
 
 🐛 **Fixed**
