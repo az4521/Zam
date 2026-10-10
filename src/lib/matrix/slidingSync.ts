@@ -226,6 +226,8 @@ export async function buildSlidingSync(
         onListComplete: () => void;
         /** Rooms a response sent events for that kept none (see roomsWithDroppedTimeline). */
         onDroppedTimelines: (roomIds: string[]) => void;
+        /** Every room a completed response carried data for. */
+        onRoomsUpdated: (roomIds: string[]) => void;
     },
 ): Promise<SlidingSync | undefined> {
     activeSlidingSync = null;
@@ -425,6 +427,13 @@ export async function buildSlidingSync(
                 }
             } catch (e) {
                 console.error("[sync] dropped timeline check failed", e);
+            }
+            try {
+                const updated = Object.keys(resp?.rooms ?? {});
+                if (updated.length > 0 && activeSlidingSync === sliding)
+                    hooks.onRoomsUpdated(updated);
+            } catch (e) {
+                console.error("[sync] room update hook failed", e);
             }
         },
     );

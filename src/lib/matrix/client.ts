@@ -219,6 +219,7 @@ import { mapWithConcurrency } from "$lib/utils/async";
 import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import { shouldPrimePaginationToken } from "$lib/utils/roomStateHealth";
 import { hasUnreadMessages } from "$lib/utils/roomUnread";
+import { callMemberSendersMissingMembership } from "$lib/utils/callMemberSenders";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -1385,6 +1386,7 @@ export async function startSync(
             onListComplete: () => markRoomListComplete(client),
             onDroppedTimelines: (roomIds) =>
                 roomIds.forEach((id) => backfillEmptyTimeline(id)),
+            onRoomsUpdated: (roomIds) => loadUnknownCallMembers(roomIds),
         });
         await client.startClient({
             slidingSync: slidingSync,
@@ -9362,6 +9364,47 @@ function recalcCallOnMemberLoaded(event: MatrixEvent): void {
     void rtcSessionFor(room)
         ?.ensureRecalculateSessionMembers()
         .catch(() => {});
+}
+
+/**
+ * Load the member list of rooms whose call memberships come from people
+ * whose m.room.member we don't have. Sliding sync's lazy-loaded members only
+ * cover the senders of the loaded timeline (one event per list room), while
+ * classic /sync also sends the senders of the state it returns. So a list
+ * room could hold someone's call membership without their membership, and
+ * MatrixRTC ignored them: a group room's call showed nobody in the room
+ * list. Loading the members fires RoomStateEvent.Members, which makes the
+ * session recalculate. Once per room per session (loadRoomMembersIfNeeded).
+ */
+export function loadUnknownCallMembers(roomIds: string[]): void {
+    if (!matrixClient) return;
+    for (const roomId of roomIds) {
+        const room = matrixClient.getRoom(roomId);
+        if (!room) continue;
+        const events = [
+            ...(room
+                .getLiveTimeline()
+                .getState(EventTimeline.FORWARDS)
+                ?.getStateEvents(EventType.GroupCallMemberPrefix) ?? []),
+            ...[...room._unstable_getStickyEvents()].filter(
+                (e) => e.getType() === EventType.RTCMembership,
+            ),
+        ];
+        const missing = callMemberSendersMissingMembership(
+            events.map((e) => ({
+                sender: e.getSender(),
+                active: !isMembershipLeave(
+                    e.getContent() as Record<string, unknown>,
+                ),
+            })),
+            (userId) => room.hasMembershipState(userId, "join"),
+        );
+        if (missing.length === 0) continue;
+        logSync(`loading members of ${roomId} for ${missing.length} caller(s)`);
+        void loadRoomMembersIfNeeded(room).catch((err) =>
+            console.warn("Loading call members failed:", err),
+        );
+    }
 }
 
 export function getRoomCallMemberships(room: Room): VoiceMembership[] {
