@@ -7,6 +7,7 @@ import { hasStaticImport } from "./staticImportGuard";
 const read = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 
 const CLIENT = "../matrix/client.ts";
+const LIVEKIT_CALL = "../matrix/livekitCall.ts";
 const CODE_HIGHLIGHT = "./codeHighlight.ts";
 const CODE_HIGHLIGHTER = "./codeHighlighter.svelte.ts";
 const MESSAGE_ITEM = "../components/messages/MessageItem.svelte";
@@ -92,8 +93,8 @@ describe("no source file under src/ statically imports a heavy dependency", () =
 });
 
 describe("the heavy dependencies are still reachable, lazily", () => {
-    it("client.ts still reaches livekit through a dynamic import", () => {
-        expect(read(CLIENT)).toContain('import("livekit-client")');
+    it("livekitCall.ts still reaches livekit through a dynamic import", () => {
+        expect(read(LIVEKIT_CALL)).toContain('import("livekit-client")');
     });
 
     it("codeHighlighter reaches highlight.js through a dynamic import", () => {
@@ -126,6 +127,7 @@ describe("the guard is actually reading these files", () => {
     // names a static import the file genuinely has today.
     it.each([
         [CLIENT, "matrix-js-sdk"],
+        [LIVEKIT_CALL, "./runtime"],
         [CODE_HIGHLIGHTER, "./lazyModule"],
         [MESSAGE_ITEM, "lucide-svelte"],
         [VIDEO_TILE, "lucide-svelte"],

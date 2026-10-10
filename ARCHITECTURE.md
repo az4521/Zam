@@ -42,11 +42,12 @@ src/
     update.ts, desktopUpdater.ts, androidUpdater.ts   -- the three update runtimes
     desktopScreenShare.ts            -- Electron desktopCapturer bridge
     matrix/
-      client.ts                      -- THE SDK boundary (~8.8k lines)
-      runtime.ts                     -- the client slot + generation counter (~90 lines)
-      media.ts                       -- upload/send/fetch/decrypt media (~470 lines)
-      pluginHost.ts                  -- the plugin host bridge + core composer send (~250 lines)
-      crypto.ts                      -- the E2EE subsystem (deliberate exception, ~1.8k lines)
+      client.ts                      -- THE SDK boundary
+      runtime.ts                     -- the client slot + generation counter
+      media.ts                       -- upload/send/fetch/decrypt media
+      livekitCall.ts                 -- the LiveKit call engine (join/leave, tracks, devices)
+      pluginHost.ts                  -- the plugin host bridge + core composer send
+      crypto.ts                      -- the E2EE subsystem (deliberate exception)
       pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
     stores/                          -- the rune stores (see "Stores")
     components/
@@ -122,7 +123,8 @@ the derived is expensive.
 ## The SDK boundary
 
 **`src/lib/matrix/client.ts` is the SDK boundary.** Components and stores call its exported
-wrappers; they import matrix-js-sdk _types_ only. It is also the **LiveKit** boundary.
+wrappers; they import matrix-js-sdk _types_ only. It is also the **LiveKit** boundary: the call
+engine lives in `livekitCall.ts`, and `client.ts` re-exports its API.
 
 Sanctioned exceptions, all deliberate:
 
@@ -135,6 +137,10 @@ Sanctioned exceptions, all deliberate:
 - **`src/lib/matrix/media.ts`** — media upload (including encrypt-on-upload), `sendFile` and
   `sendVoiceMessage`, `mxcToHttp`, authenticated and decrypting media fetch, and room media gallery
   paging. `client.ts` re-exports these names so most callers import from `client.ts` unchanged.
+- **`src/lib/matrix/livekitCall.ts`** — the LiveKit side of calls: joining and leaving, SFU
+  connections, local mic/camera/screen-share tracks, remote audio and per-participant volume,
+  device switching, and the `on*` hooks the call UI binds to. The MatrixRTC membership side (who
+  is in which call, call summaries) stays in `client.ts`, which re-exports this module's API.
 - **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
   (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
   plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
@@ -152,7 +158,7 @@ in `client.ts` first.
 `client.ts` is large and grouped by concern: lifecycle (owns the slot install/uninstall loop),
 rooms/spaces, creation/join, display helpers, messages, threads, reactions/receipts/typing, unread
 and loud, notifications, push rules, power levels/moderation, room admin, custom emoji/sticker
-packs, space layout, MatrixRTC calls, live location, and the `on*` subscription helpers (each
+packs, space layout, MatrixRTC call memberships, live location, and the `on*` subscription helpers (each
 returning an unsubscribe function).
 
 **Async ownership.** Anything in `client.ts` that awaits more than once must re-check that it still
