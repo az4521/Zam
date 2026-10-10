@@ -46,6 +46,7 @@ src/
       runtime.ts                     -- the client slot + generation counter
       media.ts                       -- upload/send/fetch/decrypt media
       livekitCall.ts                 -- the LiveKit call engine (join/leave, tracks, devices)
+      slidingSync.ts                 -- sliding sync connection, lists, room subscriptions
       pluginHost.ts                  -- the plugin host bridge + core composer send
       crypto.ts                      -- the E2EE subsystem (deliberate exception)
       pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
@@ -141,6 +142,10 @@ Sanctioned exceptions, all deliberate:
   connections, local mic/camera/screen-share tracks, remote audio and per-participant volume,
   device switching, and the `on*` hooks the call UI binds to. The MatrixRTC membership side (who
   is in which call, call summaries) stays in `client.ts`, which re-exports this module's API.
+- **`src/lib/matrix/slidingSync.ts`** — sliding sync: building the connection and its lists,
+  growing the room-list window, subscriptions for the viewed and held rooms, and the room-data
+  fixes applied before the SDK sees an update. `startSync` in `client.ts` calls
+  `buildSlidingSync`; the watchdog and pagination reach the connection through its accessors.
 - **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
   (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
   plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
