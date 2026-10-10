@@ -439,6 +439,7 @@ export type { MediaCaption, RoomMediaPage } from "./media";
 
 // Local index of encrypted rooms (search + media drawer); see eventIndex.ts.
 import { deleteEventIndex } from "./eventIndex";
+import { materializeJoinedRoom } from "./materializeJoinedRoom";
 export {
     startEventIndex,
     stopEventIndex,
@@ -1597,6 +1598,7 @@ export async function startSync(
     const client = owner.client;
 
     initialSyncComplete = false;
+    liveSyncDelivered = false;
     lastSyncState = null;
 
     const onSync = guardOwnership(
@@ -1621,9 +1623,19 @@ export async function startSync(
             if (state === "PREPARED") {
                 initialSyncComplete = true;
                 seedStatelessRooms();
-                // Heal any joined room the initial sync dropped, in place where
-                // possible — a cache-wipe reload is the last resort, never for a
-                // room a prior reload already failed to fix (the boot double-flash).
+            }
+            // Heal any joined room the initial sync dropped, in place where
+            // possible — a cache-wipe reload is the last resort, never for a
+            // room a prior reload already failed to fix (the boot double-flash).
+            // Only once the first LIVE response is in: with a warm cache PREPARED
+            // fires from IndexedDB before any /sync, and every room joined since
+            // that cache was saved would look dropped (see liveSyncDelivered).
+            if (
+                !liveSyncDelivered &&
+                !data?.fromCache &&
+                (state === "PREPARED" || state === "SYNCING")
+            ) {
+                liveSyncDelivered = true;
                 void reconcileJoinedRoomsLive();
             }
             onStateChange(state);
@@ -5686,22 +5698,25 @@ function saveReconcileReloadedRooms(ids: string[]): void {
 /** Re-materialize + state-seed one joined room the local cache is missing. */
 async function healMissingJoinedRoom(roomId: string): Promise<boolean> {
     if (!matrixClient) return false;
-    if (matrixClient.getRoom(roomId)?.getMyMembership() === "join") return true;
-    try {
-        // Idempotent for an already-joined room; makes the SDK create/correct
-        // the Room object the poisoned cache dropped. Raw SDK call (not the
-        // joinRoom wrapper) so it never re-triggers reconciliation.
-        await matrixClient.joinRoom(roomId);
-    } catch {
-        // Already joined or transient — fall through and try seeding anyway.
-    }
-    const room = matrixClient.getRoom(roomId);
-    if (!room) return false;
-    if (roomLacksState(room)) await seedRoomStateIfMissing(roomId);
-    return room.getMyMembership() === "join";
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    // Raw SDK joinRoom inside (not the joinRoom wrapper) so it never
+    // re-triggers reconciliation.
+    return materializeJoinedRoom(owner.client, roomId, {
+        isCurrent: () => !!ownedClient(owner),
+        // Forced: a room with a stale membership LOOKS stated but is behind.
+        seedState: (id) => seedRoomStateIfMissing(id, true),
+    });
 }
 
 let liveReconcileRunning = false;
+
+// Whether this sync run has processed a real /sync response yet. Until it has,
+// the store holds only the IndexedDB cache (or nothing, after a cache wipe), so
+// diffing it against the server's joined list reports rooms as missing that the
+// first live response is about to deliver. Each of those used to escalate to a
+// cache-wipe reload (the boot "loads two or three times" loop), and would now
+// still cost a needless /join and /state fetch. Reset by startSync.
+let liveSyncDelivered = false;
 
 /**
  * Compare the server's joined list against ours and heal any room sync dropped,
@@ -5710,7 +5725,7 @@ let liveReconcileRunning = false;
  * once per unhealable room so a continuwuity phantom can't reload on every boot.
  */
 export async function reconcileJoinedRoomsLive(): Promise<void> {
-    if (!matrixClient || liveReconcileRunning) return;
+    if (!matrixClient || liveReconcileRunning || !liveSyncDelivered) return;
     // Sliding sync loads rooms in a growing window, so rooms outside it are
     // "missing" by design, not because sync dropped them.
     if (isUsingSlidingSync()) return;
@@ -6805,14 +6820,12 @@ export async function createRoom(
     // store does not hold this room yet and scrollback would find nothing to
     // backfill. This waits for it to arrive, configures crypto, then backfills.
     await settleCreatedRoom(roomId);
-    // Scheduled AFTER the wait, and that ordering is what makes it safe — do
-    // not hoist it. The reconcile diffs the server's joined list against the
-    // store and escalates a room it cannot materialize to clearCacheAndReload:
-    // stop the client, delete IndexedDB, reload. It cannot materialize this one
-    // — joinRoom returns a Room built by SyncApi.createRoom that is never
-    // stored, so getRoom() stays null. Master scheduled it without waiting at
-    // all, so the reconcile could run while the room was absent; waiting first
-    // makes that the exception, not the default. Rare, not impossible: on a
+    // Scheduled AFTER the wait — do not hoist it. The reconcile diffs the
+    // server's joined list against the store, and a room still absent there
+    // gets healed out-of-band (materializeJoinedRoom: /join, /state, backfill)
+    // in a race with the sync that is about to deliver it, and is flagged as
+    // healed (unverified trust indicators) for the session. Waiting first makes
+    // that the exception, not the default. Rare, not impossible: on a
     // NEW_ROOM_SYNC_TIMEOUT_MS timeout getRoom() is still null here.
     scheduleJoinedRoomsReconcile();
     return { roomId, followUp };
