@@ -4263,9 +4263,19 @@ export async function loadRoomMembersIfNeeded(room: Room): Promise<void> {
             // who joined or changed their name or avatar since kept a
             // placeholder. Drop that cache first so this session's first load
             // is fresh. Only clears the stored copy, never the live state.
-            await matrixClient?.store
-                .clearOutOfBandMembers(room.roomId)
-                .catch(() => {});
+            //
+            // Only when there IS a stored copy (null means none): the
+            // IndexedDB backend builds its delete range from the stored keys,
+            // and with none it throws inside the store's degradable wrapper,
+            // which deletes the whole sync cache and drops to a MemoryStore for
+            // the session. The catch below never sees that.
+            const store = matrixClient?.store;
+            const stored = await store
+                ?.getOutOfBandMembers(room.roomId)
+                .catch(() => null);
+            if (store && stored) {
+                await store.clearOutOfBandMembers(room.roomId).catch(() => {});
+            }
             await room.loadMembersIfNeeded();
         })();
         freshMemberLoads.set(room, load);
