@@ -173,6 +173,7 @@
         mxcToHttp,
         onThreadReplyEvent,
         onDecryptedTimelineEvent,
+        onMissedLiveEvent,
         isThreadParticipant,
         getEventThreadRootId,
         getOwnDeviceId,
@@ -2001,6 +2002,32 @@
                 emitNotification(event, room, loud);
             },
         );
+        // Messages a sliding-sync gap skipped (only the newest event of a list
+        // room arrives per update) that may deserve an alert: fetched back
+        // and handed over here, already decrypted. They never were live
+        // appends, so they get the decrypted path's gate, which covers main
+        // timeline and thread replies alike.
+        const unsubMissedNotify = onMissedLiveEvent((event, room, meta) => {
+            bumpUnreadTick();
+            const eventId = event.getId();
+            const actions = getClient()?.getPushActionsForEvent(event, true);
+            if (
+                !shouldNotifyDecrypted({
+                    eventId,
+                    alreadyNotified: !!eventId && notifiedEventIds.has(eventId),
+                    isLiveAppend: true,
+                    isOwnEvent: event.getSender() === getOwnUserId(),
+                    threadRootId: meta.threadRootId,
+                    pushNotify: !!actions?.notify,
+                    isThreadParticipant: meta.threadRootId
+                        ? isThreadParticipant(room, meta.threadRootId)
+                        : false,
+                    isMentioned: !!(actions?.tweaks as any)?.highlight,
+                })
+            )
+                return;
+            emitNotification(event, room, !!(actions?.tweaks as any)?.sound);
+        });
         const unsubReceipts = onAnyReceiptEvent(() => {
             const userId = getOwnUserId();
             const client = getClient();
@@ -2274,6 +2301,7 @@
             unsubTimeline();
             unsubDecryptedNotify();
             unsubThreadNotify();
+            unsubMissedNotify();
             unsubReceipts();
             unsubFavourites();
             unsubCustomization();

@@ -134,3 +134,29 @@ export function roomsWithDroppedTimeline(
         )
         .map(([roomId]) => roomId);
 }
+
+/**
+ * Whether a sliding-sync gap may have skipped a message the user should have
+ * been alerted to. A list room gets only its newest event per update, so
+ * messages in between never arrive live and never reach the notification
+ * path. Worth fetching them back when the server's counts say one mattered:
+ * the mention count rose, or, in an encrypted room (where the server can't see
+ * mentions, so only the total moves), more notifying messages arrived than the
+ * update delivered.
+ */
+export function shouldRecoverSkippedEvents(input: {
+    encrypted: boolean;
+    /** Counts before the update. */
+    prevHighlight: number;
+    prevTotal: number;
+    /** Counts the update reports; absent when unchanged. */
+    highlight: number | undefined;
+    total: number | undefined;
+    /** Timeline events the update delivered. */
+    delivered: number;
+}): boolean {
+    const { encrypted, prevHighlight, prevTotal, highlight, total, delivered } =
+        input;
+    if (highlight !== undefined && highlight > prevHighlight) return true;
+    return encrypted && total !== undefined && total - prevTotal > delivered;
+}

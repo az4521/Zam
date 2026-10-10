@@ -6,6 +6,7 @@ import {
     nextWindowEnd,
     watchdogOverdueMs,
     roomsWithDroppedTimeline,
+    shouldRecoverSkippedEvents,
 } from "./slidingSyncHelpers";
 
 describe("watchdogOverdueMs", () => {
@@ -184,5 +185,53 @@ describe("roomsWithDroppedTimeline", () => {
 
     it("copes with a response without rooms", () => {
         expect(roomsWithDroppedTimeline(undefined, isEmpty)).toEqual([]);
+    });
+});
+
+describe("shouldRecoverSkippedEvents", () => {
+    const base = {
+        encrypted: false,
+        prevHighlight: 0,
+        prevTotal: 3,
+        highlight: undefined,
+        total: undefined,
+        delivered: 1,
+    };
+
+    it("recovers when the mention count rose", () => {
+        expect(shouldRecoverSkippedEvents({ ...base, highlight: 1 })).toBe(
+            true,
+        );
+    });
+
+    it("leaves an unencrypted room alone when only the total rose", () => {
+        // No mention among the skipped messages: the newest one, which did
+        // arrive, already raises the room's one alert.
+        expect(shouldRecoverSkippedEvents({ ...base, total: 6 })).toBe(false);
+    });
+
+    it("recovers in an encrypted room when more notified than arrived", () => {
+        expect(
+            shouldRecoverSkippedEvents({ ...base, encrypted: true, total: 6 }),
+        ).toBe(true);
+    });
+
+    it("leaves an encrypted room alone when the delivered event accounts for the rise", () => {
+        expect(
+            shouldRecoverSkippedEvents({ ...base, encrypted: true, total: 4 }),
+        ).toBe(false);
+    });
+
+    it("ignores counts that fell (read elsewhere) or didn't change", () => {
+        expect(
+            shouldRecoverSkippedEvents({
+                ...base,
+                prevHighlight: 2,
+                highlight: 0,
+                encrypted: true,
+                total: 0,
+            }),
+        ).toBe(false);
+        expect(shouldRecoverSkippedEvents(base)).toBe(false);
     });
 });

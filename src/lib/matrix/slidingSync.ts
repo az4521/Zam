@@ -9,7 +9,7 @@
  * replaces it.
  */
 import { t } from "$lib/i18n";
-import { SlidingSyncEvent } from "matrix-js-sdk";
+import { NotificationCountType, SlidingSyncEvent } from "matrix-js-sdk";
 import type { EventTimeline, MatrixClient } from "matrix-js-sdk";
 import {
     SlidingSync,
@@ -24,6 +24,7 @@ import {
     isSlidingTimelineGap,
     nextWindowEnd,
     roomsWithDroppedTimeline,
+    shouldRecoverSkippedEvents,
 } from "$lib/utils/slidingSyncHelpers";
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
@@ -228,6 +229,17 @@ export async function buildSlidingSync(
         onDroppedTimelines: (roomIds: string[]) => void;
         /** Every room a completed response carried data for. */
         onRoomsUpdated: (roomIds: string[]) => void;
+        /**
+         * A gap skipped messages that may have deserved an alert (see
+         * shouldRecoverSkippedEvents): the ones before `fromToken`, back to
+         * `stopAtEventId`, the last event the room had. Called from inside
+         * the sync loop; must not block it.
+         */
+        onSkippedEvents: (
+            roomId: string,
+            fromToken: string,
+            stopAtEventId: string,
+        ) => void;
     },
 ): Promise<SlidingSync | undefined> {
     activeSlidingSync = null;
@@ -367,8 +379,30 @@ export async function buildSlidingSync(
                     },
                 );
                 if (!gap) return;
+                // Before the reset (and before the SDK applies the update's
+                // counts): what the room held, to tell whether the skipped
+                // messages included one worth an alert.
+                const lastKnown = room.getLiveTimeline().getEvents().at(-1);
+                const recover = shouldRecoverSkippedEvents({
+                    encrypted: room.hasEncryptionStateEvent(),
+                    prevHighlight: room.getUnreadNotificationCount(
+                        NotificationCountType.Highlight,
+                    ),
+                    prevTotal: room.getUnreadNotificationCount(
+                        NotificationCountType.Total,
+                    ),
+                    highlight: roomData.highlight_count,
+                    total: roomData.notification_count,
+                    delivered: roomData.timeline?.length ?? 0,
+                });
                 logSync(`timeline reset (gap) in ${roomId}`);
                 room.resetLiveTimeline(roomData.prev_batch ?? null, null);
+                if (recover && roomData.prev_batch && lastKnown?.getId())
+                    hooks.onSkippedEvents(
+                        roomId,
+                        roomData.prev_batch,
+                        lastKnown.getId()!,
+                    );
             } catch (err) {
                 console.error("[sync] gap check failed", roomId, err);
                 logSync(

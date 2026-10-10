@@ -1387,6 +1387,16 @@ export async function startSync(
             onDroppedTimelines: (roomIds) =>
                 roomIds.forEach((id) => backfillEmptyTimeline(id)),
             onRoomsUpdated: (roomIds) => loadUnknownCallMembers(roomIds),
+            onSkippedEvents: (roomId, fromToken, stopAtEventId) =>
+                void recoverSkippedEvents(
+                    roomId,
+                    fromToken,
+                    stopAtEventId,
+                ).catch((err) =>
+                    logSync(
+                        `skipped event recovery failed in ${roomId}: ${err}`,
+                    ),
+                ),
         });
         await client.startClient({
             slidingSync: slidingSync,
@@ -8850,6 +8860,89 @@ export function onDecryptedTimelineEvent(
             onDecrypted as never,
         );
     };
+}
+
+const missedLiveSubscribers = new Set<
+    (
+        event: MatrixEvent,
+        room: Room,
+        meta: { threadRootId: string | null },
+    ) => void
+>();
+
+/**
+ * Messages a sliding-sync gap skipped that may deserve an alert (see
+ * shouldRecoverSkippedEvents). A list room gets only its newest event per
+ * update, so these never arrive as live events and never reach the
+ * notification path; they come through here instead, decrypted and through
+ * the same content filter as onDecryptedTimelineEvent. They are not added to
+ * any timeline: they page in behind the reset live timeline as usual.
+ */
+export function onMissedLiveEvent(
+    callback: (
+        event: MatrixEvent,
+        room: Room,
+        meta: { threadRootId: string | null },
+    ) => void,
+): () => void {
+    missedLiveSubscribers.add(callback);
+    return () => missedLiveSubscribers.delete(callback);
+}
+
+/** How far back a gap is searched for skipped messages. */
+const SKIPPED_EVENTS_LIMIT = 30;
+
+/**
+ * Fetch the messages a gap skipped (before `fromToken`, back to the room's
+ * last known event `stopAtEventId`) and hand the alert-worthy kinds to
+ * onMissedLiveEvent subscribers, oldest first.
+ */
+async function recoverSkippedEvents(
+    roomId: string,
+    fromToken: string,
+    stopAtEventId: string,
+): Promise<void> {
+    if (!matrixClient || missedLiveSubscribers.size === 0) return;
+    if (!isInitialSyncComplete()) return;
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    const res = await owner.client.createMessagesRequest(
+        roomId,
+        fromToken,
+        SKIPPED_EVENTS_LIMIT,
+        Direction.Backward,
+    );
+    const client = ownedClient(owner);
+    const room = client?.getRoom(roomId);
+    if (!client || !room) return;
+    const skipped = [];
+    for (const raw of res.chunk) {
+        if (raw.event_id === stopAtEventId) break;
+        skipped.push(raw);
+    }
+    logSync(`recovering ${skipped.length} skipped event(s) in ${roomId}`);
+    const mapper = client.getEventMapper();
+    for (const event of skipped.reverse().map(mapper)) {
+        if (event.isEncrypted()) {
+            await client.decryptEventIfNeeded(event);
+            if (!ownedClient(owner)) return;
+            if (event.isDecryptionFailure()) continue;
+        }
+        const eventId = event.getId();
+        if (!eventId || event.isRedacted()) continue;
+        const relatesTo =
+            event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
+        if (relatesTo?.rel_type === "m.replace") continue;
+        const type = event.getType();
+        if (
+            type !== "m.room.message" &&
+            type !== "m.sticker" &&
+            !isPollStartEventType(type)
+        )
+            continue;
+        const threadRootId = threadReplyRootId({ relatesTo, eventId });
+        for (const cb of missedLiveSubscribers)
+            cb(event, room, { threadRootId });
+    }
 }
 
 // ── Polls (MSC3381) ────────────────────────────────────────────────────────
