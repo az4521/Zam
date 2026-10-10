@@ -47,6 +47,7 @@ src/
       media.ts                       -- upload/send/fetch/decrypt media
       livekitCall.ts                 -- the LiveKit call engine (join/leave, tracks, devices)
       slidingSync.ts                 -- sliding sync connection, lists, room subscriptions
+      roomHealing.ts                 -- stub-room state seeding, joined-rooms reconcile
       pluginHost.ts                  -- the plugin host bridge + core composer send
       crypto.ts                      -- the E2EE subsystem (deliberate exception)
       pushRules.ts, notifications.ts -- push-rule helpers, /notifications wrapper
@@ -146,6 +147,10 @@ Sanctioned exceptions, all deliberate:
   growing the room-list window, subscriptions for the viewed and held rooms, and the room-data
   fixes applied before the SDK sees an update. `startSync` in `client.ts` calls
   `buildSlidingSync`; the watchdog and pagination reach the connection through its accessors.
+- **`src/lib/matrix/roomHealing.ts`** — rooms sync left broken: state-less stubs get their state
+  seeded from `/rooms/{id}/state` and backfilled, and rooms the server lists as joined but the
+  store lacks are materialized in place after the first live sync (a cache-wipe reload is the
+  last resort, at most once per room). It pings room lists through `notifyRoomUpdate()`.
 - **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
   (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
   plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
