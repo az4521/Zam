@@ -167,30 +167,51 @@ export async function seedRoomStateIfMissing(
     }
 }
 
+// Rooms with a backfill of an empty live timeline in flight, so the boot pass
+// and a sliding-sync response naming the same room don't both page it in.
+const backfillingRooms = new Set<string>();
+
+/**
+ * Backfill a joined room whose live timeline is empty although the room has
+ * history. Covers rooms seeded before backfill existed, the sync omission's
+ * timeline variant, and sliding sync handing over a room whose only timeline
+ * event is a relation (reaction, edit) to an event the client doesn't have:
+ * with thread support on, the SDK keeps such a relation out of every
+ * timeline, since it can't tell which thread it belongs to. No-op for spaces,
+ * rooms we aren't joined to, and timelines that already have events.
+ */
+export function backfillEmptyTimeline(roomId: string): void {
+    if (!matrixClient || backfillingRooms.has(roomId)) return;
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    const room = owner.client.getRoom(roomId);
+    if (
+        !room ||
+        room.getMyMembership() !== "join" ||
+        room.isSpaceRoom() ||
+        room.getLiveTimeline().getEvents().length > 0
+    )
+        return;
+    backfillingRooms.add(roomId);
+    void backfillStubTimeline(owner, room)
+        .then(() => {
+            if (!ownedClient(owner)) return;
+            notifyRoomUpdate();
+            for (const cb of roomHealedSubscribers) cb(roomId);
+        })
+        .catch((err) => console.warn("Empty timeline backfill failed:", err))
+        .finally(() => backfillingRooms.delete(roomId));
+}
+
 /** Heal every state-less joined room the SDK knows about (boot pass). */
 export function seedStatelessRooms(): void {
     if (!matrixClient) return;
-    const owner = captureOwnership(matrixClient, clientGeneration);
-    for (const room of owner.client.getRooms()) {
+    for (const room of matrixClient.getRooms()) {
         if (roomLacksState(room)) {
             void seedRoomStateIfMissing(room.roomId);
-        } else if (
-            room.getMyMembership() === "join" &&
-            !room.isSpaceRoom() &&
-            room.getLiveTimeline().getEvents().length === 0
-        ) {
-            // State present but an empty timeline (seeded before backfill
-            // existed, or the sync omission's timeline variant) — backfill
-            // so the room doesn't open as an empty chat.
-            void backfillStubTimeline(owner, room)
-                .then(() => {
-                    if (!ownedClient(owner)) return;
-                    notifyRoomUpdate();
-                    for (const cb of roomHealedSubscribers) cb(room.roomId);
-                })
-                .catch((err) =>
-                    console.warn("Boot-pass timeline backfill failed:", err),
-                );
+        } else {
+            // State present but an empty timeline: backfill so the room
+            // doesn't open as an empty chat.
+            backfillEmptyTimeline(room.roomId);
         }
     }
 }

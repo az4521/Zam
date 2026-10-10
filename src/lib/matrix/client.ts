@@ -218,6 +218,7 @@ import { collectSpaceDescendantRoomIds } from "$lib/utils/spaceDescendants";
 import { mapWithConcurrency } from "$lib/utils/async";
 import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import { shouldPrimePaginationToken } from "$lib/utils/roomStateHealth";
+import { hasUnreadMessages } from "$lib/utils/roomUnread";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -369,6 +370,7 @@ export type { MediaCaption, RoomMediaPage } from "./media";
 // Local index of encrypted rooms (search + media drawer); see eventIndex.ts.
 import { deleteEventIndex } from "./eventIndex";
 import {
+    backfillEmptyTimeline,
     noteLiveSyncResponse,
     primeBackwardToken,
     resetLiveSyncDelivered,
@@ -1378,11 +1380,12 @@ export async function startSync(
     document.addEventListener("visibilitychange", onHidden);
 
     try {
-        const slidingSync = await buildSlidingSync(
-            client,
-            onSlidingSyncFallback,
-            () => markRoomListComplete(client),
-        );
+        const slidingSync = await buildSlidingSync(client, {
+            onFallback: onSlidingSyncFallback,
+            onListComplete: () => markRoomListComplete(client),
+            onDroppedTimelines: (roomIds) =>
+                roomIds.forEach((id) => backfillEmptyTimeline(id)),
+        });
         await client.startClient({
             slidingSync: slidingSync,
             initialSyncLimit: 8,
@@ -4351,38 +4354,29 @@ export function getRoomUnreadInfo(room: Room): {
 
     if (getUnreadCount(room) >= 1) return { unread: true, highlight };
 
-    const liveEvents = room.getLiveTimeline().getEvents();
-
-    // If the last event was sent by us, we're up to date
-    if (liveEvents[liveEvents.length - 1]?.getSender() === userId) {
-        return { unread: false, highlight };
-    }
-
-    const readUpToId = room.getEventReadUpTo(userId);
-
-    // getEventReadUpTo returns null if the receipt points at an event not in
-    // the loaded timeline window (SDK rejects it via receiptPointsAtConsistentEvent).
-    // In that case, check if a raw receipt exists at all — if yes, the marker
-    // is older than our loaded window, meaning all visible events are already
-    // read.
-    if (!readUpToId) {
-        const hasReceipt =
-            !!room.getReadReceiptForUserId(userId) ||
-            !!room.getReadReceiptForUserId(
-                userId,
-                false,
-                "m.read.private" as any,
-            );
-        if (hasReceipt) return { unread: false, highlight };
-    }
-
-    for (let i = liveEvents.length - 1; i >= 0; i--) {
-        const event = liveEvents[i];
-        if (!event) return { unread: false, highlight };
-        if (event.getId() === readUpToId) return { unread: false, highlight };
-        if (isNotificationEvent(event)) return { unread: true, highlight };
-    }
-    return { unread: false, highlight };
+    // getEventReadUpTo returns null when the receipt points at an event that
+    // isn't loaded (the SDK rejects it via receiptPointsAtConsistentEvent);
+    // hasUnreadMessages then goes by the receipts' own timestamps.
+    const receipts = [
+        room.getReadReceiptForUserId(userId),
+        room.getReadReceiptForUserId(userId, false, "m.read.private" as any),
+    ].filter((r) => r !== null);
+    const unread = hasUnreadMessages({
+        events: room
+            .getLiveTimeline()
+            .getEvents()
+            .map((event) => ({
+                id: event.getId() ?? "",
+                ts: event.getTs(),
+                fromMe: event.getSender() === userId,
+                isNotification: isNotificationEvent(event),
+            })),
+        readUpToId: room.getEventReadUpTo(userId),
+        receiptTs: receipts.length
+            ? Math.max(...receipts.map((r) => r.data?.ts ?? 0))
+            : null,
+    });
+    return { unread, highlight };
 }
 
 export function onTimelineEvent(

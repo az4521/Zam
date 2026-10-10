@@ -5,6 +5,7 @@ import {
     shouldKickSync,
     nextWindowEnd,
     watchdogOverdueMs,
+    roomsWithDroppedTimeline,
 } from "./slidingSyncHelpers";
 
 describe("watchdogOverdueMs", () => {
@@ -153,5 +154,35 @@ describe("shouldKickSync", () => {
         expect(shouldKickSync("watchdog", 30_000)).toBe(false);
         expect(shouldKickSync("watchdog", 44_000)).toBe(false);
         expect(shouldKickSync("watchdog", 46_000)).toBe(true);
+    });
+});
+
+describe("roomsWithDroppedTimeline", () => {
+    const empty = new Set(["!dropped", "!quiet"]);
+    const isEmpty = (id: string) => empty.has(id);
+
+    it("names rooms that were sent events but kept none", () => {
+        expect(
+            roomsWithDroppedTimeline(
+                {
+                    "!dropped": { timeline: [{ type: "m.reaction" }] },
+                    "!kept": { timeline: [{ type: "m.room.message" }] },
+                },
+                isEmpty,
+            ),
+        ).toEqual(["!dropped"]);
+    });
+
+    it("ignores rooms the response sent no timeline for", () => {
+        expect(
+            roomsWithDroppedTimeline(
+                { "!quiet": { timeline: [] }, "!space": {} },
+                isEmpty,
+            ),
+        ).toEqual([]);
+    });
+
+    it("copes with a response without rooms", () => {
+        expect(roomsWithDroppedTimeline(undefined, isEmpty)).toEqual([]);
     });
 });

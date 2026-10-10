@@ -23,6 +23,7 @@ import {
     isSlidingSyncUnsupportedError,
     isSlidingTimelineGap,
     nextWindowEnd,
+    roomsWithDroppedTimeline,
 } from "$lib/utils/slidingSyncHelpers";
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
@@ -214,13 +215,18 @@ export function setSlidingSyncActiveRoom(roomId: string | null): void {
 /**
  * A SlidingSync (MSC4186 simplified sliding sync, served natively by the
  * homeserver) when this account opted in on the login page, else undefined so
- * the SDK falls back to classic /sync. `onListComplete` fires once every list
- * window covers its whole list.
+ * the SDK falls back to classic /sync.
  */
 export async function buildSlidingSync(
     client: MatrixClient,
-    onFallback: ((reason: string) => void) | undefined,
-    onListComplete: () => void,
+    hooks: {
+        /** Sliding sync was asked for but the server can't do it. */
+        onFallback?: (reason: string) => void;
+        /** Every list window now covers its whole list. */
+        onListComplete: () => void;
+        /** Rooms a response sent events for that kept none (see roomsWithDroppedTimeline). */
+        onDroppedTimelines: (roomIds: string[]) => void;
+    },
 ): Promise<SlidingSync | undefined> {
     activeSlidingSync = null;
     slidingSyncFallbackReason = null;
@@ -246,7 +252,7 @@ export async function buildSlidingSync(
             // user can re-enable it from Debug settings if the server changes.
             setSlidingSyncEnabled(userId, false);
             slidingSyncFallbackReason = reason;
-            onFallback?.(reason);
+            hooks.onFallback?.(reason);
             return undefined;
         }
         // Anything else (network blip, 5xx, rate limit) is not evidence the
@@ -370,12 +376,17 @@ export async function buildSlidingSync(
         },
     );
 
-    // Grow every list one page per completed response until it covers all the
-    // rooms the server reports for it (so no list has a hard cap).
-    // Also runs inside the sync loop, so it must never throw.
+    // Per completed response: grow every list one page until it covers all the
+    // rooms the server reports for it (so no list has a hard cap), and backfill
+    // rooms whose timeline the SDK emptied. Runs inside the sync loop, so it
+    // must never throw.
     sliding.on(
         SlidingSyncEvent.Lifecycle,
-        (state: SlidingSyncState, _resp: unknown, err?: unknown) => {
+        (
+            state: SlidingSyncState,
+            resp: { rooms?: Record<string, MSC3575RoomData> } | null,
+            err?: unknown,
+        ) => {
             if (err) {
                 logSync(`request failed: ${describeSyncError(err)}`);
                 return;
@@ -393,10 +404,27 @@ export async function buildSlidingSync(
                     }
                 }
                 // Every window already covered its list: the room list is whole.
-                if (!growing && activeSlidingSync === sliding) onListComplete();
+                if (!growing && activeSlidingSync === sliding)
+                    hooks.onListComplete();
             } catch (e) {
                 console.error("[sync] list growth failed", e);
                 logSync(`list growth failed: ${describeSyncError(e)}`);
+            }
+            try {
+                const dropped = roomsWithDroppedTimeline(
+                    resp?.rooms,
+                    (roomId) =>
+                        client.getRoom(roomId)?.getLiveTimeline().getEvents()
+                            .length === 0,
+                );
+                if (dropped.length > 0 && activeSlidingSync === sliding) {
+                    logSync(
+                        `backfilling ${dropped.length} emptied timeline(s)`,
+                    );
+                    hooks.onDroppedTimelines(dropped);
+                }
+            } catch (e) {
+                console.error("[sync] dropped timeline check failed", e);
             }
         },
     );

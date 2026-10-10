@@ -113,3 +113,24 @@ export function watchdogOverdueMs(
     const backedOff = Math.min(base * 2 ** strikes, 5 * 60_000);
     return Math.max(backedOff, requestTimeoutMs + 15_000);
 }
+
+/**
+ * Rooms a sliding-sync response sent timeline events for that still have an
+ * empty live timeline once the SDK has processed it. A list room gets a
+ * single event, and when that is a relation (reaction, edit) to an event the
+ * client doesn't have, the SDK keeps it out of every timeline (with thread
+ * support on it can't tell which thread it belongs to), so the room is left
+ * with no events at all. Classic /sync never hits this: its batches carry the
+ * related event too.
+ */
+export function roomsWithDroppedTimeline(
+    rooms: Record<string, { timeline?: unknown[] }> | undefined,
+    liveTimelineIsEmpty: (roomId: string) => boolean,
+): string[] {
+    return Object.entries(rooms ?? {})
+        .filter(
+            ([roomId, data]) =>
+                (data.timeline?.length ?? 0) > 0 && liveTimelineIsEmpty(roomId),
+        )
+        .map(([roomId]) => roomId);
+}
