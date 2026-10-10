@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.17.1
+
+🐛 **Fixed**
+
+- **No more reloading two or three times on startup:** with sliding sync off, Zam could finish loading, blank the screen and start over, sometimes twice. It checked for missing rooms before the server had answered, so any room you'd joined since your last session looked lost and triggered a reload. It now waits for the server, and a room that really is missing is repaired in place instead of reloading.
+- **Opening a room no longer wipes the local cache:** the first room you opened in a session could make Zam delete its saved copy of your rooms, so the next launch had to load everything from scratch.
+- **Muted rooms show new messages again with sliding sync:** in muted or mentions-only rooms, new messages from others never made the room show as unread when sliding sync was on.
+- **Rooms whose latest event is a reaction or edit:** with sliding sync, such rooms could load with no messages at all, and "Mark as read" did nothing for them.
+- **Calls in group rooms show who's in them with sliding sync:** the room list showed nobody in a group room's call, because the people in it weren't loaded yet. Direct messages were already fine.
+- **Pings in quick bursts notify with sliding sync:** when several messages arrived in a room at once, or while Zam was catching up after sleep or a dropped connection, only the newest one reached notifications, so a ping before it made no sound or popup. Zam now fetches skipped messages when your mention count went up and notifies for them as usual.
+
 ## v1.17.0
 
 ✨ **New**
