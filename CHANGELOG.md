@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.1
+
+✨ **New**
+
+- **See where an emote comes from:** the emoji suggestions that pop up while you type `:` now show the room or space each custom emote belongs to, or "Your emotes" for your own, instead of just "custom".
+
+🐛 **Fixed**
+
+- **No emote preview for formatted words:** typing `*name*` or `_name_` in the composer showed the custom emote called `name` even though it isn't an emote shortcode. Only a full `:name:` shows one now. Sent messages were never affected.
+
 ## v1.19.0
 
 ✨ **New**
