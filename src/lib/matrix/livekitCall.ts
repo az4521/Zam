@@ -821,10 +821,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             noiseSuppression: micPlan.noiseSuppression,
             echoCancellation: settingsState.echoCancellation,
             autoGainControl: micPlan.autoGainControl,
-            // Applied by LiveKit whenever it creates the mic track.
-            processor: micPlan.chain
-                ? createMicProcessor(micPlan.chain)
-                : undefined,
+            // No `processor` here: see setCallMicEnabled.
         },
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
@@ -976,7 +973,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             await lkRoom.disconnect().catch(() => {});
             return;
         }
-        await lkRoom.localParticipant.setMicrophoneEnabled(!desiredMicMuted);
+        await setCallMicEnabled(call, !desiredMicMuted);
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -1073,6 +1070,59 @@ async function leaveVoiceCallInternal(): Promise<void> {
     }
 }
 
+// The first-mic-track creation in flight, so a double unmute can't publish
+// two microphones.
+let micCreation: Promise<void> | null = null;
+
+/** Turn the call's mic on or off. Once a mic track exists this is LiveKit's
+ *  own mute/unmute. Creating the FIRST one with Zam's mic chain on is done
+ *  here instead: LiveKit applies an `audioCaptureDefaults.processor` inside
+ *  createLocalTracks, before the track has the AudioContext setProcessor
+ *  requires, so it always threw ("Audio context needs to be set on
+ *  LocalAudioTrack"). localParticipant.createTracks gives the track its
+ *  context; the processor goes on before publishing, so nothing unfiltered
+ *  is ever sent. */
+async function setCallMicEnabled(
+    call: ActiveVoiceCall,
+    enabled: boolean,
+): Promise<void> {
+    const lp = call.lkRoom.localParticipant;
+    const source = call.lk.Track.Source.Microphone;
+    while (micCreation) await micCreation;
+    const chain = planMicProcessing(
+        settingsState.noiseSuppressionMode,
+        settingsState.micGainMode,
+        deepFilterSupported(),
+    ).chain;
+    if (!enabled || !chain || lp.getTrackPublication(source)) {
+        await lp.setMicrophoneEnabled(enabled);
+        return;
+    }
+    const run = (async () => {
+        const [track] = await lp.createTracks({ audio: true });
+        if (activeVoice !== call) {
+            track.stop();
+            return;
+        }
+        try {
+            await (track as LivekitClient.LocalAudioTrack).setProcessor(
+                createMicProcessor(chain),
+            );
+        } catch (err) {
+            // Better heard unprocessed than not at all.
+            console.error("Mic processing failed, sending raw mic:", err);
+            notifyVoiceNotice(t("client.couldnTApplyAudioProcessingChange"));
+        }
+        await lp.publishTrack(track, { source });
+    })();
+    micCreation = run;
+    try {
+        await run;
+    } finally {
+        micCreation = null;
+    }
+}
+
 /** Returns false when the device refused (e.g. unmuting a dead mic) so the
  *  caller can roll the UI back to the truth. */
 export async function setMicMuted(muted: boolean): Promise<boolean> {
@@ -1080,7 +1130,7 @@ export async function setMicMuted(muted: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return true;
     try {
-        await call.lkRoom.localParticipant.setMicrophoneEnabled(!muted);
+        await setCallMicEnabled(call, !muted);
         return true;
     } catch {
         // A failed unmute leaves the mic muted in reality.
@@ -1383,15 +1433,11 @@ export async function setVoiceCaptureConstraints(opts: {
         echoCancellation: opts.echoCancellation,
         autoGainControl: plan.autoGainControl,
     };
-    // Keep the defaults in step so a mic track LiveKit creates later (first
-    // unmute after joining muted) gets the same processing.
+    // Keep the defaults in step so a mic track created later (first unmute
+    // after joining muted) gets the same constraints; setCallMicEnabled
+    // reads the settings again for its processor.
     const defaults = call.lkRoom.options.audioCaptureDefaults;
-    if (defaults) {
-        Object.assign(defaults, c);
-        defaults.processor = plan.chain
-            ? createMicProcessor(plan.chain)
-            : undefined;
-    }
+    if (defaults) Object.assign(defaults, c);
     const track = call.lkRoom.localParticipant.getTrackPublication(
         call.lk.Track.Source.Microphone,
     )?.audioTrack;
