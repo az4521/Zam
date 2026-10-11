@@ -2055,6 +2055,17 @@ const messages: Record<MessageKey, string> = {
         "Audio des appels entrants - si cela bouge mais que vous n'entendez rien, vérifiez le périphérique de sortie choisi et le volume du système.",
     "voiceAudioSettings.voiceProcessing": "Traitement de la voix",
     "voiceAudioSettings.noiseSuppression": "Suppression du bruit",
+    "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsBrowser": "Navigateur",
+    "voiceAudioSettings.nsOff": "Désactivé",
+    "voiceAudioSettings.nsDeepFilterHint":
+        "Suppression du bruit par IA, exécutée sur votre appareil. Télécharge environ 11 Mo à la première utilisation.",
+    "voiceAudioSettings.nsDeepFilterUnsupported":
+        "Ce navigateur ne peut pas exécuter DeepFilterNet3 : la suppression du bruit du navigateur est utilisée à la place.",
+    "voiceAudioSettings.nsBrowserHint":
+        "La suppression du bruit intégrée à votre navigateur. Elle n'enlève que les bruits de fond constants.",
+    "voiceAudioSettings.nsOffHint":
+        "Votre micro est envoyé sans suppression du bruit.",
     "voiceAudioSettings.echoCancellation": "Annulation de l'écho",
     "voiceAudioSettings.autoGainControl": "Contrôle automatique du gain",
     "voiceAudioSettings.agcZam": "Zam",

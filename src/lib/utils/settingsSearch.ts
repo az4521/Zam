@@ -351,7 +351,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     {
         tab: "voice",
         label: t("settingsSearch.noiseSuppression"),
-        keywords: ["denoise", "filter"],
+        keywords: [
+            "denoise",
+            "filter",
+            "deepfilternet",
+            "denoise",
+            "background noise",
+        ],
     },
     {
         tab: "voice",

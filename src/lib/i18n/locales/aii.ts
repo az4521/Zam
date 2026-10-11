@@ -1921,6 +1921,16 @@ const messages: Record<MessageKey, string> = {
         "ܩܠܐ ܕܩܪܝܬܐ ܕܐܬܝܐ - ܐܢ ܗܕܐ ܙܝܥܐ ܐܝܢܐ ܠܐ ܫܡܥܐ ܝܘܬ ܡܕܡ، ܒܨܝ ܡܐܢܐ ܕܡܦܩܢܐ ܓܒܝܐ ܘܪܡܘܬܐ ܕܩܠܐ ܕܣܝܣܛܡ.",
     "voiceAudioSettings.voiceProcessing": "ܣܘܥܪܢܐ ܕܩܠܐ",
     "voiceAudioSettings.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
+    "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsBrowser": "ܡܦܬܫܢܐ",
+    "voiceAudioSettings.nsOff": "ܡܛܦܝܐ",
+    "voiceAudioSettings.nsDeepFilterHint":
+        "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ ܒܝܕ AI ܥܠ ܡܐܢܐ ܕܝܘܟ. ܒܙܒܢܐ ܩܕܡܝܐ ܡܚܬ ܩܐܪܒ 11 MB.",
+    "voiceAudioSettings.nsDeepFilterUnsupported":
+        "ܡܦܬܫܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ DeepFilterNet3، ܘܒܨܘܪܐ ܕܩܠ̈ܐ ܕܡܦܬܫܢܐ ܡܬܦܠܚ ܒܕܘܟܬܗ.",
+    "voiceAudioSettings.nsBrowserHint":
+        "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ ܕܡܦܬܫܢܐ ܕܝܘܟ. ܡܫܩܠ ܒܠܚܘܕ ܩܠ̈ܐ ܩܘܝ̈ܡܐ.",
+    "voiceAudioSettings.nsOffHint": "ܡܝܩܪܘܦܘܢ ܕܝܘܟ ܡܫܬܕܪ ܕܠܐ ܒܨܘܪܐ ܕܩܠ̈ܐ.",
     "voiceAudioSettings.echoCancellation": "ܒܘܛܠܐ ܕܩܠܐ ܕܗܦܟ",
     "voiceAudioSettings.autoGainControl": "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ",
     "voiceAudioSettings.agcZam": "Zam",

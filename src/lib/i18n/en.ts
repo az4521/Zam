@@ -1998,6 +1998,17 @@ export const en = {
         "Incoming call audio - if this moves but you hear nothing, check the selected output device and system volume.",
     "voiceAudioSettings.voiceProcessing": "Voice processing",
     "voiceAudioSettings.noiseSuppression": "Noise suppression",
+    "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsBrowser": "Browser",
+    "voiceAudioSettings.nsOff": "Off",
+    "voiceAudioSettings.nsDeepFilterHint":
+        "AI noise removal that runs on your device. Downloads about 11 MB the first time you use it.",
+    "voiceAudioSettings.nsDeepFilterUnsupported":
+        "This browser can't run DeepFilterNet3, so your browser's own noise suppression is used instead.",
+    "voiceAudioSettings.nsBrowserHint":
+        "Your browser's built-in noise suppression. It only removes steady background hum.",
+    "voiceAudioSettings.nsOffHint":
+        "Your microphone is sent without noise removal.",
     "voiceAudioSettings.echoCancellation": "Echo cancellation",
     "voiceAudioSettings.autoGainControl": "Auto gain control",
     "voiceAudioSettings.agcZam": "Zam",

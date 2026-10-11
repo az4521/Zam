@@ -56,8 +56,15 @@ import {
     createCallAudioGraph,
     type CallAudioGraph,
 } from "$lib/audio/callAudioGraph";
-import { createMicLeveller } from "$lib/audio/micLeveller";
-import { browserAgcFor, type MicGainMode } from "$lib/utils/micGainMode";
+import { createMicProcessor, type MicProcessor } from "$lib/audio/micProcessor";
+import { deepFilterSupported, prepareDeepFilter } from "$lib/audio/deepFilter";
+import type { MicGainMode } from "$lib/utils/micGainMode";
+import type { NoiseSuppressionMode } from "$lib/utils/noiseSuppressionMode";
+import {
+    planMicProcessing,
+    sameChain,
+    type MicProcessingPlan,
+} from "$lib/utils/micProcessing";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { shouldRingPeers } from "$lib/utils/callNotify";
 
@@ -647,6 +654,9 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     );
 }
 
+// How long a join waits for the noise filter model (see joinVoiceCall).
+const DENOISE_JOIN_WAIT_MS = 10_000;
+
 // Retry an SFU we lost or couldn't reach, while the call still needs it.
 const REMOTE_SFU_RETRY_MS = 10_000;
 
@@ -754,6 +764,16 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // same promise below still throws.
     const livekitLoad = livekit.load();
     livekitLoad.catch(() => {});
+    // Same for the noise filter: compiled now, awaited before the mic exists
+    // so the call never starts unfiltered. Bounded, so a first download on a
+    // slow link delays the join rather than blocking it.
+    const denoiseLoad = planMicProcessing(
+        settingsState.noiseSuppressionMode,
+        settingsState.micGainMode,
+        deepFilterSupported(),
+    ).chain?.denoise
+        ? prepareDeepFilter(DENOISE_JOIN_WAIT_MS)
+        : Promise.resolve(false);
     await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
 
@@ -788,18 +808,23 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         .map((m) => m.userId)
         .filter((id) => id !== userId);
     const lk = await livekitLoad;
+    await denoiseLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
+    const micPlan = planMicProcessing(
+        settingsState.noiseSuppressionMode,
+        settingsState.micGainMode,
+        deepFilterSupported(),
+    );
     const lkRoom = new lk.Room({
         audioCaptureDefaults: {
             deviceId: settingsState.audioInputDeviceId ?? undefined,
-            noiseSuppression: settingsState.noiseSuppression,
+            noiseSuppression: micPlan.noiseSuppression,
             echoCancellation: settingsState.echoCancellation,
-            autoGainControl: browserAgcFor(settingsState.micGainMode),
+            autoGainControl: micPlan.autoGainControl,
             // Applied by LiveKit whenever it creates the mic track.
-            processor:
-                settingsState.micGainMode === "zam"
-                    ? createMicLeveller()
-                    : undefined,
+            processor: micPlan.chain
+                ? createMicProcessor(micPlan.chain)
+                : undefined,
         },
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
@@ -1326,38 +1351,46 @@ export async function setVideoInputDevice(
     );
 }
 
-/** Live NS/EC/AGC change on the published mic track (no-op when not in a
- *  call — the next join reads the settings via audioCaptureDefaults). */
-/** Attach or drop Zam's leveller on a live mic track. A restart keeps an
- *  attached one (LiveKit re-inits it on the new track), so only flips act. */
-async function applyMicLeveller(
+/** Put Zam's mic chain on a live mic track, or take it off. A restart keeps
+ *  an attached processor (LiveKit re-inits it on the new track), so only a
+ *  changed chain swaps it. */
+async function applyMicProcessor(
     track: LivekitClient.LocalAudioTrack,
-    on: boolean,
+    chain: MicProcessingPlan["chain"],
 ): Promise<void> {
-    const has = !!track.getProcessor();
-    if (on && !has) await track.setProcessor(createMicLeveller());
-    else if (!on && has) await track.stopProcessor();
+    const current = track.getProcessor() as MicProcessor | undefined;
+    if (sameChain(current?.config ?? null, chain)) return;
+    if (chain) await track.setProcessor(createMicProcessor(chain));
+    else await track.stopProcessor();
 }
 
+/** Live NS/EC/AGC change on the published mic track (no-op when not in a
+ *  call — the next join reads the settings via audioCaptureDefaults). */
 export async function setVoiceCaptureConstraints(opts: {
-    noiseSuppression: boolean;
+    noiseSuppressionMode: NoiseSuppressionMode;
     echoCancellation: boolean;
     micGainMode: MicGainMode;
 }): Promise<void> {
     const call = activeVoice;
     if (!call) return;
+    const plan = planMicProcessing(
+        opts.noiseSuppressionMode,
+        opts.micGainMode,
+        deepFilterSupported(),
+    );
     const c = {
-        noiseSuppression: opts.noiseSuppression,
+        noiseSuppression: plan.noiseSuppression,
         echoCancellation: opts.echoCancellation,
-        autoGainControl: browserAgcFor(opts.micGainMode),
+        autoGainControl: plan.autoGainControl,
     };
     // Keep the defaults in step so a mic track LiveKit creates later (first
     // unmute after joining muted) gets the same processing.
     const defaults = call.lkRoom.options.audioCaptureDefaults;
     if (defaults) {
         Object.assign(defaults, c);
-        defaults.processor =
-            opts.micGainMode === "zam" ? createMicLeveller() : undefined;
+        defaults.processor = plan.chain
+            ? createMicProcessor(plan.chain)
+            : undefined;
     }
     const track = call.lkRoom.localParticipant.getTrackPublication(
         call.lk.Track.Source.Microphone,
@@ -1378,7 +1411,7 @@ export async function setVoiceCaptureConstraints(opts: {
             ...c,
             deviceId: deviceId ? { exact: deviceId } : undefined,
         });
-        await applyMicLeveller(track, opts.micGainMode === "zam");
+        await applyMicProcessor(track, plan.chain);
     } catch (err) {
         console.error("Voice capture constraints change failed:", err);
         await track.restartTrack({ ...c, deviceId }).catch(() => {});

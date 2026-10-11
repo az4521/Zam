@@ -43,6 +43,10 @@ import {
 import { normalizeGraceMs } from "$lib/utils/activeSession";
 import { normalizeMicGainMode, type MicGainMode } from "$lib/utils/micGainMode";
 import {
+    normalizeNoiseSuppressionMode,
+    type NoiseSuppressionMode,
+} from "$lib/utils/noiseSuppressionMode";
+import {
     normalizeDesktopAlertMode,
     type DesktopAlertMode,
 } from "$lib/utils/desktopAlert";
@@ -356,7 +360,12 @@ export const settingsState = $state({
     videoInputDeviceId: readAccountDeviceId("videoInputDeviceId"),
     /** Master volume for remote call audio (0..1). */
     callOutputVolume: readAccountNumber("callOutputVolume", 1),
-    noiseSuppression: readAccountBool("noiseSuppression", true),
+    /** Which suppressor cleans up the user's own mic; see
+     *  $lib/utils/noiseSuppressionMode. Falls back to the legacy boolean. */
+    noiseSuppressionMode: normalizeNoiseSuppressionMode(
+        readAccountString("noiseSuppressionMode"),
+        readAccountBool("noiseSuppression", true),
+    ),
     echoCancellation: readAccountBool("echoCancellation", true),
     /** Which AGC levels the user's own mic; see $lib/utils/micGainMode.
      *  Falls back to the legacy autoGainControl boolean. */
@@ -651,7 +660,10 @@ export function reloadAccountSettings(): void {
     settingsState.videoInputDeviceId =
         readAccountDeviceId("videoInputDeviceId");
     settingsState.callOutputVolume = readAccountNumber("callOutputVolume", 1);
-    settingsState.noiseSuppression = readAccountBool("noiseSuppression", true);
+    settingsState.noiseSuppressionMode = normalizeNoiseSuppressionMode(
+        readAccountString("noiseSuppressionMode"),
+        readAccountBool("noiseSuppression", true),
+    );
     settingsState.echoCancellation = readAccountBool("echoCancellation", true);
     settingsState.micGainMode = normalizeMicGainMode(
         readAccountString("micGainMode"),
@@ -965,9 +977,9 @@ export function setCallOutputVolume(value: number): void {
     );
 }
 
-export function setNoiseSuppression(value: boolean): void {
-    settingsState.noiseSuppression = value;
-    writeAccountBool("noiseSuppression", value);
+export function setNoiseSuppressionMode(value: NoiseSuppressionMode): void {
+    settingsState.noiseSuppressionMode = value;
+    writeAccountString("noiseSuppressionMode", value);
 }
 
 export function setEchoCancellation(value: boolean): void {

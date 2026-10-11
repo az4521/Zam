@@ -6,6 +6,7 @@ import {
     SHELL_CACHE_PREFIX,
     BUILD_ASSET_PREFIX,
     NAVIGATION_FALLBACK_URL,
+    MODEL_ASSET_PATTERN,
 } from "./swCacheRouting";
 import { CLASSIFY_CASES, MANIFEST_CASES } from "./swCacheRouting.test";
 import {
@@ -49,6 +50,7 @@ const mirrored = new Function(
         SW_SHELL_CACHE_PREFIX,
         SW_BUILD_ASSET_PREFIX,
         SW_NAVIGATION_FALLBACK_URL,
+        SW_MODEL_ASSET_PATTERN,
     };`,
 )() as {
     swClassifyRequest: (input: unknown) => string;
@@ -58,6 +60,7 @@ const mirrored = new Function(
     SW_SHELL_CACHE_PREFIX: string;
     SW_BUILD_ASSET_PREFIX: string;
     SW_NAVIGATION_FALLBACK_URL: string;
+    SW_MODEL_ASSET_PATTERN: RegExp;
 };
 
 describe("static/sw.js mirrors swCacheRouting.ts", () => {
@@ -66,6 +69,9 @@ describe("static/sw.js mirrors swCacheRouting.ts", () => {
         expect(mirrored.SW_BUILD_ASSET_PREFIX).toBe(BUILD_ASSET_PREFIX);
         expect(mirrored.SW_NAVIGATION_FALLBACK_URL).toBe(
             NAVIGATION_FALLBACK_URL,
+        );
+        expect(mirrored.SW_MODEL_ASSET_PATTERN.source).toBe(
+            MODEL_ASSET_PATTERN.source,
         );
     });
 

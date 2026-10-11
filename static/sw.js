@@ -40,6 +40,7 @@ const SW_SHELL_VERSION = "__SW_SHELL_VERSION__";
 // swOfflineShell.mirrors.test.ts executes this region against that module's
 // own case table.
 const SW_SHELL_CACHE_PREFIX = "zam-shell-";
+const SW_MODEL_ASSET_PATTERN = /\/df_bg\.[^/]*\.wasm$/;
 const SW_BUILD_ASSET_PREFIX = "/_app/immutable/";
 const SW_NAVIGATION_FALLBACK_URL = "/index.html";
 
@@ -79,6 +80,10 @@ function swClassifyRequest(input) {
 		// asset filename never contains a percent sign, so requiring none
 		// closes the whole encoded-traversal class for free.
 		if (parsed.pathname.indexOf("%") !== -1) return "bypass";
+		// The noise filter model keeps its own cache that outlives deploys
+		// (src/lib/audio/deepFilter.ts); a per-version copy here would double
+		// ~34 MB of storage and be thrown away at the next deploy.
+		if (SW_MODEL_ASSET_PATTERN.test(parsed.pathname)) return "bypass";
 		return "asset";
 	}
 	return "bypass";

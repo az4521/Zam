@@ -2075,6 +2075,17 @@ const messages: Record<MessageKey, string> = {
         "Audio eingehender Anrufe - wenn sich das bewegt, du aber nichts hörst, prüfe das gewählte Ausgabegerät und die Systemlautstärke.",
     "voiceAudioSettings.voiceProcessing": "Sprachverarbeitung",
     "voiceAudioSettings.noiseSuppression": "Rauschunterdrückung",
+    "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsBrowser": "Browser",
+    "voiceAudioSettings.nsOff": "Aus",
+    "voiceAudioSettings.nsDeepFilterHint":
+        "KI-Rauschunterdrückung direkt auf deinem Gerät. Lädt beim ersten Mal etwa 11 MB herunter.",
+    "voiceAudioSettings.nsDeepFilterUnsupported":
+        "Dieser Browser kann DeepFilterNet3 nicht ausführen, daher wird die Rauschunterdrückung des Browsers verwendet.",
+    "voiceAudioSettings.nsBrowserHint":
+        "Die eingebaute Rauschunterdrückung deines Browsers. Sie entfernt nur gleichmäßiges Hintergrundrauschen.",
+    "voiceAudioSettings.nsOffHint":
+        "Dein Mikrofon wird ohne Rauschunterdrückung gesendet.",
     "voiceAudioSettings.echoCancellation": "Echounterdrückung",
     "voiceAudioSettings.autoGainControl": "Automatische Pegelanpassung",
     "voiceAudioSettings.agcZam": "Zam",

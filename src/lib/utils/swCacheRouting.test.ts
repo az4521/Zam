@@ -86,6 +86,20 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        name: "the noise filter model is left to the app's own model cache",
+        input: req({
+            url: `${ORIGIN}/_app/immutable/assets/df_bg.DnsUDD-k.wasm`,
+        }),
+        expected: "bypass",
+    },
+    {
+        name: "other build wasm is still cached like any asset",
+        input: req({
+            url: `${ORIGIN}/_app/immutable/assets/matrix_sdk_crypto_wasm_bg.DQQaknxI.wasm`,
+        }),
+        expected: "asset",
+    },
+    {
         name: "the push decryptor page is never answered with the shell",
         input: req({
             url: `${ORIGIN}/push-decrypt/index.html`,

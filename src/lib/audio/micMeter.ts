@@ -8,12 +8,20 @@ import {
     isOverconstrainedError,
 } from "$lib/utils/audioDevices";
 import { smoothMeterLevel, ATTACK_MS, RELEASE_MS } from "./meterEnvelope";
+import {
+    createMicChain,
+    type MicChain,
+    type MicChainOptions,
+} from "./micChain";
+import { DEEP_FILTER_SAMPLE_RATE } from "./deepFilter";
 
 export interface MicMeterOptions {
     deviceId: string | null;
     noiseSuppression: boolean;
     echoCancellation: boolean;
     autoGainControl: boolean;
+    /** Zam's mic chain, so the meter and "Test mic" match what a call sends. */
+    chain?: MicChainOptions | null;
     onLevel: (rms: number) => void;
 }
 
@@ -60,8 +68,13 @@ export async function startMicMeter(
     // constructed: a microphone nothing in the page can reach.
     let ctx: AudioContext;
     let analyser: AnalyserNode;
+    let chain: MicChain | null = null;
+    // What "Test mic" plays: the chain's output, else the raw mic.
+    let loopStream: MediaStream = stream;
     try {
-        ctx = new AudioContext();
+        ctx = opts.chain
+            ? new AudioContext({ sampleRate: DEEP_FILTER_SAMPLE_RATE })
+            : new AudioContext();
         const source = ctx.createMediaStreamSource(stream);
         analyser = ctx.createAnalyser();
         analyser.fftSize = 1024;
@@ -72,8 +85,18 @@ export async function startMicMeter(
         // getByteFrequencyData. Smoothing lives in the fast-attack / slow-release
         // envelope (see tick below), not in the analyser.
         analyser.smoothingTimeConstant = 0;
-        source.connect(analyser);
+        if (opts.chain) {
+            chain = createMicChain(ctx, opts.chain);
+            source.connect(chain.input);
+            chain.output.connect(analyser);
+            const dest = ctx.createMediaStreamDestination();
+            chain.output.connect(dest);
+            loopStream = dest.stream;
+        } else {
+            source.connect(analyser);
+        }
     } catch (e) {
+        chain?.destroy();
         stream.getTracks().forEach((t) => t.stop());
         throw e;
     }
@@ -121,6 +144,7 @@ export async function startMicMeter(
             stopped = true;
             cancelAnimationFrame(raf);
             stopLoopback();
+            chain?.destroy();
             stream.getTracks().forEach((t) => t.stop());
             void ctx.close().catch(() => {});
         },
@@ -131,7 +155,7 @@ export async function startMicMeter(
             }
             if (!loopEl) {
                 loopEl = new Audio();
-                loopEl.srcObject = stream;
+                loopEl.srcObject = loopStream;
             }
             // Hold the element locally: stop() or setLoopback(false) can run
             // while setSinkId is pending and null out loopEl (audit IMP-6).

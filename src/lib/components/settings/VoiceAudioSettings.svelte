@@ -8,7 +8,7 @@
         setAudioOutputDeviceId,
         setVideoInputDeviceId,
         setCallOutputVolume,
-        setNoiseSuppression,
+        setNoiseSuppressionMode,
         setEchoCancellation,
         setMicGainMode,
         setNormalizeCallAudio,
@@ -35,10 +35,13 @@
     } from "$lib/audio/devices";
     import { startMicMeter, type MicMeterHandle } from "$lib/audio/micMeter";
     import { startOutputMeter, streamSetKey } from "$lib/audio/outputMeter";
+    import { normalizeMicGainMode } from "$lib/utils/micGainMode";
     import {
-        browserAgcFor,
-        normalizeMicGainMode,
-    } from "$lib/utils/micGainMode";
+        normalizeNoiseSuppressionMode,
+        effectiveNoiseSuppression,
+    } from "$lib/utils/noiseSuppressionMode";
+    import { planMicProcessing } from "$lib/utils/micProcessing";
+    import { deepFilterSupported } from "$lib/audio/deepFilter";
     import { playSpeakerTestTone } from "$lib/audio/speakerTest";
     import {
         playCallSound,
@@ -132,6 +135,15 @@
         cameras = toDeviceOptions(all, "videoinput");
     }
 
+    const dfSupported = deepFilterSupported();
+    const micPlan = $derived(
+        planMicProcessing(
+            settingsState.noiseSuppressionMode,
+            settingsState.micGainMode,
+            dfSupported,
+        ),
+    );
+
     async function startMeter(): Promise<void> {
         // Claim the channel first: two overlapping starts used to leave the
         // earlier meter's stream running with only the later handle stored.
@@ -148,9 +160,10 @@
                     settingsState.audioInputDeviceId,
                     inputs,
                 ).id,
-                noiseSuppression: settingsState.noiseSuppression,
+                noiseSuppression: micPlan.noiseSuppression,
                 echoCancellation: settingsState.echoCancellation,
-                autoGainControl: browserAgcFor(settingsState.micGainMode),
+                autoGainControl: micPlan.autoGainControl,
+                chain: micPlan.chain,
                 onLevel: (v) => (micLevel = v),
             });
         } catch {
@@ -199,7 +212,7 @@
 
     function applyConstraints(): void {
         void setVoiceCaptureConstraints({
-            noiseSuppression: settingsState.noiseSuppression,
+            noiseSuppressionMode: settingsState.noiseSuppressionMode,
             echoCancellation: settingsState.echoCancellation,
             micGainMode: settingsState.micGainMode,
         });
@@ -495,17 +508,45 @@
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
-            <p class="flex-1 text-sm text-discord-textPrimary">
-                {t("voiceAudioSettings.noiseSuppression")}
-            </p>
-            <ToggleSwitch
-                checked={settingsState.noiseSuppression}
-                onChange={(v) => {
-                    setNoiseSuppression(v);
+            <div class="flex-1">
+                <label
+                    for="noise-suppression-mode"
+                    class="text-sm text-discord-textPrimary"
+                >
+                    {t("voiceAudioSettings.noiseSuppression")}
+                </label>
+                <p class="text-xs text-discord-textMuted">
+                    {settingsState.noiseSuppressionMode === "deepfilter"
+                        ? dfSupported
+                            ? t("voiceAudioSettings.nsDeepFilterHint")
+                            : t("voiceAudioSettings.nsDeepFilterUnsupported")
+                        : settingsState.noiseSuppressionMode === "browser"
+                          ? t("voiceAudioSettings.nsBrowserHint")
+                          : t("voiceAudioSettings.nsOffHint")}
+                </p>
+            </div>
+            <select
+                id="noise-suppression-mode"
+                class="flex-shrink-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                value={settingsState.noiseSuppressionMode}
+                onchange={(e) => {
+                    setNoiseSuppressionMode(
+                        normalizeNoiseSuppressionMode(
+                            e.currentTarget.value,
+                            true,
+                        ),
+                    );
                     applyConstraints();
                 }}
-                label={t("voiceAudioSettings.noiseSuppression")}
-            />
+            >
+                <option value="deepfilter"
+                    >{t("voiceAudioSettings.nsDeepFilter")}</option
+                >
+                <option value="browser"
+                    >{t("voiceAudioSettings.nsBrowser")}</option
+                >
+                <option value="off">{t("voiceAudioSettings.nsOff")}</option>
+            </select>
         </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"

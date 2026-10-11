@@ -80,6 +80,10 @@ import {
     getNativeAudioRoute,
     type NativeAudioRoute,
 } from "$lib/nativeCall";
+import { prefetchDeepFilter } from "$lib/audio/deepFilter";
+
+/** Leaves startup (sync, crypto, room list) the bandwidth first. */
+const MODEL_PREFETCH_DELAY_MS = 15_000;
 
 /** LiveKit now arrives in its own chunk, so joining can fail on the chunk
  *  fetch rather than on anything Matrix-shaped. The browser caches a failed
@@ -212,6 +216,12 @@ export function initVoiceCall(): () => void {
         sinkId: settingsState.audioOutputDeviceId,
     });
     primeParticipantAudio(settingsState.participantAudio);
+    // Get the noise filter model onto the device ahead of the first call,
+    // once startup has settled (web/PWA only; the apps ship it).
+    const prefetchTimer = setTimeout(() => {
+        if (settingsState.noiseSuppressionMode === "deepfilter")
+            void prefetchDeepFilter();
+    }, MODEL_PREFETCH_DELAY_MS);
 
     let selfSound: SelfSoundState = INITIAL_SELF_SOUND_STATE;
     let peerIds: string[] | null = null;
@@ -380,6 +390,7 @@ export function initVoiceCall(): () => void {
         });
     });
     return () => {
+        clearTimeout(prefetchTimer);
         stopSweep();
         clearRecentlyLeftTimer();
         unsubSessions();

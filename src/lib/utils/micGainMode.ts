@@ -1,6 +1,6 @@
 /**
  * Which automatic gain control evens out the user's own microphone:
- *  - "zam": Zam's leveller (a LiveKit audio processor, $lib/audio/micLeveller).
+ *  - "zam": Zam's leveller ($lib/audio/micChain, run as a LiveKit processor).
  *    Digital gain only; never touches the OS microphone volume.
  *  - "browser": the browser's getUserMedia `autoGainControl` (WebRTC's AGC in
  *    Chromium/Electron/Android, which can also move the OS mic volume).
