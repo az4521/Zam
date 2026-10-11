@@ -21,6 +21,7 @@
         setVoiceOutputDevice,
     } from "$lib/matrix/client";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
+    import { MAX_PARTICIPANT_VOLUME } from "$lib/utils/participantAudio";
     import { menuGates } from "$lib/utils/callMenu";
     import {
         shouldEncryptNewDm,
@@ -526,13 +527,17 @@
                 id="user-volume-{userId}"
                 type="range"
                 min="0"
-                max="100"
+                max={MAX_PARTICIPANT_VOLUME * 100}
                 step="1"
+                list="user-volume-ticks-{userId}"
                 value={Math.round(audio.volume * 100)}
                 oninput={(e) =>
                     setUserVolume(userId, e.currentTarget.valueAsNumber / 100)}
                 class="w-full mt-1.5 accent-discord-accent"
             />
+            <datalist id="user-volume-ticks-{userId}">
+                <option value="100"></option>
+            </datalist>
         </div>
         <button
             onclick={() => setUserLocalMute(userId, !audio.muted)}

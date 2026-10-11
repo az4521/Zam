@@ -2077,6 +2077,18 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.noiseSuppression": "Rauschunterdrückung",
     "voiceAudioSettings.echoCancellation": "Echounterdrückung",
     "voiceAudioSettings.autoGainControl": "Automatische Pegelanpassung",
+    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcBrowser": "Browser",
+    "voiceAudioSettings.agcOff": "Aus",
+    "voiceAudioSettings.agcZamHint":
+        "Gleicht deine Stimme an, ohne die Mikrofonlautstärke deines Systems zu verändern.",
+    "voiceAudioSettings.agcBrowserHint":
+        "Die eingebaute Pegelanpassung deines Browsers. Sie kann die Mikrofonlautstärke deines Systems verändern.",
+    "voiceAudioSettings.agcOffHint":
+        "Dein Mikrofon wird mit dem Pegel gesendet, den dein System liefert.",
+    "voiceAudioSettings.normalizeVoices": "Stimmlautstärke angleichen",
+    "voiceAudioSettings.normalizeVoicesHint":
+        "Macht leise Personen automatisch lauter und laute leiser, damit du nicht die Lautstärke jeder Person einzeln einstellen musst.",
     "voiceAudioSettings.camera": "Kamera",
     "voiceAudioSettings.mirrorMyCamera": "Meine Kamera spiegeln",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
@@ -3013,6 +3025,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.noiseSuppression": "Rauschunterdrückung",
     "settingsSearch.echoCancellation": "Echounterdrückung",
     "settingsSearch.autoGainControl": "Automatische Pegelanpassung",
+    "settingsSearch.normalizeVoices": "Stimmlautstärke angleichen",
     "settingsSearch.mirrorMyCamera": "Meine Kamera spiegeln",
     "settingsSearch.callVolume": "Anruflautstärke",
     "settingsSearch.playCallSounds": "Anruftöne abspielen",

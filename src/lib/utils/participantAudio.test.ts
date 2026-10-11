@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
     clampVolume,
+    clampParticipantVolume,
+    needsBoost,
+    MAX_PARTICIPANT_VOLUME,
     effectiveVolume,
     withVolume,
     withLocalMute,
@@ -22,6 +25,28 @@ describe("clampVolume", () => {
     it("falls back to unity for non-finite input", () => {
         expect(clampVolume(NaN)).toBe(1);
         expect(clampVolume(Infinity)).toBe(1);
+    });
+});
+
+describe("clampParticipantVolume", () => {
+    it("allows boosting up to 500%", () => {
+        expect(MAX_PARTICIPANT_VOLUME).toBe(5);
+        expect(clampParticipantVolume(-1)).toBe(0);
+        expect(clampParticipantVolume(2.5)).toBe(2.5);
+        expect(clampParticipantVolume(5)).toBe(5);
+        expect(clampParticipantVolume(9)).toBe(5);
+    });
+    it("falls back to unity for non-finite input", () => {
+        expect(clampParticipantVolume(NaN)).toBe(1);
+        expect(clampParticipantVolume(-Infinity)).toBe(1);
+    });
+});
+
+describe("needsBoost", () => {
+    it("is only needed above unity", () => {
+        expect(needsBoost(0)).toBe(false);
+        expect(needsBoost(1)).toBe(false);
+        expect(needsBoost(1.01)).toBe(true);
     });
 });
 
@@ -50,19 +75,29 @@ describe("effectiveVolume", () => {
     it("treats an unknown participant as unity", () => {
         expect(effectiveVolume(0.8, undefined)).toBe(0.8);
     });
-    it("never exceeds unity", () => {
+    it("boosts above unity, capped by a unity master and 500% per user", () => {
         expect(
-            effectiveVolume(2, { volume: 2, muted: false, videoHidden: false }),
-        ).toBe(1);
+            effectiveVolume(1, { volume: 3, muted: false, videoHidden: false }),
+        ).toBe(3);
+        expect(
+            effectiveVolume(0.5, {
+                volume: 4,
+                muted: false,
+                videoHidden: false,
+            }),
+        ).toBe(2);
+        expect(
+            effectiveVolume(2, { volume: 9, muted: false, videoHidden: false }),
+        ).toBe(5);
     });
 });
 
 describe("withVolume / withLocalMute", () => {
     it("sets a clamped volume without touching mute", () => {
         expect(
-            withVolume({ volume: 1, muted: true, videoHidden: false }, 2),
+            withVolume({ volume: 1, muted: true, videoHidden: false }, 7),
         ).toEqual({
-            volume: 1,
+            volume: 5,
             muted: true,
             videoHidden: false,
         });
@@ -109,7 +144,15 @@ describe("serializeAudioMap / parseAudioMap", () => {
     it("clamps hostile stored volumes", () => {
         expect(
             parseAudioMap('{"@a:s":{"v":99,"m":false}}').get("@a:s"),
-        ).toEqual({ volume: 1, muted: false, videoHidden: false });
+        ).toEqual({ volume: 5, muted: false, videoHidden: false });
+    });
+    it("keeps a stored boost", () => {
+        const map = new Map<string, ParticipantAudio>([
+            ["@a:s", { volume: 3.5, muted: false, videoHidden: false }],
+        ]);
+        expect(parseAudioMap(serializeAudioMap(map)).get("@a:s")?.volume).toBe(
+            3.5,
+        );
     });
 });
 

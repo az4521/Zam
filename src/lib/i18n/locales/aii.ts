@@ -1923,6 +1923,18 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
     "voiceAudioSettings.echoCancellation": "ܒܘܛܠܐ ܕܩܠܐ ܕܗܦܟ",
     "voiceAudioSettings.autoGainControl": "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ",
+    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcBrowser": "ܡܦܬܫܢܐ",
+    "voiceAudioSettings.agcOff": "ܡܛܦܝܐ",
+    "voiceAudioSettings.agcZamHint":
+        "ܡܫܘܐ ܩܠܘܟ ܕܠܐ ܫܢܝ ܪܡܘܬܐ ܕܡܝܩܪܘܦܘܢ ܕܣܝܣܛܡ ܕܝܘܟ.",
+    "voiceAudioSettings.agcBrowserHint":
+        "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ ܕܡܦܬܫܢܐ ܕܝܘܟ. ܡܨܝܐ ܕܫܢܐ ܪܡܘܬܐ ܕܡܝܩܪܘܦܘܢ ܕܣܝܣܛܡ ܕܝܘܟ.",
+    "voiceAudioSettings.agcOffHint":
+        "ܡܝܩܪܘܦܘܢ ܕܝܘܟ ܡܫܬܕܪ ܒܪܡܘܬܐ ܕܝܗܒ ܠܗ ܣܝܣܛܡ ܕܝܘܟ.",
+    "voiceAudioSettings.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
+    "voiceAudioSettings.normalizeVoicesHint":
+        "ܐܘܛܘܡܛܝܩܐܝܬ ܡܪܝܡ ܩܠ̈ܐ ܙܥܘܪ̈ܐ ܘܡܢܚܬ ܩܠ̈ܐ ܪ̈ܡܐ.",
     "voiceAudioSettings.camera": "ܟܡܪܐ",
     "voiceAudioSettings.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
@@ -2775,6 +2787,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
     "settingsSearch.echoCancellation": "ܒܘܛܠܐ ܕܩܠܐ ܕܗܦܟ",
     "settingsSearch.autoGainControl": "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ",
+    "settingsSearch.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
     "settingsSearch.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "settingsSearch.callVolume": "ܪܡܘܬܐ ܕܩܠܐ ܕܩܪܝܬܐ",
     "settingsSearch.playCallSounds": "ܦܠܚ ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",

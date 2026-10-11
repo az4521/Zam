@@ -41,6 +41,7 @@ import {
     type LinkPreviewMedia,
 } from "$lib/utils/linkPreviewPolicy";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
+import { normalizeMicGainMode, type MicGainMode } from "$lib/utils/micGainMode";
 import {
     normalizeDesktopAlertMode,
     type DesktopAlertMode,
@@ -357,7 +358,14 @@ export const settingsState = $state({
     callOutputVolume: readAccountNumber("callOutputVolume", 1),
     noiseSuppression: readAccountBool("noiseSuppression", true),
     echoCancellation: readAccountBool("echoCancellation", true),
-    autoGainControl: readAccountBool("autoGainControl", true),
+    /** Which AGC levels the user's own mic; see $lib/utils/micGainMode.
+     *  Falls back to the legacy autoGainControl boolean. */
+    micGainMode: normalizeMicGainMode(
+        readAccountString("micGainMode"),
+        readAccountBool("autoGainControl", true),
+    ),
+    /** Even out how loud each remote speaker plays (receive side). */
+    normalizeCallAudio: readAccountBool("normalizeCallAudio", false),
     /** Mirror the local camera self-view (horizontal flip). Local display
      *  only — remote participants always see you un-mirrored. */
     mirrorCamera: readAccountBool("mirrorCamera", true),
@@ -645,7 +653,14 @@ export function reloadAccountSettings(): void {
     settingsState.callOutputVolume = readAccountNumber("callOutputVolume", 1);
     settingsState.noiseSuppression = readAccountBool("noiseSuppression", true);
     settingsState.echoCancellation = readAccountBool("echoCancellation", true);
-    settingsState.autoGainControl = readAccountBool("autoGainControl", true);
+    settingsState.micGainMode = normalizeMicGainMode(
+        readAccountString("micGainMode"),
+        readAccountBool("autoGainControl", true),
+    );
+    settingsState.normalizeCallAudio = readAccountBool(
+        "normalizeCallAudio",
+        false,
+    );
     settingsState.mirrorCamera = readAccountBool("mirrorCamera", true);
     settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
     settingsState.screenShareResolution =
@@ -960,9 +975,14 @@ export function setEchoCancellation(value: boolean): void {
     writeAccountBool("echoCancellation", value);
 }
 
-export function setAutoGainControl(value: boolean): void {
-    settingsState.autoGainControl = value;
-    writeAccountBool("autoGainControl", value);
+export function setMicGainMode(value: MicGainMode): void {
+    settingsState.micGainMode = value;
+    writeAccountString("micGainMode", value);
+}
+
+export function setNormalizeCallAudio(value: boolean): void {
+    settingsState.normalizeCallAudio = value;
+    writeAccountBool("normalizeCallAudio", value);
 }
 
 export function setMirrorCamera(value: boolean): void {

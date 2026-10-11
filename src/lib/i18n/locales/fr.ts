@@ -2057,6 +2057,18 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.noiseSuppression": "Suppression du bruit",
     "voiceAudioSettings.echoCancellation": "Annulation de l'écho",
     "voiceAudioSettings.autoGainControl": "Contrôle automatique du gain",
+    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcBrowser": "Navigateur",
+    "voiceAudioSettings.agcOff": "Désactivé",
+    "voiceAudioSettings.agcZamHint":
+        "Égalise votre voix sans toucher au volume du micro de votre système.",
+    "voiceAudioSettings.agcBrowserHint":
+        "Le contrôle de gain intégré à votre navigateur. Il peut modifier le volume du micro de votre système.",
+    "voiceAudioSettings.agcOffHint":
+        "Votre micro est envoyé au niveau fourni par votre système.",
+    "voiceAudioSettings.normalizeVoices": "Égaliser le volume des voix",
+    "voiceAudioSettings.normalizeVoicesHint":
+        "Monte automatiquement les personnes trop faibles et baisse celles trop fortes, pour ne pas avoir à régler le volume de chacun à la main.",
     "voiceAudioSettings.camera": "Caméra",
     "voiceAudioSettings.mirrorMyCamera": "Afficher ma caméra en miroir",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
@@ -2982,6 +2994,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.noiseSuppression": "Suppression du bruit",
     "settingsSearch.echoCancellation": "Annulation de l'écho",
     "settingsSearch.autoGainControl": "Contrôle automatique du gain",
+    "settingsSearch.normalizeVoices": "Égaliser le volume des voix",
     "settingsSearch.mirrorMyCamera": "Afficher ma caméra en miroir",
     "settingsSearch.callVolume": "Volume des appels",
     "settingsSearch.playCallSounds": "Jouer les sons des appels",

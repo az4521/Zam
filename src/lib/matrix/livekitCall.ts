@@ -39,6 +39,7 @@ import {
 } from "$lib/utils/voiceDeviceWatch";
 import {
     effectiveVolume,
+    needsBoost,
     withVolume,
     withLocalMute,
     withVideoHidden,
@@ -51,6 +52,12 @@ import {
     setVideoInputDeviceId,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
+import {
+    createCallAudioGraph,
+    type CallAudioGraph,
+} from "$lib/audio/callAudioGraph";
+import { createMicLeveller } from "$lib/audio/micLeveller";
+import { browserAgcFor, type MicGainMode } from "$lib/utils/micGainMode";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { shouldRingPeers } from "$lib/utils/callNotify";
 
@@ -97,6 +104,9 @@ interface ActiveVoiceCall {
     /** identity ("@user:server:DEVICE") → that publication's elements, so a
      *  per-user volume can be applied without disturbing anyone else. */
     elsByIdentity: Map<string, Set<HTMLAudioElement>>;
+    /** Web Audio path for boosted (>100%) and normalized users, built on
+     *  first need. `false` once building failed: stay on plain elements. */
+    audioGraph: CallAudioGraph | null | false;
     onMmError: (err: unknown) => void;
     onMyMembership: (room: Room, membership: string) => void;
 }
@@ -129,6 +139,8 @@ let desiredCameraOn = false;
 // settings at join (account switches reload the page and re-read).
 let voiceOutputDeviceId: string | null = null;
 let voiceOutputVolume = 1;
+// Incoming-voice normalization; captured at join like the above.
+let voiceNormalize = false;
 
 // Per-user local audio (slider + local mute), keyed by userId — one entry per
 // human, applied to every device they are joined from. Primed from persisted
@@ -141,11 +153,42 @@ function userIdFromIdentity(identity: string): string {
     return identity.slice(0, identity.lastIndexOf(":"));
 }
 
+function ensureAudioGraph(call: ActiveVoiceCall): CallAudioGraph | null {
+    if (call.audioGraph === null) {
+        call.audioGraph =
+            createCallAudioGraph({
+                sinkId: voiceOutputDeviceId,
+                muted: voicePlaybackMuted,
+                normalize: voiceNormalize,
+                onSuspendedChange: () => refreshPlaybackBlocked(call),
+            }) ?? false;
+    }
+    return call.audioGraph || null;
+}
+
+/** Apply a user's level to one of their elements. Up to 100% (and without
+ *  normalization) the element's own volume does it; past that the element
+ *  is routed through the Web Audio graph and muted, and stays routed for
+ *  its lifetime so dragging across 100% doesn't hop paths. Where Web Audio
+ *  is unavailable the level is capped at 100%. */
 function applyElementVolume(el: HTMLAudioElement, identity: string): void {
-    el.volume = effectiveVolume(
+    const call = activeVoice;
+    const gain = effectiveVolume(
         voiceOutputVolume,
         participantAudio.get(userIdFromIdentity(identity)),
     );
+    let graph = call?.audioGraph || null;
+    if (call && !graph?.has(el) && (voiceNormalize || needsBoost(gain))) {
+        graph = ensureAudioGraph(call);
+        if (graph?.route(el)) refreshPlaybackBlocked(call);
+    }
+    if (graph?.has(el)) {
+        graph.setGain(el, gain);
+        el.muted = true;
+    } else {
+        el.volume = Math.min(1, gain);
+        el.muted = voicePlaybackMuted;
+    }
 }
 
 function applyVolumeForUser(userId: string): void {
@@ -414,11 +457,24 @@ function setVoicePlaybackBlocked(blocked: boolean): void {
     for (const cb of voicePlaybackBlockedSubscribers) cb(blocked);
 }
 
-export async function resumeVoicePlayback(): Promise<void> {
-    if (!activeVoice) return;
-    await Promise.all(
-        callLkRooms(activeVoice).map((r) => r.startAudio().catch(() => {})),
+/** Autoplay-blocked: a LiveKit connection can't play, or the Web Audio
+ *  graph's context is held suspended. */
+function refreshPlaybackBlocked(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    setVoicePlaybackBlocked(
+        callLkRooms(call).some((r) => !r.canPlaybackAudio) ||
+            (!!call.audioGraph && call.audioGraph.suspended),
     );
+}
+
+export async function resumeVoicePlayback(): Promise<void> {
+    const call = activeVoice;
+    if (!call) return;
+    await Promise.all([
+        ...callLkRooms(call).map((r) => r.startAudio().catch(() => {})),
+        call.audioGraph ? call.audioGraph.resume() : undefined,
+    ]);
+    refreshPlaybackBlocked(call);
 }
 
 export function getActiveVoiceRoomId(): string | null {
@@ -524,9 +580,17 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
                 return;
             }
             const el = track.attach() as HTMLAudioElement;
-            el.muted = voicePlaybackMuted;
             applyVoiceSink(el);
-            applyElementVolume(el, participant.identity);
+            // LiveKit's startAudio() unmutes every attached element (ours via
+            // resumeVoicePlayback, Safari's on each return to the page), which
+            // would undo deafen and double up graph-routed audio: put it back.
+            el.addEventListener("volumechange", () => {
+                if (activeVoice !== call) return;
+                const want =
+                    voicePlaybackMuted ||
+                    (!!call.audioGraph && call.audioGraph.has(el));
+                if (el.muted !== want) el.muted = want;
+            });
             call.audioEls.add(el);
             let els = call.elsByIdentity.get(participant.identity);
             if (!els) {
@@ -535,11 +599,15 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
             }
             els.add(el);
             document.body.appendChild(el);
+            // Last: routing into the graph reads the attached stream, and the
+            // element must already be tracked for later level changes.
+            applyElementVolume(el, participant.identity);
         },
     );
     lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         for (const el of track.detach()) {
             const audioEl = el as HTMLAudioElement;
+            if (call.audioGraph) call.audioGraph.remove(audioEl);
             call.audioEls.delete(audioEl);
             for (const [identity, els] of call.elsByIdentity) {
                 els.delete(audioEl);
@@ -574,12 +642,9 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     lkRoom.on(lk.RoomEvent.TrackUnpublished, video);
     lkRoom.on(lk.RoomEvent.TrackStreamStateChanged, video);
     lkRoom.on(lk.RoomEvent.ParticipantDisconnected, video);
-    lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => {
-        if (activeVoice !== call) return;
-        setVoicePlaybackBlocked(
-            callLkRooms(call).some((r) => !r.canPlaybackAudio),
-        );
-    });
+    lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
+        refreshPlaybackBlocked(call),
+    );
 }
 
 // Retry an SFU we lost or couldn't reach, while the call still needs it.
@@ -729,11 +794,17 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             deviceId: settingsState.audioInputDeviceId ?? undefined,
             noiseSuppression: settingsState.noiseSuppression,
             echoCancellation: settingsState.echoCancellation,
-            autoGainControl: settingsState.autoGainControl,
+            autoGainControl: browserAgcFor(settingsState.micGainMode),
+            // Applied by LiveKit whenever it creates the mic track.
+            processor:
+                settingsState.micGainMode === "zam"
+                    ? createMicLeveller()
+                    : undefined,
         },
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
     voiceOutputVolume = settingsState.callOutputVolume;
+    voiceNormalize = settingsState.normalizeCallAudio;
     // The SDK's MembershipManager gives up for good on some failures (e.g.
     // a 403 on the call.member state PUT in rooms where we lack power) and
     // only reports it via this session event — without it we'd stay
@@ -778,6 +849,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMembershipsChanged: () => void syncRemoteSfus(call),
         lk,
         audioEls: new Set(),
+        audioGraph: null,
         elsByIdentity: new Map(),
         onMmError,
         onMyMembership,
@@ -906,6 +978,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             // superseded.
             for (const el of call.audioEls) el.remove();
             call.audioEls.clear();
+            if (call.audioGraph) call.audioGraph.close();
             await Promise.allSettled(
                 callLkRooms(call).map((r) => r.disconnect()),
             );
@@ -957,6 +1030,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         );
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
+        if (call.audioGraph) call.audioGraph.close();
         // In parallel, not SFU-first: the membership leave is what other
         // users' rosters see, and it must fit the account-switch and logout
         // windows even when the LiveKit teardown is slow (audit IMP-1).
@@ -993,7 +1067,11 @@ export async function setMicMuted(muted: boolean): Promise<boolean> {
 export function setVoicePlaybackMuted(muted: boolean): void {
     voicePlaybackMuted = muted;
     if (!activeVoice) return;
-    for (const el of activeVoice.audioEls) el.muted = muted;
+    const graph = activeVoice.audioGraph || null;
+    graph?.setMuted(muted);
+    // Routed elements stay muted: their audio plays from the graph's output.
+    for (const el of activeVoice.audioEls)
+        if (!graph?.has(el)) el.muted = muted;
 }
 
 /** Route call audio to an output device (null = system default). Applies to
@@ -1002,6 +1080,19 @@ export function setVoiceOutputDevice(deviceId: string | null): void {
     voiceOutputDeviceId = deviceId;
     if (!activeVoice) return;
     for (const el of activeVoice.audioEls) applyVoiceSink(el);
+    if (activeVoice.audioGraph) activeVoice.audioGraph.setSink(deviceId);
+}
+
+/** Turn incoming-voice normalization on or off for the live call and later
+ *  joins. Turning it on routes everyone through the Web Audio graph; turning
+ *  it off leaves them routed at unity normalization gain. */
+export function setVoiceNormalization(on: boolean): void {
+    voiceNormalize = on;
+    if (!activeVoice) return;
+    const graph = activeVoice.audioGraph || null;
+    graph?.setNormalize(on);
+    for (const [identity, els] of activeVoice.elsByIdentity)
+        for (const el of els) applyElementVolume(el, identity);
 }
 
 export function setVoiceOutputVolume(volume: number): void {
@@ -1237,13 +1328,37 @@ export async function setVideoInputDevice(
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a
  *  call — the next join reads the settings via audioCaptureDefaults). */
-export async function setVoiceCaptureConstraints(c: {
+/** Attach or drop Zam's leveller on a live mic track. A restart keeps an
+ *  attached one (LiveKit re-inits it on the new track), so only flips act. */
+async function applyMicLeveller(
+    track: LivekitClient.LocalAudioTrack,
+    on: boolean,
+): Promise<void> {
+    const has = !!track.getProcessor();
+    if (on && !has) await track.setProcessor(createMicLeveller());
+    else if (!on && has) await track.stopProcessor();
+}
+
+export async function setVoiceCaptureConstraints(opts: {
     noiseSuppression: boolean;
     echoCancellation: boolean;
-    autoGainControl: boolean;
+    micGainMode: MicGainMode;
 }): Promise<void> {
     const call = activeVoice;
     if (!call) return;
+    const c = {
+        noiseSuppression: opts.noiseSuppression,
+        echoCancellation: opts.echoCancellation,
+        autoGainControl: browserAgcFor(opts.micGainMode),
+    };
+    // Keep the defaults in step so a mic track LiveKit creates later (first
+    // unmute after joining muted) gets the same processing.
+    const defaults = call.lkRoom.options.audioCaptureDefaults;
+    if (defaults) {
+        Object.assign(defaults, c);
+        defaults.processor =
+            opts.micGainMode === "zam" ? createMicLeveller() : undefined;
+    }
     const track = call.lkRoom.localParticipant.getTrackPublication(
         call.lk.Track.Source.Microphone,
     )?.audioTrack;
@@ -1263,6 +1378,7 @@ export async function setVoiceCaptureConstraints(c: {
             ...c,
             deviceId: deviceId ? { exact: deviceId } : undefined,
         });
+        await applyMicLeveller(track, opts.micGainMode === "zam");
     } catch (err) {
         console.error("Voice capture constraints change failed:", err);
         await track.restartTrack({ ...c, deviceId }).catch(() => {});

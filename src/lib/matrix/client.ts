@@ -9670,6 +9670,7 @@ export {
     setVoicePlaybackMuted,
     setVoiceOutputDevice,
     setVoiceOutputVolume,
+    setVoiceNormalization,
     setVoiceInputDevice,
     setScreenShareEnabled,
     setScreenShareQuality,

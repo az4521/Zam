@@ -361,7 +361,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     {
         tab: "voice",
         label: t("settingsSearch.autoGainControl"),
-        keywords: ["agc", "volume normalization"],
+        keywords: ["agc", "gain", "leveller", "mic volume"],
     },
     {
         tab: "voice",
@@ -372,6 +372,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         tab: "voice",
         label: t("settingsSearch.callVolume"),
         keywords: ["volume", "loudness"],
+    },
+    {
+        tab: "voice",
+        label: t("settingsSearch.normalizeVoices"),
+        keywords: ["normalization", "normalize", "loudness", "volume", "quiet"],
     },
     {
         tab: "voice",

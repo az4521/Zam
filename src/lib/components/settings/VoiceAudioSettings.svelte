@@ -10,7 +10,8 @@
         setCallOutputVolume,
         setNoiseSuppression,
         setEchoCancellation,
-        setAutoGainControl,
+        setMicGainMode,
+        setNormalizeCallAudio,
         setCallSoundsEnabled,
         setCallSoundsVolume,
         setRingEnabled,
@@ -34,6 +35,10 @@
     } from "$lib/audio/devices";
     import { startMicMeter, type MicMeterHandle } from "$lib/audio/micMeter";
     import { startOutputMeter, streamSetKey } from "$lib/audio/outputMeter";
+    import {
+        browserAgcFor,
+        normalizeMicGainMode,
+    } from "$lib/utils/micGainMode";
     import { playSpeakerTestTone } from "$lib/audio/speakerTest";
     import {
         playCallSound,
@@ -50,6 +55,7 @@
         setVoiceInputDevice,
         setVoiceOutputDevice,
         setVoiceOutputVolume,
+        setVoiceNormalization,
         updateServiceWorkerRingEnabled,
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
@@ -144,7 +150,7 @@
                 ).id,
                 noiseSuppression: settingsState.noiseSuppression,
                 echoCancellation: settingsState.echoCancellation,
-                autoGainControl: settingsState.autoGainControl,
+                autoGainControl: browserAgcFor(settingsState.micGainMode),
                 onLevel: (v) => (micLevel = v),
             });
         } catch {
@@ -195,7 +201,7 @@
         void setVoiceCaptureConstraints({
             noiseSuppression: settingsState.noiseSuppression,
             echoCancellation: settingsState.echoCancellation,
-            autoGainControl: settingsState.autoGainControl,
+            micGainMode: settingsState.micGainMode,
         });
         void startMeter();
     }
@@ -446,6 +452,24 @@
                 }}
             />
         </div>
+        <div class="mt-3 flex items-center gap-3">
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("voiceAudioSettings.normalizeVoices")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.normalizeVoicesHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.normalizeCallAudio}
+                onChange={(v) => {
+                    setNormalizeCallAudio(v);
+                    setVoiceNormalization(v);
+                }}
+                label={t("voiceAudioSettings.normalizeVoices")}
+            />
+        </div>
         {#if voiceCallState.connState === "connected"}
             <div
                 class="mt-3 h-2 rounded bg-discord-backgroundTertiary overflow-hidden"
@@ -501,17 +525,38 @@
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
-            <p class="flex-1 text-sm text-discord-textPrimary">
-                {t("voiceAudioSettings.autoGainControl")}
-            </p>
-            <ToggleSwitch
-                checked={settingsState.autoGainControl}
-                onChange={(v) => {
-                    setAutoGainControl(v);
+            <div class="flex-1">
+                <label
+                    for="mic-gain-mode"
+                    class="text-sm text-discord-textPrimary"
+                >
+                    {t("voiceAudioSettings.autoGainControl")}
+                </label>
+                <p class="text-xs text-discord-textMuted">
+                    {settingsState.micGainMode === "zam"
+                        ? t("voiceAudioSettings.agcZamHint")
+                        : settingsState.micGainMode === "browser"
+                          ? t("voiceAudioSettings.agcBrowserHint")
+                          : t("voiceAudioSettings.agcOffHint")}
+                </p>
+            </div>
+            <select
+                id="mic-gain-mode"
+                class="flex-shrink-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                value={settingsState.micGainMode}
+                onchange={(e) => {
+                    setMicGainMode(
+                        normalizeMicGainMode(e.currentTarget.value, true),
+                    );
                     applyConstraints();
                 }}
-                label={t("voiceAudioSettings.autoGainControl")}
-            />
+            >
+                <option value="zam">{t("voiceAudioSettings.agcZam")}</option>
+                <option value="browser"
+                    >{t("voiceAudioSettings.agcBrowser")}</option
+                >
+                <option value="off">{t("voiceAudioSettings.agcOff")}</option>
+            </select>
         </div>
     </section>
 

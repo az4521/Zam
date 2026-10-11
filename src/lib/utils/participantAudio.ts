@@ -5,8 +5,8 @@
  */
 
 export interface ParticipantAudio {
-    /** Slider position, 0–1. Unity is the ceiling: HTMLMediaElement.volume
-     *  caps at 1.0, so there is no Discord-style 200% boost. */
+    /** Slider position, 0–MAX_PARTICIPANT_VOLUME. Above unity the boost is
+     *  applied through Web Audio (HTMLMediaElement.volume caps at 1.0). */
     volume: number;
     /** Local mute, held apart from the slider so unmuting restores the level. */
     muted: boolean;
@@ -20,6 +20,9 @@ export const DEFAULT_PARTICIPANT_AUDIO: ParticipantAudio = {
     videoHidden: false,
 };
 
+/** Per-user slider ceiling: 500%. */
+export const MAX_PARTICIPANT_VOLUME = 5;
+
 /** Clamp to [0,1]. Non-finite input falls back to unity rather than silence —
  *  a corrupt value must not silently mute someone. */
 export function clampVolume(v: number): number {
@@ -27,18 +30,31 @@ export function clampVolume(v: number): number {
     return Math.min(1, Math.max(0, v));
 }
 
-/** What an attached <audio> element's `volume` should be: the call-output
- *  master scaled by this user's level, or silence when locally muted. */
+/** Clamp a per-user level to [0,MAX_PARTICIPANT_VOLUME], with the same
+ *  unity fallback for non-finite input. */
+export function clampParticipantVolume(v: number): number {
+    if (!Number.isFinite(v)) return 1;
+    return Math.min(MAX_PARTICIPANT_VOLUME, Math.max(0, v));
+}
+
+/** The linear gain a user's audio should play at: the call-output master
+ *  (0–1) scaled by this user's level (0–5), or silence when locally muted.
+ *  Above 1 an <audio> element alone cannot produce it; see needsBoost. */
 export function effectiveVolume(
     master: number,
     p: ParticipantAudio | undefined,
 ): number {
     if (p?.muted) return 0;
-    return clampVolume(clampVolume(master) * clampVolume(p?.volume ?? 1));
+    return clampVolume(master) * clampParticipantVolume(p?.volume ?? 1);
+}
+
+/** Whether a gain from effectiveVolume needs the Web Audio path. */
+export function needsBoost(gain: number): boolean {
+    return gain > 1;
 }
 
 export function withVolume(p: ParticipantAudio, v: number): ParticipantAudio {
-    return { ...p, volume: clampVolume(v) };
+    return { ...p, volume: clampParticipantVolume(v) };
 }
 
 export function withLocalMute(
@@ -100,7 +116,7 @@ export function parseAudioMap(
         if (!hasVolume && !hasMute && !hasVideoHidden) continue;
         map.set(userId, {
             volume: hasVolume
-                ? clampVolume(v)
+                ? clampParticipantVolume(v)
                 : DEFAULT_PARTICIPANT_AUDIO.volume,
             muted: m === true,
             videoHidden: h === true,

@@ -2000,6 +2000,18 @@ export const en = {
     "voiceAudioSettings.noiseSuppression": "Noise suppression",
     "voiceAudioSettings.echoCancellation": "Echo cancellation",
     "voiceAudioSettings.autoGainControl": "Auto gain control",
+    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcBrowser": "Browser",
+    "voiceAudioSettings.agcOff": "Off",
+    "voiceAudioSettings.agcZamHint":
+        "Evens out your voice without touching your system microphone volume.",
+    "voiceAudioSettings.agcBrowserHint":
+        "Your browser's built-in AGC. It may change your system microphone volume.",
+    "voiceAudioSettings.agcOffHint":
+        "Your microphone is sent at the level your system gives it.",
+    "voiceAudioSettings.normalizeVoices": "Even out voice volumes",
+    "voiceAudioSettings.normalizeVoicesHint":
+        "Automatically turns quiet people up and loud people down, so you don't have to set everyone's volume by hand.",
     "voiceAudioSettings.camera": "Camera",
     "voiceAudioSettings.mirrorMyCamera": "Mirror my camera",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
@@ -2873,6 +2885,7 @@ export const en = {
     "settingsSearch.noiseSuppression": "Noise suppression",
     "settingsSearch.echoCancellation": "Echo cancellation",
     "settingsSearch.autoGainControl": "Auto gain control",
+    "settingsSearch.normalizeVoices": "Even out voice volumes",
     "settingsSearch.mirrorMyCamera": "Mirror my camera",
     "settingsSearch.callVolume": "Call volume",
     "settingsSearch.playCallSounds": "Play call sounds",
