@@ -6735,6 +6735,9 @@ export interface CustomEmoji {
     // that don't declare them (and unused for emoticon rendering).
     info?: Record<string, unknown>;
     body?: string;
+    /** Where it comes from, for labels: the room or space holding its pack,
+     *  or "user" for the account's own emotes. Set by getCustomEmojis. */
+    source?: string;
 }
 
 export interface CustomEmojiPack {
@@ -7912,6 +7915,9 @@ export function getCustomStickerPacks(
 }
 
 // Flat list of all custom emojis (emoticons only) — used at send time to resolve shortcodes.
+/** CustomEmoji.source for the account's own emotes (im.ponies.user_emotes). */
+export const USER_EMOJI_SOURCE = "user";
+
 export function getCustomEmojis(
     room?: Room,
     activeSpaceId?: string | null,
@@ -7919,33 +7925,27 @@ export function getCustomEmojis(
     if (!matrixClient) return [];
     const seen = new Set<string>();
     const result: CustomEmoji[] = [];
-    const add = (emojis: CustomEmoji[]) => {
+    const add = (emojis: CustomEmoji[], source: string | undefined) => {
         for (const e of emojis) {
             if (!seen.has(e.shortcode)) {
                 seen.add(e.shortcode);
-                result.push(e);
+                result.push(source ? { ...e, source } : e);
             }
         }
     };
+    const addPacks = (packs: CustomEmojiPack[]) => {
+        for (const pack of packs) add(pack.emojis, pack.sourceName);
+    };
 
-    add(getUserPackImages("emoticon"));
-    if (room) {
-        add(getAvailableRoomEmojiPacks(room).flatMap((pack) => pack.emojis));
-    }
+    add(getUserPackImages("emoticon"), USER_EMOJI_SOURCE);
+    if (room) addPacks(getAvailableRoomEmojiPacks(room));
     if (activeSpaceId) {
         const spaceRoom = matrixClient.getRoom(activeSpaceId);
-        if (spaceRoom) {
-            add(
-                getAvailableRoomEmojiPacks(spaceRoom).flatMap(
-                    (pack) => pack.emojis,
-                ),
-            );
-        }
+        if (spaceRoom) addPacks(getAvailableRoomEmojiPacks(spaceRoom));
     }
-
-    add(
-        getGlobalEmotePacks().flatMap(
-            (pack) => imagePackToEmojiPack(pack, "emoticon").emojis,
+    addPacks(
+        getGlobalEmotePacks().map((pack) =>
+            imagePackToEmojiPack(pack, "emoticon"),
         ),
     );
 

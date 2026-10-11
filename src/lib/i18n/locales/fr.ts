@@ -752,6 +752,7 @@ const messages: Record<MessageKey, string> = {
     "messageInput.editAttachment": "Modifier la pièce jointe",
     "messageInput.editAttachment2": "Modifier la pièce jointe {name}",
     "messageInput.custom": "personnalisé",
+    "messageInput.yourEmotes": "Vos émojis",
     "messageInput.yourNextMessageWillStartA":
         "Votre prochain message démarrera un",
     "messageInput.thread": "fil",

@@ -763,6 +763,7 @@ const messages: Record<MessageKey, string> = {
     "messageInput.editAttachment": "Anhang bearbeiten",
     "messageInput.editAttachment2": "Anhang {name} bearbeiten",
     "messageInput.custom": "eigene",
+    "messageInput.yourEmotes": "Deine Emotes",
     "messageInput.yourNextMessageWillStartA":
         "Deine nächste Nachricht startet einen",
     "messageInput.thread": "Thread",

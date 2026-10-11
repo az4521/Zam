@@ -763,6 +763,7 @@ export const en = {
     "messageInput.editAttachment": "Edit attachment",
     "messageInput.editAttachment2": "Edit attachment {name}",
     "messageInput.custom": "custom",
+    "messageInput.yourEmotes": "Your emotes",
     "messageInput.yourNextMessageWillStartA": "Your next message will start a",
     "messageInput.thread": "thread",
     "messageInput.cancelThreadCreation": "Cancel thread creation",

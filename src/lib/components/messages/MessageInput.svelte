@@ -13,6 +13,7 @@
         getRoomMembers,
         loadRoomMembersIfNeeded,
         getCustomEmojis,
+        USER_EMOJI_SOURCE,
         mxcToHttp,
         sendTyping,
         onTypingEvent,
@@ -547,7 +548,13 @@
     // Emoji autocomplete
     type EmojiCandidate =
         | { kind: "unicode"; emoji: string; name: string }
-        | { kind: "custom"; shortcode: string; url: string };
+        | {
+              kind: "custom";
+              shortcode: string;
+              url: string;
+              /** The room or space its pack lives in (CustomEmoji.source). */
+              source?: string;
+          };
 
     let emojiQuery = $state<string | null>(null);
     let emojiStart = $state(0);
@@ -563,6 +570,7 @@
                 kind: "custom",
                 shortcode: e.shortcode,
                 url: e.url,
+                source: e.source,
             }));
         // Discord-style ranking: an exact shortcode (":tm" → ™️) first, then
         // shortcodes starting with the query, then any shortcode or name
@@ -903,6 +911,9 @@
     }
 
     function renderCustomEmojiToken(token: string): string | null {
+        // Every inline token comes through here, so `*emoji*` or `_emoji_`
+        // would otherwise lose its markers and match an emote named "emoji".
+        if (!/^:[a-zA-Z0-9_+-]+:$/.test(token)) return null;
         const shortcode = token.slice(1, -1);
         const emoji = getCustomEmojis(room, roomsState.activeSpaceId).find(
             (e) => e.shortcode === shortcode,
@@ -2244,8 +2255,12 @@
                         <span class="text-sm text-discord-textPrimary truncate"
                             >:{candidate.shortcode}:</span
                         >
-                        <span class="text-xs text-discord-textMuted"
-                            >{t("messageInput.custom")}</span
+                        <span
+                            class="ms-auto ps-2 text-xs text-discord-textMuted truncate max-w-[50%]"
+                            >{candidate.source === USER_EMOJI_SOURCE
+                                ? t("messageInput.yourEmotes")
+                                : (candidate.source ??
+                                  t("messageInput.custom"))}</span
                         >
                     {/if}
                 </button>

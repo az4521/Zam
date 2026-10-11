@@ -715,6 +715,7 @@ const messages: Record<MessageKey, string> = {
     "messageInput.editAttachment": "ܬܩܢ ܐܣܝܪܬܐ",
     "messageInput.editAttachment2": "ܬܩܢ ܐܣܝܪܬܐ {name}",
     "messageInput.custom": "ܦܪܨܘܦܝܐ",
+    "messageInput.yourEmotes": "ܐܝܩܘܢ̈ܐ ܕܝܘܟ",
     "messageInput.yourNextMessageWillStartA": "ܐܓܪܬܐ ܒܬܪܝܬܐ ܕܝܘܟ ܒܕ ܫܪܝܐ",
     "messageInput.thread": "ܚܘܛܐ",
     "messageInput.cancelThreadCreation": "ܒܛܠ ܒܪܝܐ ܕܚܘܛܐ",
