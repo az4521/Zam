@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.2
+
+🐛 **Fixed**
+
+- **Noise suppression and auto gain control work in calls:** with DeepFilterNet3 or Zam's auto gain control turned on (the defaults), joining a call showed "Audio context needs to be set on LocalAudioTrack" and your microphone wasn't processed. Your mic is now cleaned up from the moment the call starts.
+
 ## v1.19.1
 
 ✨ **New**
