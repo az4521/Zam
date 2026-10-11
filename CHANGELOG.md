@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.3
+
+🐛 **Fixed**
+
+- **Updates download once:** on Android, leaving Settings → About and coming back while an update was downloading started a second download alongside the first, so the progress bar jumped back and forth between them. Reopening About now shows the download that's already running, and an update that already finished downloading isn't fetched again.
+- **Steady update progress on desktop:** opening About during a download no longer resets it to "Download available" while it's still downloading.
+
 ## v1.19.2
 
 🐛 **Fixed**
