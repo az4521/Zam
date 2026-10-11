@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.18.0
+
+✨ **New**
+
+- **Turn people up to 500%:** the volume slider in a call participant's menu now goes up to 500% instead of stopping at 100%, so a quiet microphone is no longer stuck being quiet. Very loud voices are rounded off smoothly instead of distorting.
+- **Even out voice volumes:** a new setting under Voice & Audio automatically turns quiet people up and loud people down, so you don't have to set everyone's volume by hand. It adjusts each person separately, so switching microphones mid-call is fine, and it never boosts background noise during pauses.
+- **Zam's own auto gain control:** your own microphone is now levelled by Zam instead of the browser. Unlike the browser's (and Discord's) version, it never changes your system microphone volume and doesn't raise your room noise between sentences. You can switch back to the browser's version or turn it off under Voice & Audio. If you had auto gain control off, it stays off.
+
+🐛 **Fixed**
+
+- **Deafen stays on:** when the browser had blocked call audio and you clicked to allow it, or on Safari when you came back to the tab, other people's audio could start playing even though you were deafened.
+
 ## v1.17.1
 
 🐛 **Fixed**
