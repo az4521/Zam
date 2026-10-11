@@ -32,6 +32,7 @@
     import {
         isAndroidUpdater,
         downloadApk,
+        apkDownloadInFlight,
         installApk,
         canInstall,
         openUnknownSourcesSettings,
@@ -168,7 +169,11 @@
             androidStatus = { ...androidStatus, phase: "unsupported" };
             return;
         }
-        androidStatus = { ...androidStatus, phase: "downloading", percent: 0 };
+        androidStatus = {
+            ...androidStatus,
+            phase: "downloading",
+            percent: apkDownloadInFlight() ?? 0,
+        };
         try {
             // Floor = the version the user was shown, so native also refuses a
             // rolled-back-but-still-signed archive.

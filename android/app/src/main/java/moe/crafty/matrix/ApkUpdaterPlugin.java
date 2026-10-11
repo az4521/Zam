@@ -23,6 +23,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
@@ -53,6 +54,10 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @CapacitorPlugin(name = "ApkUpdater")
 public class ApkUpdaterPlugin extends Plugin {
+    /** Set while a downloadApk worker runs; see downloadApk. Static so it
+     *  outlives a plugin instance recreated by a WebView reload. */
+    private static final AtomicBoolean DOWNLOAD_IN_FLIGHT = new AtomicBoolean(false);
+
 
     private static final int CONNECT_TIMEOUT = 15000;
     private static final int READ_TIMEOUT = 30000;
@@ -121,6 +126,13 @@ public class ApkUpdaterPlugin extends Plugin {
             return;
         }
         final int minVersionCode = call.getInt("minVersionCode", 0);
+        // Two downloads at once would write the same file and interleave
+        // their progress events. The renderer shares one download per
+        // session; this also covers a WebView reload mid-download.
+        if (!DOWNLOAD_IN_FLIGHT.compareAndSet(false, true)) {
+            call.reject("An update is already downloading");
+            return;
+        }
         new Thread(() -> {
             File outFile = updateFile();
             HttpURLConnection conn = null;
@@ -205,6 +217,7 @@ public class ApkUpdaterPlugin extends Plugin {
                 call.reject("Download failed: " + e.getMessage(), e);
             } finally {
                 if (conn != null) conn.disconnect();
+                DOWNLOAD_IN_FLIGHT.set(false);
             }
         }).start();
     }

@@ -216,7 +216,13 @@ let autoUpdatePref = false;
 const IN_FLATPAK = !!process.env.FLATPAK_ID;
 
 // Post a status object to the current window (reassigned by createWindow).
+// The latest status, so a check asked for mid-download (opening About) can
+// repeat it instead of flipping the UI back to "available" while progress
+// events keep arriving.
+let lastUpdateStatus = null;
+
 function sendUpdateStatus(payload) {
+    lastUpdateStatus = payload;
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("updates:status", payload);
     }
@@ -242,6 +248,11 @@ function mapUpdateError(err) {
 // launch check honours the persisted auto-update preference.
 function runUpdateCheck(manual) {
     if (!app.isPackaged || IN_FLATPAK) return;
+    const phase = lastUpdateStatus?.phase;
+    if (phase === "downloading" || phase === "downloaded") {
+        sendUpdateStatus(lastUpdateStatus);
+        return;
+    }
     autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();

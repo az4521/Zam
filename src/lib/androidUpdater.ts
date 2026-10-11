@@ -46,6 +46,28 @@ export function isAndroidUpdater(): boolean {
     );
 }
 
+// One download per app session. The About tab starts a download from its
+// mount-time check, and a remount (leaving the tab and coming back) used to
+// start a second one while the first was still running: both wrote the same
+// file and both progress streams reached the bar, which jumped between them.
+interface ApkDownload {
+    key: string;
+    promise: Promise<string>;
+    percent: number;
+    listeners: Set<(percent: number) => void>;
+}
+let current: ApkDownload | null = null;
+/** The last completed download, so reopening About doesn't fetch it again. */
+let completed: { key: string; path: string } | null = null;
+
+const downloadKey = (url: string, minVersionCode: number) =>
+    `${minVersionCode}|${url}`;
+
+/** Percent of the download in flight, or null when none is running. */
+export function apkDownloadInFlight(): number | null {
+    return current ? current.percent : null;
+}
+
 /**
  * Download the APK, reporting progress via `onProgress` (0–100). Resolves with
  * the on-device file path. Callers guard with `isAndroidUpdater()` first.
@@ -53,24 +75,66 @@ export function isAndroidUpdater(): boolean {
  * `minVersionCode` is the floor native verification enforces: pass the
  * versionCode of the release the user was actually offered, so a stale
  * (still-correctly-signed) archive is refused too.
+ *
+ * A call while the same download is running joins it (its `onProgress` gets
+ * the current percent, then the rest), and the same download already
+ * finished this session resolves straight away. A different download while
+ * one runs waits for it, since both would write the same file.
  */
 export async function downloadApk(
     url: string,
     minVersionCode: number,
     onProgress?: (percent: number) => void,
 ): Promise<string> {
-    let handle: PluginListenerHandle | null = null;
+    const key = downloadKey(url, minVersionCode);
+    if (completed?.key === key) return completed.path;
+    if (current && current.key !== key) {
+        await current.promise.catch(() => {});
+        return downloadApk(url, minVersionCode, onProgress);
+    }
+    if (!current) current = startDownload(key, url, minVersionCode);
+    const download = current;
     if (onProgress) {
-        handle = await ApkUpdater.addListener("downloadProgress", (p) =>
-            onProgress(p.percent),
-        );
+        download.listeners.add(onProgress);
+        onProgress(download.percent);
     }
     try {
-        const { path } = await ApkUpdater.downloadApk({ url, minVersionCode });
-        return path;
+        return await download.promise;
     } finally {
-        await handle?.remove();
+        if (onProgress) download.listeners.delete(onProgress);
     }
+}
+
+function startDownload(
+    key: string,
+    url: string,
+    minVersionCode: number,
+): ApkDownload {
+    const download: ApkDownload = {
+        key,
+        percent: 0,
+        listeners: new Set(),
+        promise: Promise.resolve(""),
+    };
+    download.promise = (async () => {
+        let handle: PluginListenerHandle | null = null;
+        try {
+            handle = await ApkUpdater.addListener("downloadProgress", (p) => {
+                download.percent = p.percent;
+                for (const cb of download.listeners) cb(p.percent);
+            });
+            const { path } = await ApkUpdater.downloadApk({
+                url,
+                minVersionCode,
+            });
+            completed = { key, path };
+            return path;
+        } finally {
+            await handle?.remove();
+            if (current === download) current = null;
+        }
+    })();
+    return download;
 }
 
 /** Fire the OS package installer for the verified downloaded APK. */
