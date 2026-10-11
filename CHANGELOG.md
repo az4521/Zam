@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.0
+
+✨ **New**
+
+- **AI noise suppression:** Zam now removes background noise from your microphone with DeepFilterNet3, an AI model that runs on your device. Keyboards, fans, traffic and room noise are taken out while your voice is kept. It replaces the browser's built-in suppressor, which only handled steady hum. You can switch back to the browser's version or turn it off under Voice & Audio, and Test mic there lets you hear the result before a call. If you had noise suppression off, it stays off. Browsers that can't run it (Safari before 16.4) use the browser's suppressor instead.
+- **The model stays on your device:** the Android and desktop apps ship with it. On the web it's downloaded once in the background after Zam starts (about 11 MB compressed) and kept across updates. Calls wait for it to load before your mic goes live, so you're never heard unfiltered at the start of a call.
+
 ## v1.18.0
 
 ✨ **New**
