@@ -2310,7 +2310,7 @@ const messages: Record<MessageKey, string> = {
     "client.couldNotStartTheCameraCheck":
         "Kamera konnte nicht gestartet werden - prüfe die Berechtigungen",
     "client.couldnTApplyAudioProcessingChange":
-        "Änderung der Audioverarbeitung konnte nicht angewendet werden",
+        "Änderung der Audioverarbeitung konnte nicht angewendet werden ({error})",
     "client.deviceNounMicrophone": "Mikrofon",
     "client.deviceNounCamera": "Kamera",
 

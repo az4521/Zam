@@ -2286,7 +2286,7 @@ const messages: Record<MessageKey, string> = {
     "client.couldNotStartTheCameraCheck":
         "Impossible de démarrer la caméra - vérifiez les autorisations",
     "client.couldnTApplyAudioProcessingChange":
-        "Impossible d'appliquer la modification du traitement audio",
+        "Impossible d'appliquer la modification du traitement audio ({error})",
     "client.deviceNounMicrophone": "micro",
     "client.deviceNounCamera": "caméra",
 

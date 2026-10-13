@@ -1114,7 +1114,11 @@ async function setCallMicEnabled(
         } catch (err) {
             // Better heard unprocessed than not at all.
             console.error("Mic processing failed, sending raw mic:", err);
-            notifyVoiceNotice(t("client.couldnTApplyAudioProcessingChange"));
+            notifyVoiceNotice(
+                t("client.couldnTApplyAudioProcessingChange", {
+                    error: errorLabel(err),
+                }),
+            );
         }
         await lp.publishTrack(track, { source });
     })();
@@ -1455,25 +1459,51 @@ export async function setVoiceCaptureConstraints(opts: {
     // OS default. Prefer the live track's device id, else the saved selection.
     // It must be `exact`: Chromium treats a bare (ideal) deviceId as a hint
     // and re-acquired the default mic in live testing. If the exact device
-    // is gone, fall back to an ideal hint rather than leaving the mic dead
-    // (the restart has already stopped the old track by then).
+    // can't be re-opened, try it as a hint before giving up rather than
+    // leaving the mic dead (the restart has already stopped the old track).
     const deviceId =
         track.mediaStreamTrack.getSettings().deviceId ??
         settingsState.audioInputDeviceId ??
         undefined;
-    try {
-        await track.restartTrack({
-            ...c,
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-        });
-        await applyMicProcessor(track, plan.chain);
-    } catch (err) {
-        console.error("Voice capture constraints change failed:", err);
-        await track.restartTrack({ ...c, deviceId }).catch(() => {});
-        if (activeVoice === call) {
-            notifyVoiceNotice(t("client.couldnTApplyAudioProcessingChange"));
+    const attempts = deviceId ? [{ exact: deviceId }, deviceId] : [undefined];
+    let failure: unknown = null;
+    for (const id of attempts) {
+        try {
+            await track.restartTrack({ ...c, deviceId: id });
+            failure = null;
+            break;
+        } catch (err) {
+            console.warn("Mic restart failed (deviceId %o):", id, err);
+            failure = err;
         }
     }
+    if (!failure) {
+        try {
+            await applyMicProcessor(track, plan.chain);
+        } catch (err) {
+            failure = err;
+        }
+    }
+    if (failure) {
+        console.error("Voice capture constraints change failed:", failure);
+        if (activeVoice === call)
+            notifyVoiceNotice(
+                t("client.couldnTApplyAudioProcessingChange", {
+                    error: errorLabel(failure),
+                }),
+            );
+    }
+}
+
+/** Short name for an error in a notice ("OverconstrainedError: deviceId"),
+ *  so a report says what actually failed. */
+function errorLabel(err: unknown): string {
+    if (err instanceof Error || err instanceof DOMException) {
+        const detail =
+            (err as { constraint?: string }).constraint || err.message;
+        return detail ? `${err.name}: ${detail}` : err.name;
+    }
+    return String(err);
 }
 
 /** Live srcObject streams of the call's remote <audio> elements (feeds the

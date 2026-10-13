@@ -210,13 +210,22 @@
         pickOutput(picked.deviceId);
     }
 
-    function applyConstraints(): void {
-        void setVoiceCaptureConstraints({
+    // The call and this tab's mic test both hold the microphone. Re-opening
+    // it for the call with new processing while the test still has it open
+    // with the old processing can fail, so let go of the test first and
+    // bring it back once the call has its new mic.
+    async function applyConstraints(): Promise<void> {
+        cancelCapture(micCapture); // a test start still in flight drops its grant
+        stopHandle(meter);
+        meter = null;
+        micLevel = 0;
+        loopbackOn = false;
+        await setVoiceCaptureConstraints({
             noiseSuppressionMode: settingsState.noiseSuppressionMode,
             echoCancellation: settingsState.echoCancellation,
             micGainMode: settingsState.micGainMode,
         });
-        void startMeter();
+        if (!destroyed) await startMeter();
     }
 
     async function toggleLoopback(): Promise<void> {
@@ -536,7 +545,7 @@
                             true,
                         ),
                     );
-                    applyConstraints();
+                    void applyConstraints();
                 }}
             >
                 <option value="deepfilter"
@@ -558,7 +567,7 @@
                 checked={settingsState.echoCancellation}
                 onChange={(v) => {
                     setEchoCancellation(v);
-                    applyConstraints();
+                    void applyConstraints();
                 }}
                 label={t("voiceAudioSettings.echoCancellation")}
             />
@@ -589,7 +598,7 @@
                     setMicGainMode(
                         normalizeMicGainMode(e.currentTarget.value, true),
                     );
-                    applyConstraints();
+                    void applyConstraints();
                 }}
             >
                 <option value="zam">{t("voiceAudioSettings.agcZam")}</option>

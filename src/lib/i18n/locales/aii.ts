@@ -2137,7 +2137,7 @@ const messages: Record<MessageKey, string> = {
         "ܫܘܚܠܦܐ ܕܐܝܢܝܘܬܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ ܠܐ ܦܠܚܠܗ",
     "client.couldNotStartTheCameraCheck": "ܫܘܪܝܐ ܕܟܡܪܐ ܠܐ ܦܠܚܠܗ - ܒܨܝ ܦܣ̈ܐ",
     "client.couldnTApplyAudioProcessingChange":
-        "ܦܠܚܬܐ ܕܫܘܚܠܦܐ ܕܣܘܥܪܢܐ ܕܩܠܐ ܠܐ ܦܠܚܠܗ̇",
+        "ܦܠܚܬܐ ܕܫܘܚܠܦܐ ܕܣܘܥܪܢܐ ܕܩܠܐ ܠܐ ܦܠܚܠܗ̇ ({error})",
     "client.deviceNounMicrophone": "ܡܝܩܪܘܦܘܢ",
     "client.deviceNounCamera": "ܟܡܪܐ",
 

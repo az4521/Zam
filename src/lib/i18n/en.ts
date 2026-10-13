@@ -2219,7 +2219,7 @@ export const en = {
     "client.couldNotStartTheCameraCheck":
         "Could not start the camera - check permissions",
     "client.couldnTApplyAudioProcessingChange":
-        "Couldn't apply audio processing change",
+        "Couldn't apply audio processing change ({error})",
     "client.deviceNounMicrophone": "microphone",
     "client.deviceNounCamera": "camera",
 
