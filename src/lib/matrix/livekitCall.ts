@@ -56,13 +56,16 @@ import {
     createCallAudioGraph,
     type CallAudioGraph,
 } from "$lib/audio/callAudioGraph";
-import { createMicProcessor, type MicProcessor } from "$lib/audio/micProcessor";
+import {
+    createMicProcessor,
+    PASSTHROUGH_CHAIN,
+    type MicProcessor,
+} from "$lib/audio/micProcessor";
 import { deepFilterSupported, prepareDeepFilter } from "$lib/audio/deepFilter";
 import type { MicGainMode } from "$lib/utils/micGainMode";
 import type { NoiseSuppressionMode } from "$lib/utils/noiseSuppressionMode";
 import {
     planMicProcessing,
-    sameChain,
     type MicProcessingPlan,
 } from "$lib/utils/micProcessing";
 import { matrixErrorMessage } from "$lib/utils/knock";
@@ -1401,17 +1404,23 @@ export async function setVideoInputDevice(
     );
 }
 
-/** Put Zam's mic chain on a live mic track, or take it off. A restart keeps
- *  an attached processor (LiveKit re-inits it on the new track), so only a
- *  changed chain swaps it. */
+/** Put Zam's mic chain on a live mic track. Once attached the processor
+ *  stays and is reconfigured in place (a pass-through when nothing is
+ *  wanted): LiveKit's swap and stop paths can throw and drop the mic (see
+ *  $lib/audio/micProcessor). A restart keeps it too: LiveKit re-inits it on
+ *  the new track. */
 async function applyMicProcessor(
     track: LivekitClient.LocalAudioTrack,
     chain: MicProcessingPlan["chain"],
 ): Promise<void> {
     const current = track.getProcessor() as MicProcessor | undefined;
-    if (sameChain(current?.config ?? null, chain)) return;
-    if (chain) await track.setProcessor(createMicProcessor(chain));
-    else await track.stopProcessor();
+    if (current?.name === "zam-mic-processor") {
+        await current.reconfigure(chain ?? PASSTHROUGH_CHAIN);
+        return;
+    }
+    // Only attach where nothing is: setProcessor on a track that already has
+    // a processor goes through the same throwing teardown.
+    if (chain && !current) await track.setProcessor(createMicProcessor(chain));
 }
 
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a

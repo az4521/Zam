@@ -31,12 +31,3 @@ export function planMicProcessing(
         chain: denoise || level ? { denoise, level } : null,
     };
 }
-
-/** Whether two chain configs differ (a live change needs a new processor). */
-export function sameChain(
-    a: MicProcessingPlan["chain"],
-    b: MicProcessingPlan["chain"],
-): boolean {
-    if (!a || !b) return a === b;
-    return a.denoise === b.denoise && a.level === b.level;
-}

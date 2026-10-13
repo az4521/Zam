@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planMicProcessing, sameChain } from "./micProcessing";
+import { planMicProcessing } from "./micProcessing";
 import {
     normalizeNoiseSuppressionMode,
     effectiveNoiseSuppression,
@@ -58,15 +58,5 @@ describe("planMicProcessing", () => {
             autoGainControl: true,
             chain: { denoise: true, level: false },
         });
-    });
-});
-
-describe("sameChain", () => {
-    it("compares stage by stage", () => {
-        const a = { denoise: true, level: false };
-        expect(sameChain(a, { denoise: true, level: false })).toBe(true);
-        expect(sameChain(a, { denoise: true, level: true })).toBe(false);
-        expect(sameChain(null, null)).toBe(true);
-        expect(sameChain(a, null)).toBe(false);
     });
 });
