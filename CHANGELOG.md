@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.6
+
+✨ **New**
+
+- **WebM videos play while they download:** WebM videos (what browsers and many bridges produce) now start as soon as the first seconds arrive instead of waiting for the whole file, including encrypted ones.
+- **The video viewer streams too:** opening a video from the room media panel no longer downloads the entire file before it starts, and shows progress while it loads.
+- **Audio plays while it downloads:** MP3, M4A and WebM audio attachments start playing right away instead of waiting for the full file, with a progress bar until they do.
+- **Big encrypted images show up as they download:** an encrypted image of 256 KB or more paints a preview that sharpens as it arrives (progressive JPEG, interlaced GIF and similar) instead of a spinner. It's replaced by the real image once it has been checked. JPEG XL gets the same treatment automatically in browsers that can decode it.
+
+🐛 **Fixed**
+
+- **Failed streams fall back instead of failing:** if the browser can't play a video or audio file while it downloads (some audio+video WebMs, for example), Zam now retries it as a full verified download rather than showing a playback error.
+
 ## v1.19.5
 
 ✨ **New**
