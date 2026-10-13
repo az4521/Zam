@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.5
+
+✨ **New**
+
+- **Download progress on media:** encrypted images, videos and voice/audio messages (and videos in the viewer) now show how much has downloaded, with a progress bar, instead of a bare spinner. Handy on slow homeservers.
+- **Encrypted videos play while they download:** encrypted videos of 4 MB or more start playing as soon as the first seconds arrive instead of waiting for the whole file. The file is still checked for tampering once it finishes; if that check fails, playback stops and Zam falls back to a full verified download.
+
+🐛 **Fixed**
+
+- **Encrypted images downloaded twice:** an encrypted image was fetched once for its preview and again for the full-size viewer. It's now downloaded once, halving the wait.
+- **Favourite GIFs hold their space while loading:** the favourites tab now reserves each GIF's shape before it loads, like the main GIF picker, instead of collapsing and jumping around.
+
 ## v1.19.4
 
 ✨ **New**
