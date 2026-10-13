@@ -2243,6 +2243,8 @@ const messages: Record<MessageKey, string> = {
         "Utilisez uniquement des lettres, chiffres, points, tirets bas, signes plus et tirets.",
     "client.chooseAtLeastOneUsage": "Choisissez au moins un usage.",
     "client.imageNotFound": "Image introuvable.",
+    "client.noPermissionToEditPack":
+        "Vous n'avez pas l'autorisation de modifier ce pack.",
     "client.invalidPowerLevels": "Niveaux de pouvoir invalides : {shapeError}",
     "client.roomCreatorsPowerLevelCannotBe":
         "Le niveau de pouvoir des créateurs du salon ne peut pas être défini dans les salons v12",

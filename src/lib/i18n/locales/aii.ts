@@ -2098,6 +2098,8 @@ const messages: Record<MessageKey, string> = {
         "ܦܠܚ ܒܣ ܒܐܬ̈ܘܬܐ، ܡܢܝܢ̈ܐ، ܢܘܩܙ̈ܐ، ܣܪ̈ܛܐ ܬܚܬܝ̈ܐ، ܢܝܫ̈ܢܐ ܕ + ܘܣܪ̈ܛܐ.",
     "client.chooseAtLeastOneUsage": "ܓܒܝ ܚܕ ܦܘܠܚܢܐ ܠܦܚܘܬ ܡܢ ܟܠ.",
     "client.imageNotFound": "ܨܘܪܬܐ ܠܐ ܦܝܫܐ ܡܫܟܚܬܐ.",
+    "client.noPermissionToEditPack":
+        "You don't have permission to edit this pack.",
     "client.invalidPowerLevels": "ܕܪ̈ܓܐ ܕܚܝܠܐ ܠܐ ܬܪܝܨ̈ܐ: {shapeError}",
     "client.roomCreatorsPowerLevelCannotBe":
         "ܕܪܓܐ ܕܚܝܠܐ ܕܒܪܘܝ̈ܐ ܕܓܘܡܐ ܠܐ ܦܝܫ ܛܘܝܒܐ ܓܘ ܓܘܡ̈ܐ ܕ v12",

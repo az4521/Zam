@@ -2218,7 +2218,8 @@
             // Pack changes made on another device (or by us) reach pickers.
             if (
                 type === "im.ponies.user_emotes" ||
-                type === "im.ponies.emote_rooms"
+                type === "im.ponies.emote_rooms" ||
+                type === "m.image_pack.rooms"
             )
                 roomsState.roomsTick++;
             if (

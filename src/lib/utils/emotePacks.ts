@@ -2,6 +2,16 @@
 // data (packs a user has enabled globally), pack metadata edits and shortcode
 // de-duplication. Kept free of the Matrix client so it is unit-testable.
 
+// MSC2545 moved off the `im.ponies` prefix. Current clients (Sable) write the
+// stable names and only keep the old ones up to date where they already
+// exist, so a pack made there may only be in `m.room.image_pack`; older
+// clients only know `im.ponies`. Read both, stable winning; writes never add
+// an old-name copy (packWriteTypes).
+export const ROOM_PACK_TYPE = "m.room.image_pack";
+export const LEGACY_ROOM_PACK_TYPE = "im.ponies.room_emotes";
+export const EMOTE_ROOMS_TYPE = "m.image_pack.rooms";
+export const LEGACY_EMOTE_ROOMS_TYPE = "im.ponies.emote_rooms";
+
 export interface EmoteRoomsContent {
     rooms?: Record<string, Record<string, Record<string, unknown>>>;
 }
@@ -29,11 +39,68 @@ interface PackContentLike {
         usage?: string[];
         [key: string]: unknown;
     };
+    images?: Record<string, unknown>;
     [key: string]: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Whether pack content describes a pack; MSC2545 deletes one with `{}`. */
+export function hasPackContent(content: unknown): boolean {
+    return (
+        isRecord(content) &&
+        (content.pack !== undefined || content.images !== undefined)
+    );
+}
+
+/** One pack's content from its stable and legacy state events (undefined when
+ *  there is no event), merged the way Sable does so both clients show the
+ *  same pack: the stable event's metadata and images win per key, and an
+ *  empty stable event deletes the pack whatever the legacy one holds. */
+export function mergePackContent<T extends PackContentLike>(
+    stable: T | undefined | null,
+    legacy: T | undefined | null,
+): T {
+    if (stable == null) return legacy ?? ({} as T);
+    if (!hasPackContent(stable) || !legacy || !hasPackContent(legacy)) {
+        return stable;
+    }
+    return {
+        ...legacy,
+        ...stable,
+        pack: { ...legacy.pack, ...stable.pack },
+        images: { ...legacy.images, ...stable.images },
+    };
+}
+
+/** The events a write to a pack has to touch, in order, given its current
+ *  stable and legacy contents (undefined when there is no event). Nothing is
+ *  ever copied into an event the pack doesn't already use.
+ *
+ *  The stable event decides the merge whenever it exists, so it is written.
+ *  The legacy one is written while it holds content, or an image removed from
+ *  the stable event would come back through the merge (Sable keeps it updated
+ *  for the same reason). An existing legacy-only pack stays legacy-only.
+ *
+ *  A new pack is created under the stable name like Sable does, unless
+ *  `maySend` says our power level only covers `im.ponies` (rooms that lowered
+ *  just that level so members can add emotes keep working). */
+export function packWriteTypes(
+    stable: unknown,
+    legacy: unknown,
+    maySend: (type: string) => boolean = () => true,
+): string[] {
+    if (stable != null) {
+        return hasPackContent(legacy)
+            ? [ROOM_PACK_TYPE, LEGACY_ROOM_PACK_TYPE]
+            : [ROOM_PACK_TYPE];
+    }
+    if (hasPackContent(legacy) || !maySend(ROOM_PACK_TYPE)) {
+        return [LEGACY_ROOM_PACK_TYPE];
+    }
+    return [ROOM_PACK_TYPE];
 }
 
 /** Every (room, state key) pair the user has enabled globally. */

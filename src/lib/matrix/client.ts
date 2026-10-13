@@ -98,8 +98,14 @@ import { parseMarkdown } from "$lib/utils/markdown";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import {
     applyPackMeta,
+    EMOTE_ROOMS_TYPE,
     hasEmoteRoom,
+    LEGACY_EMOTE_ROOMS_TYPE,
+    LEGACY_ROOM_PACK_TYPE,
+    mergePackContent,
+    packWriteTypes,
     parseEmoteRooms,
+    ROOM_PACK_TYPE,
     uniqueShortcode,
     withEmoteRoom,
     type EmoteRoomRef,
@@ -343,6 +349,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
         "im.ponies.emote_rooms": EmoteRoomsContent;
+        "m.image_pack.rooms": EmoteRoomsContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
         "moe.crafty.matrix.plugins": PluginSyncAccountData;
     }
@@ -6797,8 +6804,11 @@ export interface CustomImagePack {
     attribution?: string;
     /** Pack-level usage default, when the pack declares one. */
     usage?: ImageUsage[];
-    /** Enabled globally via im.ponies.emote_rooms (usable in every room). */
+    /** Enabled globally via m.image_pack.rooms / im.ponies.emote_rooms
+     *  (usable in every room). */
     global?: boolean;
+    /** Room packs: our power level covers every event an edit writes. */
+    editable?: boolean;
     images: CustomPackImage[];
 }
 
@@ -6906,9 +6916,83 @@ function packUsageList(content: RoomEmoteContent): ImageUsage[] | undefined {
     return usage.length > 0 ? usage : undefined;
 }
 
-function roomPackFromEvent(room: Room, event: MatrixEvent): CustomImagePack {
-    const content = event.getContent() as RoomEmoteContent;
-    const stateKey = event.getStateKey() ?? "";
+/** A pack's two state events (MSC2545 stable and im.ponies), each undefined
+ *  when the room has no such event. mergePackContent gives what to show,
+ *  packWriteTypes what an edit must write. */
+interface RoomPackState {
+    stateKey: string;
+    stable?: RoomEmoteContent;
+    legacy?: RoomEmoteContent;
+}
+
+function roomPackStates(room: Room): RoomPackState[] {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    const byKey = new Map<string, RoomPackState>();
+    for (const [type, slot] of [
+        [LEGACY_ROOM_PACK_TYPE, "legacy"],
+        [ROOM_PACK_TYPE, "stable"],
+    ] as const) {
+        for (const event of state?.getStateEvents(type) ?? []) {
+            const stateKey = event.getStateKey() ?? "";
+            byKey.set(stateKey, {
+                stateKey,
+                ...byKey.get(stateKey),
+                [slot]: event.getContent(),
+            });
+        }
+    }
+    return [...byKey.values()];
+}
+
+function roomPackState(
+    room: Room,
+    stateKey: string,
+): RoomPackState | undefined {
+    const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    const stable = state?.getStateEvents(ROOM_PACK_TYPE, stateKey);
+    const legacy = state?.getStateEvents(LEGACY_ROOM_PACK_TYPE, stateKey);
+    if (!stable && !legacy) return undefined;
+    return {
+        stateKey,
+        stable: stable?.getContent(),
+        legacy: legacy?.getContent(),
+    };
+}
+
+/** Whether our power level lets us send `type` in the room. Without the room
+ *  or its state we can't tell: say yes and let the server decide. */
+function maySendPackEvent(
+    room: Room | null | undefined,
+    type: string,
+): boolean {
+    const me = matrixClient?.getUserId();
+    const state = room?.getLiveTimeline().getState(EventTimeline.FORWARDS);
+    if (!me || !state) return true;
+    return state.maySendStateEvent(type, me);
+}
+
+function roomPackWriteTypes(
+    room: Room | null | undefined,
+    pack: Pick<RoomPackState, "stable" | "legacy">,
+): string[] {
+    return packWriteTypes(pack.stable, pack.legacy, (type) =>
+        maySendPackEvent(room, type),
+    );
+}
+
+/** Whether we may send every event an edit to this pack has to write. */
+function mayWriteRoomPack(
+    room: Room | null | undefined,
+    pack: Pick<RoomPackState, "stable" | "legacy">,
+): boolean {
+    return roomPackWriteTypes(room, pack).every((type) =>
+        maySendPackEvent(room, type),
+    );
+}
+
+function roomPackFromState(room: Room, state: RoomPackState): CustomImagePack {
+    const { stateKey } = state;
+    const content = mergePackContent(state.stable, state.legacy);
     return {
         id: `${room.roomId}:${stateKey}`,
         roomId: room.roomId,
@@ -6923,6 +7007,7 @@ function roomPackFromEvent(room: Room, event: MatrixEvent): CustomImagePack {
         avatarUrl: packAvatarUrl(content, room),
         attribution: content.pack?.attribution || undefined,
         usage: packUsageList(content),
+        editable: mayWriteRoomPack(room, state),
         images: roomEmoteContentToPackImages(content),
     };
 }
@@ -6979,16 +7064,10 @@ function roomEmoteContentToImages(
 }
 
 function getRoomEmotePacksBase(room: Room): CustomImagePack[] {
-    const events =
-        room
-            .getLiveTimeline()
-            .getState(EventTimeline.FORWARDS)
-            ?.getStateEvents("im.ponies.room_emotes") ?? [];
-    const arr = Array.isArray(events) ? events : [events];
     const globals = emoteRoomsContent();
-    return arr
-        .map((event) => {
-            const pack = roomPackFromEvent(room, event);
+    return roomPackStates(room)
+        .map((state) => {
+            const pack = roomPackFromState(room, state);
             return hasEmoteRoom(globals, room.roomId, pack.stateKey ?? "")
                 ? { ...pack, global: true }
                 : pack;
@@ -6997,16 +7076,9 @@ function getRoomEmotePacksBase(room: Room): CustomImagePack[] {
 }
 
 function getRoomImagePacks(room: Room, kind: ImageUsage): CustomEmojiPack[] {
-    const events =
-        room
-            .getLiveTimeline()
-            .getState(EventTimeline.FORWARDS)
-            ?.getStateEvents("im.ponies.room_emotes") ?? [];
-    const arr = Array.isArray(events) ? events : [events];
-    return arr
-        .map((event) => {
-            const content = event.getContent() as RoomEmoteContent;
-            const stateKey = event.getStateKey() ?? "";
+    return roomPackStates(room)
+        .map(({ stateKey, stable, legacy }) => {
+            const content = mergePackContent(stable, legacy);
             const emojis = roomEmoteContentToImages(content, kind);
             return {
                 id: `${room.roomId}:${stateKey}`,
@@ -7157,18 +7229,63 @@ export function validateEmojiShortcode(shortcode: string): string | null {
     return null;
 }
 
-async function fetchRoomEmoteContent(
+// A pack event from the server; undefined only when the room has none. Any
+// other failure throws: guessing "absent" would pick the wrong events to write,
+// and an empty pack as the base of an edit would wipe the real one.
+async function fetchPackEvent(
+    roomId: string,
+    type: string,
+    stateKey: string,
+): Promise<RoomEmoteContent | undefined> {
+    try {
+        return (await matrixClient!.getStateEvent(
+            roomId,
+            type,
+            stateKey,
+        )) as RoomEmoteContent;
+    } catch (err) {
+        const e = err as { errcode?: string; httpStatus?: number };
+        if (e?.errcode === "M_NOT_FOUND" || e?.httpStatus === 404) {
+            return undefined;
+        }
+        throw err;
+    }
+}
+
+async function sendPackEvent(
+    roomId: string,
+    type: string,
+    stateKey: string,
+    content: RoomEmoteContent,
+): Promise<void> {
+    await (matrixClient as any).sendStateEvent(roomId, type, content, stateKey);
+}
+
+/**
+ * Read-modify-write a room pack. Both events come from the server (sliding
+ * sync may not hold them, and a stale base would drop someone else's edit);
+ * `edit` gets their merged content, and the result goes to every event
+ * packWriteTypes names. Permission is checked first so an edit never lands in
+ * one event but not the other; the stable event goes first as it decides the
+ * merge.
+ */
+async function updateRoomPack(
     roomId: string,
     stateKey: string,
-): Promise<RoomEmoteContent> {
-    try {
-        return ((await matrixClient?.getStateEvent(
-            roomId,
-            "im.ponies.room_emotes",
-            stateKey,
-        )) ?? {}) as RoomEmoteContent;
-    } catch {
-        return {};
+    edit: (current: RoomEmoteContent) => RoomEmoteContent,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const [stable, legacy] = await Promise.all([
+        fetchPackEvent(roomId, ROOM_PACK_TYPE, stateKey),
+        fetchPackEvent(roomId, LEGACY_ROOM_PACK_TYPE, stateKey),
+    ]);
+    const next = edit(mergePackContent(stable, legacy));
+    const room = matrixClient.getRoom(roomId);
+    if (!mayWriteRoomPack(room, { stable, legacy })) {
+        throw new Error(t("client.noPermissionToEditPack"));
+    }
+    for (const type of roomPackWriteTypes(room, { stable, legacy })) {
+        await sendPackEvent(roomId, type, stateKey, next);
     }
 }
 
@@ -7193,20 +7310,16 @@ async function setRoomPackImageUsage(
     const nextUsage = normalizeUsage(usage);
     if (nextUsage.length === 0)
         throw new Error(t("client.chooseAtLeastOneUsage"));
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    const images = { ...(current.images ?? {}) };
-    const existing = images[normalized];
-    if (!existing?.url) throw new Error(t("client.imageNotFound"));
-    images[normalized] = {
-        ...existing,
-        usage: nextUsage,
-    };
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        { ...current, images },
-        stateKey,
-    );
+    await updateRoomPack(roomId, stateKey, (current) => {
+        const images = { ...(current.images ?? {}) };
+        const existing = images[normalized];
+        if (!existing?.url) throw new Error(t("client.imageNotFound"));
+        images[normalized] = {
+            ...existing,
+            usage: nextUsage,
+        };
+        return { ...current, images };
+    });
 }
 
 export async function setRoomEmoteUsage(
@@ -7231,28 +7344,23 @@ async function addRoomPackImage(
     const error = validateEmojiShortcode(normalized);
     if (error) throw new Error(error);
 
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    const images = { ...(current.images ?? {}) };
-    const existing = images[normalized] ?? {};
-    images[normalized] = {
-        ...existing,
-        url: mxcUrl,
-        usage: withUsage(existing.usage, kind),
-    };
-
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        {
+    await updateRoomPack(roomId, stateKey, (current) => {
+        const images = { ...(current.images ?? {}) };
+        const existing = images[normalized] ?? {};
+        images[normalized] = {
+            ...existing,
+            url: mxcUrl,
+            usage: withUsage(existing.usage, kind),
+        };
+        return {
             ...current,
             pack: {
                 ...(current.pack ?? {}),
                 display_name: current.pack?.display_name ?? packName,
             },
             images,
-        },
-        stateKey,
-    );
+        };
+    });
     return normalized;
 }
 
@@ -7273,29 +7381,25 @@ export async function addRoomEmote(
     if (nextUsage.length === 0)
         throw new Error(t("client.chooseAtLeastOneUsage"));
 
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    const images = { ...(current.images ?? {}) };
-    const existing = images[normalized] ?? {};
-    images[normalized] = {
-        ...existing,
-        url: mxcUrl,
-        usage: nextUsage,
-        ...(meta?.info ? { info: meta.info } : {}),
-        ...(meta?.body ? { body: meta.body } : {}),
-    };
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        {
+    await updateRoomPack(roomId, stateKey, (current) => {
+        const images = { ...(current.images ?? {}) };
+        const existing = images[normalized] ?? {};
+        images[normalized] = {
+            ...existing,
+            url: mxcUrl,
+            usage: nextUsage,
+            ...(meta?.info ? { info: meta.info } : {}),
+            ...(meta?.body ? { body: meta.body } : {}),
+        };
+        return {
             ...current,
             pack: {
                 ...(current.pack ?? {}),
                 display_name: current.pack?.display_name ?? packName,
             },
             images,
-        },
-        stateKey,
-    );
+        };
+    });
     return normalized;
 }
 
@@ -7341,37 +7445,36 @@ async function removeRoomPackImage(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    const images = { ...(current.images ?? {}) };
-    const existing = images[normalized];
+    await updateRoomPack(roomId, stateKey, (current) => {
+        const images = { ...(current.images ?? {}) };
+        const existing = images[normalized];
 
-    if (existing) {
-        const usage = existing.usage?.length ? existing.usage : undefined;
-        const packUsage = current.pack?.usage?.length
-            ? current.pack.usage
-            : undefined;
-        const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
-        if (usage?.includes(otherKind)) {
-            images[normalized] = {
-                ...existing,
-                usage: usage.filter((u) => u !== kind),
-            };
-        } else if (!usage && (!packUsage || packUsage.includes(otherKind))) {
-            images[normalized] = {
-                ...existing,
-                usage: [otherKind],
-            };
-        } else {
-            delete images[normalized];
+        if (existing) {
+            const usage = existing.usage?.length ? existing.usage : undefined;
+            const packUsage = current.pack?.usage?.length
+                ? current.pack.usage
+                : undefined;
+            const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
+            if (usage?.includes(otherKind)) {
+                images[normalized] = {
+                    ...existing,
+                    usage: usage.filter((u) => u !== kind),
+                };
+            } else if (
+                !usage &&
+                (!packUsage || packUsage.includes(otherKind))
+            ) {
+                images[normalized] = {
+                    ...existing,
+                    usage: [otherKind],
+                };
+            } else {
+                delete images[normalized];
+            }
         }
-    }
 
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        { ...current, images },
-        stateKey,
-    );
+        return { ...current, images };
+    });
 }
 
 export async function removeRoomEmoji(
@@ -7397,15 +7500,11 @@ export async function removeRoomEmoteImage(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    const images = { ...(current.images ?? {}) };
-    delete images[normalized];
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        { ...current, images },
-        stateKey,
-    );
+    await updateRoomPack(roomId, stateKey, (current) => {
+        const images = { ...(current.images ?? {}) };
+        delete images[normalized];
+        return { ...current, images };
+    });
 }
 
 function getUserPackImages(kind: ImageUsage): CustomEmoji[] {
@@ -7640,10 +7739,14 @@ export async function removeUserEmoteImage(shortcode: string): Promise<void> {
 
 // ── MSC2545 sharing: global packs, metadata, import ──────────────────────────
 
-const EMOTE_ROOMS_KEY = "im.ponies.emote_rooms";
-
+// Stable first, as Sable reads it: once a client has written m.image_pack.rooms
+// the im.ponies copy may be stale. Only an account that never had the stable
+// one falls back, and its first change carries that list over (setPackGlobal).
 function emoteRoomsContent(): EmoteRoomsContent | undefined {
-    return matrixClient?.getAccountData(EMOTE_ROOMS_KEY)?.getContent();
+    return (
+        matrixClient?.getAccountData(EMOTE_ROOMS_TYPE)?.getContent() ??
+        matrixClient?.getAccountData(LEGACY_EMOTE_ROOMS_TYPE)?.getContent()
+    );
 }
 
 /** Every pack the user enabled globally, whether or not it still resolves. */
@@ -7663,7 +7766,7 @@ export async function setPackGlobal(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setAccountData(
-        EMOTE_ROOMS_KEY,
+        EMOTE_ROOMS_TYPE,
         withEmoteRoom(emoteRoomsContent(), roomId, stateKey, enabled),
     );
 }
@@ -7675,12 +7778,9 @@ export function getGlobalEmotePacks(): CustomImagePack[] {
         return getEmoteRoomSubscriptions().flatMap((ref) => {
             const room = matrixClient!.getRoom(ref.roomId);
             if (!room || room.getMyMembership() !== "join") return [];
-            const event = room
-                .getLiveTimeline()
-                .getState(EventTimeline.FORWARDS)
-                ?.getStateEvents("im.ponies.room_emotes", ref.stateKey);
-            if (!event) return [];
-            const pack = roomPackFromEvent(room, event);
+            const state = roomPackState(room, ref.stateKey);
+            if (!state) return [];
+            const pack = roomPackFromState(room, state);
             return pack.images.length > 0 ? [{ ...pack, global: true }] : [];
         });
     } catch {
@@ -7718,12 +7818,8 @@ export async function updateRoomPackMeta(
     update: PackMetaUpdate,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    const current = await fetchRoomEmoteContent(roomId, stateKey);
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
+    await updateRoomPack(roomId, stateKey, (current) =>
         applyPackMeta(current, update),
-        stateKey,
     );
 }
 
@@ -7733,12 +7829,7 @@ export async function deleteRoomPack(
     stateKey: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    await (matrixClient as any).sendStateEvent(
-        roomId,
-        "im.ponies.room_emotes",
-        {},
-        stateKey,
-    );
+    await updateRoomPack(roomId, stateKey, () => ({}));
     if (isPackGlobal(roomId, stateKey)) {
         await setPackGlobal(roomId, stateKey, false);
     }

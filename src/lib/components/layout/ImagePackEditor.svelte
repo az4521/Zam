@@ -29,6 +29,9 @@
 
     interface Props {
         room: Room;
+        /** May create packs here (power level for m.room.image_pack or
+         *  im.ponies.room_emotes). Existing packs carry their own `editable`,
+         *  from the levels of the events an edit to them writes. */
         canEdit: boolean;
         onUpdate?: () => void;
     }
@@ -56,9 +59,20 @@
         return emotePacks.filter((pack) => !pack.inherited);
     }
 
+    function canEditPack(pack: CustomImagePack): boolean {
+        return !pack.inherited && !!pack.editable;
+    }
+
+    // Packs the add form can target: this room's, where we may write.
+    function editableEmotePacks(): CustomImagePack[] {
+        return currentEmotePacks().filter(canEditPack);
+    }
+
+    const canAdd = $derived(canEdit || emotePacks.some(canEditPack));
+
     function loadEmotes() {
         emotePacks = sortEmotePacks(getAvailableRoomEmotePacks(room));
-        const editablePacks = currentEmotePacks();
+        const editablePacks = editableEmotePacks();
         if (
             selectedEmotePackKey !== "__new" &&
             !editablePacks.some(
@@ -78,6 +92,14 @@
     $effect(() => {
         void room;
         untrack(() => loadEmotes());
+    });
+
+    // "New pack" is only offered with canEdit, which settles once the room's
+    // power levels have loaded: move off it to a pack we can still add to.
+    $effect(() => {
+        if (canEdit || selectedEmotePackKey !== "__new") return;
+        const first = untrack(() => editableEmotePacks()[0]);
+        if (first) selectedEmotePackKey = packKey(first);
     });
 
     function selectedEmotePackName(): string {
@@ -192,6 +214,7 @@
                     name: selectedEmotePackName(),
                     sourceName: room.name || room.roomId,
                     avatarUrl: currentAvatarUrl ?? undefined,
+                    editable: true,
                     images: [],
                 }),
                 images: [
@@ -426,14 +449,17 @@
             <div class="min-w-0">
                 <select
                     bind:value={selectedEmotePackKey}
-                    disabled={!canEdit || emoteUploading}
+                    disabled={!canAdd || emoteUploading}
                     class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
                 >
-                    {#each currentEmotePacks() as pack (pack.id)}
+                    {#each editableEmotePacks() as pack (pack.id)}
                         <option value={packKey(pack)}>{pack.name}</option>
                     {/each}
-                    <option value="__new">{t("imagePackEditor.newPack")}</option
-                    >
+                    {#if canEdit}
+                        <option value="__new"
+                            >{t("imagePackEditor.newPack")}</option
+                        >
+                    {/if}
                 </select>
             </div>
             <div
@@ -444,7 +470,7 @@
                 {#if selectedEmotePackKey === "__new"}
                     <input
                         bind:value={newEmotePackName}
-                        disabled={!canEdit || emoteUploading}
+                        disabled={!canAdd || emoteUploading}
                         placeholder={t("imagePackEditor.packName")}
                         class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
                     />
@@ -456,14 +482,14 @@
                     <input
                         id="room-emote-shortcode"
                         bind:value={emoteShortcode}
-                        disabled={!canEdit || emoteUploading}
+                        disabled={!canAdd || emoteUploading}
                         placeholder={t("imagePackEditor.shortcode")}
                         class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
                     />
                     <span class="pe-3 text-sm text-discord-textMuted">:</span>
                 </div>
             </div>
-            {#if canEdit}
+            {#if canAdd}
                 <label
                     class="shrink-0 cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {emoteUploading
                         ? 'opacity-50 pointer-events-none'
@@ -491,7 +517,7 @@
                 <input
                     type="checkbox"
                     bind:checked={newEmoteAsEmoji}
-                    disabled={!canEdit || emoteUploading}
+                    disabled={!canAdd || emoteUploading}
                     class="accent-discord-accent"
                 />
                 {t("imagePackEditor.useAsEmoji")}
@@ -502,7 +528,7 @@
                 <input
                     type="checkbox"
                     bind:checked={newEmoteAsSticker}
-                    disabled={!canEdit || emoteUploading}
+                    disabled={!canAdd || emoteUploading}
                     class="accent-discord-accent"
                 />
                 {t("imagePackEditor.useAsSticker")}
@@ -561,7 +587,7 @@
                         >
                             {t("imagePackEditor.addToMine")}
                         </button>
-                        {#if canEdit && !pack.inherited}
+                        {#if canEditPack(pack)}
                             <button
                                 onclick={() =>
                                     editingKey === pack.id
@@ -697,8 +723,7 @@
                                                 (e.target as HTMLInputElement)
                                                     .checked,
                                             )}
-                                        disabled={pack.inherited ||
-                                            !canEdit ||
+                                        disabled={!canEditPack(pack) ||
                                             emoteActionPending ===
                                                 `${packKey(pack)}:${item.shortcode}:emoticon`}
                                         class="accent-discord-accent"
@@ -719,8 +744,7 @@
                                                 (e.target as HTMLInputElement)
                                                     .checked,
                                             )}
-                                        disabled={pack.inherited ||
-                                            !canEdit ||
+                                        disabled={!canEditPack(pack) ||
                                             emoteActionPending ===
                                                 `${packKey(pack)}:${item.shortcode}:sticker`}
                                         class="accent-discord-accent"
@@ -737,7 +761,7 @@
                             >
                                 {t("imagePackEditor.addToMine")}
                             </button>
-                            {#if canEdit && !pack.inherited}
+                            {#if canEditPack(pack)}
                                 <button
                                     onclick={() =>
                                         doRemoveEmote(pack, item.shortcode)}

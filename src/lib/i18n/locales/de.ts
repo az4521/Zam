@@ -2267,6 +2267,8 @@ const messages: Record<MessageKey, string> = {
         "Verwende nur Buchstaben, Ziffern, Punkte, Unterstriche, Pluszeichen und Bindestriche.",
     "client.chooseAtLeastOneUsage": "Wähle mindestens eine Verwendung.",
     "client.imageNotFound": "Bild nicht gefunden.",
+    "client.noPermissionToEditPack":
+        "Du hast keine Berechtigung, dieses Paket zu bearbeiten.",
     "client.invalidPowerLevels": "Ungültige Berechtigungsstufen: {shapeError}",
     "client.roomCreatorsPowerLevelCannotBe":
         "Die Berechtigungsstufe der Raumersteller kann in v12-Räumen nicht festgelegt werden",

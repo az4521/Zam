@@ -2178,6 +2178,8 @@ export const en = {
         "Use only letters, numbers, dots, underscores, pluses, and hyphens.",
     "client.chooseAtLeastOneUsage": "Choose at least one usage.",
     "client.imageNotFound": "Image not found.",
+    "client.noPermissionToEditPack":
+        "You don't have permission to edit this pack.",
     "client.invalidPowerLevels": "Invalid power levels: {shapeError}",
     "client.roomCreatorsPowerLevelCannotBe":
         "Room creators' power level cannot be set in v12 rooms",

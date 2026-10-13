@@ -347,9 +347,12 @@
     // Classic /sync has full state, so it is always loaded.
     const stateLoaded = $derived(!isUsingSlidingSync() || stateFetched);
     const canEditState = $derived(myPowerLevel >= pl.state_default);
+    // May create a pack: new ones go under m.room.image_pack, or under
+    // im.ponies.room_emotes when only that level is ours (packWriteTypes).
     const canEditEmojis = $derived(
-        myPowerLevel >=
-            (pl.events?.["im.ponies.room_emotes"] ?? pl.state_default),
+        ["m.room.image_pack", "im.ponies.room_emotes"].some(
+            (type) => myPowerLevel >= (pl.events?.[type] ?? pl.state_default),
+        ),
     );
     // Publishing an address is gated by the power level for the canonical-alias
     // EVENT, not bare state_default — Element's default PL content ships
