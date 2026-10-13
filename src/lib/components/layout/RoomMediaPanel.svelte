@@ -216,10 +216,7 @@
         viewerIndex = next;
     }
 
-    async function download(
-        item: RoomMediaItem,
-        quiet = false,
-    ): Promise<void> {
+    async function download(item: RoomMediaItem, quiet = false): Promise<void> {
         try {
             const blobUrl =
                 item.encrypted && item.encryptedFile
