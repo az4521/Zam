@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.7
+
+✨ **New**
+
+- **Videos you send start playing sooner:** MP4 and MOV videos have their index moved to the front of the file before they're uploaded, so people can start watching while it downloads instead of waiting for the whole file (this only helps if the video's index was at the end, which is how most phones and screen recorders save them). Nothing is re-encoded and the picture is identical. If a file looks unusual it's sent exactly as it was. You can turn this off in Settings → Messages and media → "Send videos that stream faster".
+
 ## v1.19.6
 
 ✨ **New**
