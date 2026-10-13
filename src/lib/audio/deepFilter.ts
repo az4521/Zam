@@ -23,6 +23,13 @@ import dfWorkletUrl from "@lofcz/deepfilternet-web/worklet?url";
 import textDecoderShimUrl from "./workletTextDecoder.js?url&no-inline";
 
 export const DEEP_FILTER_SAMPLE_RATE = 48000;
+/** Most the model may take off any part of the signal, in dB. Unlimited
+ *  (100) over-suppressed: measured 2026-10-13 on real speech in room noise,
+ *  capping at 25 dB left speech clearly cleaner and less muffled (log-spectral
+ *  distance 13.6 -> 12.4 for a normal mic, 15.3 -> 12.1 for a quiet one in a
+ *  noisy room) and its loudness steadier, for about 1.3 dB less noise
+ *  removed in pauses. workadventure/noise-suppression settled on 25 too. */
+export const DEEP_FILTER_ATTENUATION_DB = 25;
 const PROCESSOR_NAME = "deepfilternet-processor";
 
 // Minimal module using a v128 instruction (wasm-feature-detect's SIMD probe):
@@ -173,7 +180,7 @@ const workletLoaded = new WeakMap<BaseAudioContext, Promise<void>>();
  *  browser lacks support or the model can't be fetched. */
 export async function createDeepFilterNode(
     ctx: AudioContext,
-    attenuationLimitDb = 100,
+    attenuationLimitDb = DEEP_FILTER_ATTENUATION_DB,
 ): Promise<AudioWorkletNode> {
     if (!deepFilterSupported())
         throw new Error("DeepFilterNet3 is not supported here");

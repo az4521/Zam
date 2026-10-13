@@ -29,11 +29,10 @@ import {
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
 import {
+    createDriveState,
     DEEP_FILTER_DELAY_S,
     DRIVE_GLIDE_S,
-    driveGain,
-    nextDrive,
-    nextDriveLevel,
+    driveTick,
     undriveCurve,
 } from "./deepFilterDrive";
 
@@ -91,7 +90,7 @@ export function createMicChain(
     const undrive = ctx.createGain();
     let driveTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Drive follows the raw input level in steps. Each step is a linear ramp,
+    // Drive follows the speech level (driveTick) in steps. Each step is a linear ramp,
     // and the cut after the model is its exact inverse, landing after the
     // model's delay, so the chain's output level never moves with it.
     const startDrive = () => {
@@ -99,16 +98,15 @@ export function createMicChain(
         driveAnalyser.fftSize = 2048;
         input.connect(driveAnalyser);
         const buf = new Float32Array(driveAnalyser.fftSize);
-        let level: number | null = null;
+        const state = createDriveState();
         let current = 1;
         let busyUntil = 0;
         driveTimer = setInterval(() => {
             driveAnalyser.getFloatTimeDomainData(buf);
-            level = nextDriveLevel(level, rmsDb(buf));
+            const next = driveTick(state, rmsDb(buf), current);
             const now = ctx.currentTime;
             // One step at a time: a value curve can't overlap other events.
             if (now < busyUntil) return;
-            const next = nextDrive(current, driveGain(level));
             if (next === null) return;
             drive.gain.setValueAtTime(current, now);
             drive.gain.linearRampToValueAtTime(next, now + DRIVE_GLIDE_S);

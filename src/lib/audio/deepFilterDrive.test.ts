@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-    nextDriveLevel,
+    createDriveState,
+    driveTick,
     driveGain,
     DRIVE_TARGET_DB,
     DRIVE_GATE_DB,
@@ -10,22 +11,62 @@ import {
     undriveCurve,
 } from "./deepFilterDrive";
 
-describe("nextDriveLevel", () => {
-    it("seeds from the first window above the gate", () => {
-        expect(nextDriveLevel(null, -48)).toBe(-48);
+// Feed driveTick a sequence of 50 ms window levels; return the drive it
+// settles on (moves applied at once, as the chain does after each glide).
+function run(windows: number[], start = 1) {
+    const state = createDriveState();
+    let current = start;
+    let moves = 0;
+    for (const w of windows) {
+        const next = driveTick(state, w, current);
+        if (next !== null) {
+            current = next;
+            moves++;
+        }
+    }
+    return { db: 20 * Math.log10(current), moves, state };
+}
+const repeat = (pattern: number[], times: number) =>
+    Array.from({ length: times }, () => pattern).flat();
+// 1 s of speech windows at `speech`, then 1 s of room noise at `noise`.
+const talk = (speech: number, noise: number, seconds: number) =>
+    repeat([...Array(20).fill(speech), ...Array(20).fill(noise)], seconds);
+
+describe("driveTick", () => {
+    it("leaves a normal mic alone", () => {
+        expect(run(talk(-30, -55, 30)).db).toBe(0);
     });
-    it("ignores silence and mic self-noise below the gate", () => {
-        expect(nextDriveLevel(null, DRIVE_GATE_DB - 1)).toBeNull();
-        expect(nextDriveLevel(-45, -Infinity)).toBe(-45);
-        expect(nextDriveLevel(-45, -80)).toBe(-45);
+    it("lifts a quiet mic towards the target and then holds", () => {
+        const { db, moves } = run(talk(-48, -70, 60));
+        expect(db).toBeGreaterThan(DRIVE_TARGET_DB - -48 - DRIVE_STEP_DB);
+        expect(db).toBeLessThanOrEqual(DRIVE_TARGET_DB - -48 + 0.01);
+        expect(moves).toBeLessThanOrEqual(2);
     });
-    it("still hears speech too quiet for the normalization gate", () => {
-        expect(nextDriveLevel(null, -60)).toBe(-60);
+    it("doesn't climb in pauses or long silences filled with room noise", () => {
+        const speech = talk(-32, -55, 10);
+        const silence = Array(20 * 20).fill(-55);
+        expect(run([...speech, ...silence, ...speech]).db).toBe(0);
     });
-    it("rises quickly and falls slowly", () => {
-        const up = nextDriveLevel(-50, -30)! - -50;
-        const down = -30 - nextDriveLevel(-30, -50)!;
-        expect(up).toBeGreaterThan(down);
+    it("never treats room noise as speech, however long it lasts", () => {
+        const { state, moves } = run(Array(2000).fill(-52));
+        expect(state.speech).toBeNull();
+        expect(moves).toBe(0);
+    });
+    it("ignores windows below the gate even in a silent room", () => {
+        const { state } = run(talk(DRIVE_GATE_DB - 1, -90, 10));
+        expect(state.speech).toBeNull();
+    });
+    it("pulls straight back when the model's input runs far over target", () => {
+        // Driven up for a whisper, then the user talks normally.
+        const quiet = run(talk(-55, -80, 20));
+        expect(quiet.db).toBeGreaterThan(20);
+        const state = quiet.state;
+        const next = driveTick(state, -25, 10 ** (quiet.db / 20));
+        expect(next).not.toBeNull();
+        expect(20 * Math.log10(next!)).toBeLessThan(quiet.db);
+    });
+    it("is a no-op for silence", () => {
+        expect(driveTick(createDriveState(), -Infinity, 1)).toBeNull();
     });
 });
 
