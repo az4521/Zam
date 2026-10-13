@@ -26,6 +26,8 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
+    import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
     interface Props {
         room: Room;
@@ -56,6 +58,7 @@
     // Decrypted full media for the lightbox viewer, keyed by eventId.
     let decryptedFull = $state<Record<string, string>>({});
     let viewerDecrypting = $state(false);
+    let viewerProgress = $state<DownloadProgress | null>(null);
 
     const split = $derived(splitMediaItems(items));
     const visible = $derived(tab === "media" ? split.visual : split.files);
@@ -297,14 +300,24 @@
         if (viewerIndex === null) return;
         const item = gallery[viewerIndex];
         if (!item || !item.encrypted || !item.encryptedFile) return;
+        // An encrypted video is decrypted by the viewer itself, which can
+        // start playing while it is still downloading.
+        if (item.kind === "video") return;
         const id = item.eventId;
         if (untrack(() => decryptedFull[id])) return; // Already decrypted
         const gen = blobGen;
         let cancelled = false;
         viewerDecrypting = true;
+        viewerProgress = null;
         fetchDecryptedAttachmentBlob(
             item.encryptedFile,
             item.mimetype ?? undefined,
+            {
+                expectedSize: item.size,
+                onProgress: (p) => {
+                    if (!cancelled) viewerProgress = p;
+                },
+            },
         )
             .then((decrypted) => {
                 if (gen !== blobGen) {
@@ -529,7 +542,7 @@
         // An encrypted item resolves only once decrypted: its mxc holds
         // ciphertext, which the viewer would download and fail to show.
         full: (mxc) =>
-            item.encrypted
+            item.encrypted && item.kind !== "video"
                 ? (decryptedFull[item.eventId] ?? null)
                 : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
@@ -546,15 +559,11 @@
             aria-modal="true"
             aria-label={t("roomMediaPanel.decryptingMedia")}
         >
-            <div
-                class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
-            >
-                <div
-                    class="w-8 h-8 mx-auto mb-4 border-4 border-discord-accent border-t-transparent rounded-full animate-spin"
-                ></div>
-                <p class="text-sm text-discord-textPrimary">
-                    {t("roomMediaPanel.decryptingMedia2")}
-                </p>
+            <div class="max-w-sm w-full shadow-lg">
+                <MediaProgress
+                    label={t("roomMediaPanel.decryptingMedia2")}
+                    progress={viewerProgress}
+                />
             </div>
         </div>
     {:else if view}
@@ -570,6 +579,11 @@
                     : null
                 : view.poster}
             filename={view.filename}
+            encryptedFile={item.encrypted && item.kind === "video"
+                ? item.encryptedFile
+                : undefined}
+            mimetype={item.mimetype}
+            sizeHint={item.size}
             onClose={() => (viewerIndex = null)}
             onPrev={viewerIndex > 0 ? () => step(-1) : undefined}
             onNext={viewerIndex < gallery.length - 1

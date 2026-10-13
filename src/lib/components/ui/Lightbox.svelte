@@ -24,6 +24,13 @@
          *  as a chip and announced politely on every step; omit it (or pass
          *  null) for a single item. */
         position?: string | null;
+        /** For an ENCRYPTED video: `src` is then the ciphertext URL and this is
+         *  its EncryptedFile. The viewer decrypts it itself, playing while it
+         *  downloads when the file is big enough to be worth it. */
+        encryptedFile?: EncryptedFileInfo & { url: string };
+        /** Mimetype and size of the attachment, from the event. */
+        mimetype?: string | null;
+        sizeHint?: number | null;
     }
 
     import {
@@ -36,7 +43,13 @@
         addFavouriteGif,
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
-    import { fetchAttachmentBlob } from "$lib/matrix/client";
+    import {
+        fetchAttachmentBlob,
+        fetchDecryptedAttachmentBlob,
+    } from "$lib/matrix/client";
+    import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
+    import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { focusTrap } from "$lib/actions/focusTrap";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
@@ -56,6 +69,9 @@
         onPrev,
         onNext,
         position = null,
+        encryptedFile,
+        mimetype = null,
+        sizeHint = null,
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
@@ -127,7 +143,12 @@
                 // Homeserver media uses authenticated media endpoints — the
                 // token must be attached, and fetchAttachmentBlob refuses to
                 // send it anywhere but the homeserver (throws on foreign URLs).
-                objectUrl = await fetchAttachmentBlob(src);
+                objectUrl = encryptedFile
+                    ? await fetchDecryptedAttachmentBlob(
+                          encryptedFile,
+                          mimetype ?? undefined,
+                      )
+                    : await fetchAttachmentBlob(src);
             } catch {
                 // Non-homeserver media (e.g. an embedded tweet photo): fetch it
                 // directly, with no auth attached.
@@ -149,14 +170,45 @@
 
     // ── Video playback ──────────────────────────────────────────────────────
     // Matrix media sits behind the authenticated download endpoint, so a plain
-    // <video src={http}> 401s on a server that enforces it. Fetch the bytes
-    // with the token attached and play the object URL, exactly as the timeline
-    // player does.
-    // Loading is "video branch, no blob yet, not failed" — no extra flag.
+    // <video src={http}> 401s on a server that enforces it. The element is
+    // instead fed by the authedVideoSrc action (videoStream.ts): it fetches
+    // with the token, decrypts an encrypted file on the fly, and starts playing
+    // while the rest downloads where the container allows. A `blob:` src (an
+    // already-decrypted attachment, owned by the caller) is just played.
     let videoEl = $state<HTMLVideoElement | null>(null);
     let videoBlobUrl = $state<string | null>(null);
     let videoFailed = $state(false);
+    let videoReady = $state(false);
     let videoProgress = $state<DownloadProgress | null>(null);
+    // A stream that broke retries once as a full, verified download.
+    let videoStreamBroke = $state(false);
+
+    // The URL the action streams, or null when the element has a blob / is
+    // not a video / has given up.
+    const videoStreamUrl = $derived(
+        isVideo && !videoFailed && !src.startsWith("blob:") ? src : null,
+    );
+    // Encrypted files too small to be worth playing on unverified bytes (see
+    // STREAM_ENCRYPTED_MIN_BYTES), or a browser with no MediaSource, take the
+    // download-verify-play route.
+    const videoForceBlob = $derived(
+        videoStreamBroke ||
+            (!!encryptedFile &&
+                (typeof MediaSource === "undefined" ||
+                    sizeHint === null ||
+                    sizeHint < STREAM_ENCRYPTED_MIN_BYTES)),
+    );
+
+    function onVideoBroke() {
+        if (!videoStreamUrl) return;
+        if (!videoStreamBroke && !videoForceBlob) {
+            videoStreamBroke = true;
+            videoReady = false;
+            return;
+        }
+        console.error("Failed to load video");
+        videoFailed = true;
+    }
 
     // ⚠ Exactly ONE video element is ever live (this viewer is a singleton in
     // the modal slot) and it is only ever created after the user clicked a
@@ -164,68 +216,29 @@
     // play() — that pattern fights the browser's own load-shedding forever and
     // pegged the main thread when it lived in LinkPreview. Do not add one back.
     //
-    // `src` and `kind` are read outside untrack so they are this effect's only
-    // dependencies; the state writes are untracked so they cannot re-enter it
-    // (effect_update_depth_exceeded). Stepping through a gallery swaps `src` on
-    // this same instance, which is why teardown has to revoke here rather than
-    // on unmount.
+    // `src` and `kind` are this effect's only dependencies; the state writes
+    // are untracked so they cannot re-enter it (effect_update_depth_exceeded).
+    // Stepping through a gallery swaps `src` on this same instance, so the
+    // per-video state is reset here and the element is remounted by the #key
+    // in the template.
     $effect(() => {
         const target = kind === "video" ? src : null;
-        if (!target) return;
-        // A `blob:` src is already local bytes (a decrypted E2EE attachment).
-        // The caller owns it, so play it as is and never revoke it here;
-        // fetchAttachmentBlob would refuse it as a non-homeserver URL anyway.
-        if (target.startsWith("blob:")) {
-            untrack(() => {
-                videoBlobUrl = target;
-                videoFailed = false;
-            });
+        untrack(() => {
+            videoBlobUrl = null;
+            videoFailed = false;
+            videoReady = false;
+            videoProgress = null;
+            videoStreamBroke = false;
+        });
+        // A `blob:` src is already local bytes. The caller owns it, so play it
+        // as is and never revoke it here.
+        if (target?.startsWith("blob:")) {
+            untrack(() => (videoBlobUrl = target));
             return () => {
                 if (videoEl) videoEl.pause();
                 videoBlobUrl = null;
             };
         }
-        let objectUrl: string | null = null;
-        let cancelled = false;
-        const abort = new AbortController();
-        untrack(() => {
-            videoBlobUrl = null;
-            videoFailed = false;
-            videoProgress = null;
-        });
-        fetchAttachmentBlob(target, {
-            signal: abort.signal,
-            onProgress: (p) => {
-                if (!cancelled) videoProgress = p;
-            },
-        })
-            .then((url) => {
-                if (cancelled) {
-                    URL.revokeObjectURL(url);
-                    return;
-                }
-                objectUrl = url;
-                videoBlobUrl = url;
-            })
-            .catch((e) => {
-                if (cancelled) return;
-                console.error("Failed to load video", e);
-                videoFailed = true;
-            });
-        return () => {
-            cancelled = true;
-            abort.abort();
-            // Stop the element before the URL goes away: a paused, src-less
-            // element cannot keep buffering, and revoking alone would leave a
-            // playing video decoding what it already holds.
-            if (videoEl) {
-                videoEl.pause();
-                videoEl.removeAttribute("src");
-                videoEl.load();
-            }
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            videoBlobUrl = null;
-        };
     });
 
     // ── Zoom & pan ──────────────────────────────────────────────────────────
@@ -644,21 +657,46 @@
                     ? '6em'
                     : '2em'});"
             >
-                {#if videoBlobUrl}
-                    <!-- svelte-ignore a11y_media_has_caption -->
-                    <video
-                        bind:this={videoEl}
-                        src={videoBlobUrl}
-                        poster={poster ?? undefined}
-                        controls
-                        autoplay
-                        preload="metadata"
-                        playsinline
-                        class="max-w-full max-h-full rounded-lg bg-black"
-                        style="max-height: calc(100dvh - {interfaceState.isMobile
-                            ? '6em'
-                            : '2em'});"
-                    ></video>
+                {#if (videoBlobUrl || videoStreamUrl) && !videoFailed}
+                    <div class="relative">
+                        {#key `${src}|${videoForceBlob}`}
+                            <!-- svelte-ignore a11y_media_has_caption -->
+                            <video
+                                bind:this={videoEl}
+                                src={videoBlobUrl ?? undefined}
+                                use:authedVideoSrc={{
+                                    url: videoStreamUrl,
+                                    mimetype,
+                                    decrypt: encryptedFile,
+                                    expectedSize: sizeHint,
+                                    forceBlob: videoForceBlob,
+                                    onProgress: (p) => (videoProgress = p),
+                                    onError: onVideoBroke,
+                                }}
+                                poster={poster ?? undefined}
+                                controls
+                                autoplay
+                                preload="metadata"
+                                playsinline
+                                oncanplay={() => (videoReady = true)}
+                                onerror={onVideoBroke}
+                                class="max-w-full max-h-full rounded-lg bg-black"
+                                style="max-height: calc(100dvh - {interfaceState.isMobile
+                                    ? '6em'
+                                    : '2em'});"
+                            ></video>
+                        {/key}
+                        {#if videoStreamUrl && !videoReady}
+                            <div
+                                class="absolute inset-x-0 bottom-3 flex justify-center px-4 pointer-events-none"
+                            >
+                                <MediaProgress
+                                    label={t("common.loading")}
+                                    progress={videoProgress}
+                                />
+                            </div>
+                        {/if}
+                    </div>
                 {:else}
                     <div
                         class="relative flex items-center justify-center rounded-lg bg-black/60 min-w-[12rem] min-h-[8rem]"

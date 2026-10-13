@@ -15,15 +15,17 @@ export interface AuthedVideoSrcParams {
     decrypt?: EncryptedFileInfo;
     expectedSize?: number | null;
     onProgress?: (p: DownloadProgress) => void;
+    /** Download fully and play as a blob instead of streaming. */
+    forceBlob?: boolean;
 }
 
 /**
- * Svelte action: feed a `<video>` from an authenticated homeserver URL without
+ * Svelte action: feed a `<video>` or `<audio>` from an authenticated homeserver URL without
  * relying on the service worker (see videoStream.ts). The element's own `src`
  * attribute must be left unset while `url` is non-null.
  */
 export function authedVideoSrc(
-    node: HTMLVideoElement,
+    node: HTMLMediaElement,
     params: AuthedVideoSrcParams,
 ) {
     let current = params;
@@ -35,6 +37,7 @@ export function authedVideoSrc(
             mimetype: current.mimetype,
             decrypt: current.decrypt,
             expectedSize: current.expectedSize,
+            forceBlob: current.forceBlob,
             // Read through `current` so a re-bound callback is honoured.
             onProgress: (p) => current.onProgress?.(p),
             onError: (err) => current.onError?.(err),

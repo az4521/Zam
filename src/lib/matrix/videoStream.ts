@@ -1,14 +1,8 @@
-import { matrixClient } from "./runtime";
-import { isSameOrigin } from "$lib/utils/mxcUri";
 import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
-import {
-    createStreamDecryptor,
-    type EncryptedFileInfo,
-} from "$lib/utils/decryptAttachment";
-import {
-    expectedBodySize,
-    type DownloadProgress,
-} from "$lib/utils/downloadProgress";
+import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
+import { isWebm, probeWebm } from "$lib/utils/webmProbe";
+import type { DownloadProgress } from "$lib/utils/downloadProgress";
+import { openAuthedReader, type ChunkReader } from "./mediaStream";
 import type { ISOFile, Movie } from "mp4box";
 
 /**
@@ -28,9 +22,11 @@ import type { ISOFile, Movie } from "mp4box";
  * remuxed into fragments on the fly by mp4box.js, loaded on demand. A
  * faststart file (moov first) plays within the first chunks; one with moov
  * at the end can't be remuxed until it is fully downloaded, so it degrades to
- * blob timing. Anything else (WebM, no MediaSource at all) goes the blob way.
- * Seeking only reaches what has already downloaded: without ranges there is
- * no way to fetch ahead.
+ * blob timing. WebM needs no remuxing: once its Tracks header yields a codec
+ * list (webmProbe.ts) the bytes are appended to the SourceBuffer as they come.
+ * Anything else (another container, an unknown codec, no MediaSource at all)
+ * goes the blob way. Seeking only reaches what has already downloaded: without
+ * ranges there is no way to fetch ahead.
  *
  * Encrypted attachments take the same route with a decrypt step on the byte
  * stream (`opts.decrypt`). AES-CTR decrypts chunk by chunk, but the SHA-256
@@ -71,6 +67,9 @@ export interface AuthedVideoStreamOptions {
     expectedSize?: number | null;
     /** Bytes downloaded so far, for a progress indicator. */
     onProgress?: (p: DownloadProgress) => void;
+    /** Skip MediaSource entirely: download (and verify) the whole file, then
+     *  play it as a blob. What a failed stream falls back to. */
+    forceBlob?: boolean;
 }
 
 export interface AuthedVideoStream {
@@ -84,14 +83,14 @@ const SAMPLES_PER_SEGMENT = 60;
 // On QuotaExceeded, keep this many seconds behind the playhead and drop the rest.
 const KEEP_BEHIND_SECONDS = 10;
 
-function authHeaders(httpUrl: string): Record<string, string> {
-    if (!matrixClient) throw new Error("Not logged in");
-    // Same guard as fetchAttachmentBlob: the token never leaves the homeserver.
-    if (!isSameOrigin(httpUrl, matrixClient.getHomeserverUrl())) {
-        throw new Error("Refusing to fetch a non-homeserver URL with auth");
-    }
-    const token = matrixClient.getAccessToken();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+/** An MP3 stream: an ID3v2 tag, or an MPEG audio frame header (11 sync bits
+ *  and a layer that is not the reserved 00). */
+export function isMp3(head: Uint8Array): boolean {
+    if (head.length < 3) return false;
+    if (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) return true;
+    return (
+        head[0] === 0xff && (head[1] & 0xe0) === 0xe0 && (head[1] & 0x06) !== 0
+    );
 }
 
 function isMp4(head: Uint8Array): boolean {
@@ -101,14 +100,6 @@ function isMp4(head: Uint8Array): boolean {
     const type = String.fromCharCode(head[4], head[5], head[6], head[7]);
     return type === "ftyp" || type === "styp" || type === "moov";
 }
-
-/** What the pipeline needs from a body reader: a ReadableStream's, or ours. */
-interface ChunkReader {
-    read(): Promise<ReadableStreamReadResult<Uint8Array>>;
-}
-
-// Chunks arrive faster than anyone can read a counter; cap UI updates.
-const PROGRESS_INTERVAL_MS = 100;
 
 /** Copy a reader chunk into its own exactly-sized ArrayBuffer. */
 function ownBuffer(chunk: Uint8Array): ArrayBuffer {
@@ -132,7 +123,7 @@ class AppendQueue {
 
     constructor(
         private sb: SourceBuffer,
-        private video: HTMLVideoElement,
+        private video: HTMLMediaElement,
         private fail: (err: unknown) => void,
     ) {
         sb.addEventListener("updateend", () => {
@@ -208,7 +199,7 @@ class AppendQueue {
  * container allows. The caller must not also set `video.src`.
  */
 export function attachAuthedVideo(
-    video: HTMLVideoElement,
+    video: HTMLMediaElement,
     httpUrl: string,
     opts: AuthedVideoStreamOptions = {},
 ): AuthedVideoStream {
@@ -232,69 +223,6 @@ export function attachAuthedVideo(
         video.src = url;
     }
 
-    /**
-     * The response body as a chunk reader that reports progress and, for an
-     * encrypted attachment, yields plaintext. The final read() of a decrypting
-     * reader runs the integrity check and REJECTS on a mismatch, so a caller
-     * that reads to the end before using the bytes only ever uses verified ones.
-     */
-    async function openReader(resp: Response): Promise<ChunkReader> {
-        const total = expectedBodySize(resp, opts.expectedSize);
-        let raw: ChunkReader;
-        const streamReader = resp.body?.getReader();
-        if (streamReader) {
-            raw = streamReader;
-        } else {
-            // No streaming body: one chunk, once.
-            let sent = false;
-            const all = new Uint8Array(await resp.arrayBuffer());
-            raw = {
-                read: async () =>
-                    sent
-                        ? { done: true, value: undefined }
-                        : ((sent = true), { done: false, value: all }),
-            };
-        }
-        const decryptor = opts.decrypt
-            ? await createStreamDecryptor(opts.decrypt)
-            : null;
-        let loaded = 0;
-        let lastReport = 0;
-        let finished = false;
-        const report = (force = false) => {
-            const now = Date.now();
-            if (!force && now - lastReport < PROGRESS_INTERVAL_MS) return;
-            lastReport = now;
-            opts.onProgress?.({
-                loaded,
-                total: total !== null && loaded <= total ? total : null,
-            });
-        };
-        report(true);
-        return {
-            async read() {
-                for (;;) {
-                    const r = await raw.read();
-                    if (r.done) {
-                        report(true);
-                        if (decryptor && !finished) {
-                            finished = true;
-                            const tail = await decryptor.finish();
-                            if (tail.length)
-                                return { done: false, value: tail };
-                        }
-                        return { done: true, value: undefined };
-                    }
-                    loaded += r.value.length;
-                    report();
-                    if (!decryptor) return r;
-                    const out = await decryptor.push(r.value);
-                    if (out.length) return { done: false, value: out };
-                }
-            },
-        };
-    }
-
     async function readAll(reader: ChunkReader, parts: BlobPart[]) {
         for (;;) {
             const { done, value } = await reader.read();
@@ -315,15 +243,96 @@ export function attachAuthedVideo(
         );
     }
 
+    // How much of the head of a WebM to read while looking for its Tracks.
+    // Real files put them in the first few KB; past this it is not worth it.
+    const WEBM_PROBE_LIMIT = 2 * 1024 * 1024;
+
+    /**
+     * WebM needs no remuxing: once the codecs are known the bytes go into a
+     * SourceBuffer exactly as they arrive. Anything the probe can't vouch for
+     * (an unusual codec, no Tracks near the start, a MIME type this browser's
+     * MediaSource refuses) is downloaded in full and handed to the element
+     * as a blob instead, as before.
+     */
+    async function streamWebm(reader: ChunkReader, held: ArrayBuffer[]) {
+        let mime: string | null = null;
+        let ended = false;
+        let size = held.reduce((n, b) => n + b.byteLength, 0);
+        for (;;) {
+            const head = new Uint8Array(size);
+            let at = 0;
+            for (const b of held) {
+                head.set(new Uint8Array(b), at);
+                at += b.byteLength;
+            }
+            const probe = probeWebm(head);
+            if (probe.status === "ok") {
+                mime = probe.mime;
+                break;
+            }
+            if (probe.status === "unsupported" || size > WEBM_PROBE_LIMIT)
+                break;
+            const { done, value } = await reader.read();
+            if (done) {
+                ended = true;
+                break;
+            }
+            const buf = ownBuffer(value);
+            held.push(buf);
+            size += buf.byteLength;
+        }
+        return streamBytes(reader, held, mime, ended);
+    }
+
+    /**
+     * Append the bytes to a SourceBuffer of type `mime` as they arrive, or, when
+     * there is no usable `mime`, download everything and play it as a blob.
+     * `held` is what has been read so far, `ended` whether the reader is spent.
+     */
+    async function streamBytes(
+        reader: ChunkReader,
+        held: ArrayBuffer[],
+        mime: string | null,
+        ended: boolean,
+    ) {
+        if (disposed) return;
+        if (!mime || !MediaSource.isTypeSupported(mime)) {
+            return playAsBlob(ended ? null : reader, held);
+        }
+
+        const ms = new MediaSource();
+        const opened = new Promise<void>((resolve) =>
+            ms.addEventListener("sourceopen", () => resolve(), { once: true }),
+        );
+        setSrc(URL.createObjectURL(ms));
+        await opened;
+        if (disposed) return;
+
+        const q = new AppendQueue(ms.addSourceBuffer(mime), video, fail);
+        queues.push(q);
+        for (const buffer of held) q.push({ buffer });
+        held.length = 0;
+        if (!ended) {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                q.push({ buffer: ownBuffer(value) });
+            }
+        }
+        await q.drained();
+        if (!disposed && ms.readyState === "open") ms.endOfStream();
+    }
+
     async function run() {
-        const resp = await fetch(httpUrl, {
-            headers: authHeaders(httpUrl),
+        const reader = await openAuthedReader(httpUrl, {
+            decrypt: opts.decrypt,
+            expectedSize: opts.expectedSize,
+            onProgress: opts.onProgress,
             signal: abort.signal,
         });
-        if (!resp.ok) throw new Error(`Video fetch failed: ${resp.status}`);
-
-        const reader = await openReader(resp);
-        if (typeof MediaSource === "undefined") return playAsBlob(reader, []);
+        if (opts.forceBlob || typeof MediaSource === "undefined") {
+            return playAsBlob(reader, []);
+        }
 
         // Everything read so far, kept until we commit to MSE so a fallback
         // to a blob loses nothing.
@@ -331,7 +340,14 @@ export function attachAuthedVideo(
         let first = await reader.read();
         if (first.done) return playAsBlob(null, held);
         held.push(ownBuffer(first.value));
-        if (!isMp4(first.value)) return playAsBlob(reader, held);
+        if (!isMp4(first.value)) {
+            if (isWebm(first.value)) return streamWebm(reader, held);
+            // MP3 is a bare frame stream: no header to parse, no remuxing.
+            if (isMp3(first.value)) {
+                return streamBytes(reader, held, "audio/mpeg", false);
+            }
+            return playAsBlob(reader, held);
+        }
 
         const { createFile, MP4BoxBuffer } = await import("mp4box");
         // keepMdatData: v2 discards sample bytes by default, which silently
@@ -371,7 +387,7 @@ export function attachAuthedVideo(
             movie?.tracks.filter(
                 (t) => t.type === "video" || t.type === "audio",
             ) ?? [];
-        if (!movie || parseError || !tracks.some((t) => t.type === "video")) {
+        if (!movie || parseError || tracks.length === 0) {
             // Not something mp4box can fragment: let the element try the bytes.
             file.stop();
             mp4 = null;

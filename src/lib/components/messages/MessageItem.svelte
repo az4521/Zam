@@ -18,6 +18,13 @@
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
+    import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
+    import {
+        canPreviewImage,
+        loadImageProgressively,
+        PROGRESSIVE_IMAGE_MIN_BYTES,
+    } from "$lib/matrix/progressiveImage";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
@@ -1221,6 +1228,24 @@
     let imageDecrypting = $state(false);
     let imageDecryptFailed = $state(false);
     let imageProgress = $state<DownloadProgress | null>(null);
+    // A large encrypted image paints onto this canvas while it downloads (see
+    // progressiveImage.ts); it is replaced by the real <img> once verified.
+    let imagePreviewCanvas = $state<HTMLCanvasElement | null>(null);
+    let imagePreviewing = $state(false);
+
+    function drawImagePreview(frame: VideoFrame) {
+        const canvas = imagePreviewCanvas;
+        if (!canvas) return;
+        if (
+            canvas.width !== frame.displayWidth ||
+            canvas.height !== frame.displayHeight
+        ) {
+            canvas.width = frame.displayWidth;
+            canvas.height = frame.displayHeight;
+        }
+        canvas.getContext("2d")?.drawImage(frame, 0, 0);
+        imagePreviewing = true;
+    }
 
     // Image/sticker media 401s when the media service worker isn't authenticating
     // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
@@ -1239,21 +1264,58 @@
         imageDecrypting = true;
         imageDecryptFailed = false;
         imageProgress = null;
+        imagePreviewing = false;
         let blobUrl: string | null = null;
         let cancelled = false;
         const abort = new AbortController();
         const info = content?.info as
             { mimetype?: string; size?: number } | undefined;
+        const mime = info?.mimetype?.split(";")[0].trim().toLowerCase();
+        const httpUrl = mxcToHttp(file.url);
+        const onProgress = (p: DownloadProgress) => {
+            if (!cancelled) imageProgress = p;
+        };
         // One download serves both the inline image and the viewer: the
         // thumbnail and the full image are the same ciphertext, and fetching it
         // twice doubled the wait on a slow server.
-        fetchDecryptedAttachmentBlob(file, info?.mimetype, {
-            expectedSize: info?.size,
-            signal: abort.signal,
-            onProgress: (p) => {
-                if (!cancelled) imageProgress = p;
-            },
-        })
+        const plainDownload = async () =>
+            fetchDecryptedAttachmentBlob(file, info?.mimetype, {
+                expectedSize: info?.size,
+                signal: abort.signal,
+                onProgress,
+            });
+        // Big images preview as they arrive when the browser can decode the
+        // format incrementally; anything else, or any failure of that route,
+        // takes the plain download-verify-show path.
+        const load = async (): Promise<string> => {
+            if (
+                httpUrl &&
+                mime &&
+                typeof info?.size === "number" &&
+                info.size >= PROGRESSIVE_IMAGE_MIN_BYTES &&
+                (await canPreviewImage(mime))
+            ) {
+                try {
+                    const blob = await loadImageProgressively(httpUrl, {
+                        mimetype: mime,
+                        decrypt: file,
+                        expectedSize: info.size,
+                        signal: abort.signal,
+                        onProgress,
+                        onPreview: (frame) => {
+                            if (!cancelled) drawImagePreview(frame);
+                        },
+                    });
+                    return URL.createObjectURL(blob);
+                } catch (err) {
+                    if (abort.signal.aborted) throw err;
+                    imagePreviewing = false;
+                    imageProgress = null;
+                }
+            }
+            return plainDownload();
+        };
+        load()
             .then((url) => {
                 if (cancelled) {
                     URL.revokeObjectURL(url);
@@ -1263,10 +1325,12 @@
                 encryptedImageThumbUrl = url;
                 encryptedImageFullUrl = url;
                 imageDecrypting = false;
+                imagePreviewing = false;
             })
             .catch(() => {
                 if (cancelled) return;
                 imageDecrypting = false;
+                imagePreviewing = false;
                 imageDecryptFailed = true;
             });
         return () => {
@@ -1300,14 +1364,40 @@
         msgtype === "m.audio" ? parseVoiceContent(content) : null,
     );
 
+    // Audio that plays while it downloads (videoStream.ts). Not for MIDI, which
+    // has to be synthesized from the whole file; not for a small encrypted file,
+    // where waiting for the integrity check costs little (see
+    // STREAM_ENCRYPTED_MIN_BYTES). A stream that breaks flips
+    // audioStreamFailed, which hands the file to the download path below.
+    let audioStreamFailed = $state(false);
+    let audioStreamReady = $state(false);
+    const audioIsMidi = $derived(
+        isMidiAttachment(
+            (content?.info as { mimetype?: string } | undefined)?.mimetype,
+            mediaFilename,
+        ),
+    );
+    const audioStreamUrl = $derived.by(() => {
+        if (!audioClicked || msgtype !== "m.audio") return null;
+        if (voiceMsg || audioIsMidi || audioStreamFailed) return null;
+        if (typeof MediaSource === "undefined") return null;
+        const file = content?.file as EncryptedFile | undefined;
+        if (file) {
+            const size = (content?.info as { size?: number } | undefined)?.size;
+            return typeof size === "number" &&
+                size >= STREAM_ENCRYPTED_MIN_BYTES
+                ? mxcToHttp(file.url)
+                : null;
+        }
+        return mxcToHttp(content?.url as string);
+    });
+
     $effect(() => {
         void audioAttempt; // re-run when the user retries a failed load
         if (!audioClicked || msgtype !== "m.audio") return;
+        if (audioStreamUrl) return;
         const file = content?.file as EncryptedFile | undefined;
-        const isMidi = isMidiAttachment(
-            (content?.info as { mimetype?: string } | undefined)?.mimetype,
-            mediaFilename,
-        );
+        const isMidi = audioIsMidi;
         let cancelled = false;
         // <audio> can't decode MIDI, so synthesize it to WAV first.
         const toPlayableAudio = (url: string) =>
@@ -2120,10 +2210,31 @@
                 {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
                 {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
                 {#if file && imageDecrypting}
-                    <MediaProgress
-                        label={t("messageItem.decryptingImage")}
-                        progress={imageProgress}
-                    />
+                    <!-- The canvas is always mounted (the effect paints into
+                     it) but only shown once a first partial frame is drawn. -->
+                    <div class="relative inline-block mt-1 max-w-full">
+                        <canvas
+                            bind:this={imagePreviewCanvas}
+                            class="block max-w-lg max-h-96 w-auto h-auto rounded-lg"
+                            class:hidden={!imagePreviewing}
+                        ></canvas>
+                        {#if imagePreviewing}
+                            <div
+                                class="absolute inset-x-2 bottom-2 pointer-events-none"
+                            >
+                                <MediaProgress
+                                    label={t("messageItem.decryptingImage")}
+                                    progress={imageProgress}
+                                />
+                            </div>
+                        {/if}
+                    </div>
+                    {#if !imagePreviewing}
+                        <MediaProgress
+                            label={t("messageItem.decryptingImage")}
+                            progress={imageProgress}
+                        />
+                    {/if}
                 {:else if file && imageDecryptFailed}
                     <div
                         class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
@@ -2294,11 +2405,11 @@
                             class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
                             disabled={audioLoading}
                         >
-                            {#if audioLoading}
+                            {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
                                 <div
                                     class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
                                 ></div>
-                            {:else if !audioBlobUrl}
+                            {:else if !audioBlobUrl && !audioStreamUrl}
                                 <svg
                                     class="w-4 h-4 text-white ms-0.5"
                                     fill="currentColor"
@@ -2322,27 +2433,12 @@
                             >
                                 {mediaFilename || t("messageItem.audio")}
                             </p>
-                            {#if audioBlobUrl}
-                                <!-- svelte-ignore a11y_media_has_caption -->
-                                <audio
-                                    controls
-                                    autoplay
-                                    src={audioBlobUrl}
-                                    class="w-full h-8"
-                                ></audio>
-                            {:else}
-                                <p
-                                    class="text-xs {audioMode === 'failed'
-                                        ? 'text-discord-danger'
-                                        : 'text-discord-textMuted'}"
-                                >
-                                    {audioStatusLabel(audioMode)}
-                                </p>
-                                {#if audioLoading && audioProgress?.total}
+                            {#snippet audioBar()}
+                                {#if audioProgress?.total}
                                     <div
                                         class="mt-1 h-1 rounded-full bg-discord-backgroundSecondary overflow-hidden"
                                         role="progressbar"
-                                        aria-label={audioStatusLabel(audioMode)}
+                                        aria-label={t("common.loading")}
                                         aria-valuemin="0"
                                         aria-valuemax="100"
                                         aria-valuenow={Math.round(
@@ -2361,6 +2457,53 @@
                                         ></div>
                                     </div>
                                 {/if}
+                            {/snippet}
+                            {#if audioStreamUrl}
+                                <!-- svelte-ignore a11y_media_has_caption -->
+                                <audio
+                                    controls
+                                    autoplay
+                                    use:authedVideoSrc={{
+                                        url: audioStreamUrl,
+                                        mimetype: (
+                                            content?.info as
+                                                | { mimetype?: string }
+                                                | undefined
+                                        )?.mimetype,
+                                        decrypt:
+                                            (content?.file as
+                                                EncryptedFile | undefined) ??
+                                            undefined,
+                                        expectedSize: (
+                                            content?.info as
+                                                { size?: number } | undefined
+                                        )?.size,
+                                        onProgress: (p) => (audioProgress = p),
+                                        onError: () =>
+                                            (audioStreamFailed = true),
+                                    }}
+                                    oncanplay={() => (audioStreamReady = true)}
+                                    onerror={() => (audioStreamFailed = true)}
+                                    class="w-full h-8"
+                                ></audio>
+                                {#if !audioStreamReady}{@render audioBar()}{/if}
+                            {:else if audioBlobUrl}
+                                <!-- svelte-ignore a11y_media_has_caption -->
+                                <audio
+                                    controls
+                                    autoplay
+                                    src={audioBlobUrl}
+                                    class="w-full h-8"
+                                ></audio>
+                            {:else}
+                                <p
+                                    class="text-xs {audioMode === 'failed'
+                                        ? 'text-discord-danger'
+                                        : 'text-discord-textMuted'}"
+                                >
+                                    {audioStatusLabel(audioMode)}
+                                </p>
+                                {#if audioLoading}{@render audioBar()}{/if}
                             {/if}
                         </div>
                     </div>

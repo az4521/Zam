@@ -60,6 +60,8 @@
     // True once the element has enough data to start; until then a streamed
     // video shows download progress over its black box.
     let videoStreamReady = $state(false);
+    // A plain (unencrypted) stream that broke retries once as a full download.
+    let videoForceBlob = $state(false);
     let videoProgress = $state<DownloadProgress | null>(null);
     const videoSize = $derived.by(() => {
         const size = (content?.info as Record<string, unknown> | undefined)
@@ -98,6 +100,18 @@
             return;
         }
         if (videoStreamEncrypted) return fallBackToVerifiedDownload();
+        onPlainStreamBroke();
+    }
+
+    // The MediaSource route can fail on a file the browser would still play
+    // whole (e.g. an audio+video WebM whose blocks are not strictly ordered).
+    // Try once more as a plain download before giving up.
+    function onPlainStreamBroke() {
+        if (videoUseStream && !videoForceBlob) {
+            videoForceBlob = true;
+            videoAttempt += 1;
+            return;
+        }
         videoFailed = true;
     }
 
@@ -311,11 +325,12 @@
                     ? videoSrc.file
                     : undefined,
             expectedSize: videoSize,
+            forceBlob: videoForceBlob,
             onProgress: (p) => (videoProgress = p),
             onError: () =>
                 encryptedStreamUrl
                     ? fallBackToVerifiedDownload()
-                    : (videoFailed = true),
+                    : onPlainStreamBroke(),
         }}
         controls
         autoplay
