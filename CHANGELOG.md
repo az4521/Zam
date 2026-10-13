@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.9
+
+🐛 **Fixed**
+
+- **Noise suppression no longer mangles quiet microphones:** DeepFilterNet3 noise suppression damaged speech that reached it too quietly, and with Zam's mic leveller (the default) a quiet mic always did, so voices came out watery or broken up, or dropped out altogether on very quiet mics. Zam now raises a quiet mic before noise suppression and takes the same amount off again afterwards, so your voice is cleaned up properly without changing how loud you sound. The mic test in Settings uses the same processing, so you can hear the difference there.
+
 ## v1.19.8
 
 🐛 **Fixed**
