@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.4
+
+✨ **New**
+
+- **Shift+click to download on desktop:** holding Shift while clicking a download button (image or video viewer, file attachments, room media panel) saves the file straight to your Downloads folder with no save dialog, like on Android. A plain click still asks where to save.
+
 ## v1.19.3
 
 🐛 **Fixed**
