@@ -853,6 +853,11 @@ const messages: Record<MessageKey, string> = {
     "messagesMediaSettings.pauseVideosOffScreen": "ܦܣܘܩ ܒܝܕܝܘ̈ܐ ܠܒܪ ܡܢ ܡܚܙܝܬܐ",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "ܦܣܘܩ ܒܝܕܝܘ ܕܦܠܚܐ ܐܡܬܝ ܕܢܦܠ ܠܒܪ ܡܢ ܚܙܝܬܐ ܩܐ ܢܛܪܐ ܕܒܛܪܝܐ. ܐܢܬ ܫܪܐ ܝܘܬ ܠܗ ܡܢ ܕܪܝܫ ܐܡܬܝ ܕܕܥܪܬ.",
+    // Placeholder English until a Suret speaker translates these.
+    "messagesMediaSettings.sendVideosThatStreamFaster":
+        "Send videos that stream faster",
+    "messagesMediaSettings.rearrangeMp4VideosYouSend":
+        "Rearrange MP4 videos you send so they can start playing while they download. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
     "messagesMediaSettings.defaultTab": "ܠܘܚܐ ܥܕܝܠܐ",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "ܐܝܢܐ ܠܘܚܐ ܦܬܚ ܓܒܝܬܐ ܕ GIF.",
@@ -2775,6 +2780,8 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviews": "ܚܙܝ̈ܬܐ ܩܕܡܝ̈ܬܐ ܕܐܣܘܪ̈ܐ",
     "settingsSearch.linkPreviewMedia": "ܡܝܕܝܐ ܕܚܙܝܬܐ ܩܕܡܝܬܐ ܕܐܣܘܪ̈ܐ",
     "settingsSearch.pauseVideosOffScreen": "ܦܣܘܩ ܒܝܕܝܘ̈ܐ ܠܒܪ ܡܢ ܡܚܙܝܬܐ",
+    "settingsSearch.sendVideosThatStreamFaster":
+        "Send videos that stream faster",
     "settingsSearch.midiSoundBank": "ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܕ MIDI",
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",

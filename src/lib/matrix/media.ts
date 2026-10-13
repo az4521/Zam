@@ -4,6 +4,8 @@ import type { MatrixClient } from "matrix-js-sdk";
 import { matrixClient, captureClient, ownedClientOrThrow } from "./runtime";
 import type { ClientOwnership } from "$lib/utils/clientGeneration";
 import { threadRelationParams } from "./client";
+import { settingsState } from "$lib/stores/settings.svelte";
+import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withThreadRelation } from "$lib/utils/threadContent";
 import {
@@ -217,8 +219,17 @@ export async function sendFile(
             ? "m.audio"
             : "m.file";
 
+    // An MP4/MOV with its index at the end only starts playing once fully
+    // downloaded; move the index to the front so receivers can stream it. The
+    // media itself is untouched, and the original is sent if anything about the
+    // file is unexpected (see utils/mp4Faststart).
+    const toUpload =
+        isVideo && settingsState.faststartVideos
+            ? await faststartMp4(file)
+            : file;
+
     // Upload the main file, encrypting it if the room is encrypted.
-    const uploadResult = await uploadAttachment(owner, roomId, file, {
+    const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
         name: file.name,
         msgtype,
         onProgress,

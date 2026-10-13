@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const slot = vi.hoisted(() => ({ client: null as unknown }));
 
@@ -23,7 +23,16 @@ vi.mock("$lib/matrix/crypto", () => ({
     isRoomEncryptedForSend: async () => false,
 }));
 
+const faststart = vi.hoisted(() => ({
+    fn: vi.fn(
+        async (f: File) =>
+            new File([f], f.name, { type: f.type, lastModified: 1 }),
+    ),
+}));
+vi.mock("$lib/utils/mp4Faststart", () => ({ faststartMp4: faststart.fn }));
+
 import { sendFile } from "./media";
+import { setFaststartVideos } from "$lib/stores/settings.svelte";
 
 function makeClient() {
     return {
@@ -93,5 +102,53 @@ describe("sendFile content transform", () => {
             rel_type: "m.thread",
             event_id: "$root",
         });
+    });
+});
+
+describe("sendFile video faststart", () => {
+    const video = new File(["v"], "clip.mp4", { type: "video/mp4" });
+    const uploaded = () =>
+        (slot.client as ReturnType<typeof makeClient>).uploadContent.mock
+            .calls[0][0] as File;
+
+    // The thumbnail step needs a real <video>, which jsdom does not have, so
+    // sendFile rejects after the upload. The upload is what these tests are about.
+    const send = (f: File) => sendFile("!r", f).catch(() => undefined);
+
+    const realCreateObjectURL = URL.createObjectURL;
+
+    beforeEach(() => {
+        faststart.fn.mockClear();
+        setFaststartVideos(true);
+        // Make the thumbnail step fail at once instead of waiting forever on a
+        // video element that never reports anything.
+        URL.createObjectURL = () => {
+            throw new Error("no object URLs in tests");
+        };
+    });
+
+    afterEach(() => {
+        URL.createObjectURL = realCreateObjectURL;
+    });
+
+    it("uploads the rewritten file when the setting is on", async () => {
+        await send(video);
+        expect(faststart.fn).toHaveBeenCalledWith(video);
+        expect(uploaded()).not.toBe(video);
+        expect(uploaded().lastModified).toBe(1);
+    });
+
+    it("uploads the original, untouched, when the setting is off", async () => {
+        setFaststartVideos(false);
+        await send(video);
+        expect(faststart.fn).not.toHaveBeenCalled();
+        expect(uploaded()).toBe(video);
+    });
+
+    it("leaves non-video files alone", async () => {
+        const doc = new File(["x"], "notes.txt", { type: "text/plain" });
+        await send(doc);
+        expect(faststart.fn).not.toHaveBeenCalled();
+        expect(uploaded()).toBe(doc);
     });
 });

@@ -186,6 +186,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "messages-media",
+        label: t("settingsSearch.sendVideosThatStreamFaster"),
+        keywords: ["faststart", "moov", "mp4", "upload", "optimize", "video"],
+        anchor: "cust-messages",
+    },
+    {
+        tab: "messages-media",
         label: t("settingsSearch.midiSoundBank"),
         keywords: ["midi", "soundfont", "sf2", "dls", "instruments", "music"],
         anchor: "cust-midi",

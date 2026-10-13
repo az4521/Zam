@@ -8,6 +8,7 @@
         setHoldToOpenMessageMenu,
         setLinkPreviewsEnabled,
         setPauseVideoOnScrollOff,
+        setFaststartVideos,
         setGifDefaultTab,
         setMidiSoundBank,
         settingsState,
@@ -241,6 +242,21 @@
                 checked={settingsState.pauseVideoOnScrollOff}
                 onChange={setPauseVideoOnScrollOff}
                 label={t("messagesMediaSettings.pauseVideosOffScreen")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.sendVideosThatStreamFaster")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.rearrangeMp4VideosYouSend")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.faststartVideos}
+                onChange={setFaststartVideos}
+                label={t("messagesMediaSettings.sendVideosThatStreamFaster")}
             />
         </div>
     </section>

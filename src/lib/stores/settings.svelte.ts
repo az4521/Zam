@@ -251,6 +251,11 @@ export const settingsState = $state({
      *  auto-play a video. Default ON (least surprising). Local-only, like
      *  showReadReceiptAvatars — it does not ride customization sync. */
     pauseVideoOnScrollOff: readBool("pauseVideoOnScrollOff", true),
+    /** Device-global: before sending an MP4/MOV video, move its index (the
+     *  moov box) to the front of the file so receivers can start playing while
+     *  it downloads (see utils/mp4Faststart). Nothing is re-encoded. Default ON;
+     *  turn off to upload files byte-for-byte as picked. Local-only. */
+    faststartVideos: readBool("faststartVideos", true),
     /** Device-global: which sound bank plays MIDI attachments (see
      *  utils/midiSoundBank). Default "system", which falls back to the bundled
      *  bank where the OS has none. Local-only: a custom bank lives in this
@@ -790,6 +795,11 @@ export function setIndexEncryptedRooms(value: boolean): void {
 export function setPauseVideoOnScrollOff(value: boolean): void {
     settingsState.pauseVideoOnScrollOff = value;
     writeBool("pauseVideoOnScrollOff", value);
+}
+
+export function setFaststartVideos(value: boolean): void {
+    settingsState.faststartVideos = value;
+    writeBool("faststartVideos", value);
 }
 
 export function setMidiSoundBank(value: MidiSoundBankChoice): void {

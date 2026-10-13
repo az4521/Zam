@@ -905,6 +905,10 @@ const messages: Record<MessageKey, string> = {
         "Mettre en pause les vidéos hors écran",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "Mettre en pause une vidéo en cours de lecture lorsqu'elle sort de l'écran pour économiser la batterie. Vous la relancez vous-même en revenant.",
+    "messagesMediaSettings.sendVideosThatStreamFaster":
+        "Envoyer des vidéos qui démarrent plus vite",
+    "messagesMediaSettings.rearrangeMp4VideosYouSend":
+        "Réorganise les vidéos MP4 que vous envoyez pour qu'elles puissent démarrer pendant le téléchargement. Rien n'est ré-encodé et l'image reste identique. Désactivez cette option pour envoyer les fichiers tels quels.",
     "messagesMediaSettings.defaultTab": "Onglet par défaut",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "L'onglet sur lequel s'ouvre le sélecteur de GIF.",
@@ -2980,6 +2984,8 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviewMedia": "Médias des aperçus de liens",
     "settingsSearch.pauseVideosOffScreen":
         "Mettre en pause les vidéos hors écran",
+    "settingsSearch.sendVideosThatStreamFaster":
+        "Envoyer des vidéos qui démarrent plus vite",
     "settingsSearch.midiSoundBank": "Banque de sons MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Maintenir pour ouvrir le menu du message",

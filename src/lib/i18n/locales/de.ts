@@ -920,6 +920,10 @@ const messages: Record<MessageKey, string> = {
         "Videos außerhalb des Bildschirms pausieren",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "Ein laufendes Video pausieren, wenn es aus dem Bild scrollt, um Akku zu sparen. Beim Zurückscrollen startest du es selbst neu.",
+    "messagesMediaSettings.sendVideosThatStreamFaster":
+        "Videos senden, die schneller starten",
+    "messagesMediaSettings.rearrangeMp4VideosYouSend":
+        "Ordnet MP4-Videos, die du sendest, so um, dass sie schon während des Downloads starten können. Es wird nichts neu kodiert und das Bild bleibt unverändert. Deaktiviere das, um Dateien unverändert zu senden.",
     "messagesMediaSettings.defaultTab": "Standard-Tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Welcher Tab in der GIF-Auswahl zuerst geöffnet wird.",
@@ -3011,6 +3015,8 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.linkPreviewMedia": "Medien in Linkvorschauen",
     "settingsSearch.pauseVideosOffScreen":
         "Videos außerhalb des Bildschirms pausieren",
+    "settingsSearch.sendVideosThatStreamFaster":
+        "Videos senden, die schneller starten",
     "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",

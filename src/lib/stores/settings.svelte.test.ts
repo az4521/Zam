@@ -651,6 +651,38 @@ describe("pauseVideoOnScrollOff", () => {
     });
 });
 
+describe("faststartVideos", () => {
+    const FK = "settings:faststartVideos";
+
+    async function bootFaststart(stored: string | null) {
+        if (stored === null) localStorage.removeItem(FK);
+        else localStorage.setItem(FK, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    afterEach(() => {
+        localStorage.removeItem(FK);
+    });
+
+    it("defaults to true so sent videos stream out of the box", async () => {
+        const fresh = await bootFaststart(null);
+        expect(fresh.settingsState.faststartVideos).toBe(true);
+    });
+
+    it("reads a stored false at boot", async () => {
+        const fresh = await bootFaststart("false");
+        expect(fresh.settingsState.faststartVideos).toBe(false);
+    });
+
+    it("persists the setter's value to localStorage", async () => {
+        const fresh = await bootFaststart(null);
+        fresh.setFaststartVideos(false);
+        expect(fresh.settingsState.faststartVideos).toBe(false);
+        expect(localStorage.getItem(FK)).toBe("false");
+    });
+});
+
 describe("holdToOpenMessageMenu (device-local)", () => {
     it("persists to the bare (non-account-scoped) key", () => {
         setHoldToOpenMessageMenu(true);
