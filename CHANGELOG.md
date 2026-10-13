@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.8
+
+🐛 **Fixed**
+
+- **Emote packs from Sable and other newer clients now show up:** packs made in clients that use the newer standard names (`m.room.image_pack`) were invisible in Zam: missing from the emoji and sticker pickers and from both lists in Settings → Emotes. Zam now reads both the new and the old names, shows packs the same way Sable does, and packs you enabled for all rooms in Sable are picked up too.
+
+✨ **New**
+
+- **New emote packs use the standard name:** packs you create in Zam are now saved under the newer standard name, like Sable does. Existing packs keep the name they already have, and nothing gets duplicated.
+- **Editing respects each pack's permissions:** room settings only offers to edit a pack when your power level allows every change it needs, and an edit is never left half-saved.
+
 ## v1.19.7
 
 ✨ **New**
