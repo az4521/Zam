@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.11
+
+🐛 **Fixed**
+
+- **No more volume spikes or boosted background noise in calls:** Zam's mic leveller and the volume evening-out for other people mistook leftover background noise in pauses for a quiet voice and kept turning it up. You could hear people's noise floor whenever they were quiet, and the next word came in so loud it distorted. Now only actual speech changes the volume.
+- **Clicks and typing are filtered again:** noise suppression now also quietens the gaps between words, so mouse clicks, keyboard sounds and room noise in pauses are cut much further while your voice comes through as before.
+- **Changing audio settings during a call:** turning auto gain control or echo cancellation on or off mid-call no longer fails with "Couldn't apply audio processing change". If a change does fail, the message now says why.
+
 ## v1.19.10
 
 🐛 **Fixed**
