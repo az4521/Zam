@@ -111,12 +111,13 @@
     async function download(e: MouseEvent) {
         e.stopPropagation();
         const name = filenameFromSrc();
+        const quiet = e.shiftKey;
         try {
             // A playing video has already been pulled down in full — save that
             // copy instead of fetching the whole file a second time. Ownership
             // stays with the effect below, so this path must NOT revoke it.
             if (videoBlobUrl) {
-                await saveObjectUrl(videoBlobUrl, name);
+                await saveObjectUrl(videoBlobUrl, name, { quiet });
                 return;
             }
             let objectUrl: string;
@@ -133,7 +134,7 @@
                 );
             }
             try {
-                await saveObjectUrl(objectUrl, name);
+                await saveObjectUrl(objectUrl, name, { quiet });
             } finally {
                 revokeLater(objectUrl);
             }

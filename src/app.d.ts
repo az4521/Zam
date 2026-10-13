@@ -68,6 +68,12 @@ declare global {
                 setUnread: (unread: boolean) => void;
                 setMinimizeToClose: (enabled: boolean) => void;
             };
+            /** Write bytes into the Downloads folder with no save dialog;
+             *  resolves to the path written. */
+            saveToDownloads?: (
+                name: string,
+                data: ArrayBuffer,
+            ) => Promise<string>;
             contextMenu?: {
                 onSaveImage: (cb: (url: string) => void) => () => void;
             };

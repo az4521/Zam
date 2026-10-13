@@ -405,6 +405,31 @@ ipcMain.handle(
     async () => (await findSystemSoundBank()) !== null,
 );
 
+// Shift+click on a download button: write the bytes into the Downloads folder
+// without the save dialog. The name comes from a remote sender, so it is
+// reduced to a bare file name and de-duplicated ("a.png" -> "a (1).png").
+ipcMain.handle("save-to-downloads", async (_e, name, data) => {
+    if (typeof name !== "string" || !(data instanceof ArrayBuffer))
+        throw new Error("invalid save request");
+    let base = path.basename(name.replace(/\\/g, "/"));
+    base = base.replace(/[<>:"|?*\u0000-\u001f]/g, "_").trim();
+    if (!base || base === "." || base === "..") base = "download";
+    const dir = app.getPath("downloads");
+    const ext = path.extname(base);
+    const stem = base.slice(0, base.length - ext.length);
+    const bytes = Buffer.from(data);
+    for (let n = 0; ; n++) {
+        const file = path.join(dir, n ? `${stem} (${n})${ext}` : base);
+        try {
+            // "wx" fails if the name is taken, so nothing is overwritten.
+            await fs.promises.writeFile(file, bytes, { flag: "wx" });
+            return file;
+        } catch (err) {
+            if (err.code !== "EEXIST" || n >= 999) throw err;
+        }
+    }
+});
+
 // A notification arrived for a window the user is not looking at: flash the
 // taskbar button (Windows/Linux) or bounce the dock icon (macOS).
 ipcMain.on("notify:flash", () => {

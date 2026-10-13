@@ -70,9 +70,18 @@ function blobToBase64(blob: Blob): Promise<string> {
 export async function saveObjectUrl(
     objectUrl: string,
     name: string,
+    opts: { quiet?: boolean } = {},
 ): Promise<void> {
     const blob = await (await fetch(objectUrl)).blob();
     name = withExtension(name, blob.type);
+    // Desktop shift+click: skip the save dialog and drop the file straight
+    // into the Downloads folder, as Android does.
+    const quietSave = opts.quiet ? window.desktop?.saveToDownloads : undefined;
+    if (quietSave) {
+        await quietSave(name, await blob.arrayBuffer());
+        showToast(t("saveFile.savedToDownloads"), { tone: "accent" });
+        return;
+    }
     if (isAndroid()) {
         await MediaSaver.save({
             data: await blobToBase64(blob),

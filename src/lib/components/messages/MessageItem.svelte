@@ -2384,7 +2384,8 @@
                     </div>
                     {#if fileUrl || file}
                         <button
-                            onclick={async () => {
+                            onclick={async (e) => {
+                                const quiet = e.shiftKey;
                                 try {
                                     const blobUrl = file
                                         ? await fetchDecryptedAttachmentBlob(
@@ -2393,7 +2394,9 @@
                                           )
                                         : await fetchAttachmentBlob(fileUrl!);
                                     try {
-                                        await saveObjectUrl(blobUrl, fileName);
+                                        await saveObjectUrl(blobUrl, fileName, {
+                                            quiet,
+                                        });
                                     } finally {
                                         revokeLater(blobUrl);
                                     }

@@ -216,7 +216,10 @@
         viewerIndex = next;
     }
 
-    async function download(item: RoomMediaItem): Promise<void> {
+    async function download(
+        item: RoomMediaItem,
+        quiet = false,
+    ): Promise<void> {
         try {
             const blobUrl =
                 item.encrypted && item.encryptedFile
@@ -226,7 +229,7 @@
                       )
                     : await fetchAttachmentBlob(mxcToHttp(item.url)!);
             try {
-                await saveObjectUrl(blobUrl, item.name);
+                await saveObjectUrl(blobUrl, item.name, { quiet });
             } finally {
                 revokeLater(blobUrl);
             }
@@ -482,7 +485,7 @@
             <div class="p-2 space-y-1">
                 {#each split.files as file (file.eventId)}
                     <button
-                        onclick={() => download(file)}
+                        onclick={(e) => download(file, e.shiftKey)}
                         class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
                     >
                         <p
